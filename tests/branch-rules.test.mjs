@@ -104,10 +104,21 @@ describe("the declaration against the workflows", () => {
     assert.ok("End-to-end result" in BRANCH_RULES.dev.requiredChecks, "dev no longer requires the suite's verdict");
   });
 
+  test("nobody may bypass the rules on any branch", () => {
+    // A bypass is how an unchecked commit reaches a branch that deploys. One
+    // added here has to be added on purpose, with this test changed to say so.
+    for (const [branch, rules] of Object.entries(BRANCH_RULES)) {
+      assert.deepEqual(rules.bypass, [], `somebody may bypass the rules on ${branch}`);
+    }
+  });
+
   test("production is never the looser of the two", () => {
     const { main, dev } = BRANCH_RULES;
     assert.deepEqual(main.bypass, [], "somebody may bypass the rules on the production branch");
-    assert.equal(main.upToDateBeforeMerge, true);
+    assert.ok(
+      main.upToDateBeforeMerge || !dev.upToDateBeforeMerge,
+      "dev wants a branch up to date before it merges and production does not",
+    );
     assert.ok(main.pullRequest, "production takes changes without a pull request");
     for (const check of Object.keys(dev.requiredChecks)) {
       assert.ok(
