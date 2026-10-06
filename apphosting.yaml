@@ -12,17 +12,17 @@ env:
     secret: naisi-web-api-key
     availability: [BUILD, RUNTIME]
   # Firebase Hosting custom domain serving the OAuth handler at
-  # /__/auth/handler/*. Serving from auth.naisi.uk (same eTLD+1 as naisi.uk)
+  # /__/auth/handler/*. Serving from login.naisi.uk (same eTLD+1 as naisi.uk)
   # keeps Firebase auth cookies first-party → Safari ITP doesn't block them →
   # popup sign-in works reliably.
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-    value: auth.naisi.uk
+    value: login.naisi.uk
     availability: [BUILD, RUNTIME]
   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
-    value: naisi-website
+    value: naisi-uk
     availability: [BUILD, RUNTIME]
   - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-    value: naisi-website.firebasestorage.app
+    value: naisi-uk.firebasestorage.app
     availability: [BUILD, RUNTIME]
   - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
     secret: naisi-web-messaging-sender-id
@@ -35,7 +35,7 @@ env:
   # Firebase project. Public by design (ships in the client bundle), no
   # Secret Manager indirection needed.
   - variable: NEXT_PUBLIC_GOOGLE_CLIENT_ID
-    value: 742980551273-h0p1c9kmff5tdoe32rm2d10ia2iht4k1.apps.googleusercontent.com
+    value: 378739991049-nosue9qo1hm6rcaksfhuq6st2hu1gcu1.apps.googleusercontent.com
     availability: [BUILD, RUNTIME]
   # HMAC secret used to sign RSVP self-cancel / change-request links in emails.
   # Rotating the secret invalidates every outstanding email link.

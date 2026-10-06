@@ -88,21 +88,21 @@ const KNOWN_KEYS = {
       "The dev project's Firebase web key, inlined into the client bundle as " +
       "NEXT_PUBLIC_FIREBASE_API_KEY and served from dev.naisi.uk.",
   },
-  "b7f75922-4988-492d-a4f2-e67db5bc56d5": {
-    project: "naisi-website",
-    purpose:
-      "The production Firebase web key, same role, served from naisi.uk.",
-  },
   "ea591e1a-5447-469e-946a-038ddca9264a": {
     project: "naisi-uk",
     purpose:
-      "The Firebase web key of this project, same role as the keys above. " +
-      "Listed so that the project is held to the same allowlist as " +
-      "every other project.",
+      "The production Firebase web key, same role, served from naisi.uk.",
+  },
+  "b7f75922-4988-492d-a4f2-e67db5bc56d5": {
+    project: "naisi-website",
+    purpose:
+      "The Firebase web key of the previous production project, which serves " +
+      "nothing now. Listed so that the project is held to the same allowlist " +
+      "as every other project for as long as it exists.",
   },
 };
 
-const PROJECTS = ["naisi-uk-dev", "naisi-website", "naisi-uk"];
+const PROJECTS = ["naisi-uk-dev", "naisi-uk", "naisi-website"];
 
 function parseArgs(argv) {
   let project = "naisi-uk-dev";
