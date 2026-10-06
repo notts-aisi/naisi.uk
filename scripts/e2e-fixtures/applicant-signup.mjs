@@ -64,6 +64,7 @@ import {
   deleteQuery,
   fixtureDoc,
   fixtureId,
+  fixturePassword,
   fixtureQuery,
   fixtureSubcollection,
   subscriptionId,
@@ -286,8 +287,8 @@ async function seed({ runId: signupRunId, suppress = true, options = {}, onState
      */
     loginEmail: `e2e-s${signupRunId}@e2e.invalid`,
     uniEmail: `e2e-s${signupRunId}@nottingham.ac.uk`,
-    /** Chosen on the magic-link landing page. Never logged. */
-    password: `E2eSignup!${signupRunId}`,
+    /** Typed on the magic-link landing page. Random, and kept out of the ledger. */
+    password: fixturePassword(),
     /**
      * The runner's answer to "would a send from this target reach a real
      * sender". FALSE means Mailpit catches it, which is the only mode this

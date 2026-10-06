@@ -21,6 +21,7 @@
  */
 import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
 import { loadEnv, runId } from "../lib/env.mjs";
 import { harnessEmail } from "../lib/admin.mjs";
 import {
@@ -218,7 +219,7 @@ describe("the stamp survives the real register sequence", () => {
 
     // 2. Set a password — what every email/password registrant does next.
     //    This revokes the cookie used above.
-    const chosen = `e2e-seq-${Date.now()}`;
+    const chosen = `e2e-seq-${randomBytes(12).toString("hex")}`;
     const setPw = await authedFetch(session.cookie, "/api/register/password-set", {
       method: "POST",
       headers: { "content-type": "application/json" },
