@@ -115,8 +115,8 @@ const GOOGLE_CREDENTIAL = "id_token=not-a-token";
  * held to the same expectation from its first day.
  */
 export const PROJECTS = {
-  "naisi-website": { serves: "production, naisi.uk" },
-  "naisi-uk": { serves: "a production project" },
+  "naisi-uk": { serves: "production, naisi.uk" },
+  "naisi-website": { serves: "nothing now: the previous production project" },
   "naisi-uk-dev": { serves: "staging, dev.naisi.uk" },
 };
 
