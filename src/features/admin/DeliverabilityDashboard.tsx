@@ -6,7 +6,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import DeliverabilityExports from "./DeliverabilityExports";
 
-type SendStatus = "sent" | "bounced" | "complained" | "suppressed";
+type SendStatus = "sent" | "bounced" | "complained" | "suppressed" | "held";
 
 type Send = {
   id: string;
@@ -67,6 +67,15 @@ function statusBadge(status: SendStatus, reason?: string) {
       return (
         <Badge tone="neutral" title={reason ? `Reason: ${reason}` : undefined}>
           Held: suppressed
+        </Badge>
+      );
+    // Neutral for the same reason. The address is fine: this copy of the site
+    // is not the live one and may not write to it. On the live site this
+    // status never appears.
+    case "held":
+      return (
+        <Badge tone="neutral" title={reason ? `Reason: ${reason}` : undefined}>
+          Held: not the live site
         </Badge>
       );
     default:

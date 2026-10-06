@@ -622,6 +622,42 @@ The per-device Enable control stays on the push card below
 hardware's controls. The card and the column read one state machine
 (`src/features/pwa/pushDevice.tsx`) so they cannot disagree.
 
+## Who a copy of the site may email
+
+The same code runs as the live site, as staging, on a laptop and inside the
+test harness, and all of them can reach the real sender. `sendEmail()` asks
+`src/lib/email/audience.ts` who this copy may write to, for every message,
+after the suppression list and before anything is rendered.
+
+| Where the code is running | Who receives |
+| --- | --- |
+| The live site: `EMAIL_AUDIENCE=everyone` AND the production project | Everyone |
+| The mail server is this machine (the harness's catcher) | Everything, because nothing can leave it |
+| `EMAIL_AUDIENCE` lists addresses | Those addresses, and the harness's reserved domain |
+| The setting is missing, empty or unreadable | Nobody, apart from the harness's reserved domain |
+
+Four things a maintainer has to keep:
+
+- **The setting is added on each backend itself, never in `apphosting.yaml`.**
+  Both backends read that file, so a value written there is a value staging
+  inherits. `tests/email-audience.test.mjs` fails if the file declares it.
+- **The live backend needs `EMAIL_AUDIENCE=everyone` before this code reaches
+  it.** Without the setting the live site holds its own mail. The Site status
+  page says so in red, and every held send logs an error line.
+- **`NODE_ENV` is never the test.** Staging builds in production mode.
+- **A held recipient is not a failure.** The send resolves, the caller carries
+  on exactly as it would on the live site, and an `emailSends` row at status
+  `held` records what would have gone. That is what lets a large send be
+  rehearsed on staging and counted afterwards. `SendResult.held` lists the
+  addresses for a caller that wants to say so.
+
+To see the answer without sending anything, open Site status or the
+Deliverability tab: both carry a panel that reads the same rule back.
+
+Not covered, on purpose: the sign-in provider's own verification and
+password-reset mail (sent by the provider to the address the person typed), and
+web push (it reaches only devices that subscribed on that copy of the site).
+
 ## Adding a sender
 
 1. **Register it** in `tests/notification-classification.test.mjs` with a class,

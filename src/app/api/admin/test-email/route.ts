@@ -27,7 +27,15 @@ export async function POST() {
       kind: "admin-test",
       actorUid: actor.uid,
     });
-    return NextResponse.json({ ok: true, sentTo: actor.email, messageId: result.messageId });
+    // `held` is true when this copy of the site may not write to the caller's
+    // address (see src/lib/email/audience.ts). The send did not fail, so this
+    // is still a 200, and the panel says what happened instead of "Sent".
+    return NextResponse.json({
+      ok: true,
+      sentTo: actor.email,
+      messageId: result.messageId,
+      held: result.held.length > 0,
+    });
   } catch (err) {
     console.error("[admin test-email]", err);
     return NextResponse.json(
