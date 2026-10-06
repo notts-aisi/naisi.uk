@@ -394,11 +394,9 @@ async function seed({ runId: fixtureRunId, suppress = true, onState } = {}) {
   // an index, so neither name is a prefix of the other.
   const names = ["one", "two"];
   for (let i = 0; i < names.length; i += 1) {
-    const password = `E2eAppoint!${fixtureRunId}${i}`;
     const account = await createFixtureUser({
       runId: fixtureRunId,
       index: i,
-      password,
       suppress,
     });
     if (account.suppressionId) state.suppressed.push(account.suppressionId);

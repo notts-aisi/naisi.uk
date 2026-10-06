@@ -448,11 +448,9 @@ async function seed({ runId: funnelRunId, suppress = true, options = {}, onState
   // account with no fixture to apply to is the harmless failure and a fixture
   // with no accounts is not.
   for (let i = 0; i < applicants; i += 1) {
-    const password = `E2eFunnel!${funnelRunId}${i}`;
     const account = await createFixtureUser({
       runId: funnelRunId,
       index: i,
-      password,
       suppress,
     });
     if (account.suppressionId) state.suppressed.push(account.suppressionId);

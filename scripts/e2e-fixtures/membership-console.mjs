@@ -340,11 +340,9 @@ async function seed({ runId: fixtureRunId, suppress = true, onState } = {}) {
 
   log(`Seeding fixture ${fixtureRunId} into ${target.projectId}.`);
 
-  const password = `E2eMembership!${fixtureRunId}0`;
   const account = await createFixtureUser({
     runId: fixtureRunId,
     index: 0,
-    password,
     suppress,
   });
   if (account.suppressionId) state.suppressed.push(account.suppressionId);

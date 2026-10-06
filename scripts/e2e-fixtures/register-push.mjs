@@ -496,7 +496,6 @@ async function seed({ runId: registerRunId, suppress = true, options = {}, onSta
     const account = await createFixtureUser({
       runId: registerRunId,
       index: i,
-      password: `E2eRegister!${registerRunId}${i}`,
       suppress,
     });
     if (account.suppressionId) state.suppressed.push(account.suppressionId);

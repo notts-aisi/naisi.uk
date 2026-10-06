@@ -44,6 +44,10 @@ yarn-error.log*
 # Deliberately NOT under .next/: next build clears that directory, which
 # deleted the fixture ledger out from under the spec in local mode.
 /.e2e-state/
+# The half of each state file that never leaves this machine: fixture account
+# passwords. Beside .e2e-state and never inside it, because CI uploads that
+# directory when a run fails (see PRIVATE_KEYS in scripts/e2e-fixtures/core.mjs).
+/.e2e-private/
 # Screenshots and page text a failed e2e step leaves behind (see ARTIFACTS_DIR).
 /.e2e-artifacts/
 
