@@ -368,6 +368,15 @@ every spec module offline to read its `SPEC`.
 spec, with failed-step screenshots in `.e2e-artifacts/`. Both directories are
 gitignored, and both are deliberately outside `.next/` (see below).
 
+**A ledger holds no credential.** A fixture account's password is random, made
+by `createFixtureUser` (or `fixturePassword()`), and `writeState` keeps it,
+with every other key in `PRIVATE_KEYS`, in `.e2e-private/<spec>.private.json`:
+a sibling of the state directory, gitignored, and never uploaded. `readState`
+puts the two halves back together, so a spec reads its state through
+`readState` and never by parsing the ledger file. A ledger carried to another
+machine has no private half, and still names every row teardown has to remove.
+`tests/e2e-ledger-credentials.test.mjs` holds each of those statements.
+
 **A spec that signs in as an admin needs an admin account it is given.** This
 harness can never create one, by design: the fence forbids writing any role
 above `pending`. So `E2E_ADMIN_EMAIL` and `E2E_ADMIN_PASSWORD` go in
@@ -468,8 +477,9 @@ and refuses to report success unless it comes back naming every step in
 `SPEC.steps`. When it does not, the run exits non-zero with the step it stopped
 at.
 
-Both scratch paths (`.e2e-state/`, holding one ledger and one marker per spec,
-and `.e2e-artifacts/`) sit at the repo root and are gitignored. They are
+The scratch paths (`.e2e-state/`, holding one ledger and one marker per spec,
+`.e2e-private/` beside it, and `.e2e-artifacts/`) sit at the repo root and are
+gitignored. They are
 deliberately **not** under `.next/`: `next build` clears that directory, so in
 `--local` mode the ledger was deleted by the build before the spec ever looked
 for it, and the run skipped its way to a green exit. `tests/funnel-harness-guards.test.mjs`
@@ -959,7 +969,8 @@ the membership roster, the appointments queue) that render whatever the
 project holds, not only the fixture's own rows. An artifact on a public
 repository can be downloaded by anybody, so the upload waits for
 `E2E_UPLOAD_SCREENSHOTS`, and keeps them for a day rather than a week. The
-ledgers upload whenever a run fails.
+ledgers upload whenever a run fails, which is why a ledger may hold fixture ids
+and harness addresses and nothing else (see "A ledger holds no credential").
 
 **A cancelled run is the one bad case.** Teardown runs in a `finally`, so a
 failed run still clears up, but a run killed part way leaves its fixture on the

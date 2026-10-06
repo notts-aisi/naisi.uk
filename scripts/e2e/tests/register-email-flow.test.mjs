@@ -30,6 +30,7 @@
  */
 import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
 import { loadEnv, isLoopbackOrigin, runId } from "../lib/env.mjs";
 import { adminAuth, deleteHarnessUser, harnessUserByEmail } from "../lib/admin.mjs";
 import { deleteEmailVerificationsFor, deleteRegistrationRow } from "../lib/firestore.mjs";
@@ -242,7 +243,7 @@ describe("/api/register email flow (Mailpit)", () => {
     assert.ok(uid, "Previous step did not resolve the account.");
 
     const cookie = await sessionCookieForUid(uid);
-    const chosen = `e2e-pw-${runId()}`;
+    const chosen = `e2e-pw-${randomBytes(12).toString("hex")}`;
     const set = await authedFetch(cookie, "/api/register/password-set", {
       method: "POST",
       headers: { "content-type": "application/json" },

@@ -44,7 +44,7 @@ export default function PublicFooter() {
         <span>
           Built at Nottingham ·{" "}
           <a
-            href="https://github.com/notts-aisi/naisi-website"
+            href="https://github.com/notts-aisi/naisi.uk"
             target="_blank"
             rel="noreferrer noopener"
           >

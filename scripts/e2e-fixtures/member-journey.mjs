@@ -517,7 +517,6 @@ async function seed({ runId: journeyRunId, suppress = true, onState } = {}) {
     const account = await createFixtureUser({
       runId: journeyRunId,
       index,
-      password: `E2eJourney!${journeyRunId}${index}`,
       suppress,
       legacyConsent,
     });

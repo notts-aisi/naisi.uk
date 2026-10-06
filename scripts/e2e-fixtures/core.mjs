@@ -50,8 +50,9 @@
  * run id: the state file under `.e2e-state/` is the record, and the run id
  * field on every document is the query key.
  */
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { randomBytes } from "node:crypto";
+import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { getFirestore } from "firebase-admin/firestore";
 import { adminApp, adminAuth, createHarnessUser } from "../e2e/lib/admin.mjs";
 import { createLedger, seedPendingUserDoc } from "../e2e/lib/firestore.mjs";
@@ -84,6 +85,27 @@ export const STATE_DIR = join(REPO_ROOT, ".e2e-state");
 export const ARTIFACTS_DIR = join(REPO_ROOT, ".e2e-artifacts");
 
 /**
+ * The keys a ledger never holds.
+ *
+ * A ledger is the part of a run that leaves the machine: CI uploads the state
+ * directory whenever a run fails, so that a person can tear a stranded fixture
+ * down, and an uploaded file can be read by whoever can read the repository.
+ * So a ledger carries what teardown needs to FIND a fixture (ids, addresses in
+ * the harness namespace) and nothing that would let a reader ACT as one.
+ *
+ *  - `password`: a fixture account's sign-in.
+ *  - `adminUid`, `throttleId`: the one account in a run that the harness did
+ *    not make, and a document id built from it.
+ *
+ * `writeState` lifts every value under one of these keys, at any depth, into
+ * a second file in `privateDir()`, which is beside the state directory and
+ * never inside it. `readState` puts them back. Nothing else may write either
+ * file, and a spec reads its state through `readState`, never by parsing the
+ * ledger itself: `tests/e2e-ledger-credentials.test.mjs` holds all of that.
+ */
+export const PRIVATE_KEYS = Object.freeze(["password", "adminUid", "throttleId"]);
+
+/**
  * Where THIS process reads and writes its ledgers.
  *
  * The runner hands every child an `E2E_STATE_DIR`, and every helper below
@@ -114,25 +136,94 @@ export function markerPath(name, dir = stateDir()) {
   return join(dir, `${name}.steps.json`);
 }
 
+/**
+ * Where the private half of every ledger lives: a sibling of the state
+ * directory, so that uploading the state directory cannot carry it along.
+ * Gitignored by name.
+ */
+export function privateDir(dir = stateDir()) {
+  return join(dirname(dir), ".e2e-private");
+}
+
+/** The private half of one spec's state. Absent when the state has none. */
+export function privatePath(name, dir = stateDir()) {
+  return join(privateDir(dir), `${name}.private.json`);
+}
+
+/**
+ * A copy of `value` without its private values. Each one lifted out is pushed
+ * onto `held` with the path it came from, which is all `restorePrivate` needs.
+ * A private key whose value is null stays where it is: there is nothing to
+ * keep back, and the ledger keeps the shape a reader expects.
+ */
+function withoutPrivate(value, trail, held) {
+  if (Array.isArray(value)) return value.map((item, i) => withoutPrivate(item, [...trail, i], held));
+  if (value === null || typeof value !== "object") return value;
+  const out = {};
+  for (const [key, inner] of Object.entries(value)) {
+    if (PRIVATE_KEYS.includes(key) && inner !== null && inner !== undefined) {
+      held.push({ at: [...trail, key], value: inner });
+      continue;
+    }
+    out[key] = withoutPrivate(inner, [...trail, key], held);
+  }
+  return out;
+}
+
+/** Puts each held value back where `withoutPrivate` found it. */
+function restorePrivate(state, held) {
+  for (const { at, value } of held) {
+    let node = state;
+    for (const step of at.slice(0, -1)) node = node?.[step];
+    if (node !== null && typeof node === "object") node[at.at(-1)] = value;
+  }
+  return state;
+}
+
 export function writeState(name, state, dir = stateDir()) {
+  const held = [];
+  const ledger = withoutPrivate(state, [], held);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(statePath(name, dir), `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  writeFileSync(statePath(name, dir), `${JSON.stringify(ledger, null, 2)}\n`, "utf8");
+  if (held.length === 0) {
+    rmSync(privatePath(name, dir), { force: true });
+    return;
+  }
+  mkdirSync(privateDir(dir), { recursive: true, mode: 0o700 });
+  writeFileSync(privatePath(name, dir), `${JSON.stringify(held, null, 2)}\n`, "utf8");
+  // `mode` on a write applies only to a file it creates, so say it outright.
+  chmodSync(privatePath(name, dir), 0o600);
 }
 
 export function readState(name, dir = stateDir()) {
+  let state;
   try {
-    return JSON.parse(readFileSync(statePath(name, dir), "utf8"));
+    state = JSON.parse(readFileSync(statePath(name, dir), "utf8"));
   } catch {
     return null;
   }
+  try {
+    restorePrivate(state, JSON.parse(readFileSync(privatePath(name, dir), "utf8")));
+  } catch {
+    // No private half. That is every state with nothing to keep back, and
+    // also a ledger carried to another machine, which still names every row
+    // teardown has to remove.
+  }
+  return state;
 }
 
 export function clearState(name, dir = stateDir()) {
-  try {
-    rmSync(statePath(name, dir));
-  } catch {
-    /* already gone */
-  }
+  rmSync(statePath(name, dir), { force: true });
+  rmSync(privatePath(name, dir), { force: true });
+}
+
+/**
+ * The password of one fixture account. Random, made here, and never built
+ * from a run id: the runner prints run ids, and a password a reader of the
+ * log could work out is not one.
+ */
+export function fixturePassword() {
+  return `E2e!${randomBytes(18).toString("base64url")}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -454,10 +545,12 @@ export function subscriptionId(email, channel) {
 export async function createFixtureUser({
   runId: fixtureRunId,
   index,
-  password,
   suppress = true,
   legacyConsent = false,
 }) {
+  // Chosen here and not by the caller, so that no fixture can build one out
+  // of something the run prints.
+  const password = fixturePassword();
   // The auth harness's ledger is in-memory and this process may not be the one
   // that tears down, so the ledger is not the record: teardown deletes each
   // document by address, under the namespace check on the account it belongs

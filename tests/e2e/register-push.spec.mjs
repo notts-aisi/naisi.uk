@@ -64,6 +64,7 @@ import {
   fixtureQuery,
   markerPath,
   statePath,
+  readState,
   stateDir,
 } from "../../scripts/e2e-fixtures/core.mjs";
 import {
@@ -98,12 +99,9 @@ let skipReasonFor = () => null;
  */
 const DEPLOYED_TARGET_SKIP = RECAPTCHA_SKIP_REASON;
 
+/** Through `readState`, never the ledger file itself: the ledger holds no credential. */
 function loadState() {
-  try {
-    return JSON.parse(readFileSync(STATE_PATH, "utf8"));
-  } catch {
-    return null;
-  }
+  return readState(SPEC.name, RUN_STATE_DIR);
 }
 
 /**
