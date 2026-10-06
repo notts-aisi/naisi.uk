@@ -1,0 +1,255 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+/* Multi-option boxes (checklists) get more room between the heading, the
+   options, and the trailing free-text / "none" rows. */
+.choiceField {
+  gap: var(--space-3);
+}
+
+.divider {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  margin: 0;
+  width: 100%;
+}
+
+.label,
+.legend {
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  font-weight: 500;
+  padding: 0;
+}
+
+.required {
+  color: var(--color-danger);
+}
+
+.input {
+  padding: 0.55rem 0.7rem;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--text-md, 1rem);
+  width: 100%;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.input:disabled {
+  cursor: not-allowed;
+}
+
+/* Long text now renders through CountedTextarea, which brings Input.module.css
+   `.control` + `.textarea` with it. Those are single-class selectors, and which
+   of two CSS modules wins a specificity tie depends on bundle order, so the
+   long-text look would be decided by something nobody controls. Descendant
+   selectors (0,2,0) pin it here instead and keep the frozen events RSVP
+   baseline exactly as it was. See docs/mobile-baseline-events.md.
+
+   Every property `.control` sets has to be answered here, including the ones
+   this box never declared. A property left out is not "unchanged", it is
+   inherited from a module this box was never styled by: line-height, the
+   focus transition and the placeholder colour all arrived that way, and
+   line-height in particular changes how many lines of a long answer are
+   visible on a phone. */
+.wrap .textarea {
+  padding: 0.55rem 0.7rem;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--text-md, 1rem);
+  width: 100%;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 5rem;
+  /* The box never set line-height, so it took the browser default that comes
+     with a textarea. `--leading-normal` off `.control` is looser and would
+     retune the height of every answer on the frozen flow. */
+  line-height: normal;
+  /* And it never animated its border, so its focus was instant and matched
+     the short-text `.input` sitting directly above it in the same form. */
+  transition: none;
+}
+
+/* Same reasoning: `.control::placeholder` paints `--color-text-subtle`, which
+   this box never had, and which its `.input` sibling still does not have.
+   `revert` drops back to the browser's own placeholder colour, the one the
+   frozen baseline was verified against. */
+.wrap .textarea::placeholder {
+  color: revert;
+}
+
+.wrap .textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: none;
+}
+
+.checkGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--space-2);
+}
+
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.checkRow:hover:not(:has(input:disabled)) {
+  border-color: var(--color-border-strong);
+}
+
+.checkRow:has(input:checked) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.checkRow:has(input:disabled) {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.checkRow input,
+.noneRow input {
+  accent-color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.radioChoice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.noneRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-md, 1rem);
+  font-weight: 500;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.noneRow:hover:not(:has(input:disabled)) {
+  border-color: var(--color-border-strong);
+}
+
+.noneRow:has(input:checked) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.noneRow:has(input:disabled) {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.noneRow input {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.radioRow {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.subBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.subBlock:has(input:disabled) {
+  opacity: 0.5;
+}
+
+.subLabel {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.subHint {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.accommodationNote {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--color-bg-elevated);
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--radius-md);
+}
+
+.helper {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Author-written guidance for one question, between its label and its input.
+   Sits above the control so it is read before the answer is typed rather than
+   after. */
+.help {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* One question's validation message. Rendered with role="alert" and pointed at
+   by the control's aria-describedby, so it is announced rather than only seen. */
+.error {
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+  line-height: 1.5;
+  margin: 0;
+}

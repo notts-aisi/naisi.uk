@@ -1,0 +1,660 @@
+/**
+ * The shared TypeScript loader: `tests/lib/tsLoader.mjs`.
+ *
+ * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
+ *
+ * ## What is worth executing here
+ *
+ * The loader exists because fifty hand-copied versions of it could not read a
+ * `.tsx`, and the failure that produced was the worst shape a test failure
+ * comes in: the FIRST email template a suite's graph reached killed the whole
+ * FILE with a bare `SyntaxError` at import time, before one test ran. It looked
+ * like a broken suite rather than a missing compiler option, and the way out
+ * everybody found was to stub the template. That is a stub whose only reason to
+ * exist is that the tool cannot read the file, which means the template is
+ * never executed by anything and a change to it is never noticed.
+ *
+ * So the class is closed here rather than asserted in prose:
+ *
+ *  1. a real `.tsx` template compiles and RENDERS through the loader;
+ *  2. the same template renders when it is reached the way production reaches
+ *     it, through a `.ts` server helper that imports it. That is the exact
+ *     failure that bit twice while the worksheet routes were being built;
+ *  3. the two resolution rules that make (1) and (2) work are pinned on a
+ *     fixture pair of their own: a `.ts` importing a relative `.tsx` with no
+ *     extension finds it, and a local import that is NOT TypeScript (a
+ *     stylesheet, which every client module's graph reaches within a step or
+ *     two) is refused by name instead of being fed to the compiler as if it
+ *     were code;
+ *  4. a stub still wins over a real module, because every suite's fakes (the
+ *     transport, the Admin SDK, the session) depend on that and a loader that
+ *     resolved eagerly would put mail on the wire;
+ *  5. no file that imports the shared loader also carries a copy of the old
+ *     one, AND no file outside the frozen list below carries a copy at all.
+ *     Two loaders in one file is the confusion this change removes; a
+ *     forty-fourth copy is the class itself coming back, in the one shape a
+ *     check that only looks at adopters would never see. A tree walk is what
+ *     keeps both out once nobody remembers why.
+ */
+import { test, describe } from "node:test";
+import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+import { render } from "@react-email/render";
+import { createLoader } from "./lib/tsLoader.mjs";
+
+const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
+
+/** Nothing in this file reaches a project, a bucket or an inbox. */
+const DOORS = [
+  ["server-only", "export {};"],
+  [
+    "@/lib/email/send",
+    "export async function sendEmail(args) {\n  (globalThis.__sent ||= []).push(args);\n}",
+  ],
+  ["@/lib/push/taskNotifications", "export async function mirrorTaskEmailToPush() {}"],
+  ["@/lib/firestore/taskEmailConfig", "export async function isTaskEmailEnabled() {\n  return true;\n}"],
+  [
+    "@/lib/email/taskMembership",
+    "export async function resolveTaskUsers(db, uids) {\n" +
+      "  return new Map(uids.map((uid) => [uid, { email: `${uid}@example.com`, displayName: 'Ada' }]));\n" +
+      "}",
+  ],
+];
+
+const TEMPLATE_PROPS = {
+  recipientName: "Ada",
+  worksheetTitle: "Week 3: scaling laws",
+  reviewerName: "Sam",
+  link: "https://naisi.uk/worksheets/respond/circ1",
+};
+
+// ---------------------------------------------------------------------------
+// The loader itself
+// ---------------------------------------------------------------------------
+
+describe("the shared loader reads JSX", () => {
+  test("a real `.tsx` template compiles and renders to HTML", async () => {
+    const { loadTs } = createLoader({ stubs: DOORS });
+    const { default: WorksheetFeedbackEmail } = await loadTs(
+      "emails/WorksheetFeedbackEmail.tsx",
+    );
+
+    const html = await render(WorksheetFeedbackEmail(TEMPLATE_PROPS));
+
+    assert.match(
+      html,
+      /Read the feedback/,
+      "the button that takes somebody to the respond page is the whole point of this message",
+    );
+    assert.match(html, /Week 3: scaling laws/);
+    assert.match(
+      html,
+      /<html/i,
+      "the chrome came from the real `EmailChrome.tsx`, reached as a relative `.tsx` import",
+    );
+    assert.doesNotMatch(
+      html,
+      /Sam has written/,
+      "the feedback words themselves stay on the respond page; the email only says there are some",
+    );
+  });
+
+  test("the same template renders when a `.ts` server helper reaches it", async () => {
+    // The failure this loader was built for, executed. `notify.ts` is a plain
+    // `.ts` module that imports four `.tsx` templates by alias, and each of
+    // those imports `./EmailChrome` relatively: a `.ts` entry, an aliased
+    // `.tsx`, and a relative `.tsx` beneath it. Every hand-copied loader died
+    // on the first of those with a `SyntaxError`, and the four suites that hit
+    // it stubbed the templates to get moving, which left the rendering of a
+    // real message untested by anything.
+    //
+    // (The `.ts` importing a relative `.tsx` is the same shape, pinned on its
+    // own against a fixture in the test below: `src` has no server-side
+    // example to load here, because the seven `.ts` files that import a
+    // relative `.tsx` are all client modules whose graphs reach CSS modules.)
+    const { loadTs } = createLoader({ stubs: DOORS });
+    const { notifyWorksheetEvent } = await loadTs("lib/worksheets/notify.ts");
+
+    globalThis.__sent = [];
+    const result = await notifyWorksheetEvent(
+      {},
+      {
+        circulation: {
+          title: "Week 3: scaling laws",
+          notifications: { feedbackReturned: { email: true, push: false } },
+        },
+        circulationId: "circ1",
+        event: "feedbackReturned",
+        recipientUids: ["member1"],
+        actor: { uid: "staff1", displayName: "Sam" },
+      },
+    );
+
+    assert.deepEqual(result, { sent: 1, failed: 0, optedOut: 0 });
+    assert.equal(globalThis.__sent.length, 1);
+
+    const html = await render(globalThis.__sent[0].react);
+    assert.match(
+      html,
+      /Read the feedback/,
+      "the element the send path handed the transport is the real template, rendered",
+    );
+    assert.equal(globalThis.__sent[0].to, "member1@example.com");
+  });
+
+  test("a stub still wins over a real module", async () => {
+    // The specifier is matched as WRITTEN, before anything is resolved, so a
+    // relative key stubs that import from whichever file wrote it. Every suite
+    // depends on this for its doors: `@/lib/email/send` resolves to a real
+    // module that would reach a transport, and a loader that preferred the file
+    // on disk would put mail on the wire from `npm test`.
+    const { loadTs } = createLoader({
+      stubs: [
+        ...DOORS,
+        [
+          "./EmailChrome",
+          "export default function EmailChrome(props) {\n  return props.children;\n}\n" +
+            "export const emailLinkStyle = {};",
+        ],
+      ],
+    });
+    const { default: WorksheetFeedbackEmail } = await loadTs(
+      "emails/WorksheetFeedbackEmail.tsx",
+    );
+
+    const html = await render(WorksheetFeedbackEmail(TEMPLATE_PROPS));
+
+    assert.match(html, /Read the feedback/, "the template itself is still the real one");
+    assert.doesNotMatch(
+      html,
+      /<html/i,
+      "the chrome came from the stub, so the real `EmailChrome.tsx` was never loaded",
+    );
+  });
+
+  test("a `.ts` module reaches a relative `.tsx` neighbour", async () => {
+    // The literal case, on a two-file fixture: `entry.ts` imports `./Panel`
+    // with no extension, so the loader tries `.ts`, misses, and has to accept
+    // the `.tsx`. Both halves matter and both used to fail: without the
+    // candidate the import is unresolvable, and without the JSX option the
+    // neighbour dies as a `SyntaxError`.
+    const { loadTs } = createLoader();
+    const { panelFor } = await loadTs(join(TESTS_DIR, "fixtures", "ts-loader", "entry.ts"));
+
+    const element = panelFor("Ada");
+    assert.equal(
+      element.type,
+      "span",
+      "the `.tsx` compiled to an element rather than being read as a type assertion",
+    );
+    assert.equal([element.props.children].flat().join(""), "Hello Ada");
+  });
+
+  test("a local import that is not TypeScript is refused by name", async () => {
+    // A stylesheet is ON DISK, so a loader that accepted the bare path would
+    // hand `transpileModule` some CSS and the reader would get a parse error
+    // from inside a `data:` URL with nothing naming the import. Refusing it
+    // here is what turns that into one readable line.
+    const { loadTs } = createLoader();
+    await assert.rejects(
+      () => loadTs(join(TESTS_DIR, "fixtures", "ts-loader", "notTypeScript.ts")),
+      /"\.\/panel\.module\.css"[\s\S]*is not TypeScript/,
+    );
+  });
+
+  test("a module that is not there is named, rather than failing as something else", async () => {
+    const { loadTs } = createLoader({ stubs: DOORS });
+    await assert.rejects(
+      () => loadTs("lib/worksheets/thereIsNoSuchModule.ts"),
+      /no module at src\/lib\/worksheets\/thereIsNoSuchModule\.ts/,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The guard: one loader per file, and the register of who uses this one
+// ---------------------------------------------------------------------------
+
+/**
+ * Every suite that imports the shared loader, and why.
+ *
+ * The seven below are the files this change migrated. Six of them have a `.tsx`
+ * in their module graph and had already paid for the missing JSX option, either
+ * with template stubs standing in for code nothing executed or with a door
+ * stubbed a step earlier than the suite wanted. Those stubs are gone; the doors
+ * each suite still fakes (the transport, the Admin SDK handle, the session, the
+ * impersonation guard, `firebase-admin` sentinels) stayed, because those are
+ * about reaching the outside world rather than about reading a file. The
+ * seventh, `worksheet-aggregate`, is the third suite over a tree whose other
+ * routes reach the templates, and it moved with its siblings.
+ *
+ * The list is checked BOTH WAYS: an entry naming a file that no longer imports
+ * the loader fails, and a suite importing the loader with no entry fails. A
+ * list that can only grow is a list nobody trusts, and the reason column is
+ * what makes the next person's decision to adopt it legible.
+ *
+ * The forty-three suites that still carry their own copy are not required to
+ * migrate. That they pass at all is the proof their graphs stop short of a
+ * `.tsx`, so a wholesale rewrite would be a large diff with no failure behind
+ * it. They move when they next need to change, and until then they are held
+ * still by `LEGACY_LOADERS` below.
+ */
+const USERS = new Map([
+  [
+    "authority-at-use.test.mjs",
+    "executes the real bar registry from src/lib/firebase/eligibility.ts against every persona, " +
+      "plus `isEligibleAdmissionsReviewer` and `canCirculateWorksheet` from the users module and " +
+      "the two admissions access modules, because the whole point is that the bar a gate applies " +
+      "is the one its appointment applied",
+  ],
+  [
+    "deadlines-enforced.test.mjs",
+    "executes the real release boundary from src/lib/admissions/stageRelease.ts, the draft " +
+      "save and the applicant projection from applyRoutes.ts, and the later-stage submit " +
+      "route itself either side of a stage's own deadline, because a deadline is enforced " +
+      "by the write it bounds, and only the shipping route can show that",
+  ],
+  [
+    "send-recipient-scope.test.mjs",
+    "executes src/lib/tasks/recipientScope.ts and the three task send routes that use it, " +
+      "because what matters is who a real run of the handler addresses and not which " +
+      "line it contains",
+  ],
+  [
+    "api-addressable-ids.test.mjs",
+    "runs the real `isAddressableId` and `hasEncodedPathSeparator` from src/lib/addressableId.ts, " +
+      "the chokepoint the proxy applies to every /api path",
+  ],
+  [
+    "ts-loader.test.mjs",
+    "the loader's own suite: it proves the JSX class is closed and walks the tree below",
+  ],
+  [
+    "worksheet-routes.test.mjs",
+    "the circulation routes reach `notify.ts` and the four `.tsx` templates behind it; all four " +
+      "were stubbed, two of them for no reason but the missing JSX option, and the messages this " +
+      "file sends are now asserted as rendered HTML",
+  ],
+  [
+    "worksheet-review-routes.test.mjs",
+    "the other half of the same tree, through the same `notify.ts` and the same four templates; " +
+      "the no-feedback-in-the-email promise is now checked against the rendered message",
+  ],
+  [
+    "worksheet-destroy.test.mjs",
+    "the destroy and delete routes over the same worksheet tree, loading the cascade engine and " +
+      "the shared audit module for real; the routes it loads import `access.ts` beside every " +
+      "sibling that reaches `notify.ts` and its four templates",
+  ],
+  [
+    "worksheet-aggregate.test.mjs",
+    "the third suite over the same tree, sharing the other two's fake store; nothing it loads " +
+      "reaches a `.tsx` yet, and every route beside the three it loads imports `notify.ts`",
+  ],
+  [
+    "worksheet-due-reminders.test.mjs",
+    "it loads `registry.ts` for `policyFor`, and the registry imports every job by value, so every " +
+      "job's send path is in its graph; its comments named the missing JSX option as a reason to " +
+      "stub two of those doors, and now only the transport is",
+  ],
+  [
+    "task-email-routes.test.mjs",
+    "the five task email routes, executed: each one imports one of the four task `.tsx` " +
+      "templates by alias and every one of those imports `./EmailChrome` relatively, which is " +
+      "the two-level JSX graph a hand-copied loader dies on",
+  ],
+  [
+    "event-location-disclosure.test.mjs",
+    "the RSVP, approve, cancel, broadcast and update routes executed with `sendRsvpEmail` and " +
+      "the two event `.tsx` templates loaded for real, because what it asserts is the rendered " +
+      "HTML a recipient sees and not the line a route passed",
+  ],
+  [
+    "events-ics.test.mjs",
+    "it executes the calendar builders in `src/lib/events/ics.ts` for real: the file leaves the " +
+      "site and is read by software nobody here controls, so a copy of the URL arithmetic would " +
+      "prove nothing about what a phone receives; the module has no imports, so nothing is stubbed",
+  ],
+  [
+    "event-rsvp-identity.test.mjs",
+    "the RSVP route executed as a guest, a member, a pending and a rejected account; its graph " +
+      "reaches `sendRsvpEmail` by alias, stubbed here because the rendering is the sibling " +
+      "suite's subject, and the shared loader is the rule for a new suite either way",
+  ],
+  [
+    "scheduler-markers.test.mjs",
+    "same shape: `registry.ts` is loaded for the caps and windows and drags every job's graph in " +
+      "with it, and the stub comments said so in as many words",
+  ],
+  [
+    "admissions-reminders.test.mjs",
+    "same again, plus the admissions job it actually runs; un-stubbing any one of those doors to " +
+      "assert on what a job sends used to fail the file with a SyntaxError instead",
+  ],
+  [
+    "admissions-stage-release.test.mjs",
+    "it loads `admissionEmails.ts` FOR REAL for the token contract, so all six admissions " +
+      "templates are compiled here; they were the eight `return null` stubs this change deleted",
+  ],
+  [
+    "email-suppression-chokepoint.test.mjs",
+    "it executes `send.ts` in-process to prove a suppressed recipient never reaches the " +
+      "transport and is logged as held; the transport, the renderer and the Admin SDK door are " +
+      "its only stubs, so any template a caller renders compiles for real",
+  ],
+  [
+    "reminder-slots.test.mjs",
+    "the shared reminder-slot model and its resolver: `schedule.ts` reaches `schedulerMarkers.ts` " +
+      "and the suite also loads the admissions adapter to prove the two features resolve through " +
+      "one piece of arithmetic, so it is a multi-module graph rather than one leaf file",
+  ],
+  [
+    "account-deletion-worksheets.test.mjs",
+    "it executes the whole account cascade to prove what that cascade KEEPS, so its graph is " +
+      "`accountDeletion.ts` plus every collection helper it imports, `memberRecords.ts` among " +
+      "them; the Admin SDK is its only stub, because a retention proved against a copy of the " +
+      "sweep would say nothing about the sweep that ships",
+  ],
+  [
+    "notice-lane.test.mjs",
+    "the notice lane's marker is a `.tsx` component that `sendNotice` builds and a template " +
+      "renders as a slot, so the suite's graph reaches three email templates and the real " +
+      "`@react-email/render`: what the recipient actually sees is the property under test, and a " +
+      "loader that could not read JSX would have to stub away the very thing being asserted",
+  ],
+  [
+    "event-announcements-job.test.mjs",
+    "the queued announcement job, executed: its graph is the audience resolver, the real " +
+      "`EventAnnouncementEmail` behind it, the marker layer and `registry.ts`, which drags every " +
+      "other job in with it; the two transports and the junction read are its doors, so the " +
+      "audience arithmetic under test is the shipping arithmetic",
+  ],
+  [
+    "newsletter-push.test.mjs",
+    "the newsletter send route is the module under test and it imports `NewsletterEmail`, a " +
+      "`.tsx` that imports the rest of the template tree, so the route cannot be executed at " +
+      "all by a loader that cannot read JSX; the graph behind it reaches the real push " +
+      "pipeline and the real preference read, which are what the suite measures",
+  ],
+  [
+    "member-records.test.mjs",
+    "`memberRecords.ts` derives an entry from the round, application and review types, so its " +
+      "graph is four admissions modules deep; the Admin SDK is its only stub, because the " +
+      "arithmetic under test has to be the shipping arithmetic and not a copy of it",
+  ],
+  [
+    "admissions-destroy.test.mjs",
+    "it runs the round destroy end to end, so its graph is the cascade, the member-record sweep, " +
+      "`memberRecords.ts`, the audit module and three route handlers at once; the promise under " +
+      "test is an ORDER of writes across those modules, which only the shipping modules can hold",
+  ],
+  [
+    "subscriptions-consent.test.mjs",
+    "it executes `subscriptions.ts` (the re-subscribe gate and the confirm flow) and the public " +
+      "subscribe route for the anonymous-response contract; the route imports the two subscription " +
+      "email templates, so a loader that could not read JSX would fail the file before a test ran",
+  ],
+  [
+    "uni-email-ownership.test.mjs",
+    "it executes `confirmUniEmailVerification.ts` against a fake Firestore to prove the confirming " +
+      "caller must be the token's own account; the helper reaches `signedTokens` and the ownership " +
+      "helper, both stubbed, and the shared loader is what compiles the TypeScript in-process",
+  ],
+  [
+    "server-date-formatting.test.mjs",
+    "it executes `siteTime.ts` and `formatEventWhen` under a process zone that is not London, " +
+      "because the promise is what the shipping formatter prints on a UTC container and a copy " +
+      "of the formatter would prove nothing; nothing is stubbed, the graph is two pure modules",
+  ],
+  [
+    "source-numbering.test.mjs",
+    "it executes the real minting, reordering and validation from " +
+      "src/lib/firestore/sourceSheets.ts, because a source number is printed on paper and a " +
+      "copy of the counter in the test would prove nothing about the one that ships; the graph " +
+      "reaches courses.ts for the shared link validator, so nothing is stubbed",
+  ],
+  [
+    "links-page-content.test.mjs",
+    "it executes the /links fetcher, because the promise is that the page most printed codes land on " +
+      "cannot be emptied or have a hostile address put on it by whatever is stored, and only running " +
+      "the shipping fetcher over missing, damaged and hostile documents shows that; `server-only` and " +
+      "the Admin SDK handle are stubbed so the document comes from the test, and nothing else is",
+  ],
+  [
+    "link-stats.test.mjs",
+    "it executes the dashboard's arithmetic, because the ways its numbers could be wrong are all small " +
+      "(a person counted once per channel, a day lost to a clock change, a gap closed up in a chart) " +
+      "and only running `linkStats.ts` on rows shaped like the real ones shows any of them; nothing is stubbed",
+  ],
+  [
+    "tracked-links.test.mjs",
+    "it executes the short-link route, because the promise is that every printed code answers with " +
+      "the exact status and Location production sent before the route existed, and only the shipping " +
+      "route can show that; `server-only` and the Admin SDK handle are stubbed so the read comes from a " +
+      "fake database the test controls, including one that refuses to answer, and nothing else is",
+  ],
+  [
+    "printed-code-landing-pages.test.mjs",
+    "it reads `printedLinks.ts` for the destinations the printed codes really have, so a code pointed " +
+      "at a new kind of page is checked against the landing pages without anybody copying the list " +
+      "into the test; nothing is stubbed",
+  ],
+  [
+    "event-no-signup.test.mjs",
+    "it executes `normalizeEvent`, because the promise that an event made before the switch existed " +
+      "still takes sign-ups is a promise about what the shipping normaliser does with a missing " +
+      "field and with values that are nearly true; nothing is stubbed",
+  ],
+  [
+    "signup-schedule.test.mjs",
+    "it executes the comparison behind an RSVP email's changed-since-you-signed-up block, because the " +
+      "bug was two formatted lines differing when only the formatter had changed, and that can only be " +
+      "shown by running the shipping comparison on a label the old formatter wrote; nothing is stubbed",
+  ],
+  [
+    "scan-counting.test.mjs",
+    "it executes the scan counter, its route and the beacon's decision, because what a scan writes is " +
+      "a privacy promise and only the shipping code can show which fields reach the database; " +
+      "`server-only`, `next/server`, the Admin SDK handle and the `FieldValue.increment` sentinel are " +
+      "stubbed so the write lands in a fake database the test can read back, and nothing else is",
+  ],
+  [
+    "campaign-attribution.test.mjs",
+    "it executes `attribution.ts`, the pure function that turns a visitor-controlled query string " +
+      "into a subscription's `source`, because the promise is about what the shipping code lets " +
+      "through and a copy of its regular expression would prove nothing; nothing is stubbed",
+  ],
+  [
+    "registration-status.test.mjs",
+    "it executes the signup tracker end to end: the status rule, the three write helpers, and the " +
+      "list, summary and profile-complete routes against one small fake database, because the claim " +
+      "is about what an admin is SHOWN for a row whose stored status is stale, and that is decided " +
+      "across five modules. `server-only`, `next/server`, the Admin SDK handle, the session and the " +
+      "impersonation guard are stubbed; `firebase-admin/firestore` is the real one",
+  ],
+  [
+    "html-neuter-reader.test.mjs",
+    "it executes `neuterRichTextHtml` over several thousand generated documents and times it on " +
+      "two hundred thousand characters, because the claim is about what the shipping reader writes " +
+      "and how long it takes, and a copy of it would prove neither; nothing is stubbed",
+  ],
+  [
+    "input-pattern-bounds.test.mjs",
+    "it runs the `/api/register` handler up to its first gate with an oversized, a malformed and a " +
+      "non-string address, because the order of the cap and the pattern is only real when the " +
+      "handler is executed. Every door past the validation (the Admin SDK, the mailer, the captcha, " +
+      "the rate limiter, the tracker writes) is stubbed, and the test asserts none of them is reached",
+  ],
+  [
+    "slug-id.test.mjs",
+    "it executes `slugId`, with the platform's random source replaced, because where the suffix " +
+      "comes from and what happens to a byte that would bias it are both about the shipping code; " +
+      "nothing is stubbed",
+  ],
+]);
+
+/**
+ * The forty-three suites that still carry a hand-copied loader, frozen.
+ *
+ * One reason covers the list, because it is one decision: each of these works
+ * today, each one's module graph stops short of a `.tsx`, and rewriting them
+ * all would be a large diff with no failure behind it. They are here so the
+ * check below can tell an OLD copy from a NEW one. That distinction is the
+ * whole point: a check that only asks its question of files importing the
+ * shared loader would pass a forty-fourth copy pasted into a new suite, which
+ * is exactly how this class arrived twice already. The next person to write a
+ * suite that reaches an email template would meet the same bare `SyntaxError`
+ * and nothing would tell them why.
+ *
+ * Checked both ways. A file missing from the list fails (import the shared
+ * loader instead of pasting a copy), and an entry whose file no longer has a
+ * copy fails (migrate it, then delete its line here, so the list can only
+ * shrink). Deleting the last entry deletes the check.
+ */
+const LEGACY_LOADERS = [
+  "account-deletion-admission-roles.test.mjs",
+  "account-deletion-attendance.test.mjs",
+  "account-deletion-memberships.test.mjs",
+  "admissions-apply-flow.test.mjs",
+  "admissions-appointment-decide.test.mjs",
+  "admissions-appointment-round.test.mjs",
+  "admissions-predicates.test.mjs",
+  "admissions-round-console.test.mjs",
+  "admissions-stage-ids.test.mjs",
+  "admissions-status-hub.test.mjs",
+  "course-cohort-audience.test.mjs",
+  "course-deletion.test.mjs",
+  "course-enrol.test.mjs",
+  "course-group-resolve.test.mjs",
+  "course-nudge.test.mjs",
+  "course-offer.test.mjs",
+  "course-pages.test.mjs",
+  "course-programme-page.test.mjs",
+  "course-schedule-changes.test.mjs",
+  "course-sessions.test.mjs",
+  "course-streams.test.mjs",
+  "course-task-mirror.test.mjs",
+  "course-templates.test.mjs",
+  "course-window.test.mjs",
+  "data-exports.test.mjs",
+  "form-question-limits.test.mjs",
+  "impersonation-guard.test.mjs",
+  "member-conduct-flag.test.mjs",
+  "membership-grant-route.test.mjs",
+  "membership-import-routes.test.mjs",
+  "membership-import.test.mjs",
+  "membership.test.mjs",
+  "privacy-policy.test.mjs",
+  "push-preferences.test.mjs",
+  "recaptcha-bypass.test.mjs",
+  "scheduler.test.mjs",
+  "task-artefact.test.mjs",
+  "unmarked-registers.test.mjs",
+  "week-plan.test.mjs",
+  "worksheet-editor-helpers.test.mjs",
+  "worksheet-respond-helpers.test.mjs",
+  "worksheets-circulation-view.test.mjs",
+  "worksheets-model.test.mjs",
+];
+
+/**
+ * A CALL to the compiler, in either shape a copy is written in: qualified on
+ * the compiler object, or destructured out of it and called bare. It matches a
+ * call rather than the name, so the prose in this file, which names the
+ * function repeatedly and never follows it with an opening bracket, is not
+ * itself read as a loader.
+ */
+const LOCAL_LOADER = /\btranspileModule\s*\(/;
+
+/**
+ * Every `*.test.mjs` under `tests/`, at any depth. The recursion is not
+ * decoration: this change created `tests/lib/`, and a suite parked in a
+ * subdirectory is exactly the one a top-level-only walk would stop seeing.
+ */
+function testFiles() {
+  return readdirSync(TESTS_DIR, { recursive: true })
+    .map((entry) => entry.split(sep).join("/"))
+    .filter((name) => name.endsWith(".test.mjs"))
+    .sort();
+}
+
+function readTest(name) {
+  return readFileSync(join(TESTS_DIR, name), "utf8");
+}
+
+const importsSharedLoader = (source) => source.includes("lib/tsLoader.mjs");
+
+describe("one loader per file", () => {
+  test("no file imports the shared loader AND defines its own", () => {
+    const offenders = testFiles().filter((name) => {
+      const source = readTest(name);
+      return importsSharedLoader(source) && LOCAL_LOADER.test(source);
+    });
+
+    assert.deepEqual(
+      offenders,
+      [],
+      "these files have two loaders in them. Delete the local `transpileModule` dance and " +
+        "move its `STUBS` into `createLoader({ stubs })`: a file with both will quietly " +
+        "load half its graph through a loader that cannot read JSX.",
+    );
+  });
+
+  test("no suite outside the frozen list carries a hand-copied loader", () => {
+    const copies = testFiles().filter((name) => LOCAL_LOADER.test(readTest(name)));
+
+    assert.deepEqual(
+      copies,
+      [...LEGACY_LOADERS].sort(),
+      "a suite is compiling TypeScript with a loader of its own. If it is NEW, delete the " +
+        "copy and `import { createLoader } from \"./lib/tsLoader.mjs\"`: a copy cannot read " +
+        "a `.tsx`, so the first email template its graph reaches will kill the whole file " +
+        "with a bare SyntaxError before one test runs, which is the afternoon this shared " +
+        "loader exists to give back. If instead a listed suite has just been MIGRATED, " +
+        "delete its line from `LEGACY_LOADERS` and add it to `USERS` with its reason.",
+    );
+  });
+
+  test("every user of the shared loader is registered, with a reason", () => {
+    const users = testFiles().filter((name) => importsSharedLoader(readTest(name)));
+
+    assert.deepEqual(
+      users,
+      [...USERS.keys()].sort(),
+      "the register in this file and the suites importing `tests/lib/tsLoader.mjs` disagree. " +
+        "Add the new suite with the reason its graph needs the shared loader, or delete the " +
+        "entry for a suite that no longer uses it.",
+    );
+
+    for (const [name, why] of USERS) {
+      assert.ok(
+        typeof why === "string" && why.length > 30,
+        `${name} needs a written reason, not a placeholder`,
+      );
+    }
+  });
+
+  test("no registered file still stubs an email template to dodge JSX", () => {
+    // The stubs this change deleted, named. A template stub that comes back is
+    // either a real need (a suite that wants to assert on props rather than on
+    // HTML, which should say so in a comment) or the old reflex returning, and
+    // the failure message asks the question rather than assuming.
+    const offenders = [];
+    for (const name of USERS.keys()) {
+      const source = readTest(name);
+      for (const [specifier] of source.matchAll(/"@\/emails\/[A-Za-z]+"/g)) {
+        offenders.push(`${name}: ${specifier}`);
+      }
+    }
+
+    assert.deepEqual(
+      offenders,
+      [],
+      "the shared loader compiles `.tsx`, so an email template no longer has to be stubbed. " +
+        "If a suite stubs one for a different reason, that reason belongs in a comment and " +
+        "this check belongs alongside it.",
+    );
+  });
+});

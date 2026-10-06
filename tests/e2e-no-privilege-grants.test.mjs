@@ -1,0 +1,255 @@
+/**
+ * Offline guards on the e2e harness (run under `npm test` — no network, no
+ * credentials, no dev project involved).
+ *
+ * The harness authenticates against the dev project. Three properties must
+ * stay true no matter who edits it next, and a comment saying so is not
+ * enforcement:
+ *
+ *   1. It can never be aimed at production.
+ *   2. It never grants a privilege: no role above `pending`, no permissions
+ *      map, no `suRecognised`, and none of the admin-set tags. Its accounts are
+ *      bare Auth users or (Phase 2 and later) users with a seeded document whose
+ *      role is hard-coded to `pending`, the lowest role there is.
+ *   3. It reaches only three Firestore collections (`ALLOWED_COLLECTIONS`
+ *      below), and one of them delete-only. Phase 1 held "no Firestore at
+ *      all"; Phase 2 narrowed that rather than dropping it.
+ *
+ * Property 1 is tested BEHAVIOURALLY, by calling the real `assertTarget()`
+ * rather than pattern-matching the source of the allowlist. Properties 2 and 3
+ * are source greps over the harness files.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { assertTarget } from "../scripts/e2e/lib/env.mjs";
+import { stripSource } from "./lib/stripSource.mjs";
+import { moduleScope } from "./lib/routeScan.mjs";
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const E2E_DIR = join(REPO_ROOT, "scripts", "e2e");
+
+/**
+ * THE ONE EXCEPTION to property 2, and the terms of it.
+ *
+ * The per-persona route battery needs a member, a committee member, an admin
+ * and every permission holder, which is exactly what the fence forbids. The
+ * file below is allowed to spell those roles because it can only ever write
+ * them to a Firestore EMULATOR: every exported function refuses first unless
+ * `FIRESTORE_EMULATOR_HOST` names a loopback host, so the dev project never
+ * holds a privileged document this harness made. Three checks keep that
+ * true: no other file under scripts/e2e may match the privilege patterns;
+ * every exported function in this one starts with `assertEmulator()`; and
+ * the refusal is executed, not read, by importing the module with the
+ * variable unset and pointed off-loopback.
+ */
+const PERSONA_MODULE = join(E2E_DIR, "lib", "personas.mjs");
+
+/**
+ * Privilege-granting shapes, in both bare-identifier and quoted-key spellings
+ * (a .mjs file building a JSON body naturally writes `"role": "admin"`), plus
+ * assignment from a variable.
+ */
+const FORBIDDEN_PRIVILEGE = [
+  // Any role literal other than "pending" — Phase 2 seeds a pending user doc
+  // (the lowest role, which grants access to nothing) and nothing above it.
+  /\brole["'`]?\s*:\s*["'`](?!pending)/,
+  /["'`]?\bsuRecognised["'`]?\s*:/,
+  /["'`]?\bpermissions["'`]?\s*:/,
+  /\bdraftNewsletter\b/,
+  /\bapproveNewsletter\b/,
+  /\bdraftEvent\b/,
+  /\bapproveEvent\b/,
+  /\bdraftCourse\b/,
+  /\bapproveCourse\b/,
+  // Re-badges every member on the site in one action, which is why it is a
+  // key of its own rather than part of the admin role.
+  /\bmanageMembership\b/,
+  // Sends a worksheet, with a task and an email each, to named committee
+  // members; and unlocks GET /api/worksheets/recipients, the one route that
+  // hands out a committee roster without a users-collection read.
+  /\bcirculateWorksheet\b/,
+  // Not a permission: an admin-set tag marking a paid member for an academic
+  // year. It gates nothing, but it is admin-set data about a real person that
+  // reviewers see on an application, so the harness has no business writing it.
+  /\bpaidMembershipYears\b/,
+  /\bsetCustomUserClaims\b/,
+];
+
+/**
+ * Phase 1 asserted the harness never obtained a Firestore handle at all.
+ * Phase 2 needs one: its headline assertion is that
+ * `users/{uid}.profile.uniEmailVerifiedAt` really landed, and only an Admin-SDK
+ * read proves that (the UI reads "verified" either way).
+ *
+ * So the invariant narrowed rather than vanished: Firestore is reachable, but
+ * only these collections are.
+ *
+ * `registrations` was added by Phase 3 (the local /api/register batteries):
+ * the route mirrors each account it creates into a `registrations/{uid}`
+ * tracker row, and deleting the Auth user while leaving its row would make the
+ * admin signup tracker list registrations for accounts that no longer exist.
+ * The harness only ever DELETES there, after re-reading the row and checking
+ * its email sits inside the harness namespace — see deleteRegistrationRow in
+ * scripts/e2e/lib/firestore.mjs.
+ */
+const ALLOWED_COLLECTIONS = ["users", "emailVerifications", "registrations"];
+
+function sourceFiles(dir) {
+  if (!existsSync(dir)) return [];
+  const files = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) files.push(...sourceFiles(path));
+    else if (/\.(mjs|js|ts)$/.test(entry.name)) files.push(path);
+  }
+  return files;
+}
+
+test("the e2e harness never grants a role, permission, or admin-set tag", () => {
+  const files = sourceFiles(E2E_DIR);
+  assert.ok(files.length > 0, `expected harness sources under ${E2E_DIR}`);
+  assert.ok(files.includes(PERSONA_MODULE), "the persona module has moved; update PERSONA_MODULE");
+  for (const file of files) {
+    if (file === PERSONA_MODULE) continue; // the one exception, held to its own terms below
+    const source = readFileSync(file, "utf8");
+    for (const pattern of FORBIDDEN_PRIVILEGE) {
+      assert.ok(
+        !pattern.test(source),
+        `${relative(REPO_ROOT, file)} matches ${pattern}. The e2e harness must never ` +
+          "construct a privileged identity. Its accounts are bare Auth users or " +
+          "role-pending documents, so they hold no role that grants anything.",
+      );
+    }
+  }
+});
+
+test("the e2e harness only ever addresses allowlisted Firestore collections", () => {
+  for (const file of sourceFiles(E2E_DIR)) {
+    const source = readFileSync(file, "utf8");
+    for (const match of source.matchAll(/\.collection\(\s*["'`]([^"'`]+)["'`]/g)) {
+      assert.ok(
+        ALLOWED_COLLECTIONS.includes(match[1]),
+        `${relative(REPO_ROOT, file)} addresses collection ${JSON.stringify(match[1])} — ` +
+          `the harness may only reach ${ALLOWED_COLLECTIONS.join(", ")}. Any other ` +
+          "collection is out of bounds for it.",
+      );
+    }
+    // A non-literal collection name defeats the check above, so forbid it.
+    for (const match of source.matchAll(/\.collection\(\s*([^"'`\s)])/g)) {
+      assert.fail(
+        `${relative(REPO_ROOT, file)} builds a collection name dynamically (` +
+          `.collection(${match[1]}…) — use a string literal so the allowlist above ` +
+          "can actually see it.",
+      );
+    }
+  }
+});
+
+/**
+ * `registrations` is on the allowlist for TEARDOWN ONLY — the harness deletes
+ * tracker rows that /api/register created for its own accounts, and never
+ * writes one. Collection-level allowlisting cannot express that, and a row
+ * carries no `role` field, so a future `.set()` there would pass every other
+ * guard in this file silently. The tracker is admin-facing data about real
+ * people's registrations; writing it is not the harness's business.
+ */
+test("the e2e harness only ever DELETES from the registrations tracker", () => {
+  for (const file of sourceFiles(E2E_DIR)) {
+    const source = readFileSync(file, "utf8");
+    for (const match of source.matchAll(
+      /\.collection\(\s*["'`]registrations["'`][\s\S]{0,200}?\.(set|update|create|add)\(/g,
+    )) {
+      assert.fail(
+        `${relative(REPO_ROOT, file)} calls .${match[1]}() on the registrations ` +
+          "collection. The harness may only delete there — see " +
+          "deleteRegistrationRow in scripts/e2e/lib/firestore.mjs.",
+      );
+    }
+  }
+});
+
+test("assertTarget refuses production, however it is spelled", () => {
+  const mustReject = [
+    "https://naisi.uk",
+    "https://naisi.uk/",
+    "https://www.naisi.uk",
+    "https://NAISI.UK",
+    "https://naisi.uk/api/register",
+    "https://naisi.uk:443",
+    // userinfo trick: the origin is production even though it reads as dev
+    "https://dev.naisi.uk@naisi.uk",
+    // trailing-dot FQDN form
+    "https://naisi.uk.",
+    // a plausible future staging host nobody allowlisted
+    "https://staging.naisi.uk",
+    "not a url",
+    "",
+  ];
+  for (const target of mustReject) {
+    assert.throws(
+      () => assertTarget(target),
+      `assertTarget accepted ${JSON.stringify(target)}. Every origin outside the ` +
+        "explicit allowlist must be refused, so that a typo cannot send " +
+        "real registrations to production.",
+    );
+  }
+});
+
+test("assertTarget still accepts the dev origin and localhost", () => {
+  for (const target of [
+    "https://dev.naisi.uk",
+    "https://dev.naisi.uk/api/verify-email/send",
+    "http://127.0.0.1:3000",
+    "http://localhost:3000",
+    // The Phase 3 local server (run.mjs binds it to 127.0.0.1 explicitly).
+    "http://127.0.0.1:3100",
+  ]) {
+    assert.doesNotThrow(
+      () => assertTarget(target),
+      `assertTarget rejected ${JSON.stringify(target)}, which the harness needs.`,
+    );
+  }
+});
+
+test("the persona module refuses to run without a loopback Firestore emulator", async () => {
+  const saved = process.env.FIRESTORE_EMULATOR_HOST;
+  try {
+    delete process.env.FIRESTORE_EMULATOR_HOST;
+    const personas = await import(pathToFileURL(PERSONA_MODULE).href);
+    assert.throws(() => personas.assertEmulator(), /REFUSING/);
+    await assert.rejects(() => personas.withPersona("guard", "admin"), /REFUSING/);
+    assert.throws(() => personas.personaOrigin(), /REFUSING/);
+    process.env.FIRESTORE_EMULATOR_HOST = "firestore.googleapis.com:443";
+    assert.throws(() => personas.assertEmulator(), /REFUSING/);
+    process.env.FIRESTORE_EMULATOR_HOST = "10.0.0.5:8080";
+    assert.throws(() => personas.assertEmulator(), /REFUSING/);
+    process.env.FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080";
+    assert.equal(personas.assertEmulator(), "127.0.0.1:8080");
+  } finally {
+    if (saved === undefined) delete process.env.FIRESTORE_EMULATOR_HOST;
+    else process.env.FIRESTORE_EMULATOR_HOST = saved;
+  }
+});
+
+test("every exported function in the persona module starts by asserting the emulator", () => {
+  const raw = readFileSync(PERSONA_MODULE, "utf8");
+  const source = stripSource(raw);
+  const scope = moduleScope(source, stripSource(raw, { keepStrings: true }));
+  const exported = [...source.matchAll(/export\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/g)].map((m) => m[1]);
+  assert.ok(exported.length >= 3, "the persona module exports fewer functions than expected");
+  for (const name of exported) {
+    if (name === "assertEmulator") continue;
+    const body = scope.locals.get(name)?.text ?? "";
+    const first = body.split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "";
+    assert.equal(
+      first,
+      "assertEmulator();",
+      `${name}() in scripts/e2e/lib/personas.mjs must call assertEmulator() before anything else.`,
+    );
+  }
+  // The refusal is a test on the value, not on presence alone.
+  assert.match(source, /LOOPBACK_EMULATOR\s*=\s*\/\^\(127\\\.0\\\.0\\\.1\|localhost\)/, "the loopback pattern has changed shape");
+});

@@ -1,0 +1,1529 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { doc, onSnapshot } from "firebase/firestore";
+import Badge from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import DateTimePopover from "@/components/ui/DateTimePopover";
+import { Field, Input, Textarea } from "@/components/ui/Input";
+import Link from "next/link";
+import ResponsiveSelect from "@/components/ui/ResponsiveSelect";
+import { useAuth } from "@/auth/AuthProvider";
+import { getClientDb } from "@/lib/firebase/client";
+import {
+  COVER_BRANDING_LABEL,
+  COVER_LOGO_SCALE_DEFAULT,
+  COVER_LOGO_X_DEFAULT,
+  COVER_LOGO_Y_DEFAULT,
+  COVER_STRIP_SIZE_DEFAULT,
+  EVENT_STATUS_LABEL,
+  FOOD_TAGS,
+  FOOD_TAG_LABEL,
+  FOOD_TEXT_MAX,
+  LOCATION_MAX,
+  TITLE_MAX,
+  normalizeEvent,
+  sanitizeSignupForm,
+  validateQuestionLimits,
+  type CoverBranding,
+  type CoverLogoColor,
+  type CoverLogoPosition,
+  type EventDoc,
+  type EventStatus,
+  type EventVisibility,
+  type FoodTag,
+  type FormQuestion,
+} from "@/lib/firestore/events";
+import type { Block } from "@/lib/firestore/newsletterBlocks";
+import type { EventChange } from "@/lib/events/changeSummary";
+import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
+import BlockEditor from "@/components/blocks/BlockEditor";
+import ImageUpload from "@/components/blocks/ImageUpload";
+import {
+  approveEvent,
+  deleteEvent,
+  rejectEvent,
+  revertEventToDraft,
+  submitEventForReview,
+  updateEvent,
+} from "./eventMutations";
+import CollaboratorPicker from "./CollaboratorPicker";
+import CoverBrandingModal from "./CoverBrandingModal";
+import FormBuilder from "./FormBuilder";
+import styles from "./EventEditor.module.css";
+
+type Props = {
+  eventId: string;
+  /**
+   * Whether publishing QUEUES the announcement rather than sending it inside
+   * the request. Read from `config/scheduler` by the page above, because that
+   * document is closed to every client; see
+   * `src/lib/scheduler/announcementQueue.ts`. It changes one sentence of the
+   * Publish confirm and nothing else: the server decides the path either way.
+   */
+  announcementsQueued?: boolean;
+};
+
+/** What `POST /api/events/[id]/publish` answers. Counts only, never addresses. */
+type PublishResponse = {
+  ok?: true;
+  error?: string;
+  /** Whether anybody was actually told, not whether the attempt ran. */
+  announced?: boolean;
+  /** The send threw. The event is published; nobody was told. */
+  announcementFailed?: boolean;
+  /** The send refused before dispatching. The claim was handed back. */
+  announcementRefused?: boolean;
+  /**
+   * The `event-announcements` job is switched on, so nothing was sent inside
+   * the request: the announcement is queued and the next scheduler run
+   * delivers it. From then on the event DOCUMENT is what says how it went, and
+   * this editor reads it through the listener it already has.
+   */
+  announcementQueued?: boolean;
+  announcement?: {
+    sent?: number;
+    pushed?: number;
+    failed?: number;
+    refusal?: string | null;
+    /** The push leg's own refusal. The two legs fail independently. */
+    pushRefusal?: string | null;
+  };
+};
+
+/**
+ * WHAT THE PUBLISHER IS TOLD ABOUT THE ANNOUNCEMENT, or null when there is
+ * nothing to say (a republish, or an empty list).
+ *
+ * Publishing an event for the first time mails everyone subscribed to event
+ * announcements, from inside the publish request, so it has three outcomes the
+ * publisher cannot see anywhere else: it reached N people, it was refused
+ * because the list is over the ceiling, or it failed outright. In each of the
+ * last two the event IS live and nobody heard about it. A screen that answers
+ * only "published" would leave that invisible until somebody asked why the
+ * event was quiet.
+ */
+function announcementLine(body: PublishResponse): string | null {
+  if (body.announcementQueued) {
+    // NOT an outcome, and worded so it does not read as one. Nobody has been
+    // told yet; the announcement card below reports what the job then does.
+    return (
+      "Published. The announcement is queued and goes out with the next " +
+      "scheduler run, usually within fifteen minutes."
+    );
+  }
+  if (body.announcementFailed) {
+    return (
+      "The event is published, but the announcement did not go out. " +
+      "Ask an admin to check the send log."
+    );
+  }
+  const refusal = body.announcement?.refusal ?? null;
+  // The push leg's refusal is reported wherever the email leg's is, and never
+  // folded into it. The legs fail independently, so "the list is over the
+  // ceiling" and "nobody could be notified" are two different sentences and a
+  // publisher who is shown one of them has not been told the other.
+  const pushRefusal = body.announcement?.pushRefusal ?? null;
+  const trailer = [refusal, pushRefusal].filter(Boolean).join(" ");
+  if (body.announcementRefused) {
+    const said = trailer || "The announcement was not sent.";
+    return `The event is published. ${said}`;
+  }
+  if (!body.announced) {
+    // NOTHING WAS ANNOUNCED, AND A LEG STILL HAS SOMETHING TO SAY. A publish
+    // whose events list is empty announces nothing and refuses nothing, which
+    // is a silence worth no words; but the push leg can refuse (over the device
+    // ceiling, or a collection it could not read) while the email leg simply
+    // had nobody to write to, and that publisher would otherwise be shown
+    // nothing at all about a leg that failed. The trailer is checked BEFORE
+    // this return for exactly that case.
+    return trailer ? `The event is published. ${trailer}` : null;
+  }
+  const sent = body.announcement?.sent ?? 0;
+  const pushed = body.announcement?.pushed ?? 0;
+  const parts = [`${sent} ${sent === 1 ? "email" : "emails"}`];
+  if (pushed > 0) {
+    parts.push(`${pushed} ${pushed === 1 ? "notification" : "notifications"}`);
+  }
+  const line = `Published, and announced to the events list: ${parts.join(" and ")}.`;
+  return trailer ? `${line} ${trailer}` : line;
+}
+
+/**
+ * WHAT THE QUEUED ANNOUNCEMENT IS DOING, read off the event document.
+ *
+ * The publish response can only ever say "queued": everything after that
+ * happens on a scheduler tick, minutes later, with nobody's browser watching.
+ * So the job writes its state and its running totals back onto the event, and
+ * this reads them. No new listener is needed and none is added: the editor
+ * already holds an `onSnapshot` on this document for every other field, so the
+ * card updates itself as the job works through the list.
+ *
+ * Returns null for an event announced inline or never announced, which is
+ * every event on an environment where the job is switched off.
+ */
+function queuedAnnouncementLine(event: EventDoc): string | null {
+  const state = event.announcementState ?? null;
+  if (state === null) return null;
+  const result = event.announcementResult ?? null;
+  const sent = result?.sent ?? 0;
+  const pushed = result?.pushed ?? 0;
+  // The audience-level drops and the per-recipient ones are two counters for
+  // two reasons (one is a snapshot, one accumulates); to a reader they are one
+  // number, so they are added here rather than explained on screen.
+  const skipped = (result?.skipped ?? 0) + (result?.audienceSkipped ?? 0);
+
+  if (state === "queued") {
+    // NAMES THE CONDITION. The queue only drains while the job is switched on,
+    // and an admin who turns it off leaves this event sitting here; a line
+    // promising "the next scheduler run" with no such run coming would be the
+    // screen lying about a thing only an admin can see.
+    return (
+      "The announcement is queued for the event-announcements scheduler job and " +
+      "goes out on its next run, usually within fifteen minutes, while that job " +
+      "is switched on."
+    );
+  }
+  if (state === "sending") {
+    // The totals are persisted at the end of every tick, so "so far" is
+    // literally true rather than a hedge: it is what the last completed tick
+    // had done.
+    const counts = `${sent} ${sent === 1 ? "email" : "emails"} and ${pushed} ${
+      pushed === 1 ? "notification" : "notifications"
+    }`;
+    return `Announcement in progress: ${counts} so far.`;
+  }
+  if (state === "refused") {
+    const said = result?.refusal ?? "The announcement was not sent.";
+    // READ OFF THE DOCUMENT, never derived from the counts. Both refusals
+    // reach nobody, and only one of them hands the claim back: an audience
+    // that could not be read can be tried again, and an event that has already
+    // started cannot. Deriving this from "nothing was sent" told an approver
+    // to republish a past event and let them watch nothing happen.
+    const after = result?.released
+      ? " The claim was released, so publishing this event again re-queues the announcement."
+      : "";
+    return `${said}${after}`;
+  }
+  // Done. The same wording the inline path uses, so the two paths do not read
+  // as two different features.
+  const trailer = [result?.refusal ?? null, result?.pushRefusal ?? null]
+    .filter(Boolean)
+    .join(" ");
+  const tail = skipped > 0 ? ` ${skipped} skipped.` : "";
+  if (sent === 0 && pushed === 0) {
+    // A run that finished correctly and told nobody: an empty events list, or
+    // every recipient dropped. "0 emails" reads as a fault; this does not.
+    const line = "The announcement reached nobody on the events list.";
+    return trailer ? `${line} ${trailer}${tail}` : `${line}${tail}`;
+  }
+  const parts = [`${sent} ${sent === 1 ? "email" : "emails"}`];
+  if (pushed > 0) {
+    parts.push(`${pushed} ${pushed === 1 ? "notification" : "notifications"}`);
+  }
+  const line = `Announced to the events list: ${parts.join(" and ")}.`;
+  return trailer ? `${line} ${trailer}${tail}` : `${line}${tail}`;
+}
+
+function statusTone(status: EventStatus): "neutral" | "accent" | "success" | "danger" | "warning" {
+  switch (status) {
+    case "draft":
+      return "neutral";
+    case "pending":
+      return "warning";
+    case "approved":
+      return "accent";
+    case "published":
+      return "success";
+    case "rejected":
+      return "danger";
+    case "cancelled":
+      return "danger";
+  }
+}
+
+/** Local YYYY-MM-DD — used to keep the end-date picker on or after the start day. */
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+}
+
+/** Join label fragments as "a", "a and b", or "a, b and c". */
+function joinList(parts: string[]): string {
+  if (parts.length <= 1) return parts[0] ?? "";
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
+/**
+ * Pre-fill the attendee-notification draft from what an edit changed. The
+ * notify-worthy set is date/time, location, and the description, so the
+ * pre-filled subject and body reflect any combination of those.
+ */
+function buildNotifyDraft(
+  changes: EventChange[],
+  descriptionChanged: boolean,
+): {
+  subject: string;
+  body: string;
+} {
+  const parts: string[] = [];
+  if (changes.some((c) => c.label === "When")) parts.push("time");
+  if (changes.some((c) => c.label === "Where")) parts.push("location");
+  if (descriptionChanged) parts.push("description");
+  const subject = parts.length > 0 ? `Update: ${joinList(parts)}` : "Event update";
+  let body =
+    "Quick heads-up: we've updated some details for this event. " +
+    "What changed is summarised below, with the latest full details underneath.";
+  if (descriptionChanged) {
+    body +=
+      " The event description has changed too, so it's worth a fresh read.";
+  }
+  body +=
+    " Apologies for any inconvenience, and let us know if you can no longer make it.";
+  return { subject, body };
+}
+
+export default function EventEditor({ eventId, announcementsQueued = false }: Props) {
+  const router = useRouter();
+  const { user, role, permissions, suRecognised } = useAuth();
+
+  const [event, setEvent] = useState<EventDoc | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  const [title, setTitle] = useState("");
+  const [blocks, setBlocks] = useState<Block[]>([]);
+  const [startAt, setStartAt] = useState<Date | null>(null);
+  const [endAt, setEndAt] = useState<Date | null>(null);
+  const [location, setLocation] = useState("");
+  const [locationHidden, setLocationHidden] = useState(false);
+  const [locationPublicText, setLocationPublicText] = useState("");
+  const [visibility, setVisibility] = useState<EventVisibility>("public");
+  const [capacity, setCapacity] = useState<number | null>(null);
+  const [waitlistEnabled, setWaitlistEnabled] = useState(true);
+  const [noSignup, setNoSignup] = useState(false);
+  const [signupForm, setSignupForm] = useState<FormQuestion[]>([]);
+  const [foodText, setFoodText] = useState("");
+  const [dietaryTags, setDietaryTags] = useState<FoodTag[]>([]);
+  const [posterUrl, setPosterUrl] = useState<string | null>(null);
+  const [coverBranding, setCoverBranding] = useState<CoverBranding>("none");
+  const [coverLogoColor, setCoverLogoColor] = useState<CoverLogoColor>("white");
+  const [coverStripSize, setCoverStripSize] = useState(COVER_STRIP_SIZE_DEFAULT);
+  const [coverLogoPosition, setCoverLogoPosition] =
+    useState<CoverLogoPosition>("bottom");
+  const [coverLogoScale, setCoverLogoScale] = useState(COVER_LOGO_SCALE_DEFAULT);
+  const [coverLogoX, setCoverLogoX] = useState(COVER_LOGO_X_DEFAULT);
+  const [coverLogoY, setCoverLogoY] = useState(COVER_LOGO_Y_DEFAULT);
+  const [coverLogoBackdrop, setCoverLogoBackdrop] = useState(true);
+  const [coverLogoShadow, setCoverLogoShadow] = useState(true);
+  const [brandingModalOpen, setBrandingModalOpen] = useState(false);
+
+  const [dirty, setDirty] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
+  const [publishStatus, setPublishStatus] = useState<
+    | { kind: "idle" }
+    | { kind: "publishing" }
+    | { kind: "error"; message: string }
+    // The event IS published and the announcement has something to say about
+    // itself: how many it reached, or why it reached nobody. Not an error.
+    | { kind: "announced"; message: string }
+  >({ kind: "idle" });
+
+  // After editing a published event, offer to email confirmed attendees.
+  // The opt-in checkbox by Save gates whether the composer opens at all.
+  const [notifyOnSave, setNotifyOnSave] = useState(false);
+  const [notifyDraft, setNotifyDraft] = useState<{
+    subject: string;
+    body: string;
+    changes: EventChange[];
+    descriptionChanged: boolean;
+  } | null>(null);
+  const [notifyState, setNotifyState] = useState<
+    | { kind: "idle" }
+    | { kind: "sending" }
+    | { kind: "sent"; sent: number }
+    | { kind: "error"; message: string }
+  >({ kind: "idle" });
+
+  // Cancel-with-notify modal. Cancelling sets the event to "cancelled" and,
+  // when the tick is on, emails confirmed + waitlisted attendees.
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelNotify, setCancelNotify] = useState(true);
+  const [cancelNote, setCancelNote] = useState("");
+  const [cancelState, setCancelState] = useState<
+    | { kind: "idle" }
+    | { kind: "cancelling" }
+    | { kind: "done"; notified: boolean; sent: number }
+    | { kind: "error"; message: string }
+  >({ kind: "idle" });
+
+  useEffect(() => {
+    const db = getClientDb();
+    const unsub = onSnapshot(
+      doc(db, "events", eventId),
+      (snap) => {
+        if (!snap.exists()) {
+          setNotFound(true);
+          setLoading(false);
+          return;
+        }
+        const next = normalizeEvent(snap.id, snap.data());
+        setEvent(next);
+        setTitle((cur) => (dirty ? cur : next.title));
+        setBlocks((cur) => (dirty ? cur : next.blocks));
+        setStartAt((cur) => (dirty ? cur : next.startAt));
+        setEndAt((cur) => (dirty ? cur : next.endAt));
+        setLocation((cur) => (dirty ? cur : next.location));
+        setLocationHidden((cur) => (dirty ? cur : next.locationHidden));
+        setLocationPublicText((cur) => (dirty ? cur : next.locationPublicText ?? ""));
+        setVisibility((cur) => (dirty ? cur : next.visibility));
+        setCapacity((cur) => (dirty ? cur : next.capacity));
+        setWaitlistEnabled((cur) => (dirty ? cur : next.waitlistEnabled));
+        setNoSignup((cur) => (dirty ? cur : next.noSignup));
+        setSignupForm((cur) => (dirty ? cur : next.signupForm));
+        setFoodText((cur) => (dirty ? cur : next.foodText ?? ""));
+        setDietaryTags((cur) => (dirty ? cur : next.dietaryTags ?? []));
+        setPosterUrl((cur) => (dirty ? cur : next.posterUrl ?? null));
+        setCoverBranding((cur) => (dirty ? cur : next.coverBranding));
+        setCoverLogoColor((cur) => (dirty ? cur : next.coverLogoColor));
+        setCoverStripSize((cur) => (dirty ? cur : next.coverStripSize));
+        setCoverLogoPosition((cur) => (dirty ? cur : next.coverLogoPosition));
+        setCoverLogoScale((cur) => (dirty ? cur : next.coverLogoScale));
+        setCoverLogoX((cur) => (dirty ? cur : next.coverLogoX));
+        setCoverLogoY((cur) => (dirty ? cur : next.coverLogoY));
+        setCoverLogoBackdrop((cur) => (dirty ? cur : next.coverLogoBackdrop));
+        setCoverLogoShadow((cur) => (dirty ? cur : next.coverLogoShadow));
+        setLoading(false);
+      },
+      (err) => {
+        console.error(err);
+        setError(err.message);
+        setLoading(false);
+      },
+    );
+    return unsub;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId]);
+
+  const viewer =
+    role && (role === "admin" || role === "committee" || role === "member")
+      ? { role, permissions }
+      : null;
+  const canDraft = viewer ? canDraftEvent(viewer) : false;
+  const canApprove = viewer ? canApproveEvent(viewer) : false;
+
+  const isAuthor = !!user && !!event && event.authorUid === user.uid;
+  // A collaborator was explicitly added (by the author or an admin) so they
+  // can edit this specific event, even without draft/approve permissions.
+  const isCollaborator =
+    !!user && !!event && (event.collaboratorUids ?? []).includes(user.uid);
+  // The "Who can edit this" picker is managed by the author or an admin.
+  const canManageCollaborators = isAuthor || role === "admin";
+  // Attendee PII is for SU-recognised committee and admins only.
+  const canSeeAttendees =
+    role === "admin" || (role === "committee" && suRecognised);
+  const status = event?.status ?? "draft";
+  // Null on every event the queue has never touched, which is all of them
+  // wherever the `event-announcements` job is switched off.
+  const queuedAnnouncement = event === null ? null : queuedAnnouncementLine(event);
+  const editable = useMemo(() => {
+    if (!event) return false;
+    if (status === "cancelled") return false;
+    // Published events stay editable for approvers via the server update route.
+    if (status === "published") return canApprove;
+    // While an event is under review or approved, only approvers touch it.
+    if (status === "pending") return canApprove;
+    if (status === "approved") return canApprove;
+    // Drafts and returned events: the author, a collaborator, or an approver.
+    return isAuthor || isCollaborator || canApprove;
+  }, [event, status, canApprove, isAuthor, isCollaborator]);
+
+  // An event can't end before (or exactly when) it starts. This blocks Save and
+  // Submit, but never the date fields themselves — an event that somehow holds
+  // an invalid end must always be editable back to valid.
+  const endBeforeStart = !!(
+    startAt &&
+    endAt &&
+    endAt.getTime() <= startAt.getTime()
+  );
+
+  function markDirty() {
+    setDirty(true);
+  }
+
+  /**
+   * Range-check the authored per-question character limits and help text,
+   * returning the sentence that names the offending question.
+   *
+   * Run on both save paths. The published-event route does the same check
+   * server-side and answers 400, but a draft is written client-direct through
+   * `updateEvent`, which has no route to refuse it: the sanitiser there clamps
+   * silently, and an organiser who typed 5000 would get 4000 with no idea. This
+   * is what turns that clamp back into a backstop.
+   *
+   * `clampLimits: false` is what makes the message quotable: it keeps the
+   * number as typed instead of the number that would have been stored.
+   */
+  function signupFormLimitError(): string | null {
+    const problem = validateQuestionLimits(
+      sanitizeSignupForm(signupForm, { clampLimits: false }),
+    );
+    return problem ? problem.error : null;
+  }
+
+  async function flush() {
+    if (!event) return;
+    if (!dirty) return;
+    const limitProblem = signupFormLimitError();
+    if (limitProblem) throw new Error(limitProblem);
+    const fields = {
+      title,
+      blocks,
+      startAt,
+      endAt,
+      location,
+      locationHidden,
+      locationPublicText: locationHidden ? locationPublicText : null,
+      visibility,
+      capacity,
+      waitlistEnabled: capacity === null ? false : waitlistEnabled,
+      noSignup,
+      signupForm,
+      foodText: foodText.trim() ? foodText : null,
+      dietaryTags,
+      posterUrl,
+      coverBranding,
+      coverLogoColor,
+      coverStripSize,
+      coverLogoPosition,
+      coverLogoScale,
+      coverLogoX,
+      coverLogoY,
+      coverLogoBackdrop,
+      coverLogoShadow,
+    };
+    if (status === "published") {
+      // Firestore rules block client writes to published events — go through
+      // the server route, which also reports what changed.
+      const res = await fetch(`/api/events/${event.id}/update`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...fields,
+          startAt: startAt ? startAt.toISOString() : null,
+          endAt: endAt ? endAt.toISOString() : null,
+        }),
+      });
+      const resBody = (await res.json().catch(() => null)) as
+        | {
+            ok?: true;
+            changeSummary?: EventChange[];
+            descriptionChanged?: boolean;
+            error?: string;
+          }
+        | null;
+      if (!res.ok || !resBody?.ok) {
+        throw new Error(resBody?.error ?? `Save failed (${res.status})`);
+      }
+      // Only open the notify composer when the organiser opted in and there
+      // was a notify-worthy change (time, location, or description).
+      // Otherwise the save is silent.
+      const summary = resBody.changeSummary ?? [];
+      const descriptionChanged = resBody.descriptionChanged === true;
+      if (notifyOnSave && (summary.length > 0 || descriptionChanged)) {
+        setNotifyDraft({
+          ...buildNotifyDraft(summary, descriptionChanged),
+          changes: summary,
+          descriptionChanged,
+        });
+        setNotifyState({ kind: "idle" });
+      }
+      setNotifyOnSave(false);
+    } else {
+      await updateEvent(event.id, fields);
+    }
+    setDirty(false);
+  }
+
+  async function onSave() {
+    if (!event) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await flush();
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onSendNotify() {
+    if (!event || !notifyDraft) return;
+    if (!notifyDraft.subject.trim() || !notifyDraft.body.trim()) {
+      setNotifyState({ kind: "error", message: "Add a subject and message before sending." });
+      return;
+    }
+    setNotifyState({ kind: "sending" });
+    try {
+      const res = await fetch(`/api/events/${event.id}/broadcast`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          subject: notifyDraft.subject,
+          body: notifyDraft.body,
+          changes: notifyDraft.changes,
+          descriptionChanged: notifyDraft.descriptionChanged,
+        }),
+      });
+      const resBody = (await res.json().catch(() => null)) as
+        | { ok?: true; sent?: number; error?: string }
+        | null;
+      if (!res.ok || !resBody?.ok) {
+        setNotifyState({
+          kind: "error",
+          message: resBody?.error ?? `Send failed (${res.status})`,
+        });
+        return;
+      }
+      setNotifyState({ kind: "sent", sent: resBody.sent ?? 0 });
+    } catch (err) {
+      setNotifyState({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Send failed",
+      });
+    }
+  }
+
+  function validateBeforeSubmit(): string | null {
+    if (!title.trim()) return "Give the event a title before submitting.";
+    if (blocks.length === 0) return "Add a description block before submitting.";
+    if (!startAt) return "Pick a start date/time.";
+    if (endAt && endAt.getTime() <= startAt.getTime()) {
+      return "An event can't end before it starts.";
+    }
+    if (!location.trim()) return "Add a location (room, venue, or link).";
+    if (locationHidden && !locationPublicText.trim()) {
+      return "You've hidden the exact location — add a fuzzy label to show publicly (e.g. 'somewhere on campus').";
+    }
+    if (capacity !== null && capacity <= 0) return "Capacity must be at least 1 (or blank for unlimited).";
+    for (const q of signupForm) {
+      if (!q.label.trim()) return "Every signup question needs a label.";
+      if ((q.type === "singleSelect" || q.type === "multiSelect")) {
+        const cleaned = q.options.map((o) => o.trim()).filter(Boolean);
+        if (cleaned.length < 2) return `"${q.label}" needs at least two options.`;
+      }
+    }
+    const limitProblem = signupFormLimitError();
+    if (limitProblem) return limitProblem;
+    return null;
+  }
+
+  async function onSubmitForReview() {
+    if (!event) return;
+    const invalid = validateBeforeSubmit();
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await flush();
+      await submitEventForReview(event.id);
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Submit failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onApprove() {
+    if (!event) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await flush();
+      await approveEvent(event.id);
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Approve failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onReject() {
+    if (!event) return;
+    if (!rejectNote.trim()) {
+      setError("Leave a note so the author knows what to change.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await rejectEvent(event.id, rejectNote);
+      setRejectNote("");
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Reject failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRevertToDraft() {
+    if (!event) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await revertEventToDraft(event.id);
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Could not revert");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onPublish() {
+    if (!event) return;
+    // PUBLISHING MAILS THE EVENTS LIST, so the confirm says so. It happens on
+    // the FIRST publish only: `announcedAt` is the once-per-event claim the
+    // publish route stamps, and an event pulled back to approved and pushed
+    // live again announces nothing.
+    const willAnnounce = !event.announcedAt;
+    // WHICH PATH THIS PUBLISH WILL TAKE is the server's decision, and the
+    // switch behind it is closed to clients, so the page reads it and hands it
+    // down. The confirm has to say it: an approver who presses Publish and
+    // sees no mail for a quarter of an hour would reasonably conclude the
+    // announcement had failed.
+    const question = willAnnounce
+      ? announcementsQueued
+        ? "Publish this event? It goes live on the events page, and everyone subscribed " +
+          "to event announcements is emailed about it. The announcement is queued and " +
+          "goes out with the next scheduler run rather than immediately."
+        : "Publish this event? It goes live on the events page, and everyone subscribed " +
+          "to event announcements is emailed about it."
+      : "Publish this event? It goes live on the events page. The announcement has " +
+        "already gone out, so nobody is emailed again.";
+    if (!window.confirm(question)) return;
+    setPublishStatus({ kind: "publishing" });
+    setError(null);
+    try {
+      const res = await fetch(`/api/events/${event.id}/publish`, { method: "POST" });
+      const body = (await res.json().catch(() => null)) as PublishResponse | null;
+      if (!res.ok || !body?.ok) {
+        setPublishStatus({
+          kind: "error",
+          message: body?.error ?? `Publish failed (${res.status})`,
+        });
+        return;
+      }
+      const line = announcementLine(body);
+      setPublishStatus(line ? { kind: "announced", message: line } : { kind: "idle" });
+    } catch (err) {
+      setPublishStatus({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Publish error",
+      });
+    }
+  }
+
+  function openCancelModal() {
+    setCancelNotify(true);
+    setCancelNote("");
+    setCancelState({ kind: "idle" });
+    setCancelOpen(true);
+  }
+
+  async function onConfirmCancel() {
+    if (!event) return;
+    setCancelState({ kind: "cancelling" });
+    try {
+      const res = await fetch(`/api/events/${event.id}/cancel`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ notify: cancelNotify, note: cancelNote }),
+      });
+      const body = (await res.json().catch(() => null)) as
+        | { ok?: true; notified?: boolean; sent?: number; error?: string }
+        | null;
+      if (!res.ok || !body?.ok) {
+        setCancelState({
+          kind: "error",
+          message: body?.error ?? `Cancel failed (${res.status})`,
+        });
+        return;
+      }
+      setCancelState({
+        kind: "done",
+        notified: body.notified ?? false,
+        sent: body.sent ?? 0,
+      });
+    } catch (err) {
+      setCancelState({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Cancel failed",
+      });
+    }
+  }
+
+  async function onArchive() {
+    if (!event) return;
+    const next = !event.archived;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/events/${event.id}/archive`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ archived: next }),
+      });
+      const body = (await res.json().catch(() => null)) as
+        | { ok?: true; error?: string }
+        | null;
+      if (!res.ok || !body?.ok) {
+        throw new Error(body?.error ?? `Archive failed (${res.status})`);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Archive failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onDelete() {
+    if (!event) return;
+    if (!window.confirm("Permanently delete this event? This can't be undone.")) return;
+    setBusy(true);
+    try {
+      // deleteEvent now routes through /api/events/[id]/delete, which removes
+      // EVERY RSVP (synthetic and real) plus the event's images before deleting
+      // the doc. The old best-effort test-rsvps call is gone: it only cleared
+      // synthetic rows, so real attendees' details were left stranded.
+      await deleteEvent(event.id);
+      router.push("/events/manage");
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Delete failed");
+      setBusy(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <Card padding="md">
+        <p style={{ color: "var(--color-text-muted)" }}>Loading event…</p>
+      </Card>
+    );
+  }
+
+  if (notFound || !event) {
+    return (
+      <Card padding="md">
+        <p style={{ color: "var(--color-text-muted)" }}>Event not found. It may have been deleted.</p>
+      </Card>
+    );
+  }
+
+  return (
+    <div className={styles.editor}>
+      <div className={styles.statusBar}>
+        <div className={styles.statusMeta}>
+          <Badge tone={statusTone(status)}>{EVENT_STATUS_LABEL[status]}</Badge>
+          {event.archived && <Badge tone="neutral">Archived</Badge>}
+          <span className={styles.muted}>by {event.authorDisplayName ?? "unknown"}</span>
+          {event.publishedAt && (
+            <span className={styles.muted}>
+              · published {event.publishedAt.toLocaleDateString()}
+            </span>
+          )}
+        </div>
+        <div className={styles.spacer} />
+        {dirty && editable && <span className={styles.muted}>Unsaved changes</span>}
+        <Link
+          href={`/events/manage/${event.id}/preview`}
+          target="_blank"
+          rel="noopener"
+        >
+          <Button variant="ghost">Preview ↗</Button>
+        </Link>
+        {canSeeAttendees && (
+          <Link href={`/events/manage/${event.id}/attendees`}>
+            <Button variant="ghost">
+              Attendees
+              {(event.rsvpCountPending ?? 0) > 0 && ` · ${event.rsvpCountPending} pending`}
+            </Button>
+          </Link>
+        )}
+      </div>
+
+      {(status === "pending" || status === "approved") && (
+        <Card padding="md">
+          <strong>
+            {status === "pending"
+              ? "Submitted for review."
+              : "Approved — ready to publish."}
+          </strong>
+          <p style={{ marginTop: "var(--space-2)", color: "var(--color-text-muted)" }}>
+            Want to test the signup flow end-to-end?{" "}
+            <Link
+              href={`/events/manage/${event.id}/preview`}
+              target="_blank"
+              rel="noopener"
+              style={{ color: "var(--color-accent)" }}
+            >
+              Open the preview
+            </Link>{" "}
+            and submit a test RSVP — it&apos;ll land in Firestore so you can verify the
+            data shape. Cancel it before the event goes live.
+          </p>
+        </Card>
+      )}
+
+      {status === "published" && (
+        <Card padding="md">
+          <strong>Published.</strong>
+          <p style={{ marginTop: "var(--space-2)", color: "var(--color-text-muted)" }}>
+            Live at{" "}
+            <Link
+              href={`/events/${event.id}`}
+              target="_blank"
+              rel="noopener"
+              style={{ color: "var(--color-accent)" }}
+            >
+              /events/{event.id}
+            </Link>
+            . Share the link. Edits you save here go live immediately.
+          </p>
+        </Card>
+      )}
+
+      {notifyDraft && (
+        <Card padding="lg">
+          <h2 className={styles.sectionTitle}>Notify attendees</h2>
+          <p className={styles.sectionHint}>
+            You changed details on a published event. The summary below is
+            included in the email automatically; the message is your own note
+            alongside it.
+          </p>
+          {(notifyDraft.changes.length > 0 || notifyDraft.descriptionChanged) && (
+            <div className={styles.changeSummary}>
+              {notifyDraft.changes.map((c) => (
+                <p key={c.label} className={styles.changeRow}>
+                  <strong>{c.label}: </strong>
+                  <span className={styles.changeOld}>{c.from}</span>
+                  <span className={styles.changeArrow}> → </span>
+                  <span className={styles.changeNew}>{c.to}</span>
+                </p>
+              ))}
+              {notifyDraft.descriptionChanged && (
+                <p className={styles.changeRow}>
+                  <strong>Description: </strong>
+                  <span className={styles.changeNew}>
+                    the event description has been updated
+                  </span>
+                </p>
+              )}
+            </div>
+          )}
+          <div className={styles.fields}>
+            <Field id="notify-subject" label="Subject">
+              <Input
+                id="notify-subject"
+                value={notifyDraft.subject}
+                onChange={(e) =>
+                  setNotifyDraft({ ...notifyDraft, subject: e.target.value })
+                }
+                maxLength={150}
+                disabled={notifyState.kind === "sending"}
+              />
+            </Field>
+            <Field id="notify-body" label="Message">
+              <Textarea
+                id="notify-body"
+                value={notifyDraft.body}
+                onChange={(e) =>
+                  setNotifyDraft({ ...notifyDraft, body: e.target.value })
+                }
+                rows={5}
+                maxLength={8000}
+                disabled={notifyState.kind === "sending"}
+              />
+            </Field>
+          </div>
+          {notifyState.kind === "error" && (
+            <p className={styles.danger} style={{ marginTop: "var(--space-2)" }}>
+              {notifyState.message}
+            </p>
+          )}
+          {notifyState.kind === "sent" && (
+            <p className={styles.muted} style={{ marginTop: "var(--space-2)" }}>
+              Sent to {notifyState.sent} attendee{notifyState.sent === 1 ? "" : "s"}.
+            </p>
+          )}
+          <div
+            className={styles.editorActions}
+            style={{ marginTop: "var(--space-3)" }}
+          >
+            {notifyState.kind !== "sent" && (
+              <Button onClick={onSendNotify} disabled={notifyState.kind === "sending"}>
+                {notifyState.kind === "sending" ? "Sending…" : "Send to attendees"}
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setNotifyDraft(null);
+                setNotifyState({ kind: "idle" });
+              }}
+              disabled={notifyState.kind === "sending"}
+            >
+              {notifyState.kind === "sent" ? "Close" : "Dismiss"}
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {status === "rejected" && event.reviewerNotes && (
+        <Card padding="md">
+          <strong style={{ color: "var(--color-danger)" }}>Returned for revisions</strong>
+          <p style={{ marginTop: "var(--space-2)", color: "var(--color-text)" }}>
+            {event.reviewerNotes}
+          </p>
+        </Card>
+      )}
+
+      <Card padding="lg">
+        <div className={styles.fields}>
+          <Field id="title" label="Event title" hint="Shown on the events list and booking page.">
+            <Input
+              id="title"
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                markDirty();
+              }}
+              maxLength={TITLE_MAX}
+              disabled={!editable || busy}
+              placeholder="e.g. April fellowship social"
+            />
+          </Field>
+
+          <div className={styles.twoCol}>
+            <Field id="start" label="Starts" hint="Local time. You can adjust after creation.">
+              <DateTimePopover
+                value={startAt}
+                onChange={(next) => {
+                  setStartAt(next);
+                  markDirty();
+                }}
+                disabled={!editable || busy}
+                placeholder="Pick a start date & time…"
+              />
+            </Field>
+            <Field
+              id="end"
+              label="Ends (optional)"
+              hint="Leave blank if you're not sure yet."
+              error={endBeforeStart ? "An event can't end before it starts" : undefined}
+            >
+              <DateTimePopover
+                value={endAt}
+                onChange={(next) => {
+                  setEndAt(next);
+                  markDirty();
+                }}
+                disabled={!editable || busy}
+                placeholder="Pick an end date & time…"
+                minDate={startAt ? ymd(startAt) : undefined}
+                invalid={endBeforeStart}
+              />
+            </Field>
+          </div>
+
+          <Field
+            id="location"
+            label="Location (exact)"
+            hint="Room, venue, or Zoom URL. Only shared publicly unless you hide it below."
+          >
+            <Input
+              id="location"
+              value={location}
+              onChange={(e) => {
+                setLocation(e.target.value);
+                markDirty();
+              }}
+              maxLength={LOCATION_MAX}
+              disabled={!editable || busy}
+              placeholder="e.g. Pope A17, Jubilee Campus"
+            />
+          </Field>
+
+          <label className={styles.checkboxLabel}>
+            <input
+              type="checkbox"
+              checked={locationHidden}
+              onChange={(e) => {
+                setLocationHidden(e.target.checked);
+                markDirty();
+              }}
+              disabled={!editable || busy}
+            />
+            Hide the exact location publicly until an RSVP is approved
+          </label>
+
+          {locationHidden && (
+            <Field
+              id="location-public-text"
+              label="Public placeholder"
+              hint="What visitors see until they're approved. Day and time still show."
+            >
+              <Input
+                id="location-public-text"
+                value={locationPublicText}
+                onChange={(e) => {
+                  setLocationPublicText(e.target.value);
+                  markDirty();
+                }}
+                maxLength={LOCATION_MAX}
+                disabled={!editable || busy}
+                placeholder="e.g. somewhere on University Park campus"
+              />
+            </Field>
+          )}
+
+          <div className={styles.twoCol}>
+            <Field id="visibility" label="Who can RSVP?">
+              <ResponsiveSelect<EventVisibility>
+                value={visibility}
+                onChange={(next) => {
+                  setVisibility(next);
+                  markDirty();
+                }}
+                options={[
+                  {
+                    value: "public",
+                    label: "Public — anyone with the link (email only)",
+                  },
+                  { value: "members", label: "Members only — must sign in" },
+                ]}
+                disabled={!editable || busy}
+                ariaLabel="Who can RSVP?"
+              />
+            </Field>
+
+            <Field id="capacity" label="Capacity (optional)" hint="Leave blank for unlimited.">
+              <input
+                id="capacity"
+                type="number"
+                min={1}
+                className={styles.fieldInput}
+                value={capacity ?? ""}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  setCapacity(e.target.value === "" || Number.isNaN(n) ? null : Math.floor(n));
+                  markDirty();
+                }}
+                disabled={!editable || busy}
+                placeholder="e.g. 30"
+              />
+            </Field>
+          </div>
+
+          {/* For a drop-in: a social, a screening, a stall. The sign-up
+              settings around this are kept as they are and simply not used, so
+              switching back loses nothing. */}
+          <label className={styles.checkboxLabel}>
+            <input
+              type="checkbox"
+              checked={noSignup}
+              onChange={(e) => {
+                setNoSignup(e.target.checked);
+                markDirty();
+              }}
+              disabled={!editable || busy}
+            />
+            No sign-up needed: people just turn up. The event page shows no form and offers add to
+            calendar. Capacity, the waitlist and the sign-up questions are ignored while this is on.
+          </label>
+
+          {capacity !== null && (
+            <label className={styles.checkboxLabel}>
+              <input
+                type="checkbox"
+                checked={waitlistEnabled}
+                onChange={(e) => {
+                  setWaitlistEnabled(e.target.checked);
+                  markDirty();
+                }}
+                disabled={!editable || busy}
+              />
+              Once full, let people join a waitlist (auto-promoted on cancellations)
+            </label>
+          )}
+        </div>
+      </Card>
+
+      <section>
+        <h2 className={styles.sectionTitle}>Cover image</h2>
+        <p className={styles.sectionHint}>
+          Optional. Shown as a banner across the top of the public event page.
+        </p>
+        <ImageUpload
+          draftId={event.id}
+          storagePrefix="event-images"
+          enableCrop
+          currentUrl={posterUrl ?? undefined}
+          onChange={({ url }) => {
+            const next = url || null;
+            // A freshly uploaded or replaced cover — open the branding picker.
+            if (next && next !== posterUrl) setBrandingModalOpen(true);
+            setPosterUrl(next);
+            markDirty();
+          }}
+          disabled={!editable || busy}
+        />
+        {posterUrl && (
+          <button
+            type="button"
+            className={styles.coverBrandingChip}
+            onClick={() => setBrandingModalOpen(true)}
+            disabled={!editable || busy}
+          >
+            NAISI logo:{" "}
+            <strong>{COVER_BRANDING_LABEL[coverBranding]}</strong>
+            <span className={styles.coverBrandingChange}>Change</span>
+          </button>
+        )}
+      </section>
+
+      <section>
+        <h2 className={styles.sectionTitle}>Description</h2>
+        <BlockEditor
+          draftId={event.id}
+          storagePrefix="event-images"
+          blocks={blocks}
+          onChange={(next) => {
+            setBlocks(next);
+            markDirty();
+          }}
+          disabled={!editable || busy}
+        />
+      </section>
+
+      <section>
+        <h2 className={styles.sectionTitle}>Food</h2>
+        <p className={styles.sectionHint}>
+          If there&apos;s food, say what it is in plain language. This shows
+          prominently on the public event page so attendees can&apos;t miss it.
+        </p>
+        <Card padding="lg">
+          <div className={styles.fields}>
+            <Field
+              id="food-text"
+              label="What's the food?"
+              hint="Leave blank if there's no food at this event."
+            >
+              <Textarea
+                id="food-text"
+                value={foodText}
+                onChange={(e) => {
+                  setFoodText(e.target.value);
+                  markDirty();
+                }}
+                rows={2}
+                maxLength={FOOD_TEXT_MAX}
+                disabled={!editable || busy}
+                placeholder="e.g. Pizza ordered from Domino's Beeston, collected at 6pm"
+              />
+            </Field>
+
+            <div>
+              <span className={styles.checkboxGroupLabel}>Dietary tags (optional)</span>
+              <p className={styles.checkboxGroupHint}>
+                Tick any that genuinely apply. Shown as badges on the event page.
+              </p>
+              <div className={styles.tagRow}>
+                {FOOD_TAGS.map((tag) => (
+                  <label key={tag} className={styles.checkboxLabel}>
+                    <input
+                      type="checkbox"
+                      checked={dietaryTags.includes(tag)}
+                      onChange={(e) => {
+                        setDietaryTags((cur) =>
+                          e.target.checked
+                            ? [...cur, tag]
+                            : cur.filter((t) => t !== tag),
+                        );
+                        markDirty();
+                      }}
+                      disabled={!editable || busy}
+                    />
+                    {FOOD_TAG_LABEL[tag]}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Card>
+      </section>
+
+      <section>
+        <h2 className={styles.sectionTitle}>Signup questions</h2>
+        <p className={styles.sectionHint}>
+          Build the booking form for this event. Attendees are always asked their name and
+          email — add questions below for everything else (dietary, t-shirt size, etc.).
+        </p>
+        <FormBuilder
+          questions={signupForm}
+          onChange={(next) => {
+            setSignupForm(next);
+            markDirty();
+          }}
+          disabled={!editable || busy}
+        />
+      </section>
+
+      {canManageCollaborators && (
+        <section>
+          <h2 className={styles.sectionTitle}>Who can edit this</h2>
+          <p className={styles.sectionHint}>
+            Add committee members as collaborators so they can help plan and
+            edit this event. They can edit it up until it&apos;s published;
+            after that only approvers manage it.
+          </p>
+          <Card padding="lg">
+            <CollaboratorPicker eventId={event.id} />
+          </Card>
+        </section>
+      )}
+
+      {error && <p className={styles.danger}>{error}</p>}
+      {publishStatus.kind === "error" && (
+        <Card padding="md">
+          <p className={styles.danger}>Publish failed: {publishStatus.message}</p>
+        </Card>
+      )}
+      {publishStatus.kind === "announced" && (
+        <Card padding="md">
+          <p className={styles.muted}>{publishStatus.message}</p>
+        </Card>
+      )}
+      {queuedAnnouncement !== null && (
+        // The QUEUED announcement's own state, off the event document rather
+        // than out of a publish response: the job finishes minutes after the
+        // request that queued it, and an approver who comes back tomorrow
+        // still needs to be able to see whether it went.
+        <Card padding="md">
+          <p className={styles.muted}>{queuedAnnouncement}</p>
+        </Card>
+      )}
+
+      <div className={styles.editorActions}>
+        {editable && (
+          <Button onClick={onSave} disabled={busy || !dirty || endBeforeStart}>
+            {busy ? "Saving…" : "Save"}
+          </Button>
+        )}
+
+        {editable && status === "published" && (
+          <label className={styles.checkboxLabel}>
+            <input
+              type="checkbox"
+              checked={notifyOnSave}
+              onChange={(e) => setNotifyOnSave(e.target.checked)}
+              disabled={busy}
+            />
+            Email confirmed attendees about this change
+          </label>
+        )}
+
+        {canDraft && (status === "draft" || status === "rejected") && isAuthor && (
+          <Button
+            variant="ghost"
+            onClick={onSubmitForReview}
+            disabled={busy || endBeforeStart}
+          >
+            Submit for review
+          </Button>
+        )}
+
+        {canApprove && status === "pending" && (
+          <>
+            <Button onClick={onApprove} disabled={busy}>
+              Approve
+            </Button>
+            <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
+              <Input
+                id="rejectNote"
+                placeholder="Reason to send back for revisions…"
+                value={rejectNote}
+                onChange={(e) => setRejectNote(e.target.value)}
+                style={{ minWidth: "16rem" }}
+              />
+              <Button variant="ghost" onClick={onReject} disabled={busy}>
+                Send back
+              </Button>
+            </div>
+          </>
+        )}
+
+        {canApprove && status === "approved" && (
+          <Button onClick={onPublish} disabled={publishStatus.kind === "publishing"}>
+            {publishStatus.kind === "publishing" ? "Publishing…" : "Publish"}
+          </Button>
+        )}
+
+        {canApprove && (status === "pending" || status === "approved") && (
+          <Button variant="ghost" onClick={onRevertToDraft} disabled={busy}>
+            Move back to draft
+          </Button>
+        )}
+
+        {canApprove && status === "published" && (
+          <Button variant="ghost" onClick={openCancelModal} disabled={busy}>
+            Mark cancelled
+          </Button>
+        )}
+
+        <div className={styles.spacer} />
+
+        {(isAuthor || role === "admin") && (
+          <Button variant="ghost" onClick={onArchive} disabled={busy}>
+            {event.archived ? "Unarchive" : "Archive"}
+          </Button>
+        )}
+
+        {(isAuthor || role === "admin") && status !== "published" && (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={busy}
+            className={styles.deleteBtn}
+          >
+            Delete event
+          </button>
+        )}
+      </div>
+
+      {cancelOpen && (
+        <div className={styles.modalOverlay} role="dialog" aria-modal="true">
+          <div className={styles.modal}>
+            {cancelState.kind === "done" ? (
+              <>
+                <p className={styles.modalTitle}>Event cancelled</p>
+                <p className={styles.modalHint}>
+                  {cancelState.notified
+                    ? cancelState.sent > 0
+                      ? `Emailed ${cancelState.sent} attendee${
+                          cancelState.sent === 1 ? "" : "s"
+                        } about the cancellation.`
+                      : "No confirmed or waitlisted attendees to email."
+                    : "Attendees were not emailed."}
+                </p>
+                <div className={styles.modalActions}>
+                  <Button onClick={() => setCancelOpen(false)}>Close</Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className={styles.modalTitle}>Cancel this event?</p>
+                <p className={styles.modalHint}>
+                  This marks the event as cancelled. It stays visible at its
+                  link, clearly labelled as cancelled.
+                </p>
+                <label className={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={cancelNotify}
+                    onChange={(e) => setCancelNotify(e.target.checked)}
+                    disabled={cancelState.kind === "cancelling"}
+                  />
+                  Email confirmed and waitlisted attendees that it&apos;s
+                  cancelled
+                </label>
+                <Field
+                  id="cancel-note"
+                  label="Note to attendees (optional)"
+                  hint={
+                    cancelNotify
+                      ? "Included in the cancellation email - e.g. why it's off, or whether it'll be rescheduled."
+                      : "Only sent if you email attendees above."
+                  }
+                >
+                  <Textarea
+                    id="cancel-note"
+                    value={cancelNote}
+                    onChange={(e) => setCancelNote(e.target.value)}
+                    rows={3}
+                    maxLength={1000}
+                    disabled={cancelState.kind === "cancelling"}
+                    placeholder="e.g. The venue fell through. We're sorry, and we'll try to reschedule soon."
+                  />
+                </Field>
+                {cancelState.kind === "error" && (
+                  <p className={styles.danger}>{cancelState.message}</p>
+                )}
+                <div className={styles.modalActions}>
+                  <Button
+                    onClick={onConfirmCancel}
+                    disabled={cancelState.kind === "cancelling"}
+                  >
+                    {cancelState.kind === "cancelling"
+                      ? "Cancelling…"
+                      : "Cancel event"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setCancelOpen(false)}
+                    disabled={cancelState.kind === "cancelling"}
+                  >
+                    Keep event
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {brandingModalOpen && posterUrl && (
+        <CoverBrandingModal
+          posterUrl={posterUrl}
+          value={coverBranding}
+          logoColor={coverLogoColor}
+          stripSize={coverStripSize}
+          logoPosition={coverLogoPosition}
+          logoScale={coverLogoScale}
+          logoX={coverLogoX}
+          logoY={coverLogoY}
+          logoBackdrop={coverLogoBackdrop}
+          logoShadow={coverLogoShadow}
+          onSelect={(choice) => {
+            setCoverBranding(choice.branding);
+            setCoverLogoColor(choice.logoColor);
+            setCoverStripSize(choice.stripSize);
+            setCoverLogoPosition(choice.logoPosition);
+            setCoverLogoScale(choice.logoScale);
+            setCoverLogoX(choice.logoX);
+            setCoverLogoY(choice.logoY);
+            setCoverLogoBackdrop(choice.logoBackdrop);
+            setCoverLogoShadow(choice.logoShadow);
+            markDirty();
+          }}
+          onClose={() => setBrandingModalOpen(false)}
+        />
+      )}
+    </div>
+  );
+}

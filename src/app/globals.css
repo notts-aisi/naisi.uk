@@ -1,0 +1,94 @@
+@import "../theme/tokens.css";
+@import "../theme/typography.css";
+
+*, *::before, *::after { box-sizing: border-box; }
+
+* { margin: 0; padding: 0; }
+
+html {
+  height: 100%;
+  color-scheme: dark;
+}
+
+html[data-theme="light"] { color-scheme: light; }
+
+body {
+  min-height: 100%;
+  /* Deep base that matches the hero atmosphere's outer color (bgRadialDim
+   * edge stop in heroOptionBg.ts) so cold-load + cross-layout transitions
+   * don't flash between two different darks. Card/surface tokens still
+   * use --color-bg (a touch lighter), giving them subtle elevation
+   * against this page floor.
+   *
+   * Mirrored as PAGE_FLOOR in src/theme/brandColors.ts, which the web app
+   * manifest (background_color + theme_color) and the <meta name="theme-color">
+   * tag both read. Keep the two in sync. */
+  background: #050810;
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+img, svg, video { display: block; max-width: 100%; }
+
+a { color: inherit; text-decoration: none; }
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+input, textarea, select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-md);
+}
+
+/* Utility wrappers used across layouts */
+/* Side insets: under viewport-fit: cover the container already reaches the
+   physical edges, so in landscape on a notched device the first character of
+   every line sits under the notch. max() means the inset only ever widens
+   the existing padding, so this is byte-identical on desktop, on
+   non-notched devices and in DevTools. */
+.container {
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin-inline: auto;
+  padding-left: max(var(--space-6), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--space-6), env(safe-area-inset-right, 0px));
+}
+
+@media (max-width: 48rem) {
+  .container {
+    padding-left: max(var(--space-4), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--space-4), env(safe-area-inset-right, 0px));
+  }
+}
+
+.stack { display: flex; flex-direction: column; }
+.row { display: flex; flex-direction: row; }
+.grow { flex: 1; }
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0);
+  white-space: nowrap; border: 0;
+}
+
+/* Minimum touch target floor (Apple HIG / WCAG 2.5.5).
+   Apply to one-off interactive elements that aren't built on the Button
+   primitive. See docs/touch-targets.md for the enforced surfaces. */
+.tappable {
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+}

@@ -1,0 +1,624 @@
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  /* dvh so short pages do not leave a strip of dead space under the fold
+     when the mobile URL bar is expanded. */
+  min-height: 100dvh;
+  transition: grid-template-columns var(--transition-base);
+}
+
+/* Collapsed state — sidebar slides off the left, the column that reserved its
+   space shrinks to 0 so .main (pinned to grid-column: 2) slides over to fill
+   the viewport. Sidebar + shell transitions run in sync for the smooth slide. */
+.shell[data-sidebar="collapsed"] {
+  grid-template-columns: 0 1fr;
+}
+.shell[data-sidebar="collapsed"] .sidebar {
+  transform: translateX(-100%);
+}
+
+.sidebar {
+  background: var(--color-bg-elevated);
+  border-right: 1px solid var(--color-border);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  /* Viewport-fixed so horizontal scroll (kanban-internal or document) can't
+     orphan the nav off the left edge — sticky only pins vertically. Taking
+     the sidebar out of grid flow means .main must explicitly claim column 2
+     below, otherwise auto-placement drops it into the now-empty column 1. */
+  position: fixed;
+  /* Below the site-notice banner when one is active (the banner is in normal
+     flow at the top of <body>, which a viewport-fixed box would otherwise
+     overlap). Absent banner → 0px → unchanged. */
+  top: var(--site-notice-height, 0px);
+  left: 0;
+  width: var(--sidebar-width);
+  /* dvh, not vh: on mobile browsers vh is the LARGEST viewport height, so a
+     100vh fixed column runs under the collapsed URL bar. Every inset below
+     resolves to 0 off a notched device, so this is a no-op there. */
+  height: calc(100dvh - var(--site-notice-height, 0px));
+  /* Landscape on a notched iPhone puts the notch down one side, and
+     viewport-fit: cover means the sidebar starts underneath it. */
+  padding-left: max(var(--space-6), env(safe-area-inset-left, 0px));
+  padding-bottom: max(var(--space-6), env(safe-area-inset-bottom, 0px));
+  transition: transform var(--transition-base);
+}
+
+.brand { padding-inline: var(--space-2); }
+
+/* Brand row hosts the wordmark on the left and the in-sidebar hamburger on
+   the right. The hamburger collapses the sidebar; when collapsed, the
+   .floatingHamburger below takes over so the user always has a way back. */
+.brandRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: var(--space-2);
+  gap: var(--space-2);
+  /* NAISI is all-caps with no descenders, so its default 1.5 line-height
+     pads the bounding box top-heavy and the wordmark optically rides higher
+     than the hamburger's icon center. Pin line-height: 1 so the bounding
+     box collapses to glyph height and align-items: center actually centers
+     what the eye sees. */
+  line-height: 1;
+}
+
+.sidebarHamburger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.sidebarHamburger:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+/* Top-right floating affordance — a single pill housing the brand link (back
+   to /) and the hamburger (re-opens the sidebar). Matches the sidebar's own
+   background + border so it reads as a piece of the same chrome that just
+   slid off-left. Always in the DOM so the slide can interpolate; hidden by
+   default via off-screen-right transform + opacity, slides in when its
+   sibling .shell enters the collapsed state — same var(--transition-base)
+   duration as the sidebar's transform, so both slides run in lockstep. */
+.floatingControls {
+  position: fixed;
+  /* Below the site-notice banner when one is active, like .sidebar above —
+     otherwise the pill can cover the banner's Details/dismiss controls. */
+  top: calc(var(--space-4) + var(--site-notice-height, 0px) + env(safe-area-inset-top, 0px));
+  right: max(var(--space-4), env(safe-area-inset-right, 0px));
+  z-index: 15;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  transform: translateX(calc(100% + var(--space-6)));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform var(--transition-base),
+    opacity var(--transition-base);
+}
+.shell[data-sidebar="collapsed"] ~ .floatingControls {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.floatingBrandLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+.floatingBrandLink:hover {
+  background: var(--color-surface-hover);
+}
+
+.floatingHamburger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  transition: background var(--transition-fast);
+}
+.floatingHamburger:hover {
+  background: var(--color-surface-hover);
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+}
+
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.navGroupSpaced {
+  margin-top: var(--space-3);
+}
+
+.navGroupLabel {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-subtle);
+  padding: 0 var(--space-3);
+  margin-bottom: var(--space-1);
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0.55rem 0.85rem;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.navBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.45rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-danger);
+  color: white;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.navLink:hover { background: var(--color-surface-hover); color: var(--color-text); }
+.active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.userBlock {
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.userName {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.userRole {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-transform: capitalize;
+}
+
+/* Spacing-only — the Button component owns the visual treatment (secondary
+   variant, sm size, full width). Just nudge it down from the role line. */
+.signOut {
+  margin-top: var(--space-2);
+}
+
+.main {
+  padding: var(--space-8) var(--space-10);
+  max-width: 64rem;
+  width: 100%;
+  /* Sidebar is position: fixed (above), so it no longer participates in
+     auto-placement — pin main to column 2 explicitly so it sits past the
+     reserved sidebar track instead of collapsing into column 1. */
+  grid-column: 2;
+  /* Allow the grid track to ignore .main's intrinsic min-content (driven
+     by the kanban's 5 × 17rem of fixed-width columns). Without this, the
+     1fr track = minmax(auto, 1fr) takes `auto` to mean kanban min-content
+     → .main expands to ~1440px → document scrolls horizontally instead of
+     the kanban scrolling internally. The chain on .scroll + .kanbanOnly
+     prevents propagation in flex/block contexts but doesn't help once the
+     grid item itself uses `auto` as its automatic min size. At desktop
+     viewports the symptom was hidden by .main's max-width cap; at <60rem
+     where max-width: 100% removes the cap, the bug surfaced. */
+  min-width: 0;
+}
+
+/* Per-route opt-in wider cap for board-shaped pages that benefit from the
+   extra horizontal real estate — the committee kanban (5 × 17rem columns ≈
+   85rem of content) and the run allocation board. Applied by AppShell's
+   WIDE_ROUTES predicate list; the condition for joining it is that the page
+   handles its own overflow via `overflow-x: auto` + a `min-width: 0` chain
+   (TaskBoard does it on .scroll / .kanbanOnly), so the original PR #11
+   concern — fixed-width columns leaking past viewport and orphaning the
+   sticky-vertical sidebar — is addressed at the page layer. Order matters:
+   this sits after `.main` so it overrides at desktop, and before the
+   `@media (max-width: 60rem)` block below so the phone full-bleed rule
+   still wins on small viewports. */
+.mainWide {
+  max-width: 100rem;
+  padding-right: var(--space-4);
+}
+
+/* Wrapper around the whole shell — used to slide the authed UI right
+   when the user signs out, mirroring the sign-in slide-left. Idle state
+   is just a plain block wrapper (no layout impact since the children
+   already manage their own positioning). The .shellExitingRight class
+   flips on for the duration of the transition before router.push to
+   the public homepage. */
+.shellExitingRight {
+  transition:
+    transform 530ms cubic-bezier(0.7, 0, 0.3, 1),
+    opacity 384ms ease-in;
+  transform: translateX(112vw);
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shellExitingRight {
+    transition: opacity 200ms ease;
+    transform: none;
+  }
+}
+
+/* One-shot fade-in applied by AppShell when arriving from the sign-in
+   flow (login or register). The 280ms `animation-delay` holds the
+   content invisible while initial Firestore onSnapshot listeners fire
+   their first emit — without this, the fade-in animates against
+   content that jitters as snapshots populate. `both` keeps the from-
+   state pinned during the delay. */
+.entering {
+  animation: shell-enter 620ms cubic-bezier(0.2, 0.6, 0.2, 1) 280ms both;
+}
+
+@keyframes shell-enter {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entering {
+    animation: shell-enter-rm 220ms ease 280ms both;
+  }
+  @keyframes shell-enter-rm {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
+.navSkeleton {
+  height: 2.1rem;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-hover);
+  opacity: 0.6;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.loadingPane {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 60vh;
+  color: var(--color-text-muted);
+}
+
+.spinner {
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.loadingText {
+  font-size: var(--text-sm);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Impersonation banner — only rendered when (app)/layout.tsx detects an active
+   view-as session. Negative margins escape main's padding so the banner spans
+   the full width; sticky top-0 keeps it visible while scrolling. Below --bp-lg
+   the topStrip sits above it, so the banner offsets `top` to match. */
+.impersonationBanner {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: calc(var(--space-8) * -1) calc(var(--space-10) * -1) var(--space-6);
+  padding: var(--space-3) var(--space-6);
+  background: var(--color-warning);
+  color: #1a1300;
+  font-size: var(--text-sm);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.18);
+}
+
+.impersonationText {
+  display: inline;
+  line-height: 1.4;
+}
+
+.impersonationRole {
+  text-transform: capitalize;
+  opacity: 0.85;
+}
+
+.impersonationWarn {
+  opacity: 0.85;
+}
+
+.impersonationExit {
+  appearance: none;
+  background: rgba(0, 0, 0, 0.18);
+  color: inherit;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.75rem;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition-fast);
+}
+
+.impersonationExit:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.impersonationExit:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* ===== Mobile top strip (rendered always, displayed below --bp-lg) =====
+   Brand + hamburger pinned to the top of the viewport. Replaces the
+   wrapped-row sidebar fallback. The drawer (via the shared <Drawer>
+   primitive) hosts the same nav body the desktop sidebar shows. */
+.topStrip {
+  display: none;
+}
+
+.topStripBrand {
+  display: inline-flex;
+  align-items: center;
+}
+
+.hamburger {
+  position: relative;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  transition: background var(--transition-fast);
+}
+.hamburger:hover { background: var(--color-surface-hover); }
+
+.menuIcon {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 1.25rem;
+  height: 0.875rem;
+}
+.menuIcon > span {
+  display: block;
+  height: 2px;
+  background: var(--color-text);
+  border-radius: 1px;
+}
+
+/* Pending-count badge surfaces on the hamburger when the drawer is closed
+   so admins still see the "you have things to attend to" cue without
+   opening the menu. Mirrors .navBadge inside the drawer. */
+.hamburgerBadge {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.3rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-danger);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Inside the Drawer (mobile nav portal). */
+.drawerBrand {
+  margin-bottom: var(--space-6);
+  padding-inline: var(--space-1);
+}
+
+/* Escape hatch shown by StuckLoadingEscape after the shell has sat loading
+   for 10s. Sits inside .loadingPane, which is already centred. Invisible in
+   the normal case, so it costs nothing until something is actually wrong. */
+.stuckLoading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border);
+  max-width: 22rem;
+  text-align: center;
+}
+
+.stuckLoadingText {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.stuckLoadingActions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Reload control in the mobile top strip. Hidden outright unless the site is
+   running as an installed app, where there is no URL bar to reload from.
+   See the comment on the button in AppShell.tsx for why this is CSS-gated
+   rather than gated on useIsStandalone. */
+.standaloneReload {
+  display: none;
+}
+
+:global(html[data-standalone="true"]) .standaloneReload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Pushed hard right so it sits beside the hamburger rather than centred
+     between the brand and the menu. */
+  margin-left: auto;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+:global(html[data-standalone="true"]) .standaloneReload:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+/* ===== Below --bp-lg: hide sidebar, show top strip, full-bleed main ===== */
+@media (max-width: 60rem) { /* --bp-lg */
+  .shell {
+    grid-template-columns: 1fr;
+    /* Release the desktop 100vh floor below --bp-lg so the page height
+       tracks content. Below this breakpoint the sidebar is hidden and
+       the shell is a single column — pinning to 100vh leaves dead space
+       under short content and removes the scroll-up cue when a
+       collapsible (AssigneePicker, New-task form, etc.) closes.
+       .loadingPane keeps its own 60vh floor independently. */
+    min-height: auto;
+  }
+  .sidebar {
+    display: none;
+  }
+  .topStrip {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    /* The bar's own height, before any notch inset. Published as a variable
+       because .impersonationBanner has to offset by the SAME total, and the
+       two silently drifting apart is exactly how the banner ends up tucked
+       under the strip. */
+    --top-strip-height: 3.5rem;
+    /* Was `height: 3.5rem` with a bare `padding-top: env(...)`. Under the
+       global `box-sizing: border-box` that made the inset EAT the content
+       box rather than grow it: on a notched iPhone in landscape a 59px inset
+       against a 56px box left nothing for the 44px hamburger, which was
+       crushed or overflowed. Adding the inset to the height fixes it, and
+       resolves to exactly 3.5rem wherever the inset is 0, which is every
+       desktop, every non-notched device and DevTools. */
+    height: calc(var(--top-strip-height) + env(safe-area-inset-top, 0px));
+    padding-inline: max(var(--space-4), env(safe-area-inset-left, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    background: color-mix(in srgb, var(--color-bg-elevated) 92%, transparent);
+    backdrop-filter: saturate(1.4) blur(12px);
+    -webkit-backdrop-filter: saturate(1.4) blur(12px);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .hamburger {
+    display: inline-flex;
+  }
+  .main {
+    max-width: 100%;
+    /* Side and bottom insets matter here: viewport-fit: cover means the
+       content box already reaches the physical edges, so in landscape the
+       first character of every line sits under the notch, and in portrait
+       the last row sits under the home indicator. Each resolves to the plain
+       spacing token off a notched device. */
+    padding: var(--space-6) max(var(--space-4), env(safe-area-inset-right, 0px))
+      calc(var(--space-6) + env(safe-area-inset-bottom, 0px))
+      max(var(--space-4), env(safe-area-inset-left, 0px));
+    /* Sidebar is display:none here — reset the desktop column-2 pin so main
+       takes the single grid track instead of creating a phantom column 2. */
+    grid-column: auto;
+  }
+  /* The desktop collapse affordances are irrelevant below --bp-lg — the
+     mobile drawer + hamburger in .topStrip own the nav-toggle UX here. */
+  .sidebarHamburger,
+  .floatingControls {
+    display: none;
+  }
+  /* Banner offsets to sit below the top strip (which is sticky at top 0). */
+  .impersonationBanner {
+    /* Must match .topStrip's total height above, inset included, or the
+       yellow view-as bar tucks under the strip on a notched device. */
+    top: calc(3.5rem + env(safe-area-inset-top, 0px));
+    margin: calc(var(--space-6) * -1) calc(var(--space-4) * -1) var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    flex-wrap: wrap;
+  }
+}
+
+/* Honour reduced-motion preferences — the collapse should still work, just
+   without the slide. */
+@media (prefers-reduced-motion: reduce) {
+  .shell,
+  .sidebar,
+  .floatingControls {
+    transition: none;
+  }
+}

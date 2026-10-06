@@ -1,0 +1,75 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.control {
+  width: 100%;
+  /* Native form controls have intrinsic min-content widths — most relevant
+     for <select>, whose min-content equals its longest <option>. In a
+     flex/grid container (where children default to min-width: auto =
+     min-content), that can push the track wider than 1fr and prevent the
+     layout from scoping down on narrow viewports. */
+  min-width: 0;
+  /* 44px touch-target floor on form controls — see docs/touch-targets.md.
+     Textarea overrides via its own min-height below. */
+  min-height: 2.75rem;
+  padding: 0.65rem 0.85rem;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--text-base);
+  line-height: 1.4;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.control::placeholder { color: var(--color-text-subtle); }
+
+.control:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--focus-ring);
+}
+
+.textarea {
+  min-height: 7rem;
+  resize: vertical;
+  line-height: var(--leading-normal);
+}
+
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 2.5rem;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%238b94ac' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.95rem center;
+  background-size: 0.75rem auto;
+  cursor: pointer;
+}
+
+.select:hover { border-color: var(--color-border-strong); }
+
+.select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* <option> styling has limited cross-browser support but this covers most desktop browsers. */
+.select option {
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  padding: var(--space-2);
+}
+
+.hint { font-size: var(--text-sm); color: var(--color-text-muted); }
+.error { font-size: var(--text-sm); color: var(--color-danger); }

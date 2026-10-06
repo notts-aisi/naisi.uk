@@ -1,0 +1,241 @@
+"use client";
+
+import {
+  GoogleAuthProvider,
+  signInWithCredential,
+  signOut as fbSignOut,
+} from "firebase/auth";
+import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { getClientAuth, getClientDb } from "@/lib/firebase/client";
+import { mark, warn } from "@/lib/devMonitor";
+import { CURRENT_POLICY_VERSION } from "@/lib/legal/policies";
+
+export type SignInResult = {
+  uid: string;
+  email: string | null;
+  isNew: boolean;
+  /** Server-resolved account kind: member = users doc, collaborator =
+   *  collaborators doc (no users doc), new = neither. Mirrors the email
+   *  sign-in path so both flows can route collaborators to their area. */
+  kind: "member" | "collaborator" | "new";
+};
+
+/**
+ * Exchanges a Google-issued ID token (from Google Identity Services) for
+ * a Firebase Auth session + a `__session` cookie. Designed to be called
+ * from GoogleSignInButton's onCredential callback.
+ *
+ * Why GIS instead of signInWithPopup / signInWithRedirect:
+ *
+ * Both Firebase Auth client flows depend on cross-origin iframes or
+ * popups loading accounts.google.com — content blockers, ad-blockers,
+ * and VPN tracking-protection routinely block those, leaving the user
+ * stuck on /login with no signal. GIS uses FedCM in modern browsers
+ * (Safari 17.4+, Chrome 117+) which is a browser-native API that
+ * extensions can't intercept, and falls back to a top-level redirect on
+ * older browsers. The credential comes back as an ID token JWT we hand
+ * to Firebase via GoogleAuthProvider.credential — Firebase Auth signs
+ * the user in client-side without any extra round trips.
+ *
+ * Server-side `exists` (returned by /api/auth/session) is the source of
+ * truth for the new-vs-existing-user routing decision — a client-side
+ * Firestore read here would race the fresh auth token attachment.
+ */
+export async function exchangeGoogleCredential(
+  idToken: string,
+): Promise<SignInResult> {
+  const auth = getClientAuth();
+  mark("[signin] exchanging GIS credential");
+  const cred = await signInWithCredential(
+    auth,
+    GoogleAuthProvider.credential(idToken),
+  );
+  const user = cred.user;
+  mark("[signin] signInWithCredential resolved", { uid: user.uid });
+
+  // Use the freshly-minted Firebase ID token (not the Google one) — the
+  // server's createSessionCookie verifies against Firebase Auth.
+  const firebaseIdToken = await user.getIdToken();
+  const res = await fetch("/api/auth/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken: firebaseIdToken }),
+  });
+  if (!res.ok) {
+    warn("[signin] /api/auth/session failed", { status: res.status });
+    throw new Error("Failed to establish session");
+  }
+  const body = (await res.json()) as {
+    ok: boolean;
+    exists: boolean;
+    kind?: "member" | "collaborator" | "new";
+  };
+  // `kind` distinguishes an existing collaborator (no users doc, so
+  // `exists` is false) from a genuinely new account. Fall back to the
+  // exists-derived answer for an older server that omits it.
+  const kind = body.kind ?? (body.exists ? "member" : "new");
+  mark("[signin] session cookie established", { exists: body.exists, kind });
+  return { uid: user.uid, email: user.email, isNew: kind === "new", kind };
+}
+
+/**
+ * Called by the /register form after Google auth + profile fields submitted.
+ * Writes the initial users/{uid} doc with role: 'pending'.
+ */
+import type { AffiliationStatus } from "@/lib/firestore/users";
+import {
+  serialiseNotifications,
+  type NotificationPrefs,
+} from "@/lib/firestore/notifications";
+
+/** Drop undefined values — Firestore's `setDoc` rejects them outright. */
+function compact<T extends Record<string, unknown>>(obj: T): Partial<T> {
+  const out: Partial<T> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) (out as Record<string, unknown>)[k] = v;
+  }
+  return out;
+}
+
+export async function completeRegistration(profile: {
+  preferredName: string;
+  universityEmail: string;
+  status: AffiliationStatus;
+  statusOther?: string;
+  subject: string;
+  expectedGraduation?: string;
+  motivation: string;
+  interests?: string;
+  notifications: NotificationPrefs;
+  /** If present, server-side `uniEmailVerifiedAt` should be set from the
+   * backing `emailVerifications` doc. The server treats this as a hint —
+   * actual trust comes from the doc, not the client's say-so. */
+  verifiedTokenId?: string;
+  /** ISO timestamp stamped when the register tab saw verification complete. */
+  uniEmailVerifiedAt?: Date;
+}): Promise<void> {
+  const auth = getClientAuth();
+  const db = getClientDb();
+  const user = auth.currentUser;
+  if (!user) throw new Error("Not signed in");
+
+  const { notifications, verifiedTokenId, uniEmailVerifiedAt, ...rest } = profile;
+  const writableProfile: Record<string, unknown> = {
+    ...compact(rest),
+    notifications: serialiseNotifications(notifications),
+    // Legacy compat — keep `newsletter` in sync so un-migrated read paths
+    // (newsletter send, useNewsletterSubscribers) work during the transition.
+    newsletter: {
+      subscribed: notifications.categories.newsletter,
+      deliverToGmail: notifications.channels.gmail,
+      deliverToUniEmail: notifications.channels.uniEmail,
+    },
+  };
+  // NB: `uniEmailVerifiedAt` is deliberately NOT written here. It is a trusted
+  // signal (it gates uni-email ownership + the admin "verified" badge), so it is
+  // stamped SERVER-SIDE from the unforgeable `emailVerifications` record by the
+  // reconcile call below — never from the client's say-so. The local
+  // `uniEmailVerifiedAt` value is still used further down as a client-side hint
+  // for the subscriptions matrix (which the sync route re-checks server-side).
+
+  await setDoc(doc(db, "users", user.uid), {
+    email: user.email,
+    displayName: user.displayName,
+    photoURL: user.photoURL,
+    role: "pending",
+    profile: writableProfile,
+    showOnMembers: false,
+    policyVersion: CURRENT_POLICY_VERSION,
+    policyAgreedAt: serverTimestamp(),
+    createdAt: serverTimestamp(),
+  });
+  // Server-authoritative uni-email stamp. The user doc now exists, so the server
+  // can stamp `profile.uniEmailVerifiedAt` from the (server-only, unforgeable)
+  // `emailVerifications` record — the create-time gap `confirmUniEmailVerification`
+  // couldn't fill (no user doc yet when the magic link was clicked). Awaited so
+  // the subscriptions sync below sees the stamped state. Best-effort for the
+  // registration flow — a failure never blocks it — but note the degraded path:
+  // if the stamp doesn't land, the user shows un-verified AND the sync below
+  // drops the uni-email subscription rows they ticked (getVerifiedEmails gates on
+  // the stamp). Recovery is NOT automatic: it needs a full re-verify (re-send +
+  // re-click the magic link) from /profile. `fetch` doesn't throw on a non-2xx,
+  // so we check `res.ok` explicitly to at least surface the failure in logs.
+  if (verifiedTokenId || uniEmailVerifiedAt) {
+    try {
+      const res = await fetch("/api/verify-email/reconcile", { method: "POST" });
+      if (!res.ok) {
+        console.warn("[uni-email reconcile] non-ok response", res.status);
+      }
+    } catch (err) {
+      console.warn("[uni-email reconcile] failed", err);
+    }
+  }
+
+  // Flip the signup-tracker row to "completed" now that a profile exists. Done
+  // server-side (the registrations collection is Admin-SDK-only), and the server
+  // checks the document above is really there before it sets anything. Not
+  // awaited, so the register flow never waits on a tracker; `keepalive` is what
+  // lets the request outlive the navigation that follows this function, which
+  // is how a finished registration used to stay "unfinished" in the counts.
+  // The admin list reads the profile document itself, so a flip that is still
+  // lost costs a count, never a wrong row.
+  fetch("/api/register/profile-complete", { method: "POST", keepalive: true }).catch((err) => {
+    console.warn("[registration tracker] profile-complete flip failed", err);
+  });
+
+  // Subscriptions sync — claims any pre-existing guest subscription rows
+  // for this user's verified email(s) (so a homepage signer-upper who later
+  // registers doesn't end up with a duplicate guest row), and applies the
+  // form's notification prefs as a per-(email, channel) matrix. Fire-and-
+  // forget so the register flow proceeds regardless; the sender already
+  // gracefully handles a user who hasn't been synced yet.
+  //
+  // Derive the matrix from the legacy register-form shape: a category is
+  // delivered to a given email iff the form ticked both the category and
+  // that email's channel-routing flag. The /profile UI (post-register)
+  // sends the matrix directly without this translation.
+  const matrix: Record<string, { newsletter: boolean; events: boolean }> = {};
+  const googleEmail = (user.email ?? "").trim().toLowerCase();
+  if (googleEmail) {
+    matrix[googleEmail] = {
+      newsletter:
+        notifications.categories.newsletter && notifications.channels.gmail,
+      events: notifications.categories.events && notifications.channels.gmail,
+    };
+  }
+  // Only include the uni email if the form recorded it as verified — the
+  // sync route's helper double-checks this server-side, but matching the
+  // gate here keeps payloads minimal.
+  const uniEmailNorm = profile.universityEmail.trim().toLowerCase();
+  if (uniEmailNorm && uniEmailVerifiedAt) {
+    matrix[uniEmailNorm] = {
+      newsletter:
+        notifications.categories.newsletter && notifications.channels.uniEmail,
+      events: notifications.categories.events && notifications.channels.uniEmail,
+    };
+  }
+  fetch("/api/subscriptions/sync", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ matrix }),
+  }).catch((err) => {
+    console.warn("[subscriptions sync] fire-and-forget failed", err);
+  });
+
+  // Fire-and-forget submission confirmation. User flow proceeds regardless.
+  fetch("/api/admin/application-emails/send", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ templateId: "application-submitted", uid: user.uid }),
+  }).catch((err) => {
+    console.warn("[submission email] fire-and-forget failed", err);
+  });
+}
+
+export async function signOut() {
+  mark("[signout] start");
+  await fbSignOut(getClientAuth());
+  mark("[signout] firebase signOut done");
+  await fetch("/api/auth/session", { method: "DELETE" });
+  mark("[signout] /api/auth/session DELETE done");
+}

@@ -1,0 +1,131 @@
+import { NextResponse } from "next/server";
+import { isAddressableId } from "@/lib/addressableId";
+import { getAdminDb, getAdminStorage } from "@/lib/firebase/admin";
+import { isNamedWithStanding } from "@/lib/firebase/eligibility";
+import { getCurrentUser } from "@/lib/firebase/session";
+import { ownedStoragePaths } from "@/lib/firestore/taskAttachments";
+
+/**
+ * Cascade-delete a task: every comment, every activity entry, every
+ * attachment (Firestore doc + Storage object), plus the parent task doc.
+ *
+ * Client-side rules block subcollection delete for non-admins (activity is
+ * `allow update, delete: if false`; comments are admin-only). Doing this
+ * server-side via Admin SDK is the only correct path — it bypasses rules
+ * but we mirror the task-level delete authorization here:
+ *   - admin (any task)
+ *   - committee who created a committee-visibility task
+ *   - creator of a personal task
+ *   - COMPLETER of a `fellowship-reminder` task (the course-week mirror's
+ *     dismissal). This branch is what makes the rules' matching branch
+ *     reachable at all: nothing in the app deletes a task through the client
+ *     SDK, so `deleteTask()` → this route is the only path a member has, and
+ *     without it the Delete button on a mirror rendered and then 403'd.
+ *     Keyed on `isCompleter` rather than `isCreator` so it matches the rules
+ *     predicate byte for byte and survives however the mirror was
+ *     materialised (the sync route makes the member both; an admin-triggered
+ *     backfill might not).
+ *
+ * Every branch reads `source` / `visibility` / the rosters off the EXISTING
+ * document — never off the request — so a caller cannot talk its way into a
+ * delete by claiming a source it does not have.
+ *
+ * Storage objects for attachments are enumerated BEFORE the recursive doc
+ * delete so we still have their `storagePath` values. Storage failures
+ * (object missing, ACL blip) are logged but don't block the Firestore
+ * cleanup — an orphaned Storage blob is strictly better than a phantom
+ * Firestore doc (blob is invisible to the Console, phantom doc keeps
+ * cluttering the tasks list).
+ */
+export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id: taskId } = await ctx.params;
+  // Belt and braces under the proxy's chokepoint (src/lib/addressableId.ts):
+  // a slash in the id would address a subcollection document.
+  if (!isAddressableId(taskId)) {
+    return NextResponse.json({ error: "Task not found" }, { status: 404 });
+  }
+
+  const db = getAdminDb();
+  if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
+
+  const viewer = await getCurrentUser();
+  if (!viewer) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
+  const taskRef = db.collection("tasks").doc(taskId);
+  const taskSnap = await taskRef.get();
+  if (!taskSnap.exists) {
+    return NextResponse.json({ error: "Task not found" }, { status: 404 });
+  }
+  const task = taskSnap.data() ?? {};
+
+  // Mirror firestore.rules `allow delete` on /tasks/{taskId}
+  const isCreator = viewer.uid === task.creatorUid;
+  // The rules' `isCompleter()`: `request.auth.uid in resource.data.completerUids`,
+  // plus the live approved-account floor the rules get for free (a rejected
+  // account cannot be signed in at all under `hasRole`). This is raw Firestore
+  // data rather than a normalised doc, which `isNamedWithStanding` handles: a
+  // legacy row missing the field reads as "not a completer" instead of throwing.
+  const isCompleter = isNamedWithStanding(
+    viewer,
+    "tasks.completerUids",
+    task.completerUids,
+  );
+  const canDelete =
+    viewer.role === "admin" ||
+    (viewer.role === "committee" &&
+      viewer.suRecognised &&
+      task.visibility === "committee" &&
+      isCreator) ||
+    (task.source === "personal" && isCreator) ||
+    (task.source === "fellowship-reminder" && isCompleter);
+  if (!canDelete) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // Pre-count + collect attachment storage paths for the cleanup pass.
+  const [commentsSnap, activitySnap, attachmentsSnap] = await Promise.all([
+    taskRef.collection("comments").count().get(),
+    taskRef.collection("activity").count().get(),
+    taskRef.collection("attachments").get(),
+  ]);
+  const storagePaths = ownedStoragePaths(
+    taskId,
+    attachmentsSnap.docs.map((d) => d.data().storagePath),
+  );
+
+  // BulkWriter-backed recursive delete handles comments + activity + attachments
+  // + any nested collections in one call, paginated internally so batch-size
+  // limits don't matter.
+  await db.recursiveDelete(taskRef);
+
+  // Best-effort Storage cleanup — after Firestore so a Storage failure doesn't
+  // leave us in a "doc still exists, blobs gone" state.
+  let storageDeleted = 0;
+  let storageFailed = 0;
+  const storage = getAdminStorage();
+  if (storage && storagePaths.length > 0) {
+    const bucket = storage.bucket();
+    await Promise.all(
+      storagePaths.map(async (path) => {
+        try {
+          await bucket.file(path).delete({ ignoreNotFound: true });
+          storageDeleted += 1;
+        } catch (err) {
+          storageFailed += 1;
+          console.warn(`[delete] storage delete failed for ${path}:`, err);
+        }
+      }),
+    );
+  }
+
+  return NextResponse.json({
+    ok: true,
+    deleted: {
+      comments: commentsSnap.data().count,
+      activity: activitySnap.data().count,
+      attachments: attachmentsSnap.size,
+      storageDeleted,
+      storageFailed,
+    },
+  });
+}

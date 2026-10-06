@@ -1,0 +1,174 @@
+import { NextResponse } from "next/server";
+import { isAddressableId } from "@/lib/addressableId";
+import { FieldValue } from "firebase-admin/firestore";
+import TaskMembershipEmail from "@/emails/TaskMembershipEmail";
+import { wantsEmailForProfile } from "@/lib/email/preferences";
+import { sendEmail } from "@/lib/email/send";
+import {
+  buildMembershipEmailPayload,
+  resolveTaskUsers,
+} from "@/lib/email/taskMembership";
+import { getAdminDb } from "@/lib/firebase/admin";
+import { isTaskEmailEnabled } from "@/lib/firestore/taskEmailConfig";
+import { getCurrentUser } from "@/lib/firebase/session";
+import { taskRoster } from "@/lib/tasks/recipientScope";
+import { mirrorTaskEmailToPush } from "@/lib/push/taskNotifications";
+
+function stringArray(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return (v as unknown[]).filter((u): u is string => typeof u === "string");
+}
+
+async function stampInitialNotifyAt(
+  db: FirebaseFirestore.Firestore,
+  taskId: string,
+  actorUid: string,
+  memberCount: number,
+) {
+  const taskRef = db.collection("tasks").doc(taskId);
+  await taskRef.update({
+    initialNotifyAt: FieldValue.serverTimestamp(),
+    pendingNotifyUids: [],
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  await taskRef.collection("activity").add({
+    kind: "initial_notifications_sent",
+    actorUid,
+    createdAt: FieldValue.serverTimestamp(),
+    payload: { recipients: memberCount },
+  });
+}
+
+/**
+ * "The creator of a personal task" means a to-do with ONE person on it, and
+ * that person is the caller. A personal task with anyone else on its roster
+ * does not count.
+ */
+function isOwnPersonalTask(task: FirebaseFirestore.DocumentData, uid: string): boolean {
+  if (task.source !== "personal") return false;
+  if (task.creatorUid !== uid) return false;
+  const roster = taskRoster(task);
+  return roster.size === 1 && roster.has(uid);
+}
+
+export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id: taskId } = await ctx.params;
+  // Belt and braces under the proxy's chokepoint (src/lib/addressableId.ts):
+  // a slash in the id would address a subcollection document.
+  if (!isAddressableId(taskId)) {
+    return NextResponse.json({ error: "Task not found" }, { status: 404 });
+  }
+  const db = getAdminDb();
+  if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
+
+  const viewer = await getCurrentUser();
+  if (!viewer) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
+  const taskRef = db.collection("tasks").doc(taskId);
+  const taskSnap = await taskRef.get();
+  if (!taskSnap.exists) {
+    return NextResponse.json({ error: "Task not found" }, { status: 404 });
+  }
+  const task = taskSnap.data() ?? {};
+
+  // Permission check happens before the kill switch — a non-admin
+  // shouldn't be able to advance the task out of setup even when the dev
+  // kill switch is silencing real sends.
+  const completerUids = stringArray(task.completerUids);
+  const reviewerUids = stringArray(task.reviewerUids);
+  const isPersonalCreator = isOwnPersonalTask(task, viewer.uid);
+  if (viewer.role !== "admin" && !isPersonalCreator) {
+    return NextResponse.json(
+      {
+        error:
+          "Only an admin (or the creator of a personal task) can send initial notifications.",
+      },
+      { status: 403 },
+    );
+  }
+  if (task.initialNotifyAt) {
+    return NextResponse.json(
+      { error: "Initial notifications already sent for this task." },
+      { status: 400 },
+    );
+  }
+  const recipientList = Array.from(new Set([...completerUids, ...reviewerUids]));
+  if (recipientList.length === 0) {
+    return NextResponse.json(
+      { error: "Add at least one member before sending initial notifications." },
+      { status: 400 },
+    );
+  }
+
+  // Kill switch: still flip initialNotifyAt so the UI advances out of setup
+  // (the affordance is for testing the workflow, not blocking it).
+  if (!(await isTaskEmailEnabled(db))) {
+    await stampInitialNotifyAt(db, taskId, viewer.uid, recipientList.length);
+    return NextResponse.json(
+      { ok: true, skipped: "task-emails-disabled", recipients: recipientList.length },
+      { status: 200 },
+    );
+  }
+
+  const users = await resolveTaskUsers(db, recipientList);
+  const taskTitle = typeof task.title === "string" ? task.title : "a task";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://naisi.uk";
+  const taskLink = `${appUrl}/committee/tasks?task=${encodeURIComponent(taskId)}`;
+
+  let sent = 0;
+  let failed = 0;
+  let optedOut = 0;
+  for (const uid of recipientList) {
+    const user = users.get(uid);
+    if (!user) {
+      failed += 1;
+      continue;
+    }
+    // THE THIRD GATE, AND IT GATES EMAIL ONLY. The site-wide
+    // `config/taskEmails` kill switch ran at the top of the handler; this is
+    // the member's own tasks row, the EMAIL column of it. The PUSH column is a
+    // separate cell of the same row, and `mirrorTaskEmailToPush` reads it for
+    // itself, so somebody who has said "notify me on my phone, not by email"
+    // gets exactly that. Opted out is neither sent nor failed: nothing went
+    // wrong, and nothing was posted.
+    const wantsEmail = wantsEmailForProfile(user.profile, "tasks");
+    const payload = buildMembershipEmailPayload({
+      recipientUid: uid,
+      task,
+      users,
+    });
+    try {
+      if (wantsEmail) {
+        await sendEmail({
+          to: user.email,
+          subject: `You've been added to "${taskTitle}"`,
+          fromName: "NAISI Tasks",
+          kind: "task",
+          actorUid: viewer.uid,
+          referenceId: taskId,
+          react: TaskMembershipEmail({
+            recipientName: user.displayName || "there",
+            taskTitle,
+            taskLink,
+            preassignments: payload.preassignments,
+            otherCompleterNames: payload.otherCompleterNames,
+          }),
+        });
+        sent += 1;
+      } else {
+        optedOut += 1;
+      }
+      await mirrorTaskEmailToPush(uid, {
+        title: `You've been added to "${taskTitle}"`,
+        body: "Open the task to see your part.",
+        taskId,
+      });
+    } catch (err) {
+      console.error(`[send-initial-notifications] send to ${user.email} failed`, err);
+      failed += 1;
+    }
+  }
+
+  await stampInitialNotifyAt(db, taskId, viewer.uid, recipientList.length);
+  return NextResponse.json({ ok: true, sent, failed, optedOut });
+}

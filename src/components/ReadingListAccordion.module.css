@@ -1,0 +1,169 @@
+/* ============================================================
+   Reading-list accordion. One per <ReadingListAccordion>.
+
+   Layout: each entry is a button row (the summary) plus a
+   collapsing panel below. Default state is closed. Hovering or
+   focusing the row gives a subtle background tint. The collapse
+   itself (grid-template-rows 0fr → 1fr) lives in
+   ui/Accordion.module.css; this file styles the row and the
+   panel contents only.
+   ============================================================ */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--color-border);
+}
+
+.list:last-child {
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* === Summary row (the click target) === */
+
+.summary {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-4);
+  align-items: start;
+  /* Generous block padding so the row lives off the divider rules above
+     and below. Tighter padding made the title feel like it was sitting
+     on top of the line. (Was --space-7, which tokens.css does not define
+     — the scale jumps 6 → 8 — so this silently rendered as 0.) */
+  padding: var(--space-6) var(--space-2);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  transition: background var(--transition-fast);
+}
+
+.summary:hover {
+  background: var(--color-surface-hover, rgba(255, 255, 255, 0.03));
+}
+
+.summary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+.summaryText {
+  display: flex;
+  flex-direction: column;
+  /* Larger gap between the title and the blurb so the two lines have
+     room to breathe rather than feeling stacked. */
+  gap: var(--space-3);
+  min-width: 0; /* allow the blurb to wrap inside the grid cell */
+}
+
+.summaryTitle {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+  color: var(--color-text);
+}
+
+.summaryBlurb {
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.indicator {
+  width: 1.75rem;
+  height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  margin-top: 0.25em;
+  transition: transform var(--transition-fast),
+              color var(--transition-fast),
+              border-color var(--transition-fast),
+              background var(--transition-fast);
+}
+
+.summary:hover .indicator {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+
+.indicatorOpen {
+  transform: rotate(180deg);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indicator {
+    transition: none;
+  }
+}
+
+/* === Items list inside the panel === */
+
+.items {
+  list-style: none;
+  /* Block padding lives on the items list (rather than on Accordion's
+     .panelInner) so it doesn't contribute to the collapsed-state height
+     of the grid-row track. Top padding gives the first item room above
+     its content; bottom padding does the same below the last item before
+     the divider rule. (Bottom was --space-7 — undefined, so 0.) */
+  padding: var(--space-3) 0 var(--space-8) var(--space-2);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  /* Generous gap between items so the list of recommendations feels
+     scannable instead of crammed. */
+  gap: var(--space-6);
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  /* Comfortable space between the link, the source line, and the blurb
+     within a single item. */
+  gap: var(--space-2);
+}
+
+.itemLink {
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--color-text);
+  text-decoration: none;
+  line-height: 1.35;
+  background-image: linear-gradient(var(--color-accent), var(--color-accent));
+  background-size: 0 1px;
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  transition: background-size var(--transition-fast), color var(--transition-fast);
+}
+
+.itemLink:hover,
+.itemLink:focus-visible {
+  background-size: 100% 1px;
+  color: var(--color-accent);
+}
+
+.itemSource {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.itemBlurb {
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  margin: 0;
+}

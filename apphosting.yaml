@@ -1,0 +1,116 @@
+# Firebase App Hosting configuration.
+# Docs: https://firebase.google.com/docs/app-hosting/configure
+runConfig:
+  maxInstances: 2
+  cpu: 1
+  memoryMiB: 512
+  concurrency: 80
+  timeoutSeconds: 60
+
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    secret: naisi-web-api-key
+    availability: [BUILD, RUNTIME]
+  # Firebase Hosting custom domain serving the OAuth handler at
+  # /__/auth/handler/*. Serving from auth.naisi.uk (same eTLD+1 as naisi.uk)
+  # keeps Firebase auth cookies first-party → Safari ITP doesn't block them →
+  # popup sign-in works reliably.
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: auth.naisi.uk
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: naisi-website
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: naisi-website.firebasestorage.app
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    secret: naisi-web-messaging-sender-id
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    secret: naisi-web-app-id
+    availability: [BUILD, RUNTIME]
+  # OAuth 2.0 client ID for Google Identity Services. Required by the GSI
+  # button initializer (google.accounts.id.initialize). One client ID per
+  # Firebase project. Public by design (ships in the client bundle), no
+  # Secret Manager indirection needed.
+  - variable: NEXT_PUBLIC_GOOGLE_CLIENT_ID
+    value: 742980551273-h0p1c9kmff5tdoe32rm2d10ia2iht4k1.apps.googleusercontent.com
+    availability: [BUILD, RUNTIME]
+  # HMAC secret used to sign RSVP self-cancel / change-request links in emails.
+  # Rotating the secret invalidates every outstanding email link.
+  - variable: EVENTS_TOKEN_SECRET
+    secret: EVENTS_TOKEN_SECRET
+    availability: [RUNTIME]
+  # SMTP settings for outbound mail, read in src/lib/email/send.ts.
+  - variable: SMTP_HOST
+    value: smtp.resend.com
+    availability: [RUNTIME]
+  - variable: SMTP_PORT
+    value: "587"
+    availability: [RUNTIME]
+  - variable: SMTP_USER
+    value: resend
+    availability: [RUNTIME]
+  - variable: SMTP_PASSWORD
+    secret: SMTP_PASSWORD
+    availability: [RUNTIME]
+  # Signing secret for the mail provider's webhook. The route at
+  # src/app/api/webhooks/resend-events/route.ts verifies each delivery with it.
+  - variable: RESEND_WEBHOOK_SECRET
+    secret: RESEND_WEBHOOK_SECRET
+    availability: [RUNTIME]
+  # Bearer token Cloud Scheduler presents to POST /api/scheduler/tick, read in
+  # src/app/api/scheduler/tick/route.ts. RUNTIME only and never NEXT_PUBLIC_:
+  # a build-time value would be inlined into the client bundle. A backend
+  # whose Secret Manager lacks it fails its rollout on this line, which is the
+  # intended failure: a tick with no secret would 404 forever and silently.
+  # See docs/courses-ops.md, "The scheduler tick".
+  - variable: SCHEDULER_SECRET
+    secret: SCHEDULER_SECRET
+    availability: [RUNTIME]
+  # reCAPTCHA PRIVATE key, used only by lib/recaptcha/server.ts to validate the
+  # browser's token via Google siteverify. RUNTIME only: it must never be
+  # bundled. Resolved by NAME from each project's own Secret Manager.
+  #
+  # The PUBLIC half (NEXT_PUBLIC_RECAPTCHA_SITE_KEY) is deliberately not
+  # declared here: it differs per project and is meant to ship in the client
+  # bundle, so each backend sets it itself, with BUILD availability.
+  - variable: RECAPTCHA_SECRET
+    secret: RECAPTCHA_SECRET
+    availability: [RUNTIME]
+  # Web push (VAPID). The secrets resolve by name from each project's own
+  # Secret Manager. The PUBLIC key needs BUILD availability because it is
+  # inlined into the client bundle; the private key is runtime-only and is
+  # what signs each push to the browser vendors' push services. Do NOT
+  # reference a secret here before it exists on every project that reads this
+  # file: an unresolvable secret fails the rollout.
+  - variable: NEXT_PUBLIC_VAPID_PUBLIC_KEY
+    secret: NEXT_PUBLIC_VAPID_PUBLIC_KEY
+    availability: [BUILD, RUNTIME]
+  - variable: VAPID_PRIVATE_KEY
+    secret: VAPID_PRIVATE_KEY
+    availability: [RUNTIME]
+  - variable: SMTP_FROM_NAME
+    value: NAISI
+    availability: [RUNTIME]
+  - variable: SMTP_FROM_EMAIL
+    value: newsletter@naisi.uk
+    availability: [RUNTIME]
+  # Absolute base URL baked into outbound email links (unsubscribe, RSVP
+  # self-serve). Must match the live origin or links break.
+  - variable: NEXT_PUBLIC_APP_URL
+    value: https://naisi.uk
+    availability: [BUILD, RUNTIME]
+  # Default Reply-To header for outbound mail. Set so recipients who hit
+  # "Reply" without noticing Reply-To land in a monitored inbox.
+  - variable: EMAIL_DEFAULT_REPLY_TO
+    value: ai-safety@uonsu.com
+    availability: [RUNTIME]
+  # When "true", newsletter sends ignore self-declared university addresses
+  # and deliver only to Google-authenticated primary addresses.
+  - variable: EMAIL_GMAIL_ONLY_MODE
+    value: "true"
+    availability: [RUNTIME]
+  # No FIREBASE_ADMIN_* variable is declared here: on App Hosting the Admin
+  # SDK uses Application Default Credentials (src/lib/firebase/admin.ts).

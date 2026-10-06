@@ -1,0 +1,721 @@
+/**
+ * Phase 3: the local captcha-relaxed server, and the only supported way to run
+ * the /api/register and Mailpit batteries.
+ *
+ *   npm run e2e:local             build, start, test, tear down
+ *   npm run e2e:local -- --skip-build   reuse the previous local build
+ *
+ * What this script exists to guarantee, in order of importance:
+ *
+ * 1. The captcha-relaxed server is UNREACHABLE from anywhere but this machine.
+ *    `next start` binds to every interface by default; a registration endpoint
+ *    that accepts any reCAPTCHA token must never be LAN-visible, so the server
+ *    is bound to 127.0.0.1 explicitly, and so is Mailpit.
+ *
+ * 2. The relaxation NEVER leaves this process. The always-pass secret and the
+ *    Mailpit SMTP override are injected into the spawned server's environment
+ *    only — no env file is written, so there is nothing a deployed backend
+ *    could ever pick up. That is also why this script REFUSES a server that is
+ *    already listening on the port: it constructs the server's environment
+ *    itself rather than trusting whatever happens to be there.
+ *
+ * 3. The app under test is pointed at the DEV project. The assertion is on the
+ *    EFFECTIVE environment, not just `.env.local`: Next resolves
+ *    `process.env` > `.env.production.local` > `.env.local`, and the child
+ *    inherits this shell, so the check reads the effective value. Mirrors the
+ *    tripwires in lib/env.mjs.
+ *
+ * 4. No real mail can be attempted. SMTP_HOST/PORT are forced to the loopback
+ *    Mailpit; the credentials in .env.local are shadowed, so even a template
+ *    bug that addressed a real inbox would land in the catcher.
+ */
+import { execFileSync, spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import webpush from "web-push";
+import { existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { REPO_ROOT, parseEnvFile, signingServiceAccount } from "./lib/env.mjs";
+import { clearMailbox, mailpitAvailable } from "./lib/mailpit.mjs";
+
+const HOST = "127.0.0.1";
+const PORT = 3100;
+const ORIGIN = `http://${HOST}:${PORT}`;
+/**
+ * The persona battery's server: the same build, on its own port, pointed at
+ * a Firestore EMULATOR so elevated roles never exist on the dev project. See
+ * lib/personas.mjs for the property this keeps and the pull request that
+ * chose it. Both are optional on a laptop without Java or firebase-tools and
+ * required in CI (`E2E_PERSONA_BATTERY=required`), so a skip there is red.
+ */
+const PERSONA_PORT = 3101;
+const PERSONA_ORIGIN = `http://${HOST}:${PERSONA_PORT}`;
+const EMULATOR_PORT = 8080;
+const EMULATOR_HOST = `${HOST}:${EMULATOR_PORT}`;
+const FIREBASE_CLI = join(REPO_ROOT, "scripts", "rules-tests", "node_modules", ".bin", "firebase");
+const EMULATOR_LOG = join(REPO_ROOT, ".next", "e2e-emulator.log");
+const PERSONA_SERVER_LOG = join(REPO_ROOT, ".next", "e2e-persona-server.log");
+const MAILPIT_HTTP = "http://127.0.0.1:8025";
+const MAILPIT_SMTP_PORT = "1025";
+const DEV_PROJECT = "naisi-uk-dev";
+
+/**
+ * Google's PUBLISHED reCAPTCHA test secret — the pair documented at
+ * https://developers.google.com/recaptcha/docs/faq for automated testing.
+ * siteverify answers success for ANY token under it, which is precisely what
+ * lets the register batteries through the gate. It is not a credential and
+ * hard-coding it here reveals nothing; the thing that must never happen is a
+ * DEPLOYED backend carrying it, and nothing reads this file but this script,
+ * which passes it only into the environment of a loopback-bound child process.
+ */
+const ALWAYS_PASS_RECAPTCHA_SECRET = "6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe";
+
+/**
+ * A NON-EMPTY site key for the client bundle, so the reCAPTCHA widget mounts.
+ *
+ * The fetch-based batteries never needed one: they post a junk token string
+ * straight at the route and the always-pass secret accepts it. A browser
+ * cannot. `RecaptchaInvisible` renders nothing and yields no token without a
+ * site key, and once a secret is set `verifyRecaptcha` treats a missing token
+ * as a refusal, so a browser-driven run against a server built without a key
+ * is refused by every reCAPTCHA-gated route with "recaptcha refused". That was
+ * the first thing the applicant funnel found on its first real run.
+ *
+ * Its VALUE is deliberately not a key. Google's published test site key is a
+ * v2 Checkbox key and the widget renders as Invisible, which fails with
+ * "Invalid key type" and still yields nothing (the second run found that).
+ * The browser specs instead serve a stub `api.js` from Playwright on loopback
+ * (`lib/browser.mjs`), which calls back a fixed token the always-pass secret
+ * accepts; the key only has to be present for the widget to mount and ask.
+ * Spelled so a person reading the bundle knows what they are looking at. A
+ * hand-driven browser against this server, without the stub, will see the
+ * refusal: that is the real widget failing on a fake key, and expected.
+ *
+ * Inlined into the client bundle at build time, which is why it is also part
+ * of the build marker below.
+ */
+const LOOPBACK_RECAPTCHA_SITE_KEY = "e2e-loopback-recaptcha-stubbed-in-playwright";
+
+/** Marker recording what the current .next build baked in (NEXT_PUBLIC_* are
+ *  inlined at build time, so a build made for another origin is unusable). */
+const BUILD_MARKER = join(REPO_ROOT, ".next", "e2e-local-build.json");
+const SERVER_LOG = join(REPO_ROOT, ".next", "e2e-local-server.log");
+
+const log = (msg) => console.log(`[e2e:local] ${msg}`);
+
+/**
+ * Children this run spawned. `fail()` needs to reach them: an early exit that
+ * left `next start` alive would leave :3100 occupied, and every later run
+ * refuses a server it did not start — one timeout would poison the harness
+ * until someone found the stray process by hand.
+ */
+const CHILDREN = [];
+/** Set once teardown begins, so the expected exit is not reported as a death. */
+let serverExitExpected = false;
+const killChildren = () => {
+  serverExitExpected = true;
+  for (const { child } of [...CHILDREN].reverse()) {
+    if (child.exitCode === null) child.kill("SIGTERM");
+  }
+};
+const fail = (msg) => {
+  console.error(`[e2e:local] ${msg}`);
+  killChildren();
+  process.exit(1);
+};
+
+/**
+ * Is something LISTENING on this port?
+ *
+ * `-sTCP:LISTEN` matters and is not decoration: plain `lsof -i :N` selects any
+ * socket whose local *or remote* port is N, in any state. Without it, a browser
+ * tab holding a connection to someone else's :3000, or a lingering TIME_WAIT,
+ * reads as "the port is occupied" — and this function gates two hard refusals,
+ * so a false positive turns into "refusing to build" or "refusing to test a
+ * server it did not start" for no reason.
+ */
+function portInUse(port) {
+  try {
+    const out = execFileSync("lsof", ["-ti", `TCP:${port}`, "-sTCP:LISTEN"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return out.trim().length > 0;
+  } catch {
+    // lsof exits 1 when nothing matches — that IS "port free".
+    return false;
+  }
+}
+
+/**
+ * The project/credential tripwires, applied to the environment the server will
+ * ACTUALLY see — not just to `.env.local`.
+ *
+ * Next.js resolves configuration as `process.env` > `.env.production.local` >
+ * `.env.local`, and `buildServerEnv()` hands the child an inherited
+ * `process.env`, so every check here reads the effective value: the shell wins
+ * over the file.
+ */
+function assertDevEnvLocal() {
+  const path = join(REPO_ROOT, ".env.local");
+  if (!existsSync(path)) {
+    fail(
+      ".env.local is missing. The local server needs the dev project's " +
+        "NEXT_PUBLIC_FIREBASE_* values — see .env.example.",
+    );
+  }
+
+  // Files Next.js loads at HIGHER precedence than .env.local when NODE_ENV is
+  // production, which is what `next build` / `next start` run as. Rather than
+  // parse and re-validate each, refuse outright: they have no legitimate role
+  // in this flow.
+  for (const name of [".env.production.local", ".env.production"]) {
+    if (existsSync(join(REPO_ROOT, name))) {
+      fail(
+        `${name} exists, and Next.js loads it at higher precedence than .env.local ` +
+          "in a production-mode build — so it, not the file this script validates, " +
+          "would decide which project the server talks to. Move it aside and rerun.",
+      );
+    }
+  }
+
+  const file = parseEnvFile(path);
+  // process.env wins, so validate the effective value.
+  const effective = (key) => process.env[key] ?? file[key];
+
+  for (const key of ["NEXT_PUBLIC_FIREBASE_PROJECT_ID", "FIREBASE_ADMIN_PROJECT_ID"]) {
+    const value = effective(key);
+    if (value !== DEV_PROJECT) {
+      const from = process.env[key] !== undefined ? "the shell environment" : ".env.local";
+      fail(
+        `${key} resolves to ${JSON.stringify(value)} (from ${from}), expected ` +
+          `"${DEV_PROJECT}". The local server writes real Auth users and Firestore ` +
+          "rows in whatever project this names — refusing to start it pointed " +
+          "anywhere but dev.",
+      );
+    }
+  }
+
+  for (const key of ["FIREBASE_ADMIN_PRIVATE_KEY", "FIREBASE_ADMIN_CLIENT_EMAIL"]) {
+    if (effective(key)) {
+      const from = process.env[key] !== undefined ? "the shell environment" : ".env.local";
+      fail(
+        `${key} is set (in ${from}). This machine authenticates with ADC ` +
+          "(`gcloud auth application-default login`) so that no permanent key sits " +
+          "on disk; a service-account credential here silently replaces that. " +
+          "Unset it rather than running.",
+      );
+    }
+  }
+
+  // run.mjs sets this itself (to the dev signing account). A value arriving
+  // from anywhere else names whichever service account IAM will be asked to
+  // sign custom tokens as, so it is checked here.
+  const sa = effective("FIREBASE_ADMIN_SERVICE_ACCOUNT_ID");
+  if (sa && !sa.endsWith(`@${DEV_PROJECT}.iam.gserviceaccount.com`)) {
+    fail(
+      `FIREBASE_ADMIN_SERVICE_ACCOUNT_ID is ${JSON.stringify(sa)}, which is not a ` +
+        `${DEV_PROJECT} service account. This names the identity custom tokens are ` +
+        "signed as — refusing.",
+    );
+  }
+}
+
+/**
+ * A throwaway VAPID pair for the loopback server, so the push routes behave
+ * as they do on a configured backend rather than answering 503 before their
+ * gate. Nothing is ever delivered: the harness holds no push subscriptions.
+ *
+ * The public half is NEXT_PUBLIC_ and therefore baked into the build, so the
+ * pair lives in the build marker and is reused by --skip-build; a rebuild
+ * gets a fresh pair. Generated rather than committed: a private key has no
+ * place in the repository even when it can sign nothing that matters.
+ */
+function vapidPairFor(skipBuild) {
+  if (skipBuild) {
+    try {
+      const marker = JSON.parse(readFileSync(BUILD_MARKER, "utf8"));
+      if (marker.vapid?.publicKey && marker.vapid?.privateKey) return marker.vapid;
+    } catch {
+      /* no marker yet: generate, and ensureBuild will rebuild */
+    }
+  }
+  const pair = webpush.generateVAPIDKeys();
+  return { publicKey: pair.publicKey, privateKey: pair.privateKey };
+}
+
+function buildServerEnv(vapid) {
+  return {
+    ...process.env,
+    // The relaxation. Environment-only, see the header comment. The secret so
+    // the server accepts any token, and a site key so the widget mounts and a
+    // browser spec can hand it one (see the constant's comment).
+    RECAPTCHA_SECRET: ALWAYS_PASS_RECAPTCHA_SECRET,
+    NEXT_PUBLIC_RECAPTCHA_SITE_KEY: LOOPBACK_RECAPTCHA_SITE_KEY,
+    // Fresh per run, shared with the test child below. Deliberately random so
+    // a stale value in .env.local can never mask a mint/verify mismatch.
+    EVENTS_TOKEN_SECRET: randomBytes(32).toString("base64url"),
+    // All mail into the loopback catcher. Every SMTP_* value is overridden so
+    // nothing can fall through to the real credentials in .env.local.
+    SMTP_HOST: "127.0.0.1",
+    SMTP_PORT: MAILPIT_SMTP_PORT,
+    SMTP_USER: "e2e",
+    SMTP_PASSWORD: "e2e",
+    SMTP_FROM_NAME: "NAISI (e2e)",
+    SMTP_FROM_EMAIL: "e2e-sender@e2e.invalid",
+    EMAIL_DEFAULT_REPLY_TO: "e2e-reply@e2e.invalid",
+    // Links in captured emails must point back at THIS server so the batteries
+    // can drive them. Inlined at build time, hence the build marker.
+    NEXT_PUBLIC_APP_URL: ORIGIN,
+    // Both project ids forced, not merely asserted: assertDevEnvLocal has
+    // already refused anything else, and pinning them here means an exported
+    // shell value cannot reach the child even if a future edit relaxes a check.
+    FIREBASE_ADMIN_PROJECT_ID: DEV_PROJECT,
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID: DEV_PROJECT,
+    // Lets the app's createCustomToken (login magic-link confirm) sign via IAM
+    // under user ADC; see src/lib/firebase/admin.ts.
+    FIREBASE_ADMIN_SERVICE_ACCOUNT_ID: signingServiceAccount(),
+    // Push configured with a throwaway pair (see vapidPairFor), so the push
+    // routes reach their gates instead of answering 503 for want of keys.
+    NEXT_PUBLIC_VAPID_PUBLIC_KEY: vapid.publicKey,
+    VAPID_PRIVATE_KEY: vapid.privateKey,
+    // The batteries assert 401s, so the dev auth bypass must be provably inert.
+    NEXT_PUBLIC_DEV_BYPASS_AUTH: "false",
+    NEXT_PUBLIC_DEBUG_MONITOR: "false",
+  };
+}
+
+function run(cmd, args, opts) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, opts);
+    child.on("error", reject);
+    child.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`${cmd} exited ${code}`))));
+  });
+}
+
+async function ensureBuild(serverEnv, skipBuild, vapid) {
+  // Everything NEXT_PUBLIC_* the build inlines and a run depends on. A build
+  // made before the site key joined this list has no widget in it, so the
+  // marker comparison must fail on that field too rather than reuse it.
+  const wanted = {
+    appUrl: ORIGIN,
+    project: DEV_PROJECT,
+    recaptchaSiteKey: LOOPBACK_RECAPTCHA_SITE_KEY,
+    vapidPublicKey: vapid.publicKey,
+  };
+  if (skipBuild) {
+    try {
+      const marker = JSON.parse(readFileSync(BUILD_MARKER, "utf8"));
+      if (
+        marker.appUrl === wanted.appUrl &&
+        marker.project === wanted.project &&
+        marker.recaptchaSiteKey === wanted.recaptchaSiteKey &&
+        marker.vapidPublicKey === wanted.vapidPublicKey
+      ) {
+        log("--skip-build: reusing the existing local e2e build.");
+        return;
+      }
+      log("--skip-build requested but the existing build was made for different values — rebuilding.");
+    } catch {
+      log("--skip-build requested but no local e2e build marker found — rebuilding.");
+    }
+  }
+  if (portInUse(3000)) {
+    fail(
+      "Something is listening on :3000 (probably `npm run dev`). `next build` " +
+        "clobbers the .next directory that dev server is running from — stop it " +
+        "first, then rerun.",
+    );
+  }
+  // Same hazard, own port: a second e2e:local started while one is in flight
+  // would rebuild .next out from under the running server. The :3100 refusal in
+  // startServer happens AFTER the build, which is too late to help.
+  if (portInUse(PORT)) {
+    fail(
+      `Something is listening on :${PORT} — another e2e:local run is probably in ` +
+        "flight. Building now would clobber the .next it is serving from.",
+    );
+  }
+  log("Building the app for the local server (next build)…");
+  await run(join(REPO_ROOT, "node_modules", ".bin", "next"), ["build"], {
+    cwd: REPO_ROOT,
+    env: serverEnv,
+    stdio: "inherit",
+  });
+  writeFileSync(
+    BUILD_MARKER,
+    JSON.stringify({ ...wanted, vapid, builtAt: new Date().toISOString() }, null, 2),
+  );
+}
+
+/**
+ * True only if Mailpit answers, twice, either side of a short gap.
+ *
+ * A single probe is not enough, and this was a real flake rather than a
+ * theoretical one: back-to-back runs would see the PREVIOUS run's Mailpit
+ * still answering HTTP while it shut down, decide to reuse it, and then hit
+ * ECONNREFUSED once it finished dying. An instance that answers twice across a
+ * gap is one that is running, not one that is leaving.
+ */
+async function mailpitSettled() {
+  if (!(await mailpitAvailable())) return false;
+  await new Promise((r) => setTimeout(r, 400));
+  return mailpitAvailable();
+}
+
+async function ensureMailpit() {
+  if (await mailpitSettled()) {
+    log(`Reusing the Mailpit already running at ${MAILPIT_HTTP}.`);
+    return;
+  }
+  // Whatever was there is gone or going. Wait for the port to be genuinely
+  // free before binding, so the spawn cannot lose a race with a dying
+  // listener and exit "address already in use".
+  const portFree = Date.now() + 10_000;
+  while (portInUse(8025)) {
+    if (Date.now() > portFree) {
+      fail("Port 8025 is held by something that is not answering Mailpit's API.");
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  log("Starting Mailpit on loopback…");
+  const child = spawn(
+    "mailpit",
+    [
+      "--listen", "127.0.0.1:8025",
+      "--smtp", `127.0.0.1:${MAILPIT_SMTP_PORT}`,
+      // nodemailer always authenticates (send.ts requires credentials), so the
+      // catcher must accept an AUTH handshake — any credentials, plaintext ok:
+      // both sockets are loopback-only.
+      "--smtp-auth-accept-any",
+      "--smtp-auth-allow-insecure",
+    ],
+    { stdio: "ignore" },
+  );
+  child.on("error", () => {});
+  CHILDREN.push({ name: "mailpit", child });
+  const deadline = Date.now() + 10_000;
+  while (!(await mailpitAvailable())) {
+    if (Date.now() > deadline || child.exitCode !== null) {
+      fail("Mailpit did not come up on 127.0.0.1:8025 — is it installed (`brew install mailpit`)?");
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
+/**
+ * Wipes the mailbox, re-establishing Mailpit if it has vanished since the
+ * check. The pairing matters: this is the first thing that touches Mailpit for
+ * real, so it is where a stale-instance decision surfaces.
+ */
+async function clearMailboxOrRestart() {
+  try {
+    await clearMailbox();
+    return;
+  } catch {
+    log("Mailpit stopped answering before the mailbox could be cleared — restarting it.");
+  }
+  await ensureMailpit();
+  await clearMailbox();
+}
+
+/**
+ * Kills a spawned child and waits for it to ACTUALLY exit — the 'exit' event,
+ * never a timer.
+ *
+ * The escalation path resolves only on 'exit' too. SIGKILL is asynchronous:
+ * resolving in the same tick it is sent would return while the process still
+ * holds its listening socket, which is the precise failure this function
+ * exists to prevent (a back-to-back run then refuses on :3100). If a process
+ * survives even SIGKILL it is unkillable — uninterruptible I/O — and hanging
+ * is a truer answer than reporting a teardown that did not happen.
+ */
+function killAndWait(child, timeoutMs = 5000) {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+  return new Promise((resolve) => {
+    const escalate = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
+    child.once("exit", () => {
+      clearTimeout(escalate);
+      resolve();
+    });
+    child.kill("SIGTERM");
+  });
+}
+
+async function startServer(serverEnv) {
+  if (portInUse(PORT)) {
+    fail(
+      `Something is already listening on :${PORT}. This runner refuses to test a ` +
+        "server it did not start — it cannot know what environment that process " +
+        "carries. Stop it and rerun.",
+    );
+  }
+  log(`Starting next start -H ${HOST} -p ${PORT} (log: ${SERVER_LOG})…`);
+  const logFd = openSync(SERVER_LOG, "w");
+  const child = spawn(
+    join(REPO_ROOT, "node_modules", ".bin", "next"),
+    ["start", "-H", HOST, "-p", String(PORT)],
+    { cwd: REPO_ROOT, env: serverEnv, stdio: ["ignore", logFd, logFd] },
+  );
+  child.on("error", () => {});
+  // A server that dies MID-RUN is otherwise silent: every subsequent request
+  // fails with a bare "fetch failed" and the suite reports a wall of assertion
+  // failures that look like product bugs. Say plainly what happened and how it
+  // died — `signal` is the tell. SIGKILL with no crash in the server log means
+  // something outside this process killed it, and on a laptop that is almost
+  // always the OS reclaiming memory, not a defect in the code under test.
+  child.on("exit", (code, signal) => {
+    if (!serverExitExpected) {
+      console.error(
+        `[e2e:local] THE SERVER DIED MID-RUN (code=${code}, signal=${signal}). ` +
+          `Every failure after this point is that, not the code under test. ` +
+          `Check ${SERVER_LOG} for a crash; if it just stops, the process was ` +
+          `killed from outside — check free memory (\`vm_stat\`, \`sysctl vm.swapusage\`).`,
+      );
+    }
+  });
+  CHILDREN.push({ name: "next-server", child });
+  const deadline = Date.now() + 90_000;
+  for (;;) {
+    if (child.exitCode !== null) {
+      fail(`The server exited before becoming ready — see ${SERVER_LOG}.`);
+    }
+    try {
+      await fetch(`${ORIGIN}/login`, { redirect: "manual" });
+      break;
+    } catch {
+      if (Date.now() > deadline) fail(`Server never became reachable on ${ORIGIN} — see ${SERVER_LOG}.`);
+      await new Promise((r) => setTimeout(r, 300));
+    }
+  }
+  log("Server is up.");
+}
+
+/**
+ * Whether the persona battery can run here, with the reason when it cannot.
+ * A missing tool is a skip on a laptop and a failure in CI, where the
+ * workflow installs both and sets E2E_PERSONA_BATTERY=required.
+ */
+function personaBatteryBlocker() {
+  if (!existsSync(FIREBASE_CLI)) {
+    return `firebase-tools is not installed under scripts/rules-tests (run \`npm ci\` there)`;
+  }
+  try {
+    execFileSync("java", ["-version"], { stdio: "ignore" });
+  } catch {
+    return "java is not on PATH, and the Firestore emulator is a Java process";
+  }
+  return null;
+}
+
+function refuseOrSkipPersonas(reason) {
+  if (process.env.E2E_PERSONA_BATTERY === "required") {
+    fail(`The persona battery is required here and cannot run: ${reason}.`);
+  }
+  log(`Persona battery SKIPPED: ${reason}. It runs in CI; set E2E_PERSONA_BATTERY=required to insist.`);
+  return false;
+}
+
+/**
+ * Starts the Firestore emulator for the persona server. Refuses a port that
+ * is already held: an emulator this run did not start holds data this run
+ * knows nothing about, which is the rules suite's port too.
+ */
+async function ensureEmulator() {
+  const blocker = personaBatteryBlocker();
+  if (blocker) return refuseOrSkipPersonas(blocker);
+  if (portInUse(EMULATOR_PORT)) {
+    fail(
+      `Something is listening on :${EMULATOR_PORT}. The persona battery needs a Firestore ` +
+        "emulator this run starts itself (the rules suite uses the same port; wait for it).",
+    );
+  }
+  log(`Starting the Firestore emulator on ${EMULATOR_HOST} (log: ${EMULATOR_LOG})…`);
+  const logFd = openSync(EMULATOR_LOG, "w");
+  const child = spawn(
+    FIREBASE_CLI,
+    ["emulators:start", "--only", "firestore", "--project", DEV_PROJECT],
+    { cwd: REPO_ROOT, env: process.env, stdio: ["ignore", logFd, logFd] },
+  );
+  child.on("error", () => {});
+  CHILDREN.push({ name: "firestore-emulator", child });
+  const deadline = Date.now() + 120_000;
+  for (;;) {
+    if (child.exitCode !== null) fail(`The Firestore emulator exited before becoming ready — see ${EMULATOR_LOG}.`);
+    try {
+      const res = await fetch(`http://${EMULATOR_HOST}/`);
+      if (res.ok) break;
+    } catch {
+      /* not yet */
+    }
+    if (Date.now() > deadline) fail(`The Firestore emulator never answered on ${EMULATOR_HOST} — see ${EMULATOR_LOG}.`);
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  log("Firestore emulator is up.");
+  return true;
+}
+
+/** The same build on :3101, reading and writing the emulator instead of dev. */
+async function startPersonaServer(serverEnv) {
+  if (portInUse(PERSONA_PORT)) {
+    fail(`Something is already listening on :${PERSONA_PORT}. Stop it and rerun.`);
+  }
+  log(`Starting the persona server: next start -H ${HOST} -p ${PERSONA_PORT} (log: ${PERSONA_SERVER_LOG})…`);
+  const logFd = openSync(PERSONA_SERVER_LOG, "w");
+  const child = spawn(
+    join(REPO_ROOT, "node_modules", ".bin", "next"),
+    ["start", "-H", HOST, "-p", String(PERSONA_PORT)],
+    {
+      cwd: REPO_ROOT,
+      env: { ...serverEnv, FIRESTORE_EMULATOR_HOST: EMULATOR_HOST },
+      stdio: ["ignore", logFd, logFd],
+    },
+  );
+  child.on("error", () => {});
+  child.on("exit", (code, signal) => {
+    if (!serverExitExpected) {
+      console.error(
+        `[e2e:local] THE PERSONA SERVER DIED MID-RUN (code=${code}, signal=${signal}). ` +
+          `Check ${PERSONA_SERVER_LOG}.`,
+      );
+    }
+  });
+  CHILDREN.push({ name: "persona-server", child });
+  const deadline = Date.now() + 90_000;
+  for (;;) {
+    if (child.exitCode !== null) fail(`The persona server exited before becoming ready — see ${PERSONA_SERVER_LOG}.`);
+    try {
+      await fetch(`${PERSONA_ORIGIN}/login`, { redirect: "manual" });
+      break;
+    } catch {
+      if (Date.now() > deadline) fail(`The persona server never became reachable on ${PERSONA_ORIGIN}.`);
+      await new Promise((r) => setTimeout(r, 300));
+    }
+  }
+  log("Persona server is up.");
+}
+
+/**
+ * Removes harness accounts a CRASHED run left behind. Every battery cleans up
+ * in its own `after()` hook, but a run killed between a register POST and that
+ * hook (laptop asleep, SIGKILL, a hard abort) strands the Auth account in the
+ * dev project indefinitely — so the README's cleanup promise needed something
+ * that runs even when the previous process never got the chance.
+ *
+ * One hour old, so it can never touch a concurrent run's fixtures, and it only
+ * ever sees the `e2e-…@e2e.invalid` namespace (enforced inside sweepHarnessUsers).
+ */
+async function sweepStaleHarnessAccounts() {
+  try {
+    const { sweepHarnessUsers } = await import("./lib/admin.mjs");
+    const removed = await sweepHarnessUsers({ olderThanMs: 60 * 60 * 1000 });
+    if (removed > 0) log(`Swept ${removed} harness account(s) left by an earlier run.`);
+  } catch (err) {
+    // Never fail a run over opportunistic cleanup.
+    log(`Could not sweep stale harness accounts (${err.message}) — continuing.`);
+  }
+}
+
+/**
+ * Which test files this run drives. Defaults to the auth batteries, so
+ * `npm run e2e:local` is byte-identical to what it has always been.
+ *
+ * The override exists for the browser end-to-end runner
+ * (`scripts/run-e2e.mjs`), which needs the SAME captcha-relaxed,
+ * loopback-SMTP local server this script builds and no part of what it asserts.
+ * Duplicating the server bootstrap there would have meant two places that must
+ * agree about which environment is safe to relax, which is precisely the thing
+ * this file exists to keep in one place.
+ */
+const TEST_PATHS = (process.env.E2E_TEST_PATHS ?? "scripts/e2e/tests/")
+  .split(",")
+  .map((p) => p.trim())
+  .filter(Boolean);
+
+function runTests(serverEnv, personas) {
+  return new Promise((resolve) => {
+    const child = spawn(
+      process.execPath,
+      // Serial file execution: the batteries share one server and one mail
+      // catcher, and the two flakes the emulator suite taught us both came
+      // from cross-file concurrency.
+      ["--test", "--test-concurrency=1", ...TEST_PATHS],
+      {
+        cwd: REPO_ROOT,
+        stdio: "inherit",
+        env: {
+          ...process.env,
+          E2E_TARGET: ORIGIN,
+          E2E_ALLOW_REGISTER: "1",
+          E2E_LOCAL_TOKEN_SECRET: serverEnv.EVENTS_TOKEN_SECRET,
+          MAILPIT_URL: MAILPIT_HTTP,
+          // Only when the emulator and the persona server came up. The
+          // battery skips (or fails, when required) without these two. The
+          // emulator host is handed over under its OWN name, never as
+          // FIRESTORE_EMULATOR_HOST: that variable is process-wide for the
+          // Admin SDK, and every other battery in this process seeds dev
+          // through it. The persona battery arms it inside its own process.
+          ...(personas ? { E2E_PERSONA_ORIGIN: PERSONA_ORIGIN, E2E_PERSONA_EMULATOR_HOST: EMULATOR_HOST } : {}),
+        },
+      },
+    );
+    child.on("exit", (code) => resolve(code ?? 1));
+  });
+}
+
+async function main() {
+  const skipBuild = process.argv.includes("--skip-build");
+  /**
+   * The normal path: kill each child and WAIT for it to go. Returning while a
+   * spawned Mailpit is still holding :8025 is what made an immediately
+   * following run reuse a dying instance. (`killChildren` is the synchronous
+   * best-effort version, for the signal and `fail()` paths that cannot await.)
+   */
+  const teardownAndWait = async () => {
+    serverExitExpected = true;
+    for (const { child } of [...CHILDREN].reverse()) {
+      await killAndWait(child);
+    }
+  };
+  // Say so LOUDLY when a run is interrupted. Tearing down kills the server out
+  // from under whatever test is mid-request, so an interrupted run reports a
+  // "fetch failed" hook error that reads exactly like a real defect. Naming the
+  // signal is the difference between ten minutes of diagnosis and none.
+  const onSignal = (name, code) => () => {
+    console.error(
+      `[e2e:local] ${name} received — shutting the local server down. Any test ` +
+        "failure printed after this line is a consequence of the interruption, " +
+        "NOT a result. Rerun to get a verdict.",
+    );
+    killChildren();
+    process.exit(code);
+  };
+  process.on("SIGINT", onSignal("SIGINT", 130));
+  process.on("SIGTERM", onSignal("SIGTERM", 143));
+
+  try {
+    assertDevEnvLocal();
+    mkdirSync(join(REPO_ROOT, ".next"), { recursive: true });
+    const vapid = vapidPairFor(skipBuild);
+    const serverEnv = buildServerEnv(vapid);
+    await ensureMailpit();
+    await ensureBuild(serverEnv, skipBuild, vapid);
+    await ensureMailpit(); // re-check: the build can take minutes
+    await startServer(serverEnv);
+    const personas = await ensureEmulator();
+    if (personas) await startPersonaServer(serverEnv);
+    // One global wipe so a previous run's mail can't satisfy anything; from
+    // here on every assertion is per-recipient (addresses embed the run id).
+    process.env.MAILPIT_URL = MAILPIT_HTTP;
+    await clearMailboxOrRestart();
+    await sweepStaleHarnessAccounts();
+    const code = await runTests(serverEnv, personas);
+    await teardownAndWait();
+    process.exit(code);
+  } catch (err) {
+    console.error(err);
+    await teardownAndWait();
+    process.exit(1);
+  }
+}
+
+await main();

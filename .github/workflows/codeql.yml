@@ -1,0 +1,73 @@
+# CodeQL static analysis, the free default for a public repository.
+#
+# This is GitHub's standard "advanced setup" workflow, trimmed to the two
+# languages this repository has: TypeScript and JavaScript (one CodeQL
+# language, `javascript-typescript`, with no build step because CodeQL reads
+# the source directly) and the workflow files themselves (`actions`, which
+# catches expression injection and untrusted-checkout mistakes in this
+# directory). It runs on every push to the two long-lived branches, on every
+# pull request into them, and once a week so a new query pack is applied to
+# unchanged code. Findings land under Security > Code scanning and on the
+# pull request as annotations.
+#
+# ITS RESULTS ARE REQUIRED BEFORE A MERGE, on both long-lived branches: the two
+# analyses below have to have run, and a new alert rated high or above holds
+# the pull request until it is fixed or dismissed with a reason. The branch
+# rules that say so live on GitHub and are declared in
+# scripts/check-branch-rules.mjs, which also holds the job names below; rename
+# one and tests/branch-rules.test.mjs fails. `.github/codeql/codeql-config.yml`
+# keeps test files out of the analysis so that what holds a merge is a finding
+# about shipped code.
+#
+# `.github/dependabot.yml` beside this file decides which branch Dependabot's
+# version updates target and how they are grouped.
+name: CodeQL
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  schedule:
+    # Mondays 04:17 UTC. An odd minute so the run does not queue behind every
+    # other repository's on-the-hour schedule.
+    - cron: "17 4 * * 1"
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      # Required to upload the results to code scanning.
+      security-events: write
+      # Required to fetch internal or private CodeQL packs.
+      packages: read
+      # Required for the workflow to read its own run, and to read the tree.
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          category: "/language:${{ matrix.language }}"

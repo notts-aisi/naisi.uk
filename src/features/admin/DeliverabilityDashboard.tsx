@@ -1,0 +1,443 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Badge from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import DeliverabilityExports from "./DeliverabilityExports";
+
+type SendStatus = "sent" | "bounced" | "complained" | "suppressed";
+
+type Send = {
+  id: string;
+  to: string;
+  subject: string;
+  kind: string;
+  /** Only on `notice` rows: which surface bypassed the notification grid. */
+  surface?: string;
+  status: SendStatus;
+  statusReason?: string;
+  sentAt: string | null;
+  statusUpdatedAt: string | null;
+  referenceId?: string;
+};
+
+type Suppression = {
+  id: string;
+  email: string;
+  reason: string;
+  subReason?: string;
+  source: string;
+  addedAt: string | null;
+};
+
+function formatDate(iso: string | null): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function statusBadge(status: SendStatus, reason?: string) {
+  switch (status) {
+    case "bounced":
+      return (
+        <Badge tone="danger" title={reason ? `Reason: ${reason}` : undefined}>
+          Bounced{reason ? ` · ${reason}` : ""}
+        </Badge>
+      );
+    case "complained":
+      return (
+        <Badge tone="warning" title={reason ? `Reason: ${reason}` : undefined}>
+          Complaint{reason ? ` · ${reason}` : ""}
+        </Badge>
+      );
+    // Neutral, not danger: nothing went wrong with this message. It was never
+    // handed to the provider because the address is on the suppression list,
+    // and the row is here so the withholding is visible rather than a gap.
+    case "suppressed":
+      return (
+        <Badge tone="neutral" title={reason ? `Reason: ${reason}` : undefined}>
+          Held: suppressed
+        </Badge>
+      );
+    default:
+      return <Badge tone="success">Sent</Badge>;
+  }
+}
+
+/**
+ * Kinds whose stored string is not what an operator should have to read.
+ *
+ * Most `EmailSendKind` values are already legible ("newsletter", "rsvp",
+ * "course-nudge") and are shown as they are stored, which keeps this map short
+ * and keeps the badge honest about the field behind it. The two here are the
+ * ones a name alone would under-describe: a `notice` row is mail that IGNORED
+ * the recipient's notification settings, which is the single most important
+ * thing this table can tell an admin, and an `event-announcement` is the events
+ * row's own send rather than a newsletter.
+ */
+const KIND_LABELS: Record<string, string> = {
+  notice: "Important notice",
+  "event-announcement": "Event announcement",
+};
+
+/**
+ * Which notice-lane surface a bypass came from, in the operator's words. The
+ * stored value is the code's (`event-broadcast`); this is the sentence fragment
+ * that answers "who sent it and to whom".
+ */
+const SURFACE_LABELS: Record<string, string> = {
+  "event-broadcast": "event attendees",
+  "event-cancel": "event cancelled",
+  "course-group": "course group",
+  "course-room": "room notice",
+  "course-run": "whole cohort",
+};
+
+function kindBadge(kind: string, surface?: string) {
+  const label = KIND_LABELS[kind] ?? kind;
+  // The surface is shown ONLY where it exists, which is only on notice rows.
+  // It is the second half of what a bypass row has to answer: this message
+  // reached its recipient whatever their settings said, and here is which
+  // surface decided that.
+  const tone = kind === "notice" ? "warning" : "neutral";
+  return (
+    <Badge
+      tone={tone}
+      title={surface ? `Notice lane: ${SURFACE_LABELS[surface] ?? surface}` : undefined}
+    >
+      {label}
+      {surface ? ` · ${SURFACE_LABELS[surface] ?? surface}` : ""}
+    </Badge>
+  );
+}
+
+export default function DeliverabilityDashboard() {
+  const [sends, setSends] = useState<Send[]>([]);
+  const [suppressions, setSuppressions] = useState<Suppression[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [unsuppressing, setUnsuppressing] = useState<string | null>(null);
+  // Bump to re-run the load effect (driven by the Refresh button).
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [sendsRes, suppRes] = await Promise.all([
+          fetch("/api/admin/deliverability/sends"),
+          fetch("/api/admin/deliverability/suppressed"),
+        ]);
+        if (!sendsRes.ok) throw new Error(`Sends fetch ${sendsRes.status}`);
+        if (!suppRes.ok) throw new Error(`Suppressed fetch ${suppRes.status}`);
+        const sendsBody = (await sendsRes.json()) as { items: Send[] };
+        const suppBody = (await suppRes.json()) as { items: Suppression[] };
+        if (cancelled) return;
+        setSends(sendsBody.items ?? []);
+        setSuppressions(suppBody.items ?? []);
+        setError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
+
+  // Refresh button: surface the loading state, then re-run the load effect.
+  function refresh() {
+    setLoading(true);
+    setError(null);
+    setReloadKey((k) => k + 1);
+  }
+
+  async function onUnsuppress(id: string) {
+    setUnsuppressing(id);
+    try {
+      const res = await fetch(
+        `/api/admin/deliverability/suppressed/${encodeURIComponent(id)}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) throw new Error(`Delete ${res.status}`);
+      setSuppressions((prev) => prev.filter((s) => s.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Un-suppress failed");
+    } finally {
+      setUnsuppressing(null);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
+      <header
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: "var(--space-4)",
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <h2 style={{ fontSize: "var(--text-2xl)", marginBottom: "var(--space-1)" }}>
+            Deliverability
+          </h2>
+          <p style={{ color: "var(--color-text-muted)", fontSize: "var(--text-sm)", margin: 0 }}>
+            Recent sends and the suppression list fed by email provider bounce +
+            complaint events, plus the log of downloads the site has generated.
+          </p>
+        </div>
+        <Button size="sm" variant="secondary" onClick={refresh} disabled={loading}>
+          {loading ? "Refreshing…" : "Refresh"}
+        </Button>
+      </header>
+
+      {error && (
+        <Card padding="md">
+          <p style={{ color: "var(--color-danger)", margin: 0 }}>{error}</p>
+        </Card>
+      )}
+
+      <TaskEmailKillSwitch />
+
+      <section style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+        <h3 style={{ fontSize: "var(--text-lg)" }}>Recent sends</h3>
+        {loading && sends.length === 0 ? (
+          <Card padding="md">
+            <p style={{ color: "var(--color-text-muted)", margin: 0 }}>Loading…</p>
+          </Card>
+        ) : sends.length === 0 ? (
+          <Card padding="md">
+            <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
+              No sends logged yet. Rows appear here once anyone triggers an outbound email.
+            </p>
+          </Card>
+        ) : (
+          <Card padding="sm">
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--text-sm)" }}>
+                <thead>
+                  <tr style={{ textAlign: "left", color: "var(--color-text-muted)" }}>
+                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }}>To</th>
+                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }}>Kind</th>
+                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }}>Subject</th>
+                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }}>Sent</th>
+                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sends.map((s) => (
+                    <tr key={s.id} style={{ borderTop: "1px solid var(--color-border)" }}>
+                      <td style={{ padding: "var(--space-2)", wordBreak: "break-all" }}>{s.to}</td>
+                      <td style={{ padding: "var(--space-2)" }}>{kindBadge(s.kind, s.surface)}</td>
+                      <td style={{ padding: "var(--space-2)" }}>{s.subject}</td>
+                      <td style={{ padding: "var(--space-2)", whiteSpace: "nowrap" }}>
+                        {formatDate(s.sentAt)}
+                      </td>
+                      <td style={{ padding: "var(--space-2)" }}>
+                        {statusBadge(s.status, s.statusReason)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+      </section>
+
+      <section style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+        <h3 style={{ fontSize: "var(--text-lg)" }}>Suppressed addresses</h3>
+        {loading && suppressions.length === 0 ? (
+          <Card padding="md">
+            <p style={{ color: "var(--color-text-muted)", margin: 0 }}>Loading…</p>
+          </Card>
+        ) : suppressions.length === 0 ? (
+          <Card padding="md">
+            <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
+              No addresses suppressed — healthy list.
+            </p>
+          </Card>
+        ) : (
+          <Card padding="sm">
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--text-sm)" }}>
+                <thead>
+                  <tr style={{ textAlign: "left", color: "var(--color-text-muted)" }}>
+                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }}>Email</th>
+                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }}>Reason</th>
+                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }}>Detail</th>
+                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }}>Added</th>
+                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {suppressions.map((s) => (
+                    <tr key={s.id} style={{ borderTop: "1px solid var(--color-border)" }}>
+                      <td style={{ padding: "var(--space-2)", wordBreak: "break-all" }}>{s.email}</td>
+                      <td style={{ padding: "var(--space-2)" }}>
+                        {s.reason === "complaint" ? (
+                          <Badge tone="warning">Complaint</Badge>
+                        ) : (
+                          <Badge tone="danger">Bounce</Badge>
+                        )}
+                      </td>
+                      <td style={{ padding: "var(--space-2)", color: "var(--color-text-muted)" }}>
+                        {s.subReason ?? "—"}
+                      </td>
+                      <td style={{ padding: "var(--space-2)", whiteSpace: "nowrap" }}>
+                        {formatDate(s.addedAt)}
+                      </td>
+                      <td style={{ padding: "var(--space-2)", textAlign: "right" }}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => void onUnsuppress(s.id)}
+                          disabled={unsuppressing === s.id}
+                        >
+                          {unsuppressing === s.id ? "Removing…" : "Un-suppress"}
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+      </section>
+
+      {/* The export log. Its own component with its own fetch: the rows come
+          from a different route, they are read once rather than watched, and
+          the export routes that write them land in later PRs. Sharing this
+          dashboard's Refresh button through `reloadKey` is the only coupling. */}
+      <DeliverabilityExports reloadKey={reloadKey} />
+    </div>
+  );
+}
+
+/**
+ * Admin-toggleable kill switch for task-manager outbound emails. Dev
+ * affordance — lets us click through task flows on dev without spamming
+ * real inboxes. Other email pipelines (newsletter, auth, deliverability
+ * webhook notifications) are unaffected.
+ */
+function TaskEmailKillSwitch() {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  // Bump to re-run the load effect (after a successful toggle).
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/admin/config/task-emails");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as {
+          enabled: boolean;
+          updatedAt: string | null;
+        };
+        if (cancelled) return;
+        setEnabled(data.enabled);
+        setUpdatedAt(data.updatedAt);
+        setErr(null);
+      } catch (e) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : "Load failed");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
+
+  async function toggle() {
+    if (enabled === null || busy) return;
+    const next = !enabled;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/config/task-emails", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: next }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setEnabled(next);
+      setReloadKey((k) => k + 1);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Toggle failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+      <h3 style={{ fontSize: "var(--text-lg)" }}>Task email kill switch</h3>
+      <Card padding="md">
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-3)",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ flex: 1, minWidth: "16rem" }}>
+            <p style={{ margin: 0, fontSize: "var(--text-sm)" }}>
+              When <strong>off</strong>, the task manager&apos;s comment-notify and
+              send-for-review endpoints short-circuit before calling the mail
+              provider. Comments still post in-app. Other pipelines (newsletter,
+              auth, deliverability webhooks) are unaffected.
+            </p>
+            {updatedAt && (
+              <p
+                style={{
+                  margin: "var(--space-1) 0 0",
+                  fontSize: "var(--text-xs)",
+                  color: "var(--color-text-muted)",
+                }}
+              >
+                Last changed {formatDate(updatedAt)}
+              </p>
+            )}
+            {err && (
+              <p style={{ margin: "var(--space-1) 0 0", color: "var(--color-danger)", fontSize: "var(--text-xs)" }}>
+                {err}
+              </p>
+            )}
+          </div>
+          <Badge tone={enabled === false ? "warning" : "success"}>
+            {enabled === null ? "Loading…" : enabled ? "Emails on" : "Emails off"}
+          </Badge>
+          <Button
+            size="sm"
+            variant={enabled ? "secondary" : "primary"}
+            onClick={() => void toggle()}
+            disabled={enabled === null || busy}
+          >
+            {busy ? "Saving…" : enabled ? "Turn off" : "Turn on"}
+          </Button>
+        </div>
+      </Card>
+    </section>
+  );
+}
