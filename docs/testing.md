@@ -391,6 +391,14 @@ The same shape, older:
   failure path the code is expected to log mutes that method for its own
   duration with `t.mock.method(console, "error", () => {})` (or `"warn"`); the
   CI job keeps its `cut` as the backstop.
+- `tests/public-tree.test.mjs`: everything tracked is public, so the tree
+  carries no identifier of a live environment beyond the few that
+  configuration has to name, nothing shaped like a credential, no address
+  that is neither on a reserved domain nor listed with what it is, and none
+  of the working labels of a review. It also holds that nothing git ignores
+  is tracked, and that the root holds only the listed documents and dot
+  folders. It walks every tracked file, and each of its lists is checked in
+  both directions.
 
 ### Settings that are not files
 
