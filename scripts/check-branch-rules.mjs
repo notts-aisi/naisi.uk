@@ -64,8 +64,12 @@ export const BRANCH_RULES = {
         "does not merge on the other checks alone.",
     },
     later: {},
-    // A merge must be tested against the branch it lands on.
-    upToDateBeforeMerge: true,
+    // Not required. A promotion leaves a merge commit on main that dev does
+    // not have, so requiring it would mean handing dev that commit after every
+    // promotion, unchecked: the suite's verdict is only ever given on a pull
+    // request. A promotion whose base has moved since its checks ran is closed
+    // and reopened, which runs them against main as it now stands.
+    upToDateBeforeMerge: false,
     pullRequest: { mergeMethods: ["merge"] },
     codeScanning: { tool: "CodeQL", securityAlerts: "high_or_higher", alerts: "errors" },
     // Nobody skips a rule on the production branch.
@@ -85,14 +89,14 @@ export const BRANCH_RULES = {
     },
     later: {},
     upToDateBeforeMerge: false,
-    // dev takes a fast-forward from main after each promotion, so it does not
-    // require a pull request.
+    // Not a rule of its own. The checks above only report on a pull request,
+    // so a commit cannot reach dev without having been the head of one.
     pullRequest: null,
     codeScanning: { tool: "CodeQL", securityAlerts: "high_or_higher", alerts: "errors" },
-    // Repository admins, for fast-forwarding dev to main's merge commit after
-    // a promotion (that commit never had a pull request, so it carries no
-    // end-to-end result).
-    bypass: [{ actor_type: "RepositoryRole", actor_id: 5, bypass_mode: "always" }],
+    // Nobody skips a rule here either. dev is not moved forward to main after
+    // a promotion: main stays a merge commit ahead each time, with the same
+    // tree.
+    bypass: [],
   },
 };
 
