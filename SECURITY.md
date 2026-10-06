@@ -8,7 +8,7 @@ about a weakness is welcome and will be read.
 
 Please report privately, not in a public issue or pull request.
 
-- Preferred: [open a private report on GitHub](https://github.com/notts-aisi/naisi-website/security/advisories/new).
+- Preferred: [open a private report on GitHub](https://github.com/notts-aisi/naisi.uk/security/advisories/new).
   Only the maintainers can see it.
 - Or email ai-safety@uonsu.com with "Security" in the subject line.
 

@@ -57,7 +57,7 @@ The first admin has no existing admin to promote them, so set the role manually 
 
 ```sh
 npx firebase login
-npx firebase use naisi-website
+npx firebase use default
 npx firebase deploy --only firestore:rules,firestore:indexes
 ```
 

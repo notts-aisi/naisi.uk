@@ -20,7 +20,7 @@ import { decide, MUST_RUN_BASES } from "../scripts/ci/e2e-result.mjs";
 import { BRANCH_RULES } from "../scripts/check-branch-rules.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const REPO = "notts-aisi/naisi-website";
+const REPO = "notts-aisi/naisi.uk";
 
 /** A pull request from a branch of this repository, by a person, identity configured. */
 const run = (overrides = {}) => ({
@@ -80,7 +80,7 @@ describe("what the required check answers", () => {
   });
 
   test("a fork is treated as Dependabot is", () => {
-    const fork = { localResult: "skipped", headRepo: "a-stranger/naisi-website" };
+    const fork = { localResult: "skipped", headRepo: "a-stranger/naisi.uk" };
     assert.equal(decide(run({ ...fork, baseRef: "dev" })).ok, true);
     assert.equal(decide(run({ ...fork, baseRef: "main" })).ok, false);
   });

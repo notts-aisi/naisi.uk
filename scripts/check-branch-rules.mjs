@@ -38,7 +38,7 @@ import { pathToFileURL } from "node:url";
 /** The GitHub Actions app. A required check names the app that must report it. */
 const GITHUB_ACTIONS_APP = 15368;
 
-export const REPOSITORY = "notts-aisi/naisi-website";
+export const REPOSITORY = "notts-aisi/naisi.uk";
 
 /**
  * What each long-lived branch requires, with the reason for each line.

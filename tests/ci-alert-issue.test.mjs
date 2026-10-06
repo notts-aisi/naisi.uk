@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 import { report, drill, githubApi } from "../scripts/ci/alert-issue.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const RUN = "https://github.com/notts-aisi/naisi-website/actions/runs/1";
+const RUN = "https://github.com/notts-aisi/naisi.uk/actions/runs/1";
 
 /** A GitHub small enough to read. */
 let issues;

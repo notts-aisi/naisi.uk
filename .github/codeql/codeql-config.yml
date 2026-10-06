@@ -12,7 +12,7 @@
 # cloud identity. tests/static-analysis-config.test.mjs holds this list to the
 # registered test directories, and holds that nothing under src is built from
 # one of them.
-name: naisi-website
+name: naisi.uk
 
 paths-ignore:
   - tests/**
