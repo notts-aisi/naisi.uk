@@ -439,8 +439,10 @@ function writeJobSummary({
   const failed = rows.filter((r) => r.shortfall);
   // Annotations are plain text and a pipe means nothing in one; a table cell
   // would be split in two by the same character. Two escapes, deliberately.
+  // The backslash goes first, or one already in front of a pipe would cancel
+  // the escape the pipe is about to be given.
   const oneLine = (text) => String(text).replace(/\r?\n/g, " ");
-  const cell = (text) => oneLine(text).replace(/\|/g, "\\|");
+  const cell = (text) => oneLine(text).replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
 
   const out = [
     `## End to end: ${
