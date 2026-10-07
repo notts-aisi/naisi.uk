@@ -32,17 +32,19 @@ import {
   type ApplicationForm,
 } from "../normalise";
 import { formRef, questionSetRef } from "../repo";
+import { courseOnOffer, readsCourseDrafts } from "./courses";
 import { mintId } from "./ids";
 import { lockedSentence, questionsLocked, sentCount } from "./lock";
 import { own } from "./own";
-import type {
-  FormChange,
-  NewForm,
-  NewProgramme,
-  NewSet,
-  ProgrammeChange,
-  QuestionInput,
-  SetChange,
+import {
+  COURSE_NOT_ON_OFFER,
+  type FormChange,
+  type NewForm,
+  type NewProgramme,
+  type NewSet,
+  type ProgrammeChange,
+  type QuestionInput,
+  type SetChange,
 } from "./parse";
 import {
   FACILITATOR_SET_LABEL,
@@ -257,6 +259,7 @@ function newProgrammeData(input: NewProgramme): Omit<ProgrammeSettings, "id"> {
     useScores: true,
     closed: false,
     runId: null,
+    courseId: null,
     emailWording: {},
   };
 }
@@ -621,6 +624,10 @@ export async function deleteSet(
  * Each field is written at its own path under `programmes.<id>`, so this never
  * replaces another programme's settings, or this programme's lead and
  * reviewers, which belong to `setProgrammeRoles`.
+ *
+ * This is the one writer of `courseId`, the course whose public page offers
+ * the programme. It stores a course the caller could have picked
+ * (`./courses.ts`), or null for no course page.
  */
 export async function changeProgramme(
   db: Firestore,
@@ -670,6 +677,19 @@ export async function changeProgramme(
     }
     for (const field of ["useScores", "closed"] as const) {
       if (change[field] !== undefined) update[at(field)] = change[field];
+    }
+    // The course this programme is for. A tie already stored is left as it
+    // is, whatever has become of its course, so saving the rest of the page
+    // never fails over a course somebody else unpublished. A new tie has to
+    // be to a course this caller could have picked from the list.
+    if (change.courseId !== undefined && change.courseId !== programme.courseId) {
+      if (
+        change.courseId !== null &&
+        !(await courseOnOffer(tx, db, change.courseId, readsCourseDrafts(actor)))
+      ) {
+        return refuse(400, COURSE_NOT_ON_OFFER);
+      }
+      update[at("courseId")] = change.courseId;
     }
     for (const [kind, wording] of Object.entries(change.emailWording ?? {})) {
       update[at(`emailWording.${kind}`)] = wording ?? FieldValue.delete();

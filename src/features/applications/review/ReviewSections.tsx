@@ -2,14 +2,18 @@
 
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import MemberText from "@/components/ui/MemberText";
+import kit from "@/features/applications/kit/kit.module.css";
 import { own } from "@/lib/applications/keys";
 import type {
+  AnswerBody as AnswerBodyView,
   AnswerView,
   AvailabilityView,
   CommentView,
+  EarlierAvailability,
   ReviewPayload,
   ReviewSection,
 } from "@/lib/applications/review/types";
+import { WHAT_IT_SAID_BEFORE } from "./changesWords";
 import { Avatar, Chip, Icon } from "./parts";
 import parts from "./parts.module.css";
 import styles from "./ReviewScreen.module.css";
@@ -22,11 +26,25 @@ import styles from "./ReviewScreen.module.css";
  * `MemberText` and nothing else: no markdown, no links made out of what they
  * wrote. Scores and comments are handed up to the screen that owns the
  * review; nothing here talks to the server.
+ *
+ * Where somebody sent again with something different, the part that changed
+ * carries what it said before, closed until it is asked for (`Earlier`). The
+ * answer as it stands is what is being reviewed. What they wrote before is
+ * drawn by the same components as what they wrote last, so it is a text node
+ * too.
  */
 
 /** What the 1 to 5 buttons are called. Only the ends and the middle carry a word. */
 const SCORE_WORDS: Record<number, string> = { 1: "Weak", 3: "Good", 5: "Excellent" };
 const SCORES = [1, 2, 3, 4, 5];
+
+/**
+ * The id of a card on the page, so the line that says what changed can take
+ * somebody to it. `part` is "about", a question set's id, or "availability".
+ */
+export function cardId(part: string): string {
+  return `review-card-${part}`;
+}
 
 export type AnswerActions = {
   /** Null while the page is not live yet: nothing can be saved. */
@@ -220,7 +238,48 @@ export function AnswerComments({
   );
 }
 
-function AnswerBody({ answer }: { answer: AnswerView }) {
+/**
+ * What a part of the application said in the versions sent before, behind a
+ * quiet control. A native disclosure, so it opens before the page is live and
+ * needs no state of its own. Renders nothing when there is nothing earlier.
+ */
+export function Earlier({
+  count,
+  label = WHAT_IT_SAID_BEFORE,
+  children,
+}: {
+  /** How many earlier entries there are. */
+  count: number;
+  label?: string;
+  children: ReactNode;
+}) {
+  if (count === 0) return null;
+  return (
+    <details className={styles.earlier}>
+      <summary className={styles.earlierToggle}>
+        <span>{label}</span>
+        <span className={styles.earlierChevron}>
+          <Icon name="chevron-down" size={16} />
+        </span>
+      </summary>
+      <ol className={styles.earlierList}>{children}</ol>
+    </details>
+  );
+}
+
+/** One earlier version of a part: the day it was sent, then what it said. */
+export function EarlierEntry({ sentOn, children }: { sentOn: string | null; children: ReactNode }) {
+  return (
+    <li className={styles.earlierEntry}>
+      <div className={`${kit.mono} ${styles.earlierWhen}`}>
+        {sentOn ? `Sent ${sentOn}` : "An earlier version"}
+      </div>
+      {children}
+    </li>
+  );
+}
+
+function AnswerBody({ answer }: { answer: AnswerBodyView }) {
   if (!answer.answered) return <p className={styles.noAnswer}>No answer.</p>;
   if (answer.items) {
     return (
@@ -255,6 +314,16 @@ function Answer({ answer, actions }: { answer: AnswerView; actions: AnswerAction
         {answer.optional ? <span className={styles.optional}> (optional)</span> : null}
       </h3>
       <AnswerBody answer={answer} />
+      {answer.changedSinceScored ? (
+        <p className={styles.changedNote}>{answer.changedSinceScored}</p>
+      ) : null}
+      <Earlier count={answer.earlier.length}>
+        {answer.earlier.map((entry, at) => (
+          <EarlierEntry key={at} sentOn={entry.sentOn}>
+            <AnswerBody answer={entry} />
+          </EarlierEntry>
+        ))}
+      </Earlier>
       {answer.scorable ? <ScoreRow answerKey={answer.key} actions={actions} /> : null}
       <AnswerComments
         answerKey={answer.key}
@@ -309,9 +378,26 @@ export function AboutCard({
   actions: AnswerActions;
 }) {
   const { about } = applicant;
+  const earlierFacts = about.earlierFacts.flatMap((fact) =>
+    fact.earlier.map((entry) => ({ label: fact.label, ...entry })),
+  );
+  const changed = earlierFacts.length > 0 || about.earlierMotivation.length > 0;
   return (
-    <section className={styles.card} data-shown={shown} aria-label="About you">
-      <CardHead title="About you" chips={<Chip>Same as joining</Chip>} />
+    <section
+      id={cardId("about")}
+      className={styles.card}
+      data-shown={shown}
+      aria-label="About you"
+    >
+      <CardHead
+        title="About you"
+        chips={
+          <>
+            <Chip>Same as joining</Chip>
+            {changed ? <Chip>Changed</Chip> : null}
+          </>
+        }
+      />
       <dl className={styles.facts}>
         {about.status ? (
           <div>
@@ -348,6 +434,16 @@ export function AboutCard({
           </div>
         ) : null}
       </dl>
+      <Earlier count={earlierFacts.length}>
+        {earlierFacts.map((entry, at) => (
+          <EarlierEntry key={at} sentOn={entry.sentOn}>
+            <div className={styles.earlierFact}>
+              <span className={styles.earlierFactLabel}>{entry.label}</span>
+              {entry.value ? <MemberText text={entry.value} /> : <span>Not given</span>}
+            </div>
+          </EarlierEntry>
+        ))}
+      </Earlier>
       <hr className={styles.rule} />
       <div className={styles.answerBlock}>
         <h3 className={styles.question}>Why are you interested in AI safety?</h3>
@@ -356,6 +452,17 @@ export function AboutCard({
         ) : (
           <p className={styles.noAnswer}>No answer.</p>
         )}
+        <Earlier count={about.earlierMotivation.length}>
+          {about.earlierMotivation.map((entry, at) => (
+            <EarlierEntry key={at} sentOn={entry.sentOn}>
+              {entry.text ? (
+                <MemberText text={entry.text} className={styles.answer} />
+              ) : (
+                <p className={styles.noAnswer}>No answer.</p>
+              )}
+            </EarlierEntry>
+          ))}
+        </Earlier>
         <AnswerComments
           answerKey={about.motivationKey}
           question="Why are you interested in AI safety?"
@@ -381,6 +488,7 @@ export function SectionCard({
   const count = section.answers.length;
   return (
     <section
+      id={cardId(section.id)}
       className={`${styles.card} ${section.mode === "focus" ? styles.cardFocus : ""} ${
         collapsible && !open ? styles.cardClosed : ""
       }`}
@@ -428,14 +536,25 @@ export function SectionCard({
 
 export function AvailabilityCard({
   availability,
+  earlier,
   shown,
 }: {
   availability: AvailabilityView;
+  /** When they were free in the versions sent before, newest first. */
+  earlier: readonly EarlierAvailability[];
   shown: boolean;
 }) {
   return (
-    <section className={styles.card} data-shown={shown} aria-label="When they’re free">
-      <CardHead title="When they’re free" />
+    <section
+      id={cardId("availability")}
+      className={styles.card}
+      data-shown={shown}
+      aria-label="When they’re free"
+    >
+      <CardHead
+        title="When they’re free"
+        chips={earlier.length > 0 ? <Chip>Changed</Chip> : null}
+      />
       {availability.empty ? (
         <p className={styles.noAnswer}>They haven’t said when they’re free.</p>
       ) : (
@@ -486,6 +605,22 @@ export function AvailabilityCard({
           </div>
         </>
       )}
+      <Earlier count={earlier.length}>
+        {earlier.map((entry, at) => (
+          <EarlierEntry key={at} sentOn={entry.sentOn}>
+            {entry.empty ? (
+              <p className={styles.noAnswer}>They hadn’t said when they were free.</p>
+            ) : (
+              <div className={`${styles.times} ${styles.earlierTimes}`}>
+                {entry.lines.map((line) => (
+                  <div key={line}>{line}</div>
+                ))}
+                {entry.total ? <div className={styles.timesTotal}>{entry.total}</div> : null}
+              </div>
+            )}
+          </EarlierEntry>
+        ))}
+      </Earlier>
     </section>
   );
 }

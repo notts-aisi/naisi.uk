@@ -1,5 +1,5 @@
 import type { DecisionEmailButtonLook, DecisionEmailKind, DecisionEmailSignOff } from "./emailCopy";
-import type { PoolChoice } from "./plan";
+import type { PoolChoice, TestState } from "./plan";
 
 /**
  * WHAT THE TWO SCREENS ARE SENT.
@@ -61,6 +61,25 @@ export type PoolRow = {
   told: boolean;
 };
 
+/**
+ * Somebody who was pooled, was told on decision day, and has since given
+ * their place or their invitation back. Listed so that nobody disappears from
+ * the page, and in none of its numbers.
+ */
+export type PoolLeftRow = {
+  uid: string;
+  name: string;
+  degree: string;
+  detail: string;
+  ranked: { rank: number; programmeId: string; shortName: string }[];
+  /** The programme whose invitation or place they gave back. Null when it has left the form. */
+  programme: string | null;
+  /** The button they pressed: "I can’t make it" or "No thanks". */
+  said: string;
+  /** Their reason, as the committee reads it. Null when none is on record. */
+  reason: string | null;
+};
+
 export type PoolBoard = {
   roundId: string;
   termLabel: string;
@@ -73,6 +92,12 @@ export type PoolBoard = {
   counts: { pooled: number; invitations: number; noOffer: number; needsOutcome: number };
   programmes: PoolProgramme[];
   rows: PoolRow[];
+  /**
+   * Pooled people who gave a place or an invitation back after they were
+   * told, with what they said and why. In no count above: `counts.pooled` is
+   * `rows.length`, and stays so.
+   */
+  left: PoolLeftRow[];
 };
 
 // ---------------------------------------------------------------------------
@@ -105,10 +130,13 @@ export type SendGroup = {
 };
 
 export type ReadinessRow = {
-  /** A programme's id, or a fixed key for a row that is not a programme. */
+  /** A programme's id, or a fixed key for a row that is not a programme: "pooled", "#test". */
   key: string;
   title: string;
-  /** Who it is waiting on: the lead's first name, or "Committee". */
+  /**
+   * Who it is waiting on: the lead's first name, or "Committee". On the test
+   * row, the admin who sent the last test, or "An admin" when nobody has.
+   */
   owner: string;
   ready: boolean;
   /** "Every application has a decision". */
@@ -133,6 +161,12 @@ export type SendBoard = {
    * were told, not who holds a place today.
    */
   readiness: ReadinessRow[];
+  /**
+   * Whether an admin has sent themselves a test of these emails as they are
+   * worded now. A press is refused unless this is "fresh". Who tested and
+   * when is the last of the readiness rows.
+   */
+  test: TestState;
   /** Why the send cannot go, a sentence each. Empty when it can. */
   blockers: string[];
   /** The day decisions went out, and who sent them, once they all have. */

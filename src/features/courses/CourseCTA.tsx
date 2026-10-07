@@ -85,8 +85,30 @@ export type CourseCTARound = {
    * honest answer.
    */
   cohortLabel: string;
-  /** "Mon 26 Oct" for that same run, or null when none resolves. */
+  /**
+   * "Mon 26 Oct" for that same run, or null when none resolves. For the
+   * application form, which names no run until groups are made, it is the
+   * tied programme's own "w/c 26 Oct" instead.
+   */
   startsOn: string | null;
+  /**
+   * Set when the round is the term's APPLICATION FORM, and null for a round of
+   * the older kind.
+   *
+   * There is one form a term, for every programme, so it is offered its own
+   * way: one sentence about the day to apply by, and one button that leads
+   * everybody to the same address, signed in or not. The form's own page
+   * decides what somebody with no account sees, so this component does not
+   * send them to sign in first.
+   */
+  form: {
+    /** Where the form is served, built by the form's own code. */
+    applyPath: string;
+    /** "Sun 18 Oct", the day to apply by. Null once the form has closed. */
+    applyBy: string | null;
+    /** "23:59", the minute it closes on that day. Null once it has closed. */
+    closesAtTime: string | null;
+  } | null;
 };
 
 /**
@@ -189,10 +211,16 @@ export default function CourseCTA({
    * discovery-versus-submit mismatch the window predicate was built to end.
    * A 404 while the two PRs are out of order is a loud, one-merge problem; a
    * form that takes five hundred words and then says no is a quiet one.
+   *
+   * THE APPLICATION FORM is served at that same route, and its address comes
+   * ready-made from the form's own code rather than being built again here.
    */
-  const applyHref = viaRound
-    ? `/apply/${encodeURIComponent(round.id)}`
-    : `/courses/${encodeURIComponent(courseId)}/apply`;
+  const form = round?.form ?? null;
+  const applyHref = form
+    ? form.applyPath
+    : viaRound
+      ? `/apply/${encodeURIComponent(round.id)}`
+      : `/courses/${encodeURIComponent(courseId)}/apply`;
 
   const wrap = [styles.cta, placement === "foot" ? styles.foot : styles.hero]
     .filter(Boolean)
@@ -244,6 +272,17 @@ export default function CourseCTA({
     startsOn ? `Starts ${startsOn}` : null,
   ].filter(Boolean) as string[];
 
+  // The application form while it is open: the day to apply by leads, and the
+  // minute and the day everybody hears follow as two plain sentences. Every
+  // other state of a form reads as a round's does, from the same dates.
+  const formOpen = form !== null && state === "open";
+  const formSentences = formOpen
+    ? [
+        form.closesAtTime ? `Applications close at ${form.closesAtTime}.` : null,
+        round?.decisionsOn ? `We’ll email you on ${round.decisionsOn}.` : null,
+      ].filter(Boolean).join(" ")
+    : "";
+
   return (
     <div className={wrap}>
       {/* The chip is the structured cohort, never the run's admin label, and
@@ -255,7 +294,13 @@ export default function CourseCTA({
         </p>
       ) : null}
 
-      {state === "open" ? (
+      {formOpen ? (
+        <p className={styles.line}>
+          <span className={styles.open}>
+            {form.applyBy ? `Apply by ${form.applyBy}.` : `Applications are open for ${title}.`}
+          </span>
+        </p>
+      ) : state === "open" ? (
         <p className={styles.line}>
           <span className={styles.open}>
             {open ? "Sign-ups are open" : "Applications are open"}
@@ -285,7 +330,9 @@ export default function CourseCTA({
         </p>
       )}
 
-      {dates.length > 0 ? (
+      {formOpen ? (
+        formSentences ? <p className={styles.dates}>{formSentences}</p> : null
+      ) : dates.length > 0 ? (
         <p className={styles.dates}>
           {dates.map((bit, i) => (
             <span key={bit}>
@@ -341,6 +388,15 @@ export default function CourseCTA({
             Pick a session
           </a>
         ) : null
+      ) : formOpen ? (
+        // ONE BUTTON FOR EVERYBODY, drawn without waiting for auth: its words
+        // and its address are the same signed in or signed out, so there is
+        // nothing to flash, and it is a plain link that works before this
+        // island has hydrated. It is one form whichever course's button
+        // somebody presses.
+        <Link href={applyHref} className={styles.button}>
+          Apply
+        </Link>
       ) : loading ? null : state === "open" ? (
         user ? (
           <Link href={applyHref} className={styles.button}>
@@ -370,14 +426,30 @@ export default function CourseCTA({
               own application, and it stays reachable once the window shuts.
               Signed-out visitors get no such link: there is nothing behind it
               for them. */}
+          {/* An application made on the application form is read back from
+              the list of everything its owner has applied to, so that is
+              where a closed form sends them. A form that has not opened yet
+              has nobody who applied to it, and offers no such link. */}
           {user && !open ? (
-            <p className={styles.line}>
-              Already applied?{" "}
-              <Link href={applyHref} className={styles.inlineLink}>
-                Check your application
-              </Link>
-              .
-            </p>
+            form ? (
+              state === "closed" ? (
+                <p className={styles.line}>
+                  Already applied?{" "}
+                  <Link href="/applications" className={styles.inlineLink}>
+                    See your applications
+                  </Link>
+                  .
+                </p>
+              ) : null
+            ) : (
+              <p className={styles.line}>
+                Already applied?{" "}
+                <Link href={applyHref} className={styles.inlineLink}>
+                  Check your application
+                </Link>
+                .
+              </p>
+            )
           ) : null}
         </>
       )}

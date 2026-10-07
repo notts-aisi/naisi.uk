@@ -18,6 +18,11 @@
  *    the payload until the caller has scored every answer there is to score,
  *    or an admin has switched that off for the form. The list's score column
  *    follows the same rule, and what is held back leaves as a count.
+ *  - AN ADMIN IS NEVER BLIND. That rule is a lead's and a reviewer's: an
+ *    admin is sent every score and comment, on every programme, whether or
+ *    not they have scored and whatever the switch says. It is one function
+ *    (`otherReviewsShownTo`), and a walk of the tree holds every caller to
+ *    handing it the caller's own standing and nobody to working it out again.
  *  - AN ADDRESS IS FOR AN ADMIN. No payload a lead or a reviewer is sent
  *    carries an applicant's email, anywhere in it.
  *  - A REVIEWER WRITES ONLY THEIR OWN ROW, scores only the answers of a
@@ -60,6 +65,7 @@ const decide = await loadTs(lib("decide.ts"));
 /** This folder's own-key lookups, for the cases that ask them directly. */
 const ownership = await loadTs(lib("own.ts"));
 const normalise = await loadTs(join("lib", "applications", "normalise.ts"));
+const scoring = await loadTs(join("lib", "applications", "scoring.ts"));
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -721,16 +727,73 @@ describe("one programme's applications", () => {
     assert.deepEqual(result.board.counts, { all: 5, toReview: 3, accepted: 0, pooled: 1, declined: 0 });
   });
 
-  test("an admin who has scored nothing sees no scores, until the switch is on for the form", async () => {
-    const blind = await board(makeDb(seed()), "zach");
-    assert.equal(rowOf(blind, "amara").score, null);
-    assert.equal(blind.board.recommendations.scoredCount, 0);
-    const open = await board(
+  // The owner's decision of 7 October 2026: an admin is never blind. This
+  // test used to hold the opposite (an admin who had scored nothing read no
+  // score until the form's switch was on). An admin runs the term and picks
+  // what pooled applicants hear, so the list an admin opens carries every
+  // section score, and the recommendations made from them, without the admin
+  // scoring anybody. The switch is for leads and reviewers.
+  test("an admin who has scored nothing sees every score on the list, whatever the switch says", async () => {
+    const off = await board(makeDb(seed()), "zach");
+    assert.deepEqual(
+      off.board.rows.map((row) => [row.uid, row.score]),
+      [["amara", "3.8"], ["ben", "2.0"], ["dev", null], ["wen", null], ["lloyd", null], ["claudia", null]],
+      "Claudia 4.5 and Lloyd 3 on Amara, Claudia 2 on Ben, and nobody has scored the rest",
+    );
+    assert.equal(off.board.recommendations.scoredCount, 2);
+    assert.deepEqual(off.board.recommendations.top, ["amara", "ben"]);
+    const on = await board(
       makeDb(seed({ [`admissionRounds/${ROUND}`]: roundDoc({ revealOtherReviews: true }) })),
       "zach",
     );
-    assert.equal(rowOf(open, "amara").score, "3.8");
+    assert.deepEqual(on.board.rows, off.board.rows, "the switch changes nothing an admin is shown");
+    assert.deepEqual(on.board.recommendations, off.board.recommendations);
+  });
+
+  test("a lead who is not an admin still reads no score for somebody they have not scored", async () => {
+    // Lloyd has scored Dev's one answer. Claudia, who leads the programme and
+    // is not an admin, has not.
+    const docs = seed({
+      [`admissionReviews/${ROUND}__dev__lloyd`]: reviewDoc("dev", "lloyd", { [`${AGI}.event`]: 5 }),
+    });
+    assert.equal(rowOf(await board(makeDb(docs), "claudia"), "dev").score, null, "her first review of Dev is still open");
+    assert.equal(rowOf(await board(makeDb(docs), "zach"), "dev").score, "5.0", "an admin reads it at once");
+    // Another programme's score is held back from her the same way, and not from an admin.
+    const elsewhere = seed({
+      [`admissionReviews/${ROUND}__amara__tess`]: reviewDoc("amara", "tess", { [`${TAIS}.python`]: 5, [`${TAIS}.built`]: 5 }),
+      [`admissionReviews/${ROUND}__amara__claudia`]: reviewDoc("amara", "claudia", { [`${AGI}.event`]: 4 }),
+    });
+    assert.deepEqual((await board(makeDb(elsewhere), "claudia")).board.recommendations.scoredHigherElsewhere, []);
+    assert.deepEqual((await board(makeDb(elsewhere), "zach")).board.recommendations.scoredHigherElsewhere, [
+      { programmeId: TAIS, shortName: "Technical AI Safety", uids: ["amara"] },
+    ]);
+  });
+
+  // The form's switch used to be shown working on the list with an admin as
+  // the reader. An admin is never blind now, so it is shown with somebody it
+  // is for: a reviewer part way through a first review, who reads only their
+  // own score until the switch is on, and then reads what an admin reads.
+  test("the form's switch lifts the blind on the list for a reviewer who has not finished", async () => {
+    const scores = (result) => result.board.rows.map((row) => [row.uid, row.score]);
+    const blind = await board(makeDb(seed()), "lloyd");
+    assert.deepEqual(
+      scores(blind),
+      [["amara", "3.0"], ["ben", null], ["dev", null], ["wen", null], ["claudia", null]],
+      "his own 3 on Amara and nothing of Claudia's: her 4.5 on Amara and her 2 on Ben are held back",
+    );
+    assert.equal(blind.board.recommendations.scoredCount, 1);
+    assert.deepEqual(blind.board.recommendations.top, ["amara"]);
+    const open = await board(
+      makeDb(seed({ [`admissionRounds/${ROUND}`]: roundDoc({ revealOtherReviews: true }) })),
+      "lloyd",
+    );
+    assert.deepEqual(
+      scores(open),
+      [["amara", "3.8"], ["ben", "2.0"], ["dev", null], ["wen", null], ["claudia", null]],
+      "the section scores an admin reads, on every row he is shown",
+    );
     assert.equal(open.board.recommendations.scoredCount, 2);
+    assert.deepEqual(open.board.recommendations.top, ["amara", "ben"]);
   });
 
   test("what is left to review is the lead's undecided, and a reviewer's unscored", async () => {
@@ -908,42 +971,91 @@ describe("one application, for review", () => {
     assert.ok(seen.review.comments.some((comment) => comment.text === "Argued from both sides."));
   });
 
-  test("an admin is blind as well, stream by stream, and is told how many reviews are held back", async () => {
+  // The owner's decision of 7 October 2026: an admin always sees other
+  // reviewers' scores and comments, on every programme, whether or not they
+  // have scored. This test used to hold the opposite (an admin who had scored
+  // nothing was sent two held-back reviews, no comment and no section score).
+  test("an admin is never blind: every score and comment is there before the admin has scored anything", async () => {
     const db = makeDb(seed());
     const { review: seen } = await review(db, "zach", "amara");
-    assert.deepEqual(seen.review.others, { count: 2, hidden: 2, visible: [] });
-    assert.deepEqual(seen.review.comments, []);
+    assert.deepEqual(seen.review.scores, {}, "the admin has scored nothing");
+    assert.equal(seen.review.ownScore, null);
+    assert.deepEqual(seen.review.others, {
+      count: 2,
+      hidden: 0,
+      visible: [
+        { reviewerUid: "claudia", name: "Claudia", score: "4.5", overallComment: "Strong. Would do well in a group." },
+        { reviewerUid: "lloyd", name: "Lloyd", score: "3.0", overallComment: "A bit general." },
+      ],
+    });
+    assert.deepEqual(
+      seen.review.comments.map((comment) => [comment.authorName, comment.key, comment.text, comment.mine]),
+      [
+        ["Claudia", `${AGI}.event`, "Argued from both sides.", false],
+        ["Lloyd", "fellowships.why", "Clear about why this term.", false],
+        ["Tess", `${TAIS}.built`, "Careful write-up.", false],
+      ],
+      "another stream's comment included: the admin owes no first review anywhere",
+    );
     assert.deepEqual(seen.admin, {
       revealOtherReviews: false,
       sections: [
-        { programmeId: AGI, shortName: "AGI Strategy", score: null, line: null, hidden: 2 },
-        { programmeId: TAIS, shortName: "Technical AI Safety", score: null, line: null, hidden: 1 },
+        { programmeId: AGI, shortName: "AGI Strategy", score: "3.8", line: "Claudia 4.5 · Lloyd 3 so far" },
+        { programmeId: TAIS, shortName: "Technical AI Safety", score: "3.5", line: "Tess scored 3 and 4" },
       ],
     });
   });
 
-  test("with the switch on an admin reads each section's score and who gave what", async () => {
-    const db = makeDb(seed({ [`admissionRounds/${ROUND}`]: roundDoc({ revealOtherReviews: true }) }));
-    const { review: seen } = await review(db, "zach", "amara");
-    assert.deepEqual(seen.admin.sections, [
-      { programmeId: AGI, shortName: "AGI Strategy", score: "3.8", line: "Claudia 4.5 · Lloyd 3 so far", hidden: 0 },
-      { programmeId: TAIS, shortName: "Technical AI Safety", score: "3.5", line: "Tess scored 3 and 4", hidden: 0 },
-    ]);
+  test("the switch changes nothing an admin is sent but the switch itself", async () => {
+    const off = (await review(makeDb(seed()), "zach", "amara")).review;
+    const on = (
+      await review(makeDb(seed({ [`admissionRounds/${ROUND}`]: roundDoc({ revealOtherReviews: true }) })), "zach", "amara")
+    ).review;
+    assert.equal(on.admin.revealOtherReviews, true);
+    assert.deepEqual({ ...on, admin: { ...on.admin, revealOtherReviews: false } }, off);
+  });
+
+  test("a section score line has nothing to count as hidden, because nothing is held back from an admin", async () => {
+    const { review: seen } = await review(makeDb(seed()), "zach", "amara");
+    for (const section of seen.admin.sections) {
+      assert.deepEqual(Object.keys(section).sort(), ["line", "programmeId", "score", "shortName"]);
+    }
   });
 
   test("a comment on another stream's answer waits for that stream's first review, where the caller reviews it", async () => {
-    // Zach has finished AGI Strategy for Amara and has not touched Technical AI Safety.
+    // Somebody who is not an admin and reviews both streams: Lloyd, named on
+    // Technical AI Safety as well for this test. He has finished AGI Strategy
+    // for Amara and has not touched Technical AI Safety. (This used to be run
+    // with an admin as the caller. An admin is never blind now, so the wait
+    // is a lead's or a reviewer's, and the admin's half is asserted below.)
+    const both = roundDoc();
+    both.programmes[TAIS].reviewerUids = ["lloyd"];
     const db = makeDb(
       seed({
-        [`admissionReviews/${ROUND}__amara__zach`]: reviewDoc("amara", "zach", { [`${AGI}.event`]: 4, [`${AGI}.plan`]: 4 }),
+        [`admissionRounds/${ROUND}`]: both,
+        [`admissionReviews/${ROUND}__amara__lloyd`]: reviewDoc(
+          "amara",
+          "lloyd",
+          { [`${AGI}.event`]: 3, [`${AGI}.plan`]: 4 },
+          [["c1", "fellowships.why", "Clear about why this term."]],
+          "A bit general.",
+        ),
       }),
     );
-    const { review: seen } = await review(db, "zach", "amara");
+    const { review: seen } = await review(db, "lloyd", "amara");
+    assert.equal(seen.viewer.isAdmin, false);
+    assert.equal(seen.admin, null);
     const texts = seen.review.comments.map((comment) => comment.text);
     assert.ok(texts.includes("Argued from both sides."), "AGI Strategy is unblinded for him");
-    assert.ok(texts.includes("Clear about why this term."));
+    assert.ok(texts.includes("Clear about why this term."), "his own");
     assert.equal(texts.includes("Careful write-up."), false, "that one is on a stream he still owes a first review");
-    assert.deepEqual(seen.admin.sections.map((section) => section.hidden), [0, 1]);
+    // Opened under the stream he has not scored, Tess's review of it is a count and not a body.
+    const underTais = (await review(db, "lloyd", "amara", TAIS)).review;
+    assert.deepEqual(underTais.review.others, { count: 1, hidden: 1, visible: [] });
+    assert.equal(stringsIn(underTais).some((text) => text.includes("Careful write-up.")), false);
+    // The same application, the same moment, for an admin who has scored neither stream.
+    const forAdmin = (await review(db, "zach", "amara")).review;
+    assert.ok(forAdmin.review.comments.some((comment) => comment.text === "Careful write-up."));
   });
 
   test("an applicant's addresses are on an admin's payload and on nobody else's", async () => {
@@ -1677,6 +1789,287 @@ describe("showing other reviewers' scores on a first review", () => {
     assert.equal((await decide.setRevealOtherReviews(db, CAST.zach, "no-such-round", true)).status, 404);
     assert.equal((await decide.setRevealOtherReviews(db, CAST.zach, "older-round", true)).status, 404);
     assert.deepEqual(db.writes, []);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Why somebody left: the reason on a withdrawn row
+// ---------------------------------------------------------------------------
+
+/**
+ * The owner's decision of 7 October 2026: somebody who says "I can’t make it"
+ * or "No thanks" is asked why, and the committee sees the reason, on the
+ * withdrawn row of the list and on the application itself. Nobody is removed:
+ * the row stays, marked as withdrawn, with the reason.
+ */
+describe("a withdrawn row says what the person said and why", () => {
+  const told = (kind, programmeId) => ({ kind, programmeId, publishedAt: NOW, email: "sent", emailedAt: NOW, emailClaimedAt: null });
+  const app = (uid) => applicationDoc(APPLICANTS.find((entry) => entry[0] === uid));
+  const gone = (uid, over) => ({ [`admissionApplications/${ROUND}__${uid}`]: { ...app(uid), status: "withdrawn", withdrawnAt: NOW, ...over } });
+
+  /**
+   * After decision day. Ben was accepted by AGI Strategy and cannot make it.
+   * Sam ranked Technical AI Safety, was pooled, was invited to AGI Strategy
+   * and said no thanks, in his own words. Dev was withdrawn some other way.
+   */
+  const afterReplies = () =>
+    seed({
+      [`admissionDecisions/${ROUND}__ben`]: { roundId: ROUND, uid: "ben", programmes: { [AGI]: decided("accept", "claudia") }, pooledOutcome: null, exception: null },
+      ...gone("ben", {
+        result: told("accepted", AGI),
+        attendance: { answer: "cant-make-it", answeredAt: NOW },
+        releaseReason: { kind: "times", other: "" },
+      }),
+      [`admissionDecisions/${ROUND}__sam`]: {
+        roundId: ROUND,
+        uid: "sam",
+        programmes: { [TAIS]: decided("pool", "tess") },
+        pooledOutcome: { kind: "invite", programmeId: AGI, setByUid: "zach", setAt: NOW },
+        exception: null,
+      },
+      ...gone("sam", {
+        result: told("invited", AGI),
+        invitation: { programmeId: AGI, replyBy: "2026-10-25", response: "declined", respondedAt: NOW, lastReminderOn: null },
+        releaseReason: { kind: "other", other: "I start a placement in Leeds that week." },
+      }),
+      ...gone("dev", {}),
+    });
+
+  test("on the list: the row stays, marked as withdrawn, with the button pressed and the reason", async () => {
+    const result = await board(makeDb(afterReplies()), "claudia");
+    const ben = rowOf(result, "ben");
+    assert.equal(ben.withdrawn, true);
+    assert.deepEqual(ben.gaveBack, { said: "I can’t make it", reason: "The times don’t work for me" });
+    assert.equal(ben.standing, "accepted", "what the programme decided is kept, as a line under it");
+    // He is listed and not counted.
+    assert.ok(result.board.rows.some((row) => row.uid === "ben"));
+    assert.equal(result.board.counts.accepted, 0);
+  });
+
+  test("on the list of a programme they ranked: somebody who said no thanks elsewhere, in their own words", async () => {
+    const result = await board(makeDb(afterReplies()), "tess", TAIS);
+    const sam = rowOf(result, "sam");
+    assert.equal(sam.withdrawn, true);
+    assert.deepEqual(sam.gaveBack, { said: "No thanks", reason: "I start a placement in Leeds that week." });
+    // The programme whose invitation he turned down never reads him at all.
+    assert.equal(rowOf(await board(makeDb(afterReplies()), "claudia"), "sam"), undefined);
+    assert.deepEqual(await review(makeDb(afterReplies()), "claudia", "sam", AGI), { ok: false, status: 404, error: "Not found" });
+  });
+
+  test("on the application itself, for a lead, a reviewer and an admin alike", async () => {
+    for (const who of ["claudia", "lloyd", "zach"]) {
+      const { review: seen } = await review(makeDb(afterReplies()), who, "ben");
+      assert.equal(seen.applicant.withdrawn, true, who);
+      assert.deepEqual(seen.applicant.gaveBack, { said: "I can’t make it", reason: "The times don’t work for me" }, who);
+    }
+    const { review: sam } = await review(makeDb(afterReplies()), "tess", "sam", TAIS);
+    assert.deepEqual(sam.applicant.gaveBack, { said: "No thanks", reason: "I start a placement in Leeds that week." });
+  });
+
+  test("somebody withdrawn some other way, and somebody who has not left, have nothing of the kind", async () => {
+    const result = await board(makeDb(afterReplies()), "claudia");
+    assert.deepEqual([rowOf(result, "dev").withdrawn, rowOf(result, "dev").gaveBack], [true, null]);
+    assert.deepEqual([rowOf(result, "amara").withdrawn, rowOf(result, "amara").gaveBack], [false, null]);
+    const { review: amara } = await review(makeDb(afterReplies()), "claudia", "amara");
+    assert.equal(amara.applicant.gaveBack, null);
+    // A reason on a document whose owner gave nothing back is not shown as one.
+    const stray = seed({ [`admissionApplications/${ROUND}__amara`]: { ...app("amara"), releaseReason: { kind: "times", other: "" } } });
+    assert.equal(rowOf(await board(makeDb(stray), "claudia"), "amara").gaveBack, null);
+  });
+
+  test("a reply made before the question was asked: the button, and no reason", async () => {
+    const docs = afterReplies();
+    delete docs[`admissionApplications/${ROUND}__ben`].releaseReason;
+    const result = await board(makeDb(docs), "claudia");
+    assert.deepEqual(rowOf(result, "ben").gaveBack, { said: "I can’t make it", reason: null });
+  });
+
+  test("the reason is the only thing the reply adds to what a lead is sent: still no address", async () => {
+    const db = makeDb(afterReplies());
+    for (const who of ["claudia", "lloyd"]) {
+      assert.equal(mentionsAnAddress((await board(db, who)).board), false, who);
+      assert.equal(mentionsAnAddress((await review(db, who, "ben")).review), false, who);
+    }
+  });
+
+  test("the two screens draw it as text, under the word Withdrawn", () => {
+    const flatten = (...parts) => readFileSync(join(REPO_ROOT, "src", "features", "applications", "review", ...parts), "utf8").replace(/\s+/g, " ");
+    const list = flatten("ApplicationsBoard.tsx");
+    assert.ok(list.includes("<Chip dot>Withdrawn</Chip>"));
+    assert.ok(list.includes("<span>Said “{row.gaveBack.said}”</span>"));
+    assert.ok(list.includes('<span className={styles.gaveBackWhy}>{row.gaveBack.reason ?? "No reason given"}</span>'));
+    const screen = flatten("ReviewScreen.tsx");
+    assert.ok(screen.includes("{applicant.firstName} said “{applicant.gaveBack.said}”."));
+    assert.ok(screen.includes("Their reason: <span className={styles.gaveBackWhy}>{applicant.gaveBack.reason}</span>"));
+    assert.ok(screen.includes('"They gave no reason."'));
+    for (const source of [list, screen]) assert.equal(/dangerouslySetInnerHTML/.test(source), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Who is shown other reviewers' scores: one rule, asked everywhere
+// ---------------------------------------------------------------------------
+
+describe("who is shown other reviewers' scores is one rule, and an admin is never blind", () => {
+  const SRC = join(REPO_ROOT, "src");
+  const KEYS = [`${AGI}.event`, `${AGI}.plan`];
+  const row = (reviewerUid, scores) => ({ reviewerUid, scores, comments: [], overallComment: "" });
+  const BLIND = { revealOtherReviews: false };
+  const OPEN = { revealOtherReviews: true };
+  const nothing = row("me", {});
+  const half = row("me", { [`${AGI}.event`]: 3 });
+  const all = row("me", { [`${AGI}.event`]: 3, [`${AGI}.plan`]: 4 });
+  const theirs = row("somebody-else", { [`${AGI}.event`]: 5, [`${AGI}.plan`]: 5 });
+
+  test("the rule: an admin always; anybody else once they have scored everything, or when the switch is on", () => {
+    /** [admin, own row, switch, shown] */
+    const TABLE = [
+      [true, null, BLIND, true],
+      [true, nothing, BLIND, true],
+      [true, half, BLIND, true],
+      [true, all, BLIND, true],
+      [true, null, OPEN, true],
+      [false, null, BLIND, false],
+      [false, nothing, BLIND, false],
+      [false, half, BLIND, false],
+      [false, all, BLIND, true],
+      [false, null, OPEN, true],
+      [false, half, OPEN, true],
+    ];
+    for (const [admin, mine, form, shown] of TABLE) {
+      assert.equal(
+        scoring.otherReviewsShownTo(admin, mine, KEYS, form),
+        shown,
+        `admin ${admin}, own row ${JSON.stringify(mine?.scores ?? null)}, switch ${form.revealOtherReviews}`,
+      );
+    }
+    // A programme with nothing to score has no first review to protect.
+    assert.equal(scoring.otherReviewsShownTo(false, null, [], BLIND), true);
+  });
+
+  test("only a strict true is an admin, so a caller that says nothing hides rather than shows", () => {
+    for (const notAdmin of [undefined, null, 0, 1, "", "admin", "true", {}, []]) {
+      assert.equal(scoring.otherReviewsShownTo(notAdmin, nothing, KEYS, BLIND), false, JSON.stringify(notAdmin));
+      assert.deepEqual(scoring.reviewsVisibleTo("me", [nothing, theirs], KEYS, BLIND, notAdmin), [nothing]);
+      assert.equal(scoring.hiddenReviewCount("me", [nothing, theirs], KEYS, BLIND, notAdmin), 1);
+    }
+  });
+
+  test("an admin is handed every review and none is counted as hidden, with or without a row of their own", () => {
+    assert.deepEqual(scoring.reviewsVisibleTo("me", [theirs], KEYS, BLIND, true), [theirs]);
+    assert.deepEqual(scoring.reviewsVisibleTo("me", [half, theirs], KEYS, BLIND, true), [half, theirs]);
+    assert.equal(scoring.hiddenReviewCount("me", [theirs], KEYS, BLIND, true), 0);
+    assert.equal(scoring.hiddenReviewCount("me", [half, theirs], KEYS, BLIND, true), 0);
+    // The same people, for a lead or a reviewer who is not an admin.
+    assert.deepEqual(scoring.reviewsVisibleTo("me", [theirs], KEYS, BLIND, false), []);
+    assert.deepEqual(scoring.reviewsVisibleTo("me", [half, theirs], KEYS, BLIND, false), [half]);
+    assert.equal(scoring.hiddenReviewCount("me", [half, theirs], KEYS, BLIND, false), 1);
+    assert.deepEqual(scoring.reviewsVisibleTo("me", [all, theirs], KEYS, BLIND, false), [all, theirs]);
+  });
+
+  /** Every `.ts` and `.tsx` under `src`, comments taken out. */
+  const sources = [];
+  const walkSrc = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walkSrc(path);
+      else if (/\.tsx?$/.test(entry.name)) {
+        const code = readFileSync(path, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^[ \t]*\/\/.*$/gm, " ");
+        sources.push([path.slice(SRC.length + 1).split("\\").join("/"), code]);
+      }
+    }
+  };
+  walkSrc(SRC);
+
+  /** The text between a call's brackets, wherever `name(` is called in `code`. */
+  function callsOf(code, name) {
+    const out = [];
+    const pattern = new RegExp(`(?<![\\w.])${name}\\(`, "g");
+    for (const match of code.matchAll(pattern)) {
+      let depth = 1;
+      let at = match.index + match[0].length;
+      while (at < code.length && depth > 0) {
+        if (code[at] === "(") depth += 1;
+        else if (code[at] === ")") depth -= 1;
+        at += 1;
+      }
+      out.push(code.slice(match.index + match[0].length, at - 1));
+    }
+    return out;
+  }
+
+  test("every caller hands the rule the caller's own standing as an admin, and that comes from their site role", () => {
+    assert.ok(sources.length > 400, `only ${sources.length} files were read: the walk has stopped seeing src`);
+    let calls = 0;
+    for (const [file, code] of sources) {
+      if (file === "lib/applications/scoring.ts") continue;
+      for (const name of ["otherReviewsShownTo", "reviewsVisibleTo", "hiddenReviewCount"]) {
+        for (const args of callsOf(code, name)) {
+          calls += 1;
+          assert.match(
+            args,
+            /\bviewer\.isAdmin\b/,
+            `${file} calls ${name}(${args.replace(/\s+/g, " ")}) without viewer.isAdmin: say who is looking`,
+          );
+        }
+      }
+    }
+    assert.equal(calls, 7, "the list asks three times and the single-application screen four; a new caller is read here");
+    const loader = sources.find(([file]) => file === "lib/applications/review/load.ts")[1];
+    assert.match(loader, /viewer: \{ uid: user\.uid, name, isAdmin: user\.role === "admin", roles \}/);
+  });
+
+  /**
+   * Every file under `src` that names the switch, and what it does with it.
+   * Checked both ways: a file that names it and is not here fails, and so does
+   * an entry for a file that no longer names it.
+   */
+  const NAMES_THE_SWITCH = new Map([
+    ["lib/applications/model.ts", "declares the field on the form"],
+    ["lib/applications/normalise.ts", "reads the stored field into the form, as a boolean"],
+    ["lib/applications/scoring.ts", "THE RULE: the one place the switch is read as a condition"],
+    ["lib/applications/editor/write.ts", "a new form starts with it off"],
+    ["lib/applications/review/decide.ts", "the admin's writer for it, and that writer's result"],
+    ["lib/applications/review/detail.ts", "reports the switch's position to an admin, for the control that flips it"],
+    ["lib/applications/review/types.ts", "the payload field that report travels in"],
+    ["lib/firestore/memberRecords.ts", "names it only in the type of form the scoring functions take"],
+    ["features/applications/review/ReviewScreen.tsx", "the control: shows the position and sends a change"],
+    ["app/api/admissions/forms/[roundId]/review-settings/route.ts", "the route the control sends to"],
+  ]);
+
+  test("nobody works the rule out by hand: the switch is read as a condition in scoring.ts and nowhere else", () => {
+    const naming = sources.filter(([, code]) => /\brevealOtherReviews\b/.test(code)).map(([file]) => file);
+    assert.deepEqual(
+      [...naming].sort(),
+      [...NAMES_THE_SWITCH.keys()].sort(),
+      "the files that name revealOtherReviews are not the ones listed. A new one is added with what it does; " +
+        "one that decides who sees a score asks otherReviewsShownTo instead.",
+    );
+    const AS_A_CONDITION =
+      /\brevealOtherReviews\b\s*(\|\||&&|\?[^.:]|===|!==)|(\|\||&&|!|if\s*\()\s*[\w.?]*\brevealOtherReviews\b/;
+    for (const written of ["form.revealOtherReviews || scored", "a && form.revealOtherReviews", "if (form.revealOtherReviews)", "!form.revealOtherReviews", "form.revealOtherReviews ? 1 : 2"]) {
+      assert.match(written, AS_A_CONDITION, `the pattern misses: ${written}`);
+    }
+    for (const written of ["{ revealOtherReviews?: unknown }", "body?.revealOtherReviews)", "checked={review.admin.revealOtherReviews}", "revealOtherReviews: value,"]) {
+      assert.doesNotMatch(written, AS_A_CONDITION, `the pattern wrongly catches: ${written}`);
+    }
+    for (const [file, code] of sources) {
+      if (file === "lib/applications/scoring.ts") {
+        assert.match(code, AS_A_CONDITION, "the pattern no longer finds the rule where it is written");
+        continue;
+      }
+      // The control's own `checked={...}` and the writer's `typeof value` are not the rule.
+      assert.doesNotMatch(code, AS_A_CONDITION, `${file} decides something from the switch itself: ask otherReviewsShownTo`);
+    }
+  });
+
+  test("the admin inset says who the switch is for, and no longer speaks of reviews hidden from an admin", () => {
+    const screen = readFileSync(join(SRC, "features", "applications", "review", "ReviewScreen.tsx"), "utf8").replace(/\s+/g, " ");
+    assert.ok(screen.includes("<span className={styles.switchLabel}>Show other reviewers\u2019 scores</span>"), "the board's label");
+    assert.ok(screen.includes("For leads and reviewers who haven\u2019t scored yet. Admins always see them."));
+    assert.equal(/hidden until you score these/.test(screen), false);
+    // A lead or a reviewer is still told theirs are held back, in the board's words.
+    assert.ok(screen.includes("Hidden on a first review. An admin can turn them on."));
   });
 });
 

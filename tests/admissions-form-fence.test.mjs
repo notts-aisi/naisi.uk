@@ -444,9 +444,9 @@ const ROUND_SURFACES = {
   "/api/admissions/forms/[roundId]/send/test": {
     kind: "form",
     why:
-      "mails the admin one of the form's three decision emails through sendTestEmail, which " +
-      "loads the round with the form's own loader first, so no test is made from a round of " +
-      "the older kind",
+      "mails the admin one of the form's three decision emails through sendTestEmail, and " +
+      "records on the form who tested and when. sendTestEmail loads the round with the form's " +
+      "own loader first, so no test is made from, or recorded on, a round of the older kind",
   },
   "/api/admissions/forms/[roundId]/sets": {
     kind: "form",

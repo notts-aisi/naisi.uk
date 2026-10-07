@@ -4,7 +4,8 @@ import { londonDateKey } from "@/lib/courses/weekPlan";
 import { normaliseApplication, type ApplicationForm } from "../normalise";
 import { applicationRef, formRef } from "../repo";
 import { ApplicantError } from "../applicant/store";
-import { decideReply, type Reply } from "./replies";
+import { RELEASE_REASON_PROBLEMS } from "./reasons";
+import { decideReply, type ReplyRequest } from "./replies";
 
 /**
  * WRITING ONE PERSON'S REPLY, in one transaction on their own document.
@@ -24,6 +25,11 @@ import { decideReply, type Reply } from "./replies";
  *  - `status`, when the reply moves it, with `withdrawnAt` when it moves to
  *    withdrawn. The form's `applicationCounts` move in the same transaction,
  *    from the status the document had to the one it has now.
+ *  - `releaseReason`, by the reply that gives a place or an invitation back,
+ *    in the same write as the reply itself. A reply that gives something
+ *    back with no reason is refused here too, so no caller can store one
+ *    without the other. The first reason given stands: saying the same thing
+ *    again writes nothing.
  *
  * Nothing else. `result` is what decision day told this person and no reply
  * changes it. No other document is read or written: not a decision, not a
@@ -53,9 +59,10 @@ export async function recordReply(
   db: Firestore,
   form: ApplicationForm,
   uid: string,
-  reply: Reply,
+  request: ReplyRequest,
   now: Date,
 ): Promise<Recorded> {
+  const { reply, reason } = request;
   const roundId = form.round.id;
   const appRef = applicationRef(db, roundId, uid);
   const roundRef = formRef(db, roundId);
@@ -69,8 +76,11 @@ export async function recordReply(
     const decision = decideReply(application, reply, today);
     if (decision.kind === "refused") throw new ApplicantError(decision.error, 409);
     if (decision.kind === "unchanged") return { changed: false, released: false, tookPlace: false };
+    if (decision.releases && !reason) throw new ApplicantError(RELEASE_REASON_PROBLEMS.none, 400);
 
     const update: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
+    // Why, with the reply that gives the place back, and with no other reply.
+    if (decision.releases && reason) update.releaseReason = { kind: reason.kind, other: reason.other };
     if (decision.attendance) {
       update.attendance = { answer: decision.attendance, answeredAt: FieldValue.serverTimestamp() };
     }

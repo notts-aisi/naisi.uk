@@ -1,6 +1,7 @@
 /**
- * Which application form is open right now: the question a page asks before
- * it offers somebody an Apply button.
+ * Which application form is open right now, and which form speaks for a
+ * course: the two questions a page asks before it offers somebody an Apply
+ * button.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -9,7 +10,7 @@
  * `src/lib/applications/lifecycle/openForm.ts` reads admission rounds on the
  * Admin SDK and hands a page any visitor can load what it found. A round
  * carries who leads and reviews each programme, the live counts of
- * applications and each programme's places, so three things have to hold and
+ * applications and each programme's places, so four things have to hold and
  * each is asked here by running the code:
  *
  *  1. OPEN MEANS WHAT THE APPLY ROUTES MEAN. A draft, a form that opens later,
@@ -21,8 +22,15 @@
  *     for in what comes back.
  *  3. A PUBLIC PAGE MAY IMPORT IT. Its imports are walked, and none arrives at
  *     a module that reads reviews or decisions, or that says who has a role.
+ *  4. A COURSE'S PAGE IS TOLD THE TRUTH, AND NOTHING ABOUT A DRAFT. A course
+ *     is on the form through the programme tied to it. Its page is told the
+ *     form opens later, is open or has closed, from the form's own dates,
+ *     and is told nothing at all about a form that is a draft, archived or
+ *     cancelled, a programme that has been closed, or a course tied to
+ *     nothing.
  *
- * And the read is one equality on one field, which needs no declared index.
+ * And the read is one equality on one field, which needs no declared index,
+ * made once whichever question is asked.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -272,6 +280,238 @@ describe("whether the open form takes applications for a course's runs", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 2b. Which form speaks for a course
+// ---------------------------------------------------------------------------
+
+const AGI_COURSE = "agi-strategy-fellowship__a1b2c3d4";
+const INC_COURSE = "research-incubator__b2c3d4e5";
+const FORM_ID = "spring-2027__a1b2c3d4";
+
+/** The form above with two of its programmes tied to a course each, and the closed one tied as well. */
+function tiedForm(over = {}, programmes = {}) {
+  const base = form();
+  return {
+    ...base,
+    programmes: {
+      "agi-strategy": { ...base.programmes["agi-strategy"], courseId: AGI_COURSE, ...programmes["agi-strategy"] },
+      "research-incubator": {
+        ...base.programmes["research-incubator"],
+        courseId: INC_COURSE,
+        starts: "w/c 25 Jan",
+        ...programmes["research-incubator"],
+      },
+      "old-stream": { ...base.programmes["old-stream"], courseId: "closed-course__c3d4e5f6", ...programmes["old-stream"] },
+    },
+    ...over,
+  };
+}
+
+const byCourse = (rounds, now = NOW) => openForm.findFormsByCourse(makeDb(rounds), now);
+const forCourse = async (rounds, courseId = AGI_COURSE, now = NOW) => (await byCourse(rounds, now)).get(courseId) ?? null;
+
+describe("which form speaks for a course", () => {
+  test("a course tied to a programme on a form that is open is told so, with where the form is", async () => {
+    const view = await forCourse({ [FORM_ID]: tiedForm() });
+    assert.deepEqual(view, {
+      id: FORM_ID,
+      state: "open",
+      applyPath: `/apply/${FORM_ID}`,
+      opensAt: OPENS,
+      closesAt: CLOSES,
+      decisionsByDate: "2026-12-18",
+      starts: "w/c 18 Jan",
+      runId: "run-agi-spring",
+    });
+  });
+
+  test("each course gets the programme tied to it, and it is one form whichever course asks", async () => {
+    const found = await byCourse({ [FORM_ID]: tiedForm() });
+    assert.deepEqual([...found.keys()].sort(), [AGI_COURSE, INC_COURSE].sort());
+    assert.equal(found.get(AGI_COURSE).applyPath, found.get(INC_COURSE).applyPath);
+    assert.equal(found.get(INC_COURSE).starts, "w/c 25 Jan");
+    assert.equal(found.get(INC_COURSE).runId, null);
+  });
+
+  test("a form that opens later says when, and offers no address a page could not already build", async () => {
+    const view = await forCourse({ [FORM_ID]: tiedForm() }, AGI_COURSE, new Date(OPENS.getTime() - 1));
+    assert.equal(view.state, "not-yet");
+    assert.deepEqual([view.opensAt, view.closesAt], [OPENS, CLOSES]);
+  });
+
+  test("a form closed by the clock says the day it closed", async () => {
+    const view = await forCourse({ [FORM_ID]: tiedForm() }, AGI_COURSE, new Date(CLOSES.getTime() + 1));
+    assert.equal(view.state, "closed");
+    assert.deepEqual([view.opensAt, view.closesAt, view.decisionsByDate], [OPENS, CLOSES, "2026-12-18"]);
+  });
+
+  test("both ends of the window are open, and a millisecond outside either is not", async () => {
+    const rounds = { [FORM_ID]: tiedForm() };
+    const stateAt = async (at) => (await forCourse(rounds, AGI_COURSE, at)).state;
+    assert.equal(await stateAt(OPENS), "open");
+    assert.equal(await stateAt(CLOSES), "open");
+    assert.equal(await stateAt(new Date(OPENS.getTime() - 1)), "not-yet");
+    assert.equal(await stateAt(new Date(CLOSES.getTime() + 1)), "closed");
+  });
+
+  test("every status a form moves on to after open reads as closed", async () => {
+    for (const status of ["closed", "deciding", "settled"]) {
+      const view = await forCourse({ [FORM_ID]: tiedForm({ status }) });
+      assert.equal(view?.state, "closed", status);
+    }
+  });
+
+  test("a closed form hands over only the times that have passed", async () => {
+    // Closed by hand in the middle of its window: it did open, and the time
+    // written on it for the close has not come.
+    const early = await forCourse({ [FORM_ID]: tiedForm({ status: "closed" }) });
+    assert.deepEqual([early.state, early.opensAt, early.closesAt], ["closed", OPENS, null]);
+    // Closed by hand before it ever opened: neither time has come.
+    const never = await forCourse({ [FORM_ID]: tiedForm({ status: "closed" }) }, AGI_COURSE, new Date(OPENS.getTime() - 1));
+    assert.deepEqual([never.state, never.opensAt, never.closesAt], ["closed", null, null]);
+    // Closed by the clock and then moved on: both have passed, at the instant itself too.
+    const after = await forCourse({ [FORM_ID]: tiedForm({ status: "deciding" }) }, AGI_COURSE, CLOSES);
+    assert.deepEqual([after.opensAt, after.closesAt], [OPENS, CLOSES]);
+    // A form that is still taking applications, or will, keeps both: they are what a page prints.
+    const open = await forCourse({ [FORM_ID]: tiedForm() });
+    assert.deepEqual([open.opensAt, open.closesAt], [OPENS, CLOSES]);
+  });
+
+  test("a draft form is told to nobody, and neither is an archived or a cancelled one", async () => {
+    const silent = {
+      "a draft": { status: "draft" },
+      "a draft with every date set and inside them": { status: "draft", opensAt: OPENS, closesAt: CLOSES },
+      "archived while open": { archived: true },
+      "archived after closing": { archived: true, status: "settled" },
+      cancelled: { status: "cancelled" },
+    };
+    for (const [name, over] of Object.entries(silent)) {
+      for (const at of [new Date(OPENS.getTime() - 1), NOW, new Date(CLOSES.getTime() + 1)]) {
+        const found = await byCourse({ [FORM_ID]: tiedForm(over) }, at);
+        assert.equal(found.size, 0, `${name} spoke for a course`);
+        assert.equal(JSON.stringify([...found]), "[]", `something about ${name} reached a page`);
+      }
+    }
+  });
+
+  test("a course tied to nothing has no entry, whatever state the form is in", async () => {
+    const untied = { "agi-strategy": { courseId: null }, "research-incubator": { courseId: null } };
+    for (const status of ["draft", "open", "closed", "settled"]) {
+      const found = await byCourse({ [FORM_ID]: tiedForm({ status }, untied) });
+      assert.equal(found.size, 0, status);
+    }
+    // And a course no programme names is not there beside one that is.
+    assert.equal(await forCourse({ [FORM_ID]: tiedForm() }, "some-other-course__d4e5f6a7"), null);
+    assert.equal(await forCourse({}), null, "no forms at all");
+  });
+
+  test("a programme that has been closed speaks for no course, whatever it is still tied to", async () => {
+    const found = await byCourse({ [FORM_ID]: tiedForm() });
+    assert.equal(found.has("closed-course__c3d4e5f6"), false);
+    // Close the programme a course is tied to, and that course is on no form.
+    const closed = await byCourse({ [FORM_ID]: tiedForm({}, { "agi-strategy": { closed: true } }) });
+    assert.deepEqual([...closed.keys()], [INC_COURSE]);
+    // A programme the form no longer lists at all is not read either.
+    const delisted = await byCourse({ [FORM_ID]: tiedForm({ programmeIds: ["research-incubator"] }) });
+    assert.deepEqual([...delisted.keys()], [INC_COURSE]);
+  });
+
+  test("a stored course id that could not be one ties a programme to nothing", async () => {
+    for (const bad of ["courses/agi", "a.b", "constructor", "__proto__", "", 7, ["x"], { id: AGI_COURSE }]) {
+      const found = await byCourse({ [FORM_ID]: tiedForm({}, { "agi-strategy": { courseId: bad } }) });
+      assert.deepEqual([...found.keys()], [INC_COURSE], JSON.stringify(bad));
+    }
+  });
+
+  test("an older round is never a form, whatever it carries", async () => {
+    const older = { ...tiedForm() };
+    delete older.formVersion;
+    const found = await byCourse({ "autumn-intake": older, "another-version": { ...tiedForm(), formVersion: 1 } });
+    assert.equal(found.size, 0);
+  });
+
+  test("with two forms tied to one course: taking applications, then opening soon, then the latest to close", async () => {
+    const closed = (id, closesAt) => [id, tiedForm({ status: "settled", opensAt: new Date("2026-01-01T09:00:00Z"), closesAt })];
+    const lastYear = closed("autumn-2025__00000001", new Date("2025-10-19T22:59:00Z"));
+    const lastTerm = closed("autumn-2026__00000002", new Date("2026-10-18T22:59:00Z"));
+    const next = ["summer-2027__00000004", tiedForm({ opensAt: new Date("2027-04-01T08:00:00Z"), closesAt: new Date("2027-04-20T22:59:00Z") })];
+    const pick = async (...entries) => (await forCourse(Object.fromEntries(entries))).id;
+
+    assert.equal(await pick(lastYear, lastTerm), "autumn-2026__00000002", "among closed forms, the most recent");
+    assert.equal(await pick(lastYear, lastTerm, next), "summer-2027__00000004", "one that opens soon beats one that has closed");
+    assert.equal(await pick(lastYear, lastTerm, next, [FORM_ID, tiedForm()]), FORM_ID, "one taking applications beats both");
+    // A draft for next term never takes the page from the form that is open now.
+    const draftNext = ["summer-2027__00000004", tiedForm({ status: "draft" })];
+    assert.equal(await pick([FORM_ID, tiedForm()], draftNext), FORM_ID);
+    assert.equal(await pick(lastTerm, draftNext), "autumn-2026__00000002");
+    // The same answer on every read, whichever order the database returns them in.
+    for (let i = 0; i < 3; i += 1) assert.equal(await pick(next, lastTerm, lastYear), "summer-2027__00000004");
+  });
+
+  test("with two programmes on one form tied to one course, the first in the form's order speaks", async () => {
+    const both = { "research-incubator": { courseId: AGI_COURSE } };
+    const first = await forCourse({ [FORM_ID]: tiedForm({}, both) });
+    assert.deepEqual([first.starts, first.runId], ["w/c 18 Jan", "run-agi-spring"]);
+    const reordered = await forCourse({
+      [FORM_ID]: tiedForm({ programmeIds: ["research-incubator", "agi-strategy", "old-stream"] }, both),
+    });
+    assert.deepEqual([reordered.starts, reordered.runId], ["w/c 25 Jan", null]);
+  });
+
+  test("the view is these fields and no others, in every state", async () => {
+    for (const at of [new Date(OPENS.getTime() - 1), NOW, new Date(CLOSES.getTime() + 1)]) {
+      const view = await forCourse({ [FORM_ID]: tiedForm() }, AGI_COURSE, at);
+      assert.deepEqual(Object.keys(view).sort(), [
+        "applyPath",
+        "closesAt",
+        "decisionsByDate",
+        "id",
+        "opensAt",
+        "runId",
+        "starts",
+        "state",
+      ]);
+    }
+  });
+
+  test("nothing a visitor may not know is anywhere in it, the form's own name included", async () => {
+    for (const at of [new Date(OPENS.getTime() - 1), NOW, new Date(CLOSES.getTime() + 1)]) {
+      const text = JSON.stringify([...(await byCourse({ [FORM_ID]: tiedForm() }, at))]);
+      const secrets = [
+        "claudia-lead-uid",
+        "lloyd-reviewer-uid",
+        "zach-admin-uid",
+        "leadUid",
+        "reviewerUids",
+        "finalDeciderUid",
+        "authorUid",
+        "applicationCounts",
+        "41",
+        "places",
+        "32",
+        "groupSize",
+        "Up to 8",
+        "emailWording",
+        "Private wording",
+        "noOfferWording",
+        "revealOtherReviews",
+        "invitationReplyBy",
+        "2026-12-20",
+        "Closed Fellowship",
+        "run-closed",
+        "closed-course__c3d4e5f6",
+        // The form's label and each programme's name and pitch are the
+        // committee's words until the form's own page shows them.
+        "Spring 2027",
+        "AGI Strategy Fellowship",
+        "Research Incubator",
+        "Six weeks on where this is going",
+      ];
+      for (const secret of secrets) assert.ok(!text.includes(secret), `${secret} reached a course's page`);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 3. The read, and the imports
 // ---------------------------------------------------------------------------
 
@@ -279,6 +519,16 @@ describe("the read needs no declared index", () => {
   test("one query, one equality on one field, nothing sorted on the server", async () => {
     const db = makeDb({ "spring-2027__a1b2c3d4": form() });
     await openForm.findOpenForm(db, NOW);
+    assert.deepEqual(db.asked, [{ collection: "admissionRounds", filters: [["formVersion", "==", 2]] }]);
+  });
+
+  test("the lookup by course makes that same one read, however many courses and forms there are", async () => {
+    const db = makeDb({
+      [FORM_ID]: tiedForm(),
+      "autumn-2026__00000002": tiedForm({ status: "settled" }),
+      "summer-2027__00000004": tiedForm({ status: "draft" }),
+    });
+    await openForm.findFormsByCourse(db, NOW);
     assert.deepEqual(db.asked, [{ collection: "admissionRounds", filters: [["formVersion", "==", 2]] }]);
   });
 });
@@ -337,6 +587,9 @@ describe("a page any visitor can load may import it", () => {
       "src/lib/applications/normalise.ts",
       "src/lib/applications/sections.ts",
       "src/lib/admissions/window.ts",
+      // The ranking the course pages already use for rounds, shared so a form
+      // and a round are chosen between the same way.
+      "src/lib/admissions/liveRound.ts",
       "src/lib/firestore/admissionRounds.ts",
     ]) {
       assert.ok(reached.includes(expected), `${expected} was not reached: the walk is not reading imports`);
