@@ -76,5 +76,9 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* The actions share the card's width, and take a line each when two will
+     not fit side by side. A thumb does not have to find a small button. */
+  .actions > * {
+    flex: 1 1 auto;
+  }
 }

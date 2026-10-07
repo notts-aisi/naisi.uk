@@ -330,5 +330,6 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* Nothing: a box, a row and an option are each 44px tall at any width, and
+     the option grid falls to one column by itself when two will not fit. */
 }

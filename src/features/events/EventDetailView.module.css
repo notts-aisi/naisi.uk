@@ -366,14 +366,34 @@
   margin-top: var(--space-1);
 }
 
-/* One column once the page's own box is narrow. */
+/* One column once the page's own box is narrow, and the right-hand column
+   comes first: on a phone the sign-up panel sits straight under the facts,
+   not at the foot of a long description. The markup keeps the reading order
+   (what the event is, then what to do about it); only the picture changes. */
 @container event (max-width: 48rem) {
   .layout {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .aside {
+    order: -1;
   }
 }
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* The bar takes a line of its own under the count. */
+  .placesBar {
+    flex-basis: 100%;
+  }
+
+  /* The three calendar buttons span the page, under their label. */
+  .calendarLinks {
+    width: 100%;
+  }
+
+  /* One action to a line, each the width of its card. */
+  .statusActions > a {
+    flex: 1 1 100%;
+  }
 }

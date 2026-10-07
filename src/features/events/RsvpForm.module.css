@@ -102,5 +102,7 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* Nothing: the panel is one column of full-width fields at every width,
+     its padding already narrows with the window, and its button is as wide
+     as the panel. It was drawn for a phone first. */
 }
