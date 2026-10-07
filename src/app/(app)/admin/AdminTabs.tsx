@@ -7,76 +7,39 @@ import Drawer from "@/components/ui/Drawer";
 import { usePendingCount } from "@/features/admin/usePendingCount";
 import { useCollaboratorCount } from "@/features/admin/useCollaboratorCount";
 import { useCourseApplicationCount } from "@/features/courses/useCourseApplicationCount";
+import {
+  ADMIN_SECTIONS,
+  adminPageFor,
+  adminSectionFor,
+  type AdminPage,
+  type AdminTabAccess,
+} from "@/layout/appNav";
 import styles from "./AdminTabs.module.css";
 
+// The layout imports the type from here, as it always has.
+export type { AdminTabAccess } from "@/layout/appNav";
+
 /**
- * What the caller may reach, resolved once by the server layout.
+ * The head of every admin page: the name of the section somebody is in, and a
+ * strip of that section's pages.
  *
- * Four capabilities rather than one `isAdmin` boolean, because the admin area
- * now has three audiences with three different gates: full admins, course
- * permission holders (`/admin/courses`), and round authors or appointed
- * reviewers (`/admin/admissions`). A tab a caller cannot open is a link that
- * redirects to the dashboard, so the strip has to know the same predicates the
- * page gates do.
- */
-export type AdminTabAccess = {
-  isAdmin: boolean;
-  /** `draftCourse` or `approveCourse`: the course authoring tree. */
-  canAuthorCourses: boolean;
-  /** `approveCourse`: authoring an admission round. */
-  canAuthorRounds: boolean;
-  /** Appointed on some round. Reads its own round, writes nothing. */
-  isAdmissionsReviewer: boolean;
-  /** `manageMembership`: periods, tier grants and the membership console. */
-  canManageMembership: boolean;
-};
-
-type AdminTab = {
-  label: string;
-  href: string;
-  match: (p: string) => boolean;
-  /** Who may open this section. Mirrors the page gate, never a looser rule. */
-  visible: (access: AdminTabAccess) => boolean;
-};
-
-const ADMIN_ONLY = (a: AdminTabAccess) => a.isAdmin;
-
-const TABS: AdminTab[] = [
-  { label: "Approvals", href: "/admin", match: (p: string) => p === "/admin", visible: ADMIN_ONLY },
-  // Exact-or-child rather than a prefix: "/admin/membership" starts with
-  // "/admin/members", so a plain prefix test would light the Members tab up on
-  // the membership console and, since the strip picks the first match, leave
-  // Membership looking inactive on its own page.
-  { label: "Members", href: "/admin/members", match: (p: string) => p === "/admin/members" || p.startsWith("/admin/members/"), visible: ADMIN_ONLY },
-  { label: "Collaborators", href: "/admin/collaborators", match: (p: string) => p.startsWith("/admin/collaborators"), visible: ADMIN_ONLY },
-  { label: "Registrations", href: "/admin/registrations", match: (p: string) => p.startsWith("/admin/registrations"), visible: ADMIN_ONLY },
-  { label: "Projects", href: "/admin/projects", match: (p: string) => p.startsWith("/admin/projects"), visible: ADMIN_ONLY },
-  { label: "Courses", href: "/admin/courses", match: (p: string) => p.startsWith("/admin/courses"), visible: (a) => a.isAdmin || a.canAuthorCourses },
-  { label: "Admissions", href: "/admin/admissions", match: (p: string) => p.startsWith("/admin/admissions"), visible: (a) => a.isAdmin || a.canAuthorRounds || a.isAdmissionsReviewer },
-  { label: "Membership", href: "/admin/membership", match: (p: string) => p.startsWith("/admin/membership"), visible: (a) => a.isAdmin || a.canManageMembership },
-  { label: "Newsletter", href: "/admin/newsletter", match: (p: string) => p.startsWith("/admin/newsletter"), visible: ADMIN_ONLY },
-  { label: "Links", href: "/admin/links", match: (p: string) => p.startsWith("/admin/links"), visible: ADMIN_ONLY },
-  { label: "Sources", href: "/admin/sources", match: (p: string) => p.startsWith("/admin/sources"), visible: ADMIN_ONLY },
-  { label: "Subscriptions", href: "/admin/subscriptions", match: (p: string) => p.startsWith("/admin/subscriptions"), visible: ADMIN_ONLY },
-  { label: "Email designs", href: "/admin/email-designs", match: (p: string) => p.startsWith("/admin/email-designs"), visible: ADMIN_ONLY },
-  { label: "Deliverability", href: "/admin/deliverability", match: (p: string) => p.startsWith("/admin/deliverability"), visible: ADMIN_ONLY },
-  { label: "Task templates", href: "/admin/task-templates", match: (p: string) => p.startsWith("/admin/task-templates"), visible: ADMIN_ONLY },
-  { label: "Site status", href: "/admin/site-status", match: (p: string) => p.startsWith("/admin/site-status"), visible: ADMIN_ONLY },
-  // TEMP — fire-once data-wipe controls. Remove this entry along with
-  // `src/app/(app)/admin/(admin-only)/danger-zone/` and
-  // `src/app/api/admin/nuke-tasks/` once both environments have been reset.
-  { label: "Danger zone", href: "/admin/danger-zone", match: (p: string) => p.startsWith("/admin/danger-zone"), visible: ADMIN_ONLY },
-];
-
-/**
- * The tab strip for the admin area.
+ * The admin area used to be one strip of seventeen tabs. It is now four
+ * sections (People, Programmes, Publicity, Site settings), each reached from
+ * the sidebar, and the strip shows only the pages of the section the address
+ * belongs to. The sections and their pages are data in `src/layout/appNav.ts`,
+ * which the sidebar reads too, so the entry lit in the sidebar and the strip
+ * drawn here cannot disagree about where a page lives.
  *
  * `access` comes from the server layout, which has already read the session, so
  * the strip stays in step with the gates that actually decide
  * (`requireAdminPage()`, `requireCourseAuthorPage()`,
- * `requireAdmissionsPage()`) instead of being a second client-side opinion that
- * could drift from them. Every tab renders only for the callers its own page
- * would let in.
+ * `requireAdmissionsPage()`, `requireMembershipPage()`) instead of being a
+ * second client-side opinion that could drift from them. Every page is listed
+ * only for the callers its own gate would let in.
+ *
+ * Somebody who can open one page of a section and no other (a course drafter,
+ * whoever looks after SU membership) gets that page's name as the heading and
+ * no strip: a strip of one is a promise of more.
  */
 export default function AdminTabs({ access }: { access: AdminTabAccess }) {
   const pathname = usePathname();
@@ -85,142 +48,159 @@ export default function AdminTabs({ access }: { access: AdminTabAccess }) {
   const courseApplicationCount = useCourseApplicationCount();
   const activeRef = useRef<HTMLAnchorElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [query, setQuery] = useState("");
 
-  const tabs = useMemo(() => TABS.filter((tab) => tab.visible(access)), [access]);
+  // The section the address belongs to. An address in no section (a page added
+  // without a place here, which tests/app-frame.test.mjs fails) falls back to
+  // the first section the caller can open something in, so the head still
+  // offers a way around.
+  const section = useMemo(
+    () =>
+      adminSectionFor(pathname) ??
+      ADMIN_SECTIONS.find((s) => s.pages.some((p) => p.visible(access))) ??
+      ADMIN_SECTIONS[0],
+    [pathname, access],
+  );
+  const pages = useMemo(
+    () => section.pages.filter((page) => page.visible(access)),
+    [section, access],
+  );
+  const activePage = adminPageFor(section, pathname);
 
   // `?? 0` for courses: that hook reports an unknown count as null (see its
-  // doc comment), and a badge that hasn't been measured renders as no badge.
-  const badgeFor = (href: string): number =>
-    href === "/admin"
+  // doc comment), and a count that hasn't been measured renders as no count.
+  const countFor = (page: AdminPage): number =>
+    page.count === "joinRequests"
       ? pendingCount
-      : href === "/admin/collaborators"
+      : page.count === "collaborators"
         ? collaboratorCount
-        : href === "/admin/courses"
+        : page.count === "courseApplications"
           ? (courseApplicationCount ?? 0)
           : 0;
 
-  // On the horizontal strip (desktop/tablet) pull the active tab into view so
-  // users landing on a deep tab don't have to scroll the strip to find it.
+  // On the horizontal strip pull the current page into view, so somebody
+  // landing on a page late in a long section does not have to scroll the strip
+  // to find it.
   useEffect(() => {
     activeRef.current?.scrollIntoView({ block: "nearest", inline: "center" });
   }, [pathname]);
 
-  // Close the mobile picker (and reset its filter) once navigation lands on a new
-  // route. Render-phase derived reset (not a setState-in-effect) — matches the
-  // pattern in Dropdown.tsx.
+  // Close the phone's picker once navigation lands on a new route.
+  // Render-phase derived reset (not a setState-in-effect): the pattern in
+  // Dropdown.tsx.
   const [lastPath, setLastPath] = useState(pathname);
   if (pathname !== lastPath) {
     setLastPath(pathname);
     if (menuOpen) setMenuOpen(false);
-    if (query) setQuery("");
   }
 
-  const activeTab = tabs.find((t) => t.match(pathname)) ?? tabs[0];
-  const activeBadge = activeTab ? badgeFor(activeTab.href) : 0;
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return q ? tabs.filter((t) => t.label.toLowerCase().includes(q)) : tabs;
-  }, [query, tabs]);
+  const single = pages.length === 1 ? pages[0] : null;
+  const activeCount = activePage ? countFor(activePage) : 0;
 
   return (
-    <>
-      {/* Desktop / tablet: the horizontal strip (scrolls internally — see CSS). */}
-      <nav className={styles.tabs} aria-label="Admin sections">
-        {tabs.map((tab) => {
-          const active = tab.match(pathname);
-          const badgeCount = badgeFor(tab.href);
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              ref={active ? activeRef : undefined}
-              className={`${styles.tab} ${active ? styles.active : ""}`}
-            >
-              <span>{tab.label}</span>
-              {badgeCount > 0 && <span className={styles.badge}>{badgeCount}</span>}
-            </Link>
-          );
-        })}
-      </nav>
+    <div className={styles.head}>
+      <h1 className={styles.title}>{single ? single.label : section.label}</h1>
 
-      {/* Phone: a single picker button that opens a searchable section sheet. */}
-      <button
-        type="button"
-        className={styles.mobileTrigger}
-        aria-haspopup="dialog"
-        aria-expanded={menuOpen}
-        aria-controls="admin-section-menu"
-        onClick={() => setMenuOpen(true)}
-      >
-        <span className={styles.mobileTriggerLabel}>
-          <span className={styles.mobileTriggerHint}>Admin section</span>
-          <span className={styles.mobileTriggerValue}>{activeTab?.label ?? "Admin"}</span>
-        </span>
-        {activeBadge > 0 && <span className={styles.badge}>{activeBadge}</span>}
-        <svg className={styles.mobileChevron} viewBox="0 0 12 8" aria-hidden="true">
-          <path
-            d="M1 1.5L6 6.5L11 1.5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </button>
-
-      <Drawer
-        open={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        id="admin-section-menu"
-        ariaLabel="Admin sections"
-      >
-        <div className={styles.sheet}>
-          <div className={styles.sheetHead}>
-            <h2 className={styles.sheetTitle}>Admin sections</h2>
-            <button
-              type="button"
-              className={styles.sheetClose}
-              onClick={() => setMenuOpen(false)}
-              aria-label="Close section menu"
-            >
-              ✕
-            </button>
-          </div>
-          <input
-            type="search"
-            className={styles.sheetSearch}
-            placeholder="Search sections…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            aria-label="Search admin sections"
-            autoComplete="off"
-          />
-          <ul className={styles.sheetList}>
-            {filtered.map((tab) => {
-              const active = tab.match(pathname);
-              const badgeCount = badgeFor(tab.href);
+      {!single && pages.length > 0 && (
+        <>
+          {/* Desktop and tablet: the strip (it scrolls inside itself, see the
+              stylesheet). */}
+          <nav className={styles.tabs} aria-label={`${section.label} pages`}>
+            {pages.map((page) => {
+              const active = page === activePage;
+              const count = countFor(page);
               return (
-                <li key={tab.href}>
-                  <Link
-                    href={tab.href}
-                    className={`${styles.sheetItem} ${active ? styles.sheetItemActive : ""}`}
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    <span>{tab.label}</span>
-                    {badgeCount > 0 && <span className={styles.badge}>{badgeCount}</span>}
-                  </Link>
-                </li>
+                <Link
+                  key={page.href}
+                  href={page.href}
+                  ref={active ? activeRef : undefined}
+                  className={`${styles.tab} ${active ? styles.active : ""}`}
+                  aria-current={active ? "page" : undefined}
+                >
+                  <span>{page.label}</span>
+                  {count > 0 && <span className={styles.count}>{count}</span>}
+                </Link>
               );
             })}
-            {filtered.length === 0 && (
-              <li className={styles.sheetEmpty}>No sections match “{query.trim()}”.</li>
-            )}
-          </ul>
-        </div>
-      </Drawer>
-    </>
+          </nav>
+
+          {/* Phone: one button naming the page, which opens the section's
+              pages as a list. */}
+          <button
+            type="button"
+            className={styles.mobileTrigger}
+            aria-haspopup="dialog"
+            aria-expanded={menuOpen}
+            aria-controls="admin-section-menu"
+            onClick={() => setMenuOpen(true)}
+          >
+            <span className={styles.mobileTriggerLabel}>
+              <span className={`meta ${styles.mobileTriggerHint}`}>Page</span>
+              <span className={styles.mobileTriggerValue}>
+                {activePage?.label ?? section.label}
+              </span>
+            </span>
+            {activeCount > 0 && <span className={styles.count}>{activeCount}</span>}
+            <svg className={styles.mobileChevron} viewBox="0 0 12 8" aria-hidden="true">
+              <path
+                d="M1 1.5L6 6.5L11 1.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+
+          <Drawer
+            open={menuOpen}
+            onClose={() => setMenuOpen(false)}
+            id="admin-section-menu"
+            ariaLabel={`${section.label} pages`}
+          >
+            <div className={styles.sheet}>
+              <div className={styles.sheetHead}>
+                <h2 className={styles.sheetTitle}>{section.label}</h2>
+                <button
+                  type="button"
+                  className={styles.sheetClose}
+                  onClick={() => setMenuOpen(false)}
+                  aria-label="Close this list"
+                >
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                    <path
+                      d="M6 6l12 12M18 6L6 18"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <ul className={styles.sheetList}>
+                {pages.map((page) => {
+                  const active = page === activePage;
+                  const count = countFor(page);
+                  return (
+                    <li key={page.href}>
+                      <Link
+                        href={page.href}
+                        className={`${styles.sheetItem} ${active ? styles.sheetItemActive : ""}`}
+                        aria-current={active ? "page" : undefined}
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        <span>{page.label}</span>
+                        {count > 0 && <span className={styles.count}>{count}</span>}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </Drawer>
+        </>
+      )}
+    </div>
   );
 }
