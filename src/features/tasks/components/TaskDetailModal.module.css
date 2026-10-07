@@ -87,7 +87,7 @@
 }
 
 .deletingLabel {
-  font-size: var(--text-md);
+  font-size: var(--text-md, 1rem);
   color: var(--color-text);
 }
 
@@ -98,7 +98,7 @@
 }
 
 .deletingError {
-  color: var(--color-danger);
+  color: var(--color-danger-text);
   font-size: var(--text-sm);
 }
 
@@ -144,10 +144,15 @@
 /* === Title === */
 
 .title {
-  font-size: var(--text-xl);
+  font-family: var(--font-display);
+  font-size: 1.375rem;
   font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
   margin: 0;
   cursor: default;
+  overflow-wrap: anywhere;
 }
 
 .titleEditable {
@@ -155,10 +160,13 @@
 }
 
 .titleInput {
-  font-size: var(--text-xl);
+  font-family: var(--font-display);
+  font-size: 1.375rem;
   font-weight: 600;
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   padding: var(--space-2);
   color: var(--color-text);
@@ -173,13 +181,16 @@
   align-items: end;
 }
 
+/* The metadata style (mono capitals), as the global `.meta` class sets it. */
 .sectionLabel {
+  font-family: var(--font-meta);
   font-size: var(--text-xs);
+  line-height: 1.3;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.1em;
   color: var(--color-text-muted);
   margin-bottom: var(--space-2);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .fieldLabel {
@@ -188,7 +199,7 @@
   gap: var(--space-2);
   font-size: var(--text-sm);
   color: var(--color-text);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 /* === Description === */
@@ -212,11 +223,12 @@
 }
 
 .charCounterOver {
-  color: var(--color-danger);
+  color: var(--color-danger-text);
 }
 
 .descriptionBox {
-  font-size: var(--text-sm);
+  font-size: var(--text-ui);
+  line-height: var(--leading-normal);
   color: var(--color-text);
   cursor: default;
   padding: var(--space-3);
@@ -225,7 +237,7 @@
   border-radius: var(--radius-md);
   min-height: 3rem;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .descriptionBoxEditable {
@@ -259,7 +271,7 @@
 }
 
 .reviewerStatDone {
-  color: var(--color-success);
+  color: var(--color-ok);
 }
 
 .reviewerStatQuestion {
@@ -324,7 +336,7 @@
 
 .deleteError {
   font-size: var(--text-xs);
-  color: var(--color-danger);
+  color: var(--color-danger-text);
 }
 
 /* === Mobile === */

@@ -154,34 +154,11 @@ function BoardColumn({
 
   return (
     <div ref={setNodeRef} className={styles.column}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0.4rem 0.75rem",
-          fontSize: "var(--text-xs)",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-          color: "var(--color-text-muted)",
-        }}
-      >
-        <span>{TASK_STATUS_LABELS[status]}</span>
-        <span style={{ color: "var(--color-text-subtle)" }}>{tasks.length}</span>
+      <div className={styles.columnHead}>
+        <span className={styles.columnName}>{TASK_STATUS_LABELS[status]}</span>
+        <span className={styles.columnCount}>{tasks.length}</span>
       </div>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "var(--space-2)",
-          padding: "var(--space-2)",
-          background: isHover ? "var(--color-accent-soft)" : "var(--color-bg-elevated)",
-          border: "1px solid var(--color-border)",
-          borderRadius: "var(--radius-md)",
-          minHeight: "8rem",
-          transition: "background var(--transition-fast)",
-        }}
-      >
+      <div className={isHover ? `${styles.columnBody} ${styles.columnBodyHover}` : styles.columnBody}>
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map((task) => (
             <SortableTaskCard
@@ -197,18 +174,7 @@ function BoardColumn({
             />
           ))}
         </SortableContext>
-        {tasks.length === 0 && (
-          <p
-            style={{
-              textAlign: "center",
-              padding: "var(--space-4)",
-              color: "var(--color-text-subtle)",
-              fontSize: "var(--text-xs)",
-            }}
-          >
-            Drop a card here
-          </p>
-        )}
+        {tasks.length === 0 && <p className={styles.columnEmpty}>Drop a card here</p>}
       </div>
     </div>
   );

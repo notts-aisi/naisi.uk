@@ -325,7 +325,7 @@ const popoverActions: React.CSSProperties = {
 const popoverPrimary: React.CSSProperties = {
   padding: "0.35rem 0.85rem",
   background: "var(--color-accent)",
-  color: "var(--color-bg)",
+  color: "var(--color-on-accent)",
   border: "none",
   borderRadius: "var(--radius-sm, 4px)",
   fontSize: "var(--text-xs)",
