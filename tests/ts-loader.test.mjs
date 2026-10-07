@@ -290,6 +290,30 @@ const USERS = new Map([
       "counters are transactions and only running them shows what was written",
   ],
   [
+    "applications-decision-day-emails.test.mjs",
+    "executes the pure email copy and renders the three decision-day templates through the real " +
+      "`@react-email/components`, because what an applicant reads is the property under test " +
+      "and the templates are `.tsx`",
+  ],
+  [
+    "applications-decision-day-plan.test.mjs",
+    "executes the pure decision-day modules (the line-up, what may be picked for a pooled " +
+      "person, why the send is held, the sentences built from numbers) against a small term " +
+      "and against the 122 applicants the design was drawn for",
+  ],
+  [
+    "applications-decision-day-pool.test.mjs",
+    "executes the pooled outcome writer, the board builder and the pool route against an " +
+      "in-memory Firestore, with the real access predicates underneath, because what matters " +
+      "is what is written where and what is read before the gate",
+  ],
+  [
+    "applications-decision-day-send.test.mjs",
+    "executes the decision-day send and its three routes against an in-memory Firestore and a " +
+      "mail door that records; its graph reaches the three `.tsx` templates, and what was handed " +
+      "to the door is rendered and read",
+  ],
+  [
     "applications-editor-routes.test.mjs",
     "executes the six route files under src/app/api/admissions/forms against an in-memory " +
       "Firestore as every kind of caller, with the real access predicates, the real roles " +

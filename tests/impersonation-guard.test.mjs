@@ -174,6 +174,9 @@ const MUST_GUARD = [
     "src/app/api/admissions/forms/[roundId]/review-settings/route.ts",
     "switches what every reviewer on the form is shown on a first review",
   ],
+  ["src/app/api/admissions/forms/[roundId]/pool/route.ts", "picks what a pooled applicant will hear on decision day, recorded under whoever the session says is acting"],
+  ["src/app/api/admissions/forms/[roundId]/send/route.ts", "publishes every applicant's outcome and emails them, which cannot be unsent"],
+  ["src/app/api/admissions/forms/[roundId]/send/test/route.ts", "sends a decision-day email to the address on the session, which during view-as is the member's"],
   // Outside the scanned trees above (it lives under /api/admin), so it is
   // named here or it is checked by nothing: it writes `config/courses`, whose
   // knobs reach every course surface at once.

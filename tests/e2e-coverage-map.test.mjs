@@ -622,6 +622,24 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed an application form with two reviewers' scores, so a spec can watch the switch change what the second one is shown.",
   },
+  "/api/admissions/forms/[roundId]/pool": {
+    reason:
+      "Application system: /api/admissions/forms/[roundId]/pool is pressed by an admin picking what pooled applicants hear, who reads the result on the page it redraws; the writer and its gate are executed by tests/applications-decision-day-pool.test.mjs.",
+    coverWhen:
+      "When the first application form has closed on dev and a whole decision day is rehearsed there, because that rehearsal is the journey a spec would drive.",
+  },
+  "/api/admissions/forms/[roundId]/send": {
+    reason:
+      "Application system: /api/admissions/forms/[roundId]/send publishes a term's outcomes and emails every applicant, so it must never be automated against a database other people are using; the send is executed by tests/applications-decision-day-send.test.mjs.",
+    coverWhen:
+      "When the first application form has closed on dev and a whole decision day is rehearsed there, because that rehearsal is the journey a spec would drive.",
+  },
+  "/api/admissions/forms/[roundId]/send/test": {
+    reason:
+      "Application system: /api/admissions/forms/[roundId]/send/test mails one decision-day email to the admin who asked, and the admin reads the result in their own inbox; the route is executed by tests/applications-decision-day-send.test.mjs.",
+    coverWhen:
+      "When the first application form has closed on dev and a whole decision day is rehearsed there, because that rehearsal is the journey a spec would drive.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
     reason:
       "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId] is pressed by a programme's lead or an admin who reads the outcome on the screen in front of them, and tests/applications-editor-routes.test.mjs executes it as every kind of caller.",
@@ -1335,6 +1353,18 @@ const NOT_COVERED = {
       "Application forms: /(app)/admin/admissions/forms/[roundId]/form is the editor an admin builds the term's questions in, and a fault in it is seen by the admin using it.",
     coverWhen:
       "When the first application form is opened to applicants, alongside the spec that walks an applicant through it.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/pool": {
+    reason:
+      "Application system: /(app)/admin/admissions/forms/[roundId]/pool is an admin's page whose every number is worked out by modules the unit suite executes; nobody has applied through the new form yet, so there is no term to drive it against.",
+    coverWhen:
+      "When the first application form has closed on dev and a whole decision day is rehearsed there, because that rehearsal is the journey a spec would drive.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/send": {
+    reason:
+      "Application system: /(app)/admin/admissions/forms/[roundId]/send is an admin's page whose every number is worked out by modules the unit suite executes; nobody has applied through the new form yet, so there is no term to drive it against.",
+    coverWhen:
+      "When the first application form has closed on dev and a whole decision day is rehearsed there, because that rehearsal is the journey a spec would drive.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications": {
     reason:

@@ -594,6 +594,20 @@ export const ROUTES = {
         "signed-in persona meets the same 400 on an empty one.",
     },
   },
+  "/api/admissions/forms/[roundId]/pool": {
+    GET: {
+      expect: adminOnly(404),
+      why:
+        "Admin only (running the term), decided before the read: every other session is " +
+        "forbidden whether or not the form exists, and the admin is told the id is missing.",
+    },
+    PUT: {
+      expect: adminOnly(400),
+      why:
+        "Admin only, decided before the body is read: every other session is forbidden and " +
+        "the admin meets the validation. A pooled outcome has to say who it is for.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
     GET: {
       expect: signedIn(404),
@@ -642,6 +656,28 @@ export const ROUTES = {
         "The switch that shows other reviewers' scores is admin only, decided before the body " +
         "is read: every other session is forbidden and the admin meets the validation, which " +
         "wants true or false.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/send": {
+    GET: {
+      expect: adminOnly(404),
+      why:
+        "Admin only (running the term), decided before the read: every other session is " +
+        "forbidden whether or not the form exists, and the admin is told the id is missing.",
+    },
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Admin only, decided before the body is read: every other session is forbidden and " +
+        "the admin meets the validation. The send has to say how many emails the page showed.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/send/test": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Admin only, decided before the body is read: every other session is forbidden and " +
+        "the admin meets the validation. A test has to name one of the three emails.",
     },
   },
   "/api/admissions/forms/[roundId]/sets": {
@@ -2090,6 +2126,15 @@ export const PAGES = {
       "a missing form or one the caller has no role on renders 'there is no application form " +
       "here' in place of the page with a 200.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/pool": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions console: requireAdmissionsPage admits round authors (admin or " +
+      "approveCourse) and named reviewers; a draftCourse holder passes the admin front door " +
+      "and is sent on to the dashboard here. A missing form, or one the caller has no role " +
+      "on, renders not found for those admitted; a lead or a reviewer on the form is shown " +
+      "a notice that the page is an admin's.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
     why:
@@ -2112,6 +2157,15 @@ export const PAGES = {
       "The admissions tree's gate, then the programme layout's: a programme the caller has no " +
       "role on, and one that does not exist, both render 'there is no programme here' in " +
       "place of the page with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/send": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions console: requireAdmissionsPage admits round authors (admin or " +
+      "approveCourse) and named reviewers; a draftCourse holder passes the admin front door " +
+      "and is sent on to the dashboard here. A missing form, or one the caller has no role " +
+      "on, renders not found for those admitted; a lead or a reviewer on the form is shown " +
+      "a notice that the page is an admin's.",
   },
   "/(app)/admin/courses": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, draftCourse: 200, approveCourse: 200 }),
