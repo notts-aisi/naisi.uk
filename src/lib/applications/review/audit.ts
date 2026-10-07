@@ -12,14 +12,17 @@
  * the decision was for) and, on a revocation, `reason` as the admin wrote it,
  * so the programme's lead can be shown it.
  *
- * No server import: the strings are also read by tests.
+ * No server import: the strings are also read by tests. The one import is of
+ * a type, and it is how each name below is held to the log's own list of
+ * kinds: a name the log does not carry does not compile.
  */
+import type { CourseAuditKind } from "@/lib/firestore/courseAudit";
 
 /** A lead or an admin accepted, pooled or declined an application. */
-export const DECISION_AUDIT_KIND = "application-decision";
+export const DECISION_AUDIT_KIND = "application-decision" satisfies CourseAuditKind;
 
 /** An admin took an acceptance back, with a reason. */
-export const REVOCATION_AUDIT_KIND = "application-decision-revoked";
+export const REVOCATION_AUDIT_KIND = "application-decision-revoked" satisfies CourseAuditKind;
 
 /** The sentence a decision's audit row carries. */
 export function decisionSentence(input: {

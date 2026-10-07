@@ -155,6 +155,25 @@ const MUST_GUARD = [
   ["src/app/api/admissions/rounds/[roundId]/apply/stage/[stageId]/route.ts", "submits one later-released stage of an application, which cannot be undone"],
   ["src/app/api/admissions/forms/[roundId]/application/route.ts", "saves the draft of an application in the applicant's own name, and creates the application on the first save"],
   ["src/app/api/admissions/forms/[roundId]/application/send/route.ts", "sends an application, which puts somebody's answers in front of each programme's lead and reviewers"],
+  // The application form's review screens. Every write here is recorded under
+  // the caller's own name: a score, an internal comment, a programme's
+  // decision. An admin viewing as a lead must not be able to make one.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/applications/route.ts",
+    "accepts or pools several applications at once, each logged as the caller's decision",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/applications/[uid]/review/route.ts",
+    "writes scores and internal comments about an applicant on the caller's own review row",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/applications/[uid]/decision/route.ts",
+    "records a programme's decision on somebody's application, or revokes an acceptance, and logs it under the caller's name",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/review-settings/route.ts",
+    "switches what every reviewer on the form is shown on a first review",
+  ],
   // Outside the scanned trees above (it lives under /api/admin), so it is
   // named here or it is checked by nothing: it writes `config/courses`, whose
   // knobs reach every course surface at once.

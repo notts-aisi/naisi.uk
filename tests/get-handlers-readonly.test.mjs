@@ -69,6 +69,14 @@ const MUTATION_HELPERS = {
   // `src/lib/applications/applicant/store.ts`.
   saveDraft: "saves an applicant's draft, and creates the application and moves the round's counters on the first save",
   sendApplication: "makes an applicant's draft the application of record and moves the round's counters",
+  // The review screens. The route that lists a programme's applications holds
+  // the GET beside the bulk decision, and every write is made in
+  // `src/lib/applications/review/`.
+  decideMany: "records a programme's decision on several applications at once and logs each one",
+  decideApplication: "records a programme's decision on one application and logs it",
+  revokeAcceptance: "takes an acceptance back, with the reason, and logs it",
+  saveReview: "writes a reviewer's scores and internal comments about an applicant",
+  setRevealOtherReviews: "switches what every reviewer on a form is shown on a first review",
 };
 
 /**

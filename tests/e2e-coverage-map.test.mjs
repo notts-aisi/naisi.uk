@@ -589,6 +589,39 @@ const NOT_COVERED = {
     coverWhen:
       "With the spec above: the send is the last step of the same journey.",
   },
+  // The application form's review screens. The loaders and writers behind
+  // every one of these are executed offline by
+  // tests/applications-review-routes.test.mjs against an in-memory database.
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/applications": {
+    reason:
+      "Application review: the list and the bulk decision behind this route are executed by tests/applications-review-routes.test.mjs, and no end-to-end fixture seeds an application form with sent applications yet.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an application form, which the first spec for the new applicant form needs before applications open on it.",
+  },
+  "/api/admissions/forms/[roundId]/applications/[uid]": {
+    reason:
+      "Application review: the one-application read behind this route, with its blind first review and its admin-only addresses, is executed by tests/applications-review-routes.test.mjs, and no end-to-end fixture seeds an application form yet.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an application form, which the first spec for the new applicant form needs before applications open on it.",
+  },
+  "/api/admissions/forms/[roundId]/applications/[uid]/review": {
+    reason:
+      "Application review: saving a reviewer's own scores and comments is executed by tests/applications-review-routes.test.mjs, and no end-to-end fixture seeds an application form or a named reviewer yet.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an application form and name a reviewer on a programme, ahead of the first term reviewed on these screens.",
+  },
+  "/api/admissions/forms/[roundId]/applications/[uid]/decision": {
+    reason:
+      "Application review: a lead's decision and an admin's revocation are executed by tests/applications-review-routes.test.mjs, which also holds that neither touches the applicant's own document, and no end-to-end fixture seeds a programme lead yet.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an application form and name a lead on a programme, ahead of the first term decided on these screens.",
+  },
+  "/api/admissions/forms/[roundId]/review-settings": {
+    reason:
+      "Application review: the admin's switch is one boolean on the form, executed by tests/applications-review-routes.test.mjs with what it changes for every reviewer.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an application form with two reviewers' scores, so a spec can watch the switch change what the second one is shown.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
     reason:
       "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId] is pressed by a programme's lead or an admin who reads the outcome on the screen in front of them, and tests/applications-editor-routes.test.mjs executes it as every kind of caller.",
@@ -1302,6 +1335,18 @@ const NOT_COVERED = {
       "Application forms: /(app)/admin/admissions/forms/[roundId]/form is the editor an admin builds the term's questions in, and a fault in it is seen by the admin using it.",
     coverWhen:
       "When the first application form is opened to applicants, alongside the spec that walks an applicant through it.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications": {
+    reason:
+      "Application review: the list screen is reached by address only until the programme pages link to it, and was checked by hand at 1440 and 390 as a lead, a reviewer and an admin.",
+    coverWhen:
+      "When the programme's own page links here and the end-to-end fixtures can seed an application form for a lead to open.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
+    reason:
+      "Application review: the review screen is reached from the list only, and was checked by hand at 1440 and 390 as a lead, a reviewer and an admin, keyboard included.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an application form with a sent application for a lead to score and decide.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/setup": {
     reason:
