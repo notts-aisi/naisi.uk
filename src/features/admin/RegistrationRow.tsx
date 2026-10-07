@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Badge from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
+import Chip from "@/components/ui/Chip";
 import {
   REGISTRATION_METHOD_META,
   REGISTRATION_STATUS_META,
@@ -10,13 +11,19 @@ import {
 import styles from "./Registrations.module.css";
 
 function formatDate(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "Not recorded";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "Not recorded";
   return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
-/** A single registration row in the admin tracker, with a two-step confirm delete. */
+/**
+ * One sign-up, as a row of the tracker's table, with a two-step delete: the
+ * first press asks, the second deletes.
+ *
+ * The status shown is the one the server worked out from whether a profile
+ * exists right now. Nothing here reads a stored status word.
+ */
 export default function RegistrationRow({
   reg,
   onDelete,
@@ -31,49 +38,46 @@ export default function RegistrationRow({
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <div className={styles.row}>
-      <div className={styles.rowMain}>
+    <tr>
+      <td className={styles.whoCell}>
         <span className={styles.email}>{reg.email || "(no email)"}</span>
         <span className={styles.sub}>
-          {methodMeta.label} · {reg.audience === "collaborator" ? "Collaborator" : "Member"}{" "}
-          · created {formatDate(reg.createdAt)}
+          {reg.audience === "collaborator" ? "Collaborator" : "Member"}
           {reg.sendCount > 1 ? ` · ${reg.sendCount} link sends` : ""}
         </span>
-      </div>
-      <div className={styles.rowActions}>
-        <Badge tone={methodMeta.tone}>{methodMeta.label}</Badge>
-        <Badge tone={meta.tone}>{meta.label}</Badge>
+      </td>
+      <td data-label="Route">
+        <Chip tone={methodMeta.tone}>{methodMeta.label}</Chip>
+      </td>
+      <td data-label="Got as far as">
+        <Chip tone={meta.tone}>{meta.label}</Chip>
+      </td>
+      <td data-label="Created" className={styles.dateCell}>
+        {formatDate(reg.createdAt)}
+      </td>
+      <td className={styles.actionCell}>
         {confirming ? (
           <span className={styles.confirm}>
-            Delete account?{" "}
-            <button
-              type="button"
-              className={styles.confirmYes}
-              onClick={() => void onDelete()}
-              disabled={busy}
-            >
+            <span className={styles.confirmText}>Delete account?</span>
+            <Button size="sm" variant="danger" onClick={() => void onDelete()} disabled={busy}>
               {busy ? "Deleting…" : "Yes"}
-            </button>{" "}
-            <button
-              type="button"
-              className={styles.confirmNo}
-              onClick={() => setConfirming(false)}
-              disabled={busy}
-            >
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={busy}>
               Cancel
-            </button>
+            </Button>
           </span>
         ) : (
-          <button
-            type="button"
-            className={styles.deleteBtn}
+          <Button
+            size="sm"
+            variant="ghost"
+            className={styles.quietDelete}
             onClick={() => setConfirming(true)}
-            title="Delete this account (Auth, registration row, subscriptions)"
+            title="Delete this account: its sign-in, this row and its mailing list rows"
           >
-            Delete
-          </button>
+            Delete…
+          </Button>
         )}
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }

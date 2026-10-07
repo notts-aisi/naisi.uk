@@ -249,7 +249,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     pages: [
       { label: "Site notice and scheduled jobs", href: "/admin/site-status", match: under("/admin/site-status"), visible: ADMIN_ONLY },
       { label: "Email delivery", href: "/admin/deliverability", match: under("/admin/deliverability"), visible: ADMIN_ONLY },
-      { label: "Sign-up problems", href: "/admin/registrations", match: under("/admin/registrations"), visible: ADMIN_ONLY },
+      { label: "Sign-up problems", href: "/admin/registrations", match: under("/admin/registrations"), visible: ADMIN_ONLY, ownHead: true },
       { label: "Sign-up emails", href: "/admin/email-designs", match: under("/admin/email-designs"), visible: ADMIN_ONLY },
       { label: "Projects", href: "/admin/projects", match: under("/admin/projects"), visible: ADMIN_ONLY },
       { label: "Task templates", href: "/admin/task-templates", match: under("/admin/task-templates"), visible: ADMIN_ONLY },

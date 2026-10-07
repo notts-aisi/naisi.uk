@@ -112,3 +112,21 @@ export function AdminActionRow({
     </div>
   );
 }
+
+/** A row of small counts inside a card: each a number over its name. */
+export function AdminTiles({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className={styles.tiles} role="group" aria-label={label}>
+      {children}
+    </div>
+  );
+}
+
+export function AdminTile({ value, label }: { value: ReactNode; label: ReactNode }) {
+  return (
+    <div className={styles.tile}>
+      <span className={styles.tileValue}>{value}</span>
+      <span className={`meta ${styles.tileLabel}`}>{label}</span>
+    </div>
+  );
+}
