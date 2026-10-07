@@ -57,6 +57,9 @@ const lib = (file) => join("lib", "applications", "review", file);
 const load = await loadTs(lib("load.ts"));
 const saveReviewModule = await loadTs(lib("saveReview.ts"));
 const decide = await loadTs(lib("decide.ts"));
+/** This folder's own-key lookups, for the cases that ask them directly. */
+const ownership = await loadTs(lib("own.ts"));
+const normalise = await loadTs(join("lib", "applications", "normalise.ts"));
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -1341,13 +1344,51 @@ describe("a lead deciding for their programme", () => {
 
   test("an id that is the name of something every object carries decides nothing", async () => {
     for (const id of ["constructor", "__proto__", "toString"]) {
+      // WHERE THE REQUEST IS READ. Such a name is not an id at all: the
+      // contract's `isId` (`src/lib/applications/keys.ts`) refuses a name
+      // every object carries. So the request is turned away as it is parsed,
+      // with a sentence, and never reaches a document. It used to parse and be
+      // answered by the writer. It is refused sooner, never later.
+      const asProgramme = decide.parseDecision({ programmeId: id, decision: "accept" });
+      assert.deepEqual([id, asProgramme.ok, asProgramme.status], [id, false, 400]);
+      assert.match(asProgramme.error, /which programme/, id);
+      const asCouldSuit = decide.parseDecision({ programmeId: AGI, decision: "pool", couldSuitProgrammeId: id });
+      assert.deepEqual([id, asCouldSuit.ok, asCouldSuit.status], [id, false, 400]);
+      const asRevoke = decide.parseRevocation({ programmeId: id, reason: "No." });
+      assert.deepEqual([id, asRevoke.ok, asRevoke.status], [id, false, 400]);
+
+      // THE WRITER, ON ITS OWN. Handed the same name directly, past the
+      // parser, it still finds no such programme among the form's own and
+      // writes nothing. The two rules fail differently, so both are held: the
+      // parse is only as good as every caller going through it.
       const db = makeDb(seed());
-      const result = await decideAs(db, "zach", "amara", { programmeId: id, decision: "accept" });
+      const result = await decide.decideApplication(db, CAST.zach, ROUND, "amara", {
+        programmeId: id,
+        decision: "accept",
+        poolReason: null,
+        couldSuitProgrammeId: null,
+      });
       assert.deepEqual([id, result.ok, result.status], [id, false, 404]);
-      const suits = await decideAs(db, "zach", "amara", { programmeId: AGI, decision: "pool", couldSuitProgrammeId: id });
+      const suits = await decide.decideApplication(db, CAST.zach, ROUND, "amara", {
+        programmeId: AGI,
+        decision: "pool",
+        poolReason: null,
+        couldSuitProgrammeId: id,
+      });
       assert.deepEqual([id, suits.ok, suits.status], [id, false, 400]);
       assert.deepEqual(db.writes, []);
+
+      // THE LOOKUP ITSELF. A map answers for its own keys and for nothing it
+      // merely inherits, whatever the name.
+      const form = normalise.normaliseForm(ROUND, roundDoc());
+      assert.equal(ownership.programmeOn(form, id), null, id);
+      assert.equal(ownership.own(form.programmes, id), undefined, id);
+      assert.equal(ownership.own({ [AGI]: 1 }, id), undefined, id);
     }
+    // The same lookups do find what the form holds.
+    const form = normalise.normaliseForm(ROUND, roundDoc());
+    assert.equal(ownership.programmeOn(form, AGI)?.id, AGI);
+    assert.equal(ownership.own(form.programmes, AGI)?.id, AGI);
   });
 
   test("after decision day nothing changes", async () => {
