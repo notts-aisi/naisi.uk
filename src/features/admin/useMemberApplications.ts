@@ -50,11 +50,21 @@ type Snapshot = {
  * stale empty state at exactly the moment the record matters most, which is
  * the minute before somebody presses delete on an account.
  *
+ * ## Admins only
+ *
+ * An entry holds each reviewer's comment about a named applicant, so it is
+ * read by admins and nobody else. The rule for the collection says so, and
+ * this hook is mounted only under the admin-only part of the admin area
+ * (`MemberItem`, on the Members page). The two are held to each other by
+ * `tests/applications-d2-zeta-member-record-readers.test.mjs`, which also
+ * fails if a page outside that part can reach this file: for anybody who is
+ * not an admin the listener below is refused, and the panel is an error.
+ *
  * ## No clauses, and sorted here
  *
- * The rule admits admins and SU-recognised committee to the whole
- * subcollection, so the shape is the plain collection and every entry comes
- * back. It is deliberately NOT `orderBy("appliedAt")`: Firestore drops a
+ * The rule admits an admin to the whole subcollection, so the shape is the
+ * plain collection and every entry comes back. It is deliberately NOT
+ * `orderBy("appliedAt")`: Firestore drops a
  * document missing the ordered field, so an entry written from an application
  * whose `createdAt` never landed would vanish from the list entirely (the
  * repo's no-orderBy-on-sparse-fields rule). Sorting here costs nothing at the

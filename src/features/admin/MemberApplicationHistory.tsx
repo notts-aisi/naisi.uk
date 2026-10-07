@@ -21,11 +21,20 @@ type Props = {
  *
  * A round can be destroyed. When it is, the applications, the reviews and the
  * scores go with it, and what survives is this record, written per person
- * before the destroy touches anything. So this panel is the only place a
- * committee grading somebody's second application can read what was thought of
- * their first. It sits on the Members row rather than anywhere in the
- * admissions console for the same reason: it hangs off the person, and it
- * outlives every round on it.
+ * before the destroy touches anything. So this panel is the only place what
+ * was thought of somebody's first application can be read once its round has
+ * gone. It sits on the Members row rather than anywhere in the admissions
+ * console for the same reason: it hangs off the person, and it outlives every
+ * round on it.
+ *
+ * ## Who reads it
+ *
+ * Admins, and nobody else. An entry holds each reviewer's name with the
+ * overall comment they wrote, and those comments were shown, where they were
+ * written, only to admins and to that programme's own lead and reviewers. So
+ * the record is not shown to the committee at large: the Members page is
+ * admin-only and the collection's read rule is the same audience
+ * (`useMemberApplications.ts` says what holds the two together).
  *
  * ## Names are already in the record
  *
