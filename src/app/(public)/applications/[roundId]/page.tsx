@@ -4,11 +4,11 @@ import { notFound, redirect } from "next/navigation";
 import Badge from "@/components/ui/Badge";
 import Card from "@/components/ui/Card";
 import MemberText from "@/components/ui/MemberText";
-import ApplicationFormNotice from "@/features/admissions/ApplicationFormNotice";
 import {
   APPLICATION_STATUS_TONE,
   applicationStatusBlurb,
 } from "@/features/admissions/applicationStatus";
+import { renderApplicationStatus } from "@/features/applications/status/renderApplicationStatus";
 import { answerText } from "@/lib/admissions/statusHub";
 import { loadStatusRowForRound } from "@/lib/admissions/statusHubData";
 import type { ApplicationStatusRow } from "@/lib/admissions/statusTypes";
@@ -37,6 +37,16 @@ import styles from "../applications.module.css";
  *    NOT a 404: the round exists and they can act on it.
  *  - An application whose round has since been archived: the row renders in
  *    full, with no link onward, because their answers are still their answers.
+ *
+ * ## An application form is shown by the form's own screen
+ *
+ * This address serves both kinds of round. The form's own screen is asked for
+ * first, with the signed-in caller, and what it answers is returned: the sent
+ * status, the outcome and the reply buttons. It answers null for a round of
+ * the older kind, and for a form this caller may not be told about. Everything
+ * after it is the older read-back, to which a form is a round that is not
+ * there, so nothing below is ever drawn for one. See
+ * `src/lib/admissions/formFence.ts` for the rule.
  *
  * ## Everything the applicant typed goes through MemberText
  *
@@ -110,25 +120,32 @@ export default async function ApplicationDetailPage({ params }: Params) {
     redirect(`/login?next=${encodeURIComponent(`/applications/${roundId}`)}`);
   }
 
+  // A round that is an APPLICATION FORM (one form a term, for every
+  // programme) has its own page for what follows a send. It answers null for
+  // anything else, a form this caller may not be told about included, so
+  // every other round carries on below exactly as it always has.
+  const formStatus = await renderApplicationStatus({ roundId, user });
+  if (formStatus) return formStatus;
+
   const db = getAdminDb();
   if (!db) notFound();
 
   const loaded = await loadStatusRowForRound(db, user.uid, roundId, new Date());
   if (loaded.roundMissing) notFound();
 
+  // EVERYTHING BELOW IS FOR A ROUND OF THE OLDER KIND. It reads stages and
+  // answers in the older shape, which an application made on a form does not
+  // have. The form's own screen was asked for first, above, and for a form it
+  // answers null only when this caller may not be told about it. So here a
+  // form is a round that is not there, and it gets that answer before a row
+  // is read or anything is drawn.
+  if (loaded.applicationForm) notFound();
+
   const row = loaded.row;
   // A draft or archived round is not a public object, so somebody who did not
   // apply to it learns nothing from this page, not even that it exists.
   // Somebody who DID apply still reads their own row below.
   if (!row && !loaded.roundPublic) notFound();
-
-  // An application made on an application form is read back on the form's
-  // own pages: everything below reads stages and answers in the older shape,
-  // which a form does not have. Asked after the two "not found" answers
-  // above, so a form nobody has opened tells a stranger nothing. Ordinary
-  // HTML, never `notFound()`: the round is there. See
-  // `src/lib/admissions/formFence.ts`.
-  if (loaded.applicationForm) return <ApplicationFormNotice />;
 
   if (!row) {
     return (

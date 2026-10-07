@@ -33,7 +33,10 @@ import { isApplicationForm } from "@/lib/applications/normalise";
  *    as one course's own intake.
  *  - IT SERVES BOTH, on purpose, with the reason written beside its entry in
  *    that test: destroying a round, deleting an account, the member record,
- *    and the list of one person's applications.
+ *    the list of one person's applications, and the two applicant pages. Each
+ *    of those pages asks for the form's own screen first and returns what it
+ *    answers, and to the older half that follows a form is a round that is not
+ *    there.
  *
  * THE REFUSAL COMES AFTER A ROUTE'S "NOT FOUND" ANSWERS, NEVER BEFORE THEM.
  * Whether a round exists is not something a stranger is told, and a form

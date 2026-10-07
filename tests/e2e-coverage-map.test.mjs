@@ -583,6 +583,12 @@ const NOT_COVERED = {
     coverWhen:
       "Before the new form opens to applicants (the spring intake): an applicant spec that fills the form in, leaves it, comes back and sends it.",
   },
+  "/api/admissions/forms/[roundId]/application/reply": {
+    reason:
+      "An applicant's reply to their offer or invitation on the new application form. Executed against an in-memory store by tests/applications-wave-f-reply-route.test.mjs (the gate, the body, hidden forms, every state of an application against every reply, the counters, a refusal writing nothing), and pressed by hand at 390 for each outcome, but no browser spec drives it yet.",
+    coverWhen:
+      "Before the first decision day on an application form: an applicant spec that opens /applications/<form> after a send, says they are coming, and gives a place back.",
+  },
   "/api/admissions/forms/[roundId]/application/send": {
     reason:
       "The new application form's send. Executed by tests/applications-apply-routes.test.mjs (issues refused, the two copies, the counters, sending again), with no browser spec yet.",
@@ -1596,7 +1602,7 @@ const NOT_COVERED = {
   },
   "/(public)/applications/[roundId]": {
     reason:
-      "The per-round applicant status page is the detail behind the hub the funnel already asserts.",
+      "The per-round applicant status page. For an older round it is the detail behind the hub the funnel already asserts. For an application form it is now the sent status, the outcome and the reply buttons, drawn from a view model that tests/applications-wave-f-status.test.mjs and tests/applications-wave-f-replies.test.mjs execute, with no browser spec yet.",
     coverWhen:
       "When the first round publishes its decisions, because this is the screen an applicant refreshes.",
   },

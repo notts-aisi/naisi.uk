@@ -179,9 +179,10 @@ export async function loadStatusRows(
  * own row, which is why this is a separate flag rather than a filter.
  *
  * `applicationForm` is the fourth: the round is an application form, whose
- * applications are read back on the form's own pages. The row is still
- * built, because the caller needs to know whether this person applied before
- * it decides what a stranger may be told.
+ * applications are read back on the form's own screens. The page that reads
+ * one application back asks for those screens first. A form that still
+ * reaches this loader is one that page may not show this caller, and the page
+ * answers it as a round that is not there, whoever is asking.
  */
 export async function loadStatusRowForRound(
   db: Db,

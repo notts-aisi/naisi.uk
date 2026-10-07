@@ -551,6 +551,16 @@ export const ROUTES = {
         "a rejected account is refused first.",
     },
   },
+  "/api/admissions/forms/[roundId]/application/reply": {
+    POST: {
+      expect: signedIn(400, { rejected: 403 }),
+      why:
+        "The applicant lane (requireApplicant): a pending account is an applicant and is " +
+        "admitted, a rejected one is refused. The body is then checked before any document " +
+        "is read, so a request that carries none of the four replies is a 400 for every " +
+        "session that gets past the gate, whatever form the address names.",
+    },
+  },
   "/api/admissions/forms/[roundId]/application/send": {
     POST: {
       expect: signedIn(404, { rejected: 403 }),

@@ -19,6 +19,8 @@ import type {
 } from "@/lib/applications/applicant/types";
 import AboutStep from "./AboutStep";
 import AvailabilityStep from "./AvailabilityStep";
+import SentScreen from "@/features/applications/status/SentScreen";
+import { waitingSteps } from "@/lib/applications/status/view";
 import CheckStep, { type CheckIssue, type SentState } from "./CheckStep";
 import ChooseStep from "./ChooseStep";
 import FacilitatingStep from "./FacilitatingStep";
@@ -346,7 +348,7 @@ export default function ApplicationForm({
   // --- what the frame shows ---------------------------------------------------
   const stepsWithIssues = new Set(issues.map((issue) => issue.step));
   const stateOf = (at: number): "current" | "done" | "fix" | "todo" => {
-    if (at === index && !justSent) return "current";
+    if (at === index) return "current";
     const broken = stepsWithIssues.has(steps[at].id);
     if (attempted && broken) return "fix";
     return at < reached && !broken ? "done" : "todo";
@@ -413,12 +415,27 @@ export default function ApplicationForm({
       </button>
     );
 
+  // A send that has just succeeded replaces the whole form, frame and all.
+  if (justSent) {
+    return (
+      <SentScreen
+        roundId={form.id}
+        steps={waitingSteps(form, {
+          sent: application?.sent ?? null,
+          sentLabel: application?.sentLabel ?? null,
+        })}
+        decisionsLabel={form.decisionsLabel}
+        closesLabel={form.closesLabel}
+      />
+    );
+  }
+
   return (
     <div className={`${styles.shell} ${styles.takeover}`}>
       <div className={styles.topBar}>
         <header className={styles.appBar}>
           <div className={styles.appBarSide}>
-            {back && !justSent ? (
+            {back ? (
               <button type="button" className={styles.iconButton} aria-label="Back" onClick={() => goTo(back.id)}>
                 <BackIcon />
               </button>
@@ -496,252 +513,205 @@ export default function ApplicationForm({
         </aside>
 
         <div className={styles.main}>
-          {justSent ? (
-            <>
-              <div>
-                <h1 ref={headingRef} tabIndex={-1} className={styles.heading}>
-                  Application sent.
-                </h1>
-                <p className={styles.lede}>
-                  {form.decisionsLabel ? (
-                    <>
-                      We’ll email you on <span className={styles.together}>{form.decisionsLabel}</span>.{" "}
-                    </>
-                  ) : null}
-                  {form.closesLabel ? (
-                    <>
-                      You can change your answers until <span className={styles.together}>{form.closesLabel}</span>.
-                    </>
-                  ) : (
-                    "You can change your answers until applications close."
-                  )}
-                </p>
-              </div>
-              <div className={styles.sentActions}>
-                <Link href={HOME} className={kit.primary}>
-                  Back to home
-                </Link>
-                <a href={hrefFor("check")} className={styles.ghost} onClick={intercept("check")}>
-                  See your application
-                </a>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className={styles.stepRow}>
-                <span className={`${kit.mono} ${styles.stepLine}`}>{progressLine(index, total, label)}</span>
-                <span className={styles.desktopStatus}>
-                  <SaveStatus state={saver.state} />
+          <div className={styles.stepRow}>
+            <span className={`${kit.mono} ${styles.stepLine}`}>{progressLine(index, total, label)}</span>
+            <span className={styles.desktopStatus}>
+              <SaveStatus state={saver.state} />
+            </span>
+          </div>
+          <div
+            role="progressbar"
+            aria-label={`Step ${index + 1} of ${total}`}
+            aria-valuenow={index + 1}
+            aria-valuemin={1}
+            aria-valuemax={total}
+            className={`${styles.progress} ${styles.desktopProgress}`}
+          >
+            <div className={styles.progressFill} style={{ width: `${progress}%` }} />
+          </div>
+
+          <div>
+            <div className={styles.headingRow}>
+              <h1 ref={headingRef} tabIndex={-1} className={styles.heading}>
+                {stepHeading(step, setDocs)}
+              </h1>
+              {chip ? (
+                <span className={styles.chip} data-tone={chip.tone}>
+                  {chip.text}
                 </span>
-              </div>
-              <div
-                role="progressbar"
-                aria-label={`Step ${index + 1} of ${total}`}
-                aria-valuenow={index + 1}
-                aria-valuemin={1}
-                aria-valuemax={total}
-                className={`${styles.progress} ${styles.desktopProgress}`}
-              >
-                <div className={styles.progressFill} style={{ width: `${progress}%` }} />
-              </div>
-
-              <div>
-                <div className={styles.headingRow}>
-                  <h1 ref={headingRef} tabIndex={-1} className={styles.heading}>
-                    {stepHeading(step, setDocs)}
-                  </h1>
-                  {chip ? (
-                    <span className={styles.chip} data-tone={chip.tone}>
-                      {chip.text}
-                    </span>
-                  ) : null}
-                </div>
-                {step.kind === "about" ? (
+              ) : null}
+            </div>
+            {step.kind === "about" ? (
+              <>
+                <p className={styles.lede}>From your account. Change anything that’s out of date.</p>
+                {pending ? (
+                  <p className={styles.lede}>
+                    Your join request is still with the committee. You can keep applying while they check it. If
+                    you get a place, that approves your account.
+                  </p>
+                ) : null}
+              </>
+            ) : null}
+            {step.kind === "choose" ? (
+              <p className={styles.lede}>
+                Tick any that interest you.{openCount > 1 ? " You’ll put them in order next." : ""}
+              </p>
+            ) : null}
+            {step.kind === "rank" ? (
+              <p className={styles.lede}>
+                You’ll get a place on one at most, and we start from your 1st choice.
+              </p>
+            ) : null}
+            {step.kind === "facilitating" ? (
+              <p className={styles.lede}>
+                We train you and give you the resources. You don’t need any experience.
+              </p>
+            ) : null}
+            {step.kind === "availability" ? (
+              <p className={styles.lede}>
+                Drag down <span className={styles.onPhone}>the</span>
+                <span className={styles.onLaptop}>a</span> day to paint the times you’re free, as much or as
+                little as you like. Drag over painted time to clear it.
+              </p>
+            ) : null}
+            {step.kind === "check" ? (
+              <p className={styles.lede}>
+                {form.closesLabel ? (
                   <>
-                    <p className={styles.lede}>From your account. Change anything that’s out of date.</p>
-                    {pending ? (
-                      <p className={styles.lede}>
-                        Your join request is still with the committee. You can keep applying while they check it. If
-                        you get a place, that approves your account.
-                      </p>
-                    ) : null}
+                    You can change your answers until <span className={styles.together}>{form.closesLabel}</span>.
                   </>
-                ) : null}
-                {step.kind === "choose" ? (
-                  <p className={styles.lede}>
-                    Tick any that interest you.{openCount > 1 ? " You’ll put them in order next." : ""}
-                  </p>
-                ) : null}
-                {step.kind === "rank" ? (
-                  <p className={styles.lede}>
-                    You’ll get a place on one at most, and we start from your 1st choice.
-                  </p>
-                ) : null}
-                {step.kind === "facilitating" ? (
-                  <p className={styles.lede}>
-                    We train you and give you the resources. You don’t need any experience.
-                  </p>
-                ) : null}
-                {step.kind === "availability" ? (
-                  <p className={styles.lede}>
-                    Drag down <span className={styles.onPhone}>the</span>
-                    <span className={styles.onLaptop}>a</span> day to paint the times you’re free, as much or as
-                    little as you like. Drag over painted time to clear it.
-                  </p>
-                ) : null}
-                {step.kind === "check" ? (
-                  <p className={styles.lede}>
-                    {form.closesLabel ? (
-                      <>
-                        You can change your answers until <span className={styles.together}>{form.closesLabel}</span>.
-                      </>
-                    ) : (
-                      "You can change your answers until applications close."
-                    )}
-                  </p>
-                ) : null}
-              </div>
-
-              {viewingAs ? (
-                <div className={styles.notice} data-tone="warn">
-                  <p>You’re viewing this as the member. Nothing you change here is saved.</p>
-                </div>
-              ) : null}
-              {saver.state.kind === "failed" ? (
-                <div className={styles.notice} data-tone="warn" role="alert">
-                  <p>
-                    {saver.state.message}{" "}
-                    {saver.state.final
-                      ? "What you’ve typed is still on this screen."
-                      : "What you’ve typed is still on this screen, and we’ll keep trying."}
-                  </p>
-                  {saver.state.status === 401 ? (
-                    <p>
-                      <Link
-                        href={`/login?next=${encodeURIComponent(`/apply/${form.id}`)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={styles.inlineLink}
-                      >
-                        Sign in again in a new tab
-                      </Link>
-                      , then come back and reload this page.
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {step.kind === "about" ? (
-                <AboutStep
-                  key="about"
-                  about={content.aboutYou}
-                  email={{
-                    address: account.universityEmail,
-                    verified: account.universityEmailVerified,
-                    profileHref: pending ? null : "/profile",
-                  }}
-                  onChange={setAbout}
-                  problems={problemsOn("about")}
-                />
-              ) : null}
-              {step.kind === "choose" ? (
-                <ChooseStep
-                  programmes={form.programmes}
-                  ranked={content.rankedProgrammeIds}
-                  onToggle={toggleProgramme}
-                  problems={problemsOn("choose")}
-                />
-              ) : null}
-              {step.kind === "rank" ? (
-                <RankStep
-                  programmes={ranked.map((programme) => form.programmes.find((each) => each.id === programme.id)!)}
-                  onReorder={reorder}
-                />
-              ) : null}
-              {step.kind === "facilitating" ? (
-                <FacilitatingStep
-                  value={content.wantsToFacilitate}
-                  onChange={setFacilitate}
-                  moreQuestions={facilitatorQuestions}
-                  problem={problemsOn("facilitating")[0] ?? null}
-                />
-              ) : null}
-              {set ? (
-                <QuestionsStep
-                  key={set.id}
-                  set={set}
-                  answers={own(content.answers, set.id) ?? {}}
-                  optionsOf={(questionId) => {
-                    const question = set.questions.find((each) => each.id === questionId);
-                    return question ? optionsFor(question, shape, content) : [];
-                  }}
-                  onAnswer={(questionId, value) => answer(set.id, questionId, value)}
-                  showProblems={attempted}
-                />
-              ) : null}
-              {step.kind === "availability" ? (
-                <AvailabilityStep grid={grid} columns={columns} onChange={setAvailability} />
-              ) : null}
-              {step.kind === "check" ? (
-                <CheckStep
-                  content={content}
-                  ranked={ranked.map((programme) => form.programmes.find((each) => each.id === programme.id)!)}
-                  asksFacilitating={form.asksFacilitating}
-                  sets={asked}
-                  optionsOf={(setId, questionId) => {
-                    const question = setDocs
-                      .find((each) => each.id === setId)
-                      ?.questions.find((each) => each.id === questionId);
-                    return question ? optionsFor(question, shape, content) : [];
-                  }}
-                  availabilityLines={summaryLines(columns, grid)}
-                  hrefFor={hrefFor}
-                  onGo={goTo}
-                  onSuMembership={setSuMembership}
-                  closesLabel={form.closesLabel}
-                  issues={attempted ? checkIssues : []}
-                  suProblem={attempted ? (issues.find((issue) => issue.step === "check")?.message ?? null) : null}
-                  sent={sentState}
-                  sendError={sendError}
-                  noticeRef={noticeRef}
-                />
-              ) : null}
-
-              <div className={styles.desktopNav}>
-                {back ? (
-                  <button type="button" className={styles.ghost} onClick={() => goTo(back.id)} disabled={!hydrated}>
-                    <BackIcon />
-                    <span>Back</span>
-                  </button>
                 ) : (
-                  <span className={styles.navSpacer} />
+                  "You can change your answers until applications close."
                 )}
-                {primary(styles.next)}
-              </div>
-            </>
-          )}
+              </p>
+            ) : null}
+          </div>
+
+          {viewingAs ? (
+            <div className={styles.notice} data-tone="warn">
+              <p>You’re viewing this as the member. Nothing you change here is saved.</p>
+            </div>
+          ) : null}
+          {saver.state.kind === "failed" ? (
+            <div className={styles.notice} data-tone="warn" role="alert">
+              <p>
+                {saver.state.message}{" "}
+                {saver.state.final
+                  ? "What you’ve typed is still on this screen."
+                  : "What you’ve typed is still on this screen, and we’ll keep trying."}
+              </p>
+              {saver.state.status === 401 ? (
+                <p>
+                  <Link
+                    href={`/login?next=${encodeURIComponent(`/apply/${form.id}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.inlineLink}
+                  >
+                    Sign in again in a new tab
+                  </Link>
+                  , then come back and reload this page.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {step.kind === "about" ? (
+            <AboutStep
+              key="about"
+              about={content.aboutYou}
+              email={{
+                address: account.universityEmail,
+                verified: account.universityEmailVerified,
+                profileHref: pending ? null : "/profile",
+              }}
+              onChange={setAbout}
+              problems={problemsOn("about")}
+            />
+          ) : null}
+          {step.kind === "choose" ? (
+            <ChooseStep
+              programmes={form.programmes}
+              ranked={content.rankedProgrammeIds}
+              onToggle={toggleProgramme}
+              problems={problemsOn("choose")}
+            />
+          ) : null}
+          {step.kind === "rank" ? (
+            <RankStep
+              programmes={ranked.map((programme) => form.programmes.find((each) => each.id === programme.id)!)}
+              onReorder={reorder}
+            />
+          ) : null}
+          {step.kind === "facilitating" ? (
+            <FacilitatingStep
+              value={content.wantsToFacilitate}
+              onChange={setFacilitate}
+              moreQuestions={facilitatorQuestions}
+              problem={problemsOn("facilitating")[0] ?? null}
+            />
+          ) : null}
+          {set ? (
+            <QuestionsStep
+              key={set.id}
+              set={set}
+              answers={own(content.answers, set.id) ?? {}}
+              optionsOf={(questionId) => {
+                const question = set.questions.find((each) => each.id === questionId);
+                return question ? optionsFor(question, shape, content) : [];
+              }}
+              onAnswer={(questionId, value) => answer(set.id, questionId, value)}
+              showProblems={attempted}
+            />
+          ) : null}
+          {step.kind === "availability" ? (
+            <AvailabilityStep grid={grid} columns={columns} onChange={setAvailability} />
+          ) : null}
+          {step.kind === "check" ? (
+            <CheckStep
+              content={content}
+              ranked={ranked.map((programme) => form.programmes.find((each) => each.id === programme.id)!)}
+              asksFacilitating={form.asksFacilitating}
+              sets={asked}
+              optionsOf={(setId, questionId) => {
+                const question = setDocs
+                  .find((each) => each.id === setId)
+                  ?.questions.find((each) => each.id === questionId);
+                return question ? optionsFor(question, shape, content) : [];
+              }}
+              availabilityLines={summaryLines(columns, grid)}
+              hrefFor={hrefFor}
+              onGo={goTo}
+              onSuMembership={setSuMembership}
+              closesLabel={form.closesLabel}
+              issues={attempted ? checkIssues : []}
+              suProblem={attempted ? (issues.find((issue) => issue.step === "check")?.message ?? null) : null}
+              sent={sentState}
+              sendError={sendError}
+              noticeRef={noticeRef}
+            />
+          ) : null}
+
+          <div className={styles.desktopNav}>
+            {back ? (
+              <button type="button" className={styles.ghost} onClick={() => goTo(back.id)} disabled={!hydrated}>
+                <BackIcon />
+                <span>Back</span>
+              </button>
+            ) : (
+              <span className={styles.navSpacer} />
+            )}
+            {primary(styles.next)}
+          </div>
         </div>
       </div>
 
       <div className={styles.bottomBar}>
         <div className={styles.bottomActions}>
-          {justSent ? (
-            <>
-              <a href={hrefFor("check")} className={styles.finishLater} onClick={intercept("check")}>
-                See your application
-              </a>
-              <Link href={HOME} className={`${kit.primary} ${styles.continue}`}>
-                Back to home
-              </Link>
-            </>
-          ) : (
-            <>
-              <button type="button" className={styles.finishLater} onClick={finishLater} disabled={!hydrated || leaving}>
-                Finish later
-              </button>
-              {primary(styles.continue)}
-            </>
-          )}
+          <button type="button" className={styles.finishLater} onClick={finishLater} disabled={!hydrated || leaving}>
+            Finish later
+          </button>
+          {primary(styles.continue)}
         </div>
       </div>
     </div>

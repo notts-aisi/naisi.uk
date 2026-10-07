@@ -41,7 +41,7 @@
  * to answer with the refusal and write nothing; called with a round of the
  * older kind it has to carry on past the fence. The shared loaders, the two
  * lookups and the status list are run against an in-memory store the same way,
- * and the two notices are rendered to the HTML a page would return.
+ * and the staff notice is rendered to the HTML the older round page returns.
  * (The two scheduler jobs are executed beside their own suites, in
  * `tests/admissions-reminders.test.mjs` and
  * `tests/admissions-stage-release.test.mjs`.)
@@ -187,13 +187,20 @@ const SHARED_LOADERS = {
       "the appointment queue's only way to a round, and it answers null for a form whatever " +
       "kind the document carries",
   },
-  loadStatusRowForRound: {
-    from: "@/lib/admissions/statusHubData",
-    file: "src/lib/admissions/statusHubData.ts",
-    why:
-      "the status page's only way to a round, and it says when the round is a form so the " +
-      "page can stand aside",
-  },
+};
+
+/**
+ * The loader behind the two pages of one person's applications. It was in the
+ * table above while the page that reads one application back stood aside for
+ * a form through it. That page shows a form on the form's own screen now and
+ * is listed as `both`, so no `older` surface goes through this loader and it
+ * is not a shared FENCE any more. It still says when a round is a form, which
+ * the page acts on, and it still lists an application made on one. Section 4
+ * reads it and section 6 runs it, as before.
+ */
+const STATUS_LOADER = {
+  from: "@/lib/admissions/statusHubData",
+  file: "src/lib/admissions/statusHubData.ts",
 };
 
 // ---------------------------------------------------------------------------
@@ -313,16 +320,15 @@ const ROUND_SURFACES = {
       "which starts from the form's own loader and finds nothing for a round that is not a form",
   },
   "/(public)/applications/[roundId]": {
-    kind: "older",
-    page: {
-      fence: "loadStatusRowForRound",
-      notice: "ApplicationFormNotice",
-      why:
-        "reads one application back in the older shape, stage by stage, which an application " +
-        "made on a form does not have. For a form it returns the applicant notice after its " +
-        "two not-found answers. The form's own status screens are to be served at this " +
-        "address, and this entry becomes `both` when they are",
-    },
+    kind: "both",
+    proof: ["await renderApplicationStatus({", "if (loaded.applicationForm) notFound();"],
+    why:
+      "one address for both kinds. A form this caller may be told about is shown by the form's " +
+      "own screen, which the page asks for first and returns: the sent status, the outcome and " +
+      "the reply buttons. Everything after that reads one application back in the older shape, " +
+      "stage by stage, which an application made on a form does not have. So to the older half " +
+      "a form is a round that is not there, and it answers one that way before it reads a row " +
+      "or draws anything",
   },
   "/(public)/apply/[roundId]": {
     kind: "both",
@@ -353,6 +359,13 @@ const ROUND_SURFACES = {
       "the applicant's own read and draft save on a form. It reaches the round only through " +
       "loadVisibleForm, which starts from the form's own loader and answers null for a round " +
       "that is not a form, exactly as it does for a form that is still a draft",
+  },
+  "/api/admissions/forms/[roundId]/application/reply": {
+    kind: "form",
+    why:
+      "records the applicant's reply to what decision day told them. It loads the round " +
+      "through the form's own loader, which answers null for a round that is not a form, and " +
+      "writes through recordReply, which is handed the form that loader returned",
   },
   "/api/admissions/forms/[roundId]/application/send": {
     kind: "form",
@@ -789,7 +802,7 @@ describe("every route, page and layout with a round id in its address", () => {
 
   test("the walk finds them", () => {
     assert.ok(
-      surfaces.length >= 42,
+      surfaces.length >= 43,
       `only ${surfaces.length} files with a [roundId] segment were found: the trees have moved`,
     );
   });
@@ -1150,6 +1163,19 @@ const ROUND_READERS = new Map([
     },
   ],
   [
+    "src/lib/applications/status/record.ts",
+    {
+      kind: "form",
+      asks: 0,
+      proof: ["form: ApplicationForm,", "const roundRef = formRef(db, roundId);", "tx.update(roundRef, {"],
+      why:
+        "the one writer of an applicant's reply. It reads no round itself. It is handed the " +
+        "form the reply route loaded with the form's own loader, which asks and answers null " +
+        "for a round that is not a form, and it touches the round only to move its counters in " +
+        "the transaction that moves the application's status",
+    },
+  ],
+  [
     "src/lib/firestore/accountDeletion.ts",
     {
       kind: "both",
@@ -1435,13 +1461,13 @@ describe("the loaders an older surface may reach a round through", () => {
   });
 
   test("the status loader reads no stages for a form, and says the round is one", () => {
-    const bundle = bodyOf(SHARED_LOADERS.loadStatusRowForRound.file, "loadRoundBundle");
+    const bundle = bodyOf(STATUS_LOADER.file, "loadRoundBundle");
     assert.ok(
       at(bundle, ASKS) < at(bundle, "STAGES_SUBCOLLECTION"),
       "the stages are read before the question is asked",
     );
     assert.match(bundle, /if\s*\(\s*isApplicationForm\s*\(\s*snap\.data\s*\(\s*\)\s*\)\s*\)\s*return\s*\{\s*round\s*,\s*stages\s*:\s*\[\s*\]\s*,\s*applicationForm\s*:\s*true\s*\}/);
-    const single = bodyOf(SHARED_LOADERS.loadStatusRowForRound.file, "loadStatusRowForRound");
+    const single = bodyOf(STATUS_LOADER.file, "loadStatusRowForRound");
     assert.equal(
       countOf(single, /\breturn\s*\{[^}]*\bapplicationForm\b/),
       2,
@@ -1449,13 +1475,61 @@ describe("the loaders an older surface may reach a round through", () => {
     );
   });
 
-  test("the page that reads one application back acts on that answer before it draws anything older", () => {
-    const { bare } = read(join(APP, "(public)", "applications", "[roundId]", "page.tsx"));
-    const stands = at(bare, /if\s*\(\s*loaded\.applicationForm\s*\)\s*return\s*<ApplicationFormNotice\b/);
-    assert.ok(stands < Infinity, "the page no longer returns the notice for a form");
-    assert.ok(at(bare, "loaded.roundMissing") < stands, "a round that is not there has to be answered first");
-    assert.ok(at(bare, "!loaded.roundPublic") < stands, "a round that is not public has to be answered first");
-    assert.ok(stands < at(bare, "row.stages"), "the older read-back comes before the notice");
+  test("the page that reads one application back shows a form on the form's own screen, and its older half answers one as not there", () => {
+    const reading = read(join(APP, "(public)", "applications", "[roundId]", "page.tsx"));
+    const { bare } = reading;
+
+    // THE ORDER. While the form had no screen for what follows a send, this
+    // page returned the applicant notice for one, after its two not-found
+    // answers, and this test held that order. The form's own screen is served
+    // at this address now, so the order held is the new one: the caller is
+    // known, the form's own screen is asked for and what it answers is
+    // returned, and the older loader is called only after that.
+    assert.ok(
+      importsFrom(reading.scope, "renderApplicationStatus", "@/features/applications/status/renderApplicationStatus"),
+    );
+    assert.ok(importsFrom(reading.scope, "loadStatusRowForRound", STATUS_LOADER.from));
+    const pageAt = at(bare, /export\s+default\s+async\s+function\s+ApplicationDetailPage\b/);
+    assert.ok(pageAt < Infinity, "the page's own function could not be found");
+    const page = bare.slice(pageAt);
+    const signedInAt = at(page, /if\s*\(\s*!user\s*\)\s*\{\s*redirect\s*\(/);
+    const formAt = at(
+      page,
+      /const\s+([A-Za-z_$][\w$]*)\s*=\s*await\s+renderApplicationStatus\s*\(\s*\{[^;]*\}\s*\)\s*;\s*if\s*\(\s*\1\s*\)\s*return\s+\1\s*;/,
+    );
+    assert.ok(formAt < Infinity, "the page does not return what the form's own screen answers");
+    assert.ok(signedInAt < formAt, "the form's own screen is asked for before the caller is known to be signed in");
+    const olderAt = at(page, /\bloadStatusRowForRound\s*\(/);
+    assert.ok(olderAt < Infinity, "the older half no longer reads through the status loader");
+    assert.ok(formAt < olderAt, "the older loader is called before the form's own screen has been asked for");
+
+    // THE OLDER HALF. The form's own screen answers null for a form this
+    // caller may not be told about, so the older loader can still be handed
+    // one. It says so, and the page answers a form as it answers a round that
+    // is not there, before it reads a row or draws anything in the older
+    // shape. So the older read-back can never be drawn for a form. No notice:
+    // a second thing drawn for a form at this address would be a second place
+    // that decides what an applicant on one is shown.
+    const missingAt = at(page, /if\s*\(\s*loaded\.roundMissing\s*\)\s*notFound\s*\(\s*\)/);
+    const standsAt = at(page, /if\s*\(\s*loaded\.applicationForm\s*\)\s*notFound\s*\(\s*\)\s*;/);
+    assert.ok(standsAt < Infinity, "the older half no longer answers a form as a round that is not there");
+    assert.ok(olderAt < missingAt && missingAt < standsAt, "a round that is not there has to be answered first");
+    assert.ok(standsAt < at(page, /\bloaded\.row\b/), "a row is read before a form is answered");
+    assert.ok(standsAt < at(page, "row.stages"), "the older read-back comes before a form is answered");
+    assert.ok(at(page, "row.stages") < Infinity, "the older read-back is gone, so this page is no longer both");
+    assert.equal(
+      countOf(page, /\bloaded\.applicationForm\b/),
+      1,
+      "the older half acts on the loader's answer about a form in more than one place",
+    );
+
+    // THE TITLE is the page's own and the same for both kinds, so the form's
+    // status screen is never served under a title that names nothing.
+    assert.match(
+      reading.kept,
+      /export\s+const\s+metadata\s*:\s*Metadata\s*=\s*\{\s*title\s*:\s*"Your application"\s*,/,
+      "the page has lost its title",
+    );
   });
 
   test("the apply page shows a form on the form's own screen, and its older half still stops at one", () => {
@@ -1563,12 +1637,28 @@ describe("the loaders an older surface may reach a round through", () => {
     assert.ok(importsFrom(zone.scope, "DestroyPanel", "@/features/destroy/DestroyPanel"));
   });
 
-  test("the applicant notice is ordinary HTML with nothing of the form in it", () => {
-    const notice = read(join(SRC, "features", "admissions", "ApplicationFormNotice.tsx"));
-    assert.ok(!notice.raw.trimStart().startsWith('"use client"'), "the notice has to stay a server component");
-    assert.ok(importsFrom(notice.scope, "MADE_ON_THE_APPLICATION_FORM", FENCE_MODULE));
-    assert.match(notice.bare, /export default function ApplicationFormNotice\s*\(\s*\)/, "the notice takes no props");
-    assert.ok(!/\bnotFound\b|\bredirect\b|\bLink\b|href=/.test(notice.bare), "the notice sends nobody anywhere");
+  test("no page draws a notice of its own for an applicant on a form", () => {
+    // There was one, `ApplicationFormNotice`, returned by the two applicant
+    // pages while the form had no screens of its own, and two tests here held
+    // it to one sentence with no props and no link. Both pages show a form on
+    // the form's own screens now (the two tests above hold the order), so no
+    // page returns it and it is gone. What is held in its place: the
+    // applicant's sentence is still the fence's own, it is spoken only where
+    // an older ROUTE refuses a form, and no page under the public tree
+    // imports it to draw one more thing for a form.
+    assert.ok(
+      !existsSync(join(SRC, "features", "admissions", "ApplicationFormNotice.tsx")),
+      "the applicant notice is back. Say which page returns it, and hold it here to one sentence, no props and no link",
+    );
+    const speakers = sourceFiles(SRC)
+      .filter((file) => /\bMADE_ON_THE_APPLICATION_FORM\b/.test(codeOf(file)))
+      .map(rel)
+      .sort();
+    assert.deepEqual(
+      speakers,
+      ["src/lib/admissions/applyContext.ts", "src/lib/admissions/formFence.ts"],
+      "the applicant's sentence is read somewhere new. A page that draws it is a notice by another name",
+    );
   });
 });
 
@@ -2405,11 +2495,15 @@ describe("the two routes that serve both kinds, called with an application form"
 });
 
 /**
- * The two notices are what a PAGE returns for a form, and a page cannot be
- * run here. Its notice can: both are plain server components, so each is
- * rendered to the HTML the page would send. A loader of their own, because
- * what they import is a stylesheet and three components, none of which is a
- * door to anything: each is replaced by the smallest thing that renders.
+ * The staff notice is what the older round PAGE returns for a form, and a
+ * page cannot be run here. Its notice can: it is a plain server component, so
+ * it is rendered to the HTML the page would send. A loader of its own,
+ * because what it imports is a stylesheet and three components, none of which
+ * is a door to anything: each is replaced by the smallest thing that renders.
+ *
+ * There were two notices. The applicant's went when both applicant pages
+ * began to show a form on the form's own screens: section 4 says what is held
+ * in its place.
  */
 const h = "globalThis.__fence.h";
 const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(name) });";
@@ -2417,7 +2511,6 @@ const notices = createLoader({
   stubs: new Map([
     ["server-only", "export {};"],
     ["next/server", NEXT_SERVER_STUB],
-    ["./ApplicationFormNotice.module.css", CLASS_NAMES],
     ["./RoundEditor.module.css", CLASS_NAMES],
     ["next/link", `export default ({ href, children }) => ${h}("a", { href }, children);`],
     ["@/components/ui/Badge", `export default ({ children }) => ${h}("span", { "data-badge": "" }, children);`],
@@ -2429,20 +2522,11 @@ const notices = createLoader({
   ]),
 });
 
-describe("what the older pages return for an application form", () => {
+describe("what the older round page returns for an application form", () => {
   const render = (component, props) => {
     globalThis.__fence = { h: createElement };
     return renderToStaticMarkup(createElement(component, props));
   };
-
-  test("the applicant notice is one sentence, as a heading, with nowhere to go", async () => {
-    const { default: ApplicationFormNotice } = await notices.loadTs("features/admissions/ApplicationFormNotice.tsx");
-    const html = render(ApplicationFormNotice, {});
-    assert.match(html, new RegExp(`<h1[^>]*>${fence.MADE_ON_THE_APPLICATION_FORM.replace(/\./g, "\\.")}</h1>`));
-    assert.ok(!/<a\b|href=|<script|<form|<button/.test(html), html);
-    // The one sentence and nothing about the form: the page hands it no props.
-    assert.equal(html.replace(/<[^>]+>/g, ""), fence.MADE_ON_THE_APPLICATION_FORM);
-  });
 
   test("the staff notice says where a form is edited and gives an admin the danger zone", async () => {
     const { default: ApplicationFormStaffNotice } = await notices.loadTs("features/admissions/ApplicationFormStaffNotice.tsx");
@@ -2576,10 +2660,10 @@ describe("the list of one person's applications", () => {
       assert.equal(row.nextStage, null);
       assert.equal(row.sharedDecisionReason, "");
       // The row's link is the one address both kinds of round share. For a
-      // form the page there answers with the applicant notice, and with the
-      // form itself once the form is served at that address, so the list
-      // never has to know which. It is never the older flow: the page's own
-      // loader stops at a form (section 4).
+      // form the page there shows the form on the form's own screen, so the
+      // list never has to know which kind a row is. It is never the older
+      // flow: to the page's own loader a form is a round that is not there
+      // (section 4).
       assert.equal(row.href, `/apply/${FORM_ID}`);
       assert.equal(row.hrefKind, status === "draft" ? "resume" : "view");
       const wire = JSON.stringify(row);

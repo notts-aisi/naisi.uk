@@ -365,6 +365,26 @@ const USERS = new Map([
       "button that says 23 is only right if the list behind it walks 23",
   ],
   [
+    "applications-wave-f-replies.test.mjs",
+    "executes the standing and reply rules (src/lib/applications/status/standing.ts, replies.ts, " +
+      "view.ts) for every state of an application against every reply, and the contract's own " +
+      "tallyTerm and freePlaces over a term, because what a reply does and whether a place " +
+      "comes free are decided by the code that runs",
+  ],
+  [
+    "applications-wave-f-reply-route.test.mjs",
+    "executes the applicant's reply handler with the real gate, rate limiter and application " +
+      "modules against an in-memory Firestore, because the reply, the status and the counters " +
+      "are one transaction and only running it shows what was written and what was not",
+  ],
+  [
+    "applications-wave-f-status.test.mjs",
+    "executes the status view (src/lib/applications/status/view.ts) over the sample term and " +
+      "the page's read (load.ts) against an in-memory Firestore holding somebody else's " +
+      "application, a decision and a review, because only running them shows no result is " +
+      "said early and no other document is read",
+  ],
+  [
     "applications-wave-g-approve.test.mjs",
     "executes the one function that approves a waiting account against an in-memory Firestore, " +
       "as every kind of account and in every kind of approver's name, because it changes a role " +
