@@ -61,6 +61,7 @@ import CollaboratorPicker from "./CollaboratorPicker";
 import CoverBrandingModal from "./CoverBrandingModal";
 import StepRail, { type EditorStep } from "./EditorSteps";
 import EventPreview from "./EventPreview";
+import { takeIncoming } from "./editorSync";
 import FormBuilder from "./FormBuilder";
 import {
   STATUS_WORDS,
@@ -90,6 +91,68 @@ type Props = {
  * moving between them.
  */
 type StepKey = "basics" | "details" | "signup" | "send";
+
+/**
+ * Every field of the form, as the form holds it. One entry per field that
+ * Save writes: `tests/event-editor-unsaved-edits.test.mjs` holds the two
+ * lists to each other.
+ */
+type FormValues = {
+  title: string;
+  blocks: Block[];
+  startAt: Date | null;
+  endAt: Date | null;
+  location: string;
+  locationHidden: boolean;
+  locationPublicText: string;
+  visibility: EventVisibility;
+  capacity: number | null;
+  waitlistEnabled: boolean;
+  noSignup: boolean;
+  signupForm: FormQuestion[];
+  foodText: string;
+  dietaryTags: FoodTag[];
+  posterUrl: string | null;
+  coverBranding: CoverBranding;
+  coverLogoColor: CoverLogoColor;
+  coverStripSize: number;
+  coverLogoPosition: CoverLogoPosition;
+  coverLogoScale: number;
+  coverLogoX: number;
+  coverLogoY: number;
+  coverLogoBackdrop: boolean;
+  coverLogoShadow: boolean;
+};
+
+/** The stored event in the form's own terms: an empty box for a field that is not set. */
+function formValuesOf(next: EventDoc): FormValues {
+  return {
+    title: next.title,
+    blocks: next.blocks,
+    startAt: next.startAt,
+    endAt: next.endAt,
+    location: next.location,
+    locationHidden: next.locationHidden,
+    locationPublicText: next.locationPublicText ?? "",
+    visibility: next.visibility,
+    capacity: next.capacity,
+    waitlistEnabled: next.waitlistEnabled,
+    noSignup: next.noSignup,
+    signupForm: next.signupForm,
+    foodText: next.foodText ?? "",
+    dietaryTags: next.dietaryTags ?? [],
+    posterUrl: next.posterUrl ?? null,
+    coverBranding: next.coverBranding,
+    coverLogoColor: next.coverLogoColor,
+    coverStripSize: next.coverStripSize,
+    coverLogoPosition: next.coverLogoPosition,
+    coverLogoScale: next.coverLogoScale,
+    coverLogoX: next.coverLogoX,
+    coverLogoY: next.coverLogoY,
+    coverLogoBackdrop: next.coverLogoBackdrop,
+    coverLogoShadow: next.coverLogoShadow,
+  };
+}
 
 /** What `POST /api/events/[id]/publish` answers. Counts only, never addresses. */
 type PublishResponse = {
@@ -386,6 +449,11 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     document.getElementById(`editor-step-${step}`)?.focus();
   }, [step]);
 
+  // What the form last took from the server for each field, or last saved.
+  // It is what "has this field been changed" is measured against, so it is a
+  // ref and not state: reading it must never be a render behind.
+  const synced = useRef<FormValues | null>(null);
+
   useEffect(() => {
     const db = getClientDb();
     const unsub = onSnapshot(
@@ -398,30 +466,47 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
         }
         const next = normalizeEvent(snap.id, snap.data());
         setEvent(next);
-        setTitle((cur) => (dirty ? cur : next.title));
-        setBlocks((cur) => (dirty ? cur : next.blocks));
-        setStartAt((cur) => (dirty ? cur : next.startAt));
-        setEndAt((cur) => (dirty ? cur : next.endAt));
-        setLocation((cur) => (dirty ? cur : next.location));
-        setLocationHidden((cur) => (dirty ? cur : next.locationHidden));
-        setLocationPublicText((cur) => (dirty ? cur : next.locationPublicText ?? ""));
-        setVisibility((cur) => (dirty ? cur : next.visibility));
-        setCapacity((cur) => (dirty ? cur : next.capacity));
-        setWaitlistEnabled((cur) => (dirty ? cur : next.waitlistEnabled));
-        setNoSignup((cur) => (dirty ? cur : next.noSignup));
-        setSignupForm((cur) => (dirty ? cur : next.signupForm));
-        setFoodText((cur) => (dirty ? cur : next.foodText ?? ""));
-        setDietaryTags((cur) => (dirty ? cur : next.dietaryTags ?? []));
-        setPosterUrl((cur) => (dirty ? cur : next.posterUrl ?? null));
-        setCoverBranding((cur) => (dirty ? cur : next.coverBranding));
-        setCoverLogoColor((cur) => (dirty ? cur : next.coverLogoColor));
-        setCoverStripSize((cur) => (dirty ? cur : next.coverStripSize));
-        setCoverLogoPosition((cur) => (dirty ? cur : next.coverLogoPosition));
-        setCoverLogoScale((cur) => (dirty ? cur : next.coverLogoScale));
-        setCoverLogoX((cur) => (dirty ? cur : next.coverLogoX));
-        setCoverLogoY((cur) => (dirty ? cur : next.coverLogoY));
-        setCoverLogoBackdrop((cur) => (dirty ? cur : next.coverLogoBackdrop));
-        setCoverLogoShadow((cur) => (dirty ? cur : next.coverLogoShadow));
+        // THE EVENT CHANGES WHILE SOMEBODY IS TYPING: a sign-up moves a
+        // counter, a collaborator is ticked, somebody else saves. Each field
+        // is decided on its own. One this person has changed and not saved is
+        // kept; every other one takes what the server now says. See
+        // `editorSync.ts` for the rule and for what it does not do.
+        //
+        // The decision is made inside each setter, on the value the form
+        // holds at that moment, and never on a flag read when this listener
+        // was attached: a listener outlives the render that made it, so
+        // anything it closed over is as old as the page.
+        const was = synced.current;
+        const now = formValuesOf(next);
+        synced.current = now;
+        const pick =
+          <K extends keyof FormValues>(key: K) =>
+          (cur: FormValues[K]): FormValues[K] =>
+            was === null ? now[key] : takeIncoming(cur, was[key], now[key]);
+        setTitle(pick("title"));
+        setBlocks(pick("blocks"));
+        setStartAt(pick("startAt"));
+        setEndAt(pick("endAt"));
+        setLocation(pick("location"));
+        setLocationHidden(pick("locationHidden"));
+        setLocationPublicText(pick("locationPublicText"));
+        setVisibility(pick("visibility"));
+        setCapacity(pick("capacity"));
+        setWaitlistEnabled(pick("waitlistEnabled"));
+        setNoSignup(pick("noSignup"));
+        setSignupForm(pick("signupForm"));
+        setFoodText(pick("foodText"));
+        setDietaryTags(pick("dietaryTags"));
+        setPosterUrl(pick("posterUrl"));
+        setCoverBranding(pick("coverBranding"));
+        setCoverLogoColor(pick("coverLogoColor"));
+        setCoverStripSize(pick("coverStripSize"));
+        setCoverLogoPosition(pick("coverLogoPosition"));
+        setCoverLogoScale(pick("coverLogoScale"));
+        setCoverLogoX(pick("coverLogoX"));
+        setCoverLogoY(pick("coverLogoY"));
+        setCoverLogoBackdrop(pick("coverLogoBackdrop"));
+        setCoverLogoShadow(pick("coverLogoShadow"));
         setLoading(false);
       },
       (err) => {
@@ -431,7 +516,6 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
       },
     );
     return unsub;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
 
   const viewer =
@@ -505,6 +589,35 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     if (!dirty) return;
     const limitProblem = signupFormLimitError();
     if (limitProblem) throw new Error(limitProblem);
+    // The form as it stands when Save is pressed. Once the write has landed
+    // this is what the form was last given, so none of it counts as an
+    // unsaved change any more and the stored event can arrive over it.
+    const held: FormValues = {
+      title,
+      blocks,
+      startAt,
+      endAt,
+      location,
+      locationHidden,
+      locationPublicText,
+      visibility,
+      capacity,
+      waitlistEnabled,
+      noSignup,
+      signupForm,
+      foodText,
+      dietaryTags,
+      posterUrl,
+      coverBranding,
+      coverLogoColor,
+      coverStripSize,
+      coverLogoPosition,
+      coverLogoScale,
+      coverLogoX,
+      coverLogoY,
+      coverLogoBackdrop,
+      coverLogoShadow,
+    };
     const fields = {
       title,
       blocks,
@@ -571,6 +684,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     } else {
       await updateEvent(event.id, fields);
     }
+    synced.current = held;
     setDirty(false);
   }
 
