@@ -1288,6 +1288,11 @@
   .decision {
     display: none;
   }
+  /* Once the person has been told there is no bar at the foot to carry the
+     decision, so the card that says so stays on the page. */
+  .decision.decisionTold {
+    display: flex;
+  }
   /* With its title gone the head is only the saving note, and with nothing
      to say it should not hold a gap open. */
   .panelHead {

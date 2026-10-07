@@ -37,7 +37,7 @@ export default async function SendDecisionsPage({
 
   if (!canRunTerm(user)) {
     return (
-      <AdminsOnly what="An admin sends every programme’s decisions together, on one day. You can change a decision for your own programme until they do." />
+      <AdminsOnly roundId={roundId} what="An admin sends every programme’s decisions together, on one day. You can change a decision for your own programme until they do." />
     );
   }
 

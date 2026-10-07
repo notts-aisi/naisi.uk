@@ -38,13 +38,20 @@ export function Pill({
   );
 }
 
+/** The term's own page, which lists its programmes: where both screens lead back to. */
+function termPath(roundId: string): string {
+  return `/admin/admissions/forms/${encodeURIComponent(roundId)}`;
+}
+
 /** The page frame: where you are, the title with its chips, and one line under it. */
 export function Page({
+  roundId,
   title,
   chips,
   lede,
   children,
 }: {
+  roundId: string;
   title: string;
   chips: ReactNode;
   lede: string;
@@ -53,7 +60,7 @@ export function Page({
   return (
     <ApplicationsRoot className={styles.page}>
       <nav className={styles.crumbs} aria-label="Where you are">
-        <Link className={styles.crumb} href="/admin/admissions">
+        <Link className={styles.crumb} href={termPath(roundId)}>
           Programmes
         </Link>
       </nav>
@@ -73,14 +80,14 @@ export function Page({
  * What somebody with a role on the form, and no part in running the term, is
  * shown instead of the page. Said plainly, with somewhere to go.
  */
-export function AdminsOnly({ what }: { what: string }) {
+export function AdminsOnly({ roundId, what }: { roundId: string; what: string }) {
   return (
     <ApplicationsRoot className={styles.page}>
       <div className={`${styles.card} ${styles.refusal}`}>
         <h1 className={styles.refusalTitle}>This page is for admins</h1>
         <p className={styles.refusalText}>{what}</p>
-        <Link className={styles.quiet} href="/admin/admissions">
-          Back to admissions
+        <Link className={styles.quiet} href={termPath(roundId)}>
+          See this term’s programmes
         </Link>
       </div>
     </ApplicationsRoot>

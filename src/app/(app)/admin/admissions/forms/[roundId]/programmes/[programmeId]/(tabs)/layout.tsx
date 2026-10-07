@@ -8,7 +8,7 @@ import styles from "@/features/applications/editor/ProgrammeFrame.module.css";
 import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
 import { loadProgrammeForStaff } from "@/lib/applications/editor/load";
 import { applicationFormPath } from "@/lib/applications/editor/olderRounds";
-import { formStateFor } from "@/lib/applications/editor/views";
+import { stageSummaryFor } from "@/lib/applications/lifecycle/view";
 import { formatRunStartShort } from "@/lib/courses/window";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -51,11 +51,13 @@ export default async function ProgrammeLayout({
   const state = programme.closed
     ? { label: "Closed", live: false, tone: "neutral" as const }
     : (() => {
-        const term = formStateFor(form, context.now);
+        // The same chip the term's own page draws, so a programme never reads
+        // Closed under a term that reads Deciding.
+        const term = stageSummaryFor(form, context.now);
         return {
-          label: term.label,
+          label: term.title,
           live: term.live,
-          tone: term.live || term.key === "opens" ? ("live" as const) : ("neutral" as const),
+          tone: term.live || term.stage === "opens-later" ? ("live" as const) : ("neutral" as const),
         };
       })();
   const leadName = programme.leadUid ? (context.names.get(programme.leadUid) ?? null) : null;

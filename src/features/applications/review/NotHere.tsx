@@ -18,7 +18,7 @@ export default function NotHere({ what }: { what: "applications" | "application"
           ? "There’s no list of applications here that you review."
           : "There’s no application here that you review."}{" "}
         If there should be, ask an admin to check who is named on the programme.{" "}
-        <Link href="/admin/admissions">Back to admissions</Link>
+        <Link href="/admin/admissions/forms">See application forms</Link>
       </p>
     </div>
   );

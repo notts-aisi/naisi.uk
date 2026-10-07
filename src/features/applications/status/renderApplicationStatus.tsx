@@ -5,7 +5,10 @@ import kit from "@/features/applications/kit/kit.module.css";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import type { SessionUser } from "@/lib/firebase/session";
+import { loadForm } from "@/lib/applications/repo";
 import { formIsThere, loadStatus } from "@/lib/applications/status/load";
+import type { StatusView } from "@/lib/applications/status/view";
+import { closedOnLabel } from "../apply/closedOn";
 import StatusPage from "./StatusPage";
 import styles from "./status.module.css";
 
@@ -27,6 +30,29 @@ import styles from "./status.module.css";
  * account the committee has refused is told so, and nothing of its own is
  * read first.
  */
+/**
+ * The view, with the closing day taken out when it has not come yet.
+ *
+ * An admin can close a form before the day written on it. The page would
+ * then say applications "closed on" a day that is still ahead. With the day
+ * taken out, the page's own words for a form with no day are used instead.
+ * Only the two views that print the day cost the extra read: nobody's
+ * application here on a closed form, and a sent one that can no longer change.
+ */
+async function withHonestClosingDay(
+  db: NonNullable<ReturnType<typeof getAdminDb>>,
+  roundId: string,
+  view: StatusView,
+  now: Date,
+): Promise<StatusView> {
+  const printsTheDay =
+    (view.kind === "none" && view.window === "closed") || (view.kind === "sent" && !view.canChange);
+  if (!printsTheDay || view.closesLabel === null) return view;
+  const form = await loadForm(db, roundId);
+  const label = closedOnLabel(form?.round.closesAt ?? null, view.closesLabel, now);
+  return label === null ? { ...view, closesLabel: null } : view;
+}
+
 export async function renderApplicationStatus({
   roundId,
   user,
@@ -73,7 +99,11 @@ export async function renderApplicationStatus({
 
   return (
     <ApplicationsRoot className={root}>
-      <StatusPage roundId={loaded.roundId} view={loaded.view} viewingAs={viewingAs} />
+      <StatusPage
+        roundId={loaded.roundId}
+        view={await withHonestClosingDay(db, loaded.roundId, loaded.view, now)}
+        viewingAs={viewingAs}
+      />
     </ApplicationsRoot>
   );
 }

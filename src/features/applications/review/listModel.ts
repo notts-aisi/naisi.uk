@@ -51,6 +51,11 @@ export const PAGE_SIZE = 14;
 
 function matchesStatus(row: ApplicationRow, status: StatusFilter): boolean {
   if (status === "all") return true;
+  // Somebody who has withdrawn (they gave a place back, or said no to an
+  // invitation) is nobody's to review and holds nothing. Their row is listed
+  // under All only, where it reads Withdrawn. The flag is the server's: what
+  // they stood as before they left is not asked here.
+  if (row.withdrawn) return false;
   // "To review" is what the programme still owes: somebody a higher choice
   // has accepted is undecided here and is not waiting on anybody.
   if (status === "to-review") return row.standing === "to-review" && row.owesDecision;
