@@ -623,7 +623,20 @@ export default function JoinStep({
                       Not you? Sign out
                     </button>
                   </p>
-                ) : null}
+                ) : (
+                  // Somebody who has an account, or who started this form on
+                  // another day, reaches this view signed out and would
+                  // otherwise answer it all again. The link is the form's own
+                  // (`signInHref`), so signing in brings them back here, to
+                  // where they left off.
+                  <p className={styles.lede}>
+                    Already have an account, or started an application before?{" "}
+                    <Link href={signInHref} className={join.asideLink}>
+                      Sign in
+                    </Link>{" "}
+                    to carry on.
+                  </p>
+                )}
               </div>
 
               {signedIn && fromLink && !hasJoinAnswers(about) ? (

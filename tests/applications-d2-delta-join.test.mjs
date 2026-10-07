@@ -1204,6 +1204,30 @@ describe("the join step keeps to them", () => {
     assert.equal((kept.match(/shared\.getItem\(/g) ?? []).length, 1);
   });
 
+  test("somebody signed out is told that signing in carries on, by the form's own link", () => {
+    // Somebody who has an account, or who started this form on another day,
+    // arrives at "About you" signed out. Without a word they would answer it
+    // all again. The line is drawn for them and for nobody signed in, and its
+    // link is the form's marked address (`signInHrefFor`), which the sign-in
+    // page brings an account back from. The walk below holds where every such
+    // address leads.
+    const step = codeOf("JoinStep.tsx");
+    assert.match(step, /const signInHref = signInHrefFor\(roundId\);/);
+    assert.match(
+      step,
+      /Already have an account, or started an application before\?\{" "\}\s*<Link href=\{signInHref\} className=\{join\.asideLink\}>\s*Sign in\s*<\/Link>\{" "\}\s*to carry on\./,
+      "the first view no longer tells somebody signed out that signing in carries on, or its link is not the form's own",
+    );
+    // It is the other arm of the line that names who is signed in, so it is
+    // never drawn beside "Not you? Sign out".
+    assert.match(
+      step,
+      /\{signedIn \? \([\s\S]*?Not you\? Sign out[\s\S]*?\) : \([\s\S]*?Already have an account, or started an application before\?/,
+      "the line for somebody signed out is no longer the signed-out arm of the account line",
+    );
+    assert.equal((step.match(/Already have an account, or started an application before\?/g) ?? []).length, 1);
+  });
+
   test("the step has no password box, and asks for none", () => {
     for (const file of JOIN_FILES) {
       const code = codeOf(file);
