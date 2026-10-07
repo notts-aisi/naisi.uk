@@ -1,3 +1,4 @@
+import { isId, own } from "./keys";
 import type { ApplicationFormFields, DecisionDoc } from "./model";
 import { PROGRAMME_DECISION_STANDING, type ProgrammeStanding } from "./words";
 
@@ -24,14 +25,23 @@ import { PROGRAMME_DECISION_STANDING, type ProgrammeStanding } from "./words";
  * `ranked` everywhere below is the ranking as the form knows it
  * (`rankedProgrammes(form, sent).map((p) => p.id)`): a programme that has
  * left the form has already been dropped from it.
+ *
+ * A NAME THAT IS NOT AN ID IS NOT A PROGRAMME, here as everywhere
+ * (`./keys`). A ranking is something an applicant typed, and one that
+ * reached these functions carrying such a name is read as if the name were
+ * not in it: it has no standing, it owes nothing, and so it can never be the
+ * thing decision day is waiting on. Every read of a decision's `programmes`
+ * goes through `own` for the same reason.
  */
 
 type Decided = Pick<DecisionDoc, "programmes" | "pooledOutcome" | "exception">;
 
 /** Where an application stands with one programme. */
 export function standingWith(decision: Decided | null, programmeId: string): ProgrammeStanding {
-  const entry = decision?.programmes[programmeId];
-  return entry ? PROGRAMME_DECISION_STANDING[entry.decision] : "to-review";
+  if (!isId(programmeId)) return "to-review";
+  const entry = own(decision?.programmes, programmeId);
+  if (!entry) return "to-review";
+  return own(PROGRAMME_DECISION_STANDING, entry.decision) ?? "to-review";
 }
 
 /**
@@ -73,6 +83,9 @@ export function owesDecision(
   decision: Decided | null,
   programmeId: string,
 ): boolean {
+  // Not a programme, so there is nobody to owe anything. Without this a name
+  // nobody can decide for would be waited on for ever.
+  if (!isId(programmeId)) return false;
   const at = ranked.indexOf(programmeId);
   if (at === -1) return false;
   if (standingWith(decision, programmeId) !== "to-review") return false;
@@ -102,22 +115,35 @@ export type Outcome =
  * `invitable` is the set of programmes an invitation may name: programmes on
  * the form. An invitation to anything else reads as not picked yet, so a
  * programme removed after the choice was made cannot be promised to anybody.
+ *
+ * SOMEBODY WHO RANKED NOTHING THE FORM CARRIES IS POOLED. No programme they
+ * ranked took them, which is what pooled means, so they wait for the
+ * committee to pick what they hear like anybody else nothing took. They are
+ * never `undecided`: that is a programme still owing a decision, and here
+ * there is no programme to owe one. An application like that should not
+ * exist (the send refuses an empty ranking), and if one does, this is the
+ * reading that leaves the committee something to do about it.
  */
 export function outcomeFor(
   ranked: readonly string[],
   decision: Decided | null,
   invitable: ReadonlySet<string>,
 ): Outcome {
-  const waitingOn = ranked.filter((programmeId) => owesDecision(ranked, decision, programmeId));
+  // Only an id can be a programme. Anything else in the ranking is read as
+  // not there, so the answer is the one their real choices give.
+  const chosen = ranked.filter(isId);
+  const waitingOn = chosen.filter((programmeId) => owesDecision(chosen, decision, programmeId));
   if (waitingOn.length > 0) return { kind: "undecided", waitingOn };
 
-  const placement = placementFor(ranked, decision);
+  const placement = placementFor(chosen, decision);
   if (placement) return { kind: "accepted", programmeId: placement };
 
-  // Nobody is waiting and nobody accepted, so every ranked programme pooled
-  // or declined. With nothing ranked at all there is nothing to tell them.
-  if (ranked.length === 0) return { kind: "undecided", waitingOn: [] };
-  if (ranked.every((programmeId) => standingWith(decision, programmeId) === "declined")) {
+  // Nobody is waiting and nobody accepted, so every programme they ranked
+  // pooled or declined. Declined takes at least one programme to have said so.
+  if (
+    chosen.length > 0 &&
+    chosen.every((programmeId) => standingWith(decision, programmeId) === "declined")
+  ) {
     return { kind: "declined" };
   }
 
@@ -210,9 +236,18 @@ export function tallyTerm(
   };
 
   for (const applicant of applicants) {
-    const { ranked, decision } = applicant;
+    const { decision } = applicant;
+    // The ranking as THIS form knows it: each programme the form carries,
+    // once, in their order. Callers are meant to hand it in that way already.
+    // It is settled again here because everything below counts by position,
+    // and an id the form does not carry must not take 1st choice from the one
+    // behind it, or be waited on by a decision day nobody can clear.
+    const ranked = applicant.ranked.filter(
+      (programmeId, at, all) =>
+        own(programmes, programmeId) !== undefined && all.indexOf(programmeId) === at,
+    );
     ranked.forEach((programmeId, at) => {
-      const tally = programmes[programmeId];
+      const tally = own(programmes, programmeId);
       if (!tally) return;
       tally.applications += 1;
       if (at === 0) tally.firstChoice += 1;
@@ -223,14 +258,16 @@ export function tallyTerm(
       else if (owesDecision(ranked, decision, programmeId)) tally.toReview += 1;
     });
     for (const programmeId of placesHeld(ranked, decision)) {
-      if (programmes[programmeId]) programmes[programmeId].placed += 1;
+      const tally = own(programmes, programmeId);
+      if (tally) tally.placed += 1;
     }
 
     const outcome = outcomeFor(ranked, decision, invitable);
     if (outcome.kind === "accepted") outcomes.accepted += 1;
     else if (outcome.kind === "invited") {
       outcomes.invited += 1;
-      if (programmes[outcome.programmeId]) programmes[outcome.programmeId].invited += 1;
+      const tally = own(programmes, outcome.programmeId);
+      if (tally) tally.invited += 1;
     } else if (outcome.kind === "no-offer") outcomes.noOffer += 1;
     else if (outcome.kind === "declined") outcomes.declined += 1;
     else if (outcome.kind === "needs-outcome") outcomes.needsOutcome += 1;
@@ -255,8 +292,8 @@ export function freePlaces(
   tally: TermTally,
   programmeId: string,
 ): number | null {
-  const places = form.programmes[programmeId]?.places ?? null;
-  const taken = tally.programmes[programmeId];
+  const places = own(form.programmes, programmeId)?.places ?? null;
+  const taken = own(tally.programmes, programmeId);
   if (places === null || !taken) return null;
   return Math.max(0, places - taken.placed - taken.invited);
 }

@@ -1,3 +1,4 @@
+import { own } from "./keys";
 import type {
   ApplicationContent,
   ApplicationFormFields,
@@ -31,19 +32,26 @@ type Choices = Pick<ApplicationContent, "rankedProgrammeIds" | "wantsToFacilitat
 /** The programmes a person can tick: on the form, in its order, and not closed. */
 export function openProgrammes(form: Form): ProgrammeSettings[] {
   return form.programmeIds
-    .map((id) => form.programmes[id])
-    .filter((programme): programme is ProgrammeSettings => Boolean(programme) && !programme.closed);
+    .map((id) => own(form.programmes, id))
+    .filter(
+      (programme): programme is ProgrammeSettings => programme !== undefined && !programme.closed,
+    );
 }
 
 /**
  * The programmes this person ranked, in their order, as the form knows them.
  * An id the form no longer carries is skipped, so a programme removed after
  * somebody ticked it simply stops counting rather than breaking their page.
+ *
+ * A ranking is something an applicant typed, so each id is looked up as the
+ * form's OWN key (`own`, in `./keys`): an id that names something every
+ * object carries is not a programme, and is skipped like any other the form
+ * does not hold.
  */
 export function rankedProgrammes(form: Form, content: Ranking): ProgrammeSettings[] {
   const out: ProgrammeSettings[] = [];
   for (const id of content.rankedProgrammeIds) {
-    const programme = form.programmes[id];
+    const programme = own(form.programmes, id);
     if (programme && !out.includes(programme)) out.push(programme);
   }
   return out;

@@ -736,6 +736,9 @@ function twelveTechScores() {
   return scores;
 }
 
+/** Every name a plain object answers to without owning it. */
+const FURNITURE = Object.getOwnPropertyNames(Object.prototype);
+
 function buildForm(overrides = {}) {
   return buildFormApplicationRecord({
     round: round({ label: "Autumn 2026 applications" }),
@@ -824,22 +827,40 @@ describe("buildFormApplicationRecord: what they applied for and what they were t
     );
   });
 
-  it("reads an id that names something on every object as a programme that is not there", () => {
+  it("drops a name every object carries on the way in, so it is never ranked at all", () => {
     // A ranking is something an applicant typed and a draft is saved as given,
-    // so these reach the builder for real. Each is a well-formed id and none
-    // is a programme. A plain property lookup would find the object's own
-    // furniture under each name, and for one of them would throw, and a record
-    // that cannot be built is what makes a destroy refuse: one draft must not
-    // be able to hold a whole round's destroy.
-    const furniture = ["constructor", "toString", "__proto__", "hasOwnProperty", "valueOf"];
+    // so these reach a stored application for real. None of them is an id
+    // (`isId` refuses a name every object answers to), so reading the
+    // application drops them, and the record is of what is left.
     const record = buildForm({
       application: formApplication({
         status: "draft",
         submittedAt: null,
         sent: null,
-        draft: { rankedProgrammeIds: [...furniture, "agi"] },
+        draft: { rankedProgrammeIds: [...FURNITURE, "agi"] },
         result: { kind: "accepted", programmeId: "constructor" },
       }),
+      reviews: [formReview("rev-a", { scores: { "agi.event": 4 } })],
+    });
+    assert.deepEqual(record.appliedFor, ["AGI Strategy"]);
+    assert.deepEqual(record.outcome, { decision: "accepted", status: "draft", targetRunId: null });
+    assert.deepEqual(Object.keys(record.scoreSummary.byCriterion), ["agi"]);
+  });
+
+  it("reads such a name as a programme that is not there, if one is handed straight in", () => {
+    // The second line of defence, for an application that did NOT come through
+    // the normaliser. The builder reads the form by own key, so each name is a
+    // programme the form does not carry. A plain property lookup would find
+    // the object's own furniture under each one, and for one of them would
+    // throw, and a record that cannot be built is what makes a destroy refuse:
+    // one application must not be able to hold a whole round's destroy.
+    const clean = formApplication({ status: "draft", submittedAt: null, sent: null });
+    const record = buildForm({
+      application: {
+        ...clean,
+        draft: { ...clean.draft, rankedProgrammeIds: [...FURNITURE, "agi"] },
+        result: { kind: "accepted", programmeId: "constructor", publishedAt: null },
+      },
       reviews: [formReview("rev-a", { scores: { "agi.event": 4 } })],
     });
     assert.deepEqual(record.appliedFor, [REMOVED_PROGRAMME_LABEL, "AGI Strategy"]);

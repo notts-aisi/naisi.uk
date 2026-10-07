@@ -4,6 +4,7 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { ROUNDS_COLLECTION } from "@/lib/firestore/admissionRounds";
 import { isEligibleAdmissionsReviewer, normalizeUser } from "@/lib/firestore/users";
+import { own } from "./keys";
 import { APPLICATION_LIMITS } from "./model";
 import { isApplicationForm, normaliseForm, type ApplicationForm } from "./normalise";
 
@@ -54,7 +55,7 @@ function refuse(
 export function everyoneNamedOn(form: Pick<ApplicationForm, "programmeIds" | "programmes">): string[] {
   const named: string[] = [];
   for (const programmeId of form.programmeIds) {
-    const programme = form.programmes[programmeId];
+    const programme = own(form.programmes, programmeId);
     if (!programme) continue;
     for (const uid of [programme.leadUid, ...programme.reviewerUids]) {
       if (uid && !named.includes(uid)) named.push(uid);
@@ -90,14 +91,14 @@ export async function setProgrammeRoles(
     return refuse(404, "There is no application form here.");
   }
   const stale = normaliseForm(before.id, before.data());
-  if (!stale.programmes[programmeId]) return refuse(404, "That programme is not on this form.");
+  // Read as the form's own key. `programmeId` is the caller's, and it goes on
+  // to be written into a field path below, so anything the form does not hold
+  // as a programme stops here.
+  const staleProgramme = own(stale.programmes, programmeId);
+  if (!staleProgramme) return refuse(404, "That programme is not on this form.");
 
   const isAdmin = actor.role === "admin";
-  const isLead = isNamedWithStanding(
-    actor,
-    "admissionRounds.leadUid",
-    stale.programmes[programmeId].leadUid,
-  );
+  const isLead = isNamedWithStanding(actor, "admissionRounds.leadUid", staleProgramme.leadUid);
   if (!isAdmin && !isLead) {
     return refuse(403, "Only an admin or this programme's lead can change who reviews it.");
   }
@@ -157,7 +158,7 @@ export async function setProgrammeRoles(
     const snap = await tx.get(roundRef);
     if (!snap.exists || !isApplicationForm(snap.data())) return null;
     const form = normaliseForm(snap.id, snap.data());
-    const programme = form.programmes[programmeId];
+    const programme = own(form.programmes, programmeId);
     if (!programme) return null;
 
     // Who the form names NOW is read from the programmes as well as from the

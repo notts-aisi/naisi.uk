@@ -1,6 +1,7 @@
 import "server-only";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
+import { own } from "./keys";
 import type { ApplicationFormFields } from "./model";
 
 /**
@@ -30,13 +31,19 @@ type Form = Pick<ApplicationFormFields, "programmeIds" | "programmes">;
 
 export type ProgrammeRole = "admin" | "lead" | "reviewer";
 
-/** This caller's role on one programme, or null when they have none. */
+/**
+ * This caller's role on one programme, or null when they have none.
+ *
+ * `programmeId` usually comes from an address, so the programme is read as
+ * the form's OWN key (`own`, in `./keys`). A name every object carries is not
+ * a programme, and nobody, an admin included, has a role on one.
+ */
 export function roleOnProgramme(
   user: SessionUser,
   form: Form,
   programmeId: string,
 ): ProgrammeRole | null {
-  const programme = form.programmes[programmeId];
+  const programme = own(form.programmes, programmeId);
   if (!programme) return null;
   if (user.role === "admin") return "admin";
   if (isNamedWithStanding(user, "admissionRounds.leadUid", programme.leadUid)) return "lead";

@@ -12,6 +12,7 @@ import {
   type AdmissionRoundDoc,
 } from "@/lib/firestore/admissionRounds";
 import { FIELD_LIMITS } from "@/lib/firestore/users";
+import * as keys from "./keys";
 import {
   APPLICATION_LIMITS,
   APPLICATION_RESULT_KINDS,
@@ -106,15 +107,25 @@ function dateKey(v: unknown): string | null {
   return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
 }
 
-/**
- * An id this system mints: letters, digits, hyphen and underscore. No dot,
- * because ids are used as keys in Firestore field paths and in
- * `questionKey()`, and a dot in either would address a different field.
- */
-const ID_SHAPE = /^[A-Za-z0-9_-]{1,80}$/;
+const { own } = keys;
 
+/**
+ * True for an id this system could have minted. What that means is decided in
+ * ONE place, `./keys`, beside the accessor that reads a map by one: the shape,
+ * and never a name every object carries.
+ *
+ * It is a function here and not a re-export on purpose. This module is where
+ * a route looks for it, and the guard that proves a helper called before a
+ * route's gate touches no document (`tests/gate-before-data.test.mjs`) reads
+ * the helper's body in the module the route imported it from.
+ */
 export function isId(v: unknown): v is string {
-  return typeof v === "string" && ID_SHAPE.test(v);
+  return keys.isId(v);
+}
+
+/** True for a key `questionKey()` could have built. Decided in `./keys`, as above. */
+export function isQuestionKey(v: unknown): v is string {
+  return keys.isQuestionKey(v);
 }
 
 /** Distinct, well-formed ids, in the order given, cut at `cap`. */
@@ -147,7 +158,7 @@ export function normaliseProgramme(id: string, v: unknown): ProgrammeSettings {
   const emailWording: ProgrammeSettings["emailWording"] = {};
   const rawWording = asRecord(raw.emailWording);
   for (const key of PROGRAMME_EMAIL_KINDS) {
-    const wording = asWording(rawWording[key]);
+    const wording = asWording(own(rawWording, key));
     if (wording) emailWording[key as ProgrammeEmailKind] = wording;
   }
   return {
@@ -193,11 +204,13 @@ export function normaliseFormFields(data: unknown): ApplicationFormFields {
   const programmes: Record<string, ProgrammeSettings> = {};
   // `programmeIds` is the authority on which programmes exist and in what
   // order. A settings entry with no place in the order is not shown anywhere,
-  // so it is not read either.
-  const programmeIds = idList(raw.programmeIds, L.maxProgrammes).filter(
-    (id) => stored[id] && typeof stored[id] === "object",
-  );
-  for (const id of programmeIds) programmes[id] = normaliseProgramme(id, stored[id]);
+  // so it is not read either. The entry is read as the stored map's OWN key:
+  // an id in the order with no settings of its own names no programme.
+  const programmeIds = idList(raw.programmeIds, L.maxProgrammes).filter((id) => {
+    const entry = own(stored, id);
+    return Boolean(entry) && typeof entry === "object";
+  });
+  for (const id of programmeIds) programmes[id] = normaliseProgramme(id, own(stored, id));
   return {
     formVersion: FORM_VERSION,
     programmeIds,
@@ -475,13 +488,6 @@ export function normaliseApplication(
 // ---------------------------------------------------------------------------
 // What reviewers write
 // ---------------------------------------------------------------------------
-
-/** A question key is two ids joined by one dot. */
-const KEY_SHAPE = /^[A-Za-z0-9_-]{1,80}\.[A-Za-z0-9_-]{1,80}$/;
-
-export function isQuestionKey(v: unknown): v is string {
-  return typeof v === "string" && KEY_SHAPE.test(v);
-}
 
 function asScores(v: unknown): Record<string, number> {
   const L = APPLICATION_LIMITS;

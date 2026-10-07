@@ -132,6 +132,12 @@ A lead's decision for their programme is Accept, Pool or Decline.
 A programme owes a decision until it decides, or until a programme the person
 ranked higher accepts them (`owesDecision`).
 
+Somebody who ranked nothing the form carries is pooled, never undecided. No
+programme they ranked took them, which is what pooled means, and no programme
+can owe them a decision, so the committee picks what they hear. The send
+refuses an empty ranking, so this is only ever a stored application the form
+has changed under.
+
 `tallyTerm()` gives every count the manager shows and `readinessFor()` says
 whether the send may go. `tests/applications-model.test.mjs` runs the whole
 arithmetic against a term of 122 applicants: 66 accepted, 2 invited, 53 no
@@ -149,6 +155,7 @@ All in `src/lib/applications/`.
 | Module | What it is | Runs |
 | --- | --- | --- |
 | `model.ts` | Types, limits, `questionKey()`, `applicationId()` | anywhere |
+| `keys.ts` | What an id is, and `own()`, the one way a map is read by one | anywhere |
 | `normalise.ts` | Reads stored documents into the model's shapes. Never throws. | anywhere |
 | `sections.ts` | Which steps and question sets one person sees | anywhere |
 | `validate.ts` | What stops a send; what is copied into `sent`; word counts | anywhere |
@@ -172,7 +179,18 @@ All in `src/lib/applications/`.
   two equalities, which need no composite index. A term is a few hundred
   documents: filter and sort in memory.
 - **Ids are letters, digits, hyphen and underscore.** No dot: ids are keys in
-  Firestore field paths and in `questionKey()`.
+  Firestore field paths and in `questionKey()`. And never a name every object
+  carries (`constructor`, `toString`, `__proto__` and the rest): `isId` refuses
+  those, so one can never be the id of a programme, a question set or a
+  question.
+- **A map is read by an id through `own()`, never as `map[id]`.** The id
+  usually came from somewhere else: a ranking an applicant typed, a programme
+  id in an address. A plain object answers to names it does not own, and
+  `programmes["constructor"]` is a function, not a missing programme. `own()`
+  (`keys.ts`) answers from the map's own keys only. This covers `programmes`,
+  `answers`, `scores` and a decision's `programmes`. Validate an id from a
+  request with `isId()` as well: the two rules fail differently, so both are
+  kept.
 - **Counters move with the status.** A route that changes an application's
   `status` moves the round's `applicationCounts` in the same transaction.
 - **Questions lock once somebody has sent an application.** Editing a question

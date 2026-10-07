@@ -1,3 +1,4 @@
+import { own } from "./keys";
 import {
   questionKey,
   type ApplicationContent,
@@ -44,7 +45,7 @@ export function scoredKeysFor(
   sets: readonly QuestionSetDoc[],
   programmeId: string,
 ): string[] {
-  if (!form.programmes[programmeId]?.useScores) return [];
+  if (!own(form.programmes, programmeId)?.useScores) return [];
   const keys: string[] = [];
   for (const set of streamSetsFor(form, sets, programmeId)) {
     for (const question of set.questions) {
@@ -66,11 +67,11 @@ export function scorableKeysFor(
   sent: Pick<ApplicationContent, "answers">,
 ): string[] {
   const keys: string[] = [];
-  if (!form.programmes[programmeId]?.useScores) return keys;
+  if (!own(form.programmes, programmeId)?.useScores) return keys;
   for (const set of streamSetsFor(form, sets, programmeId)) {
-    const given = sent.answers[set.id] ?? {};
+    const given = own(sent.answers, set.id);
     for (const question of set.questions) {
-      if (question.scored && isAnswered(given[question.id])) {
+      if (question.scored && isAnswered(own(given, question.id))) {
         keys.push(questionKey(set.id, question.id));
       }
     }
@@ -88,7 +89,7 @@ function mean(values: readonly number[]): number | null {
 export function reviewerScore(review: Pick<ReviewDoc, "scores">, keys: readonly string[]): number | null {
   const given: number[] = [];
   for (const key of keys) {
-    const score = review.scores[key];
+    const score = own(review.scores, key);
     if (typeof score === "number") given.push(score);
   }
   return mean(given);
@@ -98,7 +99,7 @@ export function reviewerScore(review: Pick<ReviewDoc, "scores">, keys: readonly 
 export function hasScored(review: Pick<ReviewDoc, "scores"> | null, keys: readonly string[]): boolean {
   if (keys.length === 0) return true;
   if (!review) return false;
-  return keys.every((key) => typeof review.scores[key] === "number");
+  return keys.every((key) => typeof own(review.scores, key) === "number");
 }
 
 export type SectionScore = {
@@ -114,7 +115,7 @@ export function sectionScore(reviews: readonly ReviewDoc[], keys: readonly strin
   for (const review of reviews) {
     const score = reviewerScore(review, keys);
     if (score === null) continue;
-    const scoredCount = keys.filter((key) => typeof review.scores[key] === "number").length;
+    const scoredCount = keys.filter((key) => typeof own(review.scores, key) === "number").length;
     reviewers.push({ reviewerUid: review.reviewerUid, score, scoredCount });
   }
   return { score: mean(reviewers.map((r) => r.score)), reviewers };
