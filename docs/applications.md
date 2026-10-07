@@ -264,12 +264,22 @@ else.
 
 - A reviewer's score for a programme is the mean of what they gave its answers.
 - The section score is the mean of the reviewers' scores, one voice each.
-- **A first review is blind to other reviewers.** Until you have scored every
-  answer there is to score for a programme, you are not shown what anybody else
-  gave or wrote for it (`reviewsVisibleTo`). An admin can switch that off for
-  the form (`revealOtherReviews`).
-- **Names are shown.** Reviewers see who they are reading, and the form has to
-  tell applicants so.
+- **A first review is blind to other reviewers.** A lead or a reviewer who has
+  not yet scored every answer there is to score for a programme is not shown
+  what anybody else gave or wrote for it (`reviewsVisibleTo`). An admin can
+  switch that off for the form (`revealOtherReviews`), which changes what
+  leads and reviewers are shown.
+- **An admin is never blind.** An admin is shown every score and comment, on
+  every programme, whether or not they have scored and whatever the switch
+  says: on a programme's list, on the single application and in the
+  recommendations made from the scores. "Admin" is the role on the site,
+  never a role on a programme, so a lead who is not an admin still scores
+  blind first. `otherReviewsShownTo` in `scoring.ts` is the whole rule. Every
+  caller hands it the caller's own standing, and nothing else reads the
+  switch as a condition: `tests/applications-review-routes.test.mjs` walks
+  the tree for both.
+- **Names are shown.** Reviewers see who they are reading. The form says who
+  reads an application and does not mention names.
 
 ## What an application said before
 

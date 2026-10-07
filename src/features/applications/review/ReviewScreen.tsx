@@ -34,7 +34,8 @@ import styles from "./ReviewScreen.module.css";
  * it whole with what each save answers, so what is on screen is always what
  * the server last said this person may see. That matters on a first review:
  * other people's scores arrive with the answer to the save that finishes it,
- * and not before.
+ * and not before. An admin has no first review to wait for: the payload an
+ * admin is sent carries every score and comment from the start.
  *
  * A score and a decision are sent the moment they are chosen and are shown at
  * once; if the save is refused the choice is taken back and the reason is
@@ -951,12 +952,22 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
                     className={styles.switchInput}
                     checked={review.admin.revealOtherReviews}
                     disabled={!hydrated}
+                    aria-describedby="reveal-other-reviews-note"
                     onChange={(event) => setReveal(event.target.checked)}
                   />
                   <span className={styles.switchTrack} aria-hidden="true">
                     <span className={styles.switchKnob} />
                   </span>
                 </label>
+                {/*
+                  An admin is shown every review whatever this says
+                  (`otherReviewsShownTo` in src/lib/applications/scoring.ts),
+                  so the switch changes nothing on the admin's own screen.
+                  The line says who it is for.
+                */}
+                <p id="reveal-other-reviews-note" className={styles.switchNote}>
+                  For leads and reviewers who haven’t scored yet. Admins always see them.
+                </p>
 
                 <div className={styles.adminTitle}>Scores by section</div>
                 {review.admin.sections.length === 0 ? (
@@ -968,10 +979,7 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
                         <div className={styles.sectionScoreText}>
                           <div className={styles.sectionScoreName}>{section.shortName}</div>
                           <div className={styles.sectionScoreLine}>
-                            {section.line ??
-                              (section.hidden > 0
-                                ? `${section.hidden} hidden until you score these or turn this on`
-                                : "Nobody has scored these yet")}
+                            {section.line ?? "Nobody has scored these yet"}
                           </div>
                         </div>
                         {section.score ? <ScoreBox>{section.score}</ScoreBox> : null}

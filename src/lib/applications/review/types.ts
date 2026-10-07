@@ -13,8 +13,8 @@ import type { ProgrammeStanding } from "../words";
  *  - an applicant's email addresses are present only on the payload an admin
  *    is sent, so the fields are optional rather than nullable;
  *  - what another reviewer scored or wrote is present only once
- *    `reviewsVisibleTo` says this caller may see it, and a review that is held
- *    back is a count and never a body;
+ *    `reviewsVisibleTo` says this caller may see it, which for an admin is
+ *    always, and a review that is held back is a count and never a body;
  *  - every status, score and tally is derived when the payload is built.
  *
  * Types only, with no server import, so a client component can read them.
@@ -320,10 +320,11 @@ export type SectionScoreLine = {
   shortName: string;
   /** The section score, as it is shown, or null. */
   score: string | null;
-  /** "Claudia 4 · Lloyd 3", or null when nobody has scored. */
+  /**
+   * "Claudia 4 · Lloyd 3", or null when nobody has scored. Nothing is ever
+   * held back from an admin, so there is no count of hidden reviews here.
+   */
   line: string | null;
-  /** How many reviews are being held back from this admin. */
-  hidden: number;
 };
 
 export type ReviewPayload = {

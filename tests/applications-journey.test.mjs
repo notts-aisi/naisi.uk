@@ -888,6 +888,9 @@ async function theCommitteeDecides() {
   });
   seen.lloydBeforeScoring = await reviewOf("lloyd", "amara", "agi");
   seen.lloydListBeforeScoring = await call("lloyd", routes.board.GET, { roundId: ROUND, programmeId: P.agi });
+  // The same moment, for an admin who has scored nothing and never will.
+  seen.adminBeforeScoring = await reviewOf("zach", "amara", "agi");
+  seen.adminListBeforeScoring = await call("zach", routes.board.GET, { roundId: ROUND, programmeId: P.agi });
   // One of the two answers is not a finished first review.
   seen.lloydHalfScored = await score("lloyd", "amara", "agi", { [key("agi", "event")]: 3 });
   seen.lloydScored = await score("lloyd", "amara", "agi", { [key("agi", "law")]: 3 }, "Fine.");
@@ -1627,6 +1630,28 @@ describe("one term, from nothing to settled", () => {
       const rowAfter = seen.lloydListAfterScoring.body.board.rows.find((row) => row.uid === "amara");
       // The lead gave 4 and 5, the reviewer 3 and 3: one voice each.
       assert.equal(rowAfter.scoreValue, 3.75);
+    });
+
+    // The owner's decision of 7 October 2026. The form's switch is off for
+    // the whole of this term, so nothing here is the switch's doing.
+    test("an admin is never blind: the lead's score and comment are there before the admin has scored anything", () => {
+      assert.equal(seen.roundWhenOpened.revealOtherReviews, false);
+      const early = seen.adminBeforeScoring.body.review;
+      assert.deepEqual(early.review.scores, {}, "the admin has scored nothing");
+      assert.equal(early.review.others.hidden, 0);
+      assert.deepEqual(
+        early.review.others.visible.map((other) => [other.name, other.score, other.overallComment]),
+        [["Claudia", "4.5", "Strong on the law."]],
+      );
+      assert.deepEqual(early.admin.sections.find((section) => section.programmeId === P.agi), {
+        programmeId: P.agi,
+        shortName: "AGI Strategy",
+        score: "4.5",
+        line: "Claudia scored 4 and 5",
+      });
+      const row = seen.adminListBeforeScoring.body.board.rows.find((entry) => entry.uid === "amara");
+      assert.equal(row.score, "4.5", "and the list's score column, at the moment the reviewer's reads nothing");
+      assert.equal(seen.lloydListBeforeScoring.body.board.rows.find((entry) => entry.uid === "amara").score, null);
     });
 
     test("a reviewer cannot decide, a lead cannot decide or read another lead's programme, and only an admin picks", () => {

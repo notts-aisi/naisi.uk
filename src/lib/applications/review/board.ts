@@ -14,6 +14,7 @@ import type { ApplicationForm } from "../normalise";
 import {
   formatScore,
   hasScored,
+  otherReviewsShownTo,
   reviewsVisibleTo,
   scorableKeysFor,
   sectionScore,
@@ -37,13 +38,17 @@ import type {
  * and nowhere else on the list:
  *
  *  - THE SCORE COLUMN IS BLIND TOO. A row's section score is worked out from
- *    the reviews `reviewsVisibleTo` hands this caller, so somebody who has not
- *    scored an applicant reads "Not scored yet" whatever anybody else gave.
- *    The recommendations are made from the same numbers, so they cannot say
- *    what the column will not.
+ *    the reviews `reviewsVisibleTo` hands this caller, so a lead or a
+ *    reviewer who has not scored an applicant reads "Not scored yet" whatever
+ *    anybody else gave. The recommendations are made from the same numbers,
+ *    so they cannot say what the column will not.
  *  - A SCORE FROM ANOTHER PROGRAMME is shown to a caller only for an
  *    applicant whose first review they have finished, so it cannot lean on a
  *    score they have yet to give.
+ *  - AN ADMIN IS NEVER BLIND. Both of those are `otherReviewsShownTo`'s
+ *    answer, and for an admin it is always yes: an admin's list carries every
+ *    section score, and the recommendations made from them, without the
+ *    admin scoring anybody first.
  *  - NO ADDRESS. A row carries a name and a degree and never an email.
  *  - A ROW SAYS WHEN ITS APPLICATION CHANGED after it was first sent, and
  *    carries nothing of what it said before. The earlier versions are for
@@ -107,11 +112,15 @@ function buildRow(input: {
   const keys = scorableKeysFor(form, sets, programmeId, sent);
   const mine = reviews.find((review) => review.reviewerUid === viewer.uid) ?? null;
   const viewerHasScored = hasScored(mine, keys);
-  const score = sectionScore(reviewsVisibleTo(viewer.uid, reviews, keys, form), keys).score;
+  const score = sectionScore(
+    reviewsVisibleTo(viewer.uid, reviews, keys, form, viewer.isAdmin),
+    keys,
+  ).score;
 
   // Another programme's section score, for "scored higher on its questions".
-  // Held back while this caller's own first review of the applicant is open.
-  const firstReviewDone = form.revealOtherReviews || viewerHasScored;
+  // Held back while this caller's own first review of the applicant is open,
+  // which an admin's never is.
+  const firstReviewDone = otherReviewsShownTo(viewer.isAdmin, mine, keys, form);
   const elsewhere = emptyMap<number | null>();
   for (const otherId of ranked) {
     if (otherId === programmeId || !programmeOn(form, otherId)?.useScores) continue;
@@ -121,7 +130,7 @@ function buildRow(input: {
     }
     const otherKeys = scorableKeysFor(form, sets, otherId, sent);
     const seen = own(viewer.roles, otherId)
-      ? reviewsVisibleTo(viewer.uid, reviews, otherKeys, form)
+      ? reviewsVisibleTo(viewer.uid, reviews, otherKeys, form, viewer.isAdmin)
       : reviews;
     elsewhere[otherId] = sectionScore(seen, otherKeys).score;
   }
