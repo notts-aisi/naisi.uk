@@ -722,6 +722,19 @@ describe("the form's stylesheets keep the house mobile rules", () => {
     });
   }
 
+  test("availability: the two day buttons wrap where a narrow phone cannot hold them side by side", () => {
+    // Measured before this was held: "Copy to every weekday" and "Clear this
+    // day" fit side by side from 359px wide. At 320 the second ran 22px past
+    // the edge of the screen, so the whole page scrolled sideways. Neither
+    // label breaks, so the row has to be able to wrap.
+    const css = sourceOf("availability.module.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    const phone = topLevelBlocks(css).filter((block) => block.prelude.startsWith("@media")).at(-1).body;
+    const actions = /\.actions\s*\{([^}]*)\}/.exec(phone);
+    assert.ok(actions, "the phone block has no rule for the two day buttons");
+    assert.match(actions[1], /display:\s*flex;/);
+    assert.match(actions[1], /flex-wrap:\s*wrap;/, "the two day buttons cannot wrap");
+  });
+
   test("every control a finger presses declares the 44px floor in its own rule", () => {
     const expected = {
       "form.module.css": ["sectionLink", "input", "twoOption", "chipOption", "textLink", "quietLink", "secondary", "iconButton", "finishLater"],
