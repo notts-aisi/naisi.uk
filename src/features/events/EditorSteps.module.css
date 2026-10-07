@@ -1,0 +1,160 @@
+/*
+  The steps of the event editor: a strip of four in a card.
+
+  The strip is positioned so the spoken words of each step (an absolutely
+  placed span) are held inside it.
+*/
+
+.rail {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  padding: 0.875rem var(--space-6);
+  list-style: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  min-width: 0;
+}
+
+.item {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+/* The last step has no line after it, so it takes only its own width. */
+.last {
+  flex: none;
+}
+
+.step {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.step:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+.mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: 50%;
+  font-family: var(--font-meta);
+  font-size: var(--text-caption);
+  line-height: 1;
+  color: var(--color-text-muted);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.label {
+  white-space: nowrap;
+}
+
+/* A step with nothing missing: a dark tick on the accent. */
+.done {
+  color: var(--color-text);
+}
+
+.done .mark {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+/* The step that is showing: a ring, and its name at full weight. */
+.current {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.current .mark {
+  border: 2px solid var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+  font-weight: 700;
+}
+
+@media (hover: hover) {
+  .todo:hover {
+    color: var(--color-text);
+  }
+
+  .todo:hover .mark {
+    border-color: var(--color-control-border);
+  }
+}
+
+.line {
+  flex: 1 1 1.5rem;
+  min-width: 1rem;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--color-border);
+}
+
+.lineDone {
+  background: var(--color-accent);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* Four names do not fit a phone. The step that is showing keeps its name;
+     the others keep their mark, and their name stays for a screen reader. */
+  .rail {
+    flex-wrap: nowrap;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .item {
+    gap: var(--space-2);
+  }
+
+  .step {
+    min-width: 2.75rem;
+    justify-content: center;
+  }
+
+  .step:not(.current) .label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .line {
+    flex-basis: 0.5rem;
+    min-width: 0.5rem;
+  }
+}
