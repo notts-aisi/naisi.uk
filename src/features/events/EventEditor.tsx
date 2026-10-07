@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { doc, onSnapshot } from "firebase/firestore";
 import Button from "@/components/ui/Button";
@@ -41,7 +41,11 @@ import {
 } from "@/lib/firestore/events";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
 import type { EventChange } from "@/lib/events/changeSummary";
-import { publicLocationText } from "@/lib/events/location";
+import {
+  locationWithheld,
+  publicLocationLine,
+  publicLocationText,
+} from "@/lib/events/location";
 import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
 import BlockEditor from "@/components/blocks/BlockEditor";
 import ImageUpload from "@/components/blocks/ImageUpload";
@@ -55,12 +59,14 @@ import {
 } from "./eventMutations";
 import CollaboratorPicker from "./CollaboratorPicker";
 import CoverBrandingModal from "./CoverBrandingModal";
+import StepRail, { type EditorStep } from "./EditorSteps";
 import FormBuilder from "./FormBuilder";
 import {
   STATUS_WORDS,
   dayWords,
   stampWords,
   statusTone,
+  timeRangeWords,
   whenWords,
 } from "./manageWords";
 import styles from "./EventEditor.module.css";
@@ -76,6 +82,13 @@ type Props = {
    */
   announcementsQueued?: boolean;
 };
+
+/**
+ * The editor's four steps. They are a way of looking at one form: every field
+ * lives in the editor whichever step is showing, and nothing is saved by
+ * moving between them.
+ */
+type StepKey = "basics" | "details" | "signup" | "send";
 
 /** What `POST /api/events/[id]/publish` answers. Counts only, never addresses. */
 type PublishResponse = {
@@ -356,6 +369,22 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     | { kind: "error"; message: string }
   >({ kind: "idle" });
 
+  // Which step is showing. Changing it saves nothing and loses nothing: the
+  // fields above belong to the editor, and every step stays mounted.
+  const [step, setStep] = useState<StepKey>("basics");
+  const stepChanged = useRef(false);
+  function goTo(next: StepKey) {
+    stepChanged.current = true;
+    setStep(next);
+  }
+  // After a move, the new step's heading takes focus, so a keyboard and a
+  // screen reader land where the page now is. Not on first load.
+  useEffect(() => {
+    if (!stepChanged.current) return;
+    stepChanged.current = false;
+    document.getElementById(`editor-step-${step}`)?.focus();
+  }, [step]);
+
   useEffect(() => {
     const db = getClientDb();
     const unsub = onSnapshot(
@@ -595,28 +624,52 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     }
   }
 
-  function validateBeforeSubmit(): string | null {
-    if (!title.trim()) return "Give the event a title before you send it for approval.";
-    if (blocks.length === 0) return "Add a description before you send it for approval.";
-    if (!startAt) return "Pick a start date and time.";
-    if (endAt && endAt.getTime() <= startAt.getTime()) {
-      return "An event can’t end before it starts.";
+  /**
+   * Everything that stops an event being sent for approval, each with the
+   * step it is fixed in, in the order the form asks for it.
+   *
+   * One list for two readers. `validateBeforeSubmit` is its first entry, which
+   * is the sentence Send for approval has always refused with; the steps and
+   * the last step's list read all of it. A second copy of these rules for the
+   * ticks would be two answers to "is anything missing".
+   */
+  function problemsBeforeSubmit(): { step: StepKey; message: string }[] {
+    const found: { step: StepKey; message: string }[] = [];
+    const add = (at: StepKey, message: string) => {
+      if (!found.some((p) => p.message === message)) found.push({ step: at, message });
+    };
+    if (!title.trim()) add("basics", "Give the event a title before you send it for approval.");
+    if (blocks.length === 0) add("details", "Add a description before you send it for approval.");
+    if (!startAt) {
+      add("basics", "Pick a start date and time.");
+    } else if (endAt && endAt.getTime() <= startAt.getTime()) {
+      add("basics", "An event can’t end before it starts.");
     }
-    if (!location.trim()) return "Add a location: a room, a venue or a link.";
+    if (!location.trim()) add("basics", "Add a location: a room, a venue or a link.");
     if (locationHidden && !locationPublicText.trim()) {
-      return "You’ve hidden the exact location. Say what everyone else sees instead, for example “somewhere on campus”.";
+      add(
+        "basics",
+        "You’ve hidden the exact location. Say what everyone else sees instead, for example “somewhere on campus”.",
+      );
     }
-    if (capacity !== null && capacity <= 0) return "Places must be at least 1, or empty for no limit.";
+    if (capacity !== null && capacity <= 0) {
+      add("signup", "Places must be at least 1, or empty for no limit.");
+    }
     for (const q of signupForm) {
-      if (!q.label.trim()) return "Every sign-up question needs its question written in.";
-      if ((q.type === "singleSelect" || q.type === "multiSelect")) {
+      if (!q.label.trim()) {
+        add("signup", "Every sign-up question needs its question written in.");
+      } else if (q.type === "singleSelect" || q.type === "multiSelect") {
         const cleaned = q.options.map((o) => o.trim()).filter(Boolean);
-        if (cleaned.length < 2) return `“${q.label}” needs at least two options.`;
+        if (cleaned.length < 2) add("signup", `“${q.label}” needs at least two options.`);
       }
     }
     const limitProblem = signupFormLimitError();
-    if (limitProblem) return limitProblem;
-    return null;
+    if (limitProblem) add("signup", limitProblem);
+    return found;
+  }
+
+  function validateBeforeSubmit(): string | null {
+    return problemsBeforeSubmit()[0]?.message ?? null;
   }
 
   async function onSubmitForReview() {
@@ -848,9 +901,33 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
   const showPublish = canApprove && status === "approved";
   const showSubmit =
     canDraft && (status === "draft" || status === "rejected") && isAuthor;
+  const showRevert = canApprove && (status === "pending" || status === "approved");
   const showCancel = canApprove && status === "published";
   const showArchive = isAuthor || role === "admin";
   const showDelete = (isAuthor || role === "admin") && status !== "published";
+
+  // The four steps. The last one is named for what happens to the event next.
+  const problems = problemsBeforeSubmit();
+  const missing = (key: StepKey) => problems.some((p) => p.step === key);
+  const lastLabel =
+    status === "pending"
+      ? "Approval"
+      : status === "approved"
+        ? "Publish"
+        : status === "published"
+          ? "Published"
+          : status === "cancelled"
+            ? "Cancelled"
+            : "Send for approval";
+  const steps: EditorStep<StepKey>[] = [
+    { key: "basics", label: "Basics", done: !missing("basics") },
+    { key: "details", label: "Details", done: !missing("details") },
+    { key: "signup", label: "Sign-up", done: !missing("signup") },
+    { key: "send", label: lastLabel, done: status !== "draft" && status !== "rejected" },
+  ];
+  const at = steps.findIndex((s) => s.key === step);
+  const previous = at > 0 ? steps[at - 1] : null;
+  const next = at < steps.length - 1 ? steps[at + 1] : null;
 
   return (
     <div className={styles.editor}>
@@ -1049,442 +1126,587 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
         </Card>
       )}
 
-      <Card as="section" padding="lg">
-        <h2 className={styles.sectionTitle}>Basics</h2>
-        <p className={styles.sectionHint}>What it is, when and where.</p>
-        <div className={styles.fields}>
-          <Field id="title" label="Event title" hint="Shown on the events list and the event page.">
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                markDirty();
-              }}
-              maxLength={TITLE_MAX}
-              disabled={locked}
-              placeholder="e.g. Board games and pizza"
-            />
-          </Field>
+      <StepRail steps={steps} current={step} onSelect={goTo} />
 
-          <div className={styles.twoCol}>
-            <Field id="start" label="Starts" hint="In your own local time.">
-              <DateTimePopover
-                value={startAt}
-                onChange={(next) => {
-                  setStartAt(next);
-                  markDirty();
-                }}
-                disabled={locked}
-                placeholder="Pick a start date and time…"
-              />
-            </Field>
-            <Field
-              id="end"
-              label="Ends (optional)"
-              hint="Leave it empty if you’re not sure yet."
-              error={endBeforeStart ? "An event can’t end before it starts" : undefined}
-            >
-              <DateTimePopover
-                value={endAt}
-                onChange={(next) => {
-                  setEndAt(next);
-                  markDirty();
-                }}
-                disabled={locked}
-                placeholder="Pick an end date and time…"
-                minDate={startAt ? ymd(startAt) : undefined}
-                invalid={endBeforeStart}
-              />
-            </Field>
-          </div>
+      <div className={styles.columns}>
+        <div className={styles.stepColumn}>
+          {/* Every step stays on the page and three of them are out of sight.
+              Nothing typed, half uploaded or open in a step is lost by
+              looking at another one. */}
+          <Card padding="lg" className={styles.stepCard}>
+            <section hidden={step !== "basics"} aria-labelledby="editor-step-basics">
+              <h2 id="editor-step-basics" tabIndex={-1} className={styles.sectionTitle}>
+                Basics
+              </h2>
+              <p className={styles.sectionHint}>What it is, when and where.</p>
+              <div className={styles.fields}>
+                <Field
+                  id="title"
+                  label="Event title"
+                  hint="Shown on the events list and the event page."
+                >
+                  <Input
+                    id="title"
+                    value={title}
+                    onChange={(e) => {
+                      setTitle(e.target.value);
+                      markDirty();
+                    }}
+                    maxLength={TITLE_MAX}
+                    disabled={locked}
+                    placeholder="e.g. Board games and pizza"
+                  />
+                </Field>
 
-          <Field
-            id="location"
-            label="Location"
-            hint="The room, the venue or a link. Everyone sees it unless you hide it below."
-          >
-            <Input
-              id="location"
-              value={location}
-              onChange={(e) => {
-                setLocation(e.target.value);
-                markDirty();
-              }}
-              maxLength={LOCATION_MAX}
-              disabled={locked}
-              placeholder="e.g. Pope A17, Jubilee Campus"
-            />
-          </Field>
+                <div className={styles.twoCol}>
+                  <Field id="start" label="Starts" hint="In your own local time.">
+                    <DateTimePopover
+                      value={startAt}
+                      onChange={(value) => {
+                        setStartAt(value);
+                        markDirty();
+                      }}
+                      disabled={locked}
+                      placeholder="Pick a start date and time…"
+                    />
+                  </Field>
+                  <Field
+                    id="end"
+                    label="Ends (optional)"
+                    hint="Leave it empty if you’re not sure yet."
+                    error={endBeforeStart ? "An event can’t end before it starts" : undefined}
+                  >
+                    <DateTimePopover
+                      value={endAt}
+                      onChange={(value) => {
+                        setEndAt(value);
+                        markDirty();
+                      }}
+                      disabled={locked}
+                      placeholder="Pick an end date and time…"
+                      minDate={startAt ? ymd(startAt) : undefined}
+                      invalid={endBeforeStart}
+                    />
+                  </Field>
+                </div>
 
-          <Switch
-            checked={locationHidden}
-            onChange={(next) => {
-              setLocationHidden(next);
-              markDirty();
-            }}
-            disabled={locked}
-            label="Hide the exact location"
-            description="Only people with a confirmed place are shown it. Everyone else sees the wording you give below."
-          />
+                <Field
+                  id="location"
+                  label="Location"
+                  hint="The room, the venue or a link. Everyone sees it unless you hide it below."
+                >
+                  <Input
+                    id="location"
+                    value={location}
+                    onChange={(e) => {
+                      setLocation(e.target.value);
+                      markDirty();
+                    }}
+                    maxLength={LOCATION_MAX}
+                    disabled={locked}
+                    placeholder="e.g. Pope A17, Jubilee Campus"
+                  />
+                </Field>
 
-          {locationHidden && (
-            <Field
-              id="location-public-text"
-              label="What everyone else sees"
-              hint="The day and time still show."
-            >
-              <Input
-                id="location-public-text"
-                value={locationPublicText}
-                onChange={(e) => {
-                  setLocationPublicText(e.target.value);
-                  markDirty();
-                }}
-                maxLength={LOCATION_MAX}
-                disabled={locked}
-                placeholder="e.g. somewhere on University Park campus"
-              />
-            </Field>
-          )}
-
-          <div className={styles.twoCol}>
-            <Field id="visibility" label="Who can sign up?">
-              <ResponsiveSelect<EventVisibility>
-                value={visibility}
-                onChange={(next) => {
-                  setVisibility(next);
-                  markDirty();
-                }}
-                options={[
-                  { value: "public", label: "Anyone with the link" },
-                  { value: "members", label: "Only people with a naisi.uk account" },
-                ]}
-                disabled={locked}
-                ariaLabel="Who can sign up?"
-              />
-            </Field>
-
-            <Field id="capacity" label="Places (optional)" hint="Leave it empty for no limit.">
-              <Input
-                id="capacity"
-                type="number"
-                min={1}
-                inputMode="numeric"
-                value={capacity ?? ""}
-                onChange={(e) => {
-                  const n = Number(e.target.value);
-                  setCapacity(e.target.value === "" || Number.isNaN(n) ? null : Math.floor(n));
-                  markDirty();
-                }}
-                disabled={locked}
-                placeholder="e.g. 30"
-              />
-            </Field>
-          </div>
-
-          {/* For a drop-in: a social, a screening, a stall. The sign-up
-              settings around this are kept as they are and simply not used, so
-              switching back loses nothing. */}
-          <Switch
-            checked={noSignup}
-            onChange={(next) => {
-              setNoSignup(next);
-              markDirty();
-            }}
-            disabled={locked}
-            label="No sign-up needed"
-            description="People just turn up. The event page shows no form and offers add to calendar. The places, the waiting list and the questions are kept, and not used while this is on."
-          />
-
-          {capacity !== null && (
-            <Switch
-              checked={waitlistEnabled}
-              onChange={(next) => {
-                setWaitlistEnabled(next);
-                markDirty();
-              }}
-              disabled={locked}
-              label="Waiting list when it’s full"
-              description="If someone cancels, the next person on the list gets their place and an email."
-            />
-          )}
-        </div>
-      </Card>
-
-      <Card as="section" padding="lg">
-        <h2 className={styles.sectionTitle}>Cover image</h2>
-        <p className={styles.sectionHint}>
-          Optional. A banner across the top of the public event page.
-        </p>
-        <ImageUpload
-          draftId={event.id}
-          storagePrefix="event-images"
-          enableCrop
-          currentUrl={posterUrl ?? undefined}
-          onChange={({ url }) => {
-            const next = url || null;
-            // A freshly uploaded or replaced cover: open the branding picker.
-            if (next && next !== posterUrl) setBrandingModalOpen(true);
-            setPosterUrl(next);
-            markDirty();
-          }}
-          disabled={locked}
-        />
-        {posterUrl && (
-          <button
-            type="button"
-            className={styles.brandingChip}
-            onClick={() => setBrandingModalOpen(true)}
-            disabled={locked}
-          >
-            <span>
-              NAISI logo: <strong>{COVER_BRANDING_LABEL[coverBranding]}</strong>
-            </span>
-            <span className={styles.brandingChange}>Change</span>
-          </button>
-        )}
-      </Card>
-
-      <Card as="section" padding="lg">
-        <h2 className={styles.sectionTitle}>Description</h2>
-        <p className={styles.sectionHint}>What happens, and anything people should bring or know.</p>
-        <BlockEditor
-          draftId={event.id}
-          storagePrefix="event-images"
-          blocks={blocks}
-          onChange={(next) => {
-            setBlocks(next);
-            markDirty();
-          }}
-          disabled={locked}
-        />
-      </Card>
-
-      <Card as="section" padding="lg">
-        <h2 className={styles.sectionTitle}>Food</h2>
-        <p className={styles.sectionHint}>
-          If there&apos;s food, say what it is in plain words. It shows in its
-          own box on the event page, so nobody misses it.
-        </p>
-        <div className={styles.fields}>
-          <Field
-            id="food-text"
-            label="What’s the food?"
-            hint="Leave it empty if there’s no food at this event."
-          >
-            <Textarea
-              id="food-text"
-              value={foodText}
-              onChange={(e) => {
-                setFoodText(e.target.value);
-                markDirty();
-              }}
-              rows={2}
-              maxLength={FOOD_TEXT_MAX}
-              disabled={locked}
-              placeholder="e.g. Pizza from the Portland Building, with vegan and halal options"
-            />
-          </Field>
-
-          <fieldset className={styles.group}>
-            <legend className={styles.groupLabel}>Dietary tags (optional)</legend>
-            <p className={styles.groupHint}>
-              Tick the ones that are true of the food. They show as labels on the event page.
-            </p>
-            <div className={styles.tagRow}>
-              {FOOD_TAGS.map((tag) => (
-                <OptionRow
-                  key={tag}
-                  checked={dietaryTags.includes(tag)}
-                  onChange={(e) => {
-                    const on = e.target.checked;
-                    setDietaryTags((cur) =>
-                      on ? [...cur, tag] : cur.filter((t) => t !== tag),
-                    );
+                <Switch
+                  checked={locationHidden}
+                  onChange={(value) => {
+                    setLocationHidden(value);
                     markDirty();
                   }}
                   disabled={locked}
-                >
-                  {FOOD_TAG_LABEL[tag]}
-                </OptionRow>
-              ))}
-            </div>
-          </fieldset>
-        </div>
-      </Card>
-
-      <Card as="section" padding="lg">
-        <h2 className={styles.sectionTitle}>Sign-up questions</h2>
-        <p className={styles.sectionHint}>
-          Everyone gives their name and email. Ask anything else here.
-        </p>
-        <FormBuilder
-          questions={signupForm}
-          onChange={(next) => {
-            setSignupForm(next);
-            markDirty();
-          }}
-          disabled={locked}
-        />
-      </Card>
-
-      {canManageCollaborators && (
-        <Card as="section" padding="lg">
-          <h2 className={styles.sectionTitle}>Who can edit this</h2>
-          <p className={styles.sectionHint}>
-            Add committee members so they can help plan and edit this event.
-            They can change it until it has been sent for approval; after that
-            only approvers can.
-          </p>
-          <CollaboratorPicker eventId={event.id} />
-        </Card>
-      )}
-
-      {error && (
-        <Notice tone="warning" role="alert">
-          {error}
-        </Notice>
-      )}
-      {publishStatus.kind === "error" && (
-        <Notice tone="warning" role="alert" title="It wasn’t published.">
-          {publishStatus.message}
-        </Notice>
-      )}
-      {publishStatus.kind === "announced" && <Notice>{publishStatus.message}</Notice>}
-      {queuedAnnouncement !== null && (
-        // The QUEUED announcement's own state, off the event document rather
-        // than out of a publish response: the job finishes minutes after the
-        // request that queued it, and an approver who comes back tomorrow
-        // still needs to be able to see whether it went.
-        <Notice tone="neutral">{queuedAnnouncement}</Notice>
-      )}
-
-      {(editable || showSubmit || showApprove || showPublish) && (
-        <div className={styles.actionBar}>
-          <div className={styles.actions}>
-            {editable && (
-              <Button
-                variant={showApprove || showPublish ? "secondary" : "primary"}
-                onClick={onSave}
-                disabled={busy || !dirty || endBeforeStart}
-              >
-                {busy ? "Saving…" : "Save"}
-              </Button>
-            )}
-
-            {showSubmit && (
-              <Button
-                variant="secondary"
-                onClick={onSubmitForReview}
-                disabled={busy || endBeforeStart}
-              >
-                Send for approval
-              </Button>
-            )}
-
-            {showApprove && (
-              <Button onClick={onApprove} disabled={busy}>
-                Approve
-              </Button>
-            )}
-
-            {showPublish && (
-              <Button onClick={onPublish} disabled={publishStatus.kind === "publishing"}>
-                {publishStatus.kind === "publishing" ? "Publishing…" : "Publish"}
-              </Button>
-            )}
-
-            {canApprove && (status === "pending" || status === "approved") && (
-              <Button variant="ghost" onClick={onRevertToDraft} disabled={busy}>
-                Move back to draft
-              </Button>
-            )}
-          </div>
-
-          {editable && status === "published" && (
-            <OptionRow
-              plain
-              checked={notifyOnSave}
-              onChange={(e) => setNotifyOnSave(e.target.checked)}
-              disabled={busy}
-              description="If you changed the date, the time, the place or the description, you’re shown the email to check before it goes."
-            >
-              Email confirmed attendees about this change
-            </OptionRow>
-          )}
-
-          {showApprove && (
-            <div className={styles.sendBack}>
-              <Field
-                id="rejectNote"
-                label="Send it back with a note"
-                hint="Say what needs changing. The person running the event sees it."
-              >
-                <Input
-                  id="rejectNote"
-                  placeholder="e.g. Add the room, and say whether there’s food"
-                  value={rejectNote}
-                  onChange={(e) => setRejectNote(e.target.value)}
+                  label="Hide the exact location"
+                  description="Only people with a confirmed place are shown it. Everyone else sees the wording you give below."
                 />
-              </Field>
-              <Button variant="secondary" onClick={onReject} disabled={busy}>
-                Send back
-              </Button>
+
+                {locationHidden && (
+                  <Field
+                    id="location-public-text"
+                    label="What everyone else sees"
+                    hint="The day and time still show."
+                  >
+                    <Input
+                      id="location-public-text"
+                      value={locationPublicText}
+                      onChange={(e) => {
+                        setLocationPublicText(e.target.value);
+                        markDirty();
+                      }}
+                      maxLength={LOCATION_MAX}
+                      disabled={locked}
+                      placeholder="e.g. somewhere on University Park campus"
+                    />
+                  </Field>
+                )}
+              </div>
+            </section>
+
+            <section hidden={step !== "details"} aria-labelledby="editor-step-details">
+              <h2 id="editor-step-details" tabIndex={-1} className={styles.sectionTitle}>
+                Details
+              </h2>
+              <p className={styles.sectionHint}>
+                What people read on the event page, and who helps you plan it.
+              </p>
+
+              <div className={styles.part}>
+                <h3 className={styles.partTitle}>Cover image</h3>
+                <p className={styles.partHint}>
+                  Optional. A banner across the top of the public event page.
+                </p>
+                <ImageUpload
+                  draftId={event.id}
+                  storagePrefix="event-images"
+                  enableCrop
+                  // An event stores the image and nothing about it: the event
+                  // page reads the event's own title as the image's text. So
+                  // the two boxes for words that would be thrown away are not
+                  // drawn.
+                  hideTextFields
+                  currentUrl={posterUrl ?? undefined}
+                  onChange={({ url }) => {
+                    const value = url || null;
+                    // A freshly uploaded or replaced cover: open the branding picker.
+                    if (value && value !== posterUrl) setBrandingModalOpen(true);
+                    setPosterUrl(value);
+                    markDirty();
+                  }}
+                  disabled={locked}
+                />
+                {posterUrl && (
+                  <button
+                    type="button"
+                    className={styles.brandingChip}
+                    onClick={() => setBrandingModalOpen(true)}
+                    disabled={locked}
+                  >
+                    <span>
+                      NAISI logo: <strong>{COVER_BRANDING_LABEL[coverBranding]}</strong>
+                    </span>
+                    <span className={styles.brandingChange}>Change</span>
+                  </button>
+                )}
+              </div>
+
+              <div className={styles.part}>
+                <h3 className={styles.partTitle}>Description</h3>
+                <p className={styles.partHint}>
+                  What happens, and anything people should bring or know.
+                </p>
+                <BlockEditor
+                  draftId={event.id}
+                  storagePrefix="event-images"
+                  blocks={blocks}
+                  onChange={(value) => {
+                    setBlocks(value);
+                    markDirty();
+                  }}
+                  disabled={locked}
+                />
+              </div>
+
+              <div className={styles.part}>
+                <h3 className={styles.partTitle}>Food</h3>
+                <p className={styles.partHint}>
+                  If there&apos;s food, say what it is in plain words. It shows
+                  in its own box on the event page, so nobody misses it.
+                </p>
+                <div className={styles.fields}>
+                  <Field
+                    id="food-text"
+                    label="What’s the food?"
+                    hint="Leave it empty if there’s no food at this event."
+                  >
+                    <Textarea
+                      id="food-text"
+                      value={foodText}
+                      onChange={(e) => {
+                        setFoodText(e.target.value);
+                        markDirty();
+                      }}
+                      rows={2}
+                      maxLength={FOOD_TEXT_MAX}
+                      disabled={locked}
+                      placeholder="e.g. Pizza from the Portland Building, with vegan and halal options"
+                    />
+                  </Field>
+
+                  <fieldset className={styles.group}>
+                    <legend className={styles.groupLabel}>Dietary tags (optional)</legend>
+                    <p className={styles.groupHint}>
+                      Tick the ones that are true of the food. They show as labels on the event
+                      page.
+                    </p>
+                    <div className={styles.tagRow}>
+                      {FOOD_TAGS.map((tag) => (
+                        <OptionRow
+                          key={tag}
+                          checked={dietaryTags.includes(tag)}
+                          onChange={(e) => {
+                            const on = e.target.checked;
+                            setDietaryTags((cur) =>
+                              on ? [...cur, tag] : cur.filter((t) => t !== tag),
+                            );
+                            markDirty();
+                          }}
+                          disabled={locked}
+                        >
+                          {FOOD_TAG_LABEL[tag]}
+                        </OptionRow>
+                      ))}
+                    </div>
+                  </fieldset>
+                </div>
+              </div>
+
+              {canManageCollaborators && (
+                <div className={styles.part}>
+                  <h3 className={styles.partTitle}>Who can edit this</h3>
+                  <p className={styles.partHint}>
+                    Add committee members so they can help plan and edit this
+                    event. They can change it until it has been sent for
+                    approval; after that only approvers can. Adding or removing
+                    somebody is saved at once.
+                  </p>
+                  <CollaboratorPicker eventId={event.id} />
+                </div>
+              )}
+            </section>
+
+            <section hidden={step !== "signup"} aria-labelledby="editor-step-signup">
+              <h2 id="editor-step-signup" tabIndex={-1} className={styles.sectionTitle}>
+                Sign-up
+              </h2>
+              <p className={styles.sectionHint}>How people get a place and what you ask them.</p>
+              <div className={styles.fields}>
+                <div className={styles.twoCol}>
+                  <Field id="visibility" label="Who can sign up?">
+                    <ResponsiveSelect<EventVisibility>
+                      value={visibility}
+                      onChange={(value) => {
+                        setVisibility(value);
+                        markDirty();
+                      }}
+                      options={[
+                        { value: "public", label: "Anyone with the link" },
+                        { value: "members", label: "Only people with a naisi.uk account" },
+                      ]}
+                      disabled={locked}
+                      ariaLabel="Who can sign up?"
+                    />
+                  </Field>
+
+                  <Field
+                    id="capacity"
+                    label="Places (optional)"
+                    hint="Leave it empty for no limit."
+                  >
+                    <Input
+                      id="capacity"
+                      type="number"
+                      min={1}
+                      inputMode="numeric"
+                      value={capacity ?? ""}
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        setCapacity(
+                          e.target.value === "" || Number.isNaN(n) ? null : Math.floor(n),
+                        );
+                        markDirty();
+                      }}
+                      disabled={locked}
+                      placeholder="e.g. 30"
+                    />
+                  </Field>
+                </div>
+
+                {/* For a drop-in: a social, a screening, a stall. The sign-up
+                    settings around this are kept as they are and simply not used, so
+                    switching back loses nothing. */}
+                <Switch
+                  checked={noSignup}
+                  onChange={(value) => {
+                    setNoSignup(value);
+                    markDirty();
+                  }}
+                  disabled={locked}
+                  label="No sign-up needed"
+                  description="People just turn up. The event page shows no form and offers add to calendar. The places, the waiting list and the questions are kept, and not used while this is on."
+                />
+
+                {capacity !== null && (
+                  <Switch
+                    checked={waitlistEnabled}
+                    onChange={(value) => {
+                      setWaitlistEnabled(value);
+                      markDirty();
+                    }}
+                    disabled={locked}
+                    label="Waiting list when it’s full"
+                    description="If someone cancels, the next person on the list gets their place and an email."
+                  />
+                )}
+
+                <div>
+                  <h3 className={styles.partTitle}>Questions</h3>
+                  <p className={styles.partHint}>
+                    Everyone gives their name and email. Ask anything else here.
+                  </p>
+                  <FormBuilder
+                    questions={signupForm}
+                    onChange={(value) => {
+                      setSignupForm(value);
+                      markDirty();
+                    }}
+                    disabled={locked}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section hidden={step !== "send"} aria-labelledby="editor-step-send">
+              <h2 id="editor-step-send" tabIndex={-1} className={styles.sectionTitle}>
+                {lastLabel}
+              </h2>
+              <p className={styles.sectionHint}>
+                {status === "draft" || status === "rejected"
+                  ? "Check it over, then send it to an approver. Nothing is public until it has been approved and published."
+                  : status === "pending"
+                    ? "An approver checks it, then approves it or sends it back."
+                    : status === "approved"
+                      ? "It’s approved. Publishing puts it on the events page."
+                      : status === "published"
+                        ? "It’s on the events page."
+                        : "It stays at its link, marked as cancelled."}
+              </p>
+
+              <dl className={styles.summary}>
+                <div>
+                  <dt>When</dt>
+                  <dd>
+                    {startAt
+                      ? `${dayWords(startAt)} · ${timeRangeWords(startAt, endAt)}`
+                      : "No date yet"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Where</dt>
+                  <dd>
+                    {publicLocationLine({ location, locationHidden, locationPublicText })}
+                    {locationWithheld({ locationHidden }) && (
+                      <span className={styles.summaryNote}>
+                        The exact location is shown to confirmed places only.
+                      </span>
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Sign-up</dt>
+                  <dd>
+                    {noSignup
+                      ? "No sign-up needed. People just turn up."
+                      : [
+                          capacity === null ? "No limit on places" : `${capacity} places`,
+                          capacity !== null && waitlistEnabled ? "waiting list when it’s full" : null,
+                          signupForm.length === 0
+                            ? "no questions"
+                            : `${signupForm.length} question${signupForm.length === 1 ? "" : "s"}`,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Who it’s for</dt>
+                  <dd>
+                    {visibility === "members"
+                      ? "People with a naisi.uk account"
+                      : "Anyone with the link"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Food</dt>
+                  <dd>{foodText.trim() || "None said"}</dd>
+                </div>
+                <div>
+                  <dt>Cover image</dt>
+                  <dd>{posterUrl ? "Yes" : "None"}</dd>
+                </div>
+              </dl>
+
+              {problems.length > 0 && (
+                <div className={styles.todo}>
+                  <h3 className={styles.partTitle}>Still to do</h3>
+                  <ul className={styles.todoList}>
+                    {problems.map((p) => (
+                      <li key={p.message} className={styles.todoRow}>
+                        <span>{p.message}</span>
+                        <Button variant="ghost" size="sm" onClick={() => goTo(p.step)}>
+                          Go to {steps.find((s) => s.key === p.step)?.label}
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {editable && status === "published" && (
+                <div className={styles.part}>
+                  <OptionRow
+                    plain
+                    checked={notifyOnSave}
+                    onChange={(e) => setNotifyOnSave(e.target.checked)}
+                    disabled={busy}
+                    description="If you changed the date, the time, the place or the description, you’re shown the email to check before it goes."
+                  >
+                    Email confirmed attendees about this change
+                  </OptionRow>
+                </div>
+              )}
+
+              {showApprove && (
+                <div className={`${styles.part} ${styles.sendBack}`}>
+                  <Field
+                    id="rejectNote"
+                    label="Send it back with a note"
+                    hint="Say what needs changing. The person running the event sees it."
+                  >
+                    <Input
+                      id="rejectNote"
+                      placeholder="e.g. Add the room, and say whether there’s food"
+                      value={rejectNote}
+                      onChange={(e) => setRejectNote(e.target.value)}
+                    />
+                  </Field>
+                  <Button variant="secondary" onClick={onReject} disabled={busy}>
+                    Send back
+                  </Button>
+                </div>
+              )}
+
+              {publishStatus.kind === "error" && (
+                <Notice tone="warning" role="alert" title="It wasn’t published.">
+                  {publishStatus.message}
+                </Notice>
+              )}
+              {publishStatus.kind === "announced" && <Notice>{publishStatus.message}</Notice>}
+              {queuedAnnouncement !== null && (
+                // The QUEUED announcement's own state, off the event document rather
+                // than out of a publish response: the job finishes minutes after the
+                // request that queued it, and an approver who comes back tomorrow
+                // still needs to be able to see whether it went.
+                <Notice tone="neutral">{queuedAnnouncement}</Notice>
+              )}
+            </section>
+
+            {error && (
+              <Notice tone="warning" role="alert" className={styles.stepMessage}>
+                {error}
+              </Notice>
+            )}
+
+            <div className={styles.stepFoot}>
+              {previous && (
+                <Button variant="secondary" leading={<BackIcon />} onClick={() => goTo(previous.key)}>
+                  Back
+                </Button>
+              )}
+              <div className={styles.stepFootEnd}>
+                {editable && (
+                  <Button
+                    variant={
+                      step === "send" && !showSubmit && !showApprove && !showPublish
+                        ? "primary"
+                        : "secondary"
+                    }
+                    onClick={onSave}
+                    disabled={busy || !dirty || endBeforeStart}
+                  >
+                    {busy ? "Saving…" : "Save"}
+                  </Button>
+                )}
+                {next && (
+                  <Button trailing={<ForwardIcon />} onClick={() => goTo(next.key)}>
+                    Next: {next.label}
+                  </Button>
+                )}
+                {step === "send" && showRevert && (
+                  <Button variant="ghost" onClick={onRevertToDraft} disabled={busy}>
+                    Move back to draft
+                  </Button>
+                )}
+                {step === "send" && showSubmit && (
+                  <Button onClick={onSubmitForReview} disabled={busy || endBeforeStart}>
+                    Send for approval
+                  </Button>
+                )}
+                {step === "send" && showApprove && (
+                  <Button onClick={onApprove} disabled={busy}>
+                    Approve
+                  </Button>
+                )}
+                {step === "send" && showPublish && (
+                  <Button onClick={onPublish} disabled={publishStatus.kind === "publishing"}>
+                    {publishStatus.kind === "publishing" ? "Publishing…" : "Publish"}
+                  </Button>
+                )}
+              </div>
             </div>
+          </Card>
+
+          {step === "send" && (showCancel || showArchive || showDelete) && (
+            <Card as="section" padding="lg" className={styles.careful}>
+              <h2 className={styles.sectionTitle}>Careful</h2>
+              <ul className={styles.carefulList}>
+                {showCancel && (
+                  <li className={styles.carefulRow}>
+                    <div className={styles.carefulWords}>
+                      <strong>Cancel this event</strong>
+                      <span>
+                        It stays at its link, marked as cancelled. You choose whether the people
+                        coming are emailed.
+                      </span>
+                    </div>
+                    <Button variant="danger" onClick={openCancelModal} disabled={busy}>
+                      Cancel event…
+                    </Button>
+                  </li>
+                )}
+                {showArchive && (
+                  <li className={styles.carefulRow}>
+                    <div className={styles.carefulWords}>
+                      <strong>
+                        {event.archived ? "Bring this event back" : "Archive this event"}
+                      </strong>
+                      <span>
+                        {event.archived
+                          ? "It goes back to where it was in Manage events."
+                          : "It moves to the Archived tab in Manage events. Nothing is deleted, and you can bring it back."}
+                      </span>
+                    </div>
+                    <Button variant="secondary" onClick={onArchive} disabled={busy}>
+                      {event.archived ? "Unarchive" : "Archive"}
+                    </Button>
+                  </li>
+                )}
+                {showDelete && (
+                  <li className={styles.carefulRow}>
+                    <div className={styles.carefulWords}>
+                      <strong>Delete this event</strong>
+                      <span>
+                        The event, every sign-up and its images go for good. This can’t be undone.
+                      </span>
+                    </div>
+                    <Button variant="danger" onClick={onDelete} disabled={busy}>
+                      Delete event…
+                    </Button>
+                  </li>
+                )}
+              </ul>
+            </Card>
           )}
         </div>
-      )}
-
-      {(showCancel || showArchive || showDelete) && (
-        <Card as="section" padding="lg" className={styles.careful}>
-          <h2 className={styles.sectionTitle}>Careful</h2>
-          <ul className={styles.carefulList}>
-            {showCancel && (
-              <li className={styles.carefulRow}>
-                <div className={styles.carefulWords}>
-                  <strong>Cancel this event</strong>
-                  <span>
-                    It stays at its link, marked as cancelled. You choose whether the people coming
-                    are emailed.
-                  </span>
-                </div>
-                <Button variant="danger" onClick={openCancelModal} disabled={busy}>
-                  Cancel event…
-                </Button>
-              </li>
-            )}
-            {showArchive && (
-              <li className={styles.carefulRow}>
-                <div className={styles.carefulWords}>
-                  <strong>{event.archived ? "Bring this event back" : "Archive this event"}</strong>
-                  <span>
-                    {event.archived
-                      ? "It goes back to where it was in Manage events."
-                      : "It moves to the Archived tab in Manage events. Nothing is deleted, and you can bring it back."}
-                  </span>
-                </div>
-                <Button variant="secondary" onClick={onArchive} disabled={busy}>
-                  {event.archived ? "Unarchive" : "Archive"}
-                </Button>
-              </li>
-            )}
-            {showDelete && (
-              <li className={styles.carefulRow}>
-                <div className={styles.carefulWords}>
-                  <strong>Delete this event</strong>
-                  <span>
-                    The event, every sign-up and its images go for good. This can’t be undone.
-                  </span>
-                </div>
-                <Button variant="danger" onClick={onDelete} disabled={busy}>
-                  Delete event…
-                </Button>
-              </li>
-            )}
-          </ul>
-        </Card>
-      )}
+      </div>
 
       {cancelOpen && (
         <div
@@ -1639,6 +1861,44 @@ function ExternalIcon() {
       focusable="false"
     >
       <path d="M8 16L17 7M9 7h8v8" />
+    </svg>
+  );
+}
+
+function BackIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M15 6l-6 6 6 6" />
+    </svg>
+  );
+}
+
+function ForwardIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M5 12h14M13 6l6 6-6 6" />
     </svg>
   );
 }
