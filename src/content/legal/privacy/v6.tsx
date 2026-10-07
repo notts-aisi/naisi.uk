@@ -61,6 +61,10 @@
  *     also go to somebody who left them switched on when they set up their
  *     account, and a new version is put to a member the next time they open
  *     the member area, which is where the gate is.
+ * 14. **A changed degree or graduation.** A member's own change to either on
+ *     their profile is kept with what it said before, on their account
+ *     record, and admins see it on their page for that account (`studyWrite`
+ *     in `src/features/profile/studyChange.ts`).
  *
  * v5 IS FROZEN AS ACCEPTED. It is the wording members agreed to at sign-in
  * while it was current, so it is a digest in `tests/privacy-policy.test.mjs`
@@ -213,6 +217,12 @@ export default function PrivacyContentV6({
                   PhD, staff), subject or area of work, expected graduation
                   month if relevant, why you want to join, and a free-text
                   interests field.
+                </li>
+                <li>
+                  If you later change your degree (or area of work) or your
+                  expected graduation on your profile, we keep what it said
+                  before and when you changed it, as part of your account
+                  record. Admins see that on their page for your account.
                 </li>
                 <li>
                   Your notification preferences, broken down by channel (Google

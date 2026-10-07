@@ -2114,6 +2114,188 @@ describe("what loads from Google, and what the browser keeps", () => {
 });
 
 // ---------------------------------------------------------------------------
+// §2f The account record passage
+// ---------------------------------------------------------------------------
+
+/**
+ * One sentence under "When you register as a member" says that a member's own
+ * change to their degree or their expected graduation is kept with what it
+ * said before, and who is shown that. It is held here against the function
+ * the profile's save calls, the rule that refuses a save without the entry,
+ * and the one page that shows it.
+ *
+ * What the sentence is careful NOT to say is as much a part of it: it does
+ * not say only admins can read the record (it is part of the account record,
+ * which the Security section says who can read), and it does not say every
+ * change to a profile is kept.
+ */
+const studyChange = await loadTs("features/profile/studyChange.ts");
+
+describe("the account record passage", () => {
+  const SENTENCE =
+    /If you later change your degree \(or area of work\) or your expected graduation on your profile, we keep what it said before and when you changed it, as part of your account record\. Admins see that on their page for your account\./i;
+
+  test("a member's own change of degree or graduation is kept with what it said before, and an admin's page shows it", () => {
+    assert.match(PAGE_FLAT, SENTENCE);
+    // It is the item after the profile fields, under "When you register as a
+    // member": that list is where the page says what a profile holds.
+    const registering = PAGE_FLAT.slice(
+      PAGE_FLAT.indexOf("<h3>When you register as a member</h3>"),
+      PAGE_FLAT.indexOf("<h3>When you apply as an external collaborator</h3>"),
+    );
+    assert.ok(registering.length > 200, "could not find the passage about registering as a member");
+    assert.match(registering, SENTENCE);
+    assert.ok(
+      registering.indexOf("Profile fields you fill in") < registering.search(SENTENCE),
+      "the sentence about a changed degree is no longer after the item that lists the profile's fields",
+    );
+
+    // "We keep what it said before and when you changed it": the function the
+    // profile's save calls, run. A change of both leaves one entry holding
+    // what each said, and the time is the one it is handed, which the form
+    // makes the server's.
+    const write = studyChange.studyWrite({
+      role: "member",
+      stored: { subject: "BSc Mathematics", expectedGraduation: "2027-07" },
+      subject: "BSc Physics",
+      expectedGraduation: "2028-07",
+      noted: 0,
+      entryId: "entry1",
+      serverTime: "the server's time",
+    });
+    assert.equal(write.ok, true);
+    assert.deepEqual(write.patch["studyChanges.entry1"], {
+      at: "the server's time",
+      subject: "BSc Mathematics",
+      expectedGraduation: "2027-07",
+    });
+    // "If you later change": a first answer is not a change, and a save that
+    // changes neither field keeps nothing.
+    const first = studyChange.studyWrite({
+      role: "member",
+      stored: {},
+      subject: "BSc Physics",
+      expectedGraduation: "2028-07",
+      noted: 0,
+      entryId: "entry2",
+      serverTime: "the server's time",
+    });
+    assert.deepEqual(Object.keys(first.patch).sort(), ["profile.expectedGraduation", "profile.subject"]);
+    const same = studyChange.studyWrite({
+      role: "member",
+      stored: { subject: "BSc Physics", expectedGraduation: "2028-07" },
+      subject: "BSc Physics",
+      expectedGraduation: "2028-07",
+      noted: 0,
+      entryId: "entry3",
+      serverTime: "the server's time",
+    });
+    assert.deepEqual(same.patch, {});
+
+    // "On your profile": the profile's form sends what that function returns,
+    // in its one write, with the server's own time.
+    const form = read("src/features/profile/ProfileForm.tsx");
+    assert.match(form, /const study = studyWrite\(\{/);
+    assert.match(form, /serverTime: serverTimestamp\(\),/);
+    assert.match(form, /\.\.\.study\.patch,/);
+    // And a member's own save that changes either field without the entry is
+    // refused by the rule, so the record cannot be skipped from a console.
+    const rules = read("firestore.rules");
+    assert.match(rules, /function studyChangesHold\(\) \{/);
+    assert.match(
+      rules,
+      /&& studyChangesHold\(\)\)\)/,
+      "the users rule no longer holds a member's own update to the record of " +
+        "what their degree and graduation said before.",
+    );
+
+    // "As part of your account record": the entries are on the account's own
+    // document, and nothing under src copies them anywhere else. Every file
+    // that names them, and why it may.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bstudyChanges\b/),
+      new Map([
+        ["src/lib/firestore/users.ts", "the shape of an account document, which is where the entries are declared and read back"],
+        ["src/features/profile/studyChange.ts", "the one function that makes an entry, for the member's own save"],
+        ["src/features/profile/ProfileForm.tsx", "the member's own profile form, which counts the entries and sends the new one"],
+        ["src/features/admin/MemberItem.tsx", "the admin's page for one account, which hands the entries to the block that shows them"],
+      ]),
+      "naming the record of a changed degree or graduation",
+      "The policy says the record is kept as part of the account record and " +
+        "that admins see it on their page for the account. If this file " +
+        "copies it somewhere else, or shows it to somebody else, the " +
+        "sentence is wrong and a new version has to say so.",
+    );
+    assert.match(read("src/lib/firestore/users.ts"), /const studyChanges = asStudyChanges\(data\.studyChanges\);/);
+
+    // "Admins see that on their page for your account": one component draws
+    // it, one file mounts that component, and the page that file is drawn on
+    // is under the layout that admits an admin and nobody else.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bStudyChangeNotes\b/),
+      new Map([
+        ["src/features/admin/StudyChangeNotes.tsx", "the block that shows what a member's degree and graduation said before"],
+        ["src/features/admin/MemberItem.tsx", "the admin's page for one account, which is the one place the block is mounted"],
+      ]),
+      "showing what a degree or graduation said before",
+      "The policy says admins see it on their page for the account, and names nobody else.",
+    );
+    assert.match(read("src/features/admin/MemberItem.tsx"), /<StudyChangeNotes\b/);
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/from "(?:\.\/|@\/features\/admin\/)MemberItem"/),
+      new Map([["src/features/admin/MemberPage.tsx", "the page for one account, which draws that account's details"]]),
+      "drawing the admin's view of one account",
+      "The block that shows an earlier degree or graduation is on this view, which the policy says admins see.",
+    );
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/from "@\/features\/admin\/MemberPage"/),
+      new Map([
+        ["src/app/(app)/admin/(admin-only)/members/[uid]/page.tsx", "the admin area's page for one account, under the layout that admits an admin alone"],
+      ]),
+      "the page that draws one account for an admin",
+      "The policy says admins see the record on their page for the account.",
+    );
+    assert.match(read("src/app/(app)/admin/(admin-only)/layout.tsx"), /await requireAdminPage\(\);/);
+
+    // The account record goes when the account does, which is why the page's
+    // list of what a deletion removes needs no line of its own for this.
+    assert.match(PAGE_FLAT, /What a deletion removes\.<\/strong> Your account record and profile/i);
+    assert.match(read("src/lib/firestore/accountDeletion.ts"), /const userRef = db\.collection\("users"\)\.doc\(uid\);/);
+  });
+
+  test("the page does not say more about that record than is so", () => {
+    // Who is SHOWN the record is admins, on one page. Who can READ an account
+    // record is said in the Security section, and it is more people than
+    // admins: the committee members the Students' Union recognises can read
+    // members' account records, and this is part of one.
+    const at = PAGE_FLAT.indexOf("If you later change your degree");
+    assert.ok(at !== -1, "could not find the sentence about a changed degree");
+    assert.ok(
+      !/only admins (?:can )?(?:see|read) (?:that|it|what it said before)/i.test(PAGE_FLAT.slice(at, at + 500)),
+      "v6 says only admins can read what a degree or graduation said before. " +
+        "It is part of the account record, which the Security section says " +
+        "SU-recognised committee members can read as well.",
+    );
+    assert.match(
+      PAGE_FLAT,
+      /Member personal data is readable only by committee members the Students&apos; Union has formally recognised, and by admins/i,
+    );
+    // An account still waiting to be approved is not noted: what it holds is
+    // its join request, and its owner cannot open the profile page to change it.
+    const waiting = studyChange.studyWrite({
+      role: "pending",
+      stored: { subject: "BSc Mathematics" },
+      subject: "BSc Physics",
+      expectedGraduation: null,
+      noted: 0,
+      entryId: "entry4",
+      serverTime: "the server's time",
+    });
+    assert.deepEqual(Object.keys(waiting.patch), ["profile.subject"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // §3 The re-consent gate
 // ---------------------------------------------------------------------------
 
