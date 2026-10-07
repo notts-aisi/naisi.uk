@@ -20,10 +20,11 @@ body {
    * use --color-bg (a touch lighter), giving them subtle elevation
    * against this page floor.
    *
-   * Mirrored as PAGE_FLOOR in src/theme/brandColors.ts, which the web app
-   * manifest (background_color + theme_color) and the <meta name="theme-color">
-   * tag both read. Keep the two in sync. */
-  background: #050810;
+   * The value is --color-floor in src/theme/tokens.css. It is mirrored as
+   * PAGE_FLOOR in src/theme/brandColors.ts, which the web app manifest
+   * (background_color + theme_color) and the <meta name="theme-color"> tag
+   * both read. Keep the two in sync. */
+  background: var(--color-floor);
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -47,8 +48,13 @@ input, textarea, select {
   color: inherit;
 }
 
+/* The default focus state: the solid ring in --focus-ring, drawn as a
+   box-shadow as it always has been, so the many rules that reset the outline
+   and change only a border colour keep a ring. Forced colours remove every
+   box-shadow, so the outline is kept, transparent: it costs nothing here and
+   becomes the visible ring there. */
 :focus-visible {
-  outline: none;
+  outline: 2px solid transparent;
   box-shadow: var(--focus-ring);
   border-radius: var(--radius-md);
 }

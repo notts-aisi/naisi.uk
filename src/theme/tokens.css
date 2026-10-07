@@ -21,23 +21,45 @@
 :root,
 [data-theme="dark"] {
   /* surfaces */
-  --color-bg: #0a0e16;
-  --color-bg-elevated: #111726;
-  --color-surface: #1a2238;
+  --color-floor: #050810;          /* the page floor, behind everything */
+  --color-bg: #0a0e16;             /* alternating sections, the sidebar, the inside of an input */
+  --color-bg-elevated: #111726;    /* the footer */
+  --color-surface: #1a2238;        /* cards and panels, with a --color-border hairline */
   --color-surface-hover: #222b44;
   --color-border: #2a344d;
-  --color-border-strong: #3a4868;
+  --color-border-strong: #3a4868;  /* inputs and outlined buttons */
+  --color-control-border: #566284; /* the 1.5px edge of an unticked box */
 
-  /* text */
-  --color-text: #e6eaf2;
-  --color-text-muted: #8b94ac;
-  --color-text-subtle: #5b6785;
+  /* text. The ratios are against a card (--color-surface), the lightest
+     ground body text sits on, so each is higher everywhere else. */
+  --color-text: #e6eaf2;           /* 13.1:1 */
+  --color-text-soft: #c3cad9;      /* a lede on the floor */
+  --color-text-body: #b4bccf;      /* a paragraph inside a card, an idle nav link */
+  --color-text-muted: #8b94ac;     /* secondary text, 5.2:1 */
+  /* Was #5b6785, which is 2.8:1 on a card. It now reads as muted, so every
+     rule that uses it for small text passes without being touched. The old
+     value lives on as --color-text-faint. */
+  --color-text-subtle: #8b94ac;
+  --color-text-faint: #5b6785;     /* text of 18px and up only */
 
   /* brand */
-  --color-accent: #6a82ff;
+  --color-accent: #6a82ff;         /* fills, selection, the current-page line */
   --color-accent-hover: #7d92ff;
-  --color-accent-soft: rgba(106, 130, 255, 0.12);
+  /* The label on an accent fill: 5.96:1. White on the accent is 3.4:1, so no
+     accent fill carries a white label. */
+  --color-on-accent: #050810;
+  --color-accent-text: #9aa9ff;    /* the accent as text and links on a dark ground */
+  --color-accent-text-hover: #c2cbff;
+  --color-accent-soft: rgba(106, 130, 255, 0.14);
+  --color-accent-line: rgba(106, 130, 255, 0.35);
+  /* No longer the focus ring (see --focus-ring). Kept for the few accent
+     outlines that are not focus states and still read it. */
   --color-accent-ring: rgba(106, 130, 255, 0.4);
+
+  /* live: small live marks, date rules and focus. Never a large fill. */
+  --color-live: #22d3ee;
+  --color-live-soft: rgba(34, 211, 238, 0.12);
+  --color-live-line: rgba(34, 211, 238, 0.35);
 
   /* collaborator (external, non-UoN) — deliberately a different hue from the
      brand accent so the "Collaborate with us" join option reads as its own
@@ -45,16 +67,27 @@
   --color-collaborator-accent: #4fd1c5;
   --color-collaborator-soft: rgba(79, 209, 197, 0.12);
 
-  /* status */
+  /* status. A status colour always comes with a word. The -text and --color-ok
+     values are the ones to set type in: they hold 4.5:1 on a card and on their
+     own soft ground. --color-danger and --color-success stay for the rare fill. */
   --color-danger: #e5484d;
-  --color-danger-soft: rgba(229, 72, 77, 0.12);
+  --color-danger-text: #ff7a7f;
+  --color-danger-soft: rgba(229, 72, 77, 0.16);
+  --color-danger-line: rgba(255, 122, 127, 0.35);
   --color-success: #46a758;
-  --color-success-soft: rgba(70, 167, 88, 0.12);
+  --color-ok: #6fd185;
+  --color-success-soft: rgba(70, 167, 88, 0.16);
+  --color-ok-line: rgba(111, 209, 133, 0.35);
   --color-warning: #f5a524;
-  --color-warning-soft: rgba(245, 165, 36, 0.12);
+  --color-warning-soft: rgba(245, 165, 36, 0.14);
+  --color-warning-line: rgba(245, 165, 36, 0.35);
 
-  /* focus */
-  --focus-ring: 0 0 0 3px var(--color-accent-ring);
+  /* marker: one correction or aside per page, 24px and up. The homepage only. */
+  --color-marker: #ff4b1f;
+
+  /* focus: a solid 2px ring in the live colour. Every rule that draws its
+     focus state with this (as a box-shadow) follows without being touched. */
+  --focus-ring: 0 0 0 2px var(--color-live);
 }
 
 [data-theme="light"] {
@@ -103,6 +136,7 @@
   /* radii */
   --radius-sm: 4px;
   --radius-md: 8px;
+  --radius-row: 10px;      /* option rows, icon buttons, notices, date tiles */
   --radius-lg: 12px;
   --radius-xl: 16px;
   --radius-2xl: 24px;

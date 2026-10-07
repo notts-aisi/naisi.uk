@@ -7,8 +7,8 @@
  * Same mirroring convention as breakpoints.ts <-> tokens.css, for the same
  * reason.
  *
- * PAGE_FLOOR must stay in sync with `body { background }` in
- * src/app/globals.css.
+ * PAGE_FLOOR must stay in sync with `--color-floor` in src/theme/tokens.css,
+ * which `body { background }` in src/app/globals.css reads.
  */
 
 /**
