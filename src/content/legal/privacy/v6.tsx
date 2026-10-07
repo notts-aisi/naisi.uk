@@ -49,6 +49,18 @@
  *     address is verified (`sendHoldFor`).
  * 10. **Where the spam check runs.** The event sign-up form is named beside
  *     the registration and application forms, because it runs there too.
+ * 11. **Who is shown the SU membership answer.** Admins, on the decision-day
+ *     page, and nobody else (`SendGroupPerson` in
+ *     `src/lib/applications/decisionDay/views.ts`). It bears on no decision.
+ * 12. **Feedback is not promised.** v5 said we would tell an applicant what a
+ *     reviewer wrote. This page says feedback can be asked for and is not
+ *     promised, and points to "Your rights" for the right to a copy of the
+ *     data, scores and comments included. Admins see every application but
+ *     their own.
+ * 13. **Two sentences made exact.** The newsletter and event announcements
+ *     also go to somebody who left them switched on when they set up their
+ *     account, and a new version is put to a member the next time they open
+ *     the member area, which is where the gate is.
  *
  * v5 IS FROZEN AS ACCEPTED. It is the wording members agreed to at sign-in
  * while it was current, so it is a digest in `tests/privacy-policy.test.mjs`
@@ -452,9 +464,12 @@ export default function PrivacyContentV6({
                   answers to that programme&apos;s own questions a score from 1
                   to 5. A reviewer can also write a comment on any of your
                   answers, and an overall comment about your application.
-                  Scores and comments are personal data about you. If you ask
-                  us what a reviewer wrote about your application, we will tell
-                  you.
+                  Scores and comments are personal data about you. We do not
+                  send feedback on applications, and we cannot promise it for
+                  every one. If you would like some, email us and we will
+                  consider it. Your right to a copy of the data we hold about
+                  you, which includes these scores and comments, is under{" "}
+                  <a href="#your-rights">Your rights</a>.
                 </li>
                 <li>
                   <strong>The decision,</strong> its date, who made it, and the
@@ -666,11 +681,12 @@ export default function PrivacyContentV6({
                 <li>
                   <strong>The lead of each programme</strong> sees everything
                   a reviewer sees, and records the decision for that programme.
-                  Admins see every application, with your email addresses, and
-                  are the only ones who choose what somebody no programme took
-                  will hear and who send the decisions. Only admins can open
-                  what you wrote under access requirements, and each time one
-                  does it is recorded. A programme&apos;s lead cannot.
+                  Admins see every application but their own, with your email
+                  addresses, and are the only ones who choose what somebody no
+                  programme took will hear and who send the decisions. Only
+                  admins can open what you wrote under access requirements, and
+                  each time one does it is recorded. A programme&apos;s lead
+                  cannot.
                 </li>
                 <li>
                   <strong>Facilitators</strong> (students, in most cases only a
@@ -717,7 +733,8 @@ export default function PrivacyContentV6({
                 </li>
                 <li>
                   Send you the newsletter and event announcements where you
-                  have opted in to those.
+                  have opted in, or left them switched on when you set up your
+                  account.
                 </li>
                 <li>
                   Send push notifications to a device where you have turned
@@ -1206,12 +1223,12 @@ export default function PrivacyContentV6({
                 When we change this policy we will update the date at the top
                 of the page. We do not have to tell you by email. For changes
                 that materially affect how we use your data, the next time you
-                sign in you will be shown the new version and asked to accept
-                or decline it. Declining signs you out, and you can then email
-                us to have the account removed. The application form does not
-                ask that question: its last step says that sending your
-                application is agreeing to this policy, with the date it was
-                last updated. Earlier versions stay readable
+                open the member area you will be shown the new version and
+                asked to accept or decline it. Declining signs you out, and you
+                can then email us to have the account removed. The application
+                form does not ask that question: its last step says that
+                sending your application is agreeing to this policy, with the
+                date it was last updated. Earlier versions stay readable
                 at{" "}
                 <a href="/privacy/versions">/privacy/versions</a>.
               </p>

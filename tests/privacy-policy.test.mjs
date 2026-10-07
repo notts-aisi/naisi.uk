@@ -140,6 +140,8 @@ async function loadTs(relativePath) {
 
 const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
   await loadTs("lib/legal/policies.ts");
+/** The notification grid's own table of defaults, read by §2c and §2d. */
+const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
 const CURRENT = read("src/content/legal/privacy/v6.tsx");
@@ -566,7 +568,13 @@ const MUST_NAME = [
   // (`ApplicationQuestion.scored`, `ProgrammeSettings.useScores`).
   ["reviewer scores", /give each of your answers to that programme&apos;s own questions a score from 1 to 5/i],
   ["reviewer comments", /write a comment on any of your answers, and an overall comment about your application/i],
-  ["reviewer notes are disclosable", /what a reviewer wrote about your application, we will tell you/i],
+  // OWNER DECISION, 7 October 2026: feedback on an application is not
+  // promised. It can be asked for and will be considered. A copy of the
+  // personal data held about somebody, these scores and comments included,
+  // is their right, and "Your rights" is where the page says so: §2d holds
+  // that section to what it said before this sentence pointed at it.
+  ["feedback on an application is not promised, and can be asked for", /We do not send feedback on applications, and we cannot promise it for every one\. If you would like some, email us and we will consider it\./i],
+  ["scores and comments are within the right to a copy of your data", /Your right to a copy of the data we hold about you, which includes these scores and comments, is under(?:\{" "\})? <a href="#your-rights">Your rights<\/a>\./i],
   ["attendance registers", /present, arrived late, left early, absent, or\s*\{?"?\s*excused/i],
   ["participant notes", /private note about a named\s+participant/i],
   ["exercise responses", /Answers to exercises/i],
@@ -876,6 +884,42 @@ describe("the notification grid passage", () => {
     );
   });
 
+  test("the newsletter and event announcements go to people who opted in, or who left them switched on at account set-up", () => {
+    // OWNER DECISION, 7 October 2026: on the account set-up form the email
+    // switches start switched on. Somebody who leaves them on has not opted
+    // in, so the page must not say opting in is the only way these emails
+    // come to be sent.
+    assert.match(
+      CURRENT_FLAT,
+      /Send you the newsletter and event announcements where you have opted in, or left them switched on when you set up your account\./i,
+    );
+    assert.ok(
+      !/where you have opted in to those/i.test(CURRENT_FLAT),
+      "v6 says again that the newsletter and event announcements go only " +
+        "where somebody opted in. The account set-up form's switches start on.",
+    );
+    // The form draws a switch for each of the two, so leaving one on is
+    // something the person saw, and each starts switched on.
+    const setUp = read("src/app/(auth)/register/page.tsx");
+    const rows = /const REGISTER_CATEGORIES: NotificationCategory\[\] = \[([^\]]*)\];/.exec(setUp);
+    assert.ok(rows, "could not find the rows the account set-up form asks about");
+    assert.match(rows[1], /"newsletter"/);
+    assert.match(rows[1], /"events"/);
+    assert.match(setUp, /\{REGISTER_CATEGORIES\.map\(\(cat\) => \(/);
+    assert.match(setUp, /checked=\{prefs\.categories\[cat\]\}/);
+    assert.match(
+      setUp,
+      /categories: \{ newsletter: true, events: true, courses: true, tasks: true \},/,
+      "the account set-up form's email switches no longer start switched on, " +
+        "so the policy's \"or left them switched on\" describes a form that " +
+        "does not exist. Decide which is right and move the other.",
+    );
+    // Joining from the application form is the other way to make an account,
+    // and it starts both off: §2d runs that request.
+    assert.equal(notificationPrefs.DEFAULT_NOTIFICATION_PREFS.categories.newsletter, false);
+    assert.equal(notificationPrefs.DEFAULT_NOTIFICATION_PREFS.categories.events, false);
+  });
+
   test("says the notification choice is separate from the email choice", () => {
     assert.match(
       CURRENT_FLAT,
@@ -1025,7 +1069,6 @@ const joinRules = await loadTs("lib/applications/applicant/join.ts");
 const keptAnswers = await loadTs("features/applications/apply/keptAnswers.ts");
 const keptVersions = await loadTs("lib/applications/versions/kept.ts");
 const releaseReasons = await loadTs("lib/applications/status/reasons.ts");
-const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 describe("the application form passage", () => {
   const formWriter = read("src/lib/applications/editor/write.ts");
@@ -1122,6 +1165,101 @@ describe("the application form passage", () => {
       "the review screen no longer marks a waiting account, so the policy " +
         "says reviewers see something they are not shown.",
     );
+  });
+
+  test("feedback is not promised, and the right to a copy of what reviewers wrote is where the page points", () => {
+    // The sentence that promised to tell an applicant what a reviewer wrote
+    // has gone from the passage about reviewing, and the passage points at
+    // "Your rights" instead. So that section has to go on saying it.
+    assert.ok(
+      !/If you ask us what a reviewer wrote about your application, we will tell you/i.test(PAGE_FLAT),
+      "v6 promises again, where it describes reviewing, to tell an applicant " +
+        "what a reviewer wrote. Feedback is not promised: the right to a copy " +
+        "of the data is, under Your rights.",
+    );
+    const rights = PAGE_FLAT.slice(PAGE_FLAT.indexOf('<section id="your-rights"'), PAGE_FLAT.indexOf('<section id="security"'));
+    assert.ok(rights.length > 500, "could not find the Your rights section of the page");
+    assert.match(rights, /Ask for a copy of the personal data we hold about you\./i);
+    assert.match(
+      rights,
+      /A request for a copy of your data covers what other people have written about you as well as what you wrote yourself\. For courses that means the scores and notes a reviewer recorded on your application/i,
+    );
+    assert.match(rights, /Ask us and we will tell you\./i);
+    // And the passage's pointer is a link to that section.
+    assert.match(PAGE_FLAT, /is under(?:\{" "\})? <a href="#your-rights">Your rights<\/a>\./);
+  });
+
+  test("admins see every application but their own, on every screen the committee reads applications from", () => {
+    assert.match(PAGE_FLAT, /Admins see every application but their own, with your email addresses/i);
+    assert.ok(
+      !/Admins see every application, with your email addresses/i.test(PAGE_FLAT),
+      "v6 says again that an admin sees every application. An admin who has " +
+        "applied is not shown their own on any committee screen.",
+    );
+    // The review screens: the term a caller is shown leaves their own
+    // application out, and the screen for one application answers their own
+    // as it answers one that is not there.
+    assert.match(
+      read("src/lib/applications/review/term.ts"),
+      /\(application\) => application\.sent !== null && application\.uid !== viewerUid,/,
+      "the list of applications a caller reviews from no longer leaves their own out.",
+    );
+    assert.match(
+      read("src/lib/applications/review/load.ts"),
+      /if \(applicantUid === user\.uid\) return NOT_FOUND;/,
+      "the screen that reads one application now opens the caller's own.",
+    );
+    // Pooled applicants and decision day: one function leaves the viewer's
+    // own out before the term is planned, and both pages are built from it.
+    const plan = read("src/lib/applications/decisionDay/plan.ts");
+    assert.match(
+      plan,
+      /const shown = planTerm\(\s*form,\s*applications\.filter\(\(application\) => application\.uid !== viewerUid\),\s*decisions,\s*\);/,
+      "the term the two decision-day pages are built from no longer leaves the viewer's own application out.",
+    );
+    assert.match(read("src/lib/applications/decisionDay/pool.ts"), /loadTerm\(db, form, viewerUid\)/);
+    assert.match(read("src/lib/applications/decisionDay/send.ts"), /loadTerm\(db, form, viewerUid\)/);
+    // What somebody wrote under access requirements: an admin opens anybody's
+    // but their own.
+    assert.match(
+      read("src/lib/applications/review/accessRequirements.ts"),
+      /if \(applicantUid === user\.uid\) return NOT_FOUND;/,
+    );
+  });
+
+  test("a view-as session is shown nothing of a person's own application", () => {
+    // The page says an admin who opens the site as somebody sees it is given
+    // nothing they could not already see, and that the people reading an
+    // application see what was last sent and never the draft. A draft is
+    // seen by its author alone, so a session borrowed from them must not be
+    // shown it.
+    assert.match(PAGE_FLAT, /Doing so does not give them anything they could not already see/i);
+    assert.match(PAGE_FLAT, /see what you last sent, never the draft/i);
+    // Every handler of the applicant's own route refuses while a view-as
+    // session is live, the read included: the session is then not theirs.
+    const route = read("src/app/api/admissions/forms/[roundId]/application/route.ts");
+    const handlers = [...route.matchAll(/export\s+async\s+function\s+([A-Z]+)\s*\(/g)];
+    assert.ok(handlers.length >= 2, "the applicant's own route exports no handlers the scan can see");
+    for (const match of handlers) {
+      assert.match(
+        route.slice(match.index, match.index + 500),
+        /assertNotImpersonating\(\)/,
+        `the applicant's own ${match[1]} answers during a view-as session, so an admin is ` +
+          "shown a draft the policy says nobody but its author reads.",
+      );
+    }
+    // And the two pages that draw a person's own application draw a notice
+    // in its place, before anything of the application is read.
+    const form = read("src/features/applications/apply/ApplyScreen.tsx");
+    const formNotice = form.indexOf("if (viewingAs) {");
+    const formRead = form.indexOf("await loadApplicantView(");
+    assert.ok(formNotice !== -1 && formRead !== -1 && formNotice < formRead, "the form reads the application before it asks whether the session is a view-as session");
+    assert.match(form.slice(formNotice, formRead), /VIEW_AS_NOTICE\.title/);
+    const status = read("src/features/applications/status/renderApplicationStatus.tsx");
+    const statusNotice = status.indexOf("if (viewingAs) {");
+    const statusRead = status.indexOf("await loadStatus(");
+    assert.ok(statusNotice !== -1 && statusRead !== -1 && statusNotice < statusRead, "the page for one application reads it before it asks whether the session is a view-as session");
+    assert.match(status.slice(statusNotice, statusRead), /VIEW_AS_NOTICE\.title/);
   });
 
   test("the access-requirements box is where the page says, apart from the application, and only an admin opens it", () => {
@@ -1983,6 +2121,49 @@ describe("the re-consent gate", () => {
   test("lives on the shared authed layout, so every authed page passes it", () => {
     assert.match(AUTHED_LAYOUT, /CURRENT_POLICY_VERSION/);
     assert.match(AUTHED_LAYOUT, /redirect\("\/re-consent"\)/);
+  });
+
+  test("the page says when a member is asked: the next time they open the member area", () => {
+    // Not "the next time you sign in". The gate is on the layout every page
+    // of the member area passes through, and nowhere else: somebody who signs
+    // in from the application form goes back to the form, which is a public
+    // page, and is not asked there (the page says that too, and §2d holds it).
+    assert.match(
+      PAGE_FLAT,
+      /the next time you open the member area you will be shown the new version and asked to accept or decline it/i,
+    );
+    assert.ok(
+      !/the next time you sign in you will be shown/i.test(PAGE_FLAT),
+      "v6 says again that a member is asked at their next sign-in. They are " +
+        "asked the next time they open the member area.",
+    );
+    assert.match(AUTHED_LAYOUT, /redirect\("\/re-consent"\)/);
+    // Every place that asks, with comments left out so a note about the gate
+    // is not taken for one. It is a layout each time, never a sign-in: the
+    // member area's, and the space an external collaborator signs in to,
+    // which is that person's member area.
+    const asks = textFilesUnder(join(SRC, "app"))
+      .filter((file) => /\.tsx?$/.test(file))
+      .filter((file) =>
+        /redirect\("\/re-consent"\)/.test(
+          readFileSync(file, "utf8")
+            .replace(/\/\*[\s\S]*?\*\//g, " ")
+            .replace(/(^|[^:"'`])\/\/.*$/gm, "$1"),
+        ),
+      )
+      .map((file) => file.slice(REPO_ROOT.length + 1).split(sep).join("/"))
+      .sort();
+    assert.deepEqual(
+      asks,
+      ["src/app/(app)/layout.tsx", "src/app/collaborator/layout.tsx"],
+      "somewhere new asks a member to accept a new policy version, or one of " +
+        "the two layouts no longer does. The policy says when somebody is " +
+        "asked: check the sentence against where the gate now is.",
+    );
+    // Signing in is not where it happens: neither sign-in route asks.
+    for (const route of ["src/app/api/auth/session/route.ts", "src/app/(auth)/AuthEntry.tsx"]) {
+      assert.ok(!/re-consent/.test(read(route)), `${route} now sends somebody to accept a new version at sign-in`);
+    }
   });
 
   test("is not left behind on the dashboard layout alone", () => {
