@@ -1,0 +1,117 @@
+/* Projects (/admin/projects): a column of cards, one a project, and the form
+   that makes or changes one. */
+
+/* Cards of sentences and chips read best at a reading width: the page fills
+   the frame, and the list keeps to this. */
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 52rem;
+  min-width: 0;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.muted {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+/* === One project === */
+.card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  min-width: 0;
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+/* An archived project is still there to be read, and is drawn quieter. The
+   buttons keep their full strength. */
+.cardArchived .cardMain {
+  opacity: 0.65;
+}
+
+.cardMain {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.sub {
+  margin: 0.25rem 0 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+}
+
+.members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: var(--space-3);
+}
+
+.cardActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* === The form === */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .card {
+    padding: var(--space-4);
+  }
+  /* Edit and the "more" button drop under the project and keep to the left,
+     so the list that opens from "more" has the card's width to open into. */
+  .cardActions {
+    flex: 1 1 100%;
+  }
+  .cardActions > button {
+    min-height: 2.75rem;
+  }
+}

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
+import { AdminPanel, AdminProblem } from "./adminPanels";
+import panels from "./adminPanels.module.css";
 
 type Status =
   | { kind: "idle" }
@@ -39,80 +40,37 @@ export default function EmailPipeTest() {
   }
 
   return (
-    <Card padding="md">
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "var(--space-4)",
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-2)",
-              marginBottom: "var(--space-1)",
-            }}
-          >
-            <h3 style={{ fontSize: "var(--text-lg)" }}>Email pipeline</h3>
-            {status.kind === "sent" && <Badge tone="success">Sent</Badge>}
-            {status.kind === "held" && <Badge tone="neutral">Held</Badge>}
-            {status.kind === "error" && <Badge tone="danger">Error</Badge>}
-          </div>
-          <p
-            style={{
-              color: "var(--color-text-muted)",
-              fontSize: "var(--text-sm)",
-              margin: 0,
-            }}
-          >
-            Sends a test email to your own address via Gmail SMTP. Use this after changing SMTP
-            credentials or templates.
-          </p>
-        </div>
+    <AdminPanel
+      title="Email pipeline"
+      badges={
+        status.kind === "sent" ? (
+          <Badge tone="success">Sent</Badge>
+        ) : status.kind === "held" ? (
+          <Badge tone="neutral">Held</Badge>
+        ) : status.kind === "error" ? (
+          <Badge tone="danger">Error</Badge>
+        ) : undefined
+      }
+      description="Sends a test email to your own address. Use this after changing the mail settings or a template."
+      actions={
         <Button size="sm" onClick={onSend} disabled={status.kind === "sending"}>
           {status.kind === "sending" ? "Sending…" : "Send test to myself"}
         </Button>
-      </div>
+      }
+    >
       {status.kind === "sent" && (
-        <p
-          style={{
-            marginTop: "var(--space-3)",
-            fontSize: "var(--text-sm)",
-            color: "var(--color-text-muted)",
-          }}
-        >
+        <p className={panels.muted} role="status">
           Sent to {status.to}. If it doesn&apos;t arrive within a minute, check the spam folder and
           the server logs.
         </p>
       )}
       {status.kind === "held" && (
-        <p
-          style={{
-            marginTop: "var(--space-3)",
-            fontSize: "var(--text-sm)",
-            color: "var(--color-text-muted)",
-          }}
-        >
-          Held, not sent. This copy of the site is not allowed to email {status.to}. Site status
-          says who it can email.
+        <p className={panels.muted} role="status">
+          Held, not sent. This copy of the site is not allowed to email {status.to}. The site
+          notice and scheduled jobs page says who it can email.
         </p>
       )}
-      {status.kind === "error" && (
-        <p
-          style={{
-            marginTop: "var(--space-3)",
-            fontSize: "var(--text-sm)",
-            color: "var(--color-danger)",
-          }}
-        >
-          {status.message}
-        </p>
-      )}
-    </Card>
+      {status.kind === "error" && <AdminProblem>{status.message}</AdminProblem>}
+    </AdminPanel>
   );
 }

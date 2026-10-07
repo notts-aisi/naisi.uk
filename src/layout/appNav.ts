@@ -247,17 +247,17 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     id: "site",
     label: "Site settings",
     pages: [
-      { label: "Site notice and scheduled jobs", href: "/admin/site-status", match: under("/admin/site-status"), visible: ADMIN_ONLY },
-      { label: "Email delivery", href: "/admin/deliverability", match: under("/admin/deliverability"), visible: ADMIN_ONLY },
-      { label: "Sign-up problems", href: "/admin/registrations", match: under("/admin/registrations"), visible: ADMIN_ONLY },
-      { label: "Sign-up emails", href: "/admin/email-designs", match: under("/admin/email-designs"), visible: ADMIN_ONLY },
-      { label: "Projects", href: "/admin/projects", match: under("/admin/projects"), visible: ADMIN_ONLY },
-      { label: "Task templates", href: "/admin/task-templates", match: under("/admin/task-templates"), visible: ADMIN_ONLY },
-      { label: "Newsletter recipients", href: "/admin/newsletter", match: under("/admin/newsletter"), visible: ADMIN_ONLY },
+      { label: "Site notice and scheduled jobs", href: "/admin/site-status", match: under("/admin/site-status"), visible: ADMIN_ONLY, ownHead: true },
+      { label: "Email delivery", href: "/admin/deliverability", match: under("/admin/deliverability"), visible: ADMIN_ONLY, ownHead: true },
+      { label: "Sign-up problems", href: "/admin/registrations", match: under("/admin/registrations"), visible: ADMIN_ONLY, ownHead: true },
+      { label: "Sign-up emails", href: "/admin/email-designs", match: under("/admin/email-designs"), visible: ADMIN_ONLY, ownHead: true },
+      { label: "Projects", href: "/admin/projects", match: under("/admin/projects"), visible: ADMIN_ONLY, ownHead: true },
+      { label: "Task templates", href: "/admin/task-templates", match: under("/admin/task-templates"), visible: ADMIN_ONLY, ownHead: true },
+      { label: "Newsletter recipients", href: "/admin/newsletter", match: under("/admin/newsletter"), visible: ADMIN_ONLY, ownHead: true },
       // TEMP: fire-once data-wipe controls. Remove this entry along with
       // `src/app/(app)/admin/(admin-only)/danger-zone/` and
       // `src/app/api/admin/nuke-tasks/` once both environments have been reset.
-      { label: "Danger zone", href: "/admin/danger-zone", match: under("/admin/danger-zone"), visible: ADMIN_ONLY },
+      { label: "Danger zone", href: "/admin/danger-zone", match: under("/admin/danger-zone"), visible: ADMIN_ONLY, ownHead: true },
     ],
   },
 ];
