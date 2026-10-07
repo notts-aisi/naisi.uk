@@ -1,8 +1,15 @@
+/* A writing area is a field: the strong edge and the dark ground an input
+   has, and the cyan edge while the caret is inside it. */
 .wrap {
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
-  background: var(--color-bg-elevated);
+  background: var(--color-bg);
   overflow: hidden;
+  transition: border-color var(--transition-fast);
+}
+
+.wrap:focus-within {
+  border-color: var(--color-live);
 }
 
 .wrap[data-disabled] {
@@ -14,18 +21,22 @@
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
-  background: var(--color-surface);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-bg-elevated);
   border-bottom: 1px solid var(--color-border);
   flex-wrap: wrap;
 }
 
 .btn {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 2rem;
   padding: 0.3rem 0.55rem;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm, 4px);
-  color: var(--color-text);
+  border-radius: var(--radius-md);
+  color: var(--color-text-body);
+  font: inherit;
   font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
@@ -37,14 +48,14 @@
 
 .btn:hover:not(:disabled) {
   background: var(--color-surface-hover);
-  border-color: var(--color-border);
+  color: var(--color-text);
 }
 
 .btnActive,
-.btnActive:hover {
+.btnActive:hover:not(:disabled) {
   background: var(--color-accent-soft);
-  color: var(--color-accent);
-  border-color: var(--color-accent);
+  color: var(--color-accent-text);
+  border-color: var(--color-accent-line);
 }
 
 .btn:disabled {
@@ -61,48 +72,63 @@
 
 .linkRow {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
   margin-left: var(--space-2);
   padding-left: var(--space-2);
   border-left: 1px solid var(--color-border);
 }
 
+/* Wide while there is room, and it gives way before it can push the toolbar
+   past the edge of a narrow editor. */
 .linkInput {
+  flex: 1 1 12rem;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 2rem;
   padding: 0.3rem 0.55rem;
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm, 4px);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
   color: var(--color-text);
+  font: inherit;
   font-size: var(--text-sm);
-  min-width: 16rem;
 }
 
 .linkInput:focus {
   outline: none;
-  border-color: var(--color-accent);
+  border-color: var(--color-live);
+  box-shadow: var(--focus-ring);
 }
 
 .linkApply,
 .linkRemove,
 .linkCancel {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 2rem;
   padding: 0.3rem 0.55rem;
   background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font: inherit;
   font-size: var(--text-sm);
+  font-weight: 500;
   cursor: pointer;
 }
 
 .linkApply {
   background: var(--color-accent-soft);
-  color: var(--color-accent);
-  border-color: var(--color-accent);
+  color: var(--color-accent-text);
+  border-color: var(--color-accent-line);
 }
 
 .linkRemove {
-  color: var(--color-danger);
-  border-color: var(--color-danger);
+  color: var(--color-danger-text);
+  border-color: var(--color-danger-line);
 }
 
 .editor {
@@ -137,7 +163,7 @@
 }
 
 .editor a {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   text-decoration: underline;
 }
 
@@ -158,4 +184,9 @@
   content: "Write something…";
   color: var(--color-text-muted);
   pointer-events: none;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* TODO: mobile pass */
 }
