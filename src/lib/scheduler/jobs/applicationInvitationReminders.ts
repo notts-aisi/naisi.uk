@@ -67,6 +67,7 @@ import {
 import type { INVITATION_REMINDERS_JOB_ID } from "@/lib/applications/decisionDay/reminders";
 import { FORM_VERSION, type ApplicationDoc } from "@/lib/applications/model";
 import {
+  isApplicationForm,
   normaliseApplication,
   normaliseForm,
   type ApplicationForm,
@@ -94,10 +95,18 @@ type Summary = {
   noAddress: number;
 };
 
-/** Every application form. One equality on one field, so it needs no declared index. */
+/**
+ * Every application form. One equality on one field, so it needs no declared
+ * index. The query asks the database for forms, and each stored document is
+ * asked the contract's own question as well, so this job is held to the rule
+ * every other read of a round is: nothing is read as a form unless
+ * `isApplicationForm` says it is one.
+ */
 async function listForms(db: Firestore): Promise<ApplicationForm[]> {
   const snap = await db.collection(ROUNDS_COLLECTION).where("formVersion", "==", FORM_VERSION).get();
-  return snap.docs.map((doc) => normaliseForm(doc.id, doc.data()));
+  return snap.docs
+    .filter((doc) => isApplicationForm(doc.data()))
+    .map((doc) => normaliseForm(doc.id, doc.data()));
 }
 
 /** True when this person has switched course emails off. A failed read is not a refusal. */

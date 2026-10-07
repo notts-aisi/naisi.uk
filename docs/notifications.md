@@ -182,7 +182,7 @@ is that helper inverted, for the loops that hold a raw document and are asking
 | --- | --- | --- |
 | `newsletter` | `POST /api/newsletter/[id]/send`, the only sender that addresses this row | the same send, alongside its email loop |
 | `events` | the new-event announcement, on publish, inline or queued to the `event-announcements` job | the same announcement |
-| `courses` | the cohort announcement composer, the weekly session nudge, the run catch-up nudge, the admissions deadline reminder job, the admissions stage-release job | an admissions decision, an allocation publish, the stage release |
+| `courses` | the cohort announcement composer, the weekly session nudge, the run catch-up nudge, the admissions deadline reminder job, the admissions stage-release job, the daily invitation reminder job | an admissions decision, an allocation publish, the stage release |
 | `tasks` | the five `/api/tasks/[id]/*` senders, the four worksheet circulation messages, the worksheet due-soon reminder | a mirror beside each of those |
 
 **The two opt-in rows share one push audience shape**, in
@@ -233,6 +233,18 @@ The `courses` email senders resolve their audience through `resolveCohortAudienc
 which drops anybody whose row is a stored `false` before a message is rendered.
 The two admissions jobs read the row per recipient, off the user document they
 fetch for the name, and carry on with the opt-out unset when that read fails.
+
+**Invitation reminders (`application-invitation-reminders`).** Once a day, from
+10:00 London and never after 18:00, to everybody invited on decision day who
+has not replied, from the day after they were told up to their own reply-by
+day. Grid, courses row, email only: somebody who has switched course emails
+off gets the invitation itself (transactional) and not the reminders, and a
+user document that cannot be read is not a refusal. One a day is
+`invitation.lastReminderOn` on the application, written before the send; the
+job claims no scheduler marker. It registers with `enabledByDefault: false`.
+The Send decisions page tells admins that invited people are reminded only
+while one of the last three scheduled tick receipts lists this job as run, so
+switching it on where the tick is not armed changes nothing on that page.
 
 The `tasks` senders run **their gates in series, any one a skip**, and the
 member's row is always the last. The order of the gates above it is per lane,

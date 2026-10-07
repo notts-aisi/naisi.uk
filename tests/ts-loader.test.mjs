@@ -291,9 +291,9 @@ const USERS = new Map([
   ],
   [
     "applications-decision-day-emails.test.mjs",
-    "executes the pure email copy and renders the three decision-day templates through the real " +
-      "`@react-email/components`, because what an applicant reads is the property under test " +
-      "and the templates are `.tsx`",
+    "executes the pure email copy and the settings page's projection against the same form, " +
+      "and renders the three decision-day templates through the real `@react-email/components`, " +
+      "because what an applicant reads is the property under test and the templates are `.tsx`",
   ],
   [
     "applications-decision-day-plan.test.mjs",
@@ -309,9 +309,9 @@ const USERS = new Map([
   ],
   [
     "applications-decision-day-send.test.mjs",
-    "executes the decision-day send and its three routes against an in-memory Firestore and a " +
-      "mail door that records; its graph reaches the three `.tsx` templates, and what was handed " +
-      "to the door is rendered and read",
+    "executes the decision-day send, the account approval inside it and four route handlers " +
+      "against an in-memory Firestore and a mail door that records; its graph reaches the three " +
+      "`.tsx` templates, and what was handed to the door is rendered and read",
   ],
   [
     "applications-editor-routes.test.mjs",
@@ -363,6 +363,18 @@ const USERS = new Map([
     "executes the term page's numbers beside the loaders of the two screens they link to " +
       "(the programme's list and the pooled applicants), on one stored term, because a " +
       "button that says 23 is only right if the list behind it walks 23",
+  ],
+  [
+    "applications-wave-g-approve.test.mjs",
+    "executes the one function that approves a waiting account against an in-memory Firestore, " +
+      "as every kind of account and in every kind of approver's name, because it changes a role " +
+      "and what matters is what is written and what is left alone",
+  ],
+  [
+    "applications-wave-g-reminders.test.mjs",
+    "executes the invitation reminder job, its rule and its words against an in-memory " +
+      "Firestore and a mail door that records; its graph reaches the invitation `.tsx` " +
+      "template, and what was handed to the door is rendered and read",
   ],
   [
     "applications-own-keys.test.mjs",

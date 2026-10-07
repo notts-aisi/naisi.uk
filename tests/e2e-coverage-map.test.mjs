@@ -640,6 +640,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the first application form has closed on dev and a whole decision day is rehearsed there, because that rehearsal is the journey a spec would drive.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email": {
+    reason:
+      "Application system: /api/admissions/forms/[roundId]/programmes/[programmeId]/test-email mails one of a programme's decision emails to whoever asked, and they read the result in their own inbox; the route and its gate are executed as every kind of caller by tests/applications-decision-day-send.test.mjs.",
+    coverWhen:
+      "When the first application form has closed on dev and a whole decision day is rehearsed there, because that rehearsal is the journey a spec would drive.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
     reason:
       "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId] is pressed by a programme's lead or an admin who reads the outcome on the screen in front of them, and tests/applications-editor-routes.test.mjs executes it as every kind of caller.",

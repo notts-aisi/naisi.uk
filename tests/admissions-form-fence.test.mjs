@@ -407,6 +407,13 @@ const ROUND_SURFACES = {
       "names a programme's lead and reviewers through setProgrammeRoles, the one writer, " +
       "which asks whether the round is a form before its transaction and again inside it",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email": {
+    kind: "form",
+    why:
+      "mails whoever asked one of a programme's own decision emails. It loads the round with " +
+      "the form's own loader, which answers null for a round that is not a form, so no test is " +
+      "made from a round of the older kind and the caller is told the programme is not here",
+  },
   "/api/admissions/forms/[roundId]/review-settings": {
     kind: "form",
     why:
@@ -782,7 +789,7 @@ describe("every route, page and layout with a round id in its address", () => {
 
   test("the walk finds them", () => {
     assert.ok(
-      surfaces.length >= 41,
+      surfaces.length >= 42,
       `only ${surfaces.length} files with a [roundId] segment were found: the trees have moved`,
     );
   });
@@ -1181,6 +1188,18 @@ const ROUND_READERS = new Map([
         "walks every open round and tells everybody live on it about a newly released stage, by " +
         "email and by push. A form has no stages. It is left out of the walk and out of a run " +
         "named for one round, and counted",
+    },
+  ],
+  [
+    "src/lib/scheduler/jobs/applicationInvitationReminders.ts",
+    {
+      kind: "form",
+      asks: 1,
+      proof: ['.where("formVersion", "==", FORM_VERSION)', ".filter((doc) => isApplicationForm(doc.data()))"],
+      why:
+        "the daily reminder for an invitation nobody has answered, the form's own job. It asks " +
+        "the database for forms only, and asks each stored document the question again before " +
+        "it reads it as one, so nobody on a round of the older kind is ever sent it",
     },
   ],
 ]);

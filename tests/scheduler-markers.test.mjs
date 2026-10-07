@@ -49,6 +49,8 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { SEND_DOOR_CALL } from "./lib/sendDoors.mjs";
+import { stripSource } from "./lib/stripSource.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -777,10 +779,16 @@ describe("policyFor", () => {
     // THIS WALKS THE DIRECTORY rather than naming the two jobs that mail
     // today. A test that pins one job by name is a regression test for that
     // job; the rule belongs to the CLASS, and the third mailing job is the one
-    // nobody remembers to add a line for. "Can reach a person" is read off the
-    // imports, because a send door is a module boundary in this repo: nothing
-    // under `src/lib/scheduler/jobs` puts mail on the wire or a notification
-    // on a phone without importing `@/lib/email/…` or `@/lib/push/…`.
+    // nobody remembers to add a line for. "Can reach a person" is read two
+    // ways, and either one is enough: the job imports a module under
+    // `@/lib/email/…` or `@/lib/push/…`, or its code CALLS one of the tracked
+    // send doors (`tests/lib/sendDoors.mjs`). The second reading is here
+    // because a door is not always under those two folders: the decision-day
+    // door lives with the application form's code, and a job that mailed
+    // through it and imported nothing else would have read as a job that
+    // sends nothing.
+    const reachesAPerson = (src) =>
+      /from "@\/lib\/(email|push)\//.test(src) || SEND_DOOR_CALL.test(stripSource(src));
     const files = readdirSync(JOBS_DIR).filter((name) => name.endsWith(".ts"));
     assert.ok(files.length > 0, "no job modules were found to walk");
 
@@ -800,8 +808,7 @@ describe("policyFor", () => {
 
     for (const job of JOBS) {
       const { name, src } = idOf.get(job.id);
-      const sends = /from "@\/lib\/(email|push)\//.test(src);
-      if (!sends) continue;
+      if (!reachesAPerson(src)) continue;
       assert.equal(
         job.enabledByDefault,
         false,
@@ -813,8 +820,15 @@ describe("policyFor", () => {
     // The guard is only worth having while it has something to guard. If every
     // job stops importing a send door, this line says so rather than letting
     // the loop above pass by doing nothing.
-    const mailing = JOBS.filter((job) => /from "@\/lib\/(email|push)\//.test(idOf.get(job.id).src));
+    const mailing = JOBS.filter((job) => reachesAPerson(idOf.get(job.id).src));
     assert.ok(mailing.length >= 2, "no registered job reaches a send door any more");
+
+    // Each reading works alone: a job that only calls a door is caught, and so
+    // is one that only imports from a send folder. A call named in a comment
+    // is not a call.
+    assert.ok(reachesAPerson('import { sendDecisionEmail } from "@/lib/applications/decisionDay/deliver";\nawait sendDecisionEmail({ to });'));
+    assert.ok(reachesAPerson('import { wantsEmailForProfile } from "@/lib/email/preferences";'));
+    assert.ok(!reachesAPerson("// this job never calls sendEmail( itself\nexport const job = {};"));
   });
 
   test("a job that sends nothing does not have to be switched on", () => {

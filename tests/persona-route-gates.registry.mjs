@@ -649,6 +649,16 @@ export const ROUTES = {
         "decision, taken from the form once it is read.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Session required, then the body is validated before any document is read: a test has " +
+        "to name one of the programme's three emails, so every signed-in persona meets the same " +
+        "400 whether or not the programme exists. Who may ask (its lead or an admin) is decided " +
+        "from the form once it is read, and the test goes to the caller's own address.",
+    },
+  },
   "/api/admissions/forms/[roundId]/review-settings": {
     PUT: {
       expect: adminOnly(400),
