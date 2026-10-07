@@ -534,11 +534,69 @@ describe("a lookup answers only for a key the object itself holds", () => {
     assert.equal(keysModule.hasOwn(JSON.parse('{"__proto__":1}'), "__proto__"), true, "a key somebody really put there is its own");
   });
 
-  test("a key that may be written is an id, and not the one name that swaps a prototype", () => {
+  test("a key holding nothing reads as not there", () => {
+    assert.equal(keysModule.hasOwn({ empty: undefined }, "empty"), false);
+    assert.equal(keysModule.hasOwn(null, "real"), false);
+    assert.equal(keysModule.hasOwn(undefined, "real"), false);
+  });
+
+  test("the accessor is the contract's own, not a second one", async () => {
+    const contract = await loadTs(join("lib", "applications", "keys.ts"));
+    assert.equal(keysModule.own, contract.own);
+  });
+
+  test("a key that may be written is an id, and no name every object carries is one", () => {
     assert.equal(keysModule.isSafeKey("agi-strategy"), true);
-    assert.equal(keysModule.isSafeKey("constructor"), true, "an ordinary own key once written; the reads are what must be guarded");
-    for (const key of ["__proto__", "", "a.b", "a/b", 7, null, undefined]) {
+    // The contract's `isId` refuses every name a plain object answers to
+    // without owning it, so none of them can be the id of a programme, a
+    // question set or a question, and none can be written as a key. That
+    // includes `constructor`, which this test once allowed as an ordinary key,
+    // and `__proto__`, the one name whose assignment swaps a prototype.
+    const carried = Object.getOwnPropertyNames(Object.prototype);
+    assert.ok(carried.includes("constructor") && carried.includes("__proto__"));
+    for (const key of [...carried, "", "a.b", "a/b", 7, null, undefined]) {
       assert.equal(keysModule.isSafeKey(key), false, String(key));
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The own-key read, by a name that IS an id
+// ---------------------------------------------------------------------------
+
+describe("a well-formed id a map only inherits is still not in it", () => {
+  // Every name `Object.prototype` carries is refused as an id before any
+  // lookup, so those names no longer reach the own-key read at all. The case
+  // that does is an ordinary id the map answers to without holding it: a map
+  // whose prototype carries it. A plain `map[id]` finds it; `own` does not.
+  test("a programme", () => {
+    const base = form();
+    const programmes = Object.assign(Object.create({ ghost: programme({ shortName: "Ghost" }) }), base.programmes);
+    const haunted = { ...base, programmeIds: [...base.programmeIds, "ghost"], programmes };
+    assert.equal(normalise.isId("ghost"), true, "it has the shape of an id");
+    assert.equal(haunted.programmes.ghost.shortName, "Ghost", "and a plain lookup answers for it");
+    assert.deepEqual(draft.rankingOnForm(haunted, ["ghost", AGI], false), [AGI]);
+    assert.deepEqual(draft.rankingOnForm(haunted, ["ghost", AGI], true), [AGI]);
+    assert.deepEqual(draft.openProgrammeIds(haunted), [TAIS, AGI, INCUBATOR]);
+    assert.deepEqual(read(body({ rankedProgrammeIds: ["ghost", AGI] }), haunted).rankedProgrammeIds, [AGI]);
+  });
+
+  test("an answer", () => {
+    const answers = Object.create({ fellowships: { why: "inherited", name: "inherited" } });
+    answers[AGI] = Object.create({ event: "inherited" });
+    assert.equal(answers.fellowships.why, "inherited", "a plain lookup answers for the set");
+    assert.equal(answers[AGI].event, "inherited", "and for the question");
+    const stored = { ...read(body()), answers };
+    const cleaned = draft.cleanContent(stored, form(), SETS, ACCOUNT, "on-form");
+    assert.equal(JSON.stringify(cleaned).includes("inherited"), false);
+    assert.deepEqual(cleaned.answers[AGI], {});
+    assert.equal(Object.hasOwn(cleaned.answers, "fellowships"), false);
+  });
+
+  test("a status", () => {
+    const labels = Object.create({ professor: "Professor" });
+    assert.equal(labels.professor, "Professor");
+    assert.equal(keysModule.hasOwn(labels, "professor"), false);
+    assert.equal(keysModule.own(labels, "professor"), undefined);
   });
 });
