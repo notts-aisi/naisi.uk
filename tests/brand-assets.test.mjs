@@ -576,9 +576,11 @@ test("every copy of the emblem's outlines in src is one of the masters' two cuts
     ["src/components/BrandMark.tsx"],
     "the header cut's castle is written outside BrandMark.tsx. Draw a small emblem with BrandMark, which picks the cut by size.",
   );
-  // The other direction: an exception nothing draws any more is removed.
+  // The other direction: an exception nothing draws any more is removed, and
+  // so is one for an outline the masters have since taken in.
   for (const digest of Object.keys(OUTLINES_NOT_IN_THE_MASTERS)) {
     assert.ok(copies.some(({ text }) => sha(text) === digest), `no outline in src has the digest ${digest}. Remove the entry.`);
+    assert.ok(![...inTheMasters].some((outline) => sha(outline) === digest), `the outline with the digest ${digest} is in the masters now. Remove the entry.`);
   }
 });
 
