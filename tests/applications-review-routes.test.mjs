@@ -1504,6 +1504,36 @@ describe("accepting or pooling several at once", () => {
     assert.deepEqual([again.result.changed, again.result.unchanged], [1, 1], "Ben was pooled and is now accepted; Amara already was");
   });
 
+  test("pooling several at once leaves the reason a lead already gave for one of them", async () => {
+    const db = makeDb(seed());
+    // Amara is pooled on her own, with why and where she could suit.
+    const single = await decideAs(db, "claudia", "amara", {
+      programmeId: AGI,
+      decision: "pool",
+      poolReason: "better-fit",
+      couldSuitProgrammeId: TAIS,
+    });
+    assert.equal(single.changed, true);
+    const before = JSON.stringify(db.read(`admissionDecisions/${ROUND}__amara`));
+    const audited = auditRows(db).length;
+
+    // Then she is among several pooled at once, which carries no reason.
+    const outcome = await decide.decideMany(db, CAST.claudia, ROUND, AGI, { decision: "pool", uids: ["amara", "dev"] });
+    assert.deepEqual([outcome.result.changed, outcome.result.unchanged], [1, 1]);
+    assert.equal(JSON.stringify(db.read(`admissionDecisions/${ROUND}__amara`)), before);
+    assert.deepEqual(
+      [db.read(`admissionDecisions/${ROUND}__amara`).programmes[AGI].poolReason, db.read(`admissionDecisions/${ROUND}__amara`).programmes[AGI].couldSuitProgrammeId],
+      ["better-fit", TAIS],
+    );
+    assert.equal(db.read(`admissionDecisions/${ROUND}__dev`).programmes[AGI].poolReason, null);
+    assert.equal(auditRows(db).length, audited + 1, "one line for Dev, none for Amara");
+
+    // On her own, the reason can still be changed or cleared.
+    const cleared = await decideAs(db, "claudia", "amara", { programmeId: AGI, decision: "pool" });
+    assert.equal(cleared.changed, true);
+    assert.equal(db.read(`admissionDecisions/${ROUND}__amara`).programmes[AGI].poolReason, null);
+  });
+
   test("the same people who cannot decide one cannot decide many", async () => {
     const input = { decision: "pool", uids: ["amara"] };
     const db = makeDb(seed());
