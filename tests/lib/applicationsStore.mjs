@@ -23,7 +23,8 @@
  *    records written when a term settles);
  *  - a document reference that can write outside a transaction, and an
  *    automatic id for `doc()` with no argument (audit rows);
- *  - `arrayUnion` beside the other sentinels;
+ *  - `arrayUnion` beside the other sentinels, and the sentinels on the
+ *    handle's own class as well, where the member-record writer looks;
  *  - a clock the suite can move, for `serverTimestamp()`.
  *
  * ## The sentinels
@@ -49,6 +50,22 @@ export const FIELD_VALUE_STUB =
   " arrayRemove: (...values) => ({ __sentinel: 'arrayRemove', values })," +
   " };" +
   " export class Timestamp {}";
+
+/**
+ * The Admin SDK hangs its sentinels off the class of the database handle as
+ * well as exporting them, and the member-record writer reads
+ * `db.constructor.FieldValue` so that it needs no import of its own. The
+ * store is an instance of this class for that one reader.
+ */
+class Store {
+  static FieldValue = {
+    serverTimestamp: () => ({ __sentinel: "now" }),
+    delete: () => ({ __sentinel: "delete" }),
+    increment: (n) => ({ __sentinel: "increment", n }),
+    arrayUnion: (...values) => ({ __sentinel: "arrayUnion", values }),
+    arrayRemove: (...values) => ({ __sentinel: "arrayRemove", values }),
+  };
+}
 
 const isSentinel = (value, kind) =>
   value !== null && typeof value === "object" && value.__sentinel === kind;
@@ -226,7 +243,7 @@ export function makeDb(seed = {}, options = {}) {
     }
   }
 
-  const db = {
+  const db = Object.assign(new Store(), {
     stats,
     /** Runs once, after a transaction's function returns and before it commits. */
     beforeCommit: null,
@@ -291,6 +308,6 @@ export function makeDb(seed = {}, options = {}) {
     poke: (path, patch) => applyUpdate(path, patch),
     /** A document put there by the suite, whole. */
     seed: (path, data) => put(path, structuredClone(data)),
-  };
+  });
   return db;
 }
