@@ -573,7 +573,18 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
               <span className={styles.noteIcon}>
                 <Icon name="eye-off" size={16} />
               </span>
-              <span>Only you, admins and SU-recognised committee can see comments and scores.</span>
+              {/*
+                WHO THIS NAMES IS WHO `canReadApplication` LETS IN
+                (src/lib/applications/access.ts): an admin, or somebody with a
+                role, lead or reviewer, on a programme this person ranked. An
+                SU-recognised committee member named on none of them cannot
+                open this application at all. If that predicate changes, this
+                sentence changes with it: a test holds the two together.
+              */}
+              <span>
+                Only you, admins, and the lead and reviewers of each programme {applicant.firstName}{" "}
+                ranked can see comments and scores.
+              </span>
             </p>
 
             <hr className={`${styles.panelRule} ${styles.wideOnlyBlock}`} />
