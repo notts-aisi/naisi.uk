@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Badge from "@/components/ui/Badge";
+import Chip from "@/components/ui/Chip";
 import { POLICIES, type PolicyKey } from "@/lib/legal/policies";
 import styles from "@/content/legal/legal.module.css";
 
@@ -11,9 +11,9 @@ export default function PolicyVersionsIndex({ policy }: { policy: PolicyKey }) {
   return (
     <section className={styles.page}>
       <div className="container">
-        <div className={styles.inner}>
-          <Badge>Legal</Badge>
-          <h1 className={styles.heading}>{meta.label} — version history</h1>
+        <div className={styles.index}>
+          <p className="meta">Legal</p>
+          <h1 className={styles.heading}>{meta.label} version history</h1>
           <p className={styles.lede}>
             Every published version of our {meta.label}. The current version
             applies to your use of the site; earlier versions are kept for
@@ -28,17 +28,29 @@ export default function PolicyVersionsIndex({ policy }: { policy: PolicyKey }) {
                 >
                   Version {vrs.version}
                 </Link>
-                <span className={styles.versionMeta}>
-                  {vrs.lastUpdated}
-                  {vrs.version === current ? " · current" : ""}
-                </span>
+                <span className={styles.versionMeta}>{vrs.lastUpdated}</span>
+                {vrs.version === current ? <Chip tone="accent">Current</Chip> : null}
               </li>
             ))}
           </ul>
 
-          <p className={styles.meta}>
-            <Link className={styles.metaLink} href={meta.href}>
-              ← Back to the current {meta.label}
+          <p className={styles.back}>
+            <Link className={styles.backLink} href={meta.href}>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path d="M15 6l-6 6 6 6" />
+              </svg>
+              <span>Back to the current {meta.label}</span>
             </Link>
           </p>
         </div>
