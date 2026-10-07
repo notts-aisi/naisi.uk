@@ -1,5 +1,6 @@
 /**
- * Rules tests for the SIX ADMISSIONS COLLECTIONS (V3 W1).
+ * Rules tests for the SIX ADMISSIONS COLLECTIONS (V3 W1), and the two the
+ * application form adds beside them.
  *
  *   admissionRounds
  *   admissionRounds/{roundId}/stages/{stageId}
@@ -7,6 +8,8 @@
  *   admissionApplicationPrivate
  *   admissionReviews
  *   memberConductFlags
+ *   admissionRounds/{roundId}/questionSets/{setId}
+ *   admissionDecisions
  *
  * Every one of them is `allow read, write: if false`. A file that only
  * asserted "deny denies" would be worth nothing, so what is actually pinned
@@ -317,11 +320,66 @@ async function seedAdmissions() {
       .set({ accessRequirements: "I use a wheelchair and need a step-free room." });
     await db.collection("admissionReviews").doc(REVIEW_ID).set(reviewDoc());
     await db.collection("memberConductFlags").doc(APPLICANT).set(conductFlagDoc());
+    // The application form's two additions (src/lib/applications/): a
+    // question set under the round, and the decision document at the
+    // application's own id.
+    await round.collection("questionSets").doc(QUESTION_SET_ID).set(questionSetDoc());
+    await db.collection("admissionDecisions").doc(APPLICATION_ID).set(decisionDoc());
   });
 }
 
+/** A stream question set on an application form, shaped like a real one. */
+const QUESTION_SET_ID = "agi-strategy";
+
+function questionSetDoc(overrides = {}) {
+  return {
+    roundId: ROUND_ID,
+    role: "stream",
+    scope: { type: "programme", programmeId: "agi-strategy" },
+    label: "AGI Strategy",
+    intro: "",
+    questions: [
+      {
+        id: "q1",
+        text: "Pick something that happened in AI this year. Why does it matter?",
+        help: "",
+        type: "long",
+        options: [],
+        optionsFromRanking: false,
+        wordLimit: 300,
+        required: true,
+        scored: true,
+      },
+    ],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+/** One lead's decision for one programme, at the application's own id. */
+function decisionDoc(overrides = {}) {
+  return {
+    roundId: ROUND_ID,
+    uid: APPLICANT,
+    programmes: {
+      "agi-strategy": {
+        decision: "pool",
+        poolReason: "capacity",
+        couldSuitProgrammeId: null,
+        decidedByUid: "reviewer",
+        decidedAt: new Date(),
+      },
+    },
+    pooledOutcome: null,
+    exception: null,
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
 /**
- * The six collections, each with the document to read, the id a create would
+ * The eight collections, each with the document to read, the id a create would
  * legitimately target, and a payload shaped like the real thing.
  *
  * `ref` takes a Firestore instance so the same table drives both the
@@ -375,6 +433,25 @@ const COLLECTIONS = [
     createId: "drafter",
     payload: () => conductFlagDoc(),
     update: { flagged: false },
+  },
+  {
+    label: "admissionRounds/{roundId}/questionSets",
+    ref: (db) => db.collection("admissionRounds").doc(ROUND_ID).collection("questionSets"),
+    docId: QUESTION_SET_ID,
+    createId: "technical-ai-safety",
+    payload: () => questionSetDoc({ label: "Technical AI Safety" }),
+    update: { label: "Rewritten" },
+  },
+  {
+    // The sharpest of the eight to keep shut: an applicant who could read the
+    // document at their own application's id would learn each lead's decision
+    // before decision day.
+    label: "admissionDecisions",
+    ref: (db) => db.collection("admissionDecisions"),
+    docId: APPLICATION_ID,
+    createId: `${ROUND_ID}__drafter`,
+    payload: () => decisionDoc({ uid: "drafter" }),
+    update: { pooledOutcome: { kind: "no-offer", setByUid: "reviewer", setAt: new Date() } },
   },
 ];
 
@@ -459,6 +536,24 @@ describe("admissions: the plausible reads, refused for their own reasons", () =>
     );
     // Not even their OWN review row.
     await assertFails(db.collection("admissionReviews").doc(REVIEW_ID).get());
+  });
+
+  it("refuses an APPLICANT the decision document at their own application's id", async () => {
+    // The id is the applicant's to construct: `${roundId}__${theirUid}`. If
+    // this read ever succeeded they would learn each lead's Accept or Pool
+    // before decision day, which is the one thing the collection exists to
+    // prevent. A list scoped to themselves has to fail the same way.
+    await seedCast();
+    await seedAdmissions();
+    const db = await asUser(APPLICANT);
+    await assertFails(db.collection("admissionDecisions").doc(APPLICATION_ID).get());
+    await assertFails(db.collection("admissionDecisions").where("uid", "==", APPLICANT).get());
+    // Nor a reviewer on the round, from a browser: it comes through a route.
+    const reviewer = await asUser(REVIEWER);
+    await assertFails(reviewer.collection("admissionDecisions").doc(APPLICATION_ID).get());
+    await assertFails(
+      reviewer.collection("admissionDecisions").where("roundId", "==", ROUND_ID).get(),
+    );
   });
 
   it("refuses a FLAGGED MEMBER their own conduct flag, and an admin theirs too", async () => {

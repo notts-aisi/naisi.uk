@@ -2786,6 +2786,29 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // --- The application form (src/lib/applications/) --------------------
+    // Two more documents in the same posture as the six above, and written
+    // out for the same two reasons: a subcollection does not inherit its
+    // parent's rules, and a later wildcard must not open either silently.
+    //
+    //  - `.../questionSets` holds the questions a form asks. A route serves
+    //    them to whoever is applying, so nothing needs the client read.
+    //  - `admissionDecisions` holds each lead's decision per programme, the
+    //    outcome picked for a pooled applicant, and an admin's exception. Its
+    //    id IS the application's id, which is exactly why an own-row read is
+    //    refused: an applicant who could read the document at their own id
+    //    would learn the outcome before decision day publishes it. The
+    //    applicant's own document changes only when they act or when decision
+    //    day publishes, and this collection is where everything else waits.
+
+    match /admissionRounds/{roundId}/questionSets/{setId} {
+      allow read, write: if false;
+    }
+
+    match /admissionDecisions/{applicationId} {
+      allow read, write: if false;
+    }
+
     // === end V3 W1 PR4: admissions =======================================
 
     // =====================================================================

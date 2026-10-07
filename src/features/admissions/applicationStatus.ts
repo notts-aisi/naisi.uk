@@ -33,6 +33,9 @@ export const APPLICATION_STATUS_TONE: Record<AdmissionApplicationStatus, ChipTon
   rejected: "neutral",
   withdrawn: "neutral",
   appointed: "success",
+  invited: "accent",
+  "no-offer": "neutral",
+  declined: "neutral",
 };
 
 /**
@@ -95,5 +98,15 @@ export function applicationStatusBlurb(
       // enrolment round, which the decide route refuses. Said plainly rather
       // than left to fall through to an empty string.
       return "You have been appointed. Everything you need comes by email.";
+    // The three endings an application form adds (src/lib/applications/). The
+    // words are the ones its own pages use, so the hub and the page it links
+    // to say the same thing. Nobody is told they were pooled: that is the
+    // committee's word for how a decision was reached, not an outcome.
+    case "invited":
+      return "You’re invited to a programme you didn’t pick. Open your application to see which one, and accept your invitation to let us know you’re coming.";
+    case "no-offer":
+      return "We can’t offer you a place this term. We’ll email you when applications next open. Our events are open to everyone, so come along to one.";
+    case "declined":
+      return "We can’t offer you a place this term.";
   }
 }

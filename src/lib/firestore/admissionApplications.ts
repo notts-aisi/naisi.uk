@@ -59,6 +59,17 @@ import type { RsvpAnswer } from "./events";
 // Enums
 // ---------------------------------------------------------------------------
 
+/**
+ * The last three belong to an APPLICATION FORM (`src/lib/applications/`): what
+ * decision day tells somebody who was not placed by their own ranking. They
+ * are members of this one union, rather than a second one, because every
+ * application shares this collection and this field, and the status hub reads
+ * a person's applications across both kinds of round.
+ *
+ *  - `invited`: pooled, and offered a programme they did not pick.
+ *  - `no-offer`: pooled, with nothing else this term.
+ *  - `declined`: every programme they ranked declined them. Not emailed.
+ */
 export type AdmissionApplicationStatus =
   | "draft"
   | "submitted"
@@ -67,7 +78,10 @@ export type AdmissionApplicationStatus =
   | "waitlisted"
   | "rejected"
   | "withdrawn"
-  | "appointed";
+  | "appointed"
+  | "invited"
+  | "no-offer"
+  | "declined";
 
 export const ADMISSION_APPLICATION_STATUSES: AdmissionApplicationStatus[] = [
   "draft",
@@ -78,6 +92,9 @@ export const ADMISSION_APPLICATION_STATUSES: AdmissionApplicationStatus[] = [
   "rejected",
   "withdrawn",
   "appointed",
+  "invited",
+  "no-offer",
+  "declined",
 ];
 
 export const ADMISSION_APPLICATION_STATUS_LABEL: Record<
@@ -92,6 +109,9 @@ export const ADMISSION_APPLICATION_STATUS_LABEL: Record<
   rejected: "Not offered a place",
   withdrawn: "Withdrawn",
   appointed: "Appointed",
+  invited: "Invitation",
+  "no-offer": "No offer this time",
+  declined: "Declined",
 };
 
 /**
