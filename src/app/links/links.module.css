@@ -17,11 +17,12 @@
   flex-direction: column;
 }
 
-/* The one column, for the header's words and for everything under it. The
-   gutter is the page gutter; the inset only ever widens it. */
+/* The one column, for the header's words and for everything under it: 30rem
+   of words between two page gutters, so a wide window gets the same column
+   and not a narrower one. The inset only ever widens the gutter. */
 .column {
   width: 100%;
-  max-width: 32rem;
+  max-width: calc(30rem + 2 * var(--page-gutter, clamp(1.25rem, 3.4vw, 3rem)));
   margin-inline: auto;
   padding-left: max(var(--page-gutter, clamp(1.25rem, 3.4vw, 3rem)), env(safe-area-inset-left, 0px));
   padding-right: max(var(--page-gutter, clamp(1.25rem, 3.4vw, 3rem)), env(safe-area-inset-right, 0px));
