@@ -52,8 +52,9 @@
   --color-accent-text-hover: #c2cbff;
   --color-accent-soft: rgba(106, 130, 255, 0.14);
   --color-accent-line: rgba(106, 130, 255, 0.35);
-  /* No longer the focus ring (see --focus-ring). Kept for the few accent
-     outlines that are not focus states and still read it. */
+  /* No longer the focus ring (see --focus-ring), and nothing should read it:
+     an accent outline that is not a focus state is --color-accent-line. It
+     stays defined so a rule written before the change still resolves. */
   --color-accent-ring: rgba(106, 130, 255, 0.4);
 
   /* live: small live marks, date rules and focus. Never a large fill. */
@@ -151,6 +152,10 @@
   --content-max-width: 72rem;      /* 1152px */
   --prose-max-width: 44rem;        /* 704px */
   --header-height: 4rem;
+  /* The one side margin of a public page: 20px on a phone, 48px from about
+     1412px wide, as every board draws. The header, the footer and
+     `.container` all take it, so a page lines up with its frame. */
+  --page-gutter: clamp(1.25rem, 3.4vw, 3rem);
   --sidebar-width: 16rem;
 
   /* transitions */

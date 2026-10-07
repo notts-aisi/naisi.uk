@@ -148,6 +148,8 @@ export type ProgrammePatch = {
   groupSize?: string;
   useScores?: boolean;
   closed?: boolean;
+  /** A course's id, or null for no course page. */
+  courseId?: string | null;
   emailWording?: Partial<Record<ProgrammeEmailKind, EmailWording | null>>;
 };
 

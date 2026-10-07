@@ -48,7 +48,7 @@
 }
 
 .change:hover {
-  color: #c2cbff;
+  color: var(--color-accent-text-hover);
 }
 
 .change:focus-visible {

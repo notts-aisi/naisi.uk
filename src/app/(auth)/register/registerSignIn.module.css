@@ -276,7 +276,7 @@
   gap: var(--space-4);
   padding: var(--space-6);
   padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
-  background: #050810;
+  background: var(--color-floor);
   text-align: center;
 }
 .navPaneRow {

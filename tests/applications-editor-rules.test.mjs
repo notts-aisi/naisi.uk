@@ -631,6 +631,24 @@ describe("a programme's settings and who reviews it", () => {
     }
   });
 
+  test("the course a programme is for is a course's id, or nothing", () => {
+    assert.deepEqual(parse.parseProgrammeChange({ courseId: "agi-strategy-fellowship__a1b2c3d4" }).value, {
+      courseId: "agi-strategy-fellowship__a1b2c3d4",
+    });
+    // "No course page" is null, and an empty box means the same.
+    assert.deepEqual(parse.parseProgrammeChange({ courseId: null }).value, { courseId: null });
+    assert.deepEqual(parse.parseProgrammeChange({ courseId: "" }).value, { courseId: null });
+    // Anything that could not be a document's id is refused before a document is read:
+    // a path, a name every object carries, a number, a list.
+    for (const bad of ["courses/x", "a.b", "constructor", "__proto__", " ", 7, ["x"], { id: "x" }, true, "x".repeat(81)]) {
+      const refused = parse.parseProgrammeChange({ courseId: bad });
+      refusal(refused);
+      assert.equal(refused.error, parse.COURSE_NOT_ON_OFFER, JSON.stringify(bad));
+    }
+    // It travels with the other fields of one save.
+    assert.deepEqual(parse.parseProgrammeChange({ courseId: "c1", places: 12 }).value, { places: 12, courseId: "c1" });
+  });
+
   test("a wording is stored, two empty boxes are the standard wording, and null clears it", () => {
     const parsed = parse.parseProgrammeChange({
       emailWording: { accepted: { subject: " You’re in ", body: "Hello" }, invitation: { subject: "", body: " " }, declined: null },
@@ -781,8 +799,11 @@ describe("what the staff screens are handed", () => {
       ...context(),
       role: "lead",
       candidates: [{ uid: "yusuf", name: "Yusuf", fullName: "Yusuf Demir" }],
+      courses: [],
       applications: 0,
     });
+    assert.equal(setup.courseId, null, "a programme starts with no course page");
+    assert.deepEqual(setup.courses, []);
     assert.equal(setup.lockedSentence, null, "nobody has applied, so nothing is locked");
     assert.deepEqual(setup.lead, { uid: "claudia", name: "Claudia", you: true });
     assert.deepEqual(setup.reviewers, [{ uid: "lloyd", name: "Lloyd", you: false }]);
@@ -803,7 +824,7 @@ describe("what the staff screens are handed", () => {
 
   test("the lock sentence counts this programme's own applicants while it has any", () => {
     const locked = normalise.normaliseForm(ROUND, roundData({ applicationCounts: { submitted: 122 } }));
-    const base = { ...context(), role: "lead", candidates: [] };
+    const base = { ...context(), role: "lead", candidates: [], courses: [] };
     assert.equal(
       views.projectProgrammeForSetup(locked, SETS, locked.programmes[AGI], { ...base, applications: 57 }).lockedSentence,
       "57 people have applied, so the questions are locked.",
@@ -829,10 +850,51 @@ describe("what the staff screens are handed", () => {
       ...context(),
       role: "lead",
       candidates: [],
+      courses: [],
       applications: 0,
     });
     assert.equal(setup.emails[0].subject, "Welcome");
     assert.deepEqual(setup.emails[0].wording, { subject: "Welcome", body: "Hello" });
+  });
+
+  test("the course a programme is for, and the picker's entries, field by field", () => {
+    const tied = normalise.normaliseForm(
+      ROUND,
+      roundData({
+        programmes: {
+          ...roundData().programmes,
+          [AGI]: { ...roundData().programmes[AGI], courseId: "agi-strategy-fellowship__a1b2c3d4" },
+        },
+      }),
+    );
+    // What the loader hands over, with a field the screen is not for.
+    const courses = [
+      { id: "agi-strategy-fellowship__a1b2c3d4", label: "AGI Strategy Fellowship", standing: "published", selectable: true, authorUid: "zach" },
+      { id: "tais__e5f6a7b8", label: "A course that is not published yet", standing: "draft", selectable: false, title: "Unannounced" },
+    ];
+    const setup = views.projectProgrammeForSetup(tied, SETS, tied.programmes[AGI], {
+      ...context(),
+      role: "lead",
+      candidates: [],
+      courses,
+      applications: 0,
+    });
+    assert.equal(setup.courseId, "agi-strategy-fellowship__a1b2c3d4");
+    assert.deepEqual(setup.courses, [
+      { id: "agi-strategy-fellowship__a1b2c3d4", label: "AGI Strategy Fellowship", standing: "published", selectable: true },
+      { id: "tais__e5f6a7b8", label: "A course that is not published yet", standing: "draft", selectable: false },
+    ]);
+    assert.ok(!JSON.stringify(setup).includes("Unannounced"), "only the label the loader wrote leaves");
+  });
+
+  test("a stored course id that could not be one is read as no course", () => {
+    for (const bad of ["courses/x", "a.b", "constructor", "", 7, null, undefined, ["x"]]) {
+      const form = normalise.normaliseForm(
+        ROUND,
+        roundData({ programmes: { ...roundData().programmes, [AGI]: { ...roundData().programmes[AGI], courseId: bad } } }),
+      );
+      assert.equal(form.programmes[AGI].courseId, null, JSON.stringify(bad));
+    }
   });
 });
 

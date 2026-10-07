@@ -579,6 +579,31 @@ export const ROUTES = {
         "learns an application exists by asking.",
     },
   },
+  "/api/admissions/forms/[roundId]/application/access-requirements": {
+    GET: {
+      expect: signedIn(404, { rejected: 403 }),
+      why:
+        "The applicant lane (requireApplicant): a pending account is an applicant and is " +
+        "admitted, a rejected one is refused, and the form is then missing. It answers with " +
+        "the caller's own answer and nobody else's, so there is no role to tell apart.",
+    },
+    PUT: {
+      expect: signedIn(400, { rejected: 403 }),
+      why:
+        "The applicant lane, then the body is checked before any document is read: a save " +
+        "that carries no answer is a 400 for every session that gets past requireApplicant, " +
+        "and a rejected account is refused first.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/applications/[uid]/access-requirements": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Opening an applicant's access-requirements answer is admin only, decided before " +
+        "anything is read: a lead, a reviewer and every other session are forbidden in the " +
+        "same words whatever they asked about, and the admin is then told the form is missing.",
+    },
+  },
   "/api/admissions/forms/[roundId]/applications/[uid]/decision": {
     PUT: {
       expect: signedIn(400),

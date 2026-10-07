@@ -117,7 +117,7 @@ Always pass the `0px` fallback. Bare `env(safe-area-inset-top)` is invalid in a 
 
 Viewport-pinned and edge-anchored surfaces own their own insets:
 
-- Root chrome: `PublicHeader` (top, sides), `PublicFooter` (bottom), the `(auth)` shell (top, sides), `globals.css` `.container` (sides)
+- Root chrome: `PublicHeader` (top, sides), `PublicFooter` (bottom, sides), the `(auth)` shell (top, sides, at every width) and its legal links (bottom), `globals.css` `.container` (sides)
 - `AppShell`: the mobile top strip (top, sides), the fixed sidebar (left, bottom), the floating collapse pill (top, right), the main content area (sides, bottom), the impersonation banner (offset by the strip's full height)
 - Overlays: `Drawer`, `Dropdown`, `PersonSelector`, `TaskDetailModal`, `SubtaskDetailModal`, `AdminTabs`, `SiteNoticeBanner`, the register sticky action bar
 

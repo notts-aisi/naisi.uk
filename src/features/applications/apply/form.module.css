@@ -21,9 +21,9 @@
    row lifted while ranking) can carry them too. */
 .tokens {
   /* Secondary text set on a card, lighter than the muted token. */
-  --ap-soft: #b4bccf;
+  --ap-soft: var(--color-text-body);
   /* The outline of an empty tick box or radio. */
-  --ap-ring: #566284;
+  --ap-ring: var(--color-control-border);
   /* An icon on a control that cannot be pressed. */
   --ap-quiet: #4a5574;
   --ap-selected: color-mix(in srgb, var(--color-accent) 14%, transparent);
@@ -871,7 +871,7 @@
 
 .inlineLink:hover,
 .textLink:hover {
-  color: #c2cbff;
+  color: var(--color-accent-text-hover);
 }
 
 /* Pulls a link that carries its own 44px of height up towards the block above it. */
@@ -986,7 +986,7 @@
 }
 
 .joinSignIn:hover {
-  color: #c2cbff;
+  color: var(--color-accent-text-hover);
 }
 
 .joinSignIn:focus-visible {

@@ -17,6 +17,11 @@ import { getCurrentUser } from "@/lib/firebase/session";
  * the caller's own session and is never taken from the request, so a test can
  * reach nobody but the person who asked for it. It tells no applicant anything
  * and writes nothing to any application.
+ *
+ * A TEST THAT GOES IS RECORDED ON THE FORM: who sent it, when, and the wording
+ * it was made from. Decision day cannot be sent without one, so `recorded`
+ * comes back with the answer. A test this copy of the site held, or one to an
+ * address on the do-not-email list, reached nobody and is not recorded.
  */
 
 type Ctx = { params: Promise<{ roundId: string }> };
@@ -57,5 +62,11 @@ export async function POST(req: Request, ctx: Ctx) {
 
   const sent = await sendTestEmail(db, { uid: user.uid, email: user.email }, roundId, kind);
   if (!sent.ok) return NextResponse.json({ error: sent.error }, { status: sent.status });
-  return NextResponse.json({ ok: true, kind, delivery: sent.delivery, subject: sent.subject });
+  return NextResponse.json({
+    ok: true,
+    kind,
+    delivery: sent.delivery,
+    subject: sent.subject,
+    recorded: sent.recorded,
+  });
 }
