@@ -10,6 +10,7 @@ import type { AboutYou, AnswerValue, ApplicationContent, SuMembershipAnswer } fr
 import { applicableSets, openProgrammes, rankedProgrammes, stepsFor } from "@/lib/applications/sections";
 import { contentForSend, issuesFor, optionsFor } from "@/lib/applications/validate";
 import { withAccountEmail } from "@/lib/applications/applicant/account";
+import { mustVerifyBeforeSending } from "@/lib/applications/applicant/join";
 import { own } from "@/lib/applications/applicant/keys";
 import { emptyContent, formShapeOf, questionSetsOf, sameContent } from "@/lib/applications/applicant/shape";
 import type {
@@ -28,6 +29,7 @@ import ChooseStep from "./ChooseStep";
 import FacilitatingStep from "./FacilitatingStep";
 import QuestionsStep from "./QuestionsStep";
 import RankStep from "./RankStep";
+import { UniversityCheckHold, UniversityCheckNote } from "./UniversityCheck";
 import { sendApplication, type SendIssue } from "./applyClient";
 import { paintedSlots, summaryLines } from "./availabilityText";
 import { ArrowRightIcon, BackIcon, CloseIcon, SendIcon, TickIcon } from "./icons";
@@ -40,7 +42,9 @@ import {
   stepIndexOf,
   stepLabel,
 } from "./steps";
+import { forgetAnswers } from "./keptAnswers";
 import { useDraftSaver, type SaveState } from "./useDraftSaver";
+import { useUniversityCheck } from "./useUniversityCheck";
 import styles from "./form.module.css";
 
 /**
@@ -73,6 +77,16 @@ import styles from "./form.module.css";
  * Everything typed is saved to the DRAFT. Sending copies the draft into the
  * application of record. After a send, changes go on being saved to the draft
  * and the form says, on the last step, that they have not been sent yet.
+ *
+ * ## A university address that is still to be checked
+ *
+ * An account that is waiting to be approved can fill the whole form in and
+ * save it, and cannot SEND it until its owner has followed the link emailed
+ * to their university address. The send route is what refuses
+ * (`sendHoldFor`). The form says so where it matters, under the address on
+ * About you and at the top of the last step, offers to send the link again,
+ * and notices by itself when the link has been followed
+ * (`useUniversityCheck`).
  */
 
 type Props = {
@@ -163,6 +177,21 @@ export default function ApplicationForm({
   });
   const { changed, flush } = saver;
 
+  const check = useUniversityCheck({
+    roundId: form.id,
+    address: account.universityEmail,
+    preferredName: content.aboutYou.preferredName,
+    verified: account.universityEmailVerified,
+    // The same rule the send route applies, which is the account's role.
+    required: mustVerifyBeforeSending(pending ? "pending" : "member") && !viewingAs,
+  });
+
+  // Somebody who reaches the form has a join request, so anything the join
+  // step kept in this tab for them has done its job.
+  useEffect(() => {
+    forgetAnswers(form.id);
+  }, [form.id]);
+
   const update = useCallback(
     (change: (current: ApplicationContent) => ApplicationContent) => {
       const next = change(contentRef.current);
@@ -173,6 +202,15 @@ export default function ApplicationForm({
     },
     [changed],
   );
+
+  // The draft carries the account's verified flag (the server writes it on
+  // every save). When the link is followed while the form is open, the copy
+  // on the screen follows, so what is sent reads as what is on the screen.
+  const checked = check.verified;
+  useEffect(() => {
+    if (!checked || contentRef.current.aboutYou.universityEmailVerified) return;
+    update((current) => ({ ...current, aboutYou: { ...current.aboutYou, universityEmailVerified: true } }));
+  }, [checked, update]);
 
   // --- what this person is asked, worked out from what they have entered ---
   const steps = stepsFor(shape, setDocs, content);
@@ -214,6 +252,7 @@ export default function ApplicationForm({
 
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const noticeRef = useRef<HTMLDivElement | null>(null);
+  const holdRef = useRef<HTMLDivElement | null>(null);
   const [moved, setMoved] = useState(0);
 
   const hrefFor = useCallback((id: string) => `?${STEP_PARAM}=${encodeURIComponent(id)}`, []);
@@ -330,6 +369,16 @@ export default function ApplicationForm({
     if (issues.length > 0) {
       window.requestAnimationFrame(() => noticeRef.current?.focus());
       return;
+    }
+    if (check.held) {
+      // The link may have been followed since this page last asked.
+      setSending(true);
+      const verified = await check.refresh();
+      if (!verified) {
+        setSending(false);
+        window.requestAnimationFrame(() => holdRef.current?.focus());
+        return;
+      }
     }
     setSending(true);
     // Saved again whatever this page thinks is stored, so that what is sent
@@ -647,9 +696,11 @@ export default function ApplicationForm({
               key="about"
               about={content.aboutYou}
               email={{
+                kind: "account",
                 address: account.universityEmail,
-                verified: account.universityEmailVerified,
+                verified: check.verified,
                 profileHref: pending ? null : "/profile",
+                check: check.held ? <UniversityCheckNote check={check} /> : null,
               }}
               onChange={setAbout}
               problems={problemsOn("about")}
@@ -716,6 +767,7 @@ export default function ApplicationForm({
               sent={sentState}
               sendError={sendError}
               noticeRef={noticeRef}
+              hold={check.held ? <UniversityCheckHold check={check} noticeRef={holdRef} /> : null}
             />
           ) : null}
 

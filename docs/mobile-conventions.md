@@ -118,8 +118,18 @@ Always pass the `0px` fallback. Bare `env(safe-area-inset-top)` is invalid in a 
 Viewport-pinned and edge-anchored surfaces own their own insets:
 
 - Root chrome: `PublicHeader` (top, sides), `PublicFooter` (bottom, sides), the `(auth)` shell (top, sides, at every width) and its legal links (bottom), `globals.css` `.container` (sides)
-- `AppShell`: the mobile top strip (top, sides), the fixed sidebar (left, bottom), the floating collapse pill (top, right), the main content area (sides, bottom), the impersonation banner (offset by the strip's full height)
-- Overlays: `Drawer`, `Dropdown`, `PersonSelector`, `TaskDetailModal`, `SubtaskDetailModal`, `AdminTabs`, `SiteNoticeBanner`, the register sticky action bar
+- `AppShell`: the phone's top bar (top, sides), its bottom bar (bottom, sides), the fixed sidebar (left, bottom), the floating collapse pill (top, right), the main content area (sides; its bottom padding is the bottom bar's height, which already counts the home indicator), the impersonation banner (offset by the top bar's full height)
+- Overlays: `Drawer`, `Dropdown`, `PersonSelector`, `TaskDetailModal`, `SubtaskDetailModal`, `SiteNoticeBanner`, the register sticky action bar
+
+### Things stuck to the bottom of the window
+
+Below 60rem the signed-in frame fixes a bar to the bottom of the window. `AppShell.module.css` publishes the space it takes as `--app-bottom-inset`: the bar and the home indicator beneath it, and `0px` where there is no bar. Anything a page sticks or fixes to the bottom of the window inside the frame adds it to its own `bottom`:
+
+```css
+bottom: calc(var(--space-4) + var(--app-bottom-inset, 0px));
+```
+
+Keep the `0px` fallback: a component can also be drawn outside the frame, where the property does not exist. A full-screen overlay needs nothing, because it covers the bar. `tests/app-frame.test.mjs` walks every stylesheet and fails a fixed or sticky rule with a `bottom` that does neither.
 
 ### Two deliberate non-decisions
 

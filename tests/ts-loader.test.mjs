@@ -290,6 +290,13 @@ const USERS = new Map([
       "counters are transactions and only running them shows what was written",
   ],
   [
+    "applications-d2-delta-join.test.mjs",
+    "executes the rules of joining on the application form (src/lib/applications/applicant/join.ts: " +
+      "what stops a join request, what is sent as one, what is kept while somebody signs in, " +
+      "what holds a send) against the contract's own About you rules and the site's notification " +
+      "defaults, because each is a promise only running the function shows is kept",
+  ],
+  [
     "applications-d2-gamma-find-the-form.test.mjs",
     "executes the form lookup, the older round lookup, the catalogue's fetcher and the flattener a public " +
       "course page calls, against a database that records its reads, and renders the page's call to " +
@@ -763,6 +770,12 @@ const USERS = new Map([
       "non-string address, because the order of the cap and the pattern is only real when the " +
       "handler is executed. Every door past the validation (the Admin SDK, the mailer, the captcha, " +
       "the rate limiter, the tracker writes) is stubbed, and the test asserts none of them is reached",
+  ],
+  [
+    "app-frame.test.mjs",
+    "executes src/layout/appNav.ts, the signed-in menu as data: its matchers decide which admin " +
+      "page an address belongs to and `currentEntry` decides which menu entry is lit, and both " +
+      "are held to the page files in the tree by running them rather than by reading their text",
   ],
   [
     "slug-id.test.mjs",

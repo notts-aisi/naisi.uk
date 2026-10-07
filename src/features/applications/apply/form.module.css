@@ -949,53 +949,6 @@
   flex: 1 1 auto;
 }
 
-/* === The panel for a visitor who is not signed in ===
-   No field and no bar of actions: a heading, a sentence, the way to an
-   account and the way back in. */
-
-.joinActions {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-2);
-}
-
-.shell .join {
-  min-height: 52px;
-  padding: 0 var(--space-6);
-  font-size: 16px;
-  letter-spacing: -0.005em;
-}
-
-.joinAside {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: 15px;
-  line-height: 1.55;
-}
-
-.joinSignIn {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.75rem;
-  color: var(--color-accent-text);
-  font-weight: 600;
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-}
-
-.joinSignIn:hover {
-  color: var(--color-accent-text-hover);
-}
-
-.joinSignIn:focus-visible {
-  outline: 2px solid var(--color-accent-text);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
-  box-shadow: none;
-}
-
 /* === A calm card for a form that cannot be filled in right now === */
 
 .stateCard {
@@ -1182,15 +1135,6 @@
     padding: var(--space-3) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
     border-top: 1px solid var(--color-border);
     background: color-mix(in srgb, var(--color-bg) 97%, transparent);
-  }
-
-  .joinActions {
-    align-items: stretch;
-    gap: var(--space-1);
-  }
-
-  .joinAside {
-    text-align: center;
   }
 
   .bottomActions {
