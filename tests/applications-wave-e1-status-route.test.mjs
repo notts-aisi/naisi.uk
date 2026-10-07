@@ -763,6 +763,28 @@ describe("closing early and reopening", () => {
     assert.match(response.body.error, /so the form cannot take applications again\.$/);
   });
 
+  test("nor a form whose send has begun and not finished: somebody has been told", async () => {
+    // Closed early, its close still ahead, and one person already told by a
+    // send that stopped part way. The term is not stamped as sent.
+    start({ round: { ...MID_WINDOW, status: "closed", applicationCounts: { ...COUNTS, submitted: 8, invited: 1 } } });
+    assert.equal(stored().decisionsSentAt ?? null, null);
+    const response = await move("zach", { status: "open", confirm: true });
+    assertRefused(response, 409, "decisions-sent");
+    assert.equal(
+      response.body.error,
+      "Some decisions for this term have already gone out, so the form cannot take applications again.",
+    );
+    assert.equal(stored().status, "closed");
+    // Each of the four statuses only the send gives is somebody told.
+    for (const told of ["accepted", "invited", "no-offer", "declined"]) {
+      start({ round: { ...MID_WINDOW, status: "closed", applicationCounts: { ...COUNTS, [told]: 1 } } });
+      assertRefused(await move("zach", { status: "open", confirm: true }), 409, "decisions-sent");
+    }
+    // Sent, drafts and withdrawn applications are nobody told.
+    start({ round: { ...MID_WINDOW, status: "closed", applicationCounts: { ...COUNTS, withdrawn: 3 } } });
+    assert.equal((await move("zach", { status: "open", confirm: true })).status, 200);
+  });
+
   test("an archived form cannot be reopened either", async () => {
     start({ round: { ...MID_WINDOW, status: "closed", archived: true } });
     assertRefused(await move("zach", { status: "open", confirm: true }), 409, "archived");

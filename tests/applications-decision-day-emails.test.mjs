@@ -623,18 +623,9 @@ describe("the settings page shows the subject that is sent, and empty means stan
      * still fails, and so does an entry whose sentence has moved or gone.
      */
     const NOT_A_SUBJECT = new Map([
-      [
-        join("features", "applications", "status", "StatusPage.tsx"),
-        {
-          text: "`You’re in ${programme.shortName}.`",
-          times: 2,
-          why:
-            "the heading of the applicant's own page once they have a place, drawn in two places " +
-            "(the whole-screen offer and the accepted card). It is a sentence with its full stop " +
-            "and it is the page's own: it is drawn whatever the email's subject was worded as, " +
-            "and nothing sends it",
-        },
-      ],
+      // Empty today. The one sentence that was here, the heading of the
+      // applicant's own page once they have a place, now takes its words from
+      // `standardSubject`, so the page holds no copy of a subject to set aside.
     ]);
     const offenders = [];
     const seen = new Set();

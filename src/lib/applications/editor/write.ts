@@ -12,6 +12,7 @@ import {
 } from "@/lib/firestore/admissionRounds";
 import { slugify } from "@/lib/firestore/slugId";
 import { canEditProgramme, canRunTerm, roleOnProgramme } from "../access";
+import { decisionDayHasBegun } from "../decisions";
 import {
   APPLICATION_LIMITS,
   FORM_VERSION,
@@ -275,6 +276,20 @@ type PlacedSet = { id: string; scope: QuestionSetScope; label: string };
  * whatever was queued when its function returns, so a refusal that came after
  * a write would leave that write behind.
  */
+/** What a change to the opening or the close is answered with once decisions have been sent. */
+export const WINDOW_FIXED_ONCE_SENT =
+  "Decisions for this term have been sent, so when applications open and close can no longer change.";
+
+/** The same, while a send is part way: some people have been told and the term is not stamped yet. */
+export const WINDOW_FIXED_ONCE_BEGUN =
+  "Some decisions for this term have already gone out, so when applications open and close can no longer change.";
+
+/** Does a change name a different instant from the one stored? Absent from the change is no. */
+function movesMoment(next: Date | null | undefined, stored: Date | null): boolean {
+  if (next === undefined) return false;
+  return (next?.getTime() ?? null) !== (stored?.getTime() ?? null);
+}
+
 export async function changeForm(
   db: Firestore,
   actor: SessionUser,
@@ -313,6 +328,22 @@ export async function changeForm(
       if (round.status === "draft") {
         update.slug = slugify(change.label, ADMISSION_ROUND_FIELD_LIMITS.slug);
       }
+    }
+
+    // ONCE DECISION DAY HAS BEGUN, WHEN APPLICATIONS OPEN AND CLOSE IS FIXED.
+    // A form takes applications when its status is `open` and the clock is
+    // inside its dates, and nothing moves the status when the close passes.
+    // So on a form still marked `open`, moving the close forward takes
+    // applications again at once. The status route refuses to reopen a form
+    // once anybody has been told; this is the same refusal for the other way
+    // of doing the same thing, from the same moment (`decisionDayHasBegun`).
+    // Sending the dates back as they are is not a change, so the rest of a
+    // save that carries them still lands.
+    if (
+      decisionDayHasBegun(form) &&
+      (movesMoment(change.opensAt, round.opensAt) || movesMoment(change.closesAt, round.closesAt))
+    ) {
+      return refuse(409, form.decisionsSentAt ? WINDOW_FIXED_ONCE_SENT : WINDOW_FIXED_ONCE_BEGUN);
     }
 
     const opensAt = change.opensAt !== undefined ? change.opensAt : round.opensAt;

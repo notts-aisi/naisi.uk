@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import MemberText from "@/components/ui/MemberText";
+import { own } from "@/lib/applications/keys";
 import type {
   AnswerView,
   AvailabilityView,
@@ -50,7 +51,7 @@ export function ScoreRow({
   answerKey: string;
   actions: AnswerActions;
 }) {
-  const current = actions.scores[answerKey] ?? null;
+  const current = own(actions.scores, answerKey) ?? null;
   return (
     <div
       className={`${styles.scoreCard} ${actions.activeKey === answerKey ? styles.scoreCardActive : ""}`}

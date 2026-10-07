@@ -4,6 +4,7 @@ import { writeRecordsForRound } from "@/lib/admissions/memberRecordSync";
 import type { SessionUser } from "@/lib/firebase/session";
 import type { AdmissionRoundStatus } from "@/lib/firestore/admissionRounds";
 import { canRunTerm } from "../access";
+import { decisionDayHasBegun } from "../decisions";
 import { QUESTION_SETS_SUBCOLLECTION, type QuestionSetDoc } from "../model";
 import { isApplicationForm, isId, normaliseForm, normaliseQuestionSet } from "../normalise";
 import { formRef } from "../repo";
@@ -113,6 +114,7 @@ export async function moveFormStatus(
         status: raw.status,
         destroying: raw.destroying === true,
         decisionsSentAt: form.decisionsSentAt,
+        anybodyTold: decisionDayHasBegun(form),
         archived,
         opensAt,
         closesAt,

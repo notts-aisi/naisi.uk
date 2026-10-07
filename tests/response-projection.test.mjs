@@ -145,7 +145,8 @@ const PROJECTIONS = {
     serves: "the applicant, on their own application",
     why:
       "the draft, the sent copy, the status and the timestamps, plus result, invitation and " +
-      "attendance once decision day has published them; withholds the stored email and display name",
+      "attendance once decision day has published them; withholds the stored email and display " +
+      "name, and says no offer where the stored status or result says declined, as their page does",
   },
   projectFormForStaff: {
     from: "@/lib/applications/editor/views",

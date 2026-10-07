@@ -1,5 +1,5 @@
 import { isId, own } from "./keys";
-import type { ApplicationFormFields, DecisionDoc } from "./model";
+import type { ApplicationDoc, ApplicationFormFields, DecisionDoc } from "./model";
 import { PROGRAMME_DECISION_STANDING, type ProgrammeStanding } from "./words";
 
 /**
@@ -164,7 +164,81 @@ export function isPooled(outcome: Outcome): boolean {
 // The whole term at once
 // ---------------------------------------------------------------------------
 
-/** One sent application, reduced to what the arithmetic needs. */
+/**
+ * Is this application part of the term's arithmetic? It has to have been
+ * sent, and its owner must not have taken it out since: by withdrawing, or
+ * by giving a place or an invitation back after decision day, which moves
+ * the application to `withdrawn` in the same write.
+ *
+ * EVERY CALLER OF `tallyTerm` FILTERS BY THIS FIRST, and so does anything
+ * else that counts places, decisions owed or people to be told. That is what
+ * makes a place given back free on every screen at once: the decision
+ * documents still say Accept for somebody who has gone, because an
+ * applicant's reply never touches them, and the arithmetic below would go on
+ * counting that place. `tests/applications-journey-in-term.test.mjs` walks
+ * the tree for callers and holds each one to it.
+ *
+ * A screen may still LIST somebody who has left (the review list keeps the
+ * row, marked as withdrawn). It may not count them.
+ */
+export function isInTerm(application: Pick<ApplicationDoc, "sent" | "status">): boolean {
+  return application.sent !== null && application.status !== "withdrawn";
+}
+
+/**
+ * Has decision day told this person? It has once their outcome is published
+ * onto their own application (`result`), which is the moment their page shows
+ * it, whether or not the email has gone yet.
+ *
+ * WHAT SOMEBODY HAS BEEN TOLD IS FIXED, PERSON BY PERSON. The send publishes
+ * one person at a time and can stop part way, so "the term has been sent"
+ * (`decisionsSentAt`) comes later than "this person has been told", sometimes
+ * by a whole press. In between, a lead's decision, an acceptance taken back or
+ * a different pooled outcome would leave the committee's screens saying one
+ * thing and the person holding another, and a later press would not put it
+ * right, because it skips anybody already told. So every route that writes a
+ * decision or a pooled outcome refuses once this is true for the person it is
+ * about, inside the transaction that would have written.
+ */
+export function hasBeenTold(application: Pick<ApplicationDoc, "result">): boolean {
+  return application.result !== null;
+}
+
+/** The statuses only decision day gives. One person in any of them has been told. */
+const TOLD_STATUSES = ["accepted", "invited", "no-offer", "declined"] as const;
+
+type FormSoFar = Pick<ApplicationFormFields, "decisionsSentAt"> & {
+  round: { applicationCounts: Readonly<Partial<Record<string, number>>> };
+};
+
+/**
+ * Has decision day begun on this form: has anybody at all been told?
+ *
+ * Read off the form itself, so the two places that could take applications
+ * again can ask inside the transaction they already hold: the stamp once the
+ * term is sent, and before that the form's own counters, which move in the
+ * same transaction as each application's status. Only the send gives the four
+ * statuses counted, so one person in any of them is one person told.
+ * (Somebody told who has since given their place back is `withdrawn` and is
+ * not counted. That matters only if every person told so far has done so.)
+ *
+ * FROM THIS MOMENT THE FORM TAKES NO MORE APPLICATIONS. A send can stop part
+ * way. If the form took applications again then, somebody decided on and not
+ * yet told could send a different application, and the next press would tell
+ * them a decision made about the one before. So the status route refuses to
+ * reopen, and the form's editor refuses to move when applications open or
+ * close, from the first person told and not from the last.
+ */
+export function decisionDayHasBegun(form: FormSoFar): boolean {
+  if (form.decisionsSentAt) return true;
+  const counts = form.round.applicationCounts;
+  return TOLD_STATUSES.some((status) => (own(counts, status) ?? 0) > 0);
+}
+
+/**
+ * One application that is in the term (see {@link isInTerm}), reduced to
+ * what the arithmetic needs.
+ */
 export type Applicant = {
   uid: string;
   /** Their ranking, as the form knows it. */
@@ -218,7 +292,10 @@ function emptyProgrammeTally(): ProgrammeTally {
   };
 }
 
-/** Every count the manager shows, from the applications and their decisions. */
+/**
+ * Every count the manager shows, from the applications and their decisions.
+ * `applicants` is the people in the term: filter by {@link isInTerm} first.
+ */
 export function tallyTerm(
   form: Pick<ApplicationFormFields, "programmeIds">,
   applicants: readonly Applicant[],

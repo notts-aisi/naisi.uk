@@ -46,6 +46,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createLoader } from "./lib/tsLoader.mjs";
+import { FIELD_VALUE_STUB, makeDb } from "./lib/applicationsStore.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -58,16 +59,7 @@ const { loadTs } = createLoader({
       "next/server",
       "export const NextResponse = { json(body, init) { return { status: (init && init.status) || 200, body, json: async () => body }; } };",
     ],
-    [
-      "firebase-admin/firestore",
-      "export const FieldValue = {" +
-        " serverTimestamp: () => ({ __sentinel: 'now' })," +
-        " delete: () => ({ __sentinel: 'delete' })," +
-        " increment: (n) => ({ __sentinel: 'increment', n })," +
-        " arrayRemove: (...values) => ({ __sentinel: 'arrayRemove', values })," +
-        " };" +
-        " export class Timestamp {}",
-    ],
+    ["firebase-admin/firestore", FIELD_VALUE_STUB],
     ["@/lib/firebase/admin", "export function getAdminDb() { return globalThis.__editor.db; }"],
     ["@/lib/firebase/session", "export async function getCurrentUser() { return globalThis.__editor.user; }"],
     [
@@ -93,168 +85,11 @@ const write = await loadTs(join("lib", "applications", "editor", "write.ts"));
 // A Firestore small enough to read
 // ---------------------------------------------------------------------------
 
-/**
- * Documents by path, with the calls the editor makes: documents and
- * subcollections, a filter or two, `getAll`, a batch, and a transaction that
- * runs again when something it read changed before it committed, which is the
- * property the lock depends on.
- */
-function makeDb(seed) {
-  const docs = new Map();
-  const versions = new Map();
-  const stats = { reads: 0, writes: [] };
-  const put = (path, data) => {
-    docs.set(path, data);
-    versions.set(path, (versions.get(path) ?? 0) + 1);
-  };
-  const drop = (path) => {
-    docs.delete(path);
-    versions.set(path, (versions.get(path) ?? 0) + 1);
-  };
-  for (const [path, data] of Object.entries(seed)) put(path, structuredClone(data));
-
-  const last = (path) => path.split("/").pop();
-  const snap = (path) => ({
-    id: last(path),
-    exists: docs.has(path),
-    ref: docRef(path),
-    data: () => (docs.has(path) ? structuredClone(docs.get(path)) : undefined),
-  });
-  const read = (path) => {
-    stats.reads += 1;
-    return snap(path);
-  };
-  const childrenOf = (collectionPath) =>
-    [...docs.keys()].filter(
-      (path) => path.startsWith(`${collectionPath}/`) && !path.slice(collectionPath.length + 1).includes("/"),
-    );
-  const fieldAt = (data, field) => field.split(".").reduce((node, part) => (node == null ? undefined : node[part]), data);
-  const matches = (data, [field, op, value]) => {
-    const found = fieldAt(data, field);
-    if (op === "==") return found === value;
-    if (op === "in") return value.includes(found);
-    if (op === "array-contains") return Array.isArray(found) && found.includes(value);
-    throw new Error(`the test database does not know the operator ${op}`);
-  };
-  const query = (collectionPath, filters) => ({
-    path: collectionPath,
-    isQuery: true,
-    where: (field, op, value) => query(collectionPath, [...filters, [field, op, value]]),
-    get: async () => {
-      stats.reads += 1;
-      return {
-        docs: childrenOf(collectionPath)
-          .filter((path) => filters.every((filter) => matches(docs.get(path), filter)))
-          .map(snap),
-      };
-    },
-  });
-  function docRef(path) {
-    return {
-      id: last(path),
-      path,
-      get: async () => read(path),
-      collection: (name) => collection(`${path}/${name}`),
-    };
-  }
-  function collection(path) {
-    return { ...query(path, []), doc: (id) => docRef(`${path}/${id}`) };
-  }
-
-  const resolve = (value, current) => {
-    if (value && value.__sentinel === "now") return new Date("2026-10-05T12:00:00Z");
-    if (value && value.__sentinel === "increment") return (typeof current === "number" ? current : 0) + value.n;
-    if (value && typeof value === "object" && !Array.isArray(value) && !(value instanceof Date)) {
-      const out = {};
-      for (const [key, inner] of Object.entries(value)) out[key] = resolve(inner, undefined);
-      return out;
-    }
-    return value;
-  };
-  const applyUpdate = (path, patch) => {
-    if (!docs.has(path)) throw Object.assign(new Error(`NOT_FOUND: ${path}`), { code: 5 });
-    const next = structuredClone(docs.get(path));
-    for (const [field, value] of Object.entries(patch)) {
-      const parts = field.split(".");
-      let node = next;
-      for (const part of parts.slice(0, -1)) {
-        if (!Object.hasOwn(node, part) || typeof node[part] !== "object" || node[part] === null) node[part] = {};
-        node = node[part];
-      }
-      const key = parts[parts.length - 1];
-      if (value && value.__sentinel === "delete") delete node[key];
-      else node[key] = resolve(value, node[key]);
-    }
-    put(path, next);
-  };
-  const applyCreate = (path, data) => {
-    if (docs.has(path)) throw Object.assign(new Error(`ALREADY_EXISTS: ${path}`), { code: 6 });
-    put(path, resolve(data, undefined));
-  };
-  const apply = (writes) => {
-    for (const [kind, path, data] of writes) {
-      stats.writes.push([kind, path, data ? Object.keys(data) : []]);
-      if (kind === "update") applyUpdate(path, data);
-      else if (kind === "create") applyCreate(path, data);
-      else if (kind === "delete") drop(path);
-    }
-  };
-
-  const db = {
-    stats,
-    /** Runs once, after a transaction's function returns and before it commits. */
-    beforeCommit: null,
-    collection,
-    getAll: async (...refs) => refs.map((ref) => read(ref.path)),
-    batch() {
-      const writes = [];
-      return {
-        create: (ref, data) => writes.push(["create", ref.path, data]),
-        update: (ref, data) => writes.push(["update", ref.path, data]),
-        commit: async () => apply(writes),
-      };
-    },
-    async runTransaction(fn) {
-      for (let attempt = 0; attempt < 5; attempt += 1) {
-        const seen = new Map();
-        const writes = [];
-        const tx = {
-          get: async (target) => {
-            const result = await target.get();
-            if (target.isQuery) {
-              seen.set(`list:${target.path}`, childrenOf(target.path).join("|"));
-              for (const doc of result.docs) seen.set(doc.ref.path, versions.get(doc.ref.path) ?? 0);
-            } else {
-              seen.set(target.path, versions.get(target.path) ?? 0);
-            }
-            return result;
-          },
-          update: (ref, data) => writes.push(["update", ref.path, data]),
-          create: (ref, data) => writes.push(["create", ref.path, data]),
-          delete: (ref) => writes.push(["delete", ref.path]),
-        };
-        const result = await fn(tx);
-        if (db.beforeCommit) {
-          const hook = db.beforeCommit;
-          db.beforeCommit = null;
-          hook();
-        }
-        const moved = [...seen].some(([key, was]) =>
-          key.startsWith("list:") ? childrenOf(key.slice(5)).join("|") !== was : (versions.get(key) ?? 0) !== was,
-        );
-        if (moved) continue;
-        apply(writes);
-        return result;
-      }
-      throw new Error("the transaction never settled");
-    },
-    read: (path) => docs.get(path),
-    paths: () => [...docs.keys()],
-    /** A change made by somebody else, outside any request under test. */
-    poke: (path, patch) => applyUpdate(path, patch),
-  };
-  return db;
-}
+// The store is `makeDb` in `tests/lib/applicationsStore.mjs`: documents by path,
+// with the calls the editor makes (documents and subcollections, a filter or
+// two, `getAll`, a batch) and a transaction that runs again when something it
+// read changed before it committed, which is the property the lock depends on.
+// It lives there so the suite that runs a whole term can use the same one.
 
 // ---------------------------------------------------------------------------
 // The cast and the term
@@ -1103,6 +938,105 @@ describe("the form's own fields", () => {
     assert.equal(stored().closesAt.toISOString(), "2026-12-13T23:59:00.000Z");
     assert.deepEqual([stored().decisionsByDate, stored().invitationReplyBy], ["2026-12-18", "2026-12-20"]);
     assert.equal(ok.body.form.closes.dayAndTime, "Sun 13 Dec, 23:59");
+  });
+
+  describe("once decisions have been sent, when applications open and close is fixed", () => {
+    // The form as decision day leaves it: still marked open, its close in the
+    // past, every decision sent. Nothing moves the status when the close
+    // passes, so the dates are all that keeps it from taking applications.
+    const SENT = { status: "open", decisionsSentAt: new Date("2026-10-23T09:00:00Z"), decisionsSentByUid: "zach" };
+    const SENTENCE = "Decisions for this term have been sent, so when applications open and close can no longer change.";
+    const sentForm = () => {
+      db = makeDb(seed({ round: SENT }));
+      globalThis.__editor.db = db;
+    };
+    // A close four days on, and still before the day everybody hears: nothing
+    // about the dates themselves is wrong with it.
+    const later = { date: "2026-10-22", time: "23:59" };
+
+    test("the close cannot be moved, and nothing is written", async () => {
+      sentForm();
+      const before = JSON.stringify(stored());
+      const response = await patch({ closes: later });
+      assert.deepEqual([response.status, response.body.error], [409, SENTENCE]);
+      assert.equal(JSON.stringify(stored()), before);
+      assert.deepEqual(db.stats.writes, []);
+    });
+
+    test("nor the opening, nor either of them cleared", async () => {
+      for (const body of [
+        { opens: { date: "2026-10-01", time: "09:00" } },
+        { opens: null },
+        { closes: null },
+        { opens: { date: "2026-10-06", time: "09:00" }, closes: later },
+      ]) {
+        sentForm();
+        const response = await patch(body);
+        assert.deepEqual([response.status, response.body.error], [409, SENTENCE], JSON.stringify(body));
+        assert.deepEqual(db.stats.writes, [], JSON.stringify(body));
+      }
+    });
+
+    test("a save that sends the same dates back still changes what else it carries", async () => {
+      sentForm();
+      // The dates dialog sends all four every time. The first two are as stored.
+      const response = await patch({
+        opens: { date: "2026-10-06", time: "09:00" },
+        closes: { date: "2026-10-18", time: "23:59" },
+        decisions: "2026-10-23",
+        replyBy: "2026-10-26",
+        label: "Autumn 2026, sent",
+      });
+      assert.equal(response.status, 200);
+      assert.equal(stored().label, "Autumn 2026, sent");
+      assert.equal(stored().invitationReplyBy, "2026-10-26");
+      assert.equal(stored().closesAt.toISOString(), "2026-10-18T22:59:00.000Z");
+    });
+
+    test("a refused change of date takes nothing else in the same save with it", async () => {
+      sentForm();
+      const response = await patch({ closes: later, label: "Changed anyway" });
+      assert.equal(response.status, 409);
+      assert.equal(stored().label, "Autumn 2026");
+    });
+
+    test("it is fixed from the first person told, while a send is still part way", async () => {
+      // One person has been told by a send that stopped. The term is not stamped.
+      db = makeDb(seed({ round: { status: "open" }, counts: { submitted: 5, invited: 1 } }));
+      globalThis.__editor.db = db;
+      assert.equal(stored().decisionsSentAt ?? null, null);
+      const response = await patch({ closes: later });
+      assert.deepEqual(
+        [response.status, response.body.error],
+        [409, "Some decisions for this term have already gone out, so when applications open and close can no longer change."],
+      );
+      assert.equal(stored().closesAt.toISOString(), "2026-10-18T22:59:00.000Z");
+      assert.deepEqual(db.stats.writes, []);
+      for (const told of ["accepted", "invited", "no-offer", "declined"]) {
+        db = makeDb(seed({ round: { status: "open" }, counts: { submitted: 5, [told]: 1 } }));
+        globalThis.__editor.db = db;
+        assert.equal((await patch({ closes: later })).status, 409, told);
+      }
+    });
+
+    test("until then the close can move, which is how a deadline is extended", async () => {
+      // People have applied, one has withdrawn, and nobody has been told.
+      db = makeDb(seed({ round: { status: "open" }, counts: { submitted: 5, withdrawn: 1 } }));
+      globalThis.__editor.db = db;
+      const response = await patch({ closes: later });
+      assert.equal(response.status, 200);
+      assert.equal(stored().closesAt.toISOString(), "2026-10-22T22:59:00.000Z");
+    });
+
+    test("the stamp is read inside the transaction, so a send that finishes mid-request wins", async () => {
+      db = makeDb(seed({ round: { status: "open" } }));
+      globalThis.__editor.db = db;
+      // Decision day stamps the form after this request has read it and before it commits.
+      db.beforeCommit = () => db.poke(ROUND_PATH, SENT);
+      const response = await patch({ closes: later });
+      assert.deepEqual([response.status, response.body.error], [409, SENTENCE]);
+      assert.equal(stored().closesAt.toISOString(), "2026-10-18T22:59:00.000Z");
+    });
   });
 
   test("the name changes, and the slug follows it while the form is a draft", async () => {

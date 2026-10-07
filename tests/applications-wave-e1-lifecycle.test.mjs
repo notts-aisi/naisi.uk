@@ -554,6 +554,19 @@ describe("opening and reopening", () => {
       [false, "decisions-sent", "Decisions for this term went out on Fri 23 Oct, so the form cannot take applications again."],
     );
   });
+
+  test("nor once a send has begun: from the first person told, not from the last", () => {
+    // A send can stop part way. The term is not stamped, and somebody has been told.
+    const plan = status.planFormMove(facts({ status: "closed", anybodyTold: true }), "open", AFTER_CLOSE);
+    assert.deepEqual(
+      [plan.ok, plan.code, plan.error],
+      [false, "decisions-sent", "Some decisions for this term have already gone out, so the form cannot take applications again."],
+    );
+    // Nothing else is refused for it: a form part way through its send can still be closed.
+    assert.equal(status.planFormMove(facts({ status: "open", anybodyTold: true }), "closed", AFTER_CLOSE).ok, true);
+    // And with nobody told, reopening is what it was.
+    assert.equal(status.planFormMove(facts({ status: "closed", anybodyTold: false }), "open", AFTER_CLOSE).ok, true);
+  });
 });
 
 describe("settling", () => {

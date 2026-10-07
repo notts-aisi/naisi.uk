@@ -105,6 +105,12 @@ every route gated by `requireApplicant(`, every public page and
 So "nobody hears anything early" is a property of the import graph, not
 something each screen has to remember.
 
+One field is written by neither: `invitation.lastReminderOn`, the London day
+of the last reminder for an invitation nobody has answered. The reminder job
+(`src/lib/scheduler/jobs/applicationInvitationReminders.ts`) writes today
+into it before it sends, so a day sends at most one. It reads no decision
+document and changes nothing the person was told.
+
 **2. There are two copies of what the applicant wrote.** `draft` is what the
 form is showing and is saved as they type. `sent` is the application of record
 and is replaced whole each time they press Send. Reviewers read `sent` and
@@ -227,6 +233,87 @@ The term is marked as sent (`decisionsSentAt`) once everybody has a result. An
 email still owed does not hold that back, and stays listed on the decision-day
 page until it goes.
 
+### Once somebody has been told
+
+The send publishes one person at a time and can stop part way: a mail server
+that is down, or a term too big for one press. So "this person has been told"
+(`hasBeenTold()`: their own document carries a `result`) comes before "the
+term has been sent" (`decisionsSentAt`), sometimes by a whole press, and a
+later press skips anybody already told. From the moment a person is told,
+what was decided about them is fixed: a lead's Accept, Pool or Decline, an
+admin taking an acceptance back, and a different pooled outcome are each
+refused for that person, inside the transaction that would have written, with
+a sentence that says what can still be done. Otherwise the committee's
+screens could come to say one thing while the person holds another. After
+that, a place changes hands only when its holder gives it back (see
+"Replies").
+
+### Once decision day has begun
+
+A form takes applications when its status is `open` and the clock is inside
+its dates, and nothing moves the status when the close passes. So there are
+two ways to take applications again, and from the first person told
+(`decisionDayHasBegun()`: the stamp, or before it the form's own counters)
+both are refused: the status route will not reopen the form, and the form's
+editor will not move when applications open or close (`changeForm` in
+`editor/write.ts`), because on a form still marked `open` a later close would
+take applications again at once. From the first person and not the last,
+because a send can stop part way: a form that took applications again then
+would let somebody decided on and not yet told send a different application,
+and the next press would tell them a decision made about the one before.
+
+### Accepting somebody approves an account that is still waiting
+
+A person can apply before their join request has been looked at. When they
+are accepted, `approveWaitingAccount` (`accounts/approve.ts`) makes the
+change the Approvals tab makes: `pending` becomes `member`, with who
+approved and when. It checks three things itself, inside the transaction
+that writes: the account is waiting (a member, a committee member, an admin
+and a refused account are left exactly as they are), the person's own
+application on the form shows an acceptance (a place they were told they
+have and have not given up, or an invitation they have accepted), and the
+approver named is an admin right now. The decision-day send calls it for
+each person it tells they are in. The route an invited person accepts
+through calls it too (`accounts/afterReply.ts`), naming the admin who sent
+the decisions, after the reply has been written and never as part of it: an
+approval that cannot be made leaves the reply standing and the account in
+Approvals, and the next press of Send approves it.
+
+### The daily reminder for an invitation
+
+Somebody invited is reminded once a day, from 10:00 in London, from the day
+after they were told up to their own reply-by day, until they reply
+(`decisionDay/reminders.ts`). The job ships switched off. The decision-day
+page says invited people are reminded only while a scheduled run has
+actually run it (`decisionDay/armed.ts`).
+
+## Replies
+
+After decision day somebody answers on their own application, through one
+applicant route (`application/reply`). A place is presumed: "I'm coming"
+records `attendance` and changes nothing else. "I can't make it" (from anybody
+holding a place) and "No thanks" (to an invitation) give the place back: the
+reply is recorded, the status becomes `withdrawn`, and the form's counters
+move with it. An accepted invitation records `invitation.response`, makes
+the status `accepted`, and approves the account if it was still waiting (see
+above). `result` is what decision day said and no reply changes it. A place given back cannot be taken again from the page. `standingOf()` in
+`status/standing.ts` reads all of that off the document, and `decideReply()`
+in `status/replies.ts` is the whole table.
+
+### Who is in the term
+
+A reply cannot touch the decision documents, so they go on saying Accept for
+somebody who has given the place back, and `tallyTerm()` counts a place from
+the decision documents. What frees the place is `isInTerm()` in
+`decisions.ts`: an application is part of the term's arithmetic when it has
+been sent and is not `withdrawn`. Every caller of `tallyTerm()`, and anything
+else that counts places, decisions owed or people to be told, filters by it
+first, so a place given back is free on the review list, the term page, the
+pooled applicants screen and the send in the same moment. A screen may still
+list somebody who has left (the review list keeps the row, marked as
+withdrawn). It may not count them.
+`tests/applications-journey-in-term.test.mjs` walks the tree for callers.
+
 ## What deletes what
 
 | When | What goes | What stays |
@@ -270,12 +357,15 @@ All in `src/lib/applications/`.
 | `sections.ts` | Which steps and question sets one person sees | anywhere |
 | `validate.ts` | What stops a send; what is copied into `sent`; word counts | anywhere |
 | `scoring.ts` | Scored questions, section scores, first-review blindness | anywhere |
-| `decisions.ts` | Placement, outcomes, tallies, readiness, recommendations | anywhere |
+| `decisions.ts` | Placement, outcomes, who is in the term, tallies, readiness, recommendations | anywhere |
 | `words.ts` | Labels, ordinals, the words applicants never see | anywhere |
 | `access.ts` | Staff predicates | server |
 | `roles.ts` | `setProgrammeRoles`, the one writer of leads and reviewers | server |
 | `repo.ts` | The form, its sets, the caller's own application | server, applicant-safe |
 | `staffRepo.ts` | Everybody's applications, reviews, decisions | server, staff only |
+| `status/standing.ts`, `status/replies.ts`, `status/view.ts` | Where one person stands after sending, what each reply does, what their page says | anywhere |
+| `status/load.ts`, `status/record.ts` | The page's read, and the one transaction a reply writes | server, applicant-safe |
+| `accounts/approve.ts`, `accounts/afterReply.ts` | Approving a waiting account on an acceptance, and the call an accepted invitation makes | server, applicant-safe |
 
 ## Rules for anything built on this
 
@@ -298,11 +388,24 @@ All in `src/lib/applications/`.
   id in an address. A plain object answers to names it does not own, and
   `programmes["constructor"]` is a function, not a missing programme. `own()`
   (`keys.ts`) answers from the map's own keys only. This covers `programmes`,
-  `answers`, `scores` and a decision's `programmes`. Validate an id from a
-  request with `isId()` as well: the two rules fail differently, so both are
-  kept.
+  `answers`, `scores` and a decision's `programmes`, the tallies worked out
+  from them, and every other map from a string that a file here declares.
+  `tests/applications-own-key-reads.test.mjs` walks every file under `src`
+  for a read written any other way. It holds this system's own trees and the
+  member record. Other features keep maps under the same names (an event's
+  sign-up answers, a worksheet response's, the older apply flow's) and still
+  read them with a bracket: the guard lists those trees as not held yet,
+  read for read, so one more read there fails, and so does a read in any
+  file that is on neither list. It also holds that there is one accessor: a
+  folder may hand `own` on under its own import path, and may not write a
+  second. Validate an id from a request with `isId()` as well: the two rules
+  fail differently, so both are kept.
 - **Counters move with the status.** A route that changes an application's
   `status` moves the round's `applicationCounts` in the same transaction.
+- **Count the people in the term.** Filter by `isInTerm()` before
+  `tallyTerm()`, and before any other count of places, decisions owed or
+  people to be told. Listing somebody who has left is fine; counting them is
+  how two screens come to disagree about a place.
 - **Questions lock once somebody has sent an application.** Editing a question
   set after that would change what an answer already given was an answer to.
 - **Email** goes through `sendEmail()` with reply-to set to the society's

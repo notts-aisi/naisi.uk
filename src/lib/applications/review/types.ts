@@ -31,7 +31,11 @@ export type ApplicationRow = {
   detail: string;
   /** Their join request has not been approved yet. */
   accountWaiting: boolean;
-  /** They took the application back after sending it. */
+  /**
+   * They took the application out of the term after sending it: by
+   * withdrawing, or by giving a place or an invitation back. The row is
+   * listed and is in none of the board's numbers.
+   */
   withdrawn: boolean;
   /** This programme's place in their ranking: 1 for a 1st choice. */
   choice: number;
@@ -47,7 +51,16 @@ export type ApplicationRow = {
   standing: ProgrammeStanding;
   /** False once this programme has decided, or a higher choice has accepted them. */
   owesDecision: boolean;
-  /** The higher choice that accepted them, when that is why nothing is owed. */
+  /**
+   * Decision day has told this person, so their decision is fixed: Accept,
+   * Pool and Decline are refused for them from now on, whether or not the
+   * term as a whole has finished sending.
+   */
+  told: boolean;
+  /**
+   * The higher choice that accepted them, when that is why nothing is owed.
+   * Null for a withdrawn row: somebody who has left holds no place.
+   */
   placedOn: string | null;
   /** When they first sent it, as an ISO instant, for sorting. */
   appliedAt: string | null;
@@ -100,6 +113,7 @@ export type ProgrammeBoard = {
     role: ProgrammeRole;
     canDecide: boolean;
   };
+  /** Every number here and in `counts` is of the people in the term. */
   progress: {
     applications: number;
     decided: number;
@@ -121,7 +135,10 @@ export type ProgrammeBoard = {
     pooled: number;
     declined: number;
   };
-  /** Who this caller still has to review, in the order "Review next" walks them. */
+  /**
+   * Who this caller still has to review, in the order "Review next" walks
+   * them. Never somebody whose row is `withdrawn`.
+   */
   queue: string[];
   /** Null when the programme does not use scores. */
   recommendations: BoardRecommendations | null;
@@ -300,6 +317,8 @@ export type ReviewPayload = {
   decision: {
     standing: ProgrammeStanding;
     owesDecision: boolean;
+    /** Decision day has told this person, so this decision can no longer change. */
+    told: boolean;
     kind: ProgrammeDecisionKind | null;
     poolReason: PoolReason | null;
     couldSuitProgrammeId: string | null;

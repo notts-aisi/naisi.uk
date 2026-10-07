@@ -1,3 +1,4 @@
+import { own } from "../keys";
 import type { ApplicationFormFields, ProgrammeSettings } from "../model";
 import { isId } from "../normalise";
 
@@ -11,17 +12,14 @@ import { isId } from "../normalise";
  * lookup in this folder that is keyed by such an id goes through one of these,
  * which answer only for a key the object really has.
  *
+ * THERE IS ONE ACCESSOR, AND IT IS THE CONTRACT'S. `own` here is
+ * `src/lib/applications/keys.ts`'s, passed on under this folder's import path.
+ * Do not write a second one here: two accessors are two places for the rule
+ * to drift.
+ *
  * Pure, with no server import.
  */
-
-/** One entry of a map, only when the map itself has that key. */
-export function own<T>(
-  map: Readonly<Record<string, T>> | null | undefined,
-  key: string | null | undefined,
-): T | undefined {
-  if (!map || typeof key !== "string") return undefined;
-  return Object.hasOwn(map, key) ? map[key] : undefined;
-}
+export { own };
 
 /** The programme with this id on the form, or null when there is none. */
 export function programmeOn(

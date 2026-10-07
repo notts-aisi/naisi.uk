@@ -4,6 +4,7 @@ import { isAddressableId } from "@/lib/addressableId";
 import type { SessionUser } from "@/lib/firebase/session";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import { canDecideFor, canRunTerm, roleOnProgramme } from "../access";
+import { hasBeenTold } from "../decisions";
 import {
   APPLICATION_LIMITS,
   POOL_REASONS,
@@ -30,7 +31,14 @@ import {
 } from "./audit";
 import { own, programmeOn } from "./own";
 import { UNNAMED_APPLICANT, UNNAMED_STAFF, applicantName, firstWord } from "./people";
-import { DECISIONS_SENT, NOT_FOUND, closedToStaffWrites, refuse } from "./refusals";
+import {
+  DECISIONS_SENT,
+  NOT_FOUND,
+  alreadyTold,
+  alreadyToldTheyAreIn,
+  closedToStaffWrites,
+  refuse,
+} from "./refusals";
 import type { BulkDecisionResult, DecisionChange, Refusal } from "./types";
 
 /**
@@ -158,6 +166,8 @@ async function applyDecision(
   roundId: string,
   applicantUid: string,
   change: DecisionChange,
+  /** One of several decided at once, which carries no reason of its own. */
+  several = false,
 ): Promise<Applied> {
   if (applicantUid === user.uid) {
     return { outcome: "refused", status: 403, reason: "You can’t decide your own application.", name: "" };
@@ -194,6 +204,13 @@ async function applyDecision(
     }
     const name = applicantName(application.sent.aboutYou, application.displayName);
     if (form.decisionsSentAt) return { outcome: "refused", status: 409, reason: DECISIONS_SENT, name };
+    // Fixed for this person from the moment they are told, which can be a
+    // whole press of Send before the term is stamped as sent. Asked of the
+    // application as it is inside this transaction, so a send that publishes
+    // them while this request is in flight makes it start again and meet this.
+    if (hasBeenTold(application)) {
+      return { outcome: "refused", status: 409, reason: alreadyTold(name), name };
+    }
     const ranked = rankedProgrammes(form, application.sent).map((entry) => entry.id);
     if (!ranked.includes(change.programmeId)) {
       return {
@@ -214,6 +231,14 @@ async function applyDecision(
 
     const existing = decSnap.exists ? normaliseDecision(decSnap.id, decSnap.data()) : null;
     const before = own(existing?.programmes, change.programmeId) ?? null;
+    // Deciding several at once has nowhere to say why. Somebody this
+    // programme has already decided the same way keeps what their lead
+    // recorded with it (why they were pooled, and where they could suit),
+    // which the pooled applicants screen shows: the same decision again is no
+    // change, and must not wipe it.
+    if (before && several && before.decision === change.decision) {
+      return { outcome: "unchanged", name };
+    }
     if (
       before &&
       before.decision === change.decision &&
@@ -327,12 +352,14 @@ export async function decideMany(
     refused: [],
   };
   for (const uid of input.uids) {
-    const applied = await applyDecision(db, user, roundId, uid, {
-      programmeId,
-      decision: input.decision,
-      poolReason: null,
-      couldSuitProgrammeId: null,
-    });
+    const applied = await applyDecision(
+      db,
+      user,
+      roundId,
+      uid,
+      { programmeId, decision: input.decision, poolReason: null, couldSuitProgrammeId: null },
+      true,
+    );
     if (applied.outcome === "refused") {
       result.refused.push({ uid, name: applied.name, reason: applied.reason });
     } else if (applied.outcome === "changed") result.changed += 1;
@@ -386,6 +413,10 @@ export async function revokeAcceptance(
     const name = application?.sent
       ? applicantName(application.sent.aboutYou, application.displayName)
       : UNNAMED_APPLICANT;
+    // The same rule as a decision: what this person has been told is fixed.
+    if (application && hasBeenTold(application)) {
+      return refuse(409, alreadyToldTheyAreIn(application.sent ? name : ""));
+    }
 
     // The same merge as a decision, taking this one programme's entry out
     // and leaving everything else on the document as it was.

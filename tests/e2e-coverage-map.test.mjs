@@ -585,7 +585,7 @@ const NOT_COVERED = {
   },
   "/api/admissions/forms/[roundId]/application/reply": {
     reason:
-      "An applicant's reply to their offer or invitation on the new application form. Executed against an in-memory store by tests/applications-wave-f-reply-route.test.mjs (the gate, the body, hidden forms, every state of an application against every reply, the counters, a refusal writing nothing), and pressed by hand at 390 for each outcome, but no browser spec drives it yet.",
+      "An applicant's reply to their offer or invitation on the new application form. Executed against an in-memory store by tests/applications-wave-f-reply-route.test.mjs (the gate, the body, hidden forms, every state of an application against every reply, the counters, a refusal writing nothing, the waiting account an accepted invitation approves), and pressed by hand at 390 for each outcome, but no browser spec drives it yet.",
     coverWhen:
       "Before the first decision day on an application form: an applicant spec that opens /applications/<form> after a send, says they are coming, and gives a place back.",
   },

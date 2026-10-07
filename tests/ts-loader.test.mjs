@@ -328,6 +328,21 @@ const USERS = new Map([
       "running them says so",
   ],
   [
+    "applications-journey-in-term.test.mjs",
+    "executes the contract's term arithmetic beside every builder and loader that counts with " +
+      "it (the review list, the decision-day plan, the two editor loaders) on one stored term, " +
+      "to prove a place given back is free on all of them at once; `../staffRepo` is stubbed " +
+      "so the two loaders are handed this file's applications with no database",
+  ],
+  [
+    "applications-journey.test.mjs",
+    "executes every route handler under src/app/api/admissions/forms and the member-record " +
+      "writer against one in-memory store, as one term from an empty form to a settled one, " +
+      "because a disagreement between two parts of the application system exists only when " +
+      "both run on the same documents; the mail door is stubbed to record and the email " +
+      "templates behind it are compiled for real",
+  ],
+  [
     "applications-review-routes.test.mjs",
     "executes the review loaders, builders and writers under src/lib/applications/review with " +
       "access.ts and the real eligibility bar underneath, against an in-memory Firestore, " +

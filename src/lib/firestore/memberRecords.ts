@@ -556,7 +556,7 @@ function deriveScoreSummary(
   for (const criterion of round.criteria.slice(0, MEMBER_RECORD_LIMITS.maxCriteria)) {
     const scores: number[] = [];
     for (const review of reviews) {
-      const score = review.scores[criterion.id];
+      const score = own(review.scores, criterion.id);
       if (typeof score === "number" && Number.isFinite(score)) scores.push(score);
     }
     byCriterion[criterion.id] =

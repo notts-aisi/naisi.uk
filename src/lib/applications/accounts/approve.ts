@@ -1,5 +1,6 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { isInTerm } from "../decisions";
 import type { ApplicationDoc } from "../model";
 import { normaliseApplication } from "../normalise";
 import { applicationRef } from "../repo";
@@ -40,8 +41,9 @@ import { applicationRef } from "../repo";
  * ## Who calls it
  *
  * The decision-day send, for each person it tells they are in, naming the
- * admin who pressed Send. And the route an invited person accepts through,
- * naming the admin who sent the decisions (`decisionsSentByUid` on the form).
+ * admin who pressed Send. And the route an invited person accepts through
+ * (by way of `./afterReply.ts`), naming the admin who sent the decisions
+ * (`decisionsSentByUid` on the form).
  * It reads no review and no decision document, so it is safe to import from
  * a route that serves an applicant.
  */
@@ -77,7 +79,8 @@ type Accepted = Pick<ApplicationDoc, "sent" | "status" | "result" | "invitation"
  * withdrawn application shows nothing.
  */
 export function holdsAcceptance(application: Accepted | null): boolean {
-  if (!application || application.sent === null || application.status === "withdrawn") return false;
+  // Sent, and not taken out since: the contract's one rule for who is in the term.
+  if (!application || !isInTerm(application)) return false;
   const { result } = application;
   if (!result) return false;
   if (result.kind === "accepted") return application.attendance?.answer !== "cant-make-it";

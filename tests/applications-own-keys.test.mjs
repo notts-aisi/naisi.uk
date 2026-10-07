@@ -495,6 +495,9 @@ const CONTRACT = {
       assert.deepEqual(decisions.outcomeFor([AGI], invitedTo, all), { kind: "needs-outcome" });
     },
     isPooled: "reads an outcome's kind, and takes no id",
+    isInTerm: "reads whether an application was sent and its status, and takes no id",
+    hasBeenTold: "reads whether an application carries a result, and takes no id",
+    decisionDayHasBegun: "reads the form's stamp and four of its own counters by fixed names, and takes no id",
     tallyTerm: (name) => {
       const clean = decisions.tallyTerm(FORM, [{ uid: "u", ranked: [AGI], decision: decided({ [AGI]: accept() }) }]);
       const dirty = decisions.tallyTerm(FORM, [

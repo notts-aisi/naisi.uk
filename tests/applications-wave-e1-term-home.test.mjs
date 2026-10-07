@@ -468,7 +468,8 @@ const APPLICANTS = [
   ["nina", "Nina Kowalski", [INC], "submitted"],
   ["rosa", "Rosa García", [AGI], "submitted"],
   ["oliver", "Oliver Grant", [INC, TAIS], "submitted"],
-  // Somebody who sent and then withdrew.
+  // Somebody who sent and then withdrew: listed on the programme's list, and
+  // in none of its numbers (`isInTerm`).
   ["george", "George Mills", [AGI], "withdrawn"],
   // The lead of AGI Strategy applied to it as well.
   ["claudia", "Claudia Reyes", [AGI, TAIS], "submitted"],
@@ -627,10 +628,11 @@ describe("a programme's numbers are the ones its own list works out", () => {
     const db = makeDb(seed());
     const form = formOf(db);
     const admin = await numbers.loadTermNumbers(db, CAST.zach, form);
-    // AGI Strategy: amara, ben, dev, wen, rosa, george and claudia ranked it.
-    // Ben accepted; dev and rosa pooled; wen has a place at her first choice;
-    // amara, george and claudia are still owed a decision.
-    assert.deepEqual(admin.work[AGI], { counts: { all: 7, toReview: 3, accepted: 1, pooled: 2, declined: 0 }, waiting: 3 });
+    // AGI Strategy: amara, ben, dev, wen, rosa and claudia ranked it and are
+    // in the term. George ranked it too and has withdrawn, so he is counted
+    // nowhere. Ben accepted; dev and rosa pooled; wen has a place at her first
+    // choice; amara and claudia are still owed a decision.
+    assert.deepEqual(admin.work[AGI], { counts: { all: 6, toReview: 2, accepted: 1, pooled: 2, declined: 0 }, waiting: 2 });
     assert.deepEqual(admin.work[TAIS].counts, { all: 5, toReview: 3, accepted: 1, pooled: 0, declined: 1 });
     assert.deepEqual(admin.work[INC].counts, { all: 3, toReview: 2, accepted: 0, pooled: 1, declined: 0 });
   });
@@ -641,17 +643,17 @@ describe("a programme's numbers are the ones its own list works out", () => {
     const lead = await numbers.loadTermNumbers(db, CAST.claudia, form);
     const admin = await numbers.loadTermNumbers(db, CAST.zach, form);
     assert.equal(lead.work[AGI].counts.all, admin.work[AGI].counts.all - 1);
-    assert.equal(lead.work[AGI].counts.toReview, 2);
-    assert.equal(lead.work[AGI].waiting, 2);
+    assert.equal(lead.work[AGI].counts.toReview, 1);
+    assert.equal(lead.work[AGI].waiting, 1);
   });
 
   test("a reviewer's number is what they have not finished scoring, and falls as they score", async () => {
     const db = makeDb(seed());
     const form = formOf(db);
     const before = await numbers.loadTermNumbers(db, CAST.lloyd, form);
-    // Owed a decision: amara, george, claudia. Lloyd has finished amara.
-    assert.equal(before.work[AGI].counts.toReview, 3);
-    assert.equal(before.work[AGI].waiting, 2);
+    // Owed a decision: amara and claudia. Lloyd has finished amara.
+    assert.equal(before.work[AGI].counts.toReview, 2);
+    assert.equal(before.work[AGI].waiting, 1);
     db.put(`admissionReviews/${ROUND}__claudia__lloyd`, {
       roundId: ROUND,
       applicantUid: "claudia",
@@ -661,8 +663,8 @@ describe("a programme's numbers are the ones its own list works out", () => {
       overallComment: "",
     });
     const after = await numbers.loadTermNumbers(db, CAST.lloyd, form);
-    assert.equal(after.work[AGI].waiting, 1);
-    assert.equal(after.work[AGI].counts.toReview, 3, "scoring decides nothing");
+    assert.equal(after.work[AGI].waiting, 0);
+    assert.equal(after.work[AGI].counts.toReview, 2, "scoring decides nothing");
   });
 });
 

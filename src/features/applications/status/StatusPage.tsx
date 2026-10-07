@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import kit from "@/features/applications/kit/kit.module.css";
 import { ArrowRightIcon, BackIcon } from "@/features/applications/apply/icons";
+import { standardSubject } from "@/lib/applications/decisionDay/emailCopy";
 import type { StatusView } from "@/lib/applications/status/view";
 import OfferBanner from "./OfferBanner";
 import { InvitationReply, PlaceReply, ReplyTitle } from "./ReplyButtons";
@@ -24,6 +25,16 @@ import styles from "./status.module.css";
 const CONTACT = "ai-safety@uonsu.com";
 const EVENTS = "/events";
 const HUB = "/applications";
+
+/**
+ * The heading of an accepted outcome. It is the sentence the decision email's
+ * standard subject says, with a full stop, and it is taken from the one place
+ * that sentence is written, so the page and the inbox cannot come to say two
+ * different things.
+ */
+function youAreIn(programme: { shortName: string } | null): string {
+  return programme ? `${standardSubject("accepted", programme.shortName)}.` : "You’re in.";
+}
 
 function Contact() {
   return (
@@ -333,7 +344,7 @@ export default function StatusPage({
               <span className={`${kit.mono} ${styles.meta}`}>{withDay(view.label, view.decidedLabel)}</span>
             </div>
             <ReplyTitle as="h1" className={styles.bigTitle}>
-              {programme ? `You’re in ${programme.shortName}.` : "You’re in."}
+              {youAreIn(programme)}
             </ReplyTitle>
             {programme?.facts ? (
               <div>
@@ -370,7 +381,7 @@ export default function StatusPage({
           </div>
           <div>
             <ReplyTitle as="h2" className={styles.cardTitle}>
-              {programme ? `You’re in ${programme.shortName}.` : "You’re in."}
+              {youAreIn(programme)}
             </ReplyTitle>
             {programme?.shortFacts ? (
               <div className={styles.cardMeta}>

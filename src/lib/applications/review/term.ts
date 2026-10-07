@@ -1,5 +1,5 @@
 import type { ProgrammeRole } from "../access";
-import { freePlaces, tallyTerm, type Applicant, type TermTally } from "../decisions";
+import { freePlaces, isInTerm, tallyTerm, type Applicant, type TermTally } from "../decisions";
 import type { ApplicationDoc, DecisionDoc, ReviewDoc } from "../model";
 import type { ApplicationForm } from "../normalise";
 import { rankedProgrammes } from "../sections";
@@ -17,6 +17,14 @@ import { rankedProgrammes } from "../sections";
  * who leads a programme and also applied to one must not learn what was
  * decided about them from a tally, any more than from a row.
  *
+ * SOMEBODY WHO HAS LEFT THE TERM IS LISTED AND NOT COUNTED. An application
+ * withdrawn after it was sent (which is also what giving a place or an
+ * invitation back does) stays in `applications`, so the list can show its row
+ * marked as withdrawn and the review screen can still open it. It is handed
+ * to the arithmetic by nobody: `tally` is of the people `isInTerm` admits,
+ * the same people the pooled applicants and decision-day screens count, so a
+ * place given back is free here in the same moment it is free there.
+ *
  * Pure, with no server import.
  */
 
@@ -30,13 +38,17 @@ export type Viewer = {
 };
 
 export type TermPicture = {
-  /** Sent applications the caller may be shown. */
+  /**
+   * Sent applications the caller may be shown, withdrawn ones included. Ask
+   * `isInTerm` of one before counting it.
+   */
   applications: ApplicationDoc[];
   /** Each applicant's ranking, as the form knows it. */
   ranked: Map<string, string[]>;
   decisions: ReadonlyMap<string, DecisionDoc>;
   /** Every reviewer's row, by applicant. */
   reviews: Map<string, ReviewDoc[]>;
+  /** The arithmetic of the people in the term. A withdrawn application is not in it. */
   tally: TermTally;
 };
 
@@ -58,6 +70,8 @@ export function termPictureFor(input: {
       ? rankedProgrammes(form, application.sent).map((programme) => programme.id)
       : [];
     ranked.set(application.uid, order);
+    // Listed, and not counted: see the note at the top.
+    if (!isInTerm(application)) continue;
     applicants.push({
       uid: application.uid,
       ranked: order,
