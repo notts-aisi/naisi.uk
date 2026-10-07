@@ -592,6 +592,6 @@ describe("the routes and the page answer with the projections", () => {
 
   test("a signed-out visitor's page is handed the form's label and id, nothing more", () => {
     const screen = code("src/features/applications/apply/ApplyScreen.tsx");
-    assert.match(screen, /<SignedOutAbout roundId=\{form\.id\} label=\{form\.label\} \/>/);
+    assert.match(screen, /<JoinFirst roundId=\{form\.id\} label=\{form\.label\} \/>/);
   });
 });

@@ -458,8 +458,6 @@ describe("what an applicant reads", () => {
     const all = formFiles.filter((name) => name.endsWith(".tsx")).map(sourceOf).join("\n").replace(/\s+/g, " ");
     for (const sentence of [
       "From your account. Change anything that’s out of date.",
-      "You don’t have an account yet, so this step is your join request too. You can keep applying while the committee checks it. If you get a place, that approves your account.",
-      "We’ll email you a link to check it’s yours.",
       "Programmes you’re interested in",
       "You’ll get a place on one at most, and we start from your 1st choice.",
       "We train you and give you the resources. You don’t need any experience.",
@@ -478,12 +476,67 @@ describe("what an applicant reads", () => {
     assert.match(all, /We’ll ask you \{moreQuestions\} more \{moreQuestions === 1 \? "question" : "questions"\}\./);
   });
 
-  test("signed out, Continue goes to registration carrying the form's address and nothing typed", () => {
-    const signedOut = codeOf("SignedOutAbout.tsx");
-    assert.match(signedOut, /const returnTo = encodeURIComponent\(`\/apply\/\$\{roundId\}`\);/);
-    assert.equal((signedOut.match(/href=\{`\/register\?next=\$\{returnTo\}`\}/g) ?? []).length, 2, "the phone and the laptop Continue");
-    assert.match(signedOut, /href=\{`\/login\?next=\$\{returnTo\}`\}/);
-    assert.equal(/fetch\(|about\.\w+\}?`|\$\{about/.test(signedOut), false, "nothing typed on the step leaves it");
+  test("signed out, a visitor is shown no field", () => {
+    // An application is saved against an account, so a box drawn for somebody
+    // with no account is a box whose contents are thrown away. The panel has
+    // no control to type into, no state to hold an answer and nothing that
+    // posts one, and it is not a client component, so it cannot grow any of
+    // them without this failing.
+    const source = sourceOf("JoinFirst.tsx");
+    const panel = codeOf("JoinFirst.tsx");
+    assert.equal(source.trimStart().startsWith('"use client"'), false, "the panel holds no state, so it is rendered on the server");
+    assert.equal(/<(input|textarea|select|form|button)\b/.test(panel), false, "the panel draws a control");
+    assert.equal(/<Select\b|\bTextField\b|\bLongText\b|\bAboutStep\b|\bChoiceRows\b/.test(panel), false, "the panel draws one of the form's fields");
+    assert.equal(/\buseState\b|\buseReducer\b|\bonChange\b|\bfetch\(/.test(panel), false, "the panel keeps or sends something");
+    // And no step of the form is drawn beside it for a visitor.
+    const screen = codeOf("ApplyScreen.tsx");
+    const signedOutBranch = screen.slice(screen.indexOf("if (!user) {"), screen.indexOf('if (user.role === "rejected")'));
+    assert.ok(signedOutBranch.includes("<JoinFirst "), "the signed-out branch was not found");
+    assert.equal(/<ApplicationForm\b|<AboutStep\b/.test(signedOutBranch), false, "a signed-out visitor is drawn part of the form");
+    assert.equal(formFiles.includes("SignedOutAbout.tsx"), false, "the step drawn for a visitor with no account is back");
+  });
+
+  test("signed out, both ways on carry this form's address and nothing else", async () => {
+    const panel = codeOf("JoinFirst.tsx");
+    assert.match(panel, /const returnTo = encodeURIComponent\(`\/apply\/\$\{roundId\}`\);/);
+    assert.equal((panel.match(/href=\{`\/register\?next=\$\{returnTo\}`\}/g) ?? []).length, 1, "one way to an account");
+    assert.equal((panel.match(/href=\{`\/login\?next=\$\{returnTo\}`\}/g) ?? []).length, 1, "one way back in");
+    // Those two and Close are every place the panel sends anybody.
+    assert.deepEqual(
+      (panel.match(/href=(?:"[^"]*"|\{[^}]*\}`\}|\{[^}]*\})/g) ?? []).sort(),
+      ['href="/"', "href={`/login?next=${returnTo}`}", "href={`/register?next=${returnTo}`}"],
+    );
+    // The address is one the registration flow hands people back to. If the
+    // form ever moves, or that list is narrowed, a visitor would finish
+    // joining and be left somewhere else.
+    const { safeFunnelReturn } = await loadTs(join("lib", "authReturn.ts"));
+    assert.equal(safeFunnelReturn(`/apply/${FORM.id}`), `/apply/${FORM.id}`);
+  });
+
+  test("signed out, the panel says what is true and never promises a join request", () => {
+    const panel = sourceOf("JoinFirst.tsx").replace(/\s+/g, " ");
+    for (const sentence of [
+      "Join NAISI to apply",
+      "You need a NAISI account to apply. Joining takes a couple of minutes, and we bring you straight back to this form afterwards.",
+      "Join NAISI",
+      "Already have an account?",
+      "Sign in",
+    ]) {
+      assert.ok(panel.includes(sentence), `missing: ${sentence}`);
+    }
+    // What is left of the markup once the tags and the expressions are gone
+    // is what a visitor reads.
+    const code = codeOf("JoinFirst.tsx");
+    const read = code.slice(code.indexOf("return (")).replace(/<[^>]*>/g, " ").replace(/\{[^}]*\}/g, " ");
+    assert.ok(read.includes("Join NAISI to apply"), "the panel's words were not found");
+    assert.equal(read.includes("!"), false, "the panel has an exclamation mark");
+    // Nothing on this page makes a join request, so nothing in the form may
+    // say that a step of it is one.
+    for (const file of formFiles.filter((name) => /\.tsx?$/.test(name))) {
+      const all = sourceOf(file).replace(/\s+/g, " ").toLowerCase();
+      assert.equal(/this step is your join request|is your join request too/.test(all), false, `${file} says a step is a join request`);
+      assert.equal(/protected by recaptcha/.test(all), false, `${file} says the page runs a check it does not load`);
+    }
   });
 });
 

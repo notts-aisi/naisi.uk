@@ -636,7 +636,6 @@ export default function ApplicationForm({
                   key="about"
                   about={content.aboutYou}
                   email={{
-                    kind: "account",
                     address: account.universityEmail,
                     verified: account.universityEmailVerified,
                     profileHref: pending ? null : "/profile",

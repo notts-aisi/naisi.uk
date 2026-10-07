@@ -8,7 +8,7 @@ import { projectFormForApplicant } from "@/lib/applications/applicant/project";
 import { loadApplicantView, loadVisibleForm } from "@/lib/applications/applicant/store";
 import type { ApplicantApplication, ApplicantForm } from "@/lib/applications/applicant/types";
 import ApplicationForm from "./ApplicationForm";
-import SignedOutAbout from "./SignedOutAbout";
+import JoinFirst from "./JoinFirst";
 import { isStepId } from "./steps";
 import styles from "./form.module.css";
 
@@ -24,9 +24,10 @@ import styles from "./form.module.css";
  *
  * Everything is read here, on the server, through the applicant-safe loader,
  * and the form is handed its opening state: the same four projections the
- * GET route answers with. A signed-out visitor gets the form's label and
- * nothing else, because every prop a client component is given is written
- * into the page's HTML.
+ * GET route answers with. A signed-out visitor is asked nothing: they get a
+ * short panel (`JoinFirst`) that is handed the form's id and label and
+ * nothing else, and that sends them to make an account or sign in and come
+ * back. No part of the form is drawn for somebody it could not be saved for.
  */
 
 function StateCard({
@@ -159,7 +160,7 @@ export async function renderApplicationForm({
     return (
       <ApplicationsRoot className={`${styles.tokens} ${styles.root}`}>
         {form.windowState === "open" ? (
-          <SignedOutAbout roundId={form.id} label={form.label} />
+          <JoinFirst roundId={form.id} label={form.label} />
         ) : form.windowState === "not-yet" ? (
           <NotYet form={form} signedIn={false} returnTo={returnTo} />
         ) : (
