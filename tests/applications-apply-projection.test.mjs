@@ -618,8 +618,20 @@ describe("the routes and the page answer with the projections", () => {
     }
   });
 
-  test("a signed-out visitor's page is handed the form's label and id, nothing more", () => {
+  test("a signed-out visitor's page is handed the form's id, its name and its two dates, nothing more", () => {
+    // The first step for a visitor is their join request (`JoinStep`). It is
+    // handed nothing of the form but what an open form says to anybody: no
+    // programme, no question set, no question.
     const screen = code("src/features/applications/apply/ApplyScreen.tsx");
-    assert.match(screen, /<JoinFirst roundId=\{form\.id\} label=\{form\.label\} \/>/);
+    const signedOut = screen.slice(screen.indexOf("if (!user) {"), screen.indexOf('if (user.role === "rejected")'));
+    assert.match(
+      signedOut,
+      /<JoinStep\s+roundId=\{form\.id\}\s+label=\{form\.label\}\s+closesLabel=\{form\.closesLabel\}\s+decisionsLabel=\{form\.decisionsLabel\}\s+signedIn=\{false\}\s+signedInAs=\{null\}\s+\/>/,
+    );
+    // One step is drawn for a visitor, and that element is the whole of what
+    // reaches their browser from the form.
+    const drawn = signedOut.match(/<JoinStep\b[\s\S]*?\/>/g) ?? [];
+    assert.equal(drawn.length, 1);
+    assert.equal(/\{\.\.\.|form=\{|sets=\{|programmes|questionSetIds/.test(drawn[0]), false, "a visitor's page is handed part of the form");
   });
 });

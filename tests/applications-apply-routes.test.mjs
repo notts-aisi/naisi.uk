@@ -24,6 +24,10 @@
  *    a save changes the draft and leaves the sent copy alone.
  *  - COUNTERS MOVE WITH THE STATUS, in the same transaction, and only when
  *    the status moves.
+ *  - A SEND WAITS. An account with no join request cannot send, and an
+ *    account still waiting to be approved cannot send until its university
+ *    address has been checked. Both are read off the account, and neither
+ *    stops a save.
  *
  * ## What is real and what is faked
  *
@@ -77,6 +81,7 @@ const { loadTs } = createLoader({ stubs: STUBS });
 const route = await loadTs(join("app", "api", "admissions", "forms", "[roundId]", "application", "route.ts"));
 const sendRoute = await loadTs(join("app", "api", "admissions", "forms", "[roundId]", "application", "send", "route.ts"));
 const store = await loadTs(join("lib", "applications", "applicant", "store.ts"));
+const joinRules = await loadTs(join("lib", "applications", "applicant", "join.ts"));
 const requests = await loadTs(join("lib", "applications", "applicant", "requests.ts"));
 const siteNotice = await loadTs(join("lib", "siteNotice.ts"));
 const validate = await loadTs(join("lib", "applications", "validate.ts"));
@@ -415,7 +420,10 @@ describe("the applicant's gate", () => {
   });
 
   test("an account still waiting to be approved can read the form, save and send", async () => {
+    // Her university address is checked (`userDoc` stamps it). What a waiting
+    // account with an unchecked address can and cannot do is the next section.
     world({ uid: "jasmine", role: "pending" });
+    assert.ok(db.data("users/jasmine").profile.uniEmailVerifiedAt, "the fixture's address is no longer a checked one");
     assert.equal((await GET()).status, 200);
     assert.equal((await PUT({ draft: fullDraft() })).status, 200);
     const sent = await SEND();
@@ -431,6 +439,151 @@ describe("the applicant's gate", () => {
     assert.deepEqual(db.writes, []);
     // Reading what the member sees is what view-as is for.
     assert.equal((await GET()).status, 200);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A send waits for a join request, and for the university address
+// ---------------------------------------------------------------------------
+
+/** An account whose university address is on its profile and has not been checked. */
+function unchecked(uid) {
+  const { uniEmailVerifiedAt: _stamp, ...profile } = userDoc(uid).profile;
+  return { profile };
+}
+
+describe("a send waits for the university address", () => {
+  const HELD = { step: "check", questionId: null, message: joinRules.VERIFY_FIRST };
+
+  test("a waiting account whose address is not checked can read and save, and cannot send", async () => {
+    const uid = freshUid();
+    world({ uid, role: "pending", user: unchecked(uid) });
+
+    const read = await GET();
+    assert.equal(read.status, 200);
+    assert.equal(read.body.joined, true);
+    assert.equal(read.body.account.universityEmail, "ada@nottingham.ac.uk");
+    assert.equal(read.body.account.universityEmailVerified, false);
+
+    const saved = await PUT({ draft: fullDraft() });
+    assert.equal(saved.status, 200, "an application cannot be saved before the address is checked");
+    assert.equal(saved.body.created, true);
+    assert.equal(counts().draft, 1);
+    const afterSave = db.writes.length;
+
+    const refused = await SEND();
+    assert.equal(refused.status, 400);
+    assert.equal(refused.body.error, joinRules.VERIFY_FIRST);
+    assert.deepEqual(refused.body.issues, [HELD]);
+    assert.equal(db.writes.length, afterSave, "a held send wrote something");
+    const stored = db.data(appPath(uid));
+    assert.equal(stored.status, "draft");
+    assert.equal(stored.sent, null);
+    assert.equal(stored.sentAt, null);
+    assert.deepEqual([counts().draft, counts().submitted], [1, 0], "a held send moved a counter");
+  });
+
+  test("the moment the address is checked, the same application sends", async () => {
+    const uid = freshUid();
+    world({ uid, role: "pending", user: unchecked(uid) });
+    await PUT({ draft: fullDraft() });
+    assert.equal((await SEND()).status, 400);
+
+    // What following the emailed link does: the server stamps the profile.
+    db.seed(`users/${uid}`, userDoc(uid));
+    const sent = await SEND();
+    assert.equal(sent.status, 200);
+    assert.equal(sent.body.first, true);
+    const stored = db.data(appPath(uid));
+    assert.equal(stored.status, "submitted");
+    assert.equal(stored.sent.aboutYou.universityEmailVerified, true, "the application of record does not say the address was checked");
+    assert.deepEqual([counts().draft, counts().submitted], [0, 1]);
+  });
+
+  test("it is read off the account: a draft or a request that says the address is checked changes nothing", async () => {
+    const uid = freshUid();
+    world({ uid, role: "pending", user: unchecked(uid) });
+    const claimed = fullDraft();
+    claimed.aboutYou.universityEmailVerified = true;
+    await PUT({ draft: claimed });
+    assert.equal(db.data(appPath(uid)).draft.aboutYou.universityEmailVerified, false, "a save stored a typed verified flag");
+    for (const body of [{ verified: true }, { universityEmailVerified: true, account: { universityEmailVerified: true } }]) {
+      const refused = await SEND(body);
+      assert.equal(refused.status, 400);
+      assert.deepEqual(refused.body.issues, [HELD]);
+    }
+    assert.equal(db.data(appPath(uid)).status, "draft");
+  });
+
+  test("an approved account is not held, whether or not its address was ever checked", async () => {
+    for (const role of ["member", "committee", "admin"]) {
+      const uid = freshUid();
+      world({ uid, role, user: unchecked(uid) });
+      await PUT({ draft: fullDraft() });
+      const sent = await SEND();
+      assert.equal(sent.status, 200, `${role} was held`);
+      assert.equal(db.data(appPath(uid)).status, "submitted");
+      // And nothing claims the address was checked when it was not.
+      assert.equal(db.data(appPath(uid)).sent.aboutYou.universityEmailVerified, false);
+    }
+  });
+
+  test("a waiting account with no address is told to add one, which is the About you rule and not this one", async () => {
+    const uid = freshUid();
+    const { universityEmail: _address, ...profile } = unchecked(uid).profile;
+    world({ uid, role: "pending", user: { profile } });
+    await PUT({ draft: fullDraft() });
+    const refused = await SEND();
+    assert.equal(refused.status, 400);
+    assert.deepEqual(
+      refused.body.issues.map((issue) => [issue.step, issue.message]),
+      [["about", "Add your university email."]],
+    );
+  });
+
+  test("the hold answers after the form and its window, so it says nothing about a form nobody may see", async () => {
+    const uid = freshUid();
+    world({ uid, role: "pending", user: unchecked(uid), roundOverrides: { status: "draft" } });
+    assert.equal((await SEND()).status, 404);
+    world({ uid: freshUid(), role: "pending", user: unchecked(uid), roundOverrides: { closesAt: new Date("2026-10-01T00:00:00Z") } });
+    assert.equal((await SEND()).status, 403);
+  });
+});
+
+describe("an account with no join request", () => {
+  /** Signed in, and no `users` document: the session reads that as an account that is waiting. */
+  function halfMade() {
+    const uid = freshUid();
+    world({ uid, role: "pending" });
+    db.docs.delete(`users/${uid}`);
+    return uid;
+  }
+
+  test("the read says so, and hands back a blank About you", async () => {
+    const uid = halfMade();
+    const read = await GET();
+    assert.equal(read.status, 200);
+    assert.equal(read.body.joined, false);
+    assert.deepEqual(read.body.account, joinRules.emptyJoinAnswers());
+    assert.equal(db.data(`users/${uid}`), null, "reading the form made a join request");
+    assert.deepEqual(db.writes, []);
+  });
+
+  test("it cannot send, is told which step to go to, and nothing is written", async () => {
+    const uid = halfMade();
+    await PUT({ draft: fullDraft() });
+    const before = db.writes.length;
+    const refused = await SEND();
+    assert.equal(refused.status, 400);
+    assert.equal(refused.body.error, joinRules.JOIN_FIRST);
+    assert.deepEqual(refused.body.issues, [{ step: "about", questionId: null, message: joinRules.JOIN_FIRST }]);
+    assert.equal(db.writes.length, before);
+    assert.equal(db.data(appPath(uid)).status, "draft");
+    assert.equal(db.data(`users/${uid}`), null, "the send route made a join request");
+  });
+
+  test("every other account the suite uses has one", async () => {
+    assert.equal((await GET()).body.joined, true);
   });
 });
 
@@ -548,7 +701,8 @@ describe("GET", () => {
   test("answers with the form, its sets, the caller's application and their account, and writes nothing", async () => {
     const response = await GET();
     assert.equal(response.status, 200);
-    assert.deepEqual(Object.keys(response.body).sort(), ["account", "application", "form", "sets"]);
+    assert.deepEqual(Object.keys(response.body).sort(), ["account", "application", "form", "joined", "sets"]);
+    assert.equal(response.body.joined, true);
     assert.equal(response.body.application, null);
     assert.deepEqual(response.body.sets.map((set) => set.id), ["fellowships", AGI]);
     assert.equal(response.body.account.preferredName, "Amara");

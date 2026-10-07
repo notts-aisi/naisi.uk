@@ -1,0 +1,575 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/auth/AuthProvider";
+import { completeRegistration, exchangeGoogleCredential, signOut } from "@/auth/signInWithGoogle";
+import PolicyConsent from "@/components/PolicyConsent";
+import { RECAPTCHA_ENABLED } from "@/components/ui/RecaptchaInvisible";
+import kit from "@/features/applications/kit/kit.module.css";
+import { SurfacePausedNotice } from "@/features/maintenance/SurfacePausedNotice";
+import { useSiteNotice } from "@/features/maintenance/useSiteNotice";
+import { useIsStandalone } from "@/hooks/useDisplayMode";
+import { useHydrated } from "@/hooks/useHydrated";
+import type { AboutYou } from "@/lib/applications/model";
+import {
+  emptyJoinAnswers,
+  joinIssues,
+  joinRequestFrom,
+  joinReturnFor,
+  withKept,
+} from "@/lib/applications/applicant/join";
+import { getClientAuth } from "@/lib/firebase/client";
+import { isSurfacePaused } from "@/lib/siteNotice";
+import AboutStep from "./AboutStep";
+import JoinAccount from "./JoinAccount";
+import { ArrowRightIcon, BackIcon, CloseIcon } from "./icons";
+import {
+  mintSession,
+  saveAboutYou,
+  sendUniversityCheck,
+  startEmailRegistration,
+  type AccountKind,
+} from "./joinClient";
+import { forgetAnswers, keepAnswers, loadKept } from "./keptAnswers";
+import { STEP_PARAM } from "./steps";
+import styles from "./form.module.css";
+import join from "./join.module.css";
+
+/**
+ * The form's first step, for somebody who has not sent a join request.
+ *
+ * About you asks the same questions as joining the site. Somebody with an
+ * account has answered them already and is shown them filled in
+ * (`ApplicationForm`). Somebody without one answers them HERE, once: this
+ * step is their join request, and when they continue it is sent by the same
+ * client function the register page calls (`completeRegistration`), copied
+ * into their application, and the form moves on to its second step.
+ *
+ * ## Who is drawn this step
+ *
+ * A visitor who is not signed in, and an account that is signed in and has
+ * no join request (it made an account and never filled the profile in).
+ * `signedIn` is the page's answer to which. The second kind needs no way
+ * to sign in: Continue sends the join request.
+ *
+ * ## Continue checks the answers
+ *
+ * Every other step of the form lets somebody past with boxes empty. This one
+ * does not, because what leaves it is a document the committee reads and
+ * approves. The check is `joinIssues`, and agreeing to the terms is part of
+ * it: `completeRegistration` records that agreement, so it must have been
+ * given on this screen.
+ *
+ * ## What is kept, and what is sent where
+ *
+ * The answers stay in this tab while the person signs in (`keptAnswers.ts`).
+ * Signed out, the only things this step sends anywhere are an email address
+ * to the register route and a Google credential to the sign-in function.
+ * The answers are sent once, under the person's own session, as the join
+ * request.
+ *
+ * ## Nothing here says Saved
+ *
+ * Until the join request has gone there is no application to save into, so
+ * the corner of the bar that says Saved on every other step is empty here.
+ *
+ * ## The link that checks a university address
+ *
+ * It is asked for the moment the join request exists, because the page that
+ * confirms it stamps the account only once there is an account to stamp.
+ * Nothing waits for it: the person carries on, and the form holds the send.
+ */
+
+type Props = {
+  roundId: string;
+  /** "Autumn 2026". */
+  label: string;
+  closesLabel: string | null;
+  decisionsLabel: string | null;
+  /** The page was drawn for a session, and that account has no join request. */
+  signedIn: boolean;
+  /** That session's address, when it has one. */
+  signedInAs: string | null;
+};
+
+type View = "questions" | "account";
+type Busy = "google" | "email" | "join" | null;
+
+const ACCOUNT_HASH = "#account";
+
+const SIGN_IN_AGAIN = "We couldn’t find your sign-in in this browser. Sign in again and you’ll come straight back here.";
+const JOIN_FAILED = "We couldn’t send your join request. What you’ve typed is still here. Try again in a moment.";
+const COLLABORATOR =
+  "That account belongs to an external collaborator, and these programmes are for University of Nottingham students and staff. Sign in with a different account to apply.";
+const SIGN_IN_FAILED = "Sign-in failed. Please try again.";
+
+function RecaptchaLine() {
+  return (
+    <p className={join.recaptcha}>
+      This site is protected by reCAPTCHA. Google’s{" "}
+      <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">
+        Privacy Policy
+      </a>{" "}
+      and{" "}
+      <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer">
+        Terms of Service
+      </a>{" "}
+      apply.
+    </p>
+  );
+}
+
+export default function JoinStep({
+  roundId,
+  label,
+  closesLabel,
+  decisionsLabel,
+  signedIn: drawnSignedIn,
+  signedInAs,
+}: Props) {
+  const router = useRouter();
+  const hydrated = useHydrated();
+  const standalone = useIsStandalone();
+  const { user, role, loading: authLoading } = useAuth();
+  const siteNotice = useSiteNotice();
+  const paused = isSurfacePaused(siteNotice, "newRegistrations");
+
+  // `drawn` counts how often the boxes have been drawn afresh. They are
+  // uncontrolled, so answers that come back from the tab's own store after
+  // the page loads are shown by drawing the boxes again, holding them.
+  const [answers, setAnswers] = useState<{ about: AboutYou; drawn: number }>(() => ({
+    about: emptyJoinAnswers(),
+    drawn: 0,
+  }));
+  const about = answers.about;
+  const aboutRef = useRef(about);
+  const [agreed, setAgreed] = useState(false);
+  const [view, setView] = useState<View>("questions");
+  const [inboxFor, setInboxFor] = useState<string | null>(null);
+  const [busy, setBusy] = useState<Busy>(null);
+  const [problems, setProblems] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [moved, setMoved] = useState(0);
+  const headingRef = useRef<HTMLHeadingElement | null>(null);
+  const noticeRef = useRef<HTMLDivElement | null>(null);
+  /** True from the first moment a join request is on its way, so one press sends one. */
+  const joining = useRef(false);
+
+  // Signed in is true the moment either side knows: the page (a session it
+  // was drawn for) or this browser (a sign-in that has just happened here, or
+  // in another tab after an emailed link).
+  const signedIn = drawnSignedIn || Boolean(user);
+  const address = user?.email ?? signedInAs;
+  // Somebody who is signed in has no account to make.
+  const shown: View = signedIn ? "questions" : view;
+  const formUrl = `/apply/${encodeURIComponent(roundId)}`;
+  const signInHref = `/login?next=${encodeURIComponent(formUrl)}`;
+  const title = `Apply · ${label}`;
+
+  // --- the answers, and what this tab keeps of them ---------------------------
+  const patch = useCallback(
+    (change: Partial<AboutYou>) => {
+      const next = { ...aboutRef.current, ...change };
+      aboutRef.current = next;
+      setAnswers((current) => ({ about: next, drawn: current.drawn }));
+      keepAnswers(roundId, next);
+    },
+    [roundId],
+  );
+
+  useEffect(() => {
+    const kept = loadKept(roundId);
+    if (!kept) return;
+    // Under whatever was typed before the page was listening: a box with
+    // something in it keeps it.
+    const merged = withKept(aboutRef.current, kept);
+    if (JSON.stringify(merged) === JSON.stringify(aboutRef.current)) return;
+    aboutRef.current = merged;
+    // Once, when the page is first in a browser: the tab's own store cannot
+    // be read while the page is being drawn on the server.
+    setAnswers((current) => ({ about: merged, drawn: current.drawn + 1 }));
+  }, [roundId]);
+
+  // --- a page drawn for somebody the browser now knows better ------------------
+  const askedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (authLoading || !user) return;
+    // An account with a join request has no business on this step: the page
+    // drawn for them is the form itself. And a sign-in the page has not heard
+    // of (it happened in this browser after the page was drawn) is news to
+    // the server. Either way, ask it again, once for each account.
+    const stale = role !== null || !drawnSignedIn;
+    if (!stale || askedFor.current === user.uid) return;
+    // Not while a join request is on its way: that ends by moving the page
+    // on, and if it fails this runs again.
+    if (busy !== null) return;
+    askedFor.current = user.uid;
+    if (role !== null) forgetAnswers(roundId);
+    router.refresh();
+  }, [authLoading, user, role, drawnSignedIn, roundId, router, busy]);
+
+  // --- moving between the two halves ---------------------------------------------
+  useEffect(() => {
+    if (moved === 0) return;
+    window.scrollTo({ top: 0 });
+    headingRef.current?.focus({ preventScroll: true });
+  }, [moved]);
+
+  // The second half is one step back from the first in the browser's own
+  // history, so the back gesture on a phone returns to the answers instead of
+  // leaving the form.
+  useEffect(() => {
+    const onPop = () => {
+      if (window.location.hash === ACCOUNT_HASH) return;
+      setView("questions");
+      setInboxFor(null);
+      setMoved((count) => count + 1);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  const openAccount = useCallback(() => {
+    if (window.location.hash !== ACCOUNT_HASH) {
+      window.history.pushState(null, "", `${window.location.pathname}${window.location.search}${ACCOUNT_HASH}`);
+    }
+    setView("account");
+    setMoved((count) => count + 1);
+  }, []);
+
+  const backToAnswers = useCallback(() => {
+    setError(null);
+    if (window.location.hash === ACCOUNT_HASH) {
+      window.history.back();
+      return;
+    }
+    setView("questions");
+    setInboxFor(null);
+    setMoved((count) => count + 1);
+  }, []);
+
+  // --- sending the join request ----------------------------------------------------
+  /**
+   * What happens once the server has said what kind of account this is.
+   * Resolves true when the page is on its way somewhere else.
+   */
+  const finishJoin = useCallback(
+    async (kind: AccountKind): Promise<boolean> => {
+      if (kind === "collaborator") {
+        setError(COLLABORATOR);
+        return false;
+      }
+      if (kind === "member") {
+        // This account has a join request already, so nothing is sent. The
+        // form opens from their profile.
+        forgetAnswers(roundId);
+        router.refresh();
+        return true;
+      }
+      const answers = aboutRef.current;
+      try {
+        await completeRegistration(joinRequestFrom(answers));
+      } catch (err) {
+        console.error(err);
+        setError(siteNotice.bannerVisible ? siteNotice.bannerMessage : JOIN_FAILED);
+        return false;
+      }
+      forgetAnswers(roundId);
+      // Both are best effort from here. The join request is in. The form's
+      // own save covers the first failing, and "Send the link again" on the
+      // last step covers the second.
+      await Promise.all([
+        saveAboutYou(roundId, answers),
+        sendUniversityCheck(answers.universityEmail, answers.preferredName),
+      ]);
+      // A move inside the site, never a new document: the join request's own
+      // follow-up requests are still on their way and a page load would drop
+      // them.
+      router.replace(`${formUrl}?${STEP_PARAM}=choose`);
+      return true;
+    },
+    [roundId, router, formUrl, siteNotice.bannerVisible, siteNotice.bannerMessage],
+  );
+
+  const check = useCallback((): boolean => {
+    const issues = joinIssues(aboutRef.current, agreed);
+    setProblems(issues);
+    if (issues.length > 0) {
+      window.requestAnimationFrame(() => noticeRef.current?.focus());
+      return false;
+    }
+    if (paused) {
+      // Said by the notice under the step. Nothing is sent while joining is paused.
+      return false;
+    }
+    return true;
+  }, [agreed, paused]);
+
+  async function onContinue() {
+    if (busy || joining.current) return;
+    setError(null);
+    if (!check()) return;
+    if (!signedIn) {
+      openAccount();
+      return;
+    }
+    joining.current = true;
+    setBusy("join");
+    const current = getClientAuth().currentUser;
+    let idToken: string | null = null;
+    try {
+      // Fresh from the sign-in provider, so a sign-in that has since been
+      // replaced (a password chosen in another tab) is found out here and not
+      // half way through.
+      idToken = current ? await current.getIdToken(true) : null;
+    } catch {
+      idToken = null;
+    }
+    if (!idToken) {
+      joining.current = false;
+      setBusy(null);
+      setError(SIGN_IN_AGAIN);
+      return;
+    }
+    const minted = await mintSession(idToken);
+    if (!minted.ok) {
+      joining.current = false;
+      setBusy(null);
+      setError(minted.status === 401 ? SIGN_IN_AGAIN : minted.error);
+      return;
+    }
+    if (!(await finishJoin(minted.kind))) {
+      joining.current = false;
+      setBusy(null);
+    }
+  }
+
+  const onGoogle = useCallback(
+    async (credential: string) => {
+      if (joining.current) return;
+      joining.current = true;
+      setError(null);
+      setBusy("google");
+      let done = false;
+      try {
+        const result = await exchangeGoogleCredential(credential);
+        done = await finishJoin(result.kind);
+      } catch (err) {
+        console.error(err);
+        setError(SIGN_IN_FAILED);
+      }
+      if (!done) {
+        joining.current = false;
+        setBusy(null);
+      }
+    },
+    [finishJoin],
+  );
+
+  const onEmail = useCallback(
+    async (email: string, token: string | null) => {
+      setError(null);
+      setBusy("email");
+      const started = await startEmailRegistration(email, token, joinReturnFor(roundId));
+      setBusy(null);
+      if (!started.ok) {
+        setError(started.error);
+        return;
+      }
+      setInboxFor(email);
+      setMoved((count) => count + 1);
+    },
+    [roundId],
+  );
+
+  const onProblem = useCallback((message: string | null) => setError(message), []);
+
+  async function leave() {
+    if (busy) return;
+    setBusy("join");
+    try {
+      await signOut();
+    } catch (err) {
+      console.error(err);
+    }
+    askedFor.current = null;
+    setBusy(null);
+    router.refresh();
+  }
+
+  const working = busy === "join" || busy === "google";
+  const continueButton = (className: string) => (
+    <button
+      type="button"
+      className={`${kit.primary} ${className}`}
+      onClick={onContinue}
+      disabled={!hydrated || busy !== null || paused}
+    >
+      {working ? (
+        <span>Sending your join request…</span>
+      ) : (
+        <>
+          <span className={styles.onPhone}>Continue</span>
+          <span className={styles.onLaptop}>Next</span>
+          <ArrowRightIcon />
+        </>
+      )}
+    </button>
+  );
+
+  return (
+    <div className={`${styles.shell} ${styles.takeover}`}>
+      <div className={styles.topBar}>
+        <header className={styles.appBar}>
+          <div className={styles.appBarSide}>
+            {shown === "questions" ? (
+              <Link href="/" className={styles.iconButton} aria-label="Close">
+                <CloseIcon />
+              </Link>
+            ) : (
+              <button type="button" className={styles.iconButton} aria-label="Back" onClick={backToAnswers}>
+                <BackIcon />
+              </button>
+            )}
+          </div>
+          <div className={styles.appBarTitle}>{title}</div>
+          <div className={styles.appBarSide} data-end="true" />
+        </header>
+        <div role="progressbar" aria-label="Step 1" aria-valuetext="Step 1" className={styles.progress}>
+          <div className={`${styles.progressFill} ${join.firstStep}`} />
+        </div>
+      </div>
+
+      <div className={styles.columns}>
+        <aside className={styles.aside}>
+          <div className={styles.asideHead}>
+            <div className={`${kit.mono} ${styles.eyebrow}`}>{title}</div>
+          </div>
+          {closesLabel || decisionsLabel ? (
+            <div className={styles.asideCard}>
+              {closesLabel ? (
+                <p>
+                  Applications close <strong>{closesLabel}</strong>. You can change your answers until then.
+                </p>
+              ) : null}
+              {decisionsLabel ? (
+                <p>
+                  Everyone hears on <span className={styles.together}>{decisionsLabel}</span>.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          <p className={styles.asideHelp}>
+            Questions? <a href="mailto:ai-safety@uonsu.com">ai-safety@uonsu.com</a>
+          </p>
+        </aside>
+
+        <div className={styles.main}>
+          <div className={styles.stepRow}>
+            <span className={`${kit.mono} ${styles.stepLine}`}>Step 1 · About you</span>
+          </div>
+          <div
+            role="progressbar"
+            aria-label="Step 1"
+            aria-valuetext="Step 1"
+            className={`${styles.progress} ${styles.desktopProgress}`}
+          >
+            <div className={`${styles.progressFill} ${join.firstStep}`} />
+          </div>
+
+          {shown === "account" ? (
+            <JoinAccount
+              signInHref={signInHref}
+              inboxFor={inboxFor}
+              busy={busy}
+              error={error}
+              standalone={standalone}
+              headingRef={headingRef}
+              onGoogle={onGoogle}
+              onEmail={onEmail}
+              onBack={backToAnswers}
+              onProblem={onProblem}
+            />
+          ) : (
+            <>
+              <div>
+                <h1 ref={headingRef} tabIndex={-1} className={styles.heading}>
+                  About you
+                </h1>
+                <p className={styles.lede}>
+                  {signedIn
+                    ? "You haven’t joined NAISI yet, so this step is your join request too. You can keep applying while the committee checks it. If you get a place, that approves your account."
+                    : "You don’t have an account yet, so this step is your join request too. You can keep applying while the committee checks it. If you get a place, that approves your account."}
+                </p>
+                {signedIn ? (
+                  <p className={styles.lede}>
+                    {address ? (
+                      <>
+                        Signed in as <span className={join.address}>{address}</span>.
+                      </>
+                    ) : (
+                      "You’re signed in."
+                    )}{" "}
+                    <button type="button" className={join.leave} onClick={leave} disabled={!hydrated || busy !== null}>
+                      Not you? Sign out
+                    </button>
+                  </p>
+                ) : null}
+              </div>
+
+              {problems.length > 0 ? (
+                <div ref={noticeRef} tabIndex={-1} className={styles.notice} data-tone="warn" role="alert">
+                  <p>A few things to finish before you continue.</p>
+                  <ul>
+                    {problems.map((problem) => (
+                      <li key={problem}>{problem}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {error ? (
+                <div className={styles.notice} data-tone="warn" role="alert">
+                  <p>{error}</p>
+                  {error === SIGN_IN_AGAIN ? (
+                    <p>
+                      <Link href={signInHref} className={styles.inlineLink}>
+                        Sign in again
+                      </Link>
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <AboutStep key={answers.drawn} about={about} email={{ kind: "typed" }} onChange={patch} problems={[]} />
+
+              <div className={join.consent}>
+                <PolicyConsent checked={agreed} onChange={setAgreed} id="join-consent" />
+              </div>
+
+              {paused ? <SurfacePausedNotice notice={siteNotice} surface="newRegistrations" /> : null}
+
+              <div className={styles.desktopNav}>
+                <span className={styles.navSpacer} />
+                {continueButton(styles.next)}
+              </div>
+              {RECAPTCHA_ENABLED && !signedIn ? (
+                <div className={styles.onLaptop}>
+                  <RecaptchaLine />
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
+      </div>
+
+      {shown === "questions" ? (
+        <div className={styles.bottomBar}>
+          {RECAPTCHA_ENABLED && !signedIn ? <RecaptchaLine /> : null}
+          <div className={styles.bottomActions}>{continueButton(styles.continue)}</div>
+        </div>
+      ) : null}
+    </div>
+  );
+}

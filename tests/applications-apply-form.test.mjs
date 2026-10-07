@@ -584,6 +584,10 @@ describe("what an applicant reads", () => {
       "Get it on the SU site",
       "Finish later",
       "Send application",
+      // ap-1-about-new, the first step for somebody with no account.
+      "You don’t have an account yet, so this step is your join request too. You can keep applying while the committee checks it. If you get a place, that approves your account.",
+      "We’ll email you a link to check it’s yours.",
+      "This site is protected by reCAPTCHA. Google’s",
     ]) {
       assert.ok(all.includes(sentence), `missing: ${sentence}`);
     }
@@ -591,67 +595,136 @@ describe("what an applicant reads", () => {
     assert.match(all, /We’ll ask you \{moreQuestions\} more \{moreQuestions === 1 \? "question" : "questions"\}\./);
   });
 
-  test("signed out, a visitor is shown no field", () => {
-    // An application is saved against an account, so a box drawn for somebody
-    // with no account is a box whose contents are thrown away. The panel has
-    // no control to type into, no state to hold an answer and nothing that
-    // posts one, and it is not a client component, so it cannot grow any of
-    // them without this failing.
-    const source = sourceOf("JoinFirst.tsx");
-    const panel = codeOf("JoinFirst.tsx");
-    assert.equal(source.trimStart().startsWith('"use client"'), false, "the panel holds no state, so it is rendered on the server");
-    assert.equal(/<(input|textarea|select|form|button)\b/.test(panel), false, "the panel draws a control");
-    assert.equal(/<Select\b|\bTextField\b|\bLongText\b|\bAboutStep\b|\bChoiceRows\b/.test(panel), false, "the panel draws one of the form's fields");
-    assert.equal(/\buseState\b|\buseReducer\b|\bonChange\b|\bfetch\(/.test(panel), false, "the panel keeps or sends something");
-    // And no step of the form is drawn beside it for a visitor.
+  test("somebody with no join request is drawn the first step, and nothing else of the form", () => {
+    // The first step asks the join request's questions, and for somebody with
+    // no join request it IS their join request (`JoinStep.tsx`). An
+    // application cannot be saved for them yet, so no programme and no
+    // question of it is read for them: each branch that draws the step hands
+    // it the form's id, its name, the two dates an open form shows and
+    // whether there is a session, and nothing else.
     const screen = codeOf("ApplyScreen.tsx");
     const signedOutBranch = screen.slice(screen.indexOf("if (!user) {"), screen.indexOf('if (user.role === "rejected")'));
-    assert.ok(signedOutBranch.includes("<JoinFirst "), "the signed-out branch was not found");
-    assert.equal(/<ApplicationForm\b|<AboutStep\b/.test(signedOutBranch), false, "a signed-out visitor is drawn part of the form");
-    assert.equal(formFiles.includes("SignedOutAbout.tsx"), false, "the step drawn for a visitor with no account is back");
+    assert.ok(signedOutBranch.includes("<JoinStep"), "the signed-out branch was not found");
+    assert.equal(
+      /<ApplicationForm\b|<AboutStep\b|loadApplicantView|\bsets\b|\.programmes\b/.test(signedOutBranch),
+      false,
+      "a signed-out visitor is drawn, or handed, part of the form",
+    );
+    const drawn = [...screen.matchAll(/<JoinStep\s([\s\S]*?)\/>/g)].map((match) => match[1].replace(/\s+/g, " ").trim());
+    assert.deepEqual(drawn, [
+      "roundId={form.id} label={form.label} closesLabel={form.closesLabel} decisionsLabel={form.decisionsLabel} signedIn={false} signedInAs={null}",
+      "roundId={view.form.id} label={view.form.label} closesLabel={view.form.closesLabel} decisionsLabel={view.form.decisionsLabel} signedIn signedInAs={user.email ?? null}",
+    ]);
+    // The second is an account with no join request. That is asked of the
+    // account's document: a session reads a missing document as an account
+    // that is waiting, so the role cannot say.
+    assert.match(screen, /if \(!view\.joined && view\.form\.windowState === "open"\) \{/);
+    // The step takes those six things and no others.
+    const step = codeOf("JoinStep.tsx");
+    const from = step.indexOf("type Props = {");
+    const props = step.slice(from, step.indexOf("\n};", from));
+    assert.deepEqual(
+      [...props.matchAll(/^\s{2}(\w+)\??:/gm)].map((match) => match[1]),
+      ["roundId", "label", "closesLabel", "decisionsLabel", "signedIn", "signedInAs"],
+    );
+    assert.equal(formFiles.includes("JoinFirst.tsx"), false, "the panel that sent visitors away to join is back");
+    assert.equal(formFiles.includes("SignedOutAbout.tsx"), false);
   });
 
-  test("signed out, both ways on carry this form's address and nothing else", async () => {
-    const panel = codeOf("JoinFirst.tsx");
-    assert.match(panel, /const returnTo = encodeURIComponent\(`\/apply\/\$\{roundId\}`\);/);
-    assert.equal((panel.match(/href=\{`\/register\?next=\$\{returnTo\}`\}/g) ?? []).length, 1, "one way to an account");
-    assert.equal((panel.match(/href=\{`\/login\?next=\$\{returnTo\}`\}/g) ?? []).length, 1, "one way back in");
-    // Those two and Close are every place the panel sends anybody.
-    assert.deepEqual(
-      (panel.match(/href=(?:"[^"]*"|\{[^}]*\}`\}|\{[^}]*\})/g) ?? []).sort(),
-      ['href="/"', "href={`/login?next=${returnTo}`}", "href={`/register?next=${returnTo}`}"],
-    );
+  test("the ways out of the join step carry this form's address and nothing else", async () => {
+    const step = codeOf("JoinStep.tsx");
+    assert.match(step, /const formUrl = `\/apply\/\$\{encodeURIComponent\(roundId\)\}`;/);
+    assert.match(step, /const signInHref = `\/login\?next=\$\{encodeURIComponent\(formUrl\)\}`;/);
+    // Every place the step sends anybody: home, the society's address, the
+    // sign-in page with this form as the place to come back to, and the two
+    // policies the reCAPTCHA line has to link.
+    const hrefs = (file) => (codeOf(file).match(/href=(?:"[^"]*"|\{[^}]*\})/g) ?? []).sort();
+    assert.deepEqual(hrefs("JoinStep.tsx"), [
+      'href="/"',
+      'href="https://policies.google.com/privacy"',
+      'href="https://policies.google.com/terms"',
+      'href="mailto:ai-safety@uonsu.com"',
+      "href={signInHref}",
+    ]);
+    assert.deepEqual([...new Set(hrefs("JoinAccount.tsx"))], ["href={signInHref}"]);
+    // Nothing on the step leads to the register page: the step is where
+    // somebody joins.
+    for (const file of ["JoinStep.tsx", "JoinAccount.tsx"]) {
+      assert.equal(/\/register\b(?!\/resend)/.test(codeOf(file)), false, `${file} sends somebody to the register page`);
+    }
     // The address is one the registration flow hands people back to. If the
     // form ever moves, or that list is narrowed, a visitor would finish
-    // joining and be left somewhere else.
+    // signing in and be left somewhere else.
     const { safeFunnelReturn } = await loadTs(join("lib", "authReturn.ts"));
     assert.equal(safeFunnelReturn(`/apply/${FORM.id}`), `/apply/${FORM.id}`);
   });
 
-  test("signed out, the panel says what is true and never promises a join request", () => {
-    const panel = sourceOf("JoinFirst.tsx").replace(/\s+/g, " ");
+  test("the step says it is a join request, and that is true of the file that says it", () => {
+    const step = sourceOf("JoinStep.tsx").replace(/\s+/g, " ");
     for (const sentence of [
-      "Join NAISI to apply",
-      "You need a NAISI account to apply. Joining takes a couple of minutes, and we bring you straight back to this form afterwards.",
-      "Join NAISI",
-      "Already have an account?",
-      "Sign in",
+      "Step 1 · About you",
+      "About you",
+      "You don’t have an account yet, so this step is your join request too. You can keep applying while the committee checks it. If you get a place, that approves your account.",
+      "This site is protected by reCAPTCHA. Google’s",
+      "Privacy Policy",
+      "Terms of Service",
+      "Continue",
     ]) {
-      assert.ok(panel.includes(sentence), `missing: ${sentence}`);
+      assert.ok(step.includes(sentence), `missing: ${sentence}`);
     }
-    // What is left of the markup once the tags and the expressions are gone
-    // is what a visitor reads.
-    const code = codeOf("JoinFirst.tsx");
-    const read = code.slice(code.indexOf("return (")).replace(/<[^>]*>/g, " ").replace(/\{[^}]*\}/g, " ");
-    assert.ok(read.includes("Join NAISI to apply"), "the panel's words were not found");
-    assert.equal(read.includes("!"), false, "the panel has an exclamation mark");
-    // Nothing on this page makes a join request, so nothing in the form may
-    // say that a step of it is one.
+    assert.ok(sourceOf("AboutStep.tsx").includes("We’ll email you a link to check it’s yours."));
+    assert.ok(sourceOf("JoinAccount.tsx").replace(/\s+/g, " ").includes("Already have an account?"));
+
+    // A file may say a step is a join request only if it sends one, and may
+    // say the page is protected by reCAPTCHA only if the check is on it.
     for (const file of formFiles.filter((name) => /\.tsx?$/.test(name))) {
-      const all = sourceOf(file).replace(/\s+/g, " ").toLowerCase();
-      assert.equal(/this step is your join request|is your join request too/.test(all), false, `${file} says a step is a join request`);
-      assert.equal(/protected by recaptcha/.test(all), false, `${file} says the page runs a check it does not load`);
+      const said = codeOf(file).replace(/\s+/g, " ").toLowerCase();
+      if (/this step is your join request/.test(said)) {
+        assert.equal(file, "JoinStep.tsx", `${file} says a step is a join request`);
+        assert.match(codeOf(file), /await completeRegistration\(joinRequestFrom\(answers\)\)/);
+      }
+      if (/protected by recaptcha/.test(said)) {
+        assert.equal(file, "JoinStep.tsx", `${file} says the page runs a check`);
+        assert.match(codeOf(file), /RECAPTCHA_ENABLED && !signedIn \? /);
+      }
     }
+    assert.match(codeOf("JoinAccount.tsx"), /\{RECAPTCHA_ENABLED \? <RecaptchaInvisible ref=\{recaptcha\} \/> : null\}/);
+
+    // Nothing here says Saved: until the join request has gone there is no
+    // application to save into.
+    for (const file of ["JoinStep.tsx", "JoinAccount.tsx"]) {
+      assert.equal(/\bSaved\b|SaveStatus/.test(codeOf(file)), false, `${file} says something is saved`);
+    }
+    // And no exclamation marks in what a visitor reads.
+    for (const file of ["JoinStep.tsx", "JoinAccount.tsx", "UniversityCheck.tsx"]) {
+      assert.equal(/[A-Za-z.’]!(?!=)/.test(codeOf(file)), false, `${file} has an exclamation mark`);
+    }
+  });
+
+  test("a university address that is not checked is said on About you and on the last step, with the link again", () => {
+    const form = codeOf("ApplicationForm.tsx");
+    // The form asks the same rule the send route applies.
+    assert.match(form, /required: mustVerifyBeforeSending\(pending \? "pending" : "member"\) && !viewingAs,/);
+    assert.match(form, /check: check\.held \? <UniversityCheckNote check=\{check\} \/> : null,/);
+    assert.match(form, /hold=\{check\.held \? <UniversityCheckHold check=\{check\} noticeRef=\{holdRef\} \/> : null\}/);
+    // A press of Send asks the server again before it gives up, and never
+    // sends while the hold stands.
+    const send = form.slice(form.indexOf("async function send()"), form.indexOf("const back = index > 0"));
+    assert.ok(send.indexOf("if (check.held) {") !== -1);
+    assert.ok(send.indexOf("await check.refresh()") < send.indexOf("await sendApplication(form.id)"));
+    assert.match(send, /if \(!verified\) \{[\s\S]*?return;\s*\}/);
+    const notices = sourceOf("UniversityCheck.tsx").replace(/\s+/g, " ");
+    for (const sentence of [
+      "Check your university email before you send.",
+      "Open it, then come back to this page and send.",
+      "Not checked yet. We emailed a link to this address: open it to check it’s yours.",
+      "Send the link again",
+    ]) {
+      assert.ok(notices.includes(sentence), `missing: ${sentence}`);
+    }
+    // The last step draws the hold first, above everything else on it.
+    const checkStep = codeOf("CheckStep.tsx");
+    assert.match(checkStep, /<div className=\{form\.body\}>\s*\{hold\}/);
   });
 });
 
@@ -728,6 +801,7 @@ describe("the form's stylesheets keep the house mobile rules", () => {
       "rank.module.css": ["handle", "move"],
       "check.module.css": ["change"],
       "availability.module.css": ["typedAdd", "remove"],
+      "join.module.css": ["leave", "asideLink", "resendLink", "resend", "google"],
     };
     for (const [file, classes] of Object.entries(expected)) {
       const css = sourceOf(file).replace(/\/\*[\s\S]*?\*\//g, "");

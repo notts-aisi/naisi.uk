@@ -1,0 +1,219 @@
+/* ============================================================
+   The join step: the form's first step for somebody who has not
+   sent a join request, and its second half, where they make an
+   account.
+
+   The frame, the fields and the buttons are form.module.css's.
+   This sheet holds only what the join step adds: the consent
+   row, the reCAPTCHA line, the two ways to sign in, and the note
+   under a university address that is still to be checked.
+
+   Public surface: every control declares the 44px floor
+   (docs/touch-targets.md).
+   ============================================================ */
+
+/* The board draws the first step's progress at this width. */
+.firstStep {
+  width: 8%;
+}
+
+/* === The first half === */
+
+.address {
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.leave,
+.asideLink,
+.resendLink {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.leave:hover,
+.asideLink:hover,
+.resendLink:hover:not(:disabled) {
+  color: #c2cbff;
+}
+
+.leave:focus-visible,
+.asideLink:focus-visible,
+.resendLink:focus-visible,
+.resend:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+}
+
+.leave:disabled,
+.resendLink:disabled {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  cursor: default;
+}
+
+/* Agreeing to the terms, under the last question. */
+.consent {
+  max-width: 44rem;
+}
+
+.recaptcha {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.recaptcha a {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.recaptcha a:hover {
+  color: #c2cbff;
+}
+
+/* === The second half: making the account === */
+
+.ways {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-4);
+  max-width: 24rem;
+}
+
+/* Google's own button, which is 320px wide whatever surrounds it. */
+.google {
+  min-height: 2.75rem;
+}
+
+.google[aria-busy="true"] {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.or {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.or::before,
+.or::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.emailForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Doubled so it wins over the shared primary and secondary buttons it is
+   added to, whichever sheet the browser reads first. */
+.wide.wide {
+  width: 100%;
+  min-height: 52px;
+  font-size: 16px;
+  letter-spacing: -0.005em;
+}
+
+.aside {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.back {
+  align-self: flex-start;
+}
+
+.resend {
+  min-height: 2.75rem;
+  align-self: flex-start;
+}
+
+/* === A university address that is still to be checked === */
+
+.check {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.check p {
+  margin: 0;
+}
+
+.checkActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-3);
+}
+
+.checkNote {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .ways {
+    max-width: none;
+  }
+
+  .consent {
+    max-width: none;
+  }
+
+  /* In the bar held to the bottom of the screen, as the board draws it. */
+  .recaptcha {
+    margin: 0 0 10px;
+    text-align: center;
+  }
+
+  .wide.wide {
+    min-height: 2.75rem;
+    font-size: 15px;
+  }
+
+  .aside {
+    text-align: center;
+  }
+
+  .back {
+    align-self: center;
+  }
+
+  .resend {
+    align-self: stretch;
+  }
+}
