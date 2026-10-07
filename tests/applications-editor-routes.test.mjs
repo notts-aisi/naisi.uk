@@ -46,6 +46,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createLoader } from "./lib/tsLoader.mjs";
+import { FIELD_VALUE_STUB, makeDb } from "./lib/applicationsStore.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -58,16 +59,7 @@ const { loadTs } = createLoader({
       "next/server",
       "export const NextResponse = { json(body, init) { return { status: (init && init.status) || 200, body, json: async () => body }; } };",
     ],
-    [
-      "firebase-admin/firestore",
-      "export const FieldValue = {" +
-        " serverTimestamp: () => ({ __sentinel: 'now' })," +
-        " delete: () => ({ __sentinel: 'delete' })," +
-        " increment: (n) => ({ __sentinel: 'increment', n })," +
-        " arrayRemove: (...values) => ({ __sentinel: 'arrayRemove', values })," +
-        " };" +
-        " export class Timestamp {}",
-    ],
+    ["firebase-admin/firestore", FIELD_VALUE_STUB],
     ["@/lib/firebase/admin", "export function getAdminDb() { return globalThis.__editor.db; }"],
     ["@/lib/firebase/session", "export async function getCurrentUser() { return globalThis.__editor.user; }"],
     [
@@ -93,168 +85,11 @@ const write = await loadTs(join("lib", "applications", "editor", "write.ts"));
 // A Firestore small enough to read
 // ---------------------------------------------------------------------------
 
-/**
- * Documents by path, with the calls the editor makes: documents and
- * subcollections, a filter or two, `getAll`, a batch, and a transaction that
- * runs again when something it read changed before it committed, which is the
- * property the lock depends on.
- */
-function makeDb(seed) {
-  const docs = new Map();
-  const versions = new Map();
-  const stats = { reads: 0, writes: [] };
-  const put = (path, data) => {
-    docs.set(path, data);
-    versions.set(path, (versions.get(path) ?? 0) + 1);
-  };
-  const drop = (path) => {
-    docs.delete(path);
-    versions.set(path, (versions.get(path) ?? 0) + 1);
-  };
-  for (const [path, data] of Object.entries(seed)) put(path, structuredClone(data));
-
-  const last = (path) => path.split("/").pop();
-  const snap = (path) => ({
-    id: last(path),
-    exists: docs.has(path),
-    ref: docRef(path),
-    data: () => (docs.has(path) ? structuredClone(docs.get(path)) : undefined),
-  });
-  const read = (path) => {
-    stats.reads += 1;
-    return snap(path);
-  };
-  const childrenOf = (collectionPath) =>
-    [...docs.keys()].filter(
-      (path) => path.startsWith(`${collectionPath}/`) && !path.slice(collectionPath.length + 1).includes("/"),
-    );
-  const fieldAt = (data, field) => field.split(".").reduce((node, part) => (node == null ? undefined : node[part]), data);
-  const matches = (data, [field, op, value]) => {
-    const found = fieldAt(data, field);
-    if (op === "==") return found === value;
-    if (op === "in") return value.includes(found);
-    if (op === "array-contains") return Array.isArray(found) && found.includes(value);
-    throw new Error(`the test database does not know the operator ${op}`);
-  };
-  const query = (collectionPath, filters) => ({
-    path: collectionPath,
-    isQuery: true,
-    where: (field, op, value) => query(collectionPath, [...filters, [field, op, value]]),
-    get: async () => {
-      stats.reads += 1;
-      return {
-        docs: childrenOf(collectionPath)
-          .filter((path) => filters.every((filter) => matches(docs.get(path), filter)))
-          .map(snap),
-      };
-    },
-  });
-  function docRef(path) {
-    return {
-      id: last(path),
-      path,
-      get: async () => read(path),
-      collection: (name) => collection(`${path}/${name}`),
-    };
-  }
-  function collection(path) {
-    return { ...query(path, []), doc: (id) => docRef(`${path}/${id}`) };
-  }
-
-  const resolve = (value, current) => {
-    if (value && value.__sentinel === "now") return new Date("2026-10-05T12:00:00Z");
-    if (value && value.__sentinel === "increment") return (typeof current === "number" ? current : 0) + value.n;
-    if (value && typeof value === "object" && !Array.isArray(value) && !(value instanceof Date)) {
-      const out = {};
-      for (const [key, inner] of Object.entries(value)) out[key] = resolve(inner, undefined);
-      return out;
-    }
-    return value;
-  };
-  const applyUpdate = (path, patch) => {
-    if (!docs.has(path)) throw Object.assign(new Error(`NOT_FOUND: ${path}`), { code: 5 });
-    const next = structuredClone(docs.get(path));
-    for (const [field, value] of Object.entries(patch)) {
-      const parts = field.split(".");
-      let node = next;
-      for (const part of parts.slice(0, -1)) {
-        if (!Object.hasOwn(node, part) || typeof node[part] !== "object" || node[part] === null) node[part] = {};
-        node = node[part];
-      }
-      const key = parts[parts.length - 1];
-      if (value && value.__sentinel === "delete") delete node[key];
-      else node[key] = resolve(value, node[key]);
-    }
-    put(path, next);
-  };
-  const applyCreate = (path, data) => {
-    if (docs.has(path)) throw Object.assign(new Error(`ALREADY_EXISTS: ${path}`), { code: 6 });
-    put(path, resolve(data, undefined));
-  };
-  const apply = (writes) => {
-    for (const [kind, path, data] of writes) {
-      stats.writes.push([kind, path, data ? Object.keys(data) : []]);
-      if (kind === "update") applyUpdate(path, data);
-      else if (kind === "create") applyCreate(path, data);
-      else if (kind === "delete") drop(path);
-    }
-  };
-
-  const db = {
-    stats,
-    /** Runs once, after a transaction's function returns and before it commits. */
-    beforeCommit: null,
-    collection,
-    getAll: async (...refs) => refs.map((ref) => read(ref.path)),
-    batch() {
-      const writes = [];
-      return {
-        create: (ref, data) => writes.push(["create", ref.path, data]),
-        update: (ref, data) => writes.push(["update", ref.path, data]),
-        commit: async () => apply(writes),
-      };
-    },
-    async runTransaction(fn) {
-      for (let attempt = 0; attempt < 5; attempt += 1) {
-        const seen = new Map();
-        const writes = [];
-        const tx = {
-          get: async (target) => {
-            const result = await target.get();
-            if (target.isQuery) {
-              seen.set(`list:${target.path}`, childrenOf(target.path).join("|"));
-              for (const doc of result.docs) seen.set(doc.ref.path, versions.get(doc.ref.path) ?? 0);
-            } else {
-              seen.set(target.path, versions.get(target.path) ?? 0);
-            }
-            return result;
-          },
-          update: (ref, data) => writes.push(["update", ref.path, data]),
-          create: (ref, data) => writes.push(["create", ref.path, data]),
-          delete: (ref) => writes.push(["delete", ref.path]),
-        };
-        const result = await fn(tx);
-        if (db.beforeCommit) {
-          const hook = db.beforeCommit;
-          db.beforeCommit = null;
-          hook();
-        }
-        const moved = [...seen].some(([key, was]) =>
-          key.startsWith("list:") ? childrenOf(key.slice(5)).join("|") !== was : (versions.get(key) ?? 0) !== was,
-        );
-        if (moved) continue;
-        apply(writes);
-        return result;
-      }
-      throw new Error("the transaction never settled");
-    },
-    read: (path) => docs.get(path),
-    paths: () => [...docs.keys()],
-    /** A change made by somebody else, outside any request under test. */
-    poke: (path, patch) => applyUpdate(path, patch),
-  };
-  return db;
-}
+// The store is `makeDb` in `tests/lib/applicationsStore.mjs`: documents by path,
+// with the calls the editor makes (documents and subcollections, a filter or
+// two, `getAll`, a batch) and a transaction that runs again when something it
+// read changed before it committed, which is the property the lock depends on.
+// It lives there so the suite that runs a whole term can use the same one.
 
 // ---------------------------------------------------------------------------
 // The cast and the term
