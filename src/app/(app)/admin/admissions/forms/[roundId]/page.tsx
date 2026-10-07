@@ -16,7 +16,10 @@ import { projectFormForStaff, type FormStaffView } from "@/lib/applications/edit
 import { own } from "@/lib/applications/keys";
 import { loadReadiness } from "@/lib/applications/lifecycle/load";
 import { loadTermNumbers } from "@/lib/applications/lifecycle/loadTermHome";
-import type { TermSteps as TermStepStates } from "@/lib/applications/lifecycle/status";
+import {
+  closedToNewProgrammes,
+  type TermSteps as TermStepStates,
+} from "@/lib/applications/lifecycle/status";
 import { buildTermHome, type ProgrammeCounts as Counts } from "@/lib/applications/lifecycle/termHome";
 import {
   buildLifecycleView,
@@ -116,12 +119,14 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
             {/*
               Offered until decision day has gone out. After that a new
               programme could take no applications and would never be
-              decided, so the term's page stops offering one.
+              decided, so the term's page stops offering one. The route that
+              adds a programme refuses on the same answer.
             */}
-            {(lifecycle.stage === "draft" ||
-              lifecycle.stage === "opens-later" ||
-              lifecycle.stage === "open" ||
-              lifecycle.stage === "deciding") && <NewProgrammeButton roundId={form.id} />}
+            {closedToNewProgrammes({
+              status: loaded.form.round.status,
+              archived: loaded.form.round.archived,
+              decisionsSentAt: loaded.form.decisionsSentAt,
+            }) === null && <NewProgrammeButton roundId={form.id} />}
           </div>
         )}
       </header>

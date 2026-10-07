@@ -974,6 +974,11 @@ async function decisionDay() {
     amaraSaves: await save("amara", applicationDoc("amara").draft),
     amaraSends: await sendIt("amara"),
     nellSaves: await save("nell", applicationDoc("dev").draft),
+    // A programme added now could take no applications and would never be decided.
+    addAProgramme: await call("zach", routes.form.PATCH, params(), {
+      body: { addProgramme: { name: "Governance Fellowship", shortName: "Governance", kind: "fellowship" } },
+    }),
+    programmes: [...roundDoc().programmeIds],
   };
 }
 
@@ -1076,6 +1081,10 @@ async function theTermSettles() {
   seen.leadSettles = await call("claudia", routes.status.POST, params(), { body: { status: "settled" } });
   seen.settled = await step("settle the term", 200, "zach", routes.status.POST, params(), { body: { status: "settled" } });
   seen.roundWhenSettled = structuredClone(roundDoc());
+  seen.addAProgrammeOnceSettled = await call("zach", routes.form.PATCH, params(), {
+    body: { addProgramme: { name: "Governance Fellowship", shortName: "Governance", kind: "fellowship" } },
+  });
+  seen.programmesAtTheEnd = [...roundDoc().programmeIds];
   seen.records = Object.fromEntries(
     world.db
       .paths()
@@ -1719,6 +1728,21 @@ describe("one term, from nothing to settled", () => {
   });
 
   // -------------------------------------------------------------------------
+  describe("a term that is over takes no new programme", () => {
+    test("not once decisions have been sent, and not once it is settled", () => {
+      assert.deepEqual(short(seen.afterTheSend.addAProgramme), [
+        409,
+        "Decisions for this term have been sent, so a programme can no longer be added to it.",
+      ]);
+      assert.deepEqual(short(seen.addAProgrammeOnceSettled), [
+        409,
+        "This term is settled, so a programme can no longer be added to it.",
+      ]);
+      assert.deepEqual(seen.afterTheSend.programmes, [P.agi, P.tais, P.inc]);
+      assert.deepEqual(seen.programmesAtTheEnd, [P.agi, P.tais, P.inc]);
+    });
+  });
+
   describe("6. each person sees their own outcome, and replies", () => {
     test("each sees what they were told, on their own route and on their own page", () => {
       const heard = seen.outcomes["everybody has been told"];

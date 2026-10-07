@@ -58,6 +58,12 @@ export default function PendingApprovalPage() {
         we process it.
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+        {/* The way to an application from here. A waiting account that signs
+            in again from a decision email's button is brought to this page,
+            and the list behind this link admits a waiting account. */}
+        <Link href="/applications" style={{ color: "var(--color-accent)", fontSize: "var(--text-sm)" }}>
+          Your applications
+        </Link>
         <Link href="/" style={{ color: "var(--color-accent)", fontSize: "var(--text-sm)" }}>
           ← Back to the homepage
         </Link>

@@ -455,8 +455,11 @@ export function buildReview(input: {
         standing === "to-review" && !owes && placement
           ? (programmeOn(form, placement)?.shortName ?? null)
           : null,
+      // "Could suit" is a hint for an invitation, and an invitation never
+      // names a programme the person ranked: that programme's own lead
+      // decides for it. So only what they did not rank is offered.
       couldSuitOptions: form.programmeIds
-        .filter((id) => id !== programmeId)
+        .filter((id) => id !== programmeId && !ranked.includes(id))
         .map((id) => programmeOn(form, id))
         .filter((other): other is NonNullable<typeof other> => other !== null && !other.closed)
         .map((other) => ({ programmeId: other.id, shortName: other.shortName })),

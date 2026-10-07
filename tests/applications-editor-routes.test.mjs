@@ -940,6 +940,61 @@ describe("the form's own fields", () => {
     assert.equal(ok.body.form.closes.dayAndTime, "Sun 13 Dec, 23:59");
   });
 
+  describe("a programme cannot be added to a term that is over", () => {
+    // The term page stops offering "New programme" on these four terms, and
+    // the route refuses on the same four (`closedToNewProgrammes`).
+    const add = { addProgramme: { name: "Governance Fellowship", shortName: "Governance", kind: "fellowship" } };
+    const SENT_AT = new Date("2026-10-23T09:00:00Z");
+    for (const [name, round, sentence] of [
+      [
+        "decisions have been sent",
+        { status: "open", decisionsSentAt: SENT_AT, decisionsSentByUid: "zach" },
+        "Decisions for this term have been sent, so a programme can no longer be added to it.",
+      ],
+      [
+        "the term is settled",
+        { status: "settled", decisionsSentAt: SENT_AT, decisionsSentByUid: "zach" },
+        "This term is settled, so a programme can no longer be added to it.",
+      ],
+      [
+        "the form was cancelled",
+        { status: "cancelled" },
+        "This application form was cancelled, so a programme can no longer be added to it.",
+      ],
+      [
+        "the form is archived",
+        { archived: true },
+        "This application form is archived, so a programme can no longer be added to it.",
+      ],
+    ]) {
+      test(`once ${name}: refused in a sentence, and nothing is written`, async () => {
+        db = makeDb(seed({ round }));
+        globalThis.__editor.db = db;
+        const before = JSON.stringify(stored());
+        const response = await patch(add);
+        assert.deepEqual([response.status, response.body.error], [409, sentence]);
+        assert.equal(JSON.stringify(stored()), before);
+        assert.deepEqual(db.stats.writes, []);
+      });
+    }
+
+    test("the rest of a save is refused with it: nothing lands beside a programme that cannot be added", async () => {
+      db = makeDb(seed({ round: { status: "settled" } }));
+      globalThis.__editor.db = db;
+      const before = JSON.stringify(stored());
+      assert.equal((await patch({ ...add, label: "Renamed" })).status, 409);
+      assert.equal(JSON.stringify(stored()), before);
+    });
+
+    test("until then it is added as before, on a form that is a draft, open or closed and undecided", async () => {
+      for (const status of ["draft", "open", "closed"]) {
+        db = makeDb(seed({ round: { status } }));
+        globalThis.__editor.db = db;
+        assert.equal((await patch(add)).status, 200, status);
+      }
+    });
+  });
+
   describe("once decisions have been sent, when applications open and close is fixed", () => {
     // The form as decision day leaves it: still marked open, its close in the
     // past, every decision sent. Nothing moves the status when the close

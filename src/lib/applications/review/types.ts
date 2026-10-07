@@ -351,7 +351,10 @@ export type ReviewPayload = {
     decidedOn: string | null;
     /** The higher choice that accepted them, when that is why nothing is owed. */
     placedOn: string | null;
-    /** The other programmes on the form, for "could suit". */
+    /**
+     * The programmes offered for "could suit": open ones on the form that the
+     * applicant did not rank. An invitation is to something they did not pick.
+     */
     couldSuitOptions: { programmeId: string; shortName: string }[];
     /** The last time an admin took an acceptance back here. For those who decide. */
     lastRevocation: { byName: string; on: string | null; reason: string } | null;

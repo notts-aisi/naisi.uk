@@ -334,6 +334,34 @@ export function termStageFor(facts: TermStageFacts, now: Date): TermStage {
   return "deciding";
 }
 
+/**
+ * Why no programme can be added to this form any more, as a sentence, or
+ * null while one can.
+ *
+ * A programme added once decisions have gone out could take no applications
+ * and would never be decided, and one added to a form that is settled,
+ * cancelled or archived would change a term whose record has been kept. The
+ * term page offers "New programme" on exactly these terms, and the route that
+ * adds one refuses on them, both by asking here.
+ */
+export function closedToNewProgrammes(
+  facts: Pick<TermStageFacts, "status" | "archived" | "decisionsSentAt">,
+): string | null {
+  if (facts.archived) {
+    return "This application form is archived, so a programme can no longer be added to it.";
+  }
+  if (facts.status === "cancelled") {
+    return "This application form was cancelled, so a programme can no longer be added to it.";
+  }
+  if (facts.status === "settled") {
+    return "This term is settled, so a programme can no longer be added to it.";
+  }
+  if (facts.decisionsSentAt) {
+    return "Decisions for this term have been sent, so a programme can no longer be added to it.";
+  }
+  return null;
+}
+
 /** One of the form's days in the strip: been and gone, the one the term is on, or still to come. */
 export type StepState = "done" | "now" | "ahead";
 
