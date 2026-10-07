@@ -1,6 +1,9 @@
 /**
- * A course's public page and the application form: what the Apply button
- * says and where it leads, from a stored form to the words on the page.
+ * Finding the application form, and finding your way back to what you sent.
+ *
+ * A course's public page and the form: what the Apply button says and where
+ * it leads, from a stored form to the words on the page. And the dashboard's
+ * one link back to "Your applications".
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -26,6 +29,10 @@
  *  4. ONE FORM, WHICHEVER BUTTON. Two courses tied to two programmes lead to
  *     one address, and it is the address the form's own code builds.
  *  5. THE CATALOGUE SAYS THE SAME, course by course, from the same lookup.
+ *  6. THE WAY BACK IS THERE FOR SOMEBODY WHO APPLIED, AND SAYS NOTHING ELSE.
+ *     The dashboard's card is drawn for a member with an application and
+ *     not for one without, it is still drawn when the applications could not
+ *     be read, and it names an application and never what became of it.
  *
  * ## What is real and what is stubbed
  *
@@ -36,9 +43,9 @@
  * the signed-in state the call to action asks for, `next/link` (an anchor),
  * the session picker (which an application never draws) and the stylesheet.
  *
- * The page's own few lines of glue cannot be imported, because a page file
- * exports a page. Section 6 pins them to the calls this suite makes, so the
- * chain run here is the chain the page runs.
+ * A page's own few lines of glue cannot be imported, because a page file
+ * exports a page. Sections 6 and 7 pin them to the calls this suite makes,
+ * so the chain run here is the chain each page runs.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -54,6 +61,8 @@ const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 globalThis.__coursePage = { db: null, auth: { user: null, loading: false }, h: createElement };
 
 const h = "globalThis.__coursePage.h";
+/** A stylesheet as its own class names, so `styles.button` renders as `class="button"`. */
+const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(name) });";
 const { loadTs } = createLoader({
   stubs: new Map([
     ["server-only", "export {};"],
@@ -61,7 +70,9 @@ const { loadTs } = createLoader({
     ["@/auth/AuthProvider", "export const useAuth = () => globalThis.__coursePage.auth;"],
     ["next/link", `export default ({ href, className, children }) => ${h}("a", { href, className }, children);`],
     ["./GroupPicker", "export default () => null;"],
-    ["./CourseCTA.module.css", "export default new Proxy({}, { get: (_, name) => String(name) });"],
+    ["./CourseCTA.module.css", CLASS_NAMES],
+    ["./Card.module.css", CLASS_NAMES],
+    ["./YourApplications.module.css", CLASS_NAMES],
   ]),
 });
 
@@ -70,6 +81,7 @@ const liveRound = await loadTs(join("features", "courses", "fetchLiveRound.ts"))
 const courses = await loadTs(join("features", "courses", "fetchCourses.ts"));
 const { toCTARound } = await loadTs(join("features", "courses", "ctaRound.ts"));
 const { default: CourseCTA } = await loadTs(join("features", "courses", "CourseCTA.tsx"));
+const { default: YourApplications } = await loadTs(join("features", "applications", "home", "YourApplications.tsx"));
 
 // ---------------------------------------------------------------------------
 // A database that records what it is asked
@@ -698,10 +710,6 @@ describe("the catalogue says the same, course by course", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// 6. The pages' own glue
-// ---------------------------------------------------------------------------
-
 /** Source with its comments gone, so a sentence about a call is not a call. */
 function codeOf(...parts) {
   return readFileSync(join(SRC, ...parts), "utf8")
@@ -709,6 +717,107 @@ function codeOf(...parts) {
     .replace(/(^|[^:"'`])\/\/.*$/gm, "$1")
     .replace(/\s+/g, " ");
 }
+
+// ---------------------------------------------------------------------------
+// 6. The way back to your applications
+// ---------------------------------------------------------------------------
+
+describe("the dashboard's way back to your applications", () => {
+  const card = (rows) => renderToStaticMarkup(createElement(YourApplications, { rows }));
+  const one = [{ roundId: FORM_ID, label: "Autumn 2026" }];
+
+  test("somebody who has not applied to anything is shown nothing", () => {
+    assert.equal(card([]), "");
+  });
+
+  test("somebody who has applied gets one link to the list, and one to each application", () => {
+    const html = card(one);
+    assert.match(html, /<h3 class="title">Your applications<\/h3>/);
+    assert.deepEqual(hrefs(html), ["/applications", `/applications/${FORM_ID}`]);
+    assert.equal(text(html), "Your applications View all → Autumn 2026 Open");
+  });
+
+  test("an id is escaped into its address, and never trusted to be a tidy one", () => {
+    const html = card([{ roundId: "a round/with?odd#parts", label: "Odd" }]);
+    assert.deepEqual(hrefs(html), ["/applications", "/applications/a%20round%2Fwith%3Fodd%23parts"]);
+  });
+
+  test("three applications are named, and the rest are one click away", () => {
+    const many = ["Autumn 2026", "Spring 2027", "Summer 2027", "Autumn 2027", "Spring 2028"].map((label, i) => ({
+      roundId: `round-${i}`,
+      label,
+    }));
+    const html = card(many);
+    assert.deepEqual(hrefs(html), ["/applications", "/applications/round-0", "/applications/round-1", "/applications/round-2"]);
+    assert.ok(!html.includes("Autumn 2027"));
+  });
+
+  test("when the applications could not be read, the way back is offered all the same", () => {
+    const html = card(null);
+    assert.deepEqual(hrefs(html), ["/applications"]);
+    assert.equal(
+      text(html),
+      "Your applications View all → Everything you have applied to, and where each one has got to.",
+    );
+  });
+
+  test("it names an application and never says what became of it", async () => {
+    // The card is handed two fields and prints those. What somebody was told
+    // is said on their own page and on the list, in one set of words.
+    const words = await loadTs(join("lib", "applications", "words.ts"));
+    const html = card(one).toLowerCase();
+    for (const word of [
+      ...words.WORDS_APPLICANTS_NEVER_SEE,
+      "accepted",
+      "declined",
+      "no offer",
+      "invitation",
+      "invited",
+      "pooled",
+      "submitted",
+      "draft",
+      "sent",
+      "decision",
+    ]) {
+      assert.ok(!html.includes(word), `the card says "${word}"`);
+    }
+  });
+
+  const DASHBOARD = codeOf("app", "(app)", "dashboard", "page.tsx");
+
+  test("the dashboard reads with the list's own loader, by the session's own uid", () => {
+    assert.ok(DASHBOARD.includes('import { loadStatusRows } from "@/lib/admissions/statusHubData";'));
+    assert.ok(DASHBOARD.includes("const rows = await loadStatusRows(db, uid, new Date());"));
+    assert.ok(DASHBOARD.includes("const applications = user ? await applicationsOf(user.uid) : [];"));
+    // Nothing a request could carry names whose applications are read.
+    assert.ok(!/searchParams|params\b|cookies\(|headers\(/.test(DASHBOARD), "the dashboard reads something off the request");
+  });
+
+  test("two fields of each row leave it, and they are the two the card prints", () => {
+    assert.ok(DASHBOARD.includes("return rows.map((row) => ({ roundId: row.round.id, label: row.round.label }));"));
+    assert.ok(DASHBOARD.includes("<YourApplications rows={applications} />"));
+    assert.ok(!/row\.application\b|\.status\b|\.result\b/.test(DASHBOARD), "the dashboard reads what became of an application");
+  });
+
+  test("a read that fails is not the same as having applied to nothing", () => {
+    // Null draws the card with the link; an empty list draws nothing.
+    assert.ok(DASHBOARD.includes("if (!db) return null;"));
+    assert.match(DASHBOARD, /catch \(err\) \{ console\.warn\([^)]*\); return null; \}/);
+  });
+
+  test("the dashboard is the one place this lane added the link, and the shell is untouched", () => {
+    // The sidebar and the admin tabs are pinned elsewhere. This holds that the
+    // card is a card on the page and reaches into neither.
+    const component = codeOf("features", "applications", "home", "YourApplications.tsx");
+    for (const source of [DASHBOARD, component]) {
+      assert.ok(!/AppShell|AdminTabs/.test(source));
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. The course pages' own glue
+// ---------------------------------------------------------------------------
 
 describe("the pages make the calls this suite makes", () => {
   const PAGE = codeOf("app", "(public)", "courses", "[courseId]", "page.tsx");
