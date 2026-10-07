@@ -388,9 +388,18 @@ All in `src/lib/applications/`.
   id in an address. A plain object answers to names it does not own, and
   `programmes["constructor"]` is a function, not a missing programme. `own()`
   (`keys.ts`) answers from the map's own keys only. This covers `programmes`,
-  `answers`, `scores` and a decision's `programmes`. Validate an id from a
-  request with `isId()` as well: the two rules fail differently, so both are
-  kept.
+  `answers`, `scores` and a decision's `programmes`, the tallies worked out
+  from them, and every other map from a string that a file here declares.
+  `tests/applications-own-key-reads.test.mjs` walks every file under `src`
+  for a read written any other way. It holds this system's own trees and the
+  member record. Other features keep maps under the same names (an event's
+  sign-up answers, a worksheet response's, the older apply flow's) and still
+  read them with a bracket: the guard lists those trees as not held yet,
+  read for read, so one more read there fails, and so does a read in any
+  file that is on neither list. It also holds that there is one accessor: a
+  folder may hand `own` on under its own import path, and may not write a
+  second. Validate an id from a request with `isId()` as well: the two rules
+  fail differently, so both are kept.
 - **Counters move with the status.** A route that changes an application's
   `status` moves the round's `applicationCounts` in the same transaction.
 - **Count the people in the term.** Filter by `isInTerm()` before
