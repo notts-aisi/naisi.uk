@@ -7,7 +7,7 @@ import { SU_PAGE_URL } from "@/content/socials";
 import type { ApplicationContent, QuestionSetDoc, SuMembershipAnswer } from "@/lib/applications/model";
 import { answeredCount } from "@/lib/applications/validate";
 import type { ApplicantProgramme } from "@/lib/applications/applicant/types";
-import { aboutDetail, aboutHeadline, answersPreview } from "./checkText";
+import { aboutDetail, aboutHeadline, answersPreview, privacyAgreement } from "./checkText";
 import { ChoicePair } from "./fields";
 import { setChangeLabel, setStepLabel } from "./steps";
 import form from "./form.module.css";
@@ -24,6 +24,11 @@ import styles from "./check.module.css";
  * WHO READS IT is said in words, above the link to the privacy notice. The
  * sentence says who, and says nothing about what they see of the person: the
  * form does not mention names.
+ *
+ * SENDING IS AGREEING TO THE PRIVACY POLICY, and the line under that sentence
+ * says so, with the policy as a link and the day it was last updated. The
+ * day is the policy's own (`privacyAgreement` in `./checkText`) and is typed
+ * nowhere on this step.
  */
 
 /** The full "Courses and programmes" section of the privacy notice. */
@@ -114,6 +119,7 @@ export default function CheckStep({
   };
   const orderStep = ranked.length >= 2 ? "rank" : "choose";
   const elsewhere = issues.filter((issue) => issue.stepId !== "check");
+  const agreement = privacyAgreement();
 
   return (
     <div className={form.body}>
@@ -260,6 +266,13 @@ export default function CheckStep({
         */}
         <p className={styles.readers}>
           Your application is read by the lead and the reviewers of each programme you pick, and by NAISI’s admins.
+        </p>
+        <p className={styles.readers}>
+          {agreement.before}
+          <Link href={agreement.href} className={form.inlineLink}>
+            {agreement.link}
+          </Link>
+          {agreement.after}
         </p>
         <Link href={PRIVACY_HREF} className={form.quietLink}>
           How we use your application
