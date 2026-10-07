@@ -381,7 +381,7 @@ function applicationDoc([uid, name, ranked, facilitate, plan, minute]) {
   const content = {
     aboutYou: {
       preferredName: name.split(" ")[0],
-      universityEmail: `${uid}@nottingham.ac.uk`,
+      universityEmail: `${uid}@students.example.com`,
       universityEmailVerified: true,
       status: "undergraduate",
       statusOther: "",
@@ -517,7 +517,7 @@ function stringsIn(value, out = []) {
   else if (value && typeof value === "object") Object.values(value).forEach((entry) => stringsIn(entry, out));
   return out;
 }
-const mentionsAnAddress = (payload) => stringsIn(payload).some((text) => /@(example\.com|nottingham\.ac\.uk)/.test(text));
+const mentionsAnAddress = (payload) => stringsIn(payload).some((text) => /@([a-z]+\.)?example\.com/.test(text));
 
 // ---------------------------------------------------------------------------
 // Who gets in
@@ -947,7 +947,7 @@ describe("one application, for review", () => {
     const db = makeDb(seed());
     const forAdmin = (await review(db, "zach", "amara")).review;
     assert.equal(forAdmin.applicant.email, "amara@example.com");
-    assert.equal(forAdmin.applicant.universityEmail, "amara@nottingham.ac.uk");
+    assert.equal(forAdmin.applicant.universityEmail, "amara@students.example.com");
     for (const who of ["claudia", "lloyd"]) {
       const seen = (await review(db, who, "amara")).review;
       assert.equal("email" in seen.applicant, false);
