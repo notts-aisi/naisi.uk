@@ -352,6 +352,19 @@ describe("whose answer", () => {
     assert.deepEqual((await GET()).body, { accessRequirements: "" });
   });
 
+  test("every reply that carries an answer says it is not to be kept", async () => {
+    db.seed(privatePath("amara"), { accessRequirements: WROTE });
+    as("amara");
+    const read = await GET();
+    const saved = await PUT({ accessRequirements: WROTE });
+    as("zach");
+    const opened = await OPEN("amara");
+    for (const answer of [read, saved, opened]) {
+      assert.equal(answer.status, 200);
+      assert.equal(answer.headers["Cache-Control"], "no-store");
+    }
+  });
+
   test("a row that has gained other fields still answers with the one", async () => {
     db.seed(privatePath("amara"), { accessRequirements: "Amara's own.", uid: "amara", note: "Not for the wire." });
     as("amara");
@@ -522,6 +535,19 @@ describe("an admin opens one", () => {
       const answer = await OPEN(uid, roundId);
       assert.deepEqual([answer.status, answer.body], [404, { error: "Not found" }], `${uid} on ${roundId}`);
     }
+    assert.deepEqual(logged(), []);
+  });
+
+  test("a read is never recorded against one id while showing another's answer", async () => {
+    // A document id is a round id and a uid joined, and both come from the
+    // address. Here a second form's id is the first part of this form's, so
+    // the same document can be spelt two ways. The application found has to
+    // say it is that person's on that form.
+    const shorter = ROUND.split("__")[0];
+    const rest = `${ROUND.split("__")[1]}__amara`;
+    db.seed(`admissionRounds/${shorter}`, db.read(`admissionRounds/${ROUND}`));
+    const answer = await OPEN(rest, shorter);
+    assert.deepEqual([answer.status, answer.body], [404, { error: "Not found" }]);
     assert.deepEqual(logged(), []);
   });
 

@@ -28,6 +28,10 @@ import type { Refusal } from "./types";
  *  - ONLY AN APPLICATION THAT WAS SENT. A draft is nobody's to read but its
  *    author's, and that goes for what its author wrote here too.
  *  - NOBODY OPENS THEIR OWN through the committee's screens.
+ *  - THE LINE SAYS WHOSE IT REALLY WAS. A document id is a round id and a uid
+ *    joined, and both came from an address. The application found there has
+ *    to say it is that person's on that form, or nothing is read: a read
+ *    must never be recorded against one id while showing another's answer.
  *
  * ## What the log line holds
  *
@@ -73,6 +77,7 @@ export async function openAccessRequirements(
       ? normaliseApplication(appSnap.id, appSnap.data(), form.round.availabilityGrid)
       : null;
     if (!application?.sent) return NOT_FOUND;
+    if (application.roundId !== roundId || application.uid !== applicantUid) return NOT_FOUND;
 
     tx.create(db.collection(COURSE_AUDIT_COLLECTION).doc(), {
       kind: recordAs,

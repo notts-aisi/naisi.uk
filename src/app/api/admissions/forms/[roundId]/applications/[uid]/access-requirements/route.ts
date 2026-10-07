@@ -43,5 +43,8 @@ export async function POST(
   // the read is logged under.
   const opened = await openAccessRequirements(db, user, roundId, uid, "access-requirements-read");
   if (!opened.ok) return NextResponse.json({ error: opened.error }, { status: opened.status });
-  return NextResponse.json({ accessRequirements: opened.accessRequirements });
+  return NextResponse.json(
+    { accessRequirements: opened.accessRequirements },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }

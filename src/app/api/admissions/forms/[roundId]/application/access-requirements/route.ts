@@ -50,6 +50,9 @@ import { formWindowRefusal } from "@/lib/applications/applicant/window";
 
 type Ctx = { params: Promise<{ roundId: string }> };
 
+/** An answer is for the page that asked for it and is not to be kept by anything in between. */
+const NOT_KEPT = { "Cache-Control": "no-store" };
+
 export async function GET(_req: Request, ctx: Ctx) {
   const blocked = await assertNotImpersonating();
   if (blocked) return blocked;
@@ -64,7 +67,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     const loaded = await loadVisibleForm(db, roundId, new Date());
     if (!loaded) return NextResponse.json({ error: FORM_NOT_FOUND }, { status: 404 });
     const accessRequirements = await loadOwnAccessRequirements(db, loaded.form, user.uid);
-    return NextResponse.json({ accessRequirements });
+    return NextResponse.json({ accessRequirements }, { headers: NOT_KEPT });
   } catch (err) {
     console.error("[applications] access requirements read failed", roundId, err);
     return NextResponse.json(
@@ -124,7 +127,7 @@ export async function PUT(req: Request, ctx: Ctx) {
       user.uid,
       given.value,
     );
-    return NextResponse.json({ ok: true, accessRequirements });
+    return NextResponse.json({ ok: true, accessRequirements }, { headers: NOT_KEPT });
   } catch (err) {
     if (err instanceof ApplicantError) return err.toResponse();
     console.error("[applications] access requirements save failed", roundId, err);
