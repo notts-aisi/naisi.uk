@@ -610,6 +610,27 @@ describe("the join step keeps to them", () => {
     assert.match(step, /<PolicyConsent checked=\{agreed\} onChange=\{setAgreed\} id="join-consent" \/>/);
   });
 
+  test("a signed-in person's session is used as it is, and a sign-in is never refreshed by force", () => {
+    // A password chosen in another tab signs every older sign-in out. A tab
+    // still holding the older one must not force a refresh (the sign-in
+    // library answers a refusal by signing the whole browser out) and must
+    // not make a session from it (that would replace the good one).
+    for (const file of formFiles.filter((name) => /\.tsx?$/.test(name))) {
+      assert.equal(/getIdToken\(\s*true\s*\)/.test(codeOf(file)), false, `${file} forces a sign-in to refresh`);
+    }
+    const step = codeOf("JoinStep.tsx");
+    const kind = step.slice(step.indexOf("async function sessionKind()"), step.indexOf("async function onContinue()"));
+    // The form's own read comes first, and answers from the session that is there.
+    assert.ok(kind.indexOf("await readOwnAccount(roundId)") !== -1);
+    assert.ok(kind.indexOf("await readOwnAccount(roundId)") < kind.indexOf("await mintSession("), "a session is made before the one that exists is asked");
+    assert.match(kind, /if \(account\.ok\) return account\.joined \? "member" : "new";/);
+    assert.match(kind, /if \(account\.status !== 401\) return \{ error: account\.error \};/);
+    // The emailed link's own sign-in waits for its replacement before a session is made from it.
+    assert.match(kind, /signInProvider === "custom"/);
+    assert.ok(kind.indexOf('signInProvider === "custom"') < kind.indexOf("await mintSession("));
+    assert.equal((step.match(/mintSession\(/g) ?? []).length, 1, "a session is made in more than one place");
+  });
+
   test("the consent tick is never restored: agreeing is a fresh act", () => {
     const step = codeOf("JoinStep.tsx");
     assert.match(step, /const \[agreed, setAgreed\] = useState\(false\);/);

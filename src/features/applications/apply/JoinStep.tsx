@@ -27,6 +27,7 @@ import JoinAccount from "./JoinAccount";
 import { ArrowRightIcon, BackIcon, CloseIcon } from "./icons";
 import {
   mintSession,
+  readOwnAccount,
   saveAboutYou,
   sendUniversityCheck,
   startEmailRegistration,
@@ -98,6 +99,15 @@ type View = "questions" | "account";
 type Busy = "google" | "email" | "join" | null;
 
 const ACCOUNT_HASH = "#account";
+
+/** The least time between two asks of the server from coming back to the tab. */
+const ASK_AGAIN_MS = 3000;
+/**
+ * How long a sign-in made by an emailed link is given to be replaced by the
+ * one that follows it. Longer than the browser takes to carry a sign-in from
+ * one tab to another.
+ */
+const SETTLE_MS = 1500;
 
 const SIGN_IN_AGAIN = "We couldn’t find your sign-in in this browser. Sign in again and you’ll come straight back here.";
 const JOIN_FAILED = "We couldn’t send your join request. What you’ve typed is still here. Try again in a moment.";
@@ -193,22 +203,47 @@ export default function JoinStep({
   }, [roundId]);
 
   // --- a page drawn for somebody the browser now knows better ------------------
-  const askedFor = useRef<string | null>(null);
+  // Two ways the page can be behind the browser, and the answer to both is to
+  // ask the server for it again:
+  //
+  //  - The account HAS a join request. The page drawn for it is the form
+  //    itself, never this step. Asked once for each account.
+  //  - Somebody signed in after the page was drawn (in this tab, or in
+  //    another after an emailed link). The page was drawn for a visitor and
+  //    the server has not yet said what this account is. Asked again each
+  //    time the tab is looked at, until the page has caught up, because the
+  //    first ask can arrive before the session it is asking about.
+  const toldJoined = useRef<string | null>(null);
+  const lastAsked = useRef(0);
+  const behind = !authLoading && Boolean(user) && !drawnSignedIn && role === null;
+  const hasJoined = !authLoading && Boolean(user) && role !== null;
+  const uid = user?.uid ?? null;
   useEffect(() => {
-    if (authLoading || !user) return;
-    // An account with a join request has no business on this step: the page
-    // drawn for them is the form itself. And a sign-in the page has not heard
-    // of (it happened in this browser after the page was drawn) is news to
-    // the server. Either way, ask it again, once for each account.
-    const stale = role !== null || !drawnSignedIn;
-    if (!stale || askedFor.current === user.uid) return;
     // Not while a join request is on its way: that ends by moving the page
     // on, and if it fails this runs again.
-    if (busy !== null) return;
-    askedFor.current = user.uid;
-    if (role !== null) forgetAnswers(roundId);
-    router.refresh();
-  }, [authLoading, user, role, drawnSignedIn, roundId, router, busy]);
+    if (busy !== null || !uid) return;
+    if (hasJoined) {
+      if (toldJoined.current === uid) return;
+      toldJoined.current = uid;
+      forgetAnswers(roundId);
+      router.refresh();
+      return;
+    }
+    if (!behind) return;
+    const ask = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastAsked.current < ASK_AGAIN_MS) return;
+      lastAsked.current = Date.now();
+      router.refresh();
+    };
+    ask();
+    document.addEventListener("visibilitychange", ask);
+    window.addEventListener("focus", ask);
+    return () => {
+      document.removeEventListener("visibilitychange", ask);
+      window.removeEventListener("focus", ask);
+    };
+  }, [behind, hasJoined, uid, roundId, router, busy]);
 
   // --- moving between the two halves ---------------------------------------------
   useEffect(() => {
@@ -307,6 +342,50 @@ export default function JoinStep({
     return true;
   }, [agreed, paused]);
 
+  /**
+   * What kind of account this browser is signed in to, as the server sees
+   * it, for somebody who is already signed in when they press Continue.
+   *
+   * THE SESSION THAT IS THERE IS USED, AND NOT REPLACED. When the page was
+   * drawn for this account the server has a session for it, so the form's
+   * own read answers whether there is a join request. A new session is made
+   * only when the server has none for this sign-in: it lapsed, or the page
+   * was drawn before the sign-in happened.
+   *
+   * Two things a maintainer has to keep here, both about a password chosen in
+   * ANOTHER tab after an emailed link (which signs every older sign-in out):
+   *
+   *  - Never ask the sign-in library to refresh by force. A tab still holding
+   *    the older sign-in would be refused, and the library answers a refusal
+   *    by signing the whole browser out, the newer sign-in included.
+   *  - Never make a session from a sign-in that may be about to be replaced.
+   *    The link's own sign-in is recognisable (`custom`), and it is given a
+   *    moment for its replacement to arrive from the other tab first.
+   */
+  async function sessionKind(): Promise<AccountKind | { error: string }> {
+    const auth = getClientAuth();
+    const first = auth.currentUser;
+    if (!first) return { error: SIGN_IN_AGAIN };
+    const sameAccount = !signedInAs || !first.email || signedInAs.toLowerCase() === first.email.toLowerCase();
+    if (drawnSignedIn && sameAccount) {
+      const account = await readOwnAccount(roundId);
+      if (account.ok) return account.joined ? "member" : "new";
+      if (account.status !== 401) return { error: account.error };
+    }
+    try {
+      if ((await first.getIdTokenResult()).signInProvider === "custom") {
+        await new Promise((resolve) => window.setTimeout(resolve, SETTLE_MS));
+      }
+      const current = auth.currentUser;
+      if (!current) return { error: SIGN_IN_AGAIN };
+      const minted = await mintSession(await current.getIdToken());
+      if (minted.ok) return minted.kind;
+      return { error: minted.status === 401 ? SIGN_IN_AGAIN : minted.error };
+    } catch {
+      return { error: SIGN_IN_AGAIN };
+    }
+  }
+
   async function onContinue() {
     if (busy || joining.current) return;
     setError(null);
@@ -317,30 +396,10 @@ export default function JoinStep({
     }
     joining.current = true;
     setBusy("join");
-    const current = getClientAuth().currentUser;
-    let idToken: string | null = null;
-    try {
-      // Fresh from the sign-in provider, so a sign-in that has since been
-      // replaced (a password chosen in another tab) is found out here and not
-      // half way through.
-      idToken = current ? await current.getIdToken(true) : null;
-    } catch {
-      idToken = null;
-    }
-    if (!idToken) {
-      joining.current = false;
-      setBusy(null);
-      setError(SIGN_IN_AGAIN);
-      return;
-    }
-    const minted = await mintSession(idToken);
-    if (!minted.ok) {
-      joining.current = false;
-      setBusy(null);
-      setError(minted.status === 401 ? SIGN_IN_AGAIN : minted.error);
-      return;
-    }
-    if (!(await finishJoin(minted.kind))) {
+    const kind = await sessionKind();
+    const done = typeof kind === "string" ? await finishJoin(kind) : false;
+    if (typeof kind !== "string") setError(kind.error);
+    if (!done) {
       joining.current = false;
       setBusy(null);
     }
@@ -394,7 +453,8 @@ export default function JoinStep({
     } catch (err) {
       console.error(err);
     }
-    askedFor.current = null;
+    toldJoined.current = null;
+    lastAsked.current = 0;
     setBusy(null);
     router.refresh();
   }
