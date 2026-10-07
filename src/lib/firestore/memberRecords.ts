@@ -1,8 +1,8 @@
 import type { FieldValue, Firestore } from "firebase-admin/firestore";
+import { own } from "@/lib/applications/keys";
 import type {
   ApplicationDoc,
   ApplicationFormFields,
-  ProgrammeSettings,
   QuestionSetDoc,
   ReviewDoc,
 } from "@/lib/applications/model";
@@ -644,29 +644,19 @@ type FormForRecord = Pick<
 >;
 
 /**
- * A programme the form carries, or null.
- *
- * AN OWN KEY AND NOTHING ELSE. A ranking is something an applicant typed, and
- * a draft is saved as it is given, so the id being looked up here is not one
- * the form chose. "constructor" and "toString" are well-formed ids that name
- * something on every object without being a programme on any form, and a
- * plain lookup would hand back whatever that was. One such id must not be
- * able to break the record of the application it sits on, because a record
- * that cannot be built is what makes a destroy refuse.
- */
-function programmeOn(form: FormForRecord, programmeId: string): ProgrammeSettings | null {
-  return Object.prototype.hasOwnProperty.call(form.programmes, programmeId)
-    ? form.programmes[programmeId]
-    : null;
-}
-
-/**
  * The name the record uses for a programme: its short name, the one rankings
  * and emails use. A ranked id the form no longer carries gets the same
  * sentence an older round gives a removed option, and never the bare id.
+ *
+ * The programme is read as the form's OWN key (`own`, in
+ * `src/lib/applications/keys.ts`), here and everywhere below. A ranking is
+ * something an applicant typed, and a name every object carries is not a
+ * programme on any form. One such name must not be able to break the record
+ * of the application it sits on, because a record that cannot be built is
+ * what makes a destroy refuse.
  */
 function programmeLabel(form: FormForRecord, programmeId: string): string {
-  const programme = programmeOn(form, programmeId);
+  const programme = own(form.programmes, programmeId);
   if (!programme) return REMOVED_PROGRAMME_LABEL;
   return (programme.shortName || programme.name || "").trim() || UNNAMED_PROGRAMME_LABEL;
 }
@@ -701,7 +691,7 @@ function deriveFormOutcome(
     decision: decision.slice(0, MEMBER_RECORD_LIMITS.decision),
     status: application.status,
     // The run that programme places people on, once it has one.
-    targetRunId: programmeId ? (programmeOn(form, programmeId)?.runId ?? null) : null,
+    targetRunId: programmeId ? (own(form.programmes, programmeId)?.runId ?? null) : null,
   };
 }
 
@@ -746,7 +736,7 @@ function deriveFormScoreSummary(
 ): ApplicationRecordScoreSummary {
   const byCriterion: Record<string, number | null> = {};
   for (const programmeId of rankedProgrammeIds) {
-    if (!programmeOn(form, programmeId)) continue;
+    if (!own(form.programmes, programmeId)) continue;
     const keys = scoredKeysFor(form, sets, programmeId);
     if (keys.length === 0) continue;
     const { score } = sectionScore(reviews, keys);

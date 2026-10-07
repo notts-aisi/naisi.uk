@@ -258,6 +258,13 @@ const USERS = new Map([
       "by the code that runs and not by its comments",
   ],
   [
+    "applications-own-keys.test.mjs",
+    "executes every exported function of every module under src/lib/applications against " +
+      "each name Object.prototype carries, with the real eligibility bar and the real roles " +
+      "writer underneath, because whether such a name reads as a programme is decided by how " +
+      "each function reads its map, and only running each one shows it",
+  ],
+  [
     "applications-model.test.mjs",
     "executes every pure module under src/lib/applications (reading, steps, send validation, " +
       "scoring, placement, the decision-day tallies) against a small term and against the " +

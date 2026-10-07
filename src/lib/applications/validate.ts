@@ -1,4 +1,5 @@
 import { STATUSES_WITH_GRADUATION, validateUniversityEmail } from "@/lib/firestore/users";
+import { own } from "./keys";
 import {
   APPLICATION_LIMITS,
   type AnswerValue,
@@ -170,9 +171,13 @@ export function issuesFor(
   }
 
   for (const set of applicableSets(form, sets, content)) {
-    const answers = content.answers[set.id] ?? {};
+    const answers = own(content.answers, set.id);
     for (const question of set.questions) {
-      const problem = answerProblem(question, answers[question.id], optionsFor(question, form, content));
+      const problem = answerProblem(
+        question,
+        own(answers, question.id),
+        optionsFor(question, form, content),
+      );
       if (problem) issues.push({ step: `set:${set.id}`, questionId: question.id, message: problem });
     }
   }
@@ -198,10 +203,10 @@ export function contentForSend(
 ): ApplicationContent {
   const answers: Answers = {};
   for (const set of applicableSets(form, sets, content)) {
-    const given = content.answers[set.id] ?? {};
+    const given = own(content.answers, set.id);
     const kept: Record<string, AnswerValue> = {};
     for (const question of set.questions) {
-      const value = given[question.id];
+      const value = own(given, question.id);
       if (isAnswered(value)) kept[question.id] = value as AnswerValue;
     }
     answers[set.id] = kept;
@@ -216,6 +221,6 @@ export function contentForSend(
 
 /** How many of a set's questions this person has answered, for "2 of 2 answered". */
 export function answeredCount(set: QuestionSetDoc, content: Pick<ApplicationContent, "answers">): number {
-  const given = content.answers[set.id] ?? {};
-  return set.questions.filter((question) => isAnswered(given[question.id])).length;
+  const given = own(content.answers, set.id);
+  return set.questions.filter((question) => isAnswered(own(given, question.id))).length;
 }
