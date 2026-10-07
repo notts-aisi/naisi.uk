@@ -61,6 +61,7 @@ const STUBS = new Map([
     "export const FieldValue = {\n" +
       "  serverTimestamp: () => ({ __op: 'serverTimestamp' }),\n" +
       "  increment: (by) => ({ __op: 'increment', by }),\n" +
+      "  delete: () => ({ __op: 'delete' }),\n" +
       "};",
   ],
   ["@/lib/firebase/admin", "export function getAdminDb() {\n  return globalThis.__replyDb ?? null;\n}"],
@@ -77,6 +78,7 @@ const ROUTE = join("app", "api", "admissions", "forms", "[roundId]", "applicatio
 const route = await loadTs(ROUTE);
 const replies = await loadTs(join("lib", "applications", "status", "replies.ts"));
 const record = await loadTs(join("lib", "applications", "status", "record.ts"));
+const afterReply = await loadTs(join("lib", "applications", "accounts", "afterReply.ts"));
 const store = await loadTs(join("lib", "applications", "applicant", "store.ts"));
 const requests = await loadTs(join("lib", "applications", "applicant", "requests.ts"));
 const { NextResponse } = await import(
@@ -123,6 +125,9 @@ class FakeDb {
     /** Every committed write, with the commit it landed in. */
     this.writes = [];
     this.commits = 0;
+    /** How many transactions have been started, and which one (if any) the database fails. */
+    this.transactions = 0;
+    this.failTransaction = null;
   }
 
   seed(path, data) {
@@ -157,6 +162,10 @@ class FakeDb {
   }
 
   async runTransaction(fn) {
+    this.transactions += 1;
+    if (this.failTransaction === this.transactions) {
+      throw Object.assign(new Error("UNAVAILABLE: the database could not be reached"), { code: 14 });
+    }
     const ops = [];
     const tx = {
       get: (ref) => ref.get(),
@@ -182,7 +191,8 @@ class FakeDb {
           at = at[part];
         }
         const last = parts[parts.length - 1];
-        at[last] = resolve(value, at[last], stamp);
+        if (value && typeof value === "object" && value.__op === "delete") delete at[last];
+        else at[last] = resolve(value, at[last], stamp);
       }
       this.writes.push({ commit: this.commits, path: op.path, fields: Object.keys(op.data).sort() });
     }
@@ -839,6 +849,222 @@ describe("replies are throttled per account and per address", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Accepting an invitation approves an account that is still waiting
+// ---------------------------------------------------------------------------
+
+describe("accepting an invitation approves an account that is still waiting", () => {
+  const SENDER = "zach";
+  const SENT = { decisionsSentAt: PUBLISHED, decisionsSentByUid: SENDER };
+  const userPath = (uid) => `users/${uid}`;
+  const usersRead = () => db.reads.filter((path) => path.startsWith("users/"));
+  const usersWritten = () => db.writes.filter((write) => write.path.startsWith("users/"));
+
+  /**
+   * A form an admin has sent the decisions on, the caller in `state`, and the
+   * two account documents an approval reads: the caller's and that admin's.
+   */
+  function invited({
+    role = "pending",
+    state = STATES["invited, not answered"],
+    roundOverrides = SENT,
+    senderRole = "admin",
+    account = {},
+  } = {}) {
+    const store = world({ role, state, roundOverrides });
+    store.seed(userPath(SENDER), { role: senderRole, displayName: "Zach Example" });
+    store.seed(userPath(me), {
+      role,
+      displayName: `${me} Example`,
+      email: `${me}@example.com`,
+      createdAt: new Date("2026-10-01T09:00:00Z"),
+      ...account,
+    });
+    return store;
+  }
+
+  test("a waiting account that accepts becomes a member, in the name of the admin who sent the decisions", async () => {
+    invited();
+    const response = await REPLY("accept-invitation");
+    assert.equal(response.status, 200);
+    assert.equal(response.body.changed, true);
+
+    const account = db.data(userPath(me));
+    assert.equal(account.role, "member");
+    assert.equal(account.approvedBy, SENDER);
+    assert.ok(account.approvedAt instanceof Date);
+    // Nothing else about the account moved.
+    assert.equal(account.email, `${me}@example.com`);
+    assert.deepEqual(Object.keys(account).sort(), ["approvedAt", "approvedBy", "createdAt", "displayName", "email", "role"]);
+
+    // And the reply is the reply it always was.
+    const mine = db.data(appPath(me));
+    assert.equal(mine.status, "accepted");
+    assert.equal(mine.invitation.response, "accepted");
+    assert.equal(counts().invited, COUNTS.invited - 1);
+    assert.equal(counts().accepted, COUNTS.accepted + 1);
+  });
+
+  test("the account is written after the reply has committed, in a transaction of its own", async () => {
+    invited();
+    await REPLY("accept-invitation");
+    assert.deepEqual(
+      db.writes.map((write) => [write.commit, write.path]),
+      [
+        [1, appPath(me)],
+        [1, ROUND_PATH],
+        [2, userPath(me)],
+      ],
+    );
+    assert.deepEqual(db.writes[2].fields, ["approvedAt", "approvedBy", "rejectedAt", "rejectedBy", "role"]);
+    // Nobody else's account, and not the admin's.
+    assert.deepEqual(usersWritten().map((write) => write.path), [userPath(me)]);
+  });
+
+  test("it is the change the Approvals tab makes: the marks of an earlier refusal are cleared", async () => {
+    invited({ account: { rejectedAt: new Date("2026-10-02T09:00:00Z"), rejectedBy: "somebody" } });
+    await REPLY("accept-invitation");
+    const account = db.data(userPath(me));
+    assert.equal(account.role, "member");
+    assert.equal("rejectedAt" in account, false);
+    assert.equal("rejectedBy" in account, false);
+  });
+
+  test("every other kind of account that accepts is left exactly as it is", async () => {
+    for (const role of ["member", "committee", "admin"]) {
+      invited({ role });
+      const before = JSON.stringify(db.data(userPath(me)));
+      const response = await REPLY("accept-invitation");
+      assert.equal(response.status, 200, role);
+      assert.equal(db.data(appPath(me)).status, "accepted", role);
+      assert.equal(JSON.stringify(db.data(userPath(me))), before, role);
+      assert.deepEqual(usersWritten(), [], role);
+    }
+  });
+
+  test("a refused account never gets as far as a reply, so it is never approved by one", async () => {
+    invited({ role: "rejected" });
+    const before = JSON.stringify(db.data(userPath(me)));
+    const response = await REPLY("accept-invitation");
+    assert.equal(response.status, 403);
+    assert.equal(JSON.stringify(db.data(userPath(me))), before);
+    assert.equal(db.data(appPath(me)).status, "invited");
+    assert.deepEqual(db.reads, []);
+  });
+
+  test("no other reply approves anybody, or so much as reads an account", async () => {
+    // Accepting an invitation already says they are coming, so saying it
+    // again writes nothing. Every other reply here is recorded.
+    for (const [state, reply, changed] of [
+      ["placed, nothing said", "coming", true],
+      ["placed, nothing said", "cant-make-it", true],
+      ["invited, not answered", "decline-invitation", true],
+      ["invited, accepted", "coming", false],
+      ["invited, accepted", "cant-make-it", true],
+    ]) {
+      invited({ state: STATES[state] });
+      const response = await REPLY(reply);
+      assert.equal(response.status, 200, `${state}: ${reply}`);
+      assert.equal(response.body.changed, changed, `${state}: ${reply}`);
+      assert.equal(db.data(userPath(me)).role, "pending", `${state}: ${reply}`);
+      assert.deepEqual(usersRead(), [], `${state}: ${reply}`);
+    }
+  });
+
+  test("pressing Accept a second time records nothing and asks about no account again", async () => {
+    invited();
+    await REPLY("accept-invitation");
+    const reads = db.reads.length;
+    const writes = db.writes.length;
+    const again = await REPLY("accept-invitation");
+    assert.equal(again.status, 200);
+    assert.equal(again.body.changed, false);
+    assert.equal(db.writes.length, writes);
+    assert.deepEqual(db.reads.slice(reads).filter((path) => path.startsWith("users/")), []);
+    assert.equal(db.data(userPath(me)).role, "member");
+  });
+
+  test("a form not yet stamped as sent names no admin, so nobody is approved and the reply stands", async () => {
+    invited({ roundOverrides: {} });
+    const response = await REPLY("accept-invitation");
+    assert.equal(response.status, 200);
+    assert.equal(db.data(appPath(me)).status, "accepted");
+    assert.equal(db.data(userPath(me)).role, "pending");
+    assert.deepEqual(usersRead(), []);
+  });
+
+  test("nobody is approved in the name of somebody who is not an admin now, and the reply stands", async () => {
+    for (const senderRole of ["committee", "member", "pending"]) {
+      invited({ senderRole });
+      const response = await REPLY("accept-invitation");
+      assert.equal(response.status, 200, senderRole);
+      assert.equal(db.data(appPath(me)).status, "accepted", senderRole);
+      assert.equal(db.data(userPath(me)).role, "pending", senderRole);
+      assert.deepEqual(usersWritten(), [], senderRole);
+    }
+  });
+
+  test("an approval that fails neither undoes nor blocks the reply", async (t) => {
+    const logged = t.mock.method(console, "error", () => {});
+    invited({ role: "pending" });
+    // The first transaction is the reply's. The second is the approval's.
+    db.failTransaction = 2;
+    const response = await REPLY("accept-invitation");
+
+    // The page is told exactly what it is told when the approval works.
+    assert.equal(response.status, 200);
+    assert.equal(response.body.ok, true);
+    assert.equal(response.body.changed, true);
+    assert.equal(response.body.application.status, "accepted");
+    assert.equal(response.body.application.invitation.response, "accepted");
+    assert.equal(response.body.application.result.kind, "invited");
+    assert.deepEqual(Object.keys(response.body).sort(), ["application", "changed", "ok"]);
+    // The reply is written and the counters moved with it.
+    const mine = db.data(appPath(me));
+    assert.equal(mine.status, "accepted");
+    assert.equal(mine.invitation.response, "accepted");
+    assert.equal(counts().invited, COUNTS.invited - 1);
+    assert.equal(counts().accepted, COUNTS.accepted + 1);
+    // The account is exactly as it was, and somebody was told.
+    assert.equal(db.data(userPath(me)).role, "pending");
+    assert.deepEqual(usersWritten(), []);
+    assert.equal(logged.mock.callCount(), 1);
+    assert.match(String(logged.mock.calls[0].arguments[0]), /approving an account after an accepted invitation failed/);
+  });
+
+  test("the function says what it did, and answers a failure instead of throwing", async (t) => {
+    const form = { round: { id: ROUND }, decisionsSentByUid: SENDER };
+
+    invited({ state: STATES["invited, accepted"] });
+    assert.deepEqual(await afterReply.approveAfterAcceptedInvitation(db, form, me), { did: "approved" });
+    // Asked again, the account is no longer waiting.
+    assert.deepEqual(await afterReply.approveAfterAcceptedInvitation(db, form, me), {
+      did: "left",
+      why: "not-waiting",
+    });
+
+    // An invitation not yet accepted is not an acceptance, whoever asks.
+    invited({ state: STATES["invited, not answered"] });
+    assert.deepEqual(await afterReply.approveAfterAcceptedInvitation(db, form, me), {
+      did: "left",
+      why: "not-accepted",
+    });
+    assert.equal(db.data(userPath(me)).role, "pending");
+
+    invited({ state: STATES["invited, accepted"] });
+    assert.deepEqual(
+      await afterReply.approveAfterAcceptedInvitation(db, { ...form, decisionsSentByUid: null }, me),
+      { did: "left", why: "decisions-not-sent" },
+    );
+
+    t.mock.method(console, "error", () => {});
+    invited({ state: STATES["invited, accepted"] });
+    db.failTransaction = 1;
+    assert.deepEqual(await afterReply.approveAfterAcceptedInvitation(db, form, me), { did: "failed" });
+    assert.equal(db.data(userPath(me)).role, "pending");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // The handler, as the guards read it
 // ---------------------------------------------------------------------------
 
@@ -873,10 +1099,31 @@ describe("the handler is written the way the guards read it", () => {
     assert.match(recordCode, /from "\.\.\/repo";/);
   });
 
-  test("it emails nobody and approves no account", () => {
+  test("it emails nobody, and the transaction that records a reply approves no account", () => {
     for (const each of [code, recordCode]) {
-      assert.equal(/sendEmail|@\/lib\/email|@\/emails\/|approve|collection\("users"\)|\.auth\(\)/i.test(each), false);
+      assert.equal(/sendEmail|@\/lib\/email|@\/emails\/|collection\("users"\)|\.auth\(\)/i.test(each), false);
     }
+    assert.equal(/approve/i.test(recordCode), false, "the reply's own transaction touches no account");
+  });
+
+  test("an account is approved only for the reply that took a place, and only after that reply has committed", () => {
+    const helperCode = readFileSync(join(REPO_ROOT, "src", "lib", "applications", "accounts", "afterReply.ts"), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+    // One call in the route, and nothing else there that approves.
+    assert.deepEqual(
+      [...code.matchAll(/\bapprove\w*\(/gi)].map((found) => found[0]),
+      ["approveAfterAcceptedInvitation("],
+    );
+    assert.match(code, /if \(recorded\.tookPlace\) await approveAfterAcceptedInvitation\(db, form, user\.uid\);/);
+    assert.ok(code.indexOf("approveAfterAcceptedInvitation(db") > code.indexOf("await recordReply("));
+    // It answers and never throws: the one call that writes is inside a try
+    // whose catch returns, and the admin named is the form's own.
+    assert.match(helperCode, /const approvedByUid = form\.decisionsSentByUid;/);
+    assert.match(helperCode, /try \{\s+const outcome = await approveWaitingAccount\(/);
+    assert.match(helperCode, /\} catch \(err\) \{[\s\S]*?return \{ did: "failed" \};\s+\}/);
+    assert.equal(/\bthrow\b/.test(helperCode), false);
+    assert.equal(/staffRepo|admissionDecisions|admissionReviews|sendEmail|@\/lib\/email|@\/emails\//.test(helperCode), false);
   });
 
   test("every write is inside the one transaction, on the caller's own document and the form's counters", () => {

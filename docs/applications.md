@@ -105,6 +105,12 @@ every route gated by `requireApplicant(`, every public page and
 So "nobody hears anything early" is a property of the import graph, not
 something each screen has to remember.
 
+One field is written by neither: `invitation.lastReminderOn`, the London day
+of the last reminder for an invitation nobody has answered. The reminder job
+(`src/lib/scheduler/jobs/applicationInvitationReminders.ts`) writes today
+into it before it sends, so a day sends at most one. It reads no decision
+document and changes nothing the person was told.
+
 **2. There are two copies of what the applicant wrote.** `draft` is what the
 form is showing and is saved as they type. `sent` is the application of record
 and is replaced whole each time they press Send. Reviewers read `sent` and
@@ -227,6 +233,31 @@ The term is marked as sent (`decisionsSentAt`) once everybody has a result. An
 email still owed does not hold that back, and stays listed on the decision-day
 page until it goes.
 
+### Accepting somebody approves an account that is still waiting
+
+A person can apply before their join request has been looked at. When they
+are accepted, `approveWaitingAccount` (`accounts/approve.ts`) makes the
+change the Approvals tab makes: `pending` becomes `member`, with who
+approved and when. It checks three things itself, inside the transaction
+that writes: the account is waiting (a member, a committee member, an admin
+and a refused account are left exactly as they are), the person's own
+application on the form shows an acceptance (a place they were told they
+have and have not given up, or an invitation they have accepted), and the
+approver named is an admin right now. The decision-day send calls it for
+each person it tells they are in. The route an invited person accepts
+through calls it too (`accounts/afterReply.ts`), naming the admin who sent
+the decisions, after the reply has been written and never as part of it: an
+approval that cannot be made leaves the reply standing and the account in
+Approvals, and the next press of Send approves it.
+
+### The daily reminder for an invitation
+
+Somebody invited is reminded once a day, from 10:00 in London, from the day
+after they were told up to their own reply-by day, until they reply
+(`decisionDay/reminders.ts`). The job ships switched off. The decision-day
+page says invited people are reminded only while a scheduled run has
+actually run it (`decisionDay/armed.ts`).
+
 ## Replies
 
 After decision day somebody answers on their own application, through one
@@ -234,9 +265,9 @@ applicant route (`application/reply`). A place is presumed: "I'm coming"
 records `attendance` and changes nothing else. "I can't make it" (from anybody
 holding a place) and "No thanks" (to an invitation) give the place back: the
 reply is recorded, the status becomes `withdrawn`, and the form's counters
-move with it. An accepted invitation records `invitation.response` and makes
-the status `accepted`. `result` is what decision day said and no reply changes
-it. A place given back cannot be taken again from the page. `standingOf()` in
+move with it. An accepted invitation records `invitation.response`, makes
+the status `accepted`, and approves the account if it was still waiting (see
+above). `result` is what decision day said and no reply changes it. A place given back cannot be taken again from the page. `standingOf()` in
 `status/standing.ts` reads all of that off the document, and `decideReply()`
 in `status/replies.ts` is the whole table.
 
@@ -305,6 +336,7 @@ All in `src/lib/applications/`.
 | `staffRepo.ts` | Everybody's applications, reviews, decisions | server, staff only |
 | `status/standing.ts`, `status/replies.ts`, `status/view.ts` | Where one person stands after sending, what each reply does, what their page says | anywhere |
 | `status/load.ts`, `status/record.ts` | The page's read, and the one transaction a reply writes | server, applicant-safe |
+| `accounts/approve.ts`, `accounts/afterReply.ts` | Approving a waiting account on an acceptance, and the call an accepted invitation makes | server, applicant-safe |
 
 ## Rules for anything built on this
 
