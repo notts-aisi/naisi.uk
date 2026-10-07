@@ -18,6 +18,12 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * for one that does not exist. The key on the screen is the applicant, so
  * moving to the next application starts from that application's own state
  * and carries nothing over from the last one.
+ *
+ * THIS PAGE STANDS ALONE. The programme's head and tabs are a layout in the
+ * `(tabs)` route group beside this folder, and this page is outside that
+ * group so that it is drawn without them. Nothing between here and the
+ * admissions tree's own gate turns anybody away, so the question asked
+ * through `loadReview` above is this page's whole answer to who may see it.
  */
 export default async function ApplicationReviewPage({
   params,

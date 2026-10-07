@@ -14,8 +14,16 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
 /**
- * The head every page of one programme sits under: its name, where the term
- * is, who leads it, and the tabs.
+ * The head the tabbed pages of one programme sit under: its name, where the
+ * term is, who leads it, and the tabs.
+ *
+ * WHICH PAGES THAT IS. This file is in a route group, `(tabs)`, which adds
+ * nothing to an address. The pages inside the group (Settings, and the list
+ * of applications) are drawn under this head. The single application at
+ * `applications/[uid]` is OUTSIDE the group on purpose: it is a screen of its
+ * own, drawn with no programme head and no tabs, so it must not inherit this
+ * layout. A page that should carry the tabs goes inside `(tabs)`; one that
+ * should stand alone goes beside it. Either way its address is the same.
  *
  * It is drawn for anybody with a role on the programme: an admin, its lead,
  * or one of its reviewers. Somebody with none is shown "there is no programme
