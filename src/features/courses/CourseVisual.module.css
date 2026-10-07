@@ -39,7 +39,7 @@
 .technical {
   --visual-ink: var(--color-accent);
   --visual-wash: var(--color-accent-soft);
-  --visual-ring: var(--color-accent-ring);
+  --visual-ring: var(--color-accent-line);
 }
 
 .governance {

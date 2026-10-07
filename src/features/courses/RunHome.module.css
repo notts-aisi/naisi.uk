@@ -71,7 +71,7 @@
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   background: var(--color-accent);
-  color: #fff;
+  color: var(--color-on-accent);
   font-size: var(--text-base);
   font-weight: 600;
   letter-spacing: -0.005em;

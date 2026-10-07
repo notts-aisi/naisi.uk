@@ -3,11 +3,11 @@ import styles from "./InitialsChip.module.css";
 type Props = {
   name: string;
   uid: string;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
 };
 
-/** Must match the number of `.hueN` classes in InitialsChip.module.css. */
-const HUES = 8;
+/** Must match the number of `.fillN` classes in InitialsChip.module.css. */
+const FILLS = 7;
 
 /**
  * FNV-1a over the uid. Deterministic across renders, devices and sessions, so
@@ -15,13 +15,13 @@ const HUES = 8;
  * per roster row. Not a security hash — a collision just means two people
  * share a colour, which the initials disambiguate.
  */
-function hueIndex(uid: string): number {
+function fillIndex(uid: string): number {
   let hash = 0x811c9dc5;
   for (let i = 0; i < uid.length; i++) {
     hash ^= uid.charCodeAt(i);
     hash = Math.imul(hash, 0x01000193);
   }
-  return (hash >>> 0) % HUES;
+  return (hash >>> 0) % FILLS;
 }
 
 /**
@@ -45,7 +45,7 @@ function initialsOf(name: string): string {
  * the disc to identify anyone. Two initials are not an identity.
  */
 export default function InitialsChip({ name, uid, size = "md" }: Props) {
-  const cls = [styles.chip, styles[size], styles[`hue${hueIndex(uid)}`]].join(" ");
+  const cls = [styles.chip, styles[size], styles[`fill${fillIndex(uid)}`]].join(" ");
   return (
     <span className={cls} title={name} aria-hidden="true">
       {initialsOf(name)}

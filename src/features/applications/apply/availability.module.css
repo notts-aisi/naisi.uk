@@ -121,7 +121,7 @@
   border: 1px solid var(--color-border-strong);
   border-radius: 10px;
   background: var(--color-bg);
-  color: #c3cad9;
+  color: var(--color-text-soft);
   font: inherit;
   font-size: 14px;
   font-weight: 500;

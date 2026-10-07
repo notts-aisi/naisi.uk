@@ -18,9 +18,9 @@
 
 .vars {
   /* Secondary text set straight on the floor, lighter than the muted token. */
-  --st-soft: #c3cad9;
+  --st-soft: var(--color-text-soft);
   /* The label of a neutral chip. */
-  --st-quiet: #b4bccf;
+  --st-quiet: var(--color-text-body);
   --st-ok-wash: rgba(70, 167, 88, 0.16);
   --st-ok-line: rgba(111, 209, 133, 0.35);
   --st-accent-wash: color-mix(in srgb, var(--color-accent) 14%, transparent);
@@ -37,7 +37,7 @@
 
 /* The floor runs to the footer, however short the page is. */
 :global(main):has(> .root) {
-  background: #050810;
+  background: var(--color-floor);
 }
 
 .shell {
@@ -472,7 +472,7 @@
 }
 
 .quiet:hover:not(:disabled) {
-  color: #c2cbff;
+  color: var(--color-accent-text-hover);
 }
 
 .secondary:focus-visible,
@@ -623,7 +623,7 @@
 }
 
 .link:hover {
-  color: #c2cbff;
+  color: var(--color-accent-text-hover);
 }
 
 /* === What decision day told them === */
@@ -754,7 +754,7 @@
 }
 
 .back:hover {
-  color: #c2cbff;
+  color: var(--color-accent-text-hover);
 }
 
 @media (max-width: 48rem) { /* --bp-md */

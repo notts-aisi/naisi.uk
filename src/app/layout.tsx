@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Space_Grotesk } from "next/font/google";
+import { Inter, Space_Grotesk, Space_Mono } from "next/font/google";
 import { AuthProvider } from "@/auth/AuthProvider";
 import { ScanBeacon } from "@/features/campaign/ScanBeacon";
 import { SiteNoticeBanner } from "@/features/maintenance/SiteNoticeBanner";
@@ -37,6 +37,18 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "sw
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   variable: "--font-space-grotesk",
+  display: "swap",
+});
+/*
+ * Metadata only: dates, durations, eyebrow labels and table headers. Read
+ * through --font-meta (src/theme/typography.css) and the global .meta class,
+ * never for body copy. Space Mono has two weights and no variable file, so
+ * both are named.
+ */
+const spaceMono = Space_Mono({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-space-mono",
   display: "swap",
 });
 
@@ -82,7 +94,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" data-theme="dark" className={`${inter.variable} ${spaceGrotesk.variable}`}>
+    <html lang="en" data-theme="dark" className={`${inter.variable} ${spaceGrotesk.variable} ${spaceMono.variable}`}>
       <body>
         {/* Must be the first thing in <body>: it stamps the standalone
             attributes on <html> before any styled content paints. */}

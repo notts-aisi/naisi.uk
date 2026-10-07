@@ -1,0 +1,63 @@
+/*
+  NetField: the network motif on a navy radial ground.
+
+  The two navies are the motif's own and appear nowhere else, so they live
+  here and not in the theme. The ground ends on --color-bg, so a field set
+  into a section of that colour has no edge.
+*/
+
+.field {
+  --net-core: #1a2450;
+  --net-mid: #10163a;
+
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(
+    ellipse 70% 90% at 30% 40%,
+    var(--net-core) 0%,
+    var(--net-mid) 45%,
+    var(--color-bg) 100%
+  );
+}
+
+.net {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* img, svg { max-width: 100% } in globals.css is right for content and
+     wrong here: the drawing fills the box whatever its own proportions. */
+  max-width: none;
+  pointer-events: none;
+}
+
+.soft { opacity: 0.35; }
+.medium { opacity: 0.5; }
+.strong { opacity: 0.9; }
+
+.edge {
+  stroke: var(--color-accent);
+  stroke-opacity: 0.22;
+  stroke-width: 1;
+}
+
+.node {
+  fill: var(--color-accent);
+  fill-opacity: 0.6;
+}
+
+/* The few lit nodes are the live colour: small marks, as it is meant for. */
+.lit {
+  fill: var(--color-live);
+  fill-opacity: 0.95;
+}
+
+/* Above the drawing, and the thing that gives the field its height. */
+.content {
+  position: relative;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* Nothing: the net is cropped to the box at any width. */
+}

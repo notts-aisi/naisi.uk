@@ -234,7 +234,7 @@
 /* Drop target. An INSET ring so the column doesn't grow and shove
    its neighbours sideways mid-drag. */
 .columnHover {
-  box-shadow: inset 0 0 0 2px var(--color-accent-ring);
+  box-shadow: inset 0 0 0 2px var(--color-accent-line);
   background: var(--color-accent-soft);
 }
 
@@ -355,7 +355,7 @@
 
 .cardSelected {
   border-color: var(--color-accent);
-  box-shadow: inset 0 0 0 1px var(--color-accent-ring);
+  box-shadow: inset 0 0 0 1px var(--color-accent-line);
 }
 
 /* Landing settle. Overshoots by 3% and comes back — the same
