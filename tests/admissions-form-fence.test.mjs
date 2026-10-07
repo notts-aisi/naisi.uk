@@ -1333,6 +1333,25 @@ describe("the loaders an older surface may reach a round through", () => {
     assert.ok(olderAt < notFoundAt && notFoundAt < Infinity, "the older loader's answer is not checked before anything is drawn");
     assert.ok(notFoundAt < at(page, "<ApplyFlow"), "the older flow is drawn before the not-found answer");
     assert.ok(at(page, "<ApplyFlow") < Infinity, "the older flow is gone, so this page is no longer both");
+
+    // THE TITLE keeps the page's order, so a form has a title of its own and a
+    // form nobody may see yet has none. The form's applicant-safe read is
+    // asked first and its answer returned, only its null reaches the older
+    // loader, and the older loader's own null is the title every round that
+    // is not there takes.
+    const meta = reading.scope.locals.get("generateMetadata")?.text;
+    assert.ok(meta, "the page's metadata function could not be found");
+    assert.ok(importsFrom(reading.scope, "loadFormTitle", "@/lib/applications/applicant/store"));
+    const titleAt = at(meta, /\bloadFormTitle\s*\(/);
+    const titleBack = at(meta, /if\s*\(\s*form\s*\)\s*return\s+applyMetadata\s*\(\s*form\.label\s*,\s*form\.windowState\b/);
+    const olderTitleAt = at(meta, /\bloadRound\s*\(/);
+    assert.ok(titleAt < titleBack && titleBack < olderTitleAt, "the form's title is not asked for, and returned, before the older loader");
+    assert.ok(olderTitleAt < Infinity, "the older half no longer has a title of its own");
+    const plainAt = at(meta, /if\s*\(\s*!loaded\s*\)\s*\{\s*return\s*\{\s*title\s*:\s*""\s*,/);
+    assert.ok(
+      olderTitleAt < plainAt && plainAt < Infinity,
+      "a round that is not there no longer takes the plain title, which names nothing",
+    );
   });
 
   test("the older round page shows a form only to somebody who may see the round", () => {

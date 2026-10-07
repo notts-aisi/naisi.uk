@@ -14,7 +14,7 @@ import {
   projectFormForApplicant,
   projectQuestionSetForApplicant,
 } from "./project";
-import type { ApplicantView } from "./types";
+import type { ApplicantForm, ApplicantView } from "./types";
 import { isFormVisible } from "./window";
 
 /**
@@ -89,6 +89,26 @@ export async function loadVisibleForm(
   if (!form || !isFormVisible(form, now)) return null;
   const sets = await loadQuestionSets(db, roundId);
   return { form, sets: orderedSets(form, sets) };
+}
+
+/**
+ * What the form's page needs for its title: the form's name and whether it is
+ * open. Null exactly when `loadVisibleForm` is null, so a form that is still a
+ * draft or has been archived has no title of its own, the same as a round
+ * that is not there.
+ *
+ * Read through the applicant's projection, so a title can only ever carry what
+ * an applicant is shown on the page under it.
+ */
+export async function loadFormTitle(
+  db: Firestore,
+  roundId: string,
+  now: Date,
+): Promise<Pick<ApplicantForm, "label" | "windowState"> | null> {
+  const loaded = await loadVisibleForm(db, roundId, now);
+  if (!loaded) return null;
+  const form = projectFormForApplicant(loaded.form, now);
+  return { label: form.label, windowState: form.windowState };
 }
 
 export type Account = {

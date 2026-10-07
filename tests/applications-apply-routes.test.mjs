@@ -469,6 +469,26 @@ describe("a form an applicant must not learn exists", () => {
     }
   });
 
+  test("the page's title is the form's own, and a form nobody may see yet has none", async () => {
+    const now = new Date();
+    world();
+    assert.deepEqual(await store.loadFormTitle(db, ROUND, now), { label: "Autumn 2026", windowState: "open" });
+    // A form that has not opened, and one that has closed, are there to be
+    // seen, so each has a title that says which.
+    world({ roundOverrides: { opensAt: new Date("2098-01-01T00:00:00Z") } });
+    assert.deepEqual(await store.loadFormTitle(db, ROUND, now), { label: "Autumn 2026", windowState: "not-yet" });
+    world({ roundOverrides: { status: "closed" } });
+    assert.deepEqual(await store.loadFormTitle(db, ROUND, now), { label: "Autumn 2026", windowState: "closed" });
+    // A draft form, an archived form and a round of the older kind answer as a
+    // round that is not there does: a title would say the form exists.
+    for (const overrides of [{ status: "draft" }, { archived: true }, { formVersion: 1 }, { formVersion: undefined }]) {
+      world({ roundOverrides: overrides });
+      assert.equal(await store.loadFormTitle(db, ROUND, now), null, JSON.stringify(overrides));
+    }
+    assert.equal(await store.loadFormTitle(db, "no-such-round", now), null);
+    assert.equal(await store.loadFormTitle(db, "a/b", now), null);
+  });
+
   test("the loader agrees: nothing comes back for any of them", async () => {
     const now = new Date();
     assert.ok(await store.loadVisibleForm(db, ROUND, now));

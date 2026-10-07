@@ -32,6 +32,7 @@ import { applyCopy } from "@/lib/admissions/applyCopy";
 import { formatRoundDate, formatRoundDeadline } from "@/lib/admissions/window";
 import ApplyFlow from "@/features/admissions/ApplyFlow";
 import { renderApplicationForm } from "@/features/applications/apply/ApplyScreen";
+import { loadFormTitle } from "@/lib/applications/applicant/store";
 import { isApplicationForm } from "@/lib/applications/normalise";
 import styles from "./apply.module.css";
 
@@ -177,29 +178,45 @@ async function loadRound(
   };
 }
 
-export async function generateMetadata({ params }: Params): Promise<Metadata> {
-  const { roundId } = await params;
-  const loaded = await loadRound(roundId, null, false);
-  // Null for an application form as well: this is the older flow's loader, so
-  // a form takes the title every round that is not there takes.
-  if (!loaded) {
-    return { title: "Applications", robots: { index: false, follow: true } };
-  }
-  const { round } = loaded;
-  const state = round.windowState;
-  const facilitator = round.kind === "appointment";
+/**
+ * The page's title and description, for either kind of round. Written once,
+ * so an application form and a round of the older kind describe themselves in
+ * the same words.
+ */
+function applyMetadata(label: string, state: string, facilitator: boolean): Metadata {
   return {
-    title: `${state === "open" ? "Apply" : "Applications"}: ${round.label}`,
+    title: `${state === "open" ? "Apply" : "Applications"}: ${label}`,
     description:
       state === "open"
-        ? `${facilitator ? `Apply to facilitate on ${round.label}.` : `Apply to ${round.label}.`} Open to anyone with a NAISI account, including one you make in the next minute.`
+        ? `${facilitator ? `Apply to facilitate on ${label}.` : `Apply to ${label}.`} Open to anyone with a NAISI account, including one you make in the next minute.`
         : state === "not-yet"
-          ? `Applications for ${round.label} have not opened yet.`
-          : `Applications for ${round.label} have closed.`,
+          ? `Applications for ${label} have not opened yet.`
+          : `Applications for ${label} have closed.`,
     // A personal form is no use in search results, and the page renders
     // per-viewer state.
     robots: { index: false, follow: true },
   };
+}
+
+export async function generateMetadata({ params }: Params): Promise<Metadata> {
+  const { roundId } = await params;
+
+  // The same order as the page below. An application form is asked for first,
+  // through the form's own applicant-safe read, which answers null for a form
+  // that is still a draft or has been archived exactly as it does for a round
+  // that is not a form. So a form nobody may see yet falls through to the
+  // older loader with everything else, and takes the title every round that
+  // is not there takes.
+  const db = getAdminDb();
+  const form = db ? await loadFormTitle(db, roundId, new Date()) : null;
+  if (form) return applyMetadata(form.label, form.windowState, false);
+
+  const loaded = await loadRound(roundId, null, false);
+  if (!loaded) {
+    return { title: "Applications", robots: { index: false, follow: true } };
+  }
+  const { round } = loaded;
+  return applyMetadata(round.label, round.windowState, round.kind === "appointment");
 }
 
 export default async function ApplyPage({
