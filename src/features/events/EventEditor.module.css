@@ -371,6 +371,13 @@
   color: var(--color-text-muted);
 }
 
+.summaryAside {
+  margin: var(--space-5) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
 .todo {
   margin-top: var(--space-6);
   padding: var(--space-4);

@@ -1566,6 +1566,12 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                 </div>
               </dl>
 
+              {(status === "draft" || status === "rejected") && !showSubmit && (
+                <p className={styles.summaryAside}>
+                  Only the person who started this event can send it for approval.
+                </p>
+              )}
+
               {problems.length > 0 && (
                 <div className={styles.todo}>
                   <h3 className={styles.partTitle}>Still to do</h3>
