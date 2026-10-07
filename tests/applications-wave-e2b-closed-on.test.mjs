@@ -55,4 +55,11 @@ describe("the two screens that print the sentence ask the rule", () => {
     assert.match(render, /closedOnLabel\(form\?\.round\.closesAt \?\? null, view\.closesLabel, now\)/);
     assert.doesNotMatch(render, /view=\{loaded\.view\}/);
   });
+
+  test("somebody who has applied is given a way from the closed card to their application", () => {
+    const screen = source("features", "applications", "apply", "ApplyScreen.tsx");
+    assert.match(screen, /href=\{`\/applications\/\$\{encodeURIComponent\(form\.id\)\}`\}/);
+    assert.match(screen, /See your application/);
+    assert.match(screen, /form\.decisionsLabel && !application\.result/, "the day everybody hears is not promised to somebody who has heard");
+  });
 });

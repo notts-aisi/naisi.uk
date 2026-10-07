@@ -96,11 +96,17 @@ function Closed({
     <StateCard
       title="Applications have closed"
       actions={
-        signedIn ? null : (
+        !signedIn ? (
           <Link href={`/login?next=${returnTo}`} className={styles.ghost}>
             Sign in
           </Link>
-        )
+        ) : application?.sent ? (
+          // Where their application, and later their result, is. Without it
+          // this card is the end of the road for somebody who has applied.
+          <Link href={`/applications/${encodeURIComponent(form.id)}`} className={styles.ghost}>
+            See your application
+          </Link>
+        ) : null
       }
     >
       <p className={styles.stateBody}>
@@ -123,7 +129,8 @@ function Closed({
             </>
           ) : null}
           .
-          {form.decisionsLabel ? (
+          {/* Once their own result is out, the day everybody hears is behind them. */}
+          {form.decisionsLabel && !application.result ? (
             <>
               {" "}
               Everyone hears on <span className={styles.together}>{form.decisionsLabel}</span>.
