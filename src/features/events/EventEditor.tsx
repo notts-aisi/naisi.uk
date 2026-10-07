@@ -1588,20 +1588,6 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                 </div>
               )}
 
-              {editable && status === "published" && (
-                <div className={styles.part}>
-                  <OptionRow
-                    plain
-                    checked={notifyOnSave}
-                    onChange={(e) => setNotifyOnSave(e.target.checked)}
-                    disabled={busy}
-                    description="If you changed the date, the time, the place or the description, you’re shown the email to check before it goes."
-                  >
-                    Email confirmed attendees about this change
-                  </OptionRow>
-                </div>
-              )}
-
               {showApprove && (
                 <div className={`${styles.part} ${styles.sendBack}`}>
                   <Field
@@ -1641,6 +1627,23 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
               <Notice tone="warning" role="alert" className={styles.stepMessage}>
                 {error}
               </Notice>
+            )}
+
+            {/* Beside Save on every step, as it was beside Save on the one
+                page: a published event can be saved from any step, and the
+                choice of telling the people coming belongs to that press. */}
+            {editable && status === "published" && (
+              <div className={styles.stepMessage}>
+                <OptionRow
+                  plain
+                  checked={notifyOnSave}
+                  onChange={(e) => setNotifyOnSave(e.target.checked)}
+                  disabled={busy}
+                  description="If you changed the date, the time, the place or the description, you’re shown the email to check before it goes."
+                >
+                  Email confirmed attendees about this change
+                </OptionRow>
+              </div>
             )}
 
             <div className={styles.stepFoot}>

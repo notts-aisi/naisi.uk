@@ -334,6 +334,11 @@
   margin-top: var(--space-5);
 }
 
+/* The choice that goes with Save sits close above the foot's line. */
+.stepMessage + .stepFoot {
+  margin-top: var(--space-4);
+}
+
 /* === The last step: what is being sent, and what is still missing === */
 
 .summary {
