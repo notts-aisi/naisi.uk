@@ -742,6 +742,41 @@ describe("nothing is written while an admin is viewing as somebody else", () => 
   });
 });
 
+describe("a request that addresses nothing, with an empty body", () => {
+  // What each handler answers before it has a document to look at: the gate's
+  // answer, or the first validation's. An admin and everybody else, and
+  // nobody at all.
+  const MISSING = {
+    roundId: "e2e-missing-roundId",
+    setId: "e2e-missing-setId",
+    programmeId: "e2e-missing-programmeId",
+  };
+  const CASES = [
+    ["GET the forms", () => forms.GET, 200, 200],
+    ["POST a form", () => forms.POST, 400, 403],
+    ["GET a form", () => form.GET, 404, 404],
+    ["PATCH a form", () => form.PATCH, 400, 403],
+    ["GET the sets", () => setsRoute.GET, 404, 403],
+    ["POST a set", () => setsRoute.POST, 400, 403],
+    ["PATCH a set", () => setRoute.PATCH, 400, 403],
+    ["DELETE a set", () => setRoute.DELETE, 404, 403],
+    ["GET a programme", () => programmeRoute.GET, 404, 404],
+    ["PATCH a programme", () => programmeRoute.PATCH, 400, 400],
+    ["PUT a programme's roles", () => rolesRoute.PUT, 400, 400],
+  ];
+
+  for (const [name, handler, admin, others] of CASES) {
+    test(`${name}: an admin ${admin}, everybody else ${others}, nobody 401`, async () => {
+      assert.equal((await call("zach", handler(), MISSING, {})).status, admin, "an admin");
+      for (const who of ["claudia", "lloyd", "yusuf", "priya", "jasmine"]) {
+        assert.equal((await call(who, handler(), MISSING, {})).status, others, who);
+      }
+      assert.equal((await call("nobody", handler(), MISSING, {})).status, 401);
+      assert.equal(db.stats.writes.length, 0);
+    });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // 2. The lock
 // ---------------------------------------------------------------------------

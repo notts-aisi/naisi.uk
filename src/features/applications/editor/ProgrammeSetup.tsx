@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import InitialsChip from "@/components/ui/InitialsChip";
 import kit from "@/features/applications/kit/kit.module.css";
+import { useHydrated } from "@/hooks/useHydrated";
 import { APPLICATION_LIMITS, type ProgrammeEmailKind } from "@/lib/applications/model";
 import { questionCountLabel } from "@/lib/applications/editor/sets";
 import type {
@@ -93,6 +94,9 @@ function changesIn(draft: Draft, view: ProgrammeSetupView): { patch: ProgrammePa
 
 export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetupView }) {
   const ids = useId();
+  // The boxes are read-only until the page is live, so nothing typed before
+  // its JavaScript arrives is written over when it does.
+  const live = useHydrated();
   const [view, setView] = useState(programme);
   const [draft, setDraft] = useState(() => draftOf(programme));
   const [serverProblem, setServerProblem] = useState<string | null>(null);
@@ -101,6 +105,13 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
   const [acting, setActing] = useState(0);
   const [settled, setSettled] = useState(0);
   const sending = useRef(false);
+  // Answers can come back out of order. Each request takes a number as it is
+  // sent, and an answer older than one already shown is dropped, so the page
+  // always ends on the newest state it has been told.
+  const sent = useRef(0);
+  const shown = useRef(0);
+  /** The scores switch as it was just pressed, until the server has answered. */
+  const [scoresPressed, setScoresPressed] = useState<boolean | null>(null);
   const [dialog, setDialog] = useState<
     { kind: "wording"; email: ProgrammeEmailKind } | { kind: "close" } | null
   >(null);
@@ -116,9 +127,14 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
     const timer = setTimeout(() => {
       if (sending.current) return;
       sending.current = true;
+      sent.current += 1;
+      const turn = sent.current;
       patchProgramme(view.roundId, view.id, JSON.parse(key) as ProgrammePatch)
         .then((saved) => {
-          setView(saved.programme);
+          if (turn > shown.current) {
+            shown.current = turn;
+            setView(saved.programme);
+          }
           setServerProblem(null);
         })
         .catch((err: unknown) => {
@@ -143,9 +159,14 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
   /** Something sent the moment it is done: a switch, a reviewer, a wording. */
   const act = async (action: () => Promise<{ programme: ProgrammeSetupView }>): Promise<boolean> => {
     setActing((count) => count + 1);
+    sent.current += 1;
+    const turn = sent.current;
     try {
       const saved = await action();
-      setView(saved.programme);
+      if (turn > shown.current) {
+        shown.current = turn;
+        setView(saved.programme);
+      }
       setServerProblem(null);
       return true;
     } catch (err) {
@@ -169,6 +190,9 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
         ? "saving"
         : "saved";
 
+  // One change to who reviews at a time: the next is worked out from the
+  // answer to the last, so its controls wait for that answer.
+  const busy = acting > 0;
   const reviewerUids = view.reviewers.map((person) => person.uid);
   const named = new Set([...reviewerUids, ...(view.lead ? [view.lead.uid] : [])]);
   const addable = view.candidates.filter((candidate) => !named.has(candidate.uid));
@@ -202,6 +226,7 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
               type="text"
               className={shared.input}
               value={draft.name}
+              readOnly={!live}
               maxLength={L.programmeName}
               onChange={(event) => type("name")(event.target.value)}
             />
@@ -215,6 +240,7 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
               rows={2}
               className={shared.textarea}
               value={draft.pitch}
+              readOnly={!live}
               maxLength={L.programmePitch}
               onChange={(event) => type("pitch")(event.target.value)}
             />
@@ -233,6 +259,7 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
               type="text"
               className={shared.input}
               value={draft.shortName}
+              readOnly={!live}
               maxLength={L.programmeShortName}
               disabled={view.lockedSentence !== null}
               onChange={(event) => type("shortName")(event.target.value)}
@@ -252,6 +279,7 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
               type="text"
               className={shared.input}
               value={draft.facts}
+              readOnly={!live}
               maxLength={L.programmeFacts}
               onChange={(event) => type("facts")(event.target.value)}
             />
@@ -297,6 +325,7 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
                 type="text"
                 className={shared.input}
                 value={draft.starts}
+                readOnly={!live}
                 maxLength={L.programmeStarts}
                 onChange={(event) => type("starts")(event.target.value)}
               />
@@ -311,6 +340,7 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
                 inputMode="numeric"
                 className={shared.input}
                 value={draft.places}
+                readOnly={!live}
                 maxLength={5}
                 onChange={(event) => type("places")(event.target.value)}
               />
@@ -322,6 +352,7 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
                   className={styles.acrossInput}
                   aria-label="Number of groups"
                   value={draft.groupCount}
+                  readOnly={!live}
                   maxLength={4}
                   onChange={(event) => type("groupCount")(event.target.value)}
                 />
@@ -337,6 +368,7 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
                 type="text"
                 className={shared.input}
                 value={draft.groupSize}
+                readOnly={!live}
                 maxLength={L.programmeGroupSize}
                 onChange={(event) => type("groupSize")(event.target.value)}
               />
@@ -412,6 +444,7 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
                     className={`${shared.btn} ${shared.btnSm} ${shared.btnQuiet}`}
                     placement="below"
                     align="left"
+                    disabled={busy}
                     empty="Nobody else can lead yet. A lead has to be an admin or SU-recognised committee."
                     actions={[
                       ...leadChoices.map((candidate) => ({
@@ -436,6 +469,7 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
                   <PersonPill
                     key={person.uid}
                     person={person}
+                    disabled={busy}
                     onRemove={() => void setReviewers(reviewerUids.filter((uid) => uid !== person.uid))}
                   />
                 ))}
@@ -444,7 +478,7 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
                   className={`${shared.btn} ${shared.btnSm} ${shared.btnQuiet}`}
                   placement="below"
                   align="left"
-                  disabled={view.reviewers.length >= L.maxProgrammeReviewers}
+                  disabled={busy || view.reviewers.length >= L.maxProgrammeReviewers}
                   empty="Nobody else can be added. A reviewer has to be an admin or SU-recognised committee."
                   actions={addable.map((candidate) => ({
                     label: candidate.fullName,
@@ -462,8 +496,13 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
             <Toggle
               label="Use scores for this programme"
               note={`Reviewers score each ${view.shortName} answer 1 to 5. You get scores by section and recommendations.`}
-              checked={view.useScores}
-              onChange={(useScores) => void act(() => patchProgramme(view.roundId, view.id, { useScores }))}
+              checked={scoresPressed ?? view.useScores}
+              onChange={(useScores) => {
+                setScoresPressed(useScores);
+                void act(() => patchProgramme(view.roundId, view.id, { useScores })).finally(() =>
+                  setScoresPressed(null),
+                );
+              }}
             />
           </div>
 
@@ -634,7 +673,15 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
   );
 }
 
-function PersonPill({ person, onRemove }: { person: PersonView; onRemove?: () => void }) {
+function PersonPill({
+  person,
+  onRemove,
+  disabled,
+}: {
+  person: PersonView;
+  onRemove?: () => void;
+  disabled?: boolean;
+}) {
   return (
     <span className={`${styles.person} ${onRemove ? styles.personRemovable : ""}`}>
       <InitialsChip name={person.name} uid={person.uid} />
@@ -647,6 +694,7 @@ function PersonPill({ person, onRemove }: { person: PersonView; onRemove?: () =>
           type="button"
           className={styles.personRemove}
           aria-label={`Remove ${person.name}`}
+          disabled={disabled}
           onClick={onRemove}
         >
           <CloseIcon size={16} />
