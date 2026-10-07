@@ -18,8 +18,10 @@ import type {
   ApplicantQuestionSet,
 } from "@/lib/applications/applicant/types";
 import AboutStep from "./AboutStep";
+import AccessRequirementsBox from "./AccessRequirementsBox";
 import AvailabilityStep from "./AvailabilityStep";
 import SentScreen from "@/features/applications/status/SentScreen";
+import { useAccessRequirements } from "./useAccessRequirements";
 import { waitingSteps } from "@/lib/applications/status/view";
 import CheckStep, { type CheckIssue, type SentState } from "./CheckStep";
 import ChooseStep from "./ChooseStep";
@@ -294,11 +296,27 @@ export default function ApplicationForm({
   const setSuMembership = (suMembership: SuMembershipAnswer) =>
     update((current) => ({ ...current, suMembership }));
 
+  // The access-requirements box on the last step. Its answer is kept apart
+  // from the application, so it is not in `content` and has a save of its own,
+  // which saves the draft first: that is what creates the application.
+  const access = useAccessRequirements({
+    roundId: form.id,
+    enabled: !viewingAs,
+    saveDraftFirst: () => flush(false, true),
+  });
+
   // --- leaving and sending ---------------------------------------------------
   async function finishLater() {
     if (leaving) return;
     setLeaving(true);
     const saved = await flush();
+    // What is in the access-requirements box is saved before leaving, too.
+    // When that alone fails, the last step is where the box says so.
+    if (saved && !(await access.settle())) {
+      setLeaving(false);
+      show("check", true);
+      return;
+    }
     // Nothing to lose when nothing can be saved here at all.
     if (saved || viewingAs) router.push(exists.current ? LATER : HOME);
     else setLeaving(false);
@@ -320,6 +338,14 @@ export default function ApplicationForm({
     if (!saved) {
       setSending(false);
       setSendError("We could not save your latest changes, so nothing has been sent. Try again in a moment.");
+      return;
+    }
+    // What is in the access-requirements box is saved before a send, too.
+    if (!(await access.settle())) {
+      setSending(false);
+      setSendError(
+        "We could not save what you wrote under Access requirements, so nothing has been sent. Try again in a moment.",
+      );
       return;
     }
     const result = await sendApplication(form.id);
@@ -683,6 +709,7 @@ export default function ApplicationForm({
               hrefFor={hrefFor}
               onGo={goTo}
               onSuMembership={setSuMembership}
+              accessRequirements={<AccessRequirementsBox access={access} />}
               closesLabel={form.closesLabel}
               issues={attempted ? checkIssues : []}
               suProblem={attempted ? (issues.find((issue) => issue.step === "check")?.message ?? null) : null}
