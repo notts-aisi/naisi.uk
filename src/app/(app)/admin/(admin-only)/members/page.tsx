@@ -11,8 +11,9 @@ import {
   useClientPagination,
 } from "@/features/admin/adminList";
 import { loadCurrentPeriod } from "@/features/admin/currentPeriodCache";
-import MembersTable, { type MemberSort } from "@/features/admin/MembersTable";
+import MembersTable from "@/features/admin/MembersTable";
 import MembersToolbar, {
+  type MemberSort,
   type NewsletterFilter,
   type RoleFilter,
   type StatusFilter,
@@ -192,6 +193,8 @@ export default function MembersAdminPage() {
         membershipYear={membershipYear}
         membersOnly={membersOnly}
         onMembersOnlyChange={setMembersOnly}
+        sort={sort}
+        onSortChange={setSort}
       />
 
       {error && (

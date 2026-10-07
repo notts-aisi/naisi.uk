@@ -8,9 +8,9 @@ import type { Role } from "@/lib/firebase/session";
 import { formatSiteDate } from "@/lib/datetime/siteTime";
 import { TRACK_LABELS, type AffiliationStatus, type UserDoc } from "@/lib/firestore/users";
 import { AdminTable } from "./adminList";
+import type { MemberSort } from "./MembersToolbar";
 import styles from "./MembersTable.module.css";
 
-export type MemberSort = "joined-newest" | "joined-oldest" | "name";
 
 export const ROLE_WORDS: Record<Role, string> = {
   pending: "Waiting",
@@ -146,7 +146,7 @@ export default function MembersTable({
                 router.push(href);
               }}
             >
-              <td data-label="Name" className={styles.nameCell}>
+              <td className={styles.nameCell}>
                 <div className={styles.person}>
                   <InitialsChip name={name} uid={user.uid} size="lg" />
                   <div className={styles.personText}>
@@ -163,7 +163,7 @@ export default function MembersTable({
                   {user.uid === currentAdminUid && <Chip tone="neutral">You</Chip>}
                 </div>
               </td>
-              <td data-label="SU membership">
+              <td data-label="SU membership" className={recorded ? undefined : styles.quietCell}>
                 {membershipYear === null ? (
                   <span className={styles.muted}>No year is current</span>
                 ) : recorded ? (
@@ -201,7 +201,7 @@ export default function MembersTable({
                   {isStaffRole && user.title && <span className={styles.title}>{user.title}</span>}
                 </div>
               </td>
-              <td data-label="Joined">
+              <td data-label="Joined" className={styles.joinedCell}>
                 <span className={`meta ${styles.joined}`}>{joinedDay(user.createdAt)}</span>
               </td>
             </tr>

@@ -36,9 +36,16 @@
   width: 100%;
 }
 
+.phoneOnly {
+  display: none;
+}
+
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
   .selectLabel {
     flex: 1 1 9rem;
+  }
+  .phoneOnly {
+    display: flex;
   }
 }

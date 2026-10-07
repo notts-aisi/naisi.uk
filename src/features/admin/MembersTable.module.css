@@ -64,5 +64,42 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* Each row is a card here (AdminTable's stacking). This table draws its
+     card more tightly than the labelled rows that stacking gives by default:
+     the person on the first line with the date they joined at its right, then
+     one line of chips. The class is doubled so these win over the shared
+     rules whichever stylesheet loads first. */
+  .row.row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .row.row:hover {
+    background: var(--color-surface);
+  }
+  .row.row td[data-label]::before {
+    content: none;
+  }
+  .row.row .nameCell {
+    flex: 1 1 100%;
+    padding-right: 4.75rem;
+  }
+  .row.row .joinedCell {
+    position: absolute;
+    top: 1.375rem;
+    right: var(--space-4);
+  }
+  /* "Not recorded" with no column header over it says nothing, so a card
+     shows SU membership only when there is one. */
+  .row.row .quietCell {
+    display: none;
+  }
+  /* The whole card is the link: the name's own target is stretched over it. */
+  .name::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-lg);
+  }
 }

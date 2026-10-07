@@ -9,6 +9,13 @@ export type RoleFilter = "all" | "member" | "committee" | "admin" | "rejected";
 export type StatusFilter = "all" | AffiliationStatus;
 export type TrackFilter = "all" | "technical" | "governance" | "both" | "none";
 export type NewsletterFilter = "all" | "draft" | "approve" | "none";
+export type MemberSort = "joined-newest" | "joined-oldest" | "name";
+
+const SORT_OPTIONS: Array<{ value: MemberSort; label: string }> = [
+  { value: "joined-newest", label: "Newest first" },
+  { value: "joined-oldest", label: "Oldest first" },
+  { value: "name", label: "By name" },
+];
 
 const ROLE_OPTIONS: Array<{ value: RoleFilter; label: string }> = [
   { value: "all", label: "Any" },
@@ -62,6 +69,8 @@ type Props = {
   membershipYear: string | null;
   membersOnly: boolean;
   onMembersOnlyChange: (next: boolean) => void;
+  sort: MemberSort;
+  onSortChange: (next: MemberSort) => void;
 };
 
 /**
@@ -82,6 +91,8 @@ export default function MembersToolbar({
   membershipYear,
   membersOnly,
   onMembersOnlyChange,
+  sort,
+  onSortChange,
 }: Props) {
   return (
     <div className={styles.toolbar}>
@@ -139,6 +150,18 @@ export default function MembersToolbar({
             onChange={onNewsletterFilterChange}
             options={NEWSLETTER_OPTIONS}
             ariaLabel="Newsletter access"
+          />
+        </label>
+        {/* On a wider screen the table's own header sorts. On a phone each row
+            is a card and that header is out of sight, so the choice is here. */}
+        <label className={`${styles.selectLabel} ${styles.phoneOnly}`}>
+          <span>Order</span>
+          <ResponsiveSelect<MemberSort>
+            className={styles.select}
+            value={sort}
+            onChange={onSortChange}
+            options={SORT_OPTIONS}
+            ariaLabel="Order"
           />
         </label>
       </div>

@@ -148,7 +148,7 @@ export function AdminTable({
   caption: string;
 }) {
   return (
-    <div className={styles.tableCard}>
+    <div className={stackOnPhone ? `${styles.tableCard} ${styles.tableCardStack}` : styles.tableCard}>
       <div className={styles.tableScroll}>
         <table
           className={stackOnPhone ? `${styles.table} ${styles.tableStack}` : styles.table}
