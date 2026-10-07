@@ -171,6 +171,8 @@
   font-size: var(--text-caption);
   line-height: 1.45;
   color: var(--color-text-muted);
+  /* The place is somebody's own words, and can be one long unbroken string. */
+  overflow-wrap: anywhere;
 }
 
 /* Why an event was sent back, under its name. */
