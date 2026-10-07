@@ -5,13 +5,14 @@
 */
 
 /* === The page ===
-   The default keeps a page to a reading width. A page that is a table or a
+   The default keeps a page to a reading width, starting at the frame's left
+   edge so it lines up with the head above it. A page that is a table or a
    row of cards opts into .pageWide and fills the frame, which already caps
    how wide a signed-in page gets. */
 .page {
   width: 100%;
   max-width: 60rem; /* --bp-lg */
-  margin: 0 auto;
+  margin: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
