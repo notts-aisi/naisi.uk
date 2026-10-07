@@ -1027,8 +1027,7 @@
   line-height: 1.55;
 }
 
-.stateActions,
-.sentActions {
+.stateActions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
@@ -1140,7 +1139,6 @@
   .desktopStatus,
   .desktopProgress,
   .desktopNav,
-  .sentActions,
   .onLaptop {
     display: none;
   }

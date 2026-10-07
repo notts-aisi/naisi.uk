@@ -9,6 +9,7 @@ import {
   APPLICATION_STATUS_TONE,
   applicationStatusBlurb,
 } from "@/features/admissions/applicationStatus";
+import { renderApplicationStatus } from "@/features/applications/status/renderApplicationStatus";
 import { answerText } from "@/lib/admissions/statusHub";
 import { loadStatusRowForRound } from "@/lib/admissions/statusHubData";
 import type { ApplicationStatusRow } from "@/lib/admissions/statusTypes";
@@ -109,6 +110,13 @@ export default async function ApplicationDetailPage({ params }: Params) {
   if (!user) {
     redirect(`/login?next=${encodeURIComponent(`/applications/${roundId}`)}`);
   }
+
+  // A round that is an APPLICATION FORM (one form a term, for every
+  // programme) has its own page for what follows a send. It answers null for
+  // anything else, a form this caller may not be told about included, so
+  // every other round carries on below exactly as it always has.
+  const formStatus = await renderApplicationStatus({ roundId, user });
+  if (formStatus) return formStatus;
 
   const db = getAdminDb();
   if (!db) notFound();
