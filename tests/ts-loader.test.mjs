@@ -339,6 +339,12 @@ const USERS = new Map([
       "templates are compiled here; they were the eight `return null` stubs this change deleted",
   ],
   [
+    "email-audience.test.mjs",
+    "it executes `send.ts` in-process to prove a recipient outside this copy of the site's " +
+      "audience never reaches the transport and is logged as held, under a table of " +
+      "environments; the transport, the renderer and the Admin SDK door are its only stubs",
+  ],
+  [
     "email-suppression-chokepoint.test.mjs",
     "it executes `send.ts` in-process to prove a suppressed recipient never reaches the " +
       "transport and is logged as held; the transport, the renderer and the Admin SDK door are " +

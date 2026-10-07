@@ -1,4 +1,5 @@
 import CoursesConfigPanel from "@/features/admin/CoursesConfigPanel";
+import EmailAudiencePanel from "@/features/admin/EmailAudiencePanel";
 import SchedulerPanel from "@/features/admin/SchedulerPanel";
 import SiteStatusPanel from "@/features/admin/SiteStatusPanel";
 
@@ -15,6 +16,10 @@ export default function SiteStatusAdminPage() {
       }}
     >
       <SiteStatusPanel />
+      {/* Who this copy of the site may email. On the live site it has to say
+          everyone, and this is the one place that can be read without sending
+          anything. */}
+      <EmailAudiencePanel />
       {/* The scheduler answers the other half of "is the site healthy": the
           notice above says what visitors are being told, this says whether
           anything time-based is still going out. */}

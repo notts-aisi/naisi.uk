@@ -476,7 +476,7 @@ export const ROUTES = {
   "/api/admin/test-email": {
     POST: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["messageId", "ok", "sentTo"],
+      fields: ["held", "messageId", "ok", "sentTo"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
