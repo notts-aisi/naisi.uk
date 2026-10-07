@@ -17,6 +17,7 @@ import {
   addressOf,
   isCurrentPage,
   shown,
+  signedOutEntriesOn,
   type NavEntry,
 } from "./publicNav";
 import styles from "./PublicHeader.module.css";
@@ -33,21 +34,23 @@ type AccountView = {
   note: { label: string; hint: string } | null;
   /** The text control. Null when the state has only the outlined one. */
   quiet: NavEntry | "sign-out" | null;
-  /** The outlined button. */
-  outlined: NavEntry | "sign-out";
+  /** The outlined button. Null when the state has only the text control. */
+  outlined: NavEntry | "sign-out" | null;
   /** Whether the outlined button also sits beside the menu button on a phone. */
   inPhoneBar: boolean;
   /** Long words: the bar closes its gaps a little just above the phone layout. */
   long: boolean;
 };
 
-const SIGNED_OUT: AccountView = {
-  note: null,
-  quiet: ACCOUNT_ENTRIES.signIn,
-  outlined: ACCOUNT_ENTRIES.join,
-  inPhoneBar: true,
-  long: false,
-};
+/**
+ * Signed out. Which two entries, and where Sign in leads, depends on the
+ * page: on a page that is a form the bar keeps the form (`signedOutEntriesOn`
+ * says how, and why Join is not drawn there).
+ */
+function signedOutOn(pathname: string): AccountView {
+  const { signIn, join } = signedOutEntriesOn(pathname);
+  return { note: null, quiet: signIn, outlined: join, inPhoneBar: true, long: false };
+}
 
 const APPROVED: AccountView = {
   note: null,
@@ -127,15 +130,16 @@ export default function PublicHeader() {
     (signed in, sign-up not finished) reads as signed out here for the same
     reason.
   */
+  const signedOut = signedOutOn(pathname);
   const account: AccountView = !user
-    ? SIGNED_OUT
+    ? signedOut
     : role === "member" || role === "committee" || role === "admin"
       ? APPROVED
       : role === "pending"
         ? WAITING
         : role === "rejected"
           ? NOT_APPROVED
-          : SIGNED_OUT;
+          : signedOut;
 
   const closeDrawer = () => setDrawerOpen(false);
 
@@ -217,12 +221,12 @@ export default function PublicHeader() {
                 </span>
               )}
               {account.quiet && control(account.quiet, styles.quiet, false)}
-              {control(account.outlined, styles.outlined, false)}
+              {account.outlined && control(account.outlined, styles.outlined, false)}
             </div>
           </div>
 
           <div className={styles.phone}>
-            {account.inPhoneBar && control(account.outlined, styles.outlined, false)}
+            {account.inPhoneBar && account.outlined && control(account.outlined, styles.outlined, false)}
             <button
               type="button"
               className={styles.menuButton}
@@ -261,7 +265,7 @@ export default function PublicHeader() {
         <div className={styles.drawerAccount}>
           {account.note && <span className={styles.drawerNote}>{account.note.label}</span>}
           {account.quiet && control(account.quiet, styles.drawerQuiet, true)}
-          {control(account.outlined, styles.drawerOutlined, true)}
+          {account.outlined && control(account.outlined, styles.drawerOutlined, true)}
         </div>
       </Drawer>
     </>

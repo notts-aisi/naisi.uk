@@ -1,5 +1,7 @@
 "use client";
 
+import { safeReturnPath } from "@/lib/safeReturnPath";
+
 /**
  * Full document navigation. Use ONLY after the server-side `__session` cookie
  * has been minted, swapped, or cleared — or when recovering from a server
@@ -48,10 +50,11 @@ export function hardNavigate(
   dest: string,
   mode: "assign" | "replace" = "assign",
 ): void {
-  // Same-origin paths only. Mirrors the open-redirect guard on `safeNext` in
-  // src/app/(auth)/AuthEntry.tsx so this helper can never widen it: unlike
-  // router.push, window.location will happily cross origins.
-  const safe = dest.startsWith("/") && !dest.startsWith("//") ? dest : "/";
+  // Paths on this site only. The guard is the one `safeNext` passes in
+  // src/app/(auth)/AuthEntry.tsx (`safeReturnPath`), asked again here so this
+  // helper can never widen it: unlike router.push, window.location will
+  // happily cross origins.
+  const safe = safeReturnPath(dest) ?? "/";
   if (mode === "replace") window.location.replace(safe);
   else window.location.assign(safe);
 }

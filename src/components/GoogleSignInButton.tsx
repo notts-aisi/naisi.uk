@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { mark, warn } from "@/lib/devMonitor";
 import { isStandaloneNow } from "@/lib/pwa/displayMode";
+import { safeReturnPath } from "@/lib/signInReturn";
 import styles from "./GoogleSignInButton.module.css";
 
 type Props = {
@@ -33,6 +34,13 @@ type Props = {
    *  off-screen until the Google button is genuinely ready so users don't
    *  see the "Loading sign-in…" placeholder. */
   onReady?: () => void;
+  /** The page on this site the person was on their way to, when the caller
+   *  has one. Used ONLY where the button leaves for Google (the installed
+   *  app): it is handed to Google as the button's `state`, which Google
+   *  posts back beside the credential, so the callback route can put the
+   *  address back. A pop-up never unloads the page, so there it is not
+   *  sent anywhere. One of three copies: see src/lib/signInReturn.ts. */
+  returnTo?: string | null;
 };
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
@@ -69,6 +77,7 @@ export default function GoogleSignInButton({
   onCredential,
   onScriptError,
   onReady,
+  returnTo,
 }: Props) {
   const buttonRef = useRef<HTMLDivElement | null>(null);
   // Latest onCredential in a ref so the GIS callback registered with
@@ -79,10 +88,12 @@ export default function GoogleSignInButton({
   const onCredentialRef = useRef(onCredential);
   const onReadyRef = useRef(onReady);
   const onScriptErrorRef = useRef(onScriptError);
+  const returnToRef = useRef(returnTo);
   useEffect(() => {
     onCredentialRef.current = onCredential;
     onReadyRef.current = onReady;
     onScriptErrorRef.current = onScriptError;
+    returnToRef.current = returnTo;
   });
 
   /*
@@ -236,6 +247,10 @@ export default function GoogleSignInButton({
         // that cannot be measured yet reads as 0, and gets the 320.
         const room = Math.floor(buttonRef.current.parentElement?.clientWidth ?? 0);
         const width = room > 0 ? Math.max(200, Math.min(320, room)) : 320;
+        // Where the person was going rides the trip to Google and back as
+        // the button's `state`. Only in redirect mode, and only an address
+        // the one guard passes: nothing else of the page is ever sent.
+        const state = useRedirect ? safeReturnPath(returnToRef.current) : null;
         window.google.accounts.id.renderButton(buttonRef.current, {
           theme: "filled_blue",
           size: "large",
@@ -243,6 +258,7 @@ export default function GoogleSignInButton({
           text: "continue_with",
           logo_alignment: "left",
           width,
+          ...(state ? { state } : {}),
         });
       }
 

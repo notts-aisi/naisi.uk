@@ -1,5 +1,6 @@
 import "server-only";
 
+import { safeReturnPath } from "@/lib/safeReturnPath";
 import { isPushConfigured } from "./config";
 import { sendPushToUid } from "./send";
 
@@ -57,15 +58,13 @@ import { sendPushToUid } from "./send";
  * The service worker passes the payload's path straight to `clients.openWindow`
  * (`public/sw.js`), which will just as happily open `https://elsewhere/`, so a
  * notification carrying this site's name and icon that opens somebody else's
- * page is the worst thing this file could do. `//elsewhere.example` is refused
- * alongside the obvious absolute forms: it starts with "/" and is still
- * off-origin, which is exactly the case a `startsWith("/")` check waves
- * through. Same rule, same reasoning, as `taskPushPath`.
+ * page is the worst thing this file could do. So only a path on this site is
+ * handed over. What counts as one is decided in one place for the whole
+ * codebase, `safeReturnPath` (`src/lib/safeReturnPath.ts`), and asked here, never
+ * tested by hand. Same rule, same reasoning, as `taskPushPath`.
  */
 function noticePushPath(url: string): string | null {
-  if (typeof url !== "string" || url === "") return null;
-  if (!url.startsWith("/") || url.startsWith("//")) return null;
-  return url;
+  return safeReturnPath(url);
 }
 
 /**
