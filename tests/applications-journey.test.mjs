@@ -892,6 +892,14 @@ async function decisionDay() {
     // Somebody the press has not reached can still be decided again.
     notToldYet: await decide("claudia", "jasmine", "agi", "pool", { poolReason: "capacity" }),
     andBack: await decide("claudia", "jasmine", "agi", "accept"),
+    // The form cannot be made to take applications again part way through.
+    // Hannah has been decided on and not told: she must not be able to send
+    // a different application for the next press to answer.
+    moveTheClose: await call("zach", routes.form.PATCH, params(), { body: { closes: { date: "2026-10-23", time: "23:59" } } }),
+    closesAt: roundDoc().closesAt,
+    window: (await mine("hannah")).body?.form?.windowState ?? null,
+    hannahSaves: await save("hannah", applicationDoc("hannah").draft),
+    hannahSends: await sendIt("hannah"),
     reviewScreen: (await reviewOf("tess", "abel", "tais")).body?.review?.decision ?? null,
     list: ((await call("zach", routes.board.GET, { roundId: ROUND, programmeId: P.tais })).body?.board?.rows ?? []).map((row) => [row.uid, row.told]),
   };
@@ -1523,6 +1531,19 @@ describe("one term, from nothing to settled", () => {
       // The screens are told, so they need not offer what would be refused.
       assert.equal(part.reviewScreen.told, true);
       assert.deepEqual(part.list, [["abel", true], ["amara", false], ["priya", false]]);
+    });
+
+    test("a send that is part way cannot be turned back into an open form", () => {
+      const part = seen.partWay;
+      assert.equal(seen.afterFirstPress.sentAt, null);
+      assert.deepEqual(short(part.moveTheClose), [
+        409,
+        "Some decisions for this term have already gone out, so when applications open and close can no longer change.",
+      ]);
+      assert.equal(part.closesAt.toISOString(), "2026-10-18T22:59:00.000Z");
+      assert.equal(part.window, "closed");
+      assert.equal(part.hannahSaves.status, 403);
+      assert.equal(part.hannahSends.status, 403);
     });
 
     test("somebody the press has not reached can still be decided again", () => {

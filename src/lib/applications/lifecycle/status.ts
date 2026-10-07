@@ -76,6 +76,13 @@ export type FormMoveFacts = Pick<AdmissionRoundDoc, "archived" | "opensAt" | "cl
     status: unknown;
     /** The destroy cascade's own marker on the round. */
     destroying: boolean;
+    /**
+     * Decision day has told somebody, though perhaps not everybody yet
+     * (`decisionDayHasBegun`). A send can stop part way, and a form that
+     * took applications again then would let somebody decided on and not yet
+     * told send a different application.
+     */
+    anybodyTold?: boolean;
   };
 
 export type FormMoveRefusalCode =
@@ -129,6 +136,10 @@ const MOVED_WORDS: Record<AdmissionRoundStatus, string> = {
   settled: "settled",
   cancelled: "cancelled",
 };
+
+/** What reopening is answered with while a send is part way. */
+export const SOME_DECISIONS_SENT =
+  "Some decisions for this term have already gone out, so the form cannot take applications again.";
 
 export const REOPEN_PROMPT =
   "Reopening tells everybody who was shown a closed form that it is taking applications again. Only do it if you are extending the window.";
@@ -214,6 +225,8 @@ export function planFormMove(facts: FormMoveFacts, to: unknown, now: Date): Form
         `Decisions for this term went out on ${formatRoundDate(facts.decisionsSentAt)}, so the form cannot take applications again.`,
       );
     }
+    // The same, from the first person told and not from the last.
+    if (facts.anybodyTold) return refuse("decisions-sent", SOME_DECISIONS_SENT);
   }
 
   if (target === "settled") {

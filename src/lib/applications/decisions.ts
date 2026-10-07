@@ -204,6 +204,37 @@ export function hasBeenTold(application: Pick<ApplicationDoc, "result">): boolea
   return application.result !== null;
 }
 
+/** The statuses only decision day gives. One person in any of them has been told. */
+const TOLD_STATUSES = ["accepted", "invited", "no-offer", "declined"] as const;
+
+type FormSoFar = Pick<ApplicationFormFields, "decisionsSentAt"> & {
+  round: { applicationCounts: Readonly<Partial<Record<string, number>>> };
+};
+
+/**
+ * Has decision day begun on this form: has anybody at all been told?
+ *
+ * Read off the form itself, so the two places that could take applications
+ * again can ask inside the transaction they already hold: the stamp once the
+ * term is sent, and before that the form's own counters, which move in the
+ * same transaction as each application's status. Only the send gives the four
+ * statuses counted, so one person in any of them is one person told.
+ * (Somebody told who has since given their place back is `withdrawn` and is
+ * not counted. That matters only if every person told so far has done so.)
+ *
+ * FROM THIS MOMENT THE FORM TAKES NO MORE APPLICATIONS. A send can stop part
+ * way. If the form took applications again then, somebody decided on and not
+ * yet told could send a different application, and the next press would tell
+ * them a decision made about the one before. So the status route refuses to
+ * reopen, and the form's editor refuses to move when applications open or
+ * close, from the first person told and not from the last.
+ */
+export function decisionDayHasBegun(form: FormSoFar): boolean {
+  if (form.decisionsSentAt) return true;
+  const counts = form.round.applicationCounts;
+  return TOLD_STATUSES.some((status) => (counts[status] ?? 0) > 0);
+}
+
 /**
  * One application that is in the term (see {@link isInTerm}), reduced to
  * what the arithmetic needs.

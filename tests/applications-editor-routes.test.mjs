@@ -1000,8 +1000,28 @@ describe("the form's own fields", () => {
       assert.equal(stored().label, "Autumn 2026");
     });
 
+    test("it is fixed from the first person told, while a send is still part way", async () => {
+      // One person has been told by a send that stopped. The term is not stamped.
+      db = makeDb(seed({ round: { status: "open" }, counts: { submitted: 5, invited: 1 } }));
+      globalThis.__editor.db = db;
+      assert.equal(stored().decisionsSentAt ?? null, null);
+      const response = await patch({ closes: later });
+      assert.deepEqual(
+        [response.status, response.body.error],
+        [409, "Some decisions for this term have already gone out, so when applications open and close can no longer change."],
+      );
+      assert.equal(stored().closesAt.toISOString(), "2026-10-18T22:59:00.000Z");
+      assert.deepEqual(db.stats.writes, []);
+      for (const told of ["accepted", "invited", "no-offer", "declined"]) {
+        db = makeDb(seed({ round: { status: "open" }, counts: { submitted: 5, [told]: 1 } }));
+        globalThis.__editor.db = db;
+        assert.equal((await patch({ closes: later })).status, 409, told);
+      }
+    });
+
     test("until then the close can move, which is how a deadline is extended", async () => {
-      db = makeDb(seed({ round: { status: "open" } }));
+      // People have applied, one has withdrawn, and nobody has been told.
+      db = makeDb(seed({ round: { status: "open" }, counts: { submitted: 5, withdrawn: 1 } }));
       globalThis.__editor.db = db;
       const response = await patch({ closes: later });
       assert.equal(response.status, 200);
