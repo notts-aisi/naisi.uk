@@ -15,21 +15,13 @@
     a Badge, .heading, the banner slot (.archivedBanner), .lede, the meta
     slot (.meta), .tocCard (with .tocTitle and .tocList), .sections (of
     .section), .contactCard.
+
+  Every version file wraps .inner in the global .container, which gives the
+  column and the page gutter. Nothing here adds a second one.
 */
 
 .page {
   padding: clamp(2.5rem, 4.4vw, 4.5rem) 0 clamp(4rem, 7.4vw, 6.5rem);
-}
-
-/*
-  Every version file wraps its content in the global .container, whose gutter
-  is narrower than the public frame's. On these pages only, the container
-  takes the frame's gutter, so the page lines up with the header above it.
-  The inset only ever widens it, as in globals.css.
-*/
-.page > :global(.container) {
-  padding-left: max(clamp(1.25rem, 3.4vw, 3rem), env(safe-area-inset-left, 0px));
-  padding-right: max(clamp(1.25rem, 3.4vw, 3rem), env(safe-area-inset-right, 0px));
 }
 
 /* === The head === */

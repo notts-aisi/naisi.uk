@@ -96,7 +96,7 @@ export default function AboutPage() {
   return (
     <>
       <NetField net="hero" strength="soft" className={styles.hero}>
-        <div className={`${styles.wrap} ${styles.heroInner}`}>
+        <div className={`container ${styles.heroInner}`}>
           <div className={styles.heroText}>
             <p className={`meta ${styles.eyebrowLive}`}>About</p>
             <h1 className={styles.title}>We’re NAISI.</h1>
@@ -121,7 +121,7 @@ export default function AboutPage() {
       </NetField>
 
       <section className={styles.section} aria-labelledby="about-what">
-        <div className={styles.wrap}>
+        <div className="container">
           <h2 id="about-what" className={styles.heading}>
             What we do.
           </h2>
@@ -144,7 +144,7 @@ export default function AboutPage() {
       </section>
 
       <section className={`${styles.section} ${styles.sectionAlt}`} aria-labelledby="about-why">
-        <div className={`${styles.wrap} ${styles.why}`}>
+        <div className={`container ${styles.why}`}>
           <div className={styles.whyHead}>
             <p className="meta">Why AI safety</p>
             <h2 id="about-why" className={`${styles.heading} ${styles.headingAfterEyebrow}`}>
@@ -214,7 +214,7 @@ export default function AboutPage() {
       </section>
 
       <section className={`${styles.section} ${styles.sectionTight}`} aria-labelledby="about-year">
-        <div className={styles.wrap}>
+        <div className="container">
           {/* A heading for the outline, set as a label: the type comes from
               the span, because a heading's own rules outrank the label's. */}
           <h2 id="about-year" className={styles.labelHeading}>
@@ -252,7 +252,7 @@ export default function AboutPage() {
       </section>
 
       <section className={`${styles.section} ${styles.sectionTight}`} aria-labelledby="about-hello">
-        <div className={styles.wrap}>
+        <div className="container">
           <p className="meta">Get in touch</p>
           <h2 id="about-hello" className={`${styles.heading} ${styles.headingAfterEyebrow}`}>
             Say hello.

@@ -8,16 +8,16 @@
   answered.
 */
 
-/* The page's column: 56rem, with the public frame's gutter. The inset only
-   ever widens it. */
+/* The page's column: 56rem, narrower than .container, so it takes the page
+   gutter from the token itself. The inset only ever widens it. */
 .page {
   width: 100%;
   max-width: 56rem;
   margin-inline: auto;
   padding-top: clamp(2.5rem, 4.4vw, 4.5rem);
   padding-bottom: clamp(4rem, 7.4vw, 6.5rem);
-  padding-left: max(clamp(1.25rem, 3.4vw, 3rem), env(safe-area-inset-left, 0px));
-  padding-right: max(clamp(1.25rem, 3.4vw, 3rem), env(safe-area-inset-right, 0px));
+  padding-left: max(var(--page-gutter, clamp(1.25rem, 3.4vw, 3rem)), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--page-gutter, clamp(1.25rem, 3.4vw, 3rem)), env(safe-area-inset-right, 0px));
 }
 
 /* === Head === */

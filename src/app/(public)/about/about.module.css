@@ -4,16 +4,6 @@
   holds from a laptop to a phone and the block at the foot is short.
 */
 
-/* The page's column: the site's 72rem cap with the public frame's gutter,
-   which is wider than .container's. The inset only ever widens it. */
-.wrap {
-  width: 100%;
-  max-width: var(--content-max-width);
-  margin-inline: auto;
-  padding-left: max(clamp(1.25rem, 3.4vw, 3rem), env(safe-area-inset-left, 0px));
-  padding-right: max(clamp(1.25rem, 3.4vw, 3rem), env(safe-area-inset-right, 0px));
-}
-
 /* === Hero === */
 
 .hero {

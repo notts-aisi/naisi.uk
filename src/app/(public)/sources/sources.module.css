@@ -7,16 +7,6 @@
   padding: clamp(2.5rem, 4.4vw, 4.5rem) 0 clamp(4rem, 7.4vw, 6.5rem);
 }
 
-/* The page's column: the site's 72rem cap with the public frame's gutter,
-   which is wider than .container's. The inset only ever widens it. */
-.wrap {
-  width: 100%;
-  max-width: var(--content-max-width);
-  margin-inline: auto;
-  padding-left: max(clamp(1.25rem, 3.4vw, 3rem), env(safe-area-inset-left, 0px));
-  padding-right: max(clamp(1.25rem, 3.4vw, 3rem), env(safe-area-inset-right, 0px));
-}
-
 /* === Head === */
 
 .intro {

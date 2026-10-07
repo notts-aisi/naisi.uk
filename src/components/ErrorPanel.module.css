@@ -21,15 +21,10 @@
   border-bottom: 0;
 }
 
-/* The page's column: the site's 72rem cap with the public frame's gutter. */
+/* Inside the global .container, which gives the column and its gutter. */
 .fieldInner {
-  width: 100%;
-  max-width: var(--content-max-width);
-  margin-inline: auto;
   padding-top: clamp(4rem, 8vw, 7.5rem);
   padding-bottom: clamp(4.5rem, 9vw, 8.5rem);
-  padding-left: max(clamp(1.25rem, 3.4vw, 3rem), env(safe-area-inset-left, 0px));
-  padding-right: max(clamp(1.25rem, 3.4vw, 3rem), env(safe-area-inset-right, 0px));
   display: flex;
   flex-wrap: wrap;
   align-items: center;

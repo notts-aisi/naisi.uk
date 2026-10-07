@@ -38,7 +38,7 @@ export default async function SourcesIndex() {
 
   return (
     <section className={styles.section}>
-      <div className={styles.wrap}>
+      <div className="container">
         <div className={styles.intro}>
           <p className={`meta ${styles.eyebrow}`}>Where our claims come from</p>
           <h1 className={styles.title}>Sources</h1>

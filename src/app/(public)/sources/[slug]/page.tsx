@@ -109,7 +109,7 @@ export default async function SourceSheetPage({ params }: Props) {
   if (!sheet) {
     return (
       <article className={styles.article}>
-        <div className={`${styles.wrap} ${styles.missing}`}>
+        <div className={`container ${styles.missing}`}>
           <p className={`meta ${styles.eyebrow}`}>Sources</p>
           <h1 className={styles.title}>Sources for this aren&apos;t published yet</h1>
           <p className={styles.summary}>
@@ -136,7 +136,7 @@ export default async function SourceSheetPage({ params }: Props) {
 
   return (
     <article className={styles.article}>
-      <div className={`${styles.wrap} ${styles.columns}`}>
+      <div className={`container ${styles.columns}`}>
         <div className={styles.main}>
           <Link href="/sources" className={styles.back}>
             <Icon path={CHEVRON_LEFT} />

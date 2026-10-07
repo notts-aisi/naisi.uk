@@ -137,7 +137,7 @@ export default function ErrorPanel({
         strength="soft"
         className={fill ? `${styles.field} ${styles.fieldFill}` : styles.field}
       >
-        <div className={styles.fieldInner}>
+        <div className={`container ${styles.fieldInner}`}>
           {words}
           {list}
         </div>

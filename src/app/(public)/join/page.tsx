@@ -47,7 +47,7 @@ export default function JoinPage() {
   return (
     <>
       <NetField net="hero" strength="soft" className={styles.hero}>
-        <div className={`${styles.wrap} ${styles.heroInner}`}>
+        <div className={`container ${styles.heroInner}`}>
           <h1 className={styles.title}>Join NAISI.</h1>
           <p className={styles.lede}>
             The mailing list is the easiest place to start. To apply for a
@@ -58,7 +58,7 @@ export default function JoinPage() {
       </NetField>
 
       <div className={styles.section}>
-        <div className={styles.wrap}>
+        <div className="container">
           <section className={`${styles.card} ${styles.cardFirst}`} aria-labelledby="join-emails">
             <div className={styles.firstIntro}>
               <span className={styles.step}>01</span>
