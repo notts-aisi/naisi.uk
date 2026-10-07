@@ -11,10 +11,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  /* The title row asks how wide the CARD is, not the window: the same card
-     sits in a 17rem column on a laptop and in a full-width list on My work.
-     See the @container block near the end. */
-  container-type: inline-size;
 }
 
 /* === Title row === */
@@ -234,30 +230,27 @@
   }
 }
 
-/* === A narrow card ===
-   Asked of the card and not of the window (docs/mobile-conventions.md,
-   "Container queries"): in a 17rem board column the status control and the
-   grip used to share one row with the title and left it a strip a few
-   characters wide, so a title broke in the middle of a word. Below the
-   threshold the title has a row to itself.
+/* === A card on the board ===
+   The board is the only place a card has a grip, and there a card is always
+   in a 17rem column. The status control and the grip used to share one row
+   with the title and left it a strip a few characters wide, so a title broke
+   in the middle of a word. Here the title has a row to itself, and the
+   controls sit above it with the grip still in the card's top right corner,
+   whatever the length of the title.
 
-   On the board (the only place a card has a grip) the controls go ABOVE the
-   title, so the grip stays in the card's top right corner where it has always
-   been, whatever the length of the title. Everywhere else they stay under it,
-   which is what the phone list has always done. */
-@container (max-width: 36rem) { /* --bp-sm, of the card */
-  .titleRow {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .badgeCluster {
-    justify-content: flex-start;
-  }
-  .titleRow:has(.dragHandle) .badgeCluster {
-    order: -1;
-  }
-  .dragHandle {
-    margin-left: auto;
-  }
+   Every other card (the phone list, My work) is laid out as it always was:
+   the rules below match nothing without a grip. */
+.titleRow:has(.dragHandle) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.titleRow:has(.dragHandle) .badgeCluster {
+  order: -1;
+  justify-content: flex-start;
+}
+
+.titleRow:has(.dragHandle) .dragHandle {
+  margin-left: auto;
 }
 
 /* === Mobile === */
