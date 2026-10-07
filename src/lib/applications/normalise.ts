@@ -180,6 +180,7 @@ export function normaliseProgramme(id: string, v: unknown): ProgrammeSettings {
     useScores: bool(raw.useScores),
     closed: bool(raw.closed),
     runId: isId(raw.runId) ? raw.runId : null,
+    courseId: isId(raw.courseId) ? raw.courseId : null,
     emailWording,
   };
 }

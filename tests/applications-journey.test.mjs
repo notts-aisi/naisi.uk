@@ -35,6 +35,11 @@
  *     recount of the documents gives.
  *  7. The term settles and the member records are written.
  *
+ * And beside all of it, at each turn of the form's life, what a course's
+ * public page is told: the editor ties a programme to its course, and the
+ * lookup those pages call is asked what it would offer, from the draft to the
+ * settled term.
+ *
  * ## How it is laid out
  *
  * The story is told once, by `tellTheStory()`, which makes the requests and
@@ -152,6 +157,8 @@ const routes = {
 
 const reminders = await lib("decisionDay", "reminders.ts");
 const termHome = await lib("lifecycle", "loadTermHome.ts");
+/** What a course's public page asks before it offers Apply. */
+const openForm = await lib("lifecycle", "openForm.ts");
 const statusLoad = await lib("status", "load.ts");
 const repo = await lib("repo.ts");
 
@@ -284,7 +291,7 @@ async function call(who, handler, params, { body, query } = {}) {
  * Everything the story writes down. `steps` is every request it made with
  * the status it expected, so one test can say which did not go as told.
  */
-const seen = { crashed: null, steps: [], outsiders: {}, earshot: [], census: {}, outcomes: {}, logged: [] };
+const seen = { crashed: null, steps: [], outsiders: {}, earshot: [], census: {}, outcomes: {}, logged: [], coursePages: {} };
 
 /**
  * One request the story depends on. `expected` is the status the story
@@ -308,6 +315,37 @@ const P = { agi: "", tais: "", inc: "" };
 const SET = { fellowships: "", agi: "", tais: "", incubator: "", incStream: "", facilitator: "" };
 /** Question ids by set, under the story's own short names for them. */
 const Q = {};
+
+/**
+ * The site's courses. Two fellowships with a public page each, and one that
+ * is still a draft. The incubator is tied to nothing, on purpose.
+ */
+const COURSE = {
+  agi: "agi-strategy-fellowship__c0urse01",
+  tais: "technical-ai-safety__c0urse02",
+  draft: "spring-reading-group__c0urse03",
+};
+
+/**
+ * What each course's public page is told about the form at this moment, by
+ * the lookup those pages call (`findFormsByCourse`). The editor's route wrote
+ * the tie and the lifecycle's route moves the form; this is the other end of
+ * both, read off the same database.
+ */
+async function coursePages(label) {
+  const found = await openForm.findFormsByCourse(world.db, new Date());
+  const told = (courseId) => {
+    const view = found.get(courseId);
+    if (!view) return null;
+    return {
+      state: view.state,
+      applyPath: view.applyPath,
+      closes: view.closesAt ? view.closesAt.toISOString() : null,
+      starts: view.starts,
+    };
+  };
+  seen.coursePages[label] = { agi: told(COURSE.agi), tais: told(COURSE.tais), courses: [...found.keys()].sort() };
+}
 
 const roundDoc = () => world.db.read(`admissionRounds/${ROUND}`);
 const applicationDoc = (uid) => world.db.read(`admissionApplications/${ROUND}__${uid}`);
@@ -575,6 +613,19 @@ async function theFormIsMade() {
     await step(`lead and reviewers for ${name}`, 200, "zach", routes.roles.PUT, { roundId: ROUND, programmeId: P[name] }, { body });
   }
 
+  // Each fellowship is tied to its course, so that course's Apply button can
+  // find the form. A lead ties their own programme and an admin ties any. The
+  // incubator is left with no course page.
+  world.db.seed(`courses/${COURSE.agi}`, { title: "AGI Strategy Fellowship", status: "published" });
+  world.db.seed(`courses/${COURSE.tais}`, { title: "Technical AI Safety Fellowship", status: "published" });
+  world.db.seed(`courses/${COURSE.draft}`, { title: "Spring Reading Group", status: "draft" });
+  seen.leadTiesToADraft = await call("claudia", routes.programme.PATCH, { roundId: ROUND, programmeId: P.agi }, { body: { courseId: COURSE.draft } });
+  seen.leadTiesAnothersProgramme = await call("claudia", routes.programme.PATCH, { roundId: ROUND, programmeId: P.tais }, { body: { courseId: COURSE.tais } });
+  seen.tied = await step("the lead ties agi to its course", 200, "claudia", routes.programme.PATCH, { roundId: ROUND, programmeId: P.agi }, { body: { courseId: COURSE.agi } });
+  await step("an admin ties tais to its course", 200, "zach", routes.programme.PATCH, { roundId: ROUND, programmeId: P.tais }, { body: { courseId: COURSE.tais } });
+  // Tied, and still a draft: no course's page is told anything.
+  await coursePages("a draft");
+
   // Everything but the dates.
   seen.openWithoutDates = await step("open with no dates", 409, "zach", routes.status.POST, { roundId: ROUND }, open);
   seen.strangerBeforeOpen = await call("amara", routes.application.GET, { roundId: ROUND });
@@ -593,6 +644,7 @@ async function theFormIsMade() {
     ["claudia", "tess", "lloyd", "zach", "yusuf"].map((uid) => [uid, accountDoc(uid).admissionsReviewer === true]),
   );
   // Open, and the opening hour has not come yet.
+  await coursePages("before the opening hour");
   seen.beforeTheOpening = await call("amara", routes.application.GET, { roundId: ROUND });
   seen.saveBeforeTheOpening = await call("amara", routes.application.PUT, { roundId: ROUND }, { body: { draft: {} } });
 }
@@ -702,6 +754,7 @@ async function outsidersTryEverything(label) {
 /** 2. People apply. */
 async function peopleApply() {
   at("applying");
+  await coursePages("applying");
   const people = plans();
 
   // Hannah presses Send with one required answer left empty, and is told.
@@ -783,6 +836,7 @@ async function peopleApply() {
   // An admin closes early, then opens again. The applicant's routes follow.
   at("closedEarly");
   seen.closedEarly = await step("close early", 200, "zach", routes.status.POST, params(), { body: { status: "closed" } });
+  await coursePages("closed early");
   seen.whileClosedEarly = {
     staff: (await call("zach", routes.form.GET, params())).body?.form?.state ?? null,
     look: (await mine("dev")).body?.form?.windowState ?? null,
@@ -792,6 +846,7 @@ async function peopleApply() {
   at("reopened");
   seen.reopenUnasked = await call("zach", routes.status.POST, params(), { body: { status: "open" } });
   seen.reopened = await step("open again", 200, "zach", routes.status.POST, params(), { body: { status: "open", confirm: true } });
+  await coursePages("reopened");
   seen.afterReopening = {
     staff: (await call("zach", routes.form.GET, params())).body?.form?.state ?? null,
     look: (await mine("dev")).body?.form?.windowState ?? null,
@@ -811,6 +866,7 @@ const pick = (uid, outcome) => call("zach", routes.pool.PUT, params(), { body: {
 /** 3 and 4. The form closes, reviewers score, leads decide, an admin picks. Nobody hears. */
 async function theCommitteeDecides() {
   at("afterTheClose");
+  await coursePages("after the close");
   seen.afterTheClose = {
     staff: (await call("zach", routes.form.GET, params())).body?.form?.state ?? null,
     look: (await mine("dev")).body?.form?.windowState ?? null,
@@ -1115,6 +1171,7 @@ async function theTermSettles() {
   at("settling");
   seen.leadSettles = await call("claudia", routes.status.POST, params(), { body: { status: "settled" } });
   seen.settled = await step("settle the term", 200, "zach", routes.status.POST, params(), { body: { status: "settled" } });
+  await coursePages("settled");
   seen.roundWhenSettled = structuredClone(roundDoc());
   seen.addAProgrammeOnceSettled = await call("zach", routes.form.PATCH, params(), {
     body: { addProgramme: { name: "Governance Fellowship", shortName: "Governance", kind: "fellowship" } },
@@ -1243,6 +1300,82 @@ describe("one term, from nothing to settled", () => {
       assert.deepEqual(short(seen.strangerBeforeOpen), [404, "Form not found."]);
       assert.equal(seen.beforeTheOpening.body.form.windowState, "not-yet");
       assert.deepEqual(short(seen.saveBeforeTheOpening), [403, "Applications have not opened yet."]);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe("a course's page is told where the form is, all the way through the term", () => {
+    const pageAt = (label) => {
+      const told = seen.coursePages[label];
+      assert.ok(told, `the story asked for no course page at "${label}"`);
+      return told;
+    };
+
+    test("a lead ties their own programme to a published course, and to nothing else", () => {
+      assert.deepEqual(short(seen.leadTiesToADraft), [
+        400,
+        "That is not a course this programme can be tied to. Pick one from the list, or No course page.",
+      ]);
+      // Another lead's programme is not theirs: the answer for a programme they have no role on.
+      assert.equal(seen.leadTiesAnothersProgramme.status, 404);
+      assert.equal(seen.tied.body.programme.courseId, COURSE.agi);
+      // The picker a lead is shown: the two published courses, and not the draft or its title.
+      assert.deepEqual(
+        seen.tied.body.programme.courses.map((course) => [course.id, course.label, course.selectable]),
+        [
+          [COURSE.agi, "AGI Strategy Fellowship", true],
+          [COURSE.tais, "Technical AI Safety Fellowship", true],
+        ],
+      );
+      assert.ok(!JSON.stringify(seen.tied.body).includes("Spring Reading Group"));
+    });
+
+    test("the tie is stored on the programme, where the lookup reads it, and nowhere else", () => {
+      const round = seen.roundWhenOpened;
+      assert.equal(round.programmes[P.agi].courseId, COURSE.agi);
+      assert.equal(round.programmes[P.tais].courseId, COURSE.tais);
+      assert.equal(round.programmes[P.inc].courseId, null, "a programme starts with no course page");
+      // It is not the run people are placed on, and it writes nothing the older lookup reads.
+      assert.equal(round.programmes[P.agi].runId, null);
+      assert.deepEqual(round.outcomeRunIds, []);
+    });
+
+    test("while the form is a draft, no course's page is told anything", () => {
+      assert.deepEqual(pageAt("a draft"), { agi: null, tais: null, courses: [] });
+    });
+
+    test("opened, and before the opening hour: the page says when, and the form's own page agrees", () => {
+      const told = pageAt("before the opening hour");
+      assert.equal(told.agi.state, "not-yet");
+      assert.equal(told.tais.state, "not-yet");
+      assert.equal(seen.beforeTheOpening.body.form.windowState, "not-yet");
+    });
+
+    test("while applications are open: each tied course leads to the one form, and the untied one to nothing", () => {
+      const told = pageAt("applying");
+      assert.deepEqual(told.courses, [COURSE.agi, COURSE.tais].sort());
+      assert.equal(told.agi.state, "open");
+      assert.equal(told.agi.applyPath, `/apply/${ROUND}`);
+      assert.equal(told.tais.applyPath, told.agi.applyPath, "it is one form whichever course's button is pressed");
+      // Each course carries its own programme's start, as its lead wrote it.
+      assert.deepEqual([told.agi.starts, told.tais.starts], ["w/c 26 Oct", "w/c 2 Nov"]);
+      assert.equal(told.agi.closes, "2026-10-18T22:59:00.000Z");
+    });
+
+    test("closed early by an admin: closed, with no day, because the day written on the form has not come", () => {
+      const told = pageAt("closed early");
+      assert.deepEqual([told.agi.state, told.agi.closes], ["closed", null]);
+      assert.equal(seen.whileClosedEarly.look, "closed", "the form's own page says the same");
+      assert.equal(pageAt("reopened").agi.state, "open");
+    });
+
+    test("after the close, and once the term has settled: closed, on the day it closed", () => {
+      for (const label of ["after the close", "settled"]) {
+        const told = pageAt(label);
+        assert.deepEqual([told.agi.state, told.agi.closes], ["closed", "2026-10-18T22:59:00.000Z"], label);
+        assert.deepEqual(told.courses, [COURSE.agi, COURSE.tais].sort(), label);
+      }
+      assert.equal(seen.afterTheClose.look, "closed");
     });
   });
 

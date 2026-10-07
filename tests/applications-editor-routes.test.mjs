@@ -911,6 +911,246 @@ describe("a programme's settings are written at their own paths", () => {
   });
 });
 
+describe("the course a programme is for", () => {
+  const params = { roundId: ROUND, programmeId: AGI };
+  const PUBLISHED = "agi-strategy-fellowship__a1b2c3d4";
+  const OTHER = "technical-ai-safety__b2c3d4e5";
+  const DRAFT = "spring-reading-group__c3d4e5f6";
+  const ARCHIVED = "last-year__d4e5f6a7";
+  const MISSING = "never-made__e5f6a7b8";
+  const NOT_ON_OFFER =
+    "That is not a course this programme can be tied to. Pick one from the list, or No course page.";
+
+  /** Four courses, each carrying things the picker has no use for. */
+  function withCourses() {
+    const course = (title, status) => ({
+      title,
+      status,
+      tagline: "A line nobody on this screen needs.",
+      authorUid: "zach",
+      collaboratorUids: ["claudia"],
+      summaryBlocks: [{ id: "b1", type: "richText", html: "<p>The whole pitch.</p>" }],
+    });
+    db.seed(`courses/${PUBLISHED}`, course("AGI Strategy Fellowship", "published"));
+    db.seed(`courses/${OTHER}`, course("Technical AI Safety Fellowship", "published"));
+    db.seed(`courses/${DRAFT}`, course("Spring Reading Group", "draft"));
+    db.seed(`courses/${ARCHIVED}`, course("Last Year's Fellowship", "archived"));
+  }
+  const tieTo = (courseId) => db.poke(ROUND_PATH, { [`programmes.${AGI}.courseId`]: courseId });
+  const tied = () => stored().programmes[AGI].courseId ?? null;
+  /** A lead who also holds a course permission, so may read a draft course. */
+  const asCourseDrafter = () => {
+    globalThis.__editor.user = { ...CAST.claudia, permissions: { ...PERMISSIONS, draftCourse: true } };
+  };
+
+  beforeEach(() => withCourses());
+
+  test("its lead and an admin set it, and nobody else", async () => {
+    const expected = { zach: 200, claudia: 200, lloyd: 403, yusuf: 404, priya: 404, jasmine: 404, nobody: 401 };
+    for (const who of EVERYBODY) {
+      db = makeDb(seed());
+      globalThis.__editor.db = db;
+      withCourses();
+      const response = await call(who, programmeRoute.PATCH, params, { courseId: PUBLISHED });
+      assert.equal(response.status, expected[who], who);
+      assert.equal(tied(), response.status === 200 ? PUBLISHED : null, who);
+      if (response.status === 200) {
+        assert.equal(response.body.programme.courseId, PUBLISHED, who);
+        assertProjected(response, ["programme"]);
+      }
+    }
+  });
+
+  test("somebody with no role is told nothing about which courses exist", async () => {
+    // The same answer for a course that is there and one that is not, and the
+    // courses are never read for either: the refusal comes first.
+    const answers = [];
+    for (const courseId of [PUBLISHED, DRAFT, MISSING]) {
+      for (const who of ["yusuf", "priya", "jasmine"]) {
+        const before = db.stats.reads;
+        const response = await call(who, programmeRoute.PATCH, params, { courseId });
+        answers.push(JSON.stringify([response.status, response.body, db.stats.reads - before]));
+      }
+    }
+    assert.equal(new Set(answers).size, 1, "every stranger gets one answer, at one cost");
+    assert.equal(JSON.parse(answers[0])[0], 404);
+    // And that cost is the cost of a save that names no course at all: the
+    // refusal comes before a course is looked up, for a stranger and for a
+    // reviewer, who has a role and is told the settings are the lead's.
+    const readsFor = async (who, body) => {
+      const before = db.stats.reads;
+      const response = await call(who, programmeRoute.PATCH, params, body);
+      return [response.status, db.stats.reads - before];
+    };
+    for (const [who, status] of [["yusuf", 404], ["lloyd", 403]]) {
+      const plain = await readsFor(who, { places: 1 });
+      assert.equal(plain[0], status, who);
+      for (const courseId of [PUBLISHED, DRAFT, MISSING]) {
+        assert.deepEqual(await readsFor(who, { courseId }), plain, `${who} caused a course to be read`);
+      }
+    }
+    assert.equal(tied(), null);
+    assert.equal(stored().programmes[AGI].places, 32);
+  });
+
+  test("the route accepts exactly what the picker offers the caller", async () => {
+    // A lead: a published course, and nothing else.
+    for (const courseId of [DRAFT, ARCHIVED, MISSING]) {
+      const refused = await call("claudia", programmeRoute.PATCH, params, { courseId });
+      assert.deepEqual([refused.status, refused.body], [400, { error: NOT_ON_OFFER }], courseId);
+      assert.equal(tied(), null, courseId);
+    }
+    assert.equal((await call("claudia", programmeRoute.PATCH, params, { courseId: OTHER })).status, 200);
+    assert.equal(tied(), OTHER);
+
+    // An admin may read a draft course, so may tie a programme to one before it is published.
+    assert.equal((await call("zach", programmeRoute.PATCH, params, { courseId: DRAFT })).status, 200);
+    assert.equal(tied(), DRAFT);
+    // Nobody ties a programme to a course that has been taken off the site, or to one that is not there.
+    for (const courseId of [ARCHIVED, MISSING]) {
+      const refused = await call("zach", programmeRoute.PATCH, params, { courseId });
+      assert.deepEqual([refused.status, refused.body], [400, { error: NOT_ON_OFFER }], courseId);
+      assert.equal(tied(), DRAFT, courseId);
+    }
+
+    // So may a lead who holds a course permission.
+    tieTo(null);
+    asCourseDrafter();
+    assert.equal((await programmeRoute.PATCH(request({ courseId: DRAFT }), ctx(params))).status, 200);
+    assert.equal(tied(), DRAFT);
+  });
+
+  test("a refused course takes nothing else in the same save with it", async () => {
+    const mixed = await call("claudia", programmeRoute.PATCH, params, { courseId: DRAFT, places: 99 });
+    assert.equal(mixed.status, 400);
+    assert.equal(stored().programmes[AGI].places, 32);
+    assert.equal(tied(), null);
+  });
+
+  test("No course page clears it, and an empty box means the same", async () => {
+    tieTo(PUBLISHED);
+    assert.equal((await call("claudia", programmeRoute.PATCH, params, { courseId: null })).status, 200);
+    assert.equal(tied(), null);
+    tieTo(PUBLISHED);
+    const cleared = await call("claudia", programmeRoute.PATCH, params, { courseId: "" });
+    assert.equal(cleared.status, 200);
+    assert.equal(tied(), null);
+    assert.equal(cleared.body.programme.courseId, null);
+  });
+
+  test("something that could not be a course's id is refused before anything is read", async () => {
+    for (const bad of ["courses/x", "a.b", "constructor", 7, ["x"], { id: PUBLISHED }]) {
+      const before = db.stats.reads;
+      const real = await call("zach", programmeRoute.PATCH, params, { courseId: bad });
+      const unreal = await call("zach", programmeRoute.PATCH, { roundId: ROUND, programmeId: "nope" }, { courseId: bad });
+      assert.deepEqual([real.status, real.body], [400, { error: NOT_ON_OFFER }], JSON.stringify(bad));
+      assert.deepEqual([unreal.status, unreal.body], [400, { error: NOT_ON_OFFER }], JSON.stringify(bad));
+      assert.equal(db.stats.reads, before, `${JSON.stringify(bad)} caused a read`);
+    }
+    assert.equal(tied(), null);
+  });
+
+  test("it is written at its own path, and the people the programme names are untouched", async () => {
+    await call("claudia", programmeRoute.PATCH, params, { courseId: PUBLISHED });
+    const write = db.stats.writes.at(-1);
+    assert.deepEqual(write.slice(0, 2), ["update", ROUND_PATH]);
+    assert.deepEqual([...write[2]].sort(), [`programmes.${AGI}.courseId`, "updatedAt"]);
+    assert.equal(stored().programmes[AGI].leadUid, "claudia");
+    assert.deepEqual(stored().programmes[AGI].reviewerUids, ["lloyd"]);
+    assert.equal(stored().programmes[TAIS].courseId ?? null, null, "another programme is not tied by it");
+    // Saving the course it already has writes nothing.
+    const writes = db.stats.writes.length;
+    assert.equal((await call("claudia", programmeRoute.PATCH, params, { courseId: PUBLISHED })).status, 200);
+    assert.equal(db.stats.writes.length, writes);
+  });
+
+  test("a tie already stored never stops the rest of the page saving", async () => {
+    // An admin tied it to a draft, or its course was unpublished or deleted afterwards.
+    for (const courseId of [DRAFT, ARCHIVED, MISSING]) {
+      tieTo(courseId);
+      const saved = await call("claudia", programmeRoute.PATCH, params, { courseId, places: 41 });
+      assert.equal(saved.status, 200, courseId);
+      assert.equal(stored().programmes[AGI].places, 41, courseId);
+      assert.equal(tied(), courseId, "and the tie is left as it was");
+      await call("claudia", programmeRoute.PATCH, params, { places: 32 });
+    }
+  });
+
+  test("the picker lists what this caller can pick, by title, and never an archived course", async () => {
+    const pick = async (who) => (await call(who, programmeRoute.GET, params)).body.programme.courses;
+    assert.deepEqual(await pick("claudia"), [
+      { id: PUBLISHED, label: "AGI Strategy Fellowship", standing: "published", selectable: true },
+      { id: OTHER, label: "Technical AI Safety Fellowship", standing: "published", selectable: true },
+    ]);
+    assert.deepEqual(await pick("zach"), [
+      { id: PUBLISHED, label: "AGI Strategy Fellowship", standing: "published", selectable: true },
+      { id: DRAFT, label: "Spring Reading Group (not published)", standing: "draft", selectable: true },
+      { id: OTHER, label: "Technical AI Safety Fellowship", standing: "published", selectable: true },
+    ]);
+    asCourseDrafter();
+    const drafter = (await programmeRoute.GET(request(), ctx(params))).body.programme.courses;
+    assert.deepEqual(drafter.map((course) => course.id), [PUBLISHED, DRAFT, OTHER]);
+  });
+
+  test("the course already chosen is always shown, by its title only to somebody who may read it", async () => {
+    const view = async (who) => (await call(who, programmeRoute.GET, params)).body;
+    const last = (body) => body.programme.courses.at(-1);
+
+    // A draft an admin tied it to: the lead sees that there is one, and not what it is called.
+    tieTo(DRAFT);
+    const lead = await view("claudia");
+    assert.equal(lead.programme.courseId, DRAFT);
+    assert.deepEqual(last(lead), {
+      id: DRAFT,
+      label: "A course that is not published yet",
+      standing: "draft",
+      selectable: false,
+    });
+    assert.ok(!JSON.stringify(lead).includes("Spring Reading Group"), "a draft's title reached somebody who could not open it");
+    assert.equal((await view("zach")).programme.courses.find((course) => course.id === DRAFT).label, "Spring Reading Group (not published)");
+
+    // Archived after it was tied: anybody signed in can read an archived course, so it is named.
+    tieTo(ARCHIVED);
+    assert.deepEqual(last(await view("claudia")), {
+      id: ARCHIVED,
+      label: "Last Year's Fellowship (archived)",
+      standing: "archived",
+      selectable: false,
+    });
+
+    // Deleted after it was tied.
+    tieTo(MISSING);
+    for (const who of ["claudia", "zach"]) {
+      assert.deepEqual(last(await view(who)), {
+        id: MISSING,
+        label: "A course that is no longer on the site",
+        standing: "gone",
+        selectable: false,
+      });
+    }
+  });
+
+  test("nothing about a course but its title and standing reaches the screen", async () => {
+    tieTo(PUBLISHED);
+    for (const who of ["zach", "claudia"]) {
+      const text = JSON.stringify((await call(who, programmeRoute.GET, params)).body);
+      for (const kept of ["tagline", "A line nobody", "summaryBlocks", "The whole pitch", "collaboratorUids", "authorUid"]) {
+        assert.ok(!text.includes(kept), `${kept} reached ${who}'s settings screen`);
+      }
+    }
+  });
+
+  test("a save answers with the picker as it now stands, and so does a change to who reviews", async () => {
+    const saved = await call("claudia", programmeRoute.PATCH, params, { courseId: OTHER });
+    assert.equal(saved.body.programme.courseId, OTHER);
+    assert.equal(saved.body.programme.courses.length, 2);
+    const roles = await call("claudia", rolesRoute.PUT, params, { reviewerUids: ["lloyd", "yusuf"] });
+    assert.equal(roles.status, 200);
+    assert.equal(roles.body.programme.courseId, OTHER);
+    assert.equal(roles.body.programme.courses.length, 2, "the picker would empty after adding a reviewer");
+  });
+});
+
 describe("the form's own fields", () => {
   const patch = (body) => call("zach", form.PATCH, { roundId: ROUND }, body);
 

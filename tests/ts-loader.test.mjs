@@ -290,6 +290,13 @@ const USERS = new Map([
       "counters are transactions and only running them shows what was written",
   ],
   [
+    "applications-d2-gamma-find-the-form.test.mjs",
+    "executes the form lookup, the older round lookup, the catalogue's fetcher and the flattener a public " +
+      "course page calls, against a database that records its reads, and renders the page's call to " +
+      "action and the dashboard's applications card (both .tsx) to HTML, because what the Apply button " +
+      "says and where it leads in each state of the form is decided by the code that runs",
+  ],
+  [
     "applications-decision-day-emails.test.mjs",
     "executes the pure email copy and the settings page's projection against the same form, " +
       "and renders the three decision-day templates through the real `@react-email/components`, " +

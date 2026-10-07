@@ -377,9 +377,15 @@ export type ProgrammeChange = {
   useScores?: boolean;
   /** Admin only. The route refuses it from anybody else. */
   closed?: boolean;
+  /** The course whose public page offers this programme, or null for no course page. */
+  courseId?: string | null;
   /** A wording to store per email, or null to go back to the standard one. */
   emailWording?: Partial<Record<ProgrammeEmailKind, EmailWording | null>>;
 };
+
+/** What a course that cannot be picked is answered with, here and by the writer. */
+export const COURSE_NOT_ON_OFFER =
+  "That is not a course this programme can be tied to. Pick one from the list, or No course page.";
 
 /** Fields a programme carries that this route never writes, with where they are written. */
 const PROGRAMME_FOREIGN_FIELDS: Record<string, string> = {
@@ -450,6 +456,14 @@ export function parseProgrammeChange(raw: unknown): Parsed<ProgrammeChange> {
       );
     }
     change[field] = body[field] as boolean;
+  }
+  if ("courseId" in body) {
+    // Only the shape is decided here. Whether there is such a course, and
+    // whether this caller may pick it, is the writer's to say, after it has
+    // decided the caller may change the programme at all.
+    if (body.courseId === null || body.courseId === "") change.courseId = null;
+    else if (!isId(body.courseId)) return fail(COURSE_NOT_ON_OFFER);
+    else change.courseId = body.courseId;
   }
   if ("emailWording" in body) {
     const given = asBody(body.emailWording);

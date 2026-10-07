@@ -67,7 +67,9 @@ document and then does one of three things.
 - **It leaves the form alone.** The two scheduler jobs that walk open rounds
   skip a form and count it, so nothing older emails an applicant on one. The
   lookup behind the course pages drops a form, so one is never offered as a
-  single course's own intake.
+  single course's own intake. A course's page does offer the form, by another
+  door that the form's own code decides: see "A programme and its course
+  page".
 - **It serves both**, on purpose: destroying a round, deleting an account, the
   member record, the list of one person's applications, the apply page and
   the page that reads one application back. Each of those two pages shows a
@@ -173,6 +175,86 @@ changes a lead. A lead can add and remove their own programme's reviewers.
 The round's `reviewerUids` is kept as the union of every lead and reviewer on
 the form, with the `users.admissionsReviewer` flag that draws the sidebar
 entry, so every existing gate keeps working without knowing about programmes.
+
+## A programme and its course page
+
+A programme is for a course, and `programmes.<id>.courseId` says which: the
+id of a course on the site, or null for a programme with no course page. It
+is something else than `runId`. A course is the evergreen page; a run is one
+term of it, and `runId` is the run accepted people are placed on.
+
+**One writer.** The programme's `PATCH`
+(`/api/admissions/forms/[roundId]/programmes/[programmeId]`) is the only
+thing that stores it, for the programme's lead or an admin, from the "Course
+page" box on the Settings tab. `editor/courses.ts` holds the one rule the box
+and the route both go by, so the route accepts exactly what the box offered
+the caller:
+
+| A course that is | Can be picked by |
+| --- | --- |
+| published | the programme's lead, or an admin |
+| a draft | somebody who may read a draft course: an admin, or a holder of `draftCourse` or `approveCourse` |
+| archived, or not there | nobody |
+
+"Not there" and "not yours to pick" are refused in the same sentence, after
+the route has decided the caller may change the programme at all, so the
+route says nothing about which ids exist. The box always shows the course
+already chosen, whatever has become of it: by its title to somebody who may
+read it, and by a few words in its place to somebody who may not, or when it
+has been deleted. A tie already stored is never checked again by a later save
+of the same page, so a course somebody else unpublished cannot stop a lead
+changing their places.
+
+**Nothing follows a course around.** A course can be unpublished, archived
+or deleted after a programme is tied to it, and no write is made to the form
+when that happens. Whatever reads `courseId` treats a course that is not
+there, or has no public page, as no course.
+
+### What the course's page says
+
+`findFormsByCourse()` in `lifecycle/openForm.ts` answers, for each course,
+the form that speaks for it and where that form is in its term. It is the one
+place this is decided, for the course's own page and for the catalogue, and
+it reads every form with the single equality `findOpenForm()` uses.
+
+| The form is | The course's page |
+| --- | --- |
+| a draft, archived or cancelled | is told nothing, and is exactly the page it would be with no form |
+| open, and its opening is still ahead | says the day applications open, and offers nothing to press |
+| taking applications | says "Apply by Sun 18 Oct", and its button leads to `/apply/<roundId>` |
+| closed, by the clock or by an admin, or further on | says applications have closed, and offers nothing to press |
+
+"Taking applications" is `roundWindowState`, the predicate the form's own
+routes refuse on, so a page never offers a button the form would turn away.
+A draft is answered exactly as a form that does not exist, the same reading
+the form's own page gives it. A cancelled form is the one status the two read
+differently: its own page says applications have closed, and no course's page
+says anything, because a term that was called off promises no decision day.
+
+- **A programme that has been closed speaks for no course**, whatever it is
+  still tied to: it is off the site and out of the form.
+- **A closed form hands over only the times that have passed.** Closed by
+  hand, the time written on it can still be ahead, and a page that printed it
+  would say applications closed on a day that has not come.
+- **It is one form whichever button somebody presses.** The button's address
+  is `applyPathFor()`, built in one place, and it is the same for somebody
+  signed in and somebody who is not: the form's own page decides what a
+  person with no account sees.
+- **Between two forms tied to one course**, taking applications beats opening
+  soon beats closed (`pickLiveRound`, the ranking the course pages already
+  used). So last term's form goes on saying it has closed until next term's
+  is opened, and a draft for next term changes nothing.
+- **A round of the older kind can still speak for a course.**
+  `speakingRoundFor()` in `src/features/courses/fetchFormRound.ts` is the one
+  rule: the form speaks, unless the older round is further along. With no
+  tie, the page is handed the older lookup's own answer untouched.
+- **An open-enrolment course keeps its own sign-up window.** The course
+  pages' own rule (`roundOwnsDates`) is unchanged, so a tie to a course whose
+  run admits everybody from a session picker puts no Apply button on it.
+- **What a page is handed** is `CourseFormView`, written out field by field:
+  the form's id and address, its state, its three dates, and from the tied
+  programme when it starts as its lead wrote it and the run it places people
+  on. Not the form's label, and not a programme's name, places or people.
 
 ## Scores
 
@@ -452,6 +534,14 @@ anything was decided) there are no words, and the list keeps its own.
 `tests/applications-wave-h-list-words.test.mjs` holds that function and the
 page to the same words.
 
+The way back to that list is a card on the dashboard, "Your applications"
+(`src/features/applications/home/YourApplications.tsx`), drawn for somebody
+who has applied to anything. It names each application and links to it, and
+it states no outcome at all: a summary card is a third place the words could
+come to disagree, and nobody should learn a decision from one. A waiting
+account, which the dashboard does not admit, has the same link on the page
+it is held on.
+
 ### Who is in the term
 
 A reply cannot touch the decision documents, so they go on saying Accept for
@@ -499,6 +589,7 @@ every kind of reply has been made, through each of them.
 | A form is destroyed | The form, its question sets, every application with the access-requirements row beside it, every review, every decision document, and the log lines about the form's decisions | Each applicant's member record, the delivery log, the download log, the course runs |
 | An account is deleted | Each of its applications with the access-requirements row and the decision document beside it, the reviews about it, the reviews it wrote, and its name wherever a round carries it: the reviewer list, the final decider, and the lead and reviewers of each programme | Its member record, the log lines |
 | A course run is destroyed | Nothing on a form | The form, with any programme whose `runId` named that run |
+| A course is destroyed | Nothing on a form | The form, with any programme whose `courseId` named that course |
 
 - **A form is destroyed through the round destroy**
   (`src/lib/admissions/destroy.ts`), the one older action a form shares. It
@@ -522,6 +613,11 @@ every kind of reply has been made, through each of them.
 - **A programme's `runId` can name a run that has since been destroyed.** The
   run destroy writes no round. Whatever reads a programme's `runId` treats a
   run that is not there as no run.
+- **A programme's `courseId` can name a course that has since been
+  destroyed**, for the same reason: the course destroy writes no round. The
+  Settings tab shows such a tie as a course that is no longer on the site,
+  and no public page can be offered the form through it, because there is no
+  page.
 - **An application's earlier versions go with the application.** They are
   fields of its own document, so every delete above takes them in the same
   write, and nothing else holds a copy.
@@ -548,6 +644,8 @@ All in `src/lib/applications/`.
 | `status/standing.ts`, `status/replies.ts`, `status/view.ts`, `status/words.ts` | Where one person stands after sending, what each reply does, what their page says, the chip and title of an outcome | anywhere |
 | `status/load.ts`, `status/record.ts` | The page's read, and the one transaction a reply writes | server, applicant-safe |
 | `accounts/approve.ts`, `accounts/afterReply.ts` | Approving a waiting account on an acceptance, and the call an accepted invitation makes | server, applicant-safe |
+| `lifecycle/openForm.ts` | Which form is open, and which form speaks for each course, for a page that offers Apply | server, safe for a page any visitor can load |
+| `editor/courses.ts` | The courses a programme can be tied to, and the one rule the box and the route share | server, staff |
 
 ## Rules for anything built on this
 
