@@ -7,7 +7,7 @@
 The following surfaces must hit 44×44 on every interactive element below `--bp-md`:
 
 - **Public site** — PublicHeader nav + actions, PublicFooter link rows, all CTAs and inline link buttons on landing / members / resources / news / events list pages.
-- **AppShell nav** — drawer link rows, top-strip hamburger button.
+- **AppShell nav**: the drawer's rows, the bottom bar's words, the top bar's brand link.
 - **Form controls** — `<Button>` (default size), `<Input>`, `<Select>`, `<Switch>` (including the touch slop area when the visual switch is smaller). All `<label>` elements used as click targets via `cursor: pointer`.
 - **Auth pages** — every interactive element on `/login`, `/register`, `/pending-approval`.
 - **Events RSVP flow** — already meets this on the public side; verify on each mobile-frozen module touch.
