@@ -59,7 +59,13 @@
 
 /* === The table === */
 
+/* The card is a container: the rows turn into cards by the card's own width,
+   not the window's. The signed-in menu opens and closes per person, so a
+   1024px window holds a 694px card or a 944px one, and only the first is
+   too narrow for five columns. */
 .tableCard {
+  container-type: inline-size;
+  container-name: events-table;
   min-width: 0;
   padding: var(--space-1) var(--space-2) 0;
   background: var(--color-surface);
@@ -76,15 +82,18 @@
   overflow-x: auto;
 }
 
+/* 42rem is the narrowest the five columns read at. A laptop window with the
+   menu open leaves a little more than that, so the table only scrolls in the
+   narrow band above the phone layout. */
 .table {
   width: 100%;
-  min-width: 53.75rem;
+  min-width: 42rem;
   border-collapse: collapse;
   text-align: left;
 }
 
 .table th {
-  padding: 0.625rem 0.875rem;
+  padding: 0.625rem 0.75rem;
   border-bottom: 1px solid var(--color-border);
   font-family: var(--font-meta);
   font-size: var(--text-xs);
@@ -97,7 +106,7 @@
 }
 
 .table td {
-  padding: 0.625rem 0.875rem;
+  padding: 0.625rem 0.75rem;
   border-bottom: 1px solid var(--color-border);
   font-size: var(--text-sm);
   color: var(--color-text);
@@ -108,11 +117,9 @@
   border-bottom: 0;
 }
 
+/* The event takes two fifths of the table. The other four columns share the
+   rest by what is in them, so a short one does not hold width a name needs. */
 .colEvent { width: 40%; }
-.colStatus { width: 19%; }
-.colSignups { width: 16%; }
-.colRunning { width: 15%; }
-.colOpen { width: 10%; }
 
 /* === A row === */
 
@@ -186,6 +193,12 @@
   gap: var(--space-1);
 }
 
+/* A state is a few words and stays on one line: a pill of three lines is
+   not a pill. */
+.state {
+  white-space: nowrap;
+}
+
 .signups {
   display: flex;
   flex-direction: column;
@@ -217,10 +230,10 @@
   line-height: 1.35;
 }
 
+/* A name wraps between its words and never inside one. */
 .personName {
   font-weight: 500;
   color: var(--color-text);
-  overflow-wrap: anywhere;
 }
 
 .personNote {
@@ -243,7 +256,102 @@
   color: var(--color-accent-text-hover);
 }
 
+.open svg {
+  flex: none;
+}
+
+/* === A narrow card: each row becomes a card of its own ===
+   Five columns do not fit, and scrolling a table sideways hides the button
+   at its far end. The event goes across the top, its state and its sign-ups
+   under it, then who runs it and the way in. The column names are kept for a
+   screen reader and taken out of sight, since each cell says what it is. A
+   browser without container queries keeps the table, which scrolls inside
+   its card. */
+@container events-table (max-width: 48rem) {
+  .tableScroll {
+    padding: 0 var(--space-2);
+    overflow-x: visible;
+  }
+
+  .table {
+    display: block;
+    min-width: 0;
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .table tbody {
+    display: block;
+  }
+
+  .table tr {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3) var(--space-4);
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .table td {
+    display: block;
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .cellEvent {
+    grid-column: 1 / -1;
+  }
+
+  .cellSignups {
+    justify-self: end;
+    text-align: right;
+  }
+
+  /* The bar keeps a width of its own once its cell is as narrow as its words. */
+  .signups {
+    align-items: stretch;
+    min-width: 6.5rem;
+  }
+
+  .cellOpen {
+    justify-self: end;
+  }
+
+  /* The event's name is a short line to hit with a thumb, so its link is
+     stretched over the whole card. The link at the foot stays on top. */
+  .eventTitle::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+
+  .open {
+    position: relative;
+    z-index: 1;
+  }
+}
+
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* The table keeps its width and scrolls inside its card. */
+  /* The way back above a page's name, and a link in the approver's notice,
+     take a thumb. */
+  .crumbLink,
+  .waitingList a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+  }
 }

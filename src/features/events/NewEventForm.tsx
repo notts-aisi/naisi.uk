@@ -43,7 +43,11 @@ export default function NewEventForm() {
   return (
     <form onSubmit={onSubmit} className={styles.editor}>
       <PageHead
-        crumb={<Link href="/events/manage">Manage events</Link>}
+        crumb={
+          <Link href="/events/manage" className={styles.crumbLink}>
+            Manage events
+          </Link>
+        }
         title="New event"
         description="Start with a name. It is saved as a draft, and nothing is public until it has been approved and published."
       />

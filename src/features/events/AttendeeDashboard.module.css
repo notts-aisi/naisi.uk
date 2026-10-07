@@ -254,7 +254,11 @@
   flex: none;
 }
 
+/* The card is a container: the rows turn into cards by the card's own width,
+   not the window's, because the signed-in menu opens and closes per person. */
 .tableCard {
+  container-type: inline-size;
+  container-name: attendee-table;
   min-width: 0;
   padding: var(--space-1) var(--space-2) 0;
   background: var(--color-surface);
@@ -347,9 +351,106 @@
   overflow-wrap: anywhere;
 }
 
+/* === A narrow card: each person becomes a card of their own ===
+   Six columns do not fit: the name and the address, the state and the day,
+   the answers, then the button. The column names are kept for a screen
+   reader and taken out of sight. The table needs about 58rem to keep a name
+   and an address on one line each, so the switch is at 60rem. A browser
+   without container queries keeps the table, which scrolls inside its card. */
+@container attendee-table (max-width: 60rem) {
+  .tableScroll {
+    padding: 0 var(--space-2);
+    overflow-x: visible;
+  }
+
+  .table {
+    display: block;
+    min-width: 0;
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .table tbody {
+    display: block;
+  }
+
+  .table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .table td {
+    display: block;
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .cellName,
+  .cellEmail,
+  .cellAnswers {
+    grid-column: 1 / -1;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .cellName {
+    font-size: var(--text-ui);
+  }
+
+  .cellDate {
+    justify-self: end;
+  }
+
+  .rowActions {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+
+  /* Nothing to cancel leaves no gap where the button would be. */
+  .rowActions:empty {
+    display: none;
+  }
+}
+
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
   .wrap {
     gap: var(--space-6);
+  }
+
+  /* The two buttons of a request sit side by side and share the row. */
+  .rsvpRow > .buttons {
+    width: 100%;
+  }
+
+  .rsvpRow > .buttons > button,
+  .denyBox > .buttons > button,
+  .form > .buttons > button {
+    flex: 1 1 auto;
+  }
+
+  .tableControls,
+  .filterLabel {
+    width: 100%;
+  }
+
+  .tableControls > button {
+    flex: 1 1 auto;
   }
 }

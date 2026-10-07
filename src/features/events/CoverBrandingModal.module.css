@@ -112,6 +112,11 @@
   color: var(--color-text);
 }
 
+/* A choice of two is as wide as its two words, not as wide as the dialog. */
+.control > [role="radiogroup"] {
+  align-self: flex-start;
+}
+
 .sliderRow {
   display: flex;
   align-items: center;

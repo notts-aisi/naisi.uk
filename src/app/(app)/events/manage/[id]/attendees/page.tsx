@@ -36,9 +36,13 @@ export default async function AttendeesPage({
       <PageHead
         crumb={
           <>
-            <Link href="/events/manage">Manage events</Link>
+            <Link href="/events/manage" className={styles.crumbLink}>
+              Manage events
+            </Link>
             <span aria-hidden="true">/</span>
-            <Link href={`/events/manage/${event.id}`}>{name}</Link>
+            <Link href={`/events/manage/${event.id}`} className={styles.crumbLink}>
+              {name}
+            </Link>
           </>
         }
         title="Attendees"

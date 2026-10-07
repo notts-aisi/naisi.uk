@@ -813,7 +813,11 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     }
   }
 
-  const crumb = <Link href="/events/manage">Manage events</Link>;
+  const crumb = (
+    <Link href="/events/manage" className={styles.crumbLink}>
+      Manage events
+    </Link>
+  );
 
   if (loading) {
     return (

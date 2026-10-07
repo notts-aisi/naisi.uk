@@ -351,4 +351,34 @@
   .twoCol {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  /* The way back above the event's name takes a thumb. */
+  .crumbLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+  }
+
+  .actionBar {
+    padding: var(--space-4);
+  }
+
+  /* Each button of the bar fills its row, so none is a small target at the
+     end of a wrapped line. */
+  .actionBar .actions > button {
+    flex: 1 1 auto;
+  }
+
+  .sendBack > button,
+  .carefulRow > button {
+    width: 100%;
+  }
+
+  .modal {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .modalActions > button {
+    flex: 1 1 auto;
+  }
 }

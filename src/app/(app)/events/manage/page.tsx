@@ -208,16 +208,10 @@ export default function EventsListPage() {
                     <th scope="col" className={styles.colEvent}>
                       Event
                     </th>
-                    <th scope="col" className={styles.colStatus}>
-                      Status
-                    </th>
-                    <th scope="col" className={styles.colSignups}>
-                      Sign-ups
-                    </th>
-                    <th scope="col" className={styles.colRunning}>
-                      Running it
-                    </th>
-                    <th scope="col" className={styles.colOpen}>
+                    <th scope="col">Status</th>
+                    <th scope="col">Sign-ups</th>
+                    <th scope="col">Running it</th>
+                    <th scope="col">
                       <span className="visually-hidden">Open</span>
                     </th>
                   </tr>
@@ -322,10 +316,14 @@ function EventRow({
       </td>
       <td className={styles.cellStatus}>
         <span className={styles.chips}>
-          <Chip tone={statusTone(e.status)} dot>
+          <Chip tone={statusTone(e.status)} dot className={styles.state}>
             {STATUS_WORDS[e.status]}
           </Chip>
-          {e.archived && <Chip tone="neutral">Archived</Chip>}
+          {e.archived && (
+            <Chip tone="neutral" className={styles.state}>
+              Archived
+            </Chip>
+          )}
         </span>
       </td>
       <td className={styles.cellSignups}>
