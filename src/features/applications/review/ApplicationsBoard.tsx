@@ -11,7 +11,7 @@ import type {
   BulkDecisionResult,
   ProgrammeBoard,
 } from "@/lib/applications/review/types";
-import { ordinal } from "@/lib/applications/words";
+import { PROGRAMME_STANDING_LABEL, ordinal } from "@/lib/applications/words";
 import {
   DEFAULT_QUERY,
   PAGE_SIZE,
@@ -102,11 +102,14 @@ export default function ApplicationsBoard({ board, listPath, apiPath }: Props) {
     });
   };
 
-  const allVisiblePicked = visible.length > 0 && visible.every((row) => selected.has(row.uid));
+  // Somebody who has withdrawn cannot be decided from the list, so the header
+  // box neither picks them nor waits for them.
+  const choosable = visible.filter((row) => !row.withdrawn);
+  const allVisiblePicked = choosable.length > 0 && choosable.every((row) => selected.has(row.uid));
   const toggleAllVisible = () => {
     setSelected((current) => {
       const next = new Set(current);
-      for (const row of visible) {
+      for (const row of choosable) {
         if (allVisiblePicked) next.delete(row.uid);
         else next.add(row.uid);
       }
@@ -704,12 +707,14 @@ function Row({
     <tr className={selected ? styles.rowSelected : undefined}>
       {selectable ? (
         <td className={styles.checkCell}>
-          <Checkbox
-            label={`Select ${row.name}`}
-            checked={selected}
-            disabled={disabled}
-            onChange={onToggle}
-          />
+          {row.withdrawn ? null : (
+            <Checkbox
+              label={`Select ${row.name}`}
+              checked={selected}
+              disabled={disabled}
+              onChange={onToggle}
+            />
+          )}
         </td>
       ) : null}
       <td className={styles.applicantCell}>
@@ -723,7 +728,6 @@ function Row({
           </div>
         </div>
         {row.accountWaiting ? <div className={styles.flag}>Account waiting</div> : null}
-        {row.withdrawn ? <div className={styles.flag}>Withdrawn</div> : null}
       </td>
       <td data-label="Choice">
         {row.choice === 1 ? (
@@ -753,7 +757,16 @@ function Row({
         <span className={row.comments === 0 ? styles.mutedText : undefined}>{row.comments}</span>
       </td>
       <td data-label="Status" className={styles.statusCell}>
-        {settledElsewhere ? (
+        {row.withdrawn ? (
+          // They left after applying. The row says so in place of what the
+          // programme decided, with that decision kept as a line under it.
+          <div>
+            <Chip dot>Withdrawn</Chip>
+            {row.standing === "to-review" ? null : (
+              <div className={styles.sub}>Was {PROGRAMME_STANDING_LABEL[row.standing].toLowerCase()}</div>
+            )}
+          </div>
+        ) : settledElsewhere ? (
           <div>
             <Chip dot>Has a place</Chip>
             {row.placedOn ? <div className={styles.sub}>On {row.placedOn}</div> : null}
