@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
+import Notice from "@/components/ui/Notice";
 import Switch from "@/components/ui/Switch";
+import { AdminTable } from "./adminList";
+import { AdminPanel, AdminProblem, AdminSection } from "./adminPanels";
 // Type-only imports of firebase-admin inside that module are erased at build
 // time, so pulling the one bucket formatter into a client component is safe
 // and keeps the panel and the receipt id speaking the same language.
@@ -135,6 +137,8 @@ export default function SchedulerPanel() {
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionNote, setActionNote] = useState<string | null>(null);
+  // The job whose Run now has been pressed once and not yet confirmed.
+  const [asking, setAsking] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -203,19 +207,17 @@ export default function SchedulerPanel() {
 
   if (!loaded) {
     return (
-      <Card>
+      <AdminPanel title="Scheduled jobs">
         <p className={styles.empty}>Loading the scheduler state.</p>
-      </Card>
+      </AdminPanel>
     );
   }
 
   if (state === null) {
     return (
-      <Card>
-        <p className={styles.error}>
-          {loadError ?? "Couldn't load the scheduler state."}
-        </p>
-      </Card>
+      <AdminPanel title="Scheduled jobs">
+        <AdminProblem>{loadError ?? "Couldn't load the scheduler state."}</AdminProblem>
+      </AdminPanel>
     );
   }
 
@@ -223,137 +225,171 @@ export default function SchedulerPanel() {
 
   return (
     <div className={styles.stack}>
-      <Card>
-        <div className={styles.head}>
-          <h2 className={styles.sectionTitle}>Scheduler</h2>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => void load()}
-            disabled={busy !== null}
-          >
+      <AdminPanel
+        id="scheduled-jobs"
+        title="Scheduled jobs"
+        description="Reminders and announcements that run on their own. Every time here is UTC, the clock the timer and its receipts keep."
+        actions={
+          <Button variant="secondary" size="sm" onClick={() => void load()} disabled={busy !== null}>
             Refresh
           </Button>
+        }
+      >
+        {/* The one switch over every job. Stored as "enabled"; drawn as its
+            opposite, a pause, so that off is the ordinary state of the
+            control and on is the thing somebody did. */}
+        <div className={styles.pause}>
+          <Switch
+            checked={!state.enabled}
+            disabled={busy !== null}
+            label="Pause all jobs"
+            description="Stops every job until you switch it back."
+            onChange={(paused) =>
+              void post("/api/admin/scheduler/config", { enabled: !paused }, "global")
+            }
+          />
         </div>
-        <p className={styles.blurb}>
-          An external scheduler calls the tick every 15 minutes. Each tick runs
-          the jobs below in order within one time budget; anything it does not
-          finish is picked up by the next call, because every job works out what
-          is due from live data rather than from a queue. Sends are guarded by
-          a marker written before the send, so a repeated tick sends nothing
-          twice.
-        </p>
-        <Switch
-          size="lg"
-          checked={state.enabled}
-          disabled={busy !== null}
-          label="Scheduler enabled"
-          description={
-            state.enabled
-              ? "Ticks run the job list. This is the normal state."
-              : "Ticks still arrive and still leave a receipt, but no job runs. Nothing time-based is being sent."
-          }
-          onChange={(next) =>
-            void post("/api/admin/scheduler/config", { enabled: next }, "global")
-          }
-        />
-        <p className={styles.jobMeta}>
+        {!state.enabled && (
+          <Notice tone="warning">
+            Every job is paused. The timer still calls and still leaves a receipt, but no job
+            runs. Nothing time-based is being sent.
+          </Notice>
+        )}
+
+        <p className={styles.lastRun}>
+          <span className="meta">Last tick</span>
           <span>
-            Last tick:{" "}
             {lastReceipt === null
               ? "none recorded yet"
               : `${formatBucketKey(lastReceipt.bucket)} (depth ${lastReceipt.depth}, ${lastReceipt.durationMs}ms)`}
           </span>
         </p>
-        {actionError !== null && <p className={styles.error}>{actionError}</p>}
-        {actionNote !== null && <p className={styles.note}>{actionNote}</p>}
-        {loadError !== null && <p className={styles.error}>{loadError}</p>}
-      </Card>
 
-      <Card>
-        <h2 className={styles.sectionTitle}>Jobs</h2>
-        <p className={styles.blurb}>
-          Registration order is run order. Run now ignores a job&rsquo;s own
-          switch, so you can test one without turning it back on for the
-          scheduler.
-        </p>
+        {actionError !== null && <AdminProblem>{actionError}</AdminProblem>}
+        {actionNote !== null && (
+          <p className={styles.note} role="status">
+            {actionNote}
+          </p>
+        )}
+        {loadError !== null && <AdminProblem>{loadError}</AdminProblem>}
+
         <ul className={styles.jobList}>
           {state.jobs.map((job) => (
             <li key={job.id} className={styles.jobRow}>
-              <div className={styles.jobMain}>
-                <Switch
-                  checked={job.enabled}
-                  disabled={busy !== null}
-                  label={job.label}
-                  onChange={(next) =>
-                    void post(
-                      "/api/admin/scheduler/config",
-                      { jobs: { [job.id]: { enabled: next } } },
-                      job.id,
-                    )
-                  }
-                />
-                <p className={styles.jobDescription}>{job.description}</p>
-                <div className={styles.jobMeta}>
-                  <span className={styles.mono}>{job.id}</span>
-                  <span>Last run: {formatWhen(job.lastRunAt)}</span>
-                  <span>Last handled: {job.lastProcessed}</span>
-                  <span>Cap: {job.maxPerTick} per tick</span>
-                  {job.maxLateHours > 0 && (
-                    <span>Skips work over {job.maxLateHours}h late</span>
-                  )}
+              <div className={styles.jobHead}>
+                <div className={styles.jobMain}>
+                  <h3 className={styles.jobName}>{job.label}</h3>
+                  <p className={styles.jobDescription}>{job.description}</p>
                 </div>
-                {!job.enabled && !job.enabledByDefault && (
-                  <p className={styles.jobDescription}>
-                    This job emails people, so it does not switch itself on
-                    when it deploys. Turn it on here once you have watched a
-                    run on dev.
-                  </p>
-                )}
-                {job.lastError !== null && (
-                  <p className={styles.jobError}>
-                    Threw at {formatWhen(job.lastErrorAt)}: {job.lastError}
-                  </p>
-                )}
+                <div className={styles.jobActions}>
+                  <div className={styles.jobSwitch}>
+                    <Switch
+                      checked={job.enabled}
+                      disabled={busy !== null}
+                      label={
+                        <>
+                          <span className={styles.srOnly}>{job.label} is on</span>
+                          <span
+                            aria-hidden="true"
+                            className={job.enabled ? `${styles.onWord} ${styles.onWordOn}` : styles.onWord}
+                          >
+                            {job.enabled ? "On" : "Off"}
+                          </span>
+                        </>
+                      }
+                      onChange={(next) =>
+                        void post(
+                          "/api/admin/scheduler/config",
+                          { jobs: { [job.id]: { enabled: next } } },
+                          job.id,
+                        )
+                      }
+                    />
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    aria-expanded={asking === job.id}
+                    disabled={busy !== null || !state.enabled}
+                    onClick={() => setAsking(asking === job.id ? null : job.id)}
+                  >
+                    Run now…
+                  </Button>
+                </div>
               </div>
-              <div className={styles.jobActions}>
-                <Badge tone={job.enabled ? "success" : "neutral"}>
-                  {job.enabled ? "On" : "Off"}
-                </Badge>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={busy !== null || !state.enabled}
-                  onClick={() =>
-                    void post(
-                      "/api/admin/scheduler/run",
-                      { jobId: job.id },
-                      job.id,
-                    )
-                  }
-                >
-                  Run now
-                </Button>
+
+              <p className={styles.lastRun}>
+                <span className="meta">Last run</span>
+                <span>{job.lastRunAt === null ? "Never" : formatWhen(job.lastRunAt)}</span>
+                {job.lastError !== null ? (
+                  <Chip tone="danger">Threw</Chip>
+                ) : job.lastRunAt !== null ? (
+                  <Chip tone="success">OK</Chip>
+                ) : null}
+              </p>
+              <div className={styles.jobMeta}>
+                <span className={styles.mono}>{job.id}</span>
+                <span>Last handled: {job.lastProcessed}</span>
+                <span>Cap: {job.maxPerTick} per tick</span>
+                {job.maxLateHours > 0 && <span>Skips work over {job.maxLateHours}h late</span>}
               </div>
+
+              {!job.enabled && !job.enabledByDefault && (
+                <p className={styles.jobDescription}>
+                  This job emails people, so it does not switch itself on when it deploys. Turn it
+                  on here once you have watched a run on dev.
+                </p>
+              )}
+              {job.lastError !== null && (
+                <p className={styles.jobError}>
+                  Threw at {formatWhen(job.lastErrorAt)}: {job.lastError}
+                </p>
+              )}
+
+              {asking === job.id && (
+                <div className={styles.ask}>
+                  <p className={styles.askText}>
+                    {job.enabled
+                      ? "This runs the job once now, on top of the timer. It does what it says above, to whoever is due."
+                      : "This job is off, but running it now still runs it once. It does what it says above, to whoever is due."}
+                  </p>
+                  <div className={styles.askActions}>
+                    <Button variant="ghost" size="sm" onClick={() => setAsking(null)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={busy !== null || !state.enabled}
+                      onClick={() => {
+                        setAsking(null);
+                        void post("/api/admin/scheduler/run", { jobId: job.id }, job.id);
+                      }}
+                    >
+                      Run it now
+                    </Button>
+                  </div>
+                </div>
+              )}
             </li>
           ))}
         </ul>
-      </Card>
+      </AdminPanel>
 
-      <Card>
-        <h2 className={styles.sectionTitle}>Stuck sends</h2>
-        <p className={styles.blurb}>
-          A marker is claimed just before a send and stamped just after. One
-          that never got its stamp is retried automatically a couple of times;
-          after that it lands here and waits for you. Retry clears it so the
-          next tick works the send out again from scratch.
-        </p>
+      <p className={styles.footnote}>
+        The site checks for jobs every 15 minutes. An outside timer makes the call, and each call
+        runs the jobs above in order within one time budget; anything it does not finish is
+        picked up by the next call, because every job works out what is due from live data and
+        not from a queue. A send is marked before it goes, so a repeated call sends nothing twice.
+      </p>
+
+      <AdminPanel
+        title="Stuck sends"
+        description="A marker is claimed just before a send and stamped just after. One that never got its stamp is retried automatically a couple of times; after that it lands here and waits for you. Retry clears it so the next tick works the send out again from scratch."
+      >
         {state.failedMarkers.length === 0 ? (
-          <p className={styles.empty}>
-            Nothing stuck. Every claimed send has been stamped.
-          </p>
+          <p className={styles.empty}>Nothing stuck. Every claimed send has been stamped.</p>
         ) : (
-          <ul className={styles.jobList}>
+          <ul className={styles.markerList}>
             {state.failedMarkers.map((marker) => (
               <li key={marker.id} className={styles.markerRow}>
                 <div className={styles.jobMain}>
@@ -383,56 +419,46 @@ export default function SchedulerPanel() {
             ))}
           </ul>
         )}
-      </Card>
+      </AdminPanel>
 
-      <Card>
-        <h2 className={styles.sectionTitle}>Recent ticks</h2>
-        <p className={styles.blurb}>
-          One row per call. A depth above 0 is the tick calling itself to carry
-          on with work it ran out of time for.
-        </p>
+      <AdminSection
+        title="Recent ticks"
+        description="One row for each call. A depth above 0 is the tick calling itself to carry on with work it ran out of time for."
+      >
         {state.receipts.length === 0 ? (
           <p className={styles.empty}>
             No ticks recorded. If the external scheduler is armed, check that
             its key matches and that it is pointed at /api/scheduler/tick.
           </p>
         ) : (
-          <div className={styles.tableScroll}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Bucket</th>
-                  <th>Depth</th>
-                  <th>Trigger</th>
-                  <th>Took</th>
-                  <th>Jobs</th>
-                  <th>More</th>
+          <AdminTable caption="Recent ticks" minWidth="44rem">
+            <thead>
+              <tr>
+                <th scope="col">Bucket</th>
+                <th scope="col">Depth</th>
+                <th scope="col">Trigger</th>
+                <th scope="col">Took</th>
+                <th scope="col">Jobs</th>
+                <th scope="col">More</th>
+              </tr>
+            </thead>
+            <tbody>
+              {state.receipts.map((receipt) => (
+                <tr key={receipt.id}>
+                  <td className={styles.bucket}>{formatBucketKey(receipt.bucket)}</td>
+                  <td>{receipt.depth}</td>
+                  <td className={styles.nowrap}>{receipt.trigger}</td>
+                  <td className={styles.nowrap}>
+                    {receipt.finishedAt === null ? "did not finish" : `${receipt.durationMs}ms`}
+                  </td>
+                  <td>{receiptSummary(receipt)}</td>
+                  <td>{receipt.hasMore ? (receipt.rearmNote ?? "yes") : "no"}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {state.receipts.map((receipt) => (
-                  <tr key={receipt.id}>
-                    <td className={styles.mono}>{formatBucketKey(receipt.bucket)}</td>
-                    <td>{receipt.depth}</td>
-                    <td>{receipt.trigger}</td>
-                    <td>
-                      {receipt.finishedAt === null
-                        ? "did not finish"
-                        : `${receipt.durationMs}ms`}
-                    </td>
-                    <td className={styles.wrapCell}>{receiptSummary(receipt)}</td>
-                    <td className={styles.wrapCell}>
-                      {receipt.hasMore
-                        ? (receipt.rearmNote ?? "yes")
-                        : "no"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </AdminTable>
         )}
-      </Card>
+      </AdminSection>
     </div>
   );
 }
