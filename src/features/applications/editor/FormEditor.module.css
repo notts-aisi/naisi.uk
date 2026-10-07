@@ -1,0 +1,480 @@
+/*
+  The application form's editor: the list of sections on the left and the
+  open question set on the right.
+
+  Built to stay inside whatever width the page gives it. The two columns sit
+  side by side while there is room and stack when there is not, and nothing
+  here has a width a narrow screen cannot give.
+*/
+
+/* The term's own dates, under the page's first line, with the way to change them. */
+.term {
+  margin-top: var(--space-2);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+.term strong {
+  font-weight: 600;
+  color: var(--color-text);
+}
+.termChange {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.termChange:hover {
+  color: var(--color-text);
+}
+
+.columns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+/* --- the sections, in order --------------------------------------------- */
+
+/*
+  A third of the page, and never wider than the 372px it was drawn at. A share
+  rather than a fixed width, so a narrower page takes the difference from both
+  columns and not from the questions alone.
+*/
+.sections {
+  flex: 0 1 38%;
+  max-width: 23.25rem;
+  min-width: 0;
+}
+.sectionsCard {
+  min-width: 0;
+  padding: 16px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.sectionsHead {
+  margin-bottom: 10px;
+}
+.sectionList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+}
+.sectionItem {
+  position: relative;
+}
+/* The rule that ties a stream to the general set above it. */
+.sectionItemNested::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 20px;
+  width: 1px;
+  background: var(--color-border);
+}
+.section {
+  appearance: none;
+  -webkit-appearance: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.sectionButton {
+  cursor: pointer;
+}
+.sectionButton:hover {
+  background: color-mix(in srgb, var(--color-accent) 7%, transparent);
+}
+.sectionNested {
+  width: calc(100% - 22px);
+  margin-left: 22px;
+}
+.sectionCurrent,
+.sectionCurrent:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+.sectionMark {
+  flex: none;
+  display: inline-flex;
+  justify-content: center;
+  width: 18px;
+  margin-top: 2px;
+  color: var(--color-text-muted);
+}
+.sectionText {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.sectionName {
+  display: block;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.6;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.sectionNameFixed {
+  color: var(--ed-ink-soft);
+}
+.sectionCurrent .sectionName {
+  font-weight: 600;
+}
+.sectionChip {
+  display: inline-flex;
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+.sectionDetail {
+  display: block;
+  margin-top: 1px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+.sectionsFoot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.sectionsAdd {
+  margin-top: var(--space-2);
+}
+
+/* --- the open set -------------------------------------------------------- */
+
+.detail {
+  flex: 1 1 20rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.set {
+  min-width: 0;
+  padding: 20px 22px 22px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.setCurrent {
+  border-color: var(--color-accent);
+}
+.setHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+.setHeadMain {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+.setTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.setTitle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.setNote {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+.setScored {
+  flex: 0 1 15rem;
+  min-width: 13.5rem;
+}
+.questions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  list-style: none;
+}
+.noQuestions {
+  margin-top: var(--space-4);
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+.setFoot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 10px;
+}
+.setFoot > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* A sibling set that is not the open one. */
+.setClosed {
+  padding: 14px 22px;
+}
+.setClosedRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+.setClosedTitle {
+  font-size: 18px;
+}
+.setClosedSide {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+/* --- one question -------------------------------------------------------- */
+
+.question {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 10px 10px 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+.questionLocked {
+  padding-left: 14px;
+}
+.questionLifted {
+  position: relative;
+  z-index: 2;
+  box-shadow: var(--shadow-lg);
+}
+.grip {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: grab;
+  /* A drag that starts here must move the question and not the page. */
+  touch-action: none;
+}
+.grip:hover {
+  color: var(--color-text);
+}
+.number {
+  flex: none;
+  width: 14px;
+  font-family: var(--font-meta);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.questionBody {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.questionText {
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.questionTextEmpty {
+  color: var(--color-text-muted);
+}
+.questionChips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.questionEdit {
+  flex: none;
+  padding: 0 10px;
+}
+
+/* The question being edited. */
+.questionOpen {
+  align-items: stretch;
+  gap: 6px;
+  padding: 12px 16px 16px 4px;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+.questionRail {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.questionRail .number {
+  width: auto;
+}
+.questionFields {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding-top: 6px;
+}
+.questionRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+}
+.questionType {
+  flex: 1 1 9rem;
+  min-width: 0;
+}
+.questionLimit {
+  flex: 0 1 7.5rem;
+  min-width: 6rem;
+}
+.questionRequired {
+  flex: none;
+}
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+}
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.option > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.optionRemove {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.optionRemove:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+.optionRemove:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.optionsFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+.questionFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-top: 4px;
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  /* A line of text is not a touch target; on a phone the control is. */
+  .termChange {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .columns {
+    gap: var(--space-4);
+  }
+  .sections {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .set {
+    padding: var(--space-4);
+  }
+  .setClosed {
+    padding: 12px var(--space-4);
+  }
+  .setScored {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+  .question {
+    flex-wrap: wrap;
+  }
+  .questionBody {
+    flex-basis: 60%;
+  }
+  .questionOpen {
+    flex-wrap: nowrap;
+    padding-right: 12px;
+  }
+  .questionType,
+  .questionLimit {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+}

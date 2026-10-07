@@ -1,0 +1,260 @@
+/*
+  The term's own page: its dates in a strip, then one card a programme. And
+  the list of application forms, which is the same card laid in a column.
+*/
+
+/* --- the dates ---------------------------------------------------------- */
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+  list-style: none;
+}
+.step {
+  flex: 1 1 10rem;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+/* A day that has been and gone. */
+.stepDone {
+  background: var(--color-bg);
+}
+.stepNow {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+.stepHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 24px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+.stepDone .stepHead {
+  color: var(--color-text-muted);
+}
+.stepNow .stepHead {
+  font-weight: 600;
+}
+.stepTick {
+  color: var(--color-ok);
+}
+.stepValue {
+  font-family: var(--font-meta);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.stepDone .stepValue {
+  color: var(--color-text-muted);
+}
+
+/* --- the programmes ----------------------------------------------------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(18.5rem, 100%), 1fr));
+  gap: var(--space-5);
+}
+.programme {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.programmeTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 24px;
+}
+.programmeName {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.lead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+  font-size: 15px;
+}
+.lead strong {
+  font-weight: 600;
+  color: var(--color-text);
+}
+.leadRole {
+  color: var(--color-text-muted);
+}
+.rule {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+.counts {
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+.count {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 3px 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+.count strong {
+  font-weight: 500;
+  color: var(--color-text);
+}
+.countTotal {
+  align-items: baseline;
+  margin-top: 6px;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+  font-weight: 600;
+  color: var(--color-text);
+}
+.countTotal strong {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+}
+.placesLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+  font-size: 14px;
+  color: var(--color-text);
+}
+.placesLeft {
+  color: var(--color-text-muted);
+}
+.bar {
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+.barFill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+}
+.programmeNote {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+.programmeFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: 4px;
+}
+/* The one thing most people come to a card for takes the whole row. */
+.programmeFoot > :first-child {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+/* --- the list of forms -------------------------------------------------- */
+
+.forms {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  list-style: none;
+}
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  min-height: 44px;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: inherit;
+  text-decoration: none;
+}
+.form:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
+}
+.formMain {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+.formTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.formName {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.formLine {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+.formSide {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .steps {
+    margin-bottom: var(--space-5);
+  }
+  .grid {
+    gap: var(--space-4);
+  }
+  .programme,
+  .form {
+    padding: var(--space-4);
+  }
+}
