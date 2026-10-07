@@ -16,6 +16,8 @@
  *   - a finished picture that no longer shows what its SVG shows;
  *   - an address in the manifest, the service worker or a page that names a
  *     picture which is not served, or declares a size the file does not have;
+ *   - an app icon on a ground that is not the colour the installed app opens
+ *     on, which shows on the opening screen as a square of its own;
  *   - an outline of the emblem written into the code (the header draws the
  *     mark in place) that is not the master's outline;
  *   - an email logo or a link-preview card wired in a way that cannot work:
@@ -377,6 +379,32 @@ test("an icon the manifest calls maskable keeps the emblem inside the circle a p
   }
 });
 
+test("an app icon's ground is the colour the installed app opens on", async () => {
+  // Android fills the installed app's opening screen with the manifest's
+  // background_color and sets the icon in the middle of it, so an icon
+  // exported on any other ground shows there as a square of its own. The
+  // artwork's glow fades to the page floor before it reaches the corners
+  // (the middle of each side is still a few steps lighter, #080c18 to
+  // #0a0f20 as measured), so the corners are where the two have to be equal.
+  const floor = readFileSync(at("src/theme/brandColors.ts"), "utf8").match(/^export const PAGE_FLOOR = "(#[0-9a-fA-F]{6})";$/m)?.[1];
+  assert.ok(floor, "could not read PAGE_FLOOR in src/theme/brandColors.ts");
+  const manifest = strip(readFileSync(at("src/app/manifest.ts"), "utf8"));
+  assert.match(manifest, /\bbackground_color:\s*PAGE_FLOOR\b/, "the manifest no longer fills the opening screen with PAGE_FLOOR");
+  const icons = OUTPUTS.filter((o) => o.from?.startsWith("3-app-icon/")).map((o) => o.to);
+  assert.ok(icons.length >= 3, "found fewer app icons than the home screen and the manifest take");
+  for (const file of icons) {
+    const { data, info } = await pixels(read(file));
+    const colourAt = (x, y) => "#" + [0, 1, 2].map((c) => data[(y * info.width + x) * 4 + c].toString(16).padStart(2, "0")).join("");
+    const corners = [[0, 0], [info.width - 1, 0], [0, info.height - 1], [info.width - 1, info.height - 1]].map(([x, y]) => colourAt(x, y));
+    assert.deepEqual(
+      corners,
+      Array(4).fill(floor.toLowerCase()),
+      `${file}: the icon's corners are not the page floor ${floor}. ` +
+        "The artwork was exported on another ground, or PAGE_FLOOR moved without it.",
+    );
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Addresses
 // ---------------------------------------------------------------------------
@@ -424,9 +452,14 @@ test("the offline page carries the Night emblem itself, and nothing from the net
  * wherever it is written and however the string is split across lines.
  */
 const nightEmblem = readFileSync(at(MASTERS_DIR, "1-emblem/naisi-emblem-night.svg"), "utf8");
+const headerEmblem = readFileSync(at(MASTERS_DIR, "1-emblem/naisi-emblem-header-night.svg"), "utf8");
 const outlinesOf = (svg) => [...svg.matchAll(/<path\b[^>]*?\sd="([^"]+)"/g)].map((m) => m[1]);
 /** The emblem's three outlines, in the order the file draws them: castle, shield, wave. */
 const EMBLEM = outlinesOf(nightEmblem).slice(0, 3);
+/** The header cut's three, in the same order. */
+const HEADER = outlinesOf(headerEmblem).slice(0, 3);
+/** True for an outline that begins the way one of the emblem's does. Both cuts' castles begin alike. */
+const startsLikeTheEmblem = (text) => EMBLEM.some((outline) => text.startsWith(outline.slice(0, 20)));
 const sha = (text) => createHash("sha256").update(text).digest("hex").slice(0, 16);
 
 /*
@@ -447,12 +480,56 @@ function stringsIn(source) {
   return [...joined.matchAll(/(["'`])((?:(?!\1)[^\\\n])*)\1/g)].map((m) => m[2]);
 }
 
-test("the masters draw one emblem: every SVG that carries it carries the same three outlines", () => {
+/*
+ * What each SVG in the masters draws, in the order the file draws it. "full"
+ * is the emblem. "header" is the header cut, for small sizes: the same shield
+ * and wave, with the castle a little further from the shield. Listed twice
+ * where the cyan copy sits behind the body, once where the mark is in one
+ * ink. The tab icon's folder is not here: the tower is a different drawing on
+ * purpose. An SVG added to the masters is listed with what it carries.
+ */
+const CUTS_IN_THE_MASTERS = {
+  "1-emblem/naisi-emblem.svg": ["full", "full"],
+  "1-emblem/naisi-emblem-night.svg": ["full", "full"],
+  "1-emblem/naisi-emblem-header.svg": ["header", "header"],
+  "1-emblem/naisi-emblem-header-night.svg": ["header", "header"],
+  "1-emblem/naisi-emblem-navy.svg": ["full"],
+  "1-emblem/naisi-emblem-white.svg": ["full"],
+  "2-lockup/naisi-lockup.svg": ["full", "full"],
+  "2-lockup/naisi-lockup-night.svg": ["full", "full"],
+  "2-lockup/naisi-link-preview-1200x630.svg": ["full", "full"],
+  "3-app-icon/naisi-app-icon.svg": ["full", "full"],
+};
+
+test("the masters draw the emblem in two cuts, and every SVG that carries it carries the cut it is listed with", () => {
   assert.equal(EMBLEM.length, 3, "the Night emblem is a castle, a shield and a wave");
-  for (const file of walk(MASTERS_DIR).filter((f) => f.endsWith(".svg") && !f.includes("/4-favicon/"))) {
-    const outlines = outlinesOf(readFileSync(at(file), "utf8"));
-    // The cyan copy first, then the body: the same three outlines twice.
-    assert.deepEqual(outlines.slice(0, 6).map(sha), [...EMBLEM, ...EMBLEM].map(sha), `${file} draws a different emblem`);
+  assert.equal(HEADER.length, 3, "the header cut is a castle, a shield and a wave");
+  // The header cut is the emblem with one outline changed. A header cut whose
+  // shield or wave had drifted from the emblem's would be a third drawing.
+  assert.notEqual(HEADER[0], EMBLEM[0], "the header cut's castle is the emblem's own: the masters hold one cut, not two");
+  assert.equal(HEADER[1], EMBLEM[1], "the header cut's shield is not the emblem's shield");
+  assert.equal(HEADER[2], EMBLEM[2], "the header cut's wave is not the emblem's wave");
+
+  const cut = { full: EMBLEM, header: HEADER };
+  const svgs = walk(MASTERS_DIR)
+    .filter((f) => f.endsWith(".svg") && !f.includes("/4-favicon/"))
+    .map((f) => f.slice(MASTERS_DIR.length + 1));
+  assert.deepEqual(
+    svgs.filter((file) => !(file in CUTS_IN_THE_MASTERS)),
+    [],
+    `These SVGs are in ${MASTERS_DIR}/ and nothing says which cut of the emblem they carry. List each in CUTS_IN_THE_MASTERS.`,
+  );
+  for (const [file, cuts] of Object.entries(CUTS_IN_THE_MASTERS)) {
+    assert.ok(svgs.includes(file), `CUTS_IN_THE_MASTERS lists ${file}, which is not in ${MASTERS_DIR}/. Remove the entry.`);
+    // Every outline in the file that begins like one of the emblem's, not
+    // only the first few: a file with one copy too many, or one too few, is
+    // a different drawing as well.
+    const drawn = outlinesOf(readFileSync(at(MASTERS_DIR, file), "utf8")).filter(startsLikeTheEmblem);
+    assert.deepEqual(
+      drawn.map(sha),
+      cuts.flatMap((name) => cut[name]).map(sha),
+      `${MASTERS_DIR}/${file} does not draw the emblem as listed (${cuts.join(", then ")})`,
+    );
   }
 });
 
