@@ -151,4 +151,10 @@
   .modal {
     padding: var(--space-5) var(--space-4);
   }
+
+  /* A slider is a thin line to catch with a thumb, so its box is a full
+     target tall. The line stays where it was, in the middle. */
+  .slider {
+    height: 2.75rem;
+  }
 }

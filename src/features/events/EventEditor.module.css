@@ -1,8 +1,9 @@
 /*
   The event editor, and the small "new event" form that shares its shell.
 
-  One column of cards under the page's head. Inputs, switches, chips and
-  buttons are the shared ones; this file sets only what sits between them.
+  A head, a strip of four steps, and the step that is showing in a card.
+  Inputs, switches, chips and buttons are the shared ones; this file sets
+  only what sits between them.
 */
 
 .editor {
@@ -58,6 +59,77 @@
   font-weight: 600;
 }
 
+/* === The step that is showing, and the preview beside it ===
+   Two columns that fold to one when there is not room for both: the step
+   needs 32.5rem and the preview 21.25rem, so the preview drops under the
+   step by itself, by the width the editor has and not by the window's. */
+
+.columns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.stepColumn {
+  display: flex;
+  flex: 3 1 32.5rem;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.stepCard {
+  min-width: 0;
+}
+
+.previewColumn {
+  flex: 2 1 21.25rem;
+  min-width: 0;
+}
+
+/* A heading takes focus when its step opens. It is not a control, so it
+   draws no ring, and it stops clear of the phone's top bar. */
+.stepCard h2 {
+  scroll-margin-top: 5rem;
+}
+
+.stepCard h2:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+/* A part of a step with a name of its own, under a hairline. */
+.part {
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border);
+}
+
+.sectionHint + .part {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.partTitle {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0;
+  color: var(--color-text);
+}
+
+.partHint {
+  margin: 2px 0 var(--space-3);
+  font-size: var(--text-caption);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
 /* === A card of the form === */
 
 .sectionTitle {
@@ -88,6 +160,28 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--space-5) var(--space-4);
+}
+
+/* A question with two answers: its words, then the two segments. */
+.choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+/* A number of places needs a short box. */
+.places {
+  max-width: 13.75rem;
+}
+
+/* The two switches at the foot of the sign-up step, under a hairline. */
+.switches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
 }
 
 /* A set of ticks with one name: the dietary tags. */
@@ -215,15 +309,111 @@
   margin-top: var(--space-5);
 }
 
-/* Save and the buttons that move the event on, in a card of their own. */
-.actionBar {
+/* The foot of a step: Back at the left, Save and the way on at the right. */
+.stepFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+
+.stepFootEnd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.625rem;
+  margin-left: auto;
+}
+
+.stepMessage {
+  margin-top: var(--space-5);
+}
+
+/* The choice that goes with Save sits close above the foot's line. */
+.stepMessage + .stepFoot {
+  margin-top: var(--space-4);
+}
+
+/* === The last step: what is being sent, and what is still missing === */
+
+.summary {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.summary > div {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.summary dt {
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.summary dd {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.summaryNote {
+  display: block;
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+}
+
+.summaryAside {
+  margin: var(--space-5) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.todo {
+  margin-top: var(--space-6);
+  padding: var(--space-4);
+  background: var(--color-warning-soft);
+  border: 1px solid var(--color-warning-line);
+  border-radius: var(--radius-row);
+}
+
+.todoList {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-5) var(--space-6);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.todoRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.todoRow > span {
+  flex: 1 1 14rem;
+  min-width: 0;
 }
 
 /* Sending an event back: the note, then its button under it. */
@@ -232,8 +422,6 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-3);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-border);
 }
 
 .sendBack > :first-child {
@@ -359,14 +547,21 @@
     min-height: 2.75rem;
   }
 
-  .actionBar {
-    padding: var(--space-4);
+  /* The foot's buttons fill their row, so none is a small target at the
+     end of a wrapped line. */
+  .stepFootEnd {
+    flex: 1 1 100%;
+    justify-content: stretch;
   }
 
-  /* Each button of the bar fills its row, so none is a small target at the
-     end of a wrapped line. */
-  .actionBar .actions > button {
+  .stepFoot > button,
+  .stepFootEnd > button {
     flex: 1 1 auto;
+  }
+
+  .summary > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
   }
 
   .sendBack > button,

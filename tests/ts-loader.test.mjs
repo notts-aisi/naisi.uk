@@ -591,6 +591,13 @@ const USERS = new Map([
       "the two-level JSX graph a hand-copied loader dies on",
   ],
   [
+    "event-editor-unsaved-edits.test.mjs",
+    "it executes the two functions in `src/features/events/editorSync.ts` that decide, one field " +
+      "at a time, whether the event editor keeps what somebody has typed when the event changes " +
+      "underneath it; a copy of that comparison would prove nothing about what the editor does, " +
+      "and the module imports nothing, so nothing is stubbed",
+  ],
+  [
     "event-location-disclosure.test.mjs",
     "the RSVP, approve, cancel, broadcast and update routes executed with `sendRsvpEmail` and " +
       "the two event `.tsx` templates loaded for real, because what it asserts is the rendered " +
