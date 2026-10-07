@@ -751,6 +751,7 @@ All in `src/lib/applications/`.
 | `status/load.ts`, `status/record.ts` | The page's read, and the one transaction a reply writes | server, applicant-safe |
 | `accounts/approve.ts`, `accounts/afterReply.ts` | Approving a waiting account on an acceptance, and the call an accepted invitation makes | server, applicant-safe |
 | `lifecycle/openForm.ts` | Which form is open, and which form speaks for each course, for a page that offers Apply | server, safe for a page any visitor can load |
+| `lifecycle/publicTerm.ts` | Where the term is (`none`, `before`, `open`, `closed`, `running`) and what is on it, for a page that draws the term | server, safe for a page any visitor can load |
 | `editor/courses.ts` | The courses a programme can be tied to, and the one rule the box and the route share | server, staff |
 
 ## Rules for anything built on this
