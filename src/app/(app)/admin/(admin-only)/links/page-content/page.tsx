@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import PageHead from "@/components/ui/PageHead";
 import { AdminPage } from "@/features/admin/adminList";
 import { LinksPageEditor } from "@/features/admin/links/LinksPageEditor";
-import styles from "@/features/admin/links/links.module.css";
 
 /**
  * The editor for what the public /links page says.
@@ -14,15 +13,17 @@ import styles from "@/features/admin/links/links.module.css";
  */
 export default function LinksPageContentAdminPage() {
   return (
-    <AdminPage>
-      <div className={styles.head}>
-        <Link href="/admin/links" className={styles.backLink}>
-          Back to short links
-        </Link>
-        <a href="/links" target="_blank" rel="noopener noreferrer" className={styles.backLink}>
-          Open /links in a new tab
-        </a>
-      </div>
+    <AdminPage wide>
+      <PageHead
+        crumb="Publicity"
+        title="The /links page"
+        description="What people see at naisi.uk/links, where most printed QR codes land."
+        meta={
+          <a href="/links" target="_blank" rel="noopener noreferrer">
+            Open /links in a new tab
+          </a>
+        }
+      />
       <LinksPageEditor />
     </AdminPage>
   );
