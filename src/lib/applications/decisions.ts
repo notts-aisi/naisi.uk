@@ -232,7 +232,7 @@ type FormSoFar = Pick<ApplicationFormFields, "decisionsSentAt"> & {
 export function decisionDayHasBegun(form: FormSoFar): boolean {
   if (form.decisionsSentAt) return true;
   const counts = form.round.applicationCounts;
-  return TOLD_STATUSES.some((status) => (counts[status] ?? 0) > 0);
+  return TOLD_STATUSES.some((status) => (own(counts, status) ?? 0) > 0);
 }
 
 /**

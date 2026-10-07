@@ -4,6 +4,7 @@ import type {
   ProgrammeEmailKind,
   ProgrammeSettings,
 } from "../model";
+import { own } from "../keys";
 import { programmeOf } from "./programmes";
 
 /**
@@ -199,8 +200,7 @@ function signOffFor(
   programme: ProgrammeSettings | undefined,
   leadNames: Readonly<Record<string, string>>,
 ): DecisionEmailSignOff {
-  const lead =
-    programme && Object.hasOwn(leadNames, programme.id) ? leadNames[programme.id].trim() : "";
+  const lead = programme ? (own(leadNames, programme.id) ?? "").trim() : "";
   // A programme with no lead named yet still has to sign its email as somebody.
   if (!programme || !lead) return { name: "NAISI", role: "" };
   return { name: lead, role: `${programme.shortName} lead, NAISI` };

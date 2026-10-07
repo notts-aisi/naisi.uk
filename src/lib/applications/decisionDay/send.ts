@@ -224,11 +224,11 @@ function readinessRows(context: EmailContext, term: Term): ReadinessRow[] {
   const rows: ReadinessRow[] = form.programmeIds.map((programmeId) => {
     const settings = programmeOf(form, programmeId);
     const counted = own(tally.programmes, programmeId);
-    const owed = readiness.toReview[programmeId] ?? 0;
+    const owed = own(readiness.toReview, programmeId) ?? 0;
     return {
       key: programmeId,
       title: settings?.shortName ?? programmeId,
-      owner: context.leadNames[programmeId] || "No lead yet",
+      owner: own(context.leadNames, programmeId) || "No lead yet",
       ready: owed === 0,
       status:
         owed === 0

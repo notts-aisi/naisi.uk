@@ -335,7 +335,7 @@ export function sendBlockers({ form, term, now, appUrl }: BlockerInput): string[
   if (tally.applicants === 0) blockers.push("Nobody has sent an application, so there is nothing to send.");
 
   for (const programmeId of form.programmeIds) {
-    const owed = readiness.toReview[programmeId] ?? 0;
+    const owed = own(readiness.toReview, programmeId) ?? 0;
     if (owed === 0) continue;
     const name = programmeOf(form, programmeId)?.shortName ?? programmeId;
     blockers.push(`${name} still owes ${countOf(owed, "application", "applications")} a decision.`);

@@ -9,6 +9,7 @@ import kit from "@/features/applications/kit/kit.module.css";
 import { useHydrated } from "@/hooks/useHydrated";
 import type { PoolReason, ProgrammeDecisionKind } from "@/lib/applications/model";
 import type { ReviewPayload } from "@/lib/applications/review/types";
+import { own } from "@/lib/applications/keys";
 import { formatScore, reviewerScore } from "@/lib/applications/scoring";
 import { POOL_REASON_LABEL, choiceLabel, ordinal } from "@/lib/applications/words";
 import { AboutCard, AvailabilityCard, SectionCard, type AnswerActions } from "./ReviewSections";
@@ -52,7 +53,7 @@ const DECIDED_WORD: Record<ProgrammeDecisionKind, string> = {
 
 function firstUnscored(review: ReviewPayload, scores: Readonly<Record<string, number>>): string | null {
   const keys = review.review.scorableKeys;
-  return keys.find((key) => scores[key] === undefined) ?? keys[0] ?? null;
+  return keys.find((key) => own(scores, key) === undefined) ?? keys[0] ?? null;
 }
 
 export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
@@ -133,14 +134,14 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
     else scores[key] = value;
   }
   const scorable = review.review.scorableKeys;
-  const scoredCount = scorable.filter((key) => scores[key] !== undefined).length;
+  const scoredCount = scorable.filter((key) => own(scores, key) !== undefined).length;
   const ownMean = reviewerScore({ scores }, scorable);
 
   const score = (key: string, value: number) => {
     if (!scorable.includes(key)) return;
     // Pressing the score that is already there takes it back.
-    const next = scores[key] === value ? null : value;
-    const ticket = (latestScore.current[key] ?? 0) + 1;
+    const next = own(scores, key) === value ? null : value;
+    const ticket = (own(latestScore.current, key) ?? 0) + 1;
     latestScore.current[key] = ticket;
     setPendingScores((current) => ({ ...current, [key]: next }));
     const after = { ...scores };
@@ -152,7 +153,7 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
       scores: { [key]: next },
     }).then(() => {
       // Only the newest press for an answer hands the answer back to the server's word.
-      if (latestScore.current[key] !== ticket) return;
+      if (own(latestScore.current, key) !== ticket) return;
       setPendingScores((current) => {
         const rest = { ...current };
         delete rest[key];

@@ -1,3 +1,4 @@
+import { own } from "@/lib/applications/keys";
 import type { ProgrammeSettings, QuestionSetDoc } from "@/lib/applications/model";
 import { isId } from "@/lib/applications/normalise";
 import type { FormStep } from "@/lib/applications/sections";
@@ -96,14 +97,14 @@ export function setChip(set: SetLike, programmes: readonly Named[]): SetChip | n
 
 /** The label of one step, as the progress line and the section list show it. */
 export function stepLabel(step: FormStep, sets: readonly SetLike[]): string {
-  if (step.kind !== "questions") return FIXED_LABEL[step.kind] ?? step.id;
+  if (step.kind !== "questions") return own(FIXED_LABEL, step.kind) ?? step.id;
   const set = sets.find((candidate) => candidate.id === step.setId);
   return set ? setStepLabel(set) : "Questions";
 }
 
 /** The heading at the top of one step. */
 export function stepHeading(step: FormStep, sets: readonly SetLike[]): string {
-  if (step.kind !== "questions") return FIXED_HEADING[step.kind] ?? step.id;
+  if (step.kind !== "questions") return own(FIXED_HEADING, step.kind) ?? step.id;
   const set = sets.find((candidate) => candidate.id === step.setId);
   return set ? setHeading(set) : "Questions";
 }
