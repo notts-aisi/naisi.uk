@@ -460,6 +460,34 @@ describe("somebody's own application", () => {
     assert.equal(waiting.status, "submitted");
   });
 
+  test("a decline and no offer are one thing to the person who gets them, here as on their page", () => {
+    const told = (kind) =>
+      project.projectApplicationForOwner(
+        normalise.normaliseApplication(
+          `${ROUND}__amara`,
+          storedApplication({
+            status: kind,
+            result: { kind, programmeId: null, publishedAt: new Date("2026-10-23T11:00:00Z") },
+            invitation: null,
+            attendance: null,
+          }),
+        ),
+      );
+    const declined = told("declined");
+    assert.equal(declined.status, "no-offer");
+    assert.equal(declined.result.kind, "no-offer");
+    // Whole, so nothing else on it can tell the two apart either.
+    assert.deepEqual(declined, told("no-offer"));
+    assert.equal(JSON.stringify(declined).includes("declined"), false);
+    // Every other status is said as it is.
+    for (const status of ["draft", "submitted", "accepted", "invited", "no-offer", "withdrawn"]) {
+      const shown = project.projectApplicationForOwner(
+        normalise.normaliseApplication(`${ROUND}__amara`, storedApplication({ status })),
+      );
+      assert.equal(shown.status, status, status);
+    }
+  });
+
   test("a draft that was never sent has no sent copy and no sent date", () => {
     const draft = project.projectApplicationForOwner(
       normalise.normaliseApplication(

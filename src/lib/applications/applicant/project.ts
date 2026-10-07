@@ -1,6 +1,7 @@
 import "server-only";
 import { formatRoundDate, formatRoundDeadline } from "@/lib/admissions/window";
 import { formatRunStartShort } from "@/lib/courses/window";
+import type { AdmissionApplicationStatus } from "@/lib/firestore/admissionApplications";
 import type {
   AboutYou,
   Answers,
@@ -179,6 +180,20 @@ function contentOf(content: ApplicationContent): ApplicationContent {
 }
 
 /**
+ * A NO IS ONE THING TO THE PERSON WHO GETS IT. The committee tells an
+ * application every programme declined (spam, or not eligible) from a pooled
+ * one with no offer this term, and the person is not told which: their page
+ * reads the same for both (`standingOf`), and so does the email a declined
+ * person gets when one is sent. What their own route hands their browser has
+ * to say the same one thing, or the difference the page hides is there to be
+ * read beside it. So both read as no offer here. The stored document, and
+ * everything the committee is shown, keeps the word.
+ */
+const SAID_AS: Partial<Record<AdmissionApplicationStatus, AdmissionApplicationStatus>> = {
+  declined: "no-offer",
+};
+
+/**
  * The caller's own application: what they wrote, what they sent, where it
  * stands, and (once decision day has published them onto this document) what
  * they were told.
@@ -194,7 +209,7 @@ export function projectApplicationForOwner(application: ApplicationDoc): Applica
   return {
     id: application.id,
     roundId: application.roundId,
-    status: application.status,
+    status: SAID_AS[application.status] ?? application.status,
     draft: contentOf(application.draft),
     sent: application.sent ? contentOf(application.sent) : null,
     createdAt: iso(application.createdAt),
@@ -203,7 +218,11 @@ export function projectApplicationForOwner(application: ApplicationDoc): Applica
     sentAt: iso(application.sentAt),
     sentLabel: application.sentAt ? formatRoundDate(application.sentAt) : null,
     result: result
-      ? { kind: result.kind, programmeId: result.programmeId, publishedAt: iso(result.publishedAt) }
+      ? {
+          kind: result.kind === "declined" ? "no-offer" : result.kind,
+          programmeId: result.programmeId,
+          publishedAt: iso(result.publishedAt),
+        }
       : null,
     invitation: invitation
       ? {
