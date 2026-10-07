@@ -1,0 +1,37 @@
+/*
+  The hero's frame, while it has no moving scene.
+*/
+
+/* The frame pulls itself up under the site's sticky bar, by the bar's own
+   height, so the hero's ground runs behind the bar and its top edge is the
+   top of the page. The scene that replaces this frame does the same. */
+.frame {
+  margin-top: calc(-1 * (var(--header-height) + env(safe-area-inset-top, 0px)));
+}
+
+/*
+  The still network behind the hero's words, drawn where the moving scene
+  will be: to the left of the words. It fades out before it reaches them, so
+  nothing is set over it.
+
+  The class is doubled so that it wins over NetField's own ground whichever
+  stylesheet loads first: the hero has a ground of its own.
+*/
+
+.still.still {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  width: 50%;
+  background: none;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 60%, transparent 100%);
+  mask-image: linear-gradient(to right, #000 0%, #000 60%, transparent 100%);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* TODO: mobile pass */
+}
