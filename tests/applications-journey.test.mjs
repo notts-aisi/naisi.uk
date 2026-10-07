@@ -876,7 +876,9 @@ async function outcomes(label) {
   for (const who of [...APPLICANTS, "dev"]) {
     const own = await call(who, routes.application.GET, params());
     const page = await statusLoad.loadStatus(world.db, ROUND, who, new Date());
-    heard[who] = { status: own.status, application: own.body?.application ?? null, page: page?.view ?? null };
+    // What the list of their applications says for this one, or null where it keeps its own words.
+    const listed = (await statusLoad.loadListWords(world.db, who, [ROUND], new Date())).get(ROUND) ?? null;
+    heard[who] = { status: own.status, application: own.body?.application ?? null, page: page?.view ?? null, listed };
   }
   seen.outcomes[label] = heard;
 }
@@ -2092,6 +2094,52 @@ describe("one term, from nothing to settled", () => {
       // The day after they were told, and before their reply-by day.
       assert.deepEqual(seen.remindersBeforeReplies, ["abel", "oliver"]);
       assert.deepEqual(seen.remindersAfterReplies, []);
+    });
+
+    test("the list of their applications says what their own page says, for every way an application can stand", () => {
+      const partWay = seen.outcomes["the send stopped after one person"];
+      const told = seen.outcomes["everybody has been told"];
+      const replied = seen.outcomes["everybody has replied"];
+      const row = (words) => (words ? [words.chip, words.tone, words.sentence] : null);
+      const NO = ["No place this term", "neutral", "We can’t offer you a place this term."];
+      assert.deepEqual(
+        {
+          // Nothing to state yet, so the list keeps its own words.
+          "started, not sent": row(told.dev.listed),
+          "sent, waiting": row(partWay.hannah.listed),
+          accepted: row(told.amara.listed),
+          "invited, not answered": row(told.oliver.listed),
+          "invitation accepted": row(replied.oliver.listed),
+          "invitation turned down": row(replied.abel.listed),
+          "gave the place back": row(replied.jasmine.listed),
+          "no offer": row(told.hannah.listed),
+          "every programme declined": row(told.priya.listed),
+        },
+        {
+          "started, not sent": null,
+          "sent, waiting": null,
+          accepted: ["Accepted", "success", "You’re in AGI Strategy."],
+          "invited, not answered": ["Invitation", "accent", "You’re invited to Technical AI Safety."],
+          "invitation accepted": ["Accepted", "success", "You’re in Technical AI Safety."],
+          "invitation turned down": ["Invitation turned down", "neutral", "You said no thanks to AGI Strategy."],
+          "gave the place back": ["Place given back", "neutral", "You’ve told us you can’t make it."],
+          "no offer": NO,
+          // Declined by the committee: word for word what somebody with no offer reads.
+          "every programme declined": NO,
+        },
+      );
+      // The page's own view is the one each row was read from.
+      assert.deepEqual(
+        [partWay.hannah.page.kind, told.dev.page.kind, replied.abel.page.kind, replied.jasmine.page.kind, told.priya.page.kind],
+        ["sent", "draft", "released", "released", "no-place"],
+      );
+      // Nobody is told they withdrew an application they did not withdraw, and nobody reads "Declined".
+      for (const heard of [partWay, told, replied, seen.outcomes.settled]) {
+        for (const who of APPLICANTS) {
+          const text = stringsIn(heard[who].listed ?? {}).join(" ");
+          assert.ok(!/withdr[ae]w|Declined|declined/.test(text), `${who}: ${text}`);
+        }
+      }
     });
 
     test("each sees their own page afterwards", () => {

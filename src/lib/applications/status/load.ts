@@ -11,6 +11,7 @@ import {
 } from "../applicant/project";
 import { isFormVisible } from "../applicant/window";
 import { statusViewFor, type StatusView } from "./view";
+import { listWordsFor, type ListWords } from "./words";
 
 /**
  * Reading what "Your application" shows one person, on the server.
@@ -55,6 +56,34 @@ export async function loadStatus(
       londonDateKey(now),
     ),
   };
+}
+
+/**
+ * What the list of somebody's applications says for each one made on an
+ * application form, by round id: the chip and the title their own page shows
+ * for the outcome (`listWordsFor`).
+ *
+ * A round that is not an application form has no entry, and neither has an
+ * application with no outcome to state yet, so the list keeps its own words
+ * for both. Read through {@link loadStatus}, the page's own read, so the row
+ * and the page it opens are drawn from one view of one document: the
+ * caller's own.
+ */
+export async function loadListWords(
+  db: Firestore,
+  uid: string,
+  roundIds: readonly string[],
+  now: Date,
+): Promise<Map<string, ListWords>> {
+  const said = new Map<string, ListWords>();
+  await Promise.all(
+    [...new Set(roundIds)].map(async (roundId) => {
+      const loaded = await loadStatus(db, roundId, uid, now);
+      const words = loaded ? listWordsFor(loaded.view) : null;
+      if (words) said.set(roundId, words);
+    }),
+  );
+  return said;
 }
 
 /** True when there is a form here that an applicant may be told about. */
