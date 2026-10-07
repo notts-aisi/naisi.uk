@@ -1,10 +1,13 @@
 import Link from "next/link";
+import BrandMark from "@/components/BrandMark";
+import Card from "@/components/ui/Card";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getSessionUid } from "@/lib/firebase/session";
 import { confirmUniEmailVerification } from "@/lib/email/confirmUniEmailVerification";
 import { confirmLoginEmailVerification } from "@/lib/email/confirmLoginEmailVerification";
 import { verifyToken } from "@/lib/signedTokens";
 import LoginEmailVerified from "./LoginEmailVerified";
+import styles from "./verify.module.css";
 
 type SearchParams = { t?: string | string[] };
 
@@ -74,75 +77,56 @@ export default async function VerifyEmailLandingPage({
   }
 
   return (
-    <main
-      style={{
-        minHeight: "60vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "var(--space-8) var(--space-4)",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "32rem",
-          background: "var(--color-surface)",
-          border: "1px solid var(--color-border)",
-          borderRadius: "var(--radius-lg)",
-          padding: "var(--space-8)",
-          textAlign: "center",
-        }}
-      >
-        {result.status === "login" ? (
-          <LoginEmailVerified
-            customToken={result.customToken}
-            audience={result.audience}
-            next={result.next}
-          />
-        ) : result.status === "ok" ? (
-          <>
-            <h1 style={{ fontSize: "var(--text-2xl)", margin: "0 0 var(--space-3)" }}>
-              University email verified
-            </h1>
-            <p style={{ color: "var(--color-text-muted)", margin: "0 0 var(--space-4)" }}>
-              We&apos;ve confirmed you own <strong>{result.email}</strong>.
-            </p>
-            <p style={{ color: "var(--color-text-muted)", margin: "0 0 var(--space-6)" }}>
-              You can close this tab now. Your registration tab will
-              update automatically. If you closed it, head back to{" "}
-              <Link href="/register" style={{ color: "var(--color-accent)" }}>
-                the sign-up page
-              </Link>{" "}
-              and finish from there.
-            </p>
-          </>
-        ) : (
-          <>
-            <h1 style={{ fontSize: "var(--text-2xl)", margin: "0 0 var(--space-3)" }}>
-              Couldn&apos;t verify this link
-            </h1>
-            <p style={{ color: "var(--color-text-muted)", margin: "0 0 var(--space-6)" }}>
-              {result.message} If your original link expired, head back
-              to your registration tab and click &quot;Resend&quot;.
-              We&apos;ll email a fresh one.
-            </p>
-            <Link
-              href="/register"
-              style={{
-                display: "inline-block",
-                padding: "var(--space-2) var(--space-4)",
-                background: "var(--color-accent)",
-                color: "white",
-                borderRadius: "var(--radius-md)",
-                textDecoration: "none",
-                fontWeight: 500,
-              }}
-            >
-              Go to the sign-up page
-            </Link>
-          </>
-        )}
+    <div className={styles.page}>
+      <header className={styles.bar}>
+        <Link href="/" aria-label="NAISI home" className={styles.brand}>
+          <BrandMark size={32} className={styles.brandMark} />
+        </Link>
+      </header>
+      <main className={styles.main}>
+      <div className={styles.frame}>
+        <Card padding="lg" className={styles.card}>
+          {result.status === "login" ? (
+            <LoginEmailVerified
+              customToken={result.customToken}
+              audience={result.audience}
+              next={result.next}
+            />
+          ) : result.status === "ok" ? (
+            <>
+              <h1>University email verified</h1>
+              <p>
+                We&apos;ve confirmed you own <strong>{result.email}</strong>.
+              </p>
+              <p>
+                You can close this tab now. Your registration tab will
+                update automatically. If you closed it, head back to{" "}
+                <Link href="/register">the sign-up page</Link> and finish from
+                there.
+              </p>
+            </>
+          ) : (
+            <>
+              <h1>Couldn&apos;t verify this link</h1>
+              <p>
+                {result.message} If your original link expired, head back
+                to your registration tab and click &quot;Resend&quot;.
+                We&apos;ll email a fresh one.
+              </p>
+              <Link
+                href="/register"
+                className={styles.action}
+                style={{
+                  color: "var(--color-on-accent)",
+                }}
+              >
+                Go to the sign-up page
+              </Link>
+            </>
+          )}
+        </Card>
       </div>
-    </main>
+      </main>
+    </div>
   );
 }

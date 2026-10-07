@@ -1,33 +1,57 @@
-.head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
-  flex-wrap: wrap;
-}
+/* The SU membership card on the profile: a chip for this year, a sentence,
+   and the way to the SU's own page. */
 
-.heading {
-  font-size: var(--text-xl);
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-bottom: var(--space-3);
 }
 
 .body {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
   max-width: 44rem;
-}
-
-.history {
-  margin-top: var(--space-3);
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--color-text);
+  text-wrap: pretty;
 }
 
 .link {
-  color: var(--color-accent);
-  text-decoration: underline;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 2.75rem;
+  margin-top: var(--space-2);
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-accent-text);
+  text-decoration: none;
 }
 
-@media (max-width: 48rem) {
-  /* TODO: mobile pass. The card is a heading, a paragraph and one link, all of
-     which already reflow; nothing here needs a stacked layout yet. */
+.link:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.link > svg {
+  flex: none;
+}
+
+.history {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .body {
+    font-size: var(--text-ui);
+  }
 }
