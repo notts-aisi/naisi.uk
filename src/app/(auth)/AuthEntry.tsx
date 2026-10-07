@@ -687,6 +687,7 @@ export default function AuthEntry({ initialMode }: { initialMode: Mode }) {
               variant="secondary"
               size="lg"
               fullWidth
+              className={styles.longLabel}
               onClick={() => switchMode("signin")}
             >
               Already have an account? Log in here

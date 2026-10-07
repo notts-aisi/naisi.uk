@@ -9,11 +9,20 @@
   padding: var(--space-2) 0;
 }
 
-.box {
+/* 12px of padding each way round the 20px box, taken back by the margins, so
+   the target is 44px and the row lays out as if it were not there. */
+.target {
+  display: flex;
   flex: none;
+  margin: calc(0.125rem - 0.75rem) -0.75rem -0.75rem;
+  padding: 0.75rem;
+  cursor: pointer;
+}
+
+.box {
   width: 1.25rem;
   height: 1.25rem;
-  margin: 0.125rem 0 0;
+  margin: 0;
   accent-color: var(--color-accent);
   cursor: pointer;
 }

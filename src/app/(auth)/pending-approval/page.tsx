@@ -48,7 +48,7 @@ export default function PendingApprovalPage() {
             area opens as soon as your account is approved, so please hold on while
             we process it.
           </p>
-          <div className={styles.buttonRow}>
+          <div className={styles.noteActions}>
             <Button onClick={() => router.push("/courses")}>See the programmes</Button>
             <Button variant="secondary" onClick={() => router.push("/events")}>
               What&rsquo;s on
@@ -64,9 +64,9 @@ export default function PendingApprovalPage() {
             <Link href="/" style={{ color: "var(--color-accent)", fontSize: "var(--text-sm)" }}>
               ← Back to the homepage
             </Link>
-            <Button onClick={handleSignOut} variant="ghost">
+            <button type="button" onClick={handleSignOut} className={styles.textLink}>
               Sign out
-            </Button>
+            </button>
           </div>
         </div>
       </Card>

@@ -206,18 +206,25 @@ export default function GoogleSignInButton({
 
       if (buttonRef.current) {
         // Renders Google's branded button into our div. We can't deeply
-        // restyle it (Google's TOS) — only their official theme variants
+        // restyle it (Google's TOS): only their official theme variants
         // are allowed. `filled_blue` matches our accent colour. The
         // white wrapper background GSI injects around the pill is
-        // stripped by GoogleSignInButton.module.css. width is in px;
-        // we fix at 320 so the button feels prominent on the card.
+        // stripped by GoogleSignInButton.module.css.
+        //
+        // The width is in pixels and is fixed once drawn. 320 where there
+        // is room, so the button feels prominent on the card; the width of
+        // the box it sits in where there is not (a card on a narrow phone),
+        // and never under the 200 Google draws a large button at. A box
+        // that cannot be measured yet reads as 0, and gets the 320.
+        const room = Math.floor(buttonRef.current.parentElement?.clientWidth ?? 0);
+        const width = room > 0 ? Math.max(200, Math.min(320, room)) : 320;
         window.google.accounts.id.renderButton(buttonRef.current, {
           theme: "filled_blue",
           size: "large",
           shape: "pill",
           text: "continue_with",
           logo_alignment: "left",
-          width: 320,
+          width,
         });
       }
 

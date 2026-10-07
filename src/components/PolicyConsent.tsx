@@ -21,13 +21,17 @@ export default function PolicyConsent({
 }) {
   return (
     <div className={styles.row}>
-      <input
-        type="checkbox"
-        id={id}
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className={styles.box}
-      />
+      {/* A second label round the box itself: its padding is the box's
+          target, 44px each way, and takes up no room in the row. */}
+      <label htmlFor={id} className={styles.target}>
+        <input
+          type="checkbox"
+          id={id}
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          className={styles.box}
+        />
+      </label>
       <span className={styles.text}>
         <label htmlFor={id}>I agree to NAISI&apos;s{" "}</label>
         <Link href={POLICIES.terms.href} target="_blank" className={styles.link}>

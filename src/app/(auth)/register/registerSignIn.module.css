@@ -9,9 +9,12 @@
 
 /* ---- The card --------------------------------------------------------- */
 
+/* Centred by its own margins as well as by the frame, because on a phone
+   the frame's <main> is a column that would otherwise set it to the left. */
 .frame {
   width: 100%;
   max-width: 27rem;
+  margin-inline: auto;
 }
 
 /* Account set-up is a form of ten fields, so it gets a wider column. */
@@ -225,6 +228,15 @@
 
 /* ---- The form ----------------------------------------------------------- */
 
+/* Text in a field on these pages is 16px at every width. The shared input is
+   already 16px; this holds it here whatever that becomes, because iOS zooms
+   the page when a smaller field takes focus and these pages lock the zoom. */
+.frame input,
+.frame select,
+.frame textarea {
+  font-size: var(--text-base);
+}
+
 .authForm {
   display: flex;
   flex-direction: column;
@@ -399,6 +411,15 @@
 
 .stackLoose {
   gap: var(--space-4);
+}
+
+/* A button whose label is a whole sentence: it may take two lines on a
+   narrow phone, where one line would run past the button's edge. Two
+   classes, to win over the button's own single line. */
+.stack .longLabel {
+  line-height: 1.25;
+  text-wrap: balance;
+  white-space: normal;
 }
 
 .buttonRow {
@@ -583,6 +604,15 @@
   text-wrap: balance;
 }
 
+/* The waiting page's two ways on. Side by side, and one above the other on
+   a phone. */
+.noteActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
+}
+
 .noteLinks {
   display: flex;
   flex-wrap: wrap;
@@ -593,6 +623,11 @@
   display: inline-flex;
   align-items: center;
   min-height: 2.75rem;
+}
+/* The way out, in the look of the two links beside it. */
+.noteLinks .textLink {
+  color: var(--color-accent);
+  font-weight: 400;
 }
 
 /* ---- Post-sign-in handoff pane ----------------------------------------- */
@@ -733,5 +768,28 @@
      card brings the gap that keeps it off the bottom edge. */
   .frame {
     margin-bottom: var(--space-6);
+  }
+
+  /* Each toggle fills the card and its two options share the row, so
+     neither can push past the card's edge on a narrow phone. A long label
+     may take two lines. */
+  .toggle {
+    display: flex;
+    width: 100%;
+  }
+  .toggleOption {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0.375rem 0.5rem;
+    line-height: 1.2;
+    white-space: normal;
+  }
+
+  /* One button a row, each as wide as the card. */
+  .noteActions > button {
+    flex: 1 1 100%;
+  }
+  .verifyRow > button {
+    flex: 1 1 100%;
   }
 }
