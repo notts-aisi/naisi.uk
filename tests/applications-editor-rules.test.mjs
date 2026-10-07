@@ -39,6 +39,7 @@ const sets = await loadTs(at("sets.ts"));
 const parse = await loadTs(at("parse.ts"));
 const views = await loadTs(at("views.ts"));
 const ownership = await loadTs(at("own.ts"));
+const keys = await loadTs(join("lib", "applications", "keys.ts"));
 const normalise = await loadTs(join("lib", "applications", "normalise.ts"));
 const model = await loadTs(join("lib", "applications", "model.ts"));
 
@@ -253,10 +254,27 @@ describe("a map is read by its own keys only", () => {
     for (const id of FURNITURE) {
       assert.equal(ownership.own(programmes, id), undefined, id);
       assert.equal(ownership.isObjectFurniture(id), true, id);
-      // Each one is shaped like an id, which is why the shape alone is not enough.
-      assert.equal(normalise.isId(id), true, id);
+      // Each one is SHAPED like an id: letters, digits, hyphen and underscore.
+      // That is why the shape alone is not enough.
+      assert.match(id, /^[A-Za-z0-9_-]{1,80}$/, id);
+      // And each one is refused as an id all the same. The contract's `isId`
+      // turns away a name every object carries, so such a name is stopped
+      // where a request is read as well as here. Both rules are kept because
+      // they fail differently: `isId` is only as good as every write path
+      // asking it, and `own` is only as good as every read going through it.
+      assert.equal(normalise.isId(id), false, id);
     }
     assert.equal(ownership.isObjectFurniture("agi-strategy"), false);
+    assert.equal(normalise.isId("agi-strategy"), true);
+  });
+
+  test("the accessor is the contract's own, not a second one", () => {
+    // One function, reached by two import paths. A copy kept here would be a
+    // second place for the rule to drift.
+    assert.equal(ownership.own, keys.own);
+    // It takes a missing map as an empty one.
+    assert.equal(ownership.own(undefined, "agi-strategy"), undefined);
+    assert.equal(ownership.own(null, "constructor"), undefined);
   });
 
   test("a stream whose programme id is one of them is shown to nobody and belongs nowhere", () => {

@@ -84,6 +84,8 @@ const setRoute = await route(join("[roundId]", "sets", "[setId]"));
 const programmeRoute = await route(join("[roundId]", "programmes", "[programmeId]"));
 const rolesRoute = await route(join("[roundId]", "programmes", "[programmeId]", "roles"));
 const rounds = await loadTs(join("lib", "firestore", "admissionRounds.ts"));
+/** The writers the routes call, for the cases that have to get past the parser to reach them. */
+const write = await loadTs(join("lib", "applications", "editor", "write.ts"));
 
 // ---------------------------------------------------------------------------
 // A Firestore small enough to read
@@ -966,16 +968,39 @@ describe("editing a question set", () => {
   });
 
   test("a set cannot be made for a programme the form does not hold", async () => {
-    for (const programmeId of ["nope", "constructor", "__proto__", "hasOwnProperty"]) {
-      const response = await call(
-        "zach",
-        setsRoute.POST,
-        { roundId: ROUND },
-        { label: "Stray", scope: { type: "programme", programmeId } },
-      );
-      assert.equal(response.status, 404, programmeId);
+    const make = (programmeId) =>
+      call("zach", setsRoute.POST, { roundId: ROUND }, { label: "Stray", scope: { type: "programme", programmeId } });
+    // A well-formed id the form does not hold gets as far as the form: the
+    // writer reads the form's own programmes, finds none, and says so.
+    assert.equal((await make("nope")).status, 404, "nope");
+    // A name every object carries is not an id at all (`isId`, in the
+    // contract's `keys.ts`), so the body is refused where it is read, before
+    // any document is: 400 with a sentence, where it used to travel to the
+    // writer and be answered 404 there. It is refused sooner, never later.
+    const before = db.stats.reads;
+    for (const programmeId of ["constructor", "__proto__", "hasOwnProperty", "toString"]) {
+      const response = await make(programmeId);
+      assert.equal(response.status, 400, programmeId);
+      assert.match(response.body.error, /who the question set is for/, programmeId);
+    }
+    assert.equal(db.stats.reads, before, "a refused body reads nothing");
+    assert.deepEqual(stored().questionSetIds, ["fellowships", AGI, "incubator", "facilitator"]);
+    assert.deepEqual(db.stats.writes, []);
+  });
+
+  test("the writer reads the form's programmes by their own keys, whatever the parser let through", async () => {
+    // The parser now stops these names, so the writer is called directly: its
+    // own-key lookup is the second of the two rules, and it has to hold on
+    // its own for the day a caller reaches it by another road.
+    for (const programmeId of ["constructor", "__proto__", "hasOwnProperty", "toString"]) {
+      const result = await write.createSet(db, CAST.zach, ROUND, {
+        label: "Stray",
+        scope: { type: "programme", programmeId },
+      });
+      assert.deepEqual([result.ok, result.status], [false, 404], programmeId);
     }
     assert.deepEqual(stored().questionSetIds, ["fellowships", AGI, "incubator", "facilitator"]);
+    assert.deepEqual(db.stats.writes, []);
   });
 
   test("deleting a set takes it out of the form's order too", async () => {
@@ -1084,9 +1109,28 @@ describe("the form's own fields", () => {
   });
 
   test("the programme order has to be the form's own programmes", async () => {
+    // Too few, and a well-formed id the form does not hold in place of one it
+    // does: each is a list of ids, so each reaches the comparison with the
+    // form's own list and is refused there.
     assert.equal((await patch({ programmeIds: [AGI, TAIS] })).status, 409);
-    assert.equal((await patch({ programmeIds: [AGI, TAIS, "constructor"] })).status, 409);
+    assert.equal((await patch({ programmeIds: [AGI, TAIS, "nope"] })).status, 409);
+    // A name every object carries is not an id (`isId`, in the contract's
+    // `keys.ts`), so a list holding one is not a list of ids. It is refused
+    // where the body is read, before any document is: 400, where it used to
+    // reach the comparison and be answered 409. Refused sooner, never later.
+    const before = db.stats.reads;
+    for (const name of ["constructor", "__proto__", "toString"]) {
+      const response = await patch({ programmeIds: [AGI, TAIS, name] });
+      assert.equal(response.status, 400, name);
+      assert.match(response.body.error, /not a list of this form.s programmes/, name);
+    }
+    assert.equal(db.stats.reads, before, "a refused body reads nothing");
+    // The comparison holds on its own too: handed such a list directly, past
+    // the parser, the writer still refuses it and writes nothing.
+    const direct = await write.changeForm(db, CAST.zach, ROUND, { programmeIds: [AGI, TAIS, "constructor"] });
+    assert.deepEqual([direct.ok, direct.status], [false, 409]);
     assert.deepEqual(stored().programmeIds, [TAIS, AGI, INC]);
+    assert.deepEqual(db.stats.writes, []);
     assert.equal((await patch({ programmeIds: [AGI, INC, TAIS] })).status, 200);
     assert.deepEqual(stored().programmeIds, [AGI, INC, TAIS]);
   });
