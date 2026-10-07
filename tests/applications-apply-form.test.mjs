@@ -727,6 +727,162 @@ describe("what an applicant reads", () => {
     const checkStep = codeOf("CheckStep.tsx");
     assert.match(checkStep, /<div className=\{form\.body\}>\s*\{hold\}/);
   });
+
+  // Three changes meet on the last step, and each was written without sight
+  // of the other two: the notice that a send is held for a university address
+  // nobody has checked, the access-requirements box, and the two sentences
+  // that say who reads an application and what sending agrees to. Each has a
+  // test of its own beside its own code. The three tests below hold them
+  // TOGETHER, so a change to one cannot quietly move or remove another.
+  test("the last step carries the hold, the access-requirements box, who reads the application and the agreement, in that order", () => {
+    const step = codeOf("CheckStep.tsx");
+    /** Where `needle` is on the step, which has to be exactly once. */
+    const once = (needle) => {
+      const first = step.indexOf(needle);
+      assert.ok(first !== -1, `the last step no longer has ${needle}`);
+      assert.equal(step.indexOf(needle, first + 1), -1, `the last step has ${needle} twice`);
+      return first;
+    };
+    // The order a person reads it in: what is stopping a send, first. Then
+    // what they entered, the two things asked on this step (the second is the
+    // box, which says it is kept apart, so it comes BEFORE the sentence about
+    // who reads the application), then who reads it, what sending agrees to,
+    // and the link to how it is used.
+    const order = [
+      ["the step's own frame", once("<div className={form.body}>")],
+      ["the hold", once("{hold}")],
+      ["what the person entered", once("<div className={styles.summary}>")],
+      ["the SU membership question", once('legend="Do you have SU membership?"')],
+      ["the access-requirements box", once("{accessRequirements}")],
+      ["the block about how the application is used", once("<div className={styles.use}>")],
+      ["who reads the application", once("and by NAISI’s admins.")],
+      ["the agreement", once("{agreement.before}")],
+      ["the link to how it is used", once("How we use your application")],
+    ];
+    for (let i = 1; i < order.length; i += 1) {
+      assert.ok(order[i - 1][1] < order[i][1], `${order[i][0]} has moved above ${order[i - 1][0]}`);
+    }
+
+    // None stands in for another. From the box down nothing is drawn only
+    // some of the time: no condition of any kind, so the box, the two
+    // sentences and the link are there whatever else the step is showing
+    // (a held send, a list of things to finish, a notice that it was sent).
+    const fromTheBoxDown = step.slice(order[4][1]);
+    assert.doesNotMatch(fromTheBoxDown, /\?|&&|\|\|/, "something from the access-requirements box down is conditional");
+    // And the form hands the step the box whether or not the send is held:
+    // the hold is the only one of the three that depends on the account.
+    const form = codeOf("ApplicationForm.tsx");
+    assert.match(form, /accessRequirements=\{<AccessRequirementsBox access=\{access\} \/>\}/);
+    assert.match(form, /hold=\{check\.held \? <UniversityCheckHold check=\{check\} noticeRef=\{holdRef\} \/> : null\}/);
+  });
+
+  test("a press of Send that is held saves nothing and sends nothing, and leaving never waits for the address", () => {
+    // Send saves the draft, then waits for the access-requirements box to be
+    // saved, then sends. A send held for an unchecked address has to stop
+    // BEFORE all three: a refused send is no send, so it must not be the
+    // thing that writes what is in the box. Asked in this order, it is not.
+    const form = codeOf("ApplicationForm.tsx");
+    const send = form.slice(form.indexOf("async function send()"), form.indexOf("const back = index > 0"));
+    const once = (needle) => {
+      const first = send.indexOf(needle);
+      assert.ok(first !== -1, `send() no longer has ${needle}`);
+      assert.equal(send.indexOf(needle, first + 1), -1, `send() has ${needle} twice`);
+      return first;
+    };
+    const asksAboutTheHold = once("if (check.held) {");
+    const stillHeld = once("if (!verified) {");
+    const givesUp = send.indexOf("return;", stillHeld);
+    const savesTheDraft = once("await flush(false, true, true)");
+    const savesTheBox = once("await access.settle()");
+    const sends = once("await sendApplication(form.id)");
+    assert.ok(givesUp !== -1, "a press that is still held no longer stops");
+    assert.ok(
+      asksAboutTheHold < stillHeld && stillHeld < givesUp && givesUp < savesTheDraft,
+      "a held press no longer stops before the draft is saved",
+    );
+    assert.ok(savesTheDraft < savesTheBox && savesTheBox < sends, "the draft, then the box, then the send");
+    assert.doesNotMatch(
+      send.slice(0, asksAboutTheHold),
+      /flush\(|access\.settle\(|sendApplication\(/,
+      "something is saved or sent before the hold is asked about",
+    );
+
+    // Saving waits for neither a join request nor the address, and that goes
+    // for the box's own save too: Finish later saves the draft and the box,
+    // and never asks about the university address.
+    const leave = form.slice(form.indexOf("async function finishLater()"), form.indexOf("async function send()"));
+    const leavesWithTheDraft = leave.indexOf("await flush()");
+    assert.ok(leavesWithTheDraft !== -1 && leavesWithTheDraft < leave.indexOf("await access.settle()"));
+    assert.doesNotMatch(leave, /\bcheck\./, "leaving the form now waits for the university address");
+  });
+
+  test("agreeing when joining and agreeing when sending are two acts, and neither is recorded as the other", () => {
+    const tsFiles = formFiles.filter((name) => /\.tsx?$/.test(name));
+    const flat = (file) => codeOf(file).replace(/\s+/g, " ");
+
+    // JOINING asks. The first step draws the register page's own tick box and
+    // holds Continue on it, because sending a join request records the
+    // agreement on the account (`completeRegistration`). It is the only file
+    // in the form that asks anybody to agree to anything.
+    assert.deepEqual(tsFiles.filter((file) => /\bPolicyConsent\b/.test(codeOf(file))), ["JoinStep.tsx"]);
+    assert.match(codeOf("JoinStep.tsx"), /const issues = joinIssues\(aboutRef\.current, agreed\);/);
+    assert.deepEqual(
+      tsFiles.filter((file) => /\bcompleteRegistration\(/.test(codeOf(file))),
+      ["JoinStep.tsx"],
+      "a second file in the form records a join request's agreement",
+    );
+
+    // SENDING states. The last step says that sending is agreeing, with no
+    // box to tick, and it is the only file that says so.
+    assert.deepEqual(tsFiles.filter((file) => /By sending, you agree/.test(flat(file))), ["checkText.ts"]);
+    for (const file of ["CheckStep.tsx", "checkText.ts"]) {
+      assert.doesNotMatch(codeOf(file), /type="checkbox"|\bagreed\b/, `${file} asks for a tick, or says one was given`);
+    }
+    // And the two steps that make an account say nothing about sending an
+    // application being an agreement: the tick is for joining.
+    for (const file of ["JoinStep.tsx", "JoinAccount.tsx"]) {
+      assert.doesNotMatch(flat(file), /by sending|privacyAgreement/i, `${file} speaks for the last step`);
+    }
+
+    // NEITHER CLAIMS THE OTHER'S RECORD. The record made at joining is two
+    // fields on the account. Nothing in the application system names them:
+    // not the form, not the applicant's own server modules, not the routes a
+    // draft is saved and sent through. So a send neither reads that record
+    // to decide anything nor restates it, and the line on the last step
+    // stays a statement. A record of agreement AT SENDING, if one is ever
+    // kept, is a decision of its own with a field of its own.
+    const JOIN_RECORD = /\bpolicyVersion\b|\bpolicyAgreedAt\b|\bCURRENT_POLICY_VERSION\b/;
+    const walk = (dir, found = []) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) walk(path, found);
+        else if (/\.tsx?$/.test(entry.name)) found.push(path);
+      }
+      return found;
+    };
+    const system = [
+      ...walk(join(REPO_ROOT, "src", "features", "applications")),
+      ...walk(join(REPO_ROOT, "src", "lib", "applications")),
+      ...walk(join(REPO_ROOT, "src", "app", "api", "admissions", "forms")),
+    ];
+    assert.ok(system.length > 100, `only ${system.length} files of the application system were found: the walk is broken`);
+    const strip = (source) => source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+    assert.deepEqual(
+      system.filter((path) => JOIN_RECORD.test(strip(readFileSync(path, "utf8")))).map((path) => path.slice(REPO_ROOT.length + 1)),
+      [],
+      "a file of the application system names the join request's record of agreement",
+    );
+    // The record itself is still made, by the one function the join step calls.
+    const joining = readFileSync(join(REPO_ROOT, "src", "auth", "signInWithGoogle.ts"), "utf8");
+    assert.match(joining, /policyVersion: CURRENT_POLICY_VERSION,\s*policyAgreedAt: serverTimestamp\(\),/);
+
+    // THEY CANNOT DISAGREE about which policy. The version recorded at
+    // joining and the date stated at sending are both read from the one list
+    // the privacy page is drawn from.
+    const current = policies.currentPolicy("privacy");
+    assert.ok(policies.CURRENT_POLICY_VERSION.endsWith(`+privacy.${current.version}`));
+    assert.equal(check.privacyAgreement().after, `, updated ${check.policyDateLabel(current.lastUpdated)}.`);
+  });
 });
 
 // ---------------------------------------------------------------------------
