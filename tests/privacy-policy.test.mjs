@@ -4,10 +4,22 @@
  *
  * Run with `npm test`.
  *
- * The current version is v5 (7 September 2026): v4's text plus the
+ * The current version is v6: v5's text, rewritten where the application form
+ * (docs/applications.md) made it untrue. The people who read an application
+ * see whose it is, where v5 said reviewers scored with names hidden; who
+ * reads one is named; scores, comments and decisions are kept beside the
+ * application and never on it; and decision day, the replies and what stays
+ * afterwards are described. It also says how somebody with no account joins
+ * on the form and what the browser keeps while they do, and names every form
+ * the spam check runs on. §2d holds the application form's passages against
+ * the code, and §2e the three lists of places (where Google reCAPTCHA runs,
+ * where Google's sign-in script loads, what is kept in local storage).
+ *
+ * v5 (7 September 2026) was v4's text plus the
  * notification grid's four passages (the four rows and the two choices per
  * row, a notification chosen separately from its email, important notices
- * under performance of a contract, and no unsubscribe link on them). v4 is
+ * under performance of a contract, and no unsubscribe link on them), and is
+ * frozen below. v4 is
  * the wording members accepted at the 6 September 2026 release and is frozen
  * below. Before that, v4 was v3 plus one sentence, under "When you join the
  * committee", about what a circulated worksheet records; that sentence was
@@ -130,15 +142,18 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
   await loadTs("lib/legal/policies.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v5.tsx");
+const CURRENT = read("src/content/legal/privacy/v6.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
  * no pattern written as a sentence would ever match the raw source. Every
- * content check below runs against this, because v5 is the text the site
+ * content check below runs against this, because v6 is the text the site
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v5, frozen: read by §1b and by §2d, which proves the new sentences are not in it. */
+const V5 = read("src/content/legal/privacy/v5.tsx");
+const V5_FLAT = V5.replace(/\s+/g, " ");
 /** v4, frozen: read by §1b and by §2c, which proves the new sentences are not in it. */
 const V4 = read("src/content/legal/privacy/v4.tsx");
 const V4_FLAT = V4.replace(/\s+/g, " ");
@@ -164,9 +179,9 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v5 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 5);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.5");
+  test("privacy v6 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 6);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.6");
   });
 
   test("versions are newest first, which entry [0] depends on", () => {
@@ -315,6 +330,13 @@ const FROZEN_VERSIONS = new Map([
     {
       sha256: "f18edb220a2ce52b873f70ebdf16f79a257e720a78634512191be371eaf0f708",
       why: "live from the 6 September 2026 release until v5 replaced it the next day; the wording every member re-accepted at that sign-in, frozen when the notification grid moved the version rather than editing it in place",
+    },
+  ],
+  [
+    "privacy/v5",
+    {
+      sha256: "8dc0f2b4de657ad5fb00009b66957880c5822d285db08405f63f9446f4b00684",
+      why: "the notification grid's version, current from 7 September 2026 until v6 replaced it; the wording every member accepted at sign-in in that time, frozen when the application form moved the version rather than editing the names sentence in place",
     },
   ],
 ]);
@@ -539,7 +561,11 @@ const MUST_NAME = [
   ["access requirements", /access-requirements box|Access requirements/],
   ["access requirements are never scored", /never scored/],
   ["access-requirements reads are recorded", /every time one of them does we record who read it/i],
-  ["reviewer scores", /scores your application against/i],
+  // An application form has no criteria. A reviewer scores single answers
+  // from 1 to 5, and only where the programme uses scores
+  // (`ApplicationQuestion.scored`, `ProgrammeSettings.useScores`).
+  ["reviewer scores", /give each of your answers to that programme&apos;s own questions a score from 1 to 5/i],
+  ["reviewer comments", /write a comment on any of your answers, and an overall comment about your application/i],
   ["reviewer notes are disclosable", /what a reviewer wrote about your application, we will tell you/i],
   ["attendance registers", /present, arrived late, left early, absent, or\s*\{?"?\s*excused/i],
   ["participant notes", /private note about a named\s+participant/i],
@@ -551,14 +577,44 @@ const MUST_NAME = [
   ["membership tier", /membership tier \(paid, comped, alumni, staff\)/i],
   ["membership provenance", /a list the\s+Students&apos; Union gives us/i],
   ["the conduct flag", /an admin can\s+flag an\s+account and must record a reason/i],
-  ["the conduct reason is admin-only", /Reviewers see only that a\s+flag exists, never the reason/i],
+  // No screen that reads an application is sent a conduct flag: the one
+  // reader of `memberConductFlags` is the admin route on the Members page.
+  ["the conduct flag and its reason are admin-only", /The flag and the reason are visible to admins alone/i],
   ["certificates are minted by the participant", /able to mint a certificate for yourself/i],
   ["minting a certificate is opt-in", /Nothing is issued unless you choose to/i],
   ["what a certificate page shows", /names you, the programme and the date/i],
-  ["reviewers score name-blind by default", /Reviewers score name-blind by default/i],
-  ["the decider and the allocating admins are never blind", /never\s+blind. They see your name and your whole application/i],
+  // OWNER DECISION, 7 October 2026: names are shown, and the form does not
+  // say so, which leaves this page as the one place an applicant is told.
+  // The two entries these replace pinned the opposite promise ("Reviewers
+  // score name-blind by default", and deciders "never blind"), which the
+  // application form made untrue.
+  ["the people who read an application see whose it is", /They see your name\. Nothing hides who you are from the people who read, score and decide your application/i],
+  ["who reads an application", /Admins, and the lead and the reviewers of each programme you ranked/i],
+  ["a programme joined by invitation reads the application only once it is accepted", /can read your application from then on, and not before/i],
   ["only the two logged downloads are recorded", /Two of those downloads are recorded/],
   ["who can see what", /Who can see what/],
+  // What the application form holds (docs/applications.md, "Where the data
+  // is"). One entry per thing an applicant would not guess at.
+  ["the form's own copy of the joining questions", /saved on the application as a copy of its own/i],
+  ["the ranking, and facilitating", /whether you said you would like to facilitate a group/i],
+  ["the two copies", /the draft you are working on, and the application you sent/i],
+  ["earlier sent versions are kept", /the version you sent before is kept with your application/i],
+  ["how many earlier versions are kept", /We keep up to ten earlier versions/i],
+  // The form has the box, on its last step, kept apart from the application
+  // (`CheckStep.tsx`, `applicant/accessRequirementsDoc.ts`). §2d holds the
+  // rest of that paragraph to the code.
+  ["where the application form's access-requirements box is", /On the application form for the fellowships and the incubator it is on the last step/i],
+  ["the access-requirements box is not part of what is sent", /It is not part of the application you send/i],
+  ["joining on the form", /it is your request to join as well as the start of your application/i],
+  ["a reason is asked for when a place is given back", /you choose a reason from a short list, or write a few words of your own/i],
+  ["the SU membership answer", /asks whether you have SU membership/i],
+  ["decisions are kept beside the application", /kept in a record of their own beside your application and are never written onto it/i],
+  ["nothing about a decision reaches the applicant early", /Nothing about a decision is written onto it, shown on your page, or emailed to you before then/i],
+  ["the decision-day email", /We also send it in one email/i],
+  ["the daily invitation reminder", /email you a reminder once a day/i],
+  ["replies are recorded", /We record your answer and when you gave it/i],
+  ["a place approves a join request that was waiting", /that approves the request/i],
+  ["what an applicant's own page does not show", /It does not show the scores, the comments, what each programme decided/i],
 ];
 
 describe("the courses section", () => {
@@ -578,7 +634,7 @@ describe("the courses section", () => {
       assert.match(
         CURRENT_FLAT,
         pattern,
-        `privacy v4's courses section no longer names ${what}. The section is ` +
+        `the current policy's courses section no longer names ${what}. The section is ` +
           "the platform's one statement of what it holds about an applicant; " +
           "a category present in the product and absent from the page makes " +
           "the page wrong. Add it back, or remove the feature.",
@@ -610,12 +666,12 @@ describe("the courses section", () => {
     // job enforces one.
     assert.ok(
       !/30 days afterwards/i.test(CURRENT_FLAT) && !/delete or anonymise/i.test(CURRENT_FLAT),
-      "v5 must not promise a deletion period unless a job enforces that " +
+      "v6 must not promise a deletion period unless a job enforces that " +
         "period.",
     );
     assert.ok(
       !/Deleting your account deletes/.test(CURRENT_FLAT),
-      "v5 must not say deleting the account deletes everything about you: " +
+      "v6 must not say deleting the account deletes everything about you: " +
         "the cascade keeps memberRecords, worksheet answers, tasks and RSVPs.",
     );
   });
@@ -662,7 +718,7 @@ describe("the courses section", () => {
     );
     assert.ok(
       !/deleting your account\s+does not/i.test(CURRENT_FLAT),
-      "v5 still says deleting the account keeps the push record; the cascade " +
+      "v6 still says deleting the account keeps the push record; the cascade " +
         "removes it.",
     );
     assert.ok(
@@ -685,7 +741,7 @@ describe("the courses section", () => {
     // not say that every export is logged.
     assert.ok(
       !/every export is logged/i.test(CURRENT_FLAT),
-      "v5 must not claim every export is logged: the policy speaks only of " +
+      "v6 must not claim every export is logged: the policy speaks only of " +
         "the exports the site itself generates.",
     );
   });
@@ -696,7 +752,7 @@ describe("the courses section", () => {
     // list, which §1b checks, because v3 is frozen.
     assert.ok(
       !/OWNER TO CONFIRM/.test(CURRENT),
-      "v5 carries an OWNER TO CONFIRM block again: resolve it with the owner " +
+      "v6 carries an OWNER TO CONFIRM block again: resolve it with the owner " +
         "before merging, then delete it.",
     );
   });
@@ -715,7 +771,7 @@ describe("the courses section", () => {
       ["the last-route local storage key", /naisi\.lastRoute/],
       ["view as, as a processing activity", /open the site as you see it/i],
       ["the worksheet recipient picker's readers", /permission to circulate a worksheet/i],
-      ["blind review as a per-round default", /name-blind by default/i],
+      ["names are shown to whoever reads an application", /They see your name/],
       ["what other participants see", /any comment or star rating you choose to leave/i],
       ["the push record carries the account", /carries\s+your account so we know where to send/i],
       ["re-consent is the notice, not an email", /asked to accept\s+or decline it/i],
@@ -728,7 +784,7 @@ describe("the courses section", () => {
       ["the export log names the kinds that exist", /Two\s+kinds are logged today/i],
       ["Google's sign-in script and where it is loaded from", /sign-in script is loaded from/i],
     ]) {
-      assert.match(CURRENT_FLAT, pattern, `v5 no longer says: ${name}`);
+      assert.match(CURRENT_FLAT, pattern, `v6 no longer says: ${name}`);
     }
   });
 });
@@ -759,7 +815,7 @@ describe("the committee tooling passage", () => {
     assert.match(CURRENT_FLAT, /We do not record which page you were on, what you typed, or when you pasted/i);
     assert.ok(
       !/how many times you opened each page/i.test(CURRENT_FLAT),
-      "v5 claims a per-page open count again; the code keeps one running total.",
+      "v6 claims a per-page open count again; the code keeps one running total.",
     );
   });
 });
@@ -809,14 +865,14 @@ describe("the notification grid passage", () => {
     assert.match(
       CURRENT_FLAT,
       /by category, with a separate email choice and notification choice for each/i,
-      "v5 no longer says a category carries an email choice AND a notification " +
+      "v6 no longer says a category carries an email choice AND a notification " +
         "choice. The grid stores two parallel maps, and the page is where a " +
         "member is told that.",
     );
     assert.match(
       CURRENT_FLAT,
       /the newsletter, event announcements, course announcements, and tasks and worksheets/i,
-      "v5 no longer names the four rows the grid draws.",
+      "v6 no longer names the four rows the grid draws.",
     );
   });
 
@@ -824,14 +880,14 @@ describe("the notification grid passage", () => {
     assert.match(
       CURRENT_FLAT,
       /Each category has its own notification choice, set separately from its email choice/i,
-      "v5 still describes push as one blanket choice, or as following the " +
+      "v6 still describes push as one blanket choice, or as following the " +
         "email one. Every row has its own push cell, resolved by " +
         "src/lib/push/preferences.ts independently of the email cell.",
     );
     assert.match(
       CURRENT_FLAT,
       /a notification can still arrive for a category whose email you have switched off/i,
-      "v5 no longer states the consequence a member actually meets: the task " +
+      "v6 no longer states the consequence a member actually meets: the task " +
         "and worksheet senders mirror to push after an email their row " +
         "skipped, and the cell copy in src/lib/firestore/notifications.ts " +
         "promises exactly that.",
@@ -865,7 +921,7 @@ describe("the notification grid passage", () => {
     assert.match(
       CURRENT_FLAT,
       /Important notices carry no unsubscribe link/i,
-      "v5 no longer tells a member the notice lane has no unsubscribe link, " +
+      "v6 no longer tells a member the notice lane has no unsubscribe link, " +
         "while src/lib/email/notice.ts still refuses to grow one.",
     );
     const notice = read("src/lib/email/notice.ts");
@@ -884,6 +940,678 @@ describe("the notification grid passage", () => {
       "the marker line above every notice no longer says it is not marketing, " +
         "which is the claim privacy v4 makes on its behalf. The two are one " +
         "promise made in two places and have to move together.",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2d The application form passage
+// ---------------------------------------------------------------------------
+
+/**
+ * What the policy says about the application form, held against what the form
+ * does (docs/applications.md).
+ *
+ * v5 described a review that hid names by default and one final decider. The
+ * application form shows names to everybody who reads an application and has
+ * a lead for each programme, and the owner decided the FORM does not tell an
+ * applicant that reviewers see their name. So the policy is the only place it
+ * is said, and a sentence nobody is ever shown twice is exactly the kind that
+ * drifts.
+ *
+ * Each test below is a claim the page makes about somebody's data, paired
+ * with the line of code that makes it true. When one fails, either the code
+ * stopped doing what the page promises or the page stopped saying what the
+ * code does. Neither is fixed by editing this file alone, and a change to the
+ * wording is a new version, never an edit to a published one.
+ *
+ * Three kinds of pairing are used, strongest first: the rule is RUN (the join
+ * rules, the limit on kept versions, the reasons), the tree is WALKED against
+ * a named list checked in both directions (who names the SU membership
+ * answer, where the spam check and Google's script are loaded, what uses
+ * local storage), or one line of source is matched. A walk reports a file it
+ * did not expect as well as an entry that has gone, so a list cannot quietly
+ * fall behind the tree.
+ */
+
+/**
+ * The page a reader is shown: the policy without the file's header comment.
+ * The claims below are looked for here, so none can be satisfied by a note
+ * to maintainers.
+ */
+const PAGE_FLAT = CURRENT.slice(CURRENT.indexOf("export default function")).replace(/\s+/g, " ");
+
+/**
+ * Every TypeScript file under `src` whose text matches, as repository paths.
+ * The policy versions themselves are left out: they are the prose under test
+ * and name these things in words.
+ */
+function sourceFilesNaming(pattern) {
+  return textFilesUnder(SRC)
+    .filter((file) => /\.tsx?$/.test(file))
+    .map((file) => file.slice(REPO_ROOT.length + 1).split(sep).join("/"))
+    .filter((file) => !file.startsWith("src/content/legal/"))
+    .filter((file) => pattern.test(read(file)))
+    .sort();
+}
+
+/**
+ * Hold a walk of the tree to a named list, in both directions: a file that
+ * matches and is not listed fails, and so does an entry that no longer
+ * matches. Every entry carries a reason a reader can weigh.
+ */
+function assertExactlyTheseFiles(found, expected, what, ifNew) {
+  for (const [file, reason] of expected) {
+    assert.ok(
+      typeof reason === "string" && reason.length > 20,
+      `${file} is listed as ${what} with no reason a reader can weigh.`,
+    );
+  }
+  const listed = [...expected.keys()].sort();
+  assert.deepEqual(
+    found.filter((file) => !expected.has(file)),
+    [],
+    `these files are ${what} and are not on the list. ${ifNew}`,
+  );
+  assert.deepEqual(
+    listed.filter((file) => !found.includes(file)),
+    [],
+    `these files are listed as ${what} and no longer are. Drop the entry, and ` +
+      "check the sentence it stood behind still describes the site.",
+  );
+}
+
+const joinRules = await loadTs("lib/applications/applicant/join.ts");
+const keptVersions = await loadTs("lib/applications/versions/kept.ts");
+const releaseReasons = await loadTs("lib/applications/status/reasons.ts");
+const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
+
+describe("the application form passage", () => {
+  const formWriter = read("src/lib/applications/editor/write.ts");
+
+  test("the frozen v5 carries none of these sentences, so the move was a version and not an edit", () => {
+    for (const pattern of [
+      /Nothing hides who you are from the people who read, score and decide/i,
+      /kept in a record of their own beside your application/i,
+      /We also send it in one email/i,
+      /the version you sent before is kept with your application/i,
+      /Only site admins can open it/i,
+      /identifies the applicant by their account&apos;s id/i,
+      /it is your request to join as well as the start of your application/i,
+      /naisi\.apply\.join/,
+      /event sign-up and course application forms/i,
+    ]) {
+      assert.ok(
+        !pattern.test(V5_FLAT),
+        `the accepted v5 text matches ${pattern}: the application form's wording was ` +
+          "edited into the frozen version instead of living in v6, which is the " +
+          "in-place edit §1b exists to refuse",
+      );
+    }
+  });
+
+  test("says names are shown, and no longer says they are hidden", () => {
+    assert.match(
+      CURRENT_FLAT,
+      /They see your name\. Nothing hides who you are from the people who read, score and decide your application/i,
+      "v6 no longer tells an applicant that the people reading their application " +
+        "know whose it is. The form does not say it, so this page has to.",
+    );
+    for (const stale of [/name-blind/i, /without your name/i, /the application form will say so/i]) {
+      assert.ok(
+        !stale.test(CURRENT_FLAT),
+        `v6 matches ${stale}: it promises a review with names hidden, or a form that ` +
+          "says when they are shown. An application form does neither.",
+      );
+    }
+    // The two places that make the sentence true: a form is made with names
+    // shown, and what a reviewer is sent carries the applicant's name.
+    assert.match(
+      formWriter,
+      /blind:\s*\{\s*hideNames:\s*false/,
+      "an application form is no longer made with names shown, so the policy's " +
+        "sentence about names describes something else. Decide which is right " +
+        "and move the other, in a new policy version if it is the page.",
+    );
+    assert.match(
+      read("src/lib/applications/review/detail.ts"),
+      /name:\s*applicantName\(/,
+      "the review payload no longer carries the applicant's name, so the policy's " +
+        "sentence about names is no longer what the review screen does.",
+    );
+  });
+
+  test("the access-requirements box is where the page says, apart from the application, and only an admin opens it", () => {
+    // OWNER DECISION, 7 October 2026: the box is on the form, on its last
+    // step. `createForm` writes an empty `accessRequirementsPrompt`, and that
+    // is NOT what says whether the form has the box: the box asks a fixed
+    // question of its own and reads no prompt. What makes the sentence true
+    // is the step that draws the box.
+    assert.match(PAGE_FLAT, /On the application form for the fellowships and the incubator it is on the last step/i);
+    assert.ok(
+      !/does not have a box for these/i.test(PAGE_FLAT),
+      "v6 says the application form has no access-requirements box. It has one.",
+    );
+    assert.match(
+      read("src/features/applications/apply/CheckStep.tsx"),
+      /\{accessRequirements\}/,
+      "the last step of the form no longer draws the access-requirements box, " +
+        "so the policy describes a box an applicant cannot find.",
+    );
+
+    // "Stored separately ... in a different place in our database", and "not
+    // part of the application you send": it has a collection of its own, and
+    // the shape of a draft and of a sent application has no field for it.
+    assert.match(PAGE_FLAT, /It is not part of the application you send: it is saved as you type/i);
+    assert.match(
+      read("src/lib/applications/applicant/accessRequirementsDoc.ts"),
+      /ACCESS_REQUIREMENTS_COLLECTION = "admissionApplicationPrivate"/,
+      "the access-requirements answer is no longer kept in its own collection.",
+    );
+    assert.ok(
+      !/accessRequirements/.test(read("src/lib/applications/model.ts")),
+      "the application's own shape now names an access-requirements field, so " +
+        "the answer would travel with the draft or with what is sent, to " +
+        "everybody who reads an application. The policy says it does not.",
+    );
+
+    // "Only site admins can open it ... A programme's lead cannot": the one
+    // reader refuses anybody `canRunTerm` refuses, and that is an admin and
+    // nobody else. An application form has no final decider, so the page must
+    // not promise one can open it.
+    assert.match(
+      PAGE_FLAT,
+      /Only site admins can open it, they have to open it deliberately, one application at a time, and every time one of them does we record who read it and when/i,
+    );
+    assert.match(PAGE_FLAT, /A programme&apos;s lead cannot open them either/i);
+    assert.match(PAGE_FLAT, /Only admins can open what you wrote under access requirements, and each time one does it is recorded\. A programme&apos;s lead cannot\./i);
+    assert.ok(
+      !/person making the final decision/i.test(PAGE_FLAT),
+      "v6 names a person making the final decision. An application form has " +
+        "none, and nobody but an admin can open an access-requirements answer.",
+    );
+    const reader = read("src/lib/applications/review/accessRequirements.ts");
+    assert.match(
+      reader,
+      /if \(!canRunTerm\(user\)\) \{\s*return refuse\(403,/,
+      "the reader of an access-requirements answer no longer refuses everybody " +
+        "but the people `canRunTerm` admits, before anything is read.",
+    );
+    assert.match(
+      read("src/lib/applications/access.ts"),
+      /export function canRunTerm\(user: SessionUser\): boolean \{\s*return user\.role === "admin";\s*\}/,
+      "`canRunTerm` admits somebody who is not an admin, so more people than " +
+        "the policy names can open an access-requirements answer.",
+    );
+
+    // "Every time one of them does we record who read it and when": the read
+    // and its record are one transaction, the record is of the kind the log
+    // keeps for it, and it holds whose answer by account id and never the
+    // answer.
+    const row = /tx\.create\(db\.collection\(COURSE_AUDIT_COLLECTION\)\.doc\(\), \{([\s\S]*?)\n    \}\);/.exec(reader);
+    assert.ok(row, "could not find the log row the reader of an access-requirements answer writes");
+    assert.match(row[1], /kind: recordAs,/);
+    assert.match(row[1], /subjectUid: applicantUid,/);
+    assert.match(row[1], /at: FieldValue\.serverTimestamp\(\),/);
+    assert.ok(
+      !/accessRequirementsIn|ownSnap|applicantName|displayName/.test(row[1]),
+      "the log row for an opened access-requirements answer now carries the " +
+        "answer or the applicant's name. The policy says it holds neither.",
+    );
+    assert.match(PAGE_FLAT, /It never holds the answer that was opened/i);
+
+    // "Once you have sent your application an admin who opens it reads
+    // whatever is there": a draft's answer is nobody's to open.
+    assert.match(PAGE_FLAT, /once you have sent your application an admin who opens it reads whatever is there at that moment/i);
+    assert.match(reader, /if \(!application\?\.sent\) return NOT_FOUND;/);
+  });
+
+  test("replies to a decision email go where the page says", () => {
+    assert.match(CURRENT_FLAT, /a reply to it goes to/i);
+    assert.match(CURRENT, /mailto:ai-safety@uonsu\.com/);
+    assert.match(
+      read("src/lib/applications/decisionDay/emailCopy.ts"),
+      /DECISION_REPLY_TO = "ai-safety@uonsu\.com"/,
+      "decision-day mail no longer replies to the address the policy names.",
+    );
+  });
+
+  test("the reminder's off switch is the one the page names", () => {
+    assert.match(
+      CURRENT_FLAT,
+      /Switching off the email choice for course announcements on your profile stops these reminders/i,
+    );
+    assert.match(
+      read("src/lib/scheduler/jobs/applicationInvitationReminders.ts"),
+      /hasOptedOutOfCourseAnnouncements\(/,
+      "the invitation reminder no longer asks the course announcements row " +
+        "before it sends, so the policy names an off switch that does nothing.",
+    );
+  });
+
+  test("the short record is read by who the page says, and holds what it says", () => {
+    // OWNER DECISION, 7 October 2026: only admins read the record. It copies
+    // reviewers' comments, which the review screen shows to nobody outside
+    // the applicant's own programmes, so an SU-recognised committee member
+    // named on none of them must not be able to read them here instead. Both
+    // blocks are held: a subcollection does not inherit its parent's rule.
+    assert.match(PAGE_FLAT, /and only admins can read it/i);
+    assert.ok(
+      !/SU-recognised committee members can read it/i.test(PAGE_FLAT),
+      "v6 still says SU-recognised committee members can read the short record.",
+    );
+    const rules = read("firestore.rules");
+    for (const head of [
+      /^    match \/memberRecords\/\{uid\} \{$/m,
+      /^    match \/memberRecords\/\{uid\}\/applications\/\{roundId\} \{$/m,
+    ]) {
+      const start = head.exec(rules);
+      assert.ok(start, `could not find the block ${head} in firestore.rules`);
+      const block = rules.slice(start.index, rules.indexOf("\n    }", start.index));
+      assert.match(
+        block,
+        /allow read: if isAdmin\(\);/,
+        "who may read a member record changed, so the policy's sentence naming " +
+          "them is no longer the rule.",
+      );
+      assert.ok(
+        !/isSuCommittee|isCommittee|request\.auth\.uid/.test(block),
+        "a member record can be read by somebody who is not an admin, which the " +
+          "policy says nobody can.",
+      );
+    }
+    // "None of the comments reviewers left on single answers": the record's
+    // builder copies the overall comment and never reads the per-answer ones.
+    assert.match(PAGE_FLAT, /none of the comments reviewers left on single answers/i);
+    const record = read("src/lib/firestore/memberRecords.ts");
+    assert.match(record, /notes: str\(review\.overallComment,/);
+    assert.ok(
+      !/review\.comments\b/.test(record),
+      "the member record now reads a reviewer's comments on single answers, " +
+        "which the policy says it does not keep.",
+    );
+  });
+
+  test("a deletion removes the decisions, and the log lines hold an account id and never a name", () => {
+    assert.match(PAGE_FLAT, /the decisions recorded about those applications/i);
+    assert.match(
+      read("src/lib/firestore/accountDeletion.ts"),
+      /collection\("admissionDecisions"\)/,
+      "account deletion no longer removes decision documents, which the policy " +
+        "lists among what a deletion removes.",
+    );
+
+    // OWNER DECISION, 7 October 2026: a line about a decision says "an
+    // applicant" and holds their account id. The log is kept when an account
+    // is deleted, so a line must not be what goes on naming somebody who has
+    // asked to be forgotten.
+    assert.match(
+      PAGE_FLAT,
+      /A log line about a decision on an application, or about an admin opening an access-requirements answer, identifies the applicant by their account&apos;s id and not by name/i,
+    );
+    assert.ok(
+      !/names the applicant and the programme/i.test(PAGE_FLAT),
+      "v6 still says a decision's log line names the applicant.",
+    );
+    const sentences = read("src/lib/applications/review/audit.ts");
+    assert.match(sentences, /const AN_APPLICANT = "an applicant";/);
+    assert.ok(
+      !/applicantName/.test(sentences),
+      "the sentences a decision's log line carries take the applicant's name " +
+        "again. The policy says the line holds an account id and no name.",
+    );
+    const decide = read("src/lib/applications/review/decide.ts");
+    assert.ok(
+      (decide.match(/subjectUid: applicantUid,/g) ?? []).length >= 2,
+      "a decision or a revoked acceptance is no longer logged against the " +
+        "applicant's account id.",
+    );
+
+    // "Where an admin took an acceptance back, the line holds the reason they
+    // typed", which is why the page cannot say the logs hold no notes at all.
+    assert.match(PAGE_FLAT, /Where an admin took an acceptance back, the line holds the reason they typed/i);
+    assert.match(sentences, /`Reason: \$\{input\.reason\}`/);
+
+    // "Go only if that term's applications are destroyed", the lines about an
+    // opened access-requirements answer included: every one is keyed to its
+    // form, and a destroy drains the log by that key.
+    assert.match(PAGE_FLAT, /and about each time an admin opened an access-requirements answer/i);
+    assert.match(
+      read("src/lib/admissions/destroy.ts"),
+      /db\.collection\(COURSE_AUDIT_COLLECTION\)\.where\("roundId", "==", roundId\)/,
+      "destroying a form no longer removes the log lines keyed to it, which " +
+        "the policy says go with the term's applications.",
+    );
+    assert.match(
+      read("src/lib/applications/review/accessRequirements.ts"),
+      /runId: "",\s*roundId,/,
+      "a read of an access-requirements answer is no longer logged against its " +
+        "form, so destroying the form would leave the line behind.",
+    );
+  });
+
+  test("how many earlier versions are kept, and that an applicant's own page is not sent them", () => {
+    assert.match(
+      PAGE_FLAT,
+      /We keep up to ten earlier versions: the first one you sent, and the most recent ones after it/i,
+    );
+    // The rule itself, run: twelve versions replaced one after another leave
+    // ten, the first one sent is still the first, and the two that went are
+    // the oldest after it.
+    let history = { versions: [], dropped: 0 };
+    for (let sent = 1; sent <= 12; sent += 1) {
+      history = keptVersions.keepVersion(history, { content: { marker: sent }, sentAt: null });
+    }
+    assert.equal(history.versions.length, 10, "the policy says up to ten earlier versions are kept");
+    assert.equal(history.dropped, 2);
+    assert.deepEqual(
+      history.versions.map((version) => version.content.marker),
+      [1, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      "the first version sent is no longer the one always kept, or the most " +
+        "recent are no longer the ones kept after it.",
+    );
+    // "It does not show ... the earlier versions you sent": what an applicant's
+    // own requests are answered with is built field by field and names none
+    // of the history.
+    assert.match(PAGE_FLAT, /or the earlier versions you sent/i);
+    assert.ok(
+      !/sentHistory/.test(read("src/lib/applications/applicant/project.ts")),
+      "an applicant is now sent their own earlier versions, which the policy " +
+        "says their page does not show.",
+    );
+  });
+
+  test("giving a place back asks for a reason, kept with the application and nowhere that outlives it", () => {
+    assert.match(
+      PAGE_FLAT,
+      /To do either you choose a reason from a short list, or write a few words of your own\. Your reason is kept with your application, where the people who can read your application can see it/i,
+    );
+    // Run: nothing, and "Other" with no words, are both refused. A listed
+    // reason is taken, and whatever was typed beside it is dropped.
+    assert.equal(releaseReasons.parseReleaseReason({}).ok, false);
+    assert.equal(releaseReasons.parseReleaseReason({ kind: "other", other: "  " }).ok, false);
+    assert.deepEqual(releaseReasons.parseReleaseReason({ kind: "times", other: "typed anyway" }), {
+      ok: true,
+      reason: { kind: "times", other: "" },
+    });
+    assert.equal(releaseReasons.RELEASE_REASON_OPTIONS.at(-1).label, "Other");
+    // And the reply itself is refused without one, inside the write.
+    assert.match(
+      read("src/lib/applications/status/record.ts"),
+      /if \(decision\.releases && !reason\) throw new ApplicantError\(RELEASE_REASON_PROBLEMS\.none, 400\);/,
+      "a place can be given back with no reason again, so the policy's " +
+        "sentence saying one is asked for is no longer what happens.",
+    );
+    // "No reason you gave for giving a place back" is in the short record,
+    // which outlives the application, or in the log.
+    assert.match(PAGE_FLAT, /no reason you gave for giving a place back/i);
+    for (const file of [
+      "src/lib/firestore/memberRecords.ts",
+      "src/lib/admissions/memberRecordSync.ts",
+      "src/lib/applications/review/audit.ts",
+    ]) {
+      assert.ok(
+        !/releaseReason|gaveBack/.test(read(file)),
+        `${file} now reads the reason somebody gave for giving a place back, so ` +
+          "it is copied somewhere that outlives their application. The policy " +
+          "says it is not.",
+      );
+    }
+  });
+
+  test("the SU membership answer reaches nobody who reads an application", () => {
+    assert.match(PAGE_FLAT, /It is not shown to the people who read your application, and it does not affect whether you are offered a place/i);
+    // Every file that names the answer, and why it may. None is a screen, a
+    // payload or a record a reader of applications is given. A file that
+    // starts naming it fails here until somebody has decided what the page
+    // should then say.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bsuMembership\b/),
+      new Map([
+        ["src/lib/applications/model.ts", "the shape of what an applicant fills in, which is where the answer is declared"],
+        ["src/lib/applications/normalise.ts", "reads a stored draft or sent application back into that shape"],
+        ["src/lib/applications/validate.ts", "a send is refused until the question has been answered"],
+        ["src/lib/applications/applicant/draft.ts", "cleans the applicant's own draft on a save and on a send"],
+        ["src/lib/applications/applicant/shape.ts", "an empty draft, and whether the applicant's own draft differs from what they sent"],
+        ["src/lib/applications/applicant/project.ts", "what the applicant's own requests are answered with: their own answer, back to them"],
+        ["src/lib/applications/applicant/join.ts", "an empty application for checking the first step's answers, where the answer is always null"],
+        ["src/features/applications/apply/ApplicationForm.tsx", "the applicant's own form, which holds their answer while they fill it in"],
+        ["src/features/applications/apply/CheckStep.tsx", "the applicant's own last step, where the question is asked"],
+      ]),
+      "naming the SU membership answer",
+      "The policy says the answer is not shown to the people who read an " +
+        "application. If this file shows it to one of them, the sentence is " +
+        "wrong and a new version has to say who sees it.",
+    );
+  });
+
+  test("somebody with no account joins on the form, and what is kept in the browser is what the page says", () => {
+    assert.match(PAGE_FLAT, /You can start the form without an account/i);
+    assert.match(
+      PAGE_FLAT,
+      // The JSX keeps the space before the key with `{" "}`, so allow for it.
+      /kept in that browser tab, in its session storage under a key beginning(?:\{" "\})? <code>naisi\.apply\.join<\/code>/i,
+    );
+    // The tab's session storage, and not the browser's local storage, which
+    // outlives the tab and which the page lists separately.
+    const keeper = read("src/features/applications/apply/keptAnswers.ts");
+    assert.match(keeper, /return typeof window === "undefined" \? null : window\.sessionStorage;/);
+    assert.ok(
+      !/\blocalStorage\b/.test(keeper),
+      "what is typed before there is an account is now kept in local storage, " +
+        "which outlives the tab. The policy says it is kept in the tab and goes " +
+        "when the tab closes.",
+    );
+    assert.equal(joinRules.keptKey("autumn-2026"), "naisi.apply.join:autumn-2026");
+
+    // "Your answers to that step and the time you typed them, and nothing
+    // else": the rule that packs them, run on more than it should keep.
+    const typed = {
+      preferredName: "Ada",
+      universityEmail: "ada@nottingham.ac.uk",
+      universityEmailVerified: true,
+      status: "undergraduate",
+      statusOther: "",
+      subject: "Mathematics",
+      expectedGraduation: "2028-07",
+      motivation: "Because it matters.",
+      interests: "",
+      password: "not kept",
+      email: "not-kept@example.com",
+      agreed: true,
+    };
+    const now = Date.UTC(2026, 9, 7, 12);
+    const packed = joinRules.packKept(typed, now);
+    assert.deepEqual(Object.keys(JSON.parse(packed)).sort(), ["about", "at", "v"]);
+    assert.deepEqual(Object.keys(JSON.parse(packed).about).sort(), [
+      "expectedGraduation",
+      "interests",
+      "motivation",
+      "preferredName",
+      "status",
+      "statusOther",
+      "subject",
+      "universityEmail",
+    ]);
+    assert.ok(
+      !/not kept|not-kept@example\.com|agreed|universityEmailVerified/.test(packed),
+      "what the tab keeps now holds something other than the first step's " +
+        "answers. The policy says it holds no password, no sign-in address and " +
+        "not whether the person agreed to the terms.",
+    );
+
+    // "It is ignored once it is a day old."
+    assert.match(PAGE_FLAT, /it is ignored once it is a day old, and it goes when you close the tab/i);
+    assert.ok(joinRules.readKept(packed, now + 23 * 3_600_000), "kept answers are no longer read back within the day");
+    assert.equal(joinRules.readKept(packed, now + 24 * 3_600_000 + 1), null);
+
+    // "Removed when your request to join is sent."
+    assert.match(PAGE_FLAT, /The copy in the tab is removed when your request to join is sent/i);
+    assert.match(
+      read("src/features/applications/apply/JoinStep.tsx"),
+      /await completeRegistration\(joinRequestFrom\(answers\)\);[\s\S]{0,400}?forgetAnswers\(roundId\);/,
+      "the join step no longer throws away what the tab kept once the join " +
+        "request has gone.",
+    );
+
+    // "Joining this way does not sign you up to the newsletter or to event
+    // announcements": the join request the step sends, run.
+    assert.match(
+      PAGE_FLAT,
+      /Joining this way does not sign you up to the newsletter or to event announcements: both start switched off until you choose them/i,
+    );
+    const request = joinRules.joinRequestFrom(typed);
+    assert.equal(request.notifications.categories.newsletter, false);
+    assert.equal(request.notifications.categories.events, false);
+    assert.equal(request.notifications.push.newsletter, false);
+    assert.equal(request.notifications.push.events, false);
+    assert.equal(notificationPrefs.DEFAULT_NOTIFICATION_PREFS.categories.newsletter, false);
+    // And it never claims the university address is verified.
+    assert.ok(!("verifiedTokenId" in request) && !("uniEmailVerifiedAt" in request));
+  });
+
+  test("a waiting account cannot send until its university address is verified, and an approved one is not held", () => {
+    assert.match(
+      PAGE_FLAT,
+      /A waiting account cannot send its application until the university email address on it has been verified/i,
+    );
+    assert.match(PAGE_FLAT, /until that address has been verified you can save your application but not send it/i);
+    const unchecked = { universityEmail: "ada@nottingham.ac.uk", universityEmailVerified: false };
+    const checked = { universityEmail: "ada@nottingham.ac.uk", universityEmailVerified: true };
+    assert.equal(joinRules.sendHoldFor({ joined: true, role: "pending", about: unchecked })?.step, "check");
+    assert.equal(joinRules.sendHoldFor({ joined: true, role: "pending", about: checked }), null);
+    assert.equal(joinRules.sendHoldFor({ joined: true, role: "member", about: unchecked }), null);
+    assert.equal(joinRules.sendHoldFor({ joined: false, role: "pending", about: checked })?.step, "about");
+    // The send route asks that rule of the caller's own account, before the
+    // application is read or sent.
+    const sendRoute = read("src/app/api/admissions/forms/[roundId]/application/send/route.ts");
+    const asked = sendRoute.indexOf("const hold = sendHoldFor({ joined: account.joined, role: user.role, about: account.about });");
+    const sent = sendRoute.indexOf("await sendApplication(");
+    assert.ok(asked !== -1, "the send route no longer asks whether this account's send is held");
+    assert.ok(sent !== -1 && asked < sent, "the send route sends before it asks whether the send is held");
+  });
+
+  test("the last step says sending is agreeing to this policy, with the policy's own date", () => {
+    assert.match(
+      PAGE_FLAT,
+      /The application form does not ask that question: its last step says that sending your application is agreeing to this policy, with the date it was last updated/i,
+    );
+    const words = read("src/features/applications/apply/checkText.ts");
+    assert.match(words, /before: "By sending, you agree to our ",/);
+    assert.match(
+      words,
+      /const updated = policyDateLabel\(currentPolicy\("privacy"\)\.lastUpdated\);/,
+      "the date on the form's last step is no longer read from the policy's " +
+        "own list, so the page and the form can come to name different days.",
+    );
+    assert.match(read("src/features/applications/apply/CheckStep.tsx"), /\{agreement\.before\}/);
+    // "Does not ask that question": the form is a public page, outside the
+    // layout the re-consent gate lives on (§3).
+    assert.ok(existsSync(join(SRC, "app", "(public)", "apply", "[roundId]", "page.tsx")));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2e What loads from Google, and what is kept in the browser
+// ---------------------------------------------------------------------------
+
+/**
+ * Three sentences of the policy are lists of places: the forms Google
+ * reCAPTCHA runs on, the pages Google's sign-in script is loaded on, and the
+ * things the site keeps in the browser's local storage. A list is true until
+ * somebody adds a place and does not think of this page, so each is held to
+ * a walk of the tree.
+ */
+describe("what loads from Google, and what the browser keeps", () => {
+  test("Google reCAPTCHA runs on the forms the page names, and nowhere else", () => {
+    assert.match(
+      PAGE_FLAT,
+      /checks that the person filling in our registration, event sign-up and course application forms is not a bot/i,
+    );
+    assert.match(
+      PAGE_FLAT,
+      /sets a cookie of its own while it is running on our registration, event sign-up and course application forms/i,
+    );
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/<RecaptchaInvisible\b/),
+      new Map([
+        ["src/app/(auth)/AuthEntry.tsx", "the registration form: mounted in register mode only, never on the sign-in screen"],
+        ["src/features/events/RsvpForm.tsx", "an event's sign-up form, for everybody who has it on screen"],
+        ["src/features/admissions/ApplyFlow.tsx", "the application form of the older kind of round, a course application form"],
+        ["src/features/applications/apply/JoinAccount.tsx", "the application form's first step, at the point somebody with no account makes one"],
+      ]),
+      "rendering Google reCAPTCHA",
+      "The policy names every form it runs on. Add the form to that sentence " +
+        "in a new version, or take the check off the form.",
+    );
+    // "It runs only on the first step, while somebody who is not signed in is
+    // making an account, and never for somebody who is already signed in":
+    // the half of the step that mounts it is drawn for a visitor only, and
+    // the form a signed-in applicant fills in does not load it at all.
+    assert.match(
+      PAGE_FLAT,
+      /it runs only on the first step, while somebody who is not signed in is making an account, and never for somebody who is already signed in/i,
+    );
+    assert.match(
+      read("src/features/applications/apply/JoinStep.tsx"),
+      /const shown: View = signedIn \? "questions" : view;/,
+      "the join step can now show the make-an-account half, and with it the " +
+        "spam check, to somebody who is already signed in.",
+    );
+    assert.ok(
+      !/Recaptcha/i.test(read("src/features/applications/apply/ApplicationForm.tsx")),
+      "the form a signed-in applicant fills in now loads the spam check, " +
+        "which the policy says it never does.",
+    );
+  });
+
+  test("Google's sign-in script is loaded where the page says, and nowhere else", () => {
+    assert.match(PAGE_FLAT, /on the sign-in and register pages, and as soon as you press a link to one of them/i);
+    assert.match(
+      PAGE_FLAT,
+      /It is also loaded on the first step of the application form, when somebody who is not signed in continues to making an account, and not before/i,
+    );
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/accounts\.google\.com\/gsi\/client/),
+      new Map([
+        ["src/app/(auth)/layout.tsx", "the sign-in and register pages"],
+        ["src/layout/TransitionLink.tsx", "a link to one of those pages, from the moment it is pressed"],
+        ["src/features/applications/apply/JoinAccount.tsx", "the application form's first step, once a visitor continues to making an account"],
+        ["src/components/GoogleSignInButton.tsx", "a comment saying which script the button needs. It loads nothing itself"],
+        ["src/types/google.d.ts", "a comment on the types of that script. It loads nothing"],
+      ]),
+      "naming Google's sign-in script",
+      "The policy says where that script is loaded, because loading it tells " +
+        "Google a browser opened the page. Add the place to that sentence in a " +
+        "new version, or do not load it there.",
+    );
+  });
+
+  test("the browser's local storage holds the four things the page lists, and nothing else", () => {
+    assert.match(PAGE_FLAT, /In your browser&apos;s own local storage the site keeps four small preferences/i);
+    const users = new Map([
+      ["src/layout/AppShell.tsx", "naisi.sidebar.collapsed"],
+      ["src/features/pwa/lastRoute.ts", "naisi.lastRoute"],
+      ["src/features/pwa/installPrompt.ts", "naisi.installCard.dismissed"],
+      ["src/app/(auth)/AuthEntry.tsx", "naisi.auth.loaderOpen"],
+    ]);
+    for (const [file, key] of users) {
+      assert.ok(read(file).includes(`"${key}"`), `${file} no longer keeps ${key} in local storage`);
+      assert.ok(PAGE_FLAT.includes(`<code>${key}</code>`), `the policy no longer lists ${key}`);
+    }
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\blocalStorage\b/),
+      new Map([
+        ...[...users].map(([file, key]) => [file, `keeps ${key}, which the page lists by name`]),
+        ["src/features/pwa/LastRouteTracker.tsx", "a comment about the last-route key, which lastRoute.ts keeps"],
+        ["src/features/admissions/ApplyFlow.tsx", "a comment saying the older form deliberately keeps no copy there"],
+        ["src/features/courses/PacingBanner.tsx", "a comment saying a dismissal is deliberately not kept there"],
+      ]),
+      "naming the browser's local storage",
+      "The policy lists exactly what the site keeps there, by name, and says " +
+        "there are four. Something kept there that the page does not list " +
+        "makes the page wrong: list it in a new version, or keep it somewhere " +
+        "that does not outlive the tab and say so.",
     );
   });
 });
