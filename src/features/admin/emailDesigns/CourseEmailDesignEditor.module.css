@@ -149,4 +149,9 @@
   .tokenRow dd {
     margin-top: 2px;
   }
+
+  /* Save, Revert, Reset and the test send share the width between them. */
+  .actions > button {
+    flex: 1 1 auto;
+  }
 }
