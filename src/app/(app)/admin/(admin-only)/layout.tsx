@@ -4,7 +4,7 @@ import { requireAdminPage } from "@/lib/firebase/pageGates";
  * The full-admin half of the admin area.
  *
  * `(admin-only)` is a route group, so it contributes nothing to the URLs: the
- * pages inside still live at `/admin`, `/admin/members`, `/admin/danger-zone`
+ * pages inside still live at `/admin`, `/admin/members`, `/admin/deliverability`
  * and so on. What it buys is one place to say "a full admin, nobody else",
  * now that the parent `/admin` layout also admits course drafters and
  * approvers on their way to `/admin/courses`.
