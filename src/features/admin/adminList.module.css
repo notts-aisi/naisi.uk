@@ -142,7 +142,12 @@
   background: var(--color-surface);
 }
 
+/* Positioned, so anything taken out of sight inside the table (a header kept
+   for a screen reader) is clipped by this box with everything else. Left to
+   the page, such an element at the far end of a wide table would widen the
+   page by itself. */
 .tableScroll {
+  position: relative;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: thin;
