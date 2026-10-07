@@ -72,10 +72,14 @@ function useReply(roundId: string) {
   const [sending, setSending] = useState<Reply | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [redrawing, startRedraw] = useTransition();
+  // Held from the press itself, not from the next draw, so two taps landing
+  // before the buttons have been disabled still send one reply.
+  const inFlight = useRef(false);
 
   const send = useCallback(
     async (reply: Reply) => {
-      if (sending) return;
+      if (inFlight.current) return;
+      inFlight.current = true;
       setSending(reply);
       setError(null);
       try {
@@ -95,10 +99,11 @@ function useReply(roundId: string) {
       } catch {
         setError(COULD_NOT_REACH);
       } finally {
+        inFlight.current = false;
         setSending(null);
       }
     },
-    [roundId, router, sending],
+    [roundId, router],
   );
 
   return { send, sending, busy: sending !== null || redrawing, error };
@@ -146,7 +151,7 @@ function GiveBack({
       <button ref={confirm} type="button" className={styles.outlineSmall} onClick={onConfirm} disabled={busy}>
         {busy ? "Saving…" : confirmLabel}
       </button>
-      <button type="button" className={styles.quiet} data-flush="true" onClick={onKeep} disabled={busy}>
+      <button type="button" className={styles.quiet} onClick={onKeep} disabled={busy}>
         {keepLabel}
       </button>
     </div>

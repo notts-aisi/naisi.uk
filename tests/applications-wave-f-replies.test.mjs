@@ -625,6 +625,12 @@ describe("the reply buttons", () => {
     for (const reply of sent) assert.equal(replies.isReply(reply), true, reply);
   });
 
+  test("two taps before the buttons are disabled still send one reply", () => {
+    // Held in a ref from the press itself. State would only be seen after the next draw.
+    assert.match(buttons, /if \(inFlight\.current\) return;\s+inFlight\.current = true;/);
+    assert.match(buttons, /finally \{\s+inFlight\.current = false;/);
+  });
+
   test("giving a place back is asked twice, and saying yes is one press", () => {
     // The two buttons that give something back only open the question.
     assert.equal((buttons.match(/onClick=\{\(\) => setAsking\(true\)\}/g) ?? []).length, 2);
