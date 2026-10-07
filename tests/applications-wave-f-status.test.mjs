@@ -666,11 +666,17 @@ describe("what an applicant reads", () => {
   test("no long dashes anywhere in these files", () => {
     // Built from their code points, so this file does not carry one itself.
     const LONG_DASH = new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`);
+    const testsDir = dirname(fileURLToPath(import.meta.url));
     const paths = [
       ...screenFiles.map((file) => join(SCREEN_DIR, file)),
       ...ruleFiles.map((file) => join(RULES_DIR, file)),
-      fileURLToPath(import.meta.url),
+      join(REPO_ROOT, "src", "app", "api", "admissions", "forms", "[roundId]", "application", "reply", "route.ts"),
+      // Every suite of this lane, this one included.
+      ...readdirSync(testsDir)
+        .filter((file) => /^applications-wave-f-.*\.test\.mjs$/.test(file))
+        .map((file) => join(testsDir, file)),
     ];
+    assert.ok(paths.length >= 12, "the walk did not find the lane's files");
     for (const path of paths) {
       assert.equal(LONG_DASH.test(readFileSync(path, "utf8")), false, `${path} carries an en or em dash`);
     }

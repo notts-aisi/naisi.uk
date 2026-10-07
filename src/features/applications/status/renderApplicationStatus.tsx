@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
 import kit from "@/features/applications/kit/kit.module.css";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import type { SessionUser } from "@/lib/firebase/session";
 import { formIsThere, loadStatus } from "@/lib/applications/status/load";
 import StatusPage from "./StatusPage";
@@ -19,7 +20,8 @@ import styles from "./status.module.css";
  * the very same answer as a round that was never there, from the same code.
  *
  * Everything is read here, on the server, through the applicant-safe half of
- * the data layer and by the session's own uid.
+ * the data layer and by the session's own uid. A client component on this
+ * page is handed the form's id and what it should say, never a document.
  *
  * An account that is still waiting is an applicant and sees its page. An
  * account the committee has refused is told so, and nothing of its own is
@@ -65,9 +67,13 @@ export async function renderApplicationStatus({
   const loaded = await loadStatus(db, roundId, user.uid, now);
   if (!loaded) return null;
 
+  // The session is already in hand, so this is `markerIsLive` rather than a
+  // second read of it.
+  const viewingAs = markerIsLive(await getImpersonator(), user.uid);
+
   return (
     <ApplicationsRoot className={root}>
-      <StatusPage roundId={loaded.roundId} view={loaded.view} />
+      <StatusPage roundId={loaded.roundId} view={loaded.view} viewingAs={viewingAs} />
     </ApplicationsRoot>
   );
 }

@@ -458,7 +458,7 @@
   justify-content: center;
   min-height: 2.75rem;
   margin-top: 6px;
-  padding: 0 18px;
+  padding: 0;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   background: transparent;
@@ -672,6 +672,10 @@
 
   .actions .note {
     text-align: center;
+  }
+
+  .quiet {
+    padding: 0 18px;
   }
 
   /* An offer is the whole screen: its own bar across the top with the way

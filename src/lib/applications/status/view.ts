@@ -10,6 +10,7 @@ import type {
   ApplicantProgramme,
   ApplicantQuestionSet,
 } from "../applicant/types";
+import { REPLY_BY_IS_A_DEADLINE } from "./replies";
 import { standingOf, type PlaceVia } from "./standing";
 
 /**
@@ -97,6 +98,12 @@ export type StatusView =
       replyByLabel: string | null;
       /** The day to reply by has passed. */
       late: boolean;
+      /**
+       * It can still be accepted here. False only when the day has passed AND
+       * the day is a wall, which is the reply route's own rule, so the page
+       * never offers a button the route would refuse.
+       */
+      canAccept: boolean;
     }
   /** Gave a place or an invitation back. */
   | {
@@ -216,12 +223,15 @@ function decidedLabelOf(form: ApplicantForm, application: ApplicantApplication):
 /**
  * What the page shows this person. `today` is the civil date in London
  * ("2026-10-25"), which is what a reply-by day is compared with.
+ * `replyByIsADeadline` is the reply route's own switch, taken from the same
+ * constant unless a test says otherwise.
  */
 export function statusViewFor(
   form: ApplicantForm,
   sets: readonly ApplicantQuestionSet[],
   application: ApplicantApplication | null,
   today: string,
+  replyByIsADeadline: boolean = REPLY_BY_IS_A_DEADLINE,
 ): StatusView {
   const label = form.label;
   if (!application) {
@@ -272,6 +282,7 @@ export function statusViewFor(
     };
   }
   if (standing.kind === "invitation") {
+    const late = standing.replyBy < today;
     return {
       kind: "invitation",
       label,
@@ -279,7 +290,8 @@ export function statusViewFor(
       programme: viewProgramme(programmeOn(form, standing.programmeId)),
       appliedFor: applied.length > 0 ? inWords(applied.map((programme) => `the ${programme.name}`)) : null,
       replyByLabel: formatRunStartShort(standing.replyBy) ?? null,
-      late: standing.replyBy < today,
+      late,
+      canAccept: !(late && replyByIsADeadline),
     };
   }
   if (standing.kind === "released") {
