@@ -33,9 +33,9 @@ export default function manifest(): MetadataRoute.Manifest {
     /*
      * Must be "/", not "/dashboard". A signed-out installer opening
      * /dashboard is bounced through proxy.ts to /login, which is a poor first
-     * launch. "/" is also the only route with revalidate = 600, so it is the
-     * fastest cold start we have. Returning a signed-in member to where they
-     * were is a separate concern and does not belong in start_url.
+     * launch. "/" is a public page, so it opens for anybody. Returning a
+     * signed-in member to where they were is a separate concern and does not
+     * belong in start_url.
      */
     start_url: "/",
     /*

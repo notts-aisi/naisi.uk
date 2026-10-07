@@ -1,0 +1,266 @@
+/*
+  The public events list: a hero, what is coming up, what has been, and a row
+  that leads to the mailing list.
+
+  The sections run edge to edge and each holds a `.container`, which owns the
+  side padding and the safe-area insets.
+*/
+
+/* === Hero === */
+
+.hero {
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* The motif's glow sits to the right of the words, where the net is. Two
+   classes, so this wins over NetField's own ground whichever stylesheet
+   loads first. */
+.hero .heroField {
+  padding: clamp(2.5rem, 5.6vw, 5rem) 0 clamp(3.5rem, 6vw, 5.5rem);
+  background: radial-gradient(
+    ellipse 60% 90% at 78% 18%,
+    var(--net-core) 0%,
+    var(--net-mid) 42%,
+    var(--color-floor) 82%
+  );
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--color-live);
+}
+
+.title {
+  margin: 0.875rem 0 0;
+  font-size: var(--text-display-1);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  color: var(--color-text);
+}
+
+.lede {
+  max-width: 32em;
+  margin: 1.125rem 0 0;
+  font-size: clamp(1.0625rem, 1.32vw, 1.1875rem);
+  line-height: var(--leading-normal);
+  color: var(--color-text-soft);
+}
+
+/* === Sections === */
+
+.section {
+  padding: clamp(3rem, 5vw, 4.5rem) 0;
+}
+
+.sectionAlt {
+  background: var(--color-bg);
+  border-top: 1px solid var(--color-border);
+}
+
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4) var(--space-8);
+  margin-bottom: var(--space-6);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: clamp(1.625rem, 2.4vw, 2.125rem);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.sectionNote {
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+
+.empty {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+/* === Cards === */
+
+/* Two to a row where there is room for two, one where there is not. The
+   column never asks for more than the container has. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(26.25rem, 100%), 1fr));
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grid > li {
+  display: grid;
+  min-width: 0;
+}
+
+.card {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  min-height: 9.5rem;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-decoration: none;
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* An event with no date yet: the tile's place, the same width and rule. */
+.noDate {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 6rem;
+  padding: 1.125rem var(--space-2);
+  border-right: 2px dashed var(--color-border-strong);
+  text-align: center;
+}
+
+.cardBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: 1.125rem var(--space-5);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 1.1875rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.cardMeta {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.cardMeta span {
+  display: block;
+}
+
+.cardFoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-1);
+}
+
+/* A past event sits back: the section's own ground, and nothing in colour.
+   The tile has no quiet state of its own, so its three lines and its rule
+   are quietened from here. */
+.cardPast {
+  background: var(--color-bg);
+}
+
+.cardPast .cardTitle {
+  color: var(--color-text-muted);
+}
+
+.cardPast .tile {
+  border-right-color: var(--color-border);
+}
+
+.cardPast .tile > span {
+  color: var(--color-text-muted);
+}
+
+.ended {
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+}
+
+@media (hover: hover) {
+  .card:hover {
+    border-color: var(--color-border-strong);
+    background: var(--color-surface-hover);
+  }
+
+  .cardPast:hover {
+    background: var(--color-bg-elevated);
+  }
+}
+
+/* === The mailing list row === */
+
+.emails {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+  padding: 1.125rem var(--space-5);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+}
+
+/* After a list of cards, a section's worth of air above it. */
+.grid + .emails {
+  margin-top: clamp(3rem, 5vw, 4.5rem);
+}
+
+.emailsWords {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+
+.emailsTitle {
+  margin: 0;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.emailsText {
+  margin: 2px 0 0;
+  font-size: var(--text-ui);
+  color: var(--color-text-muted);
+}
+
+/* === One event ===
+   The room round the event page: a little above its way back, more below. */
+
+.eventSection {
+  padding: clamp(1rem, 2vw, 1.5rem) 0 clamp(4rem, 7.4vw, 6.5rem);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* The count sits under its heading, not across from it. */
+  .sectionHead {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+}

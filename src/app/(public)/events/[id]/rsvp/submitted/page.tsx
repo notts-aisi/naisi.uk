@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
 import { getPublishedEvent } from "@/features/events/fetchEvents";
+import links from "@/features/events/eventLinks.module.css";
+import styles from "@/features/events/RsvpPages.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -21,44 +21,39 @@ export default async function RsvpSubmittedPage({
   const event = await getPublishedEvent(id);
 
   return (
-    <section style={{ padding: "var(--space-16) 0" }}>
-      <div className="container" style={{ maxWidth: "34rem" }}>
-        <Card padding="lg">
-          {/* Addressed by the browser end-to-end suite: this headline is how a
-              guest knows the RSVP landed, so it is what the spec waits for. */}
-          <h1
-            data-testid="rsvp-submitted"
-            style={{ fontSize: "var(--text-2xl, 1.5rem)", margin: "0 0 var(--space-3)" }}
-          >
-            Your RSVP is in
-          </h1>
-          <p style={{ color: "var(--color-text)", lineHeight: 1.6, margin: "0 0 var(--space-2)" }}>
-            {event
-              ? `Thanks. Your RSVP for ${event.title} has been submitted.`
-              : "Thanks. Your RSVP has been submitted."}
-          </p>
-          <p
-            style={{
-              color: "var(--color-text-muted)",
-              lineHeight: 1.6,
-              margin: "0 0 var(--space-5)",
-            }}
-          >
-            A NAISI organiser will review it and email you once your spot is
-            confirmed. Keep an eye on that inbox, and your spam folder just in
-            case.
-          </p>
-          <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
-            {event && (
-              <Link href={`/events/${id}`}>
-                <Button variant="ghost">Back to the event</Button>
+    <section className={styles.shell}>
+      <div className="container">
+        <div className={styles.column}>
+          <div className={styles.card}>
+            {/* Addressed by the browser end-to-end suite: this headline is how a
+                guest knows the RSVP landed, so it is what the spec waits for. */}
+            <h1 data-testid="rsvp-submitted" className={styles.title}>
+              Your RSVP is in
+            </h1>
+            <p className={styles.text}>
+              {event
+                ? `Thanks. Your RSVP for ${event.title} has been submitted.`
+                : "Thanks. Your RSVP has been submitted."}
+            </p>
+            <p className={styles.muted}>
+              A NAISI organiser will review it and email you once your spot is
+              confirmed. Keep an eye on that inbox, and your spam folder just in
+              case.
+            </p>
+            {/* Anchors, never a Button inside an anchor: that nesting is
+                invalid and its tap behaviour is unreliable in iOS Safari. */}
+            <div className={styles.actions}>
+              {event && (
+                <Link href={`/events/${id}`} className={`${links.link} ${links.secondary}`}>
+                  Back to the event
+                </Link>
+              )}
+              <Link href="/events" className={`${links.link} ${links.primary}`}>
+                See all events
               </Link>
-            )}
-            <Link href="/events">
-              <Button>See all events</Button>
-            </Link>
+            </div>
           </div>
-        </Card>
+        </div>
       </div>
     </section>
   );

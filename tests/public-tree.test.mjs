@@ -221,7 +221,7 @@ const fileName = (domain) => /\.(?:png|jpe?g|gif|svg|webp|avif|css|js|mjs|ts|tsx
 const KNOWN_ADDRESSES = [
   {
     why: "Addresses the society publishes or sends from.",
-    addresses: ["ai-safety@uonsu.com", "newsletter@naisi.uk", "accounts@naisi.uk", "contact@naisi.org.uk"],
+    addresses: ["ai-safety@uonsu.com", "newsletter@naisi.uk", "accounts@naisi.uk"],
   },
   {
     why: "Placeholders and examples in a form, its help text or a comment.",

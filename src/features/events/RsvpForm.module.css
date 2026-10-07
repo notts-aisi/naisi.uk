@@ -1,109 +1,108 @@
+/*
+  The sign-up panel on an event page.
+
+  A card in the page's right-hand column, and the first thing under the facts
+  on a phone. It is an ordinary block at every width: never sticky, never
+  fixed, and nothing is laid over its button.
+*/
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  /* 26px at most, not the 28px a card this size would take: at the panel's
+     full width that leaves the questions 22.5rem, which is exactly what two
+     11rem option rows side by side need. Two more pixels of padding and a
+     long tick list runs to twice the height. */
+  padding: clamp(1.25rem, 2vw, 1.625rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
 .h2 {
-  font-size: var(--text-xl);
+  margin: 0;
+  font-size: 1.375rem;
   font-weight: 600;
-  margin: 0 0 var(--space-3);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
   color: var(--color-text);
 }
 
-.hint {
+/* Tucked up under the heading: the two read as one statement. */
+.lede {
+  margin: -0.375rem 0 0;
+  font-size: var(--text-ui);
+  line-height: var(--leading-normal);
   color: var(--color-text-muted);
-  line-height: 1.6;
-  margin: 0 0 var(--space-3);
-}
-
-.warn {
-  color: var(--color-warning);
-  font-size: var(--text-sm);
-  background: var(--color-warning-soft, rgba(255, 180, 0, 0.08));
-  border: 1px solid var(--color-border);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
-  margin: 0 0 var(--space-3);
 }
 
 .form {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-}
-
-.actions {
-  display: flex;
-  gap: var(--space-3);
-}
-
-.channels {
-  border: 0;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.channelsLegend {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--color-text);
-  margin-bottom: var(--space-1);
-  padding: 0;
-}
-
-.channelLabel {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border);
-  cursor: pointer;
-  transition: border-color var(--transition-fast), background var(--transition-fast);
-}
-
-.channelLabel:hover {
-  border-color: var(--color-text-muted);
-}
-
-.channelCheckbox {
-  margin-top: 0.2em;
-  accent-color: var(--color-accent);
-  width: 1rem;
-  height: 1rem;
-  flex-shrink: 0;
-}
-
-.channelText {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
   min-width: 0;
 }
 
-.channelName {
-  font-size: var(--text-base);
-  font-weight: 500;
-  color: var(--color-text);
-  line-height: 1.3;
+/* A link the width of the panel, where the panel offers one in place of the form. */
+.wide {
+  width: 100%;
 }
 
-.channelDescription {
+.channels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.channelsLegend {
+  margin-bottom: var(--space-2);
+  padding: 0;
   font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  line-height: 1.5;
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 .danger {
-  color: var(--color-danger);
-  font-size: var(--text-sm);
   margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger-text);
 }
 
-.signedIn {
+/* What happens after the button, under it. */
+.after {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
   font-size: var(--text-sm);
+  line-height: 1.45;
   color: var(--color-text-muted);
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
-  margin: 0 0 var(--space-3);
+}
+
+.after svg {
+  display: block;
+  flex: none;
+  margin-top: 1px;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* Nothing: the panel is one column of full-width fields at every width,
+     its padding already narrows with the window, and its button is as wide
+     as the panel. It was drawn for a phone first. */
 }
