@@ -320,11 +320,7 @@ function Answer({ answer, actions }: { answer: AnswerView; actions: AnswerAction
       <Earlier count={answer.earlier.length}>
         {answer.earlier.map((entry, at) => (
           <EarlierEntry key={at} sentOn={entry.sentOn}>
-            {entry.asked ? (
-              <AnswerBody answer={entry} />
-            ) : (
-              <p className={styles.noAnswer}>They weren’t asked this then.</p>
-            )}
+            <AnswerBody answer={entry} />
           </EarlierEntry>
         ))}
       </Earlier>

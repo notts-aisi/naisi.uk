@@ -202,12 +202,13 @@ export type AnswerView = {
 /** What one answer draws: its words, its ticks, or its point on a scale. */
 export type AnswerBody = Pick<AnswerView, "answered" | "text" | "items" | "scale">;
 
-/** One answer as an earlier version held it. */
+/**
+ * One answer as an earlier version held it. Only versions in which the
+ * question was asked are here: `answered` false is asked and left blank.
+ */
 export type EarlierAnswer = AnswerBody & {
   /** "Sat 10 Oct": the day that version was sent. Null when the document does not say. */
   sentOn: string | null;
-  /** False when the question was not part of their application then. */
-  asked: boolean;
 };
 
 /** One About you fact that changed, with what it said before, newest first. */
@@ -243,10 +244,11 @@ export type ChangesSummary = {
   /** Earlier versions that are no longer kept. */
   dropped: number;
   /**
-   * The cards on this screen with something earlier to open, in the order the
-   * screen draws them: "about", a question set's id, or "availability". Empty
-   * when what changed is in the ranking or facilitating alone, or is not
-   * shown on this screen at all.
+   * The cards on this screen that changed, in the order the screen draws
+   * them: "about", a question set's id, or "availability". A card is here
+   * when a part of it has something earlier to open, or when its questions
+   * were not part of an earlier version at all. Empty when what changed is in
+   * the ranking or facilitating alone, or is not shown on this screen.
    */
   where: string[];
 };

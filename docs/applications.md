@@ -268,6 +268,12 @@ version of that run was sent. A part that never changed shows nothing extra.
 - **So a change can be counted and have nothing to open.** The line under
   the applicant's name counts every change to the application of record, and
   says so plainly when none of it is on the screen.
+- **A question they were not asked is not an answer they gave.** A version in
+  which a question set did not apply (the programme was not ranked yet, or
+  they had not said yes to facilitating) is passed over when that set's
+  answers are compared, and the set's card says once when it joined the
+  application (`setAddedOn`). Asked and left blank is different: that is an
+  answer, and reads "No answer."
 - **A score and a comment stay on the question, not on a version.** Where a
   score was given before the answer last changed, one line under the answer
   says so (`changedSinceScoredLine`). A review row records when it was last

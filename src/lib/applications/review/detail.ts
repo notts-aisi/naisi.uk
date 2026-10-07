@@ -23,6 +23,7 @@ import { changeCount } from "../versions/kept";
 import { availabilityViewFor } from "./availabilityView";
 import {
   aboutFactsHistory,
+  addedChipText,
   answerBody,
   answerHistory,
   availabilityHistory,
@@ -31,6 +32,7 @@ import {
   facilitatingHistory,
   motivationHistory,
   rankingHistory,
+  setAddedOn,
   timelineOf,
 } from "./earlier";
 import { own, programmeOn } from "./own";
@@ -276,10 +278,13 @@ export function buildReview(input: {
         history.earlier,
       );
     });
-    if (answers.some((answer) => answer.earlier.length > 0)) {
-      chips.push({ text: "Changed", tone: "neutral" });
-      changedCards.push(set.id);
-    }
+    // A set that was not part of an earlier version says so once, for all its
+    // questions. An answer that changed while it was part of it says "Changed".
+    const added = setAddedOn(timeline, form, set);
+    const changed = answers.some((answer) => answer.earlier.length > 0);
+    if (added) chips.push({ text: addedChipText(added), tone: "neutral" });
+    if (changed) chips.push({ text: "Changed", tone: "neutral" });
+    if (added || changed) changedCards.push(set.id);
     sections.push({
       id: set.id,
       title: sectionTitle(set),

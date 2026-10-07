@@ -50,6 +50,11 @@ import type {
  *    applicants it does not affect their application and reviewers are not
  *    shown it. An answer to a programme the person has since unticked is kept
  *    too and is not shown: the ranking's own history says the programme went.
+ *  - A QUESTION THEY WERE NOT ASKED IS NOT AN ANSWER THEY GAVE. A version in
+ *    which a question set did not apply (the programme was not ranked yet, or
+ *    they had not said yes to facilitating) is passed over when that set's
+ *    answers are compared, and the set says once, for all its questions, when
+ *    it became part of the application (`setAddedOn`).
  *  - WHEN A PART LAST CHANGED IS SAID ONLY WHEN IT IS KNOWN. Versions dropped
  *    at the cap sat between the first one kept and the next, so a value first
  *    seen right after that gap may have arrived in a version that is gone.
@@ -85,25 +90,32 @@ export type PartHistory<T> = {
 /**
  * One part's history. `read` takes a version and answers what the screen
  * would draw for the part, as plain data: two versions are the same for this
- * part exactly when that data is.
+ * part exactly when that data is. It answers `undefined` for a version the
+ * part was not in at all, and that version is passed over: the versions
+ * either side of it are compared with each other.
  */
 export function partHistory<T>(
   timeline: Timeline,
-  read: (content: ApplicationContent) => T,
+  read: (content: ApplicationContent) => T | undefined,
 ): PartHistory<T> {
-  const runs: { value: T; said: string; first: number }[] = [];
+  /** `first` is the version a run starts at, `before` the last version read before it. */
+  const runs: { value: T; said: string; first: number; before: number }[] = [];
+  let before = -1;
   timeline.versions.forEach((version, index) => {
     const value = read(version.content);
-    const said = JSON.stringify(value) ?? "";
+    if (value === undefined) return;
+    const said = JSON.stringify(value);
     if (runs.length === 0 || runs[runs.length - 1].said !== said) {
-      runs.push({ value, said, first: index });
+      runs.push({ value, said, first: index, before });
     }
+    before = index;
   });
   if (runs.length <= 1) return { earlier: [], changedAt: null };
   const current = runs[runs.length - 1];
   // The cap drops from between the first version kept and the next, and from
-  // nowhere else. A value first seen in that next version may be older than it.
-  const exact = !(timeline.gap && current.first === 1);
+  // nowhere else. A value first seen after the first version, with nothing
+  // read in between, may have arrived in a version that is gone.
+  const exact = !(timeline.gap && current.before === 0);
   return {
     earlier: runs
       .slice(0, -1)
@@ -135,10 +147,10 @@ export function answerBody(
 }
 
 /**
- * One answer's history. A version in which the question's set did not apply
- * (the programme was not ranked yet, or they had not said yes to
- * facilitating) reads as not asked, which is a different thing from asked
- * and left blank, and is said differently on the screen.
+ * One answer's history, over the versions in which its question was asked.
+ * Asked and left blank is an answer of its own ("No answer."). Not asked at
+ * all is not: that version is passed over, and the set says when it joined
+ * the application (`setAddedOn`).
  */
 export function answerHistory(
   timeline: Timeline,
@@ -147,14 +159,36 @@ export function answerHistory(
   question: ApplicationQuestion,
 ): { earlier: EarlierAnswer[]; changedAt: Date | null } {
   const history = partHistory(timeline, (content) => {
-    const asked = setApplies(set, form, content);
-    const given = asked ? own(own(content.answers, set.id), question.id) : undefined;
-    return { asked, ...answerBody(form, question, given, content) };
+    if (!setApplies(set, form, content)) return undefined;
+    return answerBody(form, question, own(own(content.answers, set.id), question.id), content);
   });
   return {
     earlier: history.earlier.map(({ sentOn, value }) => ({ sentOn, ...value })),
     changedAt: history.changedAt,
   };
+}
+
+/**
+ * When a question set became part of the application, for a set that was not
+ * part of an earlier version: they had not ranked its programme yet, or had
+ * not said yes to facilitating. Null for a set that was always there.
+ *
+ * `on` is the day of the version that brought it, or null when that is not
+ * known exactly (see the note on the gap at the top).
+ */
+export function setAddedOn(
+  timeline: Timeline,
+  form: ApplicationForm,
+  set: QuestionSetDoc,
+): { on: string | null } | null {
+  const history = partHistory(timeline, (content) => setApplies(set, form, content));
+  if (history.earlier.length === 0) return null;
+  return { on: dayOf(history.changedAt) };
+}
+
+/** What the chip on such a set's card says. */
+export function addedChipText(added: { on: string | null }): string {
+  return added.on ? `Added ${added.on}` : "Added after it was first sent";
 }
 
 /**

@@ -610,6 +610,34 @@ describe("one part's history", () => {
     assert.deepEqual(history.earlier, [{ sentOn: null, value: "A" }]);
   });
 
+  test("a version the part was not in is passed over, and the versions either side are compared", () => {
+    const absent = (at) => ({ content: content({ answers: { fellowships: { why: "ABSENT" } } }), sentAt: at });
+    const read = (entry) => (why(entry) === "ABSENT" ? undefined : why(entry));
+    // The same words before and after: not a change.
+    assert.deepEqual(earlier.partHistory(timeline([says("A", SAT_10), absent(WED_14), says("A", SAT_17)]), read), { earlier: [], changedAt: null });
+    // Different words: what it said before, and it changed when it came back.
+    const changed = earlier.partHistory(timeline([says("A", SAT_10), absent(WED_14), says("B", SAT_17)]), read);
+    assert.deepEqual(changed.earlier, [{ sentOn: "Sat 10 Oct", value: "A" }]);
+    assert.equal(changed.changedAt.getTime(), SAT_17.getTime());
+    // Not in the first version at all: it has no history, it arrived.
+    assert.deepEqual(earlier.partHistory(timeline([absent(SAT_10), says("A", WED_14), says("A", SAT_17)]), read), { earlier: [], changedAt: null });
+    // Across the gap the cap leaves, the same caution, though a version was passed over on the way.
+    const gapped = earlier.partHistory(timeline([says("A", SAT_10), absent(WED_14), says("B", SAT_17)], true), read);
+    assert.equal(gapped.changedAt, null);
+    assert.deepEqual(gapped.earlier, [{ sentOn: "Sat 10 Oct", value: "A" }]);
+  });
+
+  test("when a set joined the application: the day, or that it is not known exactly", () => {
+    const form = normalise.normaliseForm(ROUND, roundDoc());
+    const set = normalise.normaliseQuestionSet("facilitator", { roundId: ROUND, intro: "", ...SETS.facilitator });
+    const wanting = (wants, at) => ({ content: content({ wantsToFacilitate: wants }), sentAt: at });
+    assert.equal(earlier.setAddedOn(timeline([wanting(true, SAT_10), wanting(true, SAT_17)]), form, set), null, "always there");
+    assert.deepEqual(earlier.setAddedOn(timeline([wanting(false, SAT_10), wanting(true, WED_14), wanting(true, SAT_17)]), form, set), { on: "Wed 14 Oct" });
+    assert.deepEqual(earlier.setAddedOn(timeline([wanting(false, SAT_10), wanting(true, WED_14)], true), form, set), { on: null });
+    assert.equal(earlier.addedChipText({ on: "Wed 14 Oct" }), "Added Wed 14 Oct");
+    assert.equal(earlier.addedChipText({ on: null }), "Added after it was first sent");
+  });
+
   test("across a gap, what it said is still shown and when it changed is not claimed", () => {
     // Versions were dropped between the first kept and the next, so "B" may be older than Wed 14.
     const across = earlier.partHistory(timeline([says("A", SAT_10), says("B", WED_14), says("B", SAT_17)], true), why);
@@ -681,13 +709,10 @@ describe("the review screen is sent what each part said before", () => {
     const { review } = await reviewAs(dbWith(), "claudia", "amara");
     const event = answerOf(review, AGI, "event");
     assert.equal(event.text, AMARA_NOW.answers[AGI].event, "the answer itself is the one on record");
-    assert.deepEqual(
-      event.earlier.map((entry) => [entry.sentOn, entry.asked, entry.answered, entry.text]),
-      [
-        ["Wed 14 Oct", true, true, AMARA_SECOND.answers[AGI].event],
-        ["Sat 10 Oct", true, true, AMARA_FIRST.answers[AGI].event],
-      ],
-    );
+    assert.deepEqual(event.earlier, [
+      { sentOn: "Wed 14 Oct", answered: true, text: AMARA_SECOND.answers[AGI].event, items: null, scale: null },
+      { sentOn: "Sat 10 Oct", answered: true, text: AMARA_FIRST.answers[AGI].event, items: null, scale: null },
+    ]);
     // The same words in the first two versions are one entry, dated the first.
     assert.deepEqual(
       answerOf(review, "fellowships", "why").earlier.map((entry) => [entry.sentOn, entry.text]),
@@ -704,20 +729,51 @@ describe("the review screen is sent what each part said before", () => {
     }
   });
 
-  test("a question they were not asked then says so, which is not the same as left blank", async () => {
-    const { review } = await reviewAs(dbWith(), "claudia", "amara");
-    // She had not said yes to facilitating when she first sent.
-    assert.deepEqual(answerOf(review, "facilitator", "led").earlier, [
-      { sentOn: "Sat 10 Oct", asked: false, answered: false, text: null, items: null, scale: null },
-    ]);
-    // Asked and left blank is "asked", with no answer.
+  test("a question asked and left blank before is an answer of its own: no answer", async () => {
     const blank = structuredClone(AMARA);
     blank.sentHistory[1].content.answers.fellowships = { why: AMARA_SECOND.answers.fellowships.why };
-    const { review: second } = await reviewAs(dbWith({ [appPath("amara")]: blank }), "claudia", "amara");
-    assert.deepEqual(answerOf(second, "fellowships", "read").earlier, [
-      { sentOn: "Wed 14 Oct", asked: true, answered: false, text: null, items: null, scale: null },
-      { sentOn: "Sat 10 Oct", asked: true, answered: true, text: "A few chapters.", items: null, scale: null },
+    const { review } = await reviewAs(dbWith({ [appPath("amara")]: blank }), "claudia", "amara");
+    assert.deepEqual(answerOf(review, "fellowships", "read").earlier, [
+      { sentOn: "Wed 14 Oct", answered: false, text: null, items: null, scale: null },
+      { sentOn: "Sat 10 Oct", answered: true, text: "A few chapters.", items: null, scale: null },
     ]);
+  });
+
+  test("questions they were not asked before say so once, on the card, and not under each answer", async () => {
+    const { review } = await reviewAs(dbWith(), "claudia", "amara");
+    // She had not said yes to facilitating when she first sent, so nobody asked her these.
+    const facilitator = sectionOf(review, "facilitator");
+    assert.deepEqual(facilitator.chips.map((chip) => chip.text), ["Added Wed 14 Oct"]);
+    for (const answer of facilitator.answers) assert.deepEqual(answer.earlier, [], answer.key);
+    assert.ok(review.changes.where.includes("facilitator"), "the line near the top still names the card");
+    // No other card was ever absent.
+    for (const id of ["fellowships", AGI, TAIS]) {
+      assert.ok(!sectionOf(review, id).chips.some((chip) => chip.text.startsWith("Added")), id);
+    }
+  });
+
+  test("a set that left and came back is compared across the version it was missing from", async () => {
+    // Facilitating: yes, then no, then yes again. The same answer both times she was asked.
+    const back = structuredClone(AMARA);
+    back.sentHistory[0].content.wantsToFacilitate = true;
+    back.sentHistory[0].content.answers.facilitator = { led: "A reading group." };
+    back.sentHistory[1].content.wantsToFacilitate = false;
+    delete back.sentHistory[1].content.answers.facilitator;
+    const same = await reviewAs(dbWith({ [appPath("amara")]: back }), "claudia", "amara");
+    assert.deepEqual(answerOf(same.review, "facilitator", "led").earlier, [], "the same words either side of the gap are not a change");
+    assert.deepEqual(sectionOf(same.review, "facilitator").chips.map((chip) => chip.text), ["Added Sat 17 Oct"]);
+    assert.deepEqual(
+      same.review.applicant.earlierFacilitating,
+      [{ sentOn: "Wed 14 Oct", wanted: false }, { sentOn: "Sat 10 Oct", wanted: true }],
+    );
+
+    // Different words the first time: that is what it said before.
+    back.sentHistory[0].content.answers.facilitator = { led: "LED-FIRST A seminar." };
+    const differs = await reviewAs(dbWith({ [appPath("amara")]: back }), "claudia", "amara");
+    assert.deepEqual(answerOf(differs.review, "facilitator", "led").earlier, [
+      { sentOn: "Sat 10 Oct", answered: true, text: "LED-FIRST A seminar.", items: null, scale: null },
+    ]);
+    assert.deepEqual(sectionOf(differs.review, "facilitator").chips.map((chip) => chip.text), ["Added Sat 17 Oct", "Changed"]);
   });
 
   test("a point on a scale is shown as the point it was", async () => {
@@ -725,16 +781,26 @@ describe("the review screen is sent what each part said before", () => {
     scaled.sentHistory[1].content.answers[TAIS] = { python: 2, built: "A small classifier." };
     const { review } = await reviewAs(dbWith({ [appPath("amara")]: scaled }), "tess", "amara", TAIS);
     assert.deepEqual(answerOf(review, TAIS, "python").earlier, [
-      { sentOn: "Wed 14 Oct", asked: true, answered: true, text: null, items: null, scale: { options: ["Never tried", "Can follow it", "Write it often"], index: 2 } },
-      { sentOn: "Sat 10 Oct", asked: true, answered: true, text: null, items: null, scale: { options: ["Never tried", "Can follow it", "Write it often"], index: 1 } },
+      { sentOn: "Wed 14 Oct", answered: true, text: null, items: null, scale: { options: ["Never tried", "Can follow it", "Write it often"], index: 2 } },
+      { sentOn: "Sat 10 Oct", answered: true, text: null, items: null, scale: { options: ["Never tried", "Can follow it", "Write it often"], index: 1 } },
     ]);
   });
 
   test("a card with something earlier in it is marked Changed, and no other card is", async () => {
     const { review } = await reviewAs(dbWith(), "claudia", "amara");
     const marked = review.sections.filter((section) => section.chips.some((chip) => chip.text === "Changed")).map((section) => section.id);
-    assert.deepEqual(marked, ["fellowships", AGI, "facilitator"]);
+    assert.deepEqual(marked, ["fellowships", AGI]);
     assert.deepEqual(review.sections.map((section) => section.id), ["fellowships", AGI, TAIS, "facilitator"]);
+    // The marks come after the chips the card already had, and Technical AI Safety has none.
+    assert.deepEqual(
+      Object.fromEntries(review.sections.map((section) => [section.id, section.chips.map((chip) => chip.text)])),
+      {
+        fellowships: ["For both fellowships", "Not scored", "Changed"],
+        [AGI]: ["Scored", "Changed"],
+        [TAIS]: [],
+        facilitator: ["Added Wed 14 Oct"],
+      },
+    );
   });
 
   test("About you: each fact that changed, and nothing for the ones that did not", async () => {

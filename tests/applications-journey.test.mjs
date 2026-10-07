@@ -1450,8 +1450,8 @@ describe("one term, from nothing to settled", () => {
         const why = fellowships.answers.find((answer) => answer.key === key("fellowships", "why"));
         assert.equal(why.text, AMARA_SECOND_WHY, who);
         assert.deepEqual(
-          why.earlier.map((entry) => [entry.sentOn, entry.asked, entry.text]),
-          [["Sat 10 Oct", true, AMARA_FIRST_WHY]],
+          why.earlier.map((entry) => [entry.sentOn, entry.text]),
+          [["Sat 10 Oct", AMARA_FIRST_WHY]],
           who,
         );
         assert.ok(fellowships.chips.some((chip) => chip.text === "Changed"), who);
