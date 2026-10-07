@@ -153,6 +153,8 @@ const MUST_GUARD = [
   ["src/app/api/admissions/rounds/[roundId]/apply/route.ts", "starts, saves and withdraws an application in the applicant's own name"],
   ["src/app/api/admissions/rounds/[roundId]/apply/submit/route.ts", "submits an application, which puts somebody's work in a reviewer's queue"],
   ["src/app/api/admissions/rounds/[roundId]/apply/stage/[stageId]/route.ts", "submits one later-released stage of an application, which cannot be undone"],
+  ["src/app/api/admissions/forms/[roundId]/application/route.ts", "saves the draft of an application in the applicant's own name, and creates the application on the first save"],
+  ["src/app/api/admissions/forms/[roundId]/application/send/route.ts", "sends an application, which puts somebody's answers in front of each programme's lead and reviewers"],
   // Outside the scanned trees above (it lives under /api/admin), so it is
   // named here or it is checked by nothing: it writes `config/courses`, whose
   // knobs reach every course surface at once.

@@ -5,11 +5,13 @@ import styles from "./ApplicationFormNotice.module.css";
  * What an older applicant page says when the round it was asked for is an
  * application form: where applications are made, and nothing else.
  *
- * The apply page and the page that reads one application back were both
- * written for rounds of the older kind. A form is filled in, and read back, on
- * its own screens, so on a form each of those pages returns this before it
- * reads or draws anything in the older shape. See
- * `src/lib/admissions/formFence.ts` for the rule.
+ * The page that reads one application back was written for rounds of the
+ * older kind. An application made on a form is read back on the form's own
+ * screens, so on a form that page returns this before it reads or draws
+ * anything in the older shape. The apply page returned it as well while the
+ * form had no screen of its own. It shows the form at that address now, so it
+ * has nothing left to say this about. See `src/lib/admissions/formFence.ts`
+ * for the rule.
  *
  * ORDINARY HTML, RETURNED BY THE PAGE. Never `notFound()`: for a page that
  * matched its route Next answers that with an empty body and draws the screen

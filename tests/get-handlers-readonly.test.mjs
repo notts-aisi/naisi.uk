@@ -64,6 +64,11 @@ const MUTATION_HELPERS = {
   deleteSet: "deletes a question set and takes it out of the form's order",
   changeProgramme: "changes one programme's settings and the wording of its emails",
   setProgrammeRoles: "names a programme's lead and reviewers, which grants access to applications",
+  // The applicant's side of the same form. The route that saves a draft holds
+  // the GET that reads the application back, and both writes are made in
+  // `src/lib/applications/applicant/store.ts`.
+  saveDraft: "saves an applicant's draft, and creates the application and moves the round's counters on the first save",
+  sendApplication: "makes an applicant's draft the application of record and moves the round's counters",
 };
 
 /**
