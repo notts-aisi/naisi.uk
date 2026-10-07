@@ -7,6 +7,7 @@ import {
   doc,
   onSnapshot,
   query,
+  serverTimestamp,
   Timestamp,
   updateDoc,
   where,
@@ -56,10 +57,29 @@ import {
 } from "./notificationGrid";
 import MembershipBadge from "./MembershipBadge";
 import ProfileSection from "./ProfileSection";
+import { newStudyChangeId, STUDY_CHANGES_FULL, studyWrite } from "./studyChange";
 import WhatYouCanDo from "./WhatYouCanDo";
 import styles from "./ProfileForm.module.css";
 
 const UNI_EMAIL_LOCK_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * What the member is told when the database refuses the save. It says what
+ * happened and what to do, and guesses at no cause: the usual one is that
+ * their details changed somewhere else after this page read them, which a
+ * reload puts right.
+ */
+const SAVE_REFUSED =
+  "Your changes did not save. Reload the page and try again. If they still do not save, email ai-safety@uonsu.com.";
+
+/** True for the error the database gives when its rules refuse a write. */
+function isRefusal(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { code?: unknown }).code === "permission-denied"
+  );
+}
 
 /**
  * The ids a signed-in session gives for the two ways into the site. They are
@@ -484,6 +504,25 @@ export default function ProfileForm() {
       }
     }
 
+    // What this save writes about the degree and the graduation: each only
+    // when it changed, and beside a change that replaced an answer, one entry
+    // saying what the answer was, so it can still be read afterwards. The
+    // users rule refuses such a change without its entry, which is why the
+    // two are built together, in one function the rules suite also runs.
+    const study = studyWrite({
+      role: me?.role ?? "",
+      stored: me?.profile,
+      subject,
+      expectedGraduation: studying ? graduation : null,
+      noted: me?.studyChanges?.length ?? 0,
+      entryId: newStudyChangeId(),
+      serverTime: serverTimestamp(),
+    });
+    if (!study.ok) {
+      setError(STUDY_CHANGES_FULL);
+      return;
+    }
+
     setBusy(true);
     try {
       if (!user) throw new Error("Not signed in");
@@ -513,13 +552,11 @@ export default function ProfileForm() {
           deliverToGmail: legacy.channels.gmail,
           deliverToUniEmail: legacy.channels.uniEmail,
         },
+        // The degree and the graduation, each only when changed, so a save
+        // that is about something else leaves both exactly as they were
+        // stored, and the entry that goes with a change. See `studyWrite`.
+        ...study.patch,
       };
-      // Written only when changed, so a save that is about something else
-      // leaves both exactly as they were stored.
-      if (subjectTrimmed !== previousSubject) patch["profile.subject"] = subjectTrimmed;
-      if (studying && graduation !== previousGraduation) {
-        patch["profile.expectedGraduation"] = graduation;
-      }
       const wasSuppressed = Boolean(
         (me?.profile as { universityEmailWasSuppressed?: boolean } | undefined)
           ?.universityEmailWasSuppressed,
@@ -562,7 +599,9 @@ export default function ProfileForm() {
       setSaved(true);
     } catch (err) {
       console.error(err);
-      setError(err instanceof Error ? err.message : "Failed to save");
+      setError(
+        isRefusal(err) ? SAVE_REFUSED : err instanceof Error ? err.message : "Failed to save",
+      );
     } finally {
       setBusy(false);
     }

@@ -148,6 +148,101 @@ service cloud.firestore {
         && !('uniEmailVerifiedAt' in request.resource.data.get('profile', {}))
         && smallEnough();
 
+      // A MEMBER'S OWN CHANGE TO THEIR DEGREE OR GRADUATION IS NOTED.
+      //
+      // A member can correct `profile.subject` and `profile.expectedGraduation`
+      // on their own profile. When one of them held an answer and the write
+      // gives another, the SAME write has to add one entry to `studyChanges`
+      // saying what the answer was, so that an admin opening that person's
+      // page can still read it. The shape is `StudyChange` in
+      // src/lib/firestore/users.ts, and the write is built by
+      // src/features/profile/studyChange.ts, which the rules suite runs
+      // against these lines.
+      //
+      // What a member's own write is held to:
+      //
+      //  - A change away from an answer carries EXACTLY ONE new entry, and the
+      //    entry is the document's own words. `at` is the server's time
+      //    (`request.time`, which is what a client `serverTimestamp()`
+      //    resolves to). It names each field that changed, and only those,
+      //    with the value stored now. Nothing in it is the caller's to choose
+      //    but its key, which is held to letters and digits.
+      //  - Every earlier entry is left exactly as it was: none removed, none
+      //    rewritten. So the map only grows, by one, and only in a write that
+      //    changes one of the two fields.
+      //  - Any other write leaves the map as it is, so an entry cannot be
+      //    added when nothing changed.
+      //  - Twenty entries is the cap (FIELD_LIMITS.maxStudyChanges). At the
+      //    cap a further change is refused and an admin makes it; everything
+      //    else on the profile still saves. Nothing trims the map to make
+      //    room, because trimming is erasing.
+      //
+      // Three readings that keep every other save working. They have to stay.
+      //
+      //  - NO MAP IS AN EMPTY MAP. An account from before this rule has no
+      //    `studyChanges` field. Both sides are read with a `{}` default, so
+      //    such an account saves as it always did, and its first change
+      //    creates the map.
+      //  - AN ANSWER IS TEXT WITH SOMETHING IN IT. A field that is missing or
+      //    empty holds no answer, so filling it for the first time is not a
+      //    change and carries no entry.
+      //  - AN ACCOUNT STILL WAITING TO BE APPROVED IS NOT HELD TO THE ENTRY.
+      //    Registration writes the whole document with one unmerged set, and
+      //    a second attempt rewrites it (the same retry the consent lines
+      //    below make room for), so its answers are still its join request.
+      //    The role cannot be changed by its holder, so this is no way round.
+      //
+      // The degree is read the way the admin's page reads it: `subject`, or
+      // the older `course` on an account that never stored a subject.
+      //
+      // An admin's write takes the isAdmin() branch and is held to none of
+      // this: an admin correcting somebody's profile is not that member's
+      // change.
+      function studyField(data, field) { return data.get(['profile', field], ''); }
+      function isAnswer(value)         { return value is string && value.size() > 0; }
+      function degreeOf(data) {
+        return isAnswer(studyField(data, 'subject'))
+          ? studyField(data, 'subject')
+          : studyField(data, 'course');
+      }
+      function degreeMoves() {
+        return isAnswer(degreeOf(resource.data))
+          && degreeOf(request.resource.data) != degreeOf(resource.data);
+      }
+      function graduationMoves() {
+        return isAnswer(studyField(resource.data, 'expectedGraduation'))
+          && studyField(request.resource.data, 'expectedGraduation')
+               != studyField(resource.data, 'expectedGraduation');
+      }
+      function studyChangesOf(data) { return data.get('studyChanges', {}); }
+      function studyEntryIsTrue(entry) {
+        return entry.keys().hasOnly(['at', 'subject', 'expectedGraduation'])
+          && entry.at == request.time
+          && (degreeMoves()
+                ? entry.get('subject', null) == degreeOf(resource.data)
+                : !('subject' in entry))
+          && (graduationMoves()
+                ? entry.get('expectedGraduation', null)
+                    == studyField(resource.data, 'expectedGraduation')
+                : !('expectedGraduation' in entry));
+      }
+      function studyChangeIsNoted() {
+        let before = studyChangesOf(resource.data);
+        let after = studyChangesOf(request.resource.data);
+        let moved = after.diff(before);
+        return before.size() < 20
+          && moved.removedKeys().size() == 0
+          && moved.changedKeys().size() == 0
+          && moved.addedKeys().size() == 1
+          && after.keys().removeAll(before.keys())[0].matches('^[A-Za-z0-9]{1,40}$')
+          && studyEntryIsTrue(after[after.keys().removeAll(before.keys())[0]]);
+      }
+      function studyChangesHold() {
+        return (resource.data.role != 'pending' && (degreeMoves() || graduationMoves()))
+          ? studyChangeIsNoted()
+          : studyChangesOf(request.resource.data) == studyChangesOf(resource.data);
+      }
+
       // Self-update: role, tracks, permissions and suRecognised all unchanged.
       // (These are admin-only; a user editing their own profile must not be able
       //  to flip or clear any of them. suRecognised in particular is a trust
@@ -239,7 +334,13 @@ service cloud.firestore {
                 && request.resource.data.get(['profile', 'universityEmail'], '')
                   == resource.data.get(['profile', 'universityEmail'], '')
               )
-            )))
+            )
+            // A change to the degree or the graduation carries its entry in
+            // `studyChanges`, and no write here touches an earlier one. The
+            // helpers and their reasons are above this rule. Inside the
+            // self-update disjunct on purpose, like the consent lines: the
+            // isAdmin() branch is unaffected.
+            && studyChangesHold()))
         && smallEnough();
 
       allow delete: if isAdmin();
