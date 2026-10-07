@@ -589,6 +589,18 @@ describe("what an applicant reads on decision day", () => {
     assert.match(page, /const EVENTS = "\/events";/);
   });
 
+  // The owner's decision of 7 October 2026: the invitation card carries no
+  // line about who reads the application once the person accepts. The rule
+  // itself is unchanged (`joinedByInvitation`, `canReadApplication`), and
+  // `tests/applications-wave-h-joined.test.mjs` still holds it.
+  test("the invitation card says nothing about who can read the application", () => {
+    for (const file of readdirSync(SCREEN_DIR).filter((name) => /\.tsx?$/.test(name))) {
+      const shown = flat(codeOf(SCREEN_DIR, file));
+      assert.equal(/can read your application/i.test(shown), false, `${file} says who can read the application`);
+      assert.equal(/If you accept, the lead/i.test(shown), false, `${file} carries the line the card lost`);
+    }
+  });
+
   test("the committee's word for the people nothing took appears once, in the board's own sentence", () => {
     const files = [
       ...readdirSync(SCREEN_DIR).filter((name) => /\.tsx?$/.test(name)).map((name) => [SCREEN_DIR, name]),
