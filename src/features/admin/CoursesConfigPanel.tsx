@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
 import { Field, Input } from "@/components/ui/Input";
+import { AdminPanel, AdminProblem } from "./adminPanels";
 import styles from "./CoursesConfigPanel.module.css";
 
 /**
@@ -120,12 +120,15 @@ export default function CoursesConfigPanel() {
   }
 
   return (
-    <Card padding="lg">
-      <h2 className={styles.sectionTitle}>Course settings</h2>
+    <AdminPanel
+      id="course-settings"
+      title="Course settings"
+      description="Three settings the courses read from the whole site: two feedback forms, and how long a register may go unmarked."
+    >
       {!loaded ? (
-        <p className={styles.meta}>Loading...</p>
+        <p className={styles.meta}>Loading…</p>
       ) : loadError ? (
-        <p className={styles.errorText}>{loadError}</p>
+        <AdminProblem>{loadError}</AdminProblem>
       ) : (
         <div className={styles.form}>
           <Field
@@ -178,16 +181,20 @@ export default function CoursesConfigPanel() {
             />
           </Field>
 
-          {saveError ? <p className={styles.errorText}>{saveError}</p> : null}
+          {saveError ? <AdminProblem>{saveError}</AdminProblem> : null}
 
           <div className={styles.actionsRow}>
             <Button onClick={() => void save()} disabled={saving}>
-              {saving ? "Saving..." : "Save course settings"}
+              {saving ? "Saving…" : "Save course settings"}
             </Button>
-            {savedFlash ? <span className={styles.meta}>Saved.</span> : null}
+            {savedFlash ? (
+              <span className={styles.saved} role="status">
+                Saved.
+              </span>
+            ) : null}
           </div>
         </div>
       )}
-    </Card>
+    </AdminPanel>
   );
 }

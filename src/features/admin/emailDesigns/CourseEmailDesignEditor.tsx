@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
+import PageHead from "@/components/ui/PageHead";
 import { useAuth } from "@/auth/AuthProvider";
 import { getClientDb } from "@/lib/firebase/client";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
@@ -29,7 +31,7 @@ import {
 import styles from "./CourseEmailDesignEditor.module.css";
 
 /**
- * Admin editor for one `courseEmailTemplates/{id}` doc — structurally the
+ * Admin editor for one `courseEmailTemplates/{id}` doc: structurally the
  * application-email editor (EmailDesignEditor.tsx) with three deliberate
  * differences:
  *
@@ -37,7 +39,7 @@ import styles from "./CourseEmailDesignEditor.module.css";
  *     the index page; course templates are not, because the send path is
  *     fallback-first (courseApplicationEmails.ts reads the doc, falls back to
  *     `courseTemplateDefaults` when it is missing, malformed, or empty). So a
- *     missing doc is a normal steady state — "Using defaults" — and Save is a
+ *     missing doc is a normal steady state ("Using defaults") and Save is a
  *     `setDoc` create rather than an `updateDoc`.
  *  2. **No recipients modifier.** Course mail goes to the one address the
  *     applicant applied with; there is no Google/university split to choose.
@@ -63,7 +65,7 @@ type Overrides = {
 type TokenHelp = { token: string; description: string };
 
 const ALWAYS_TOKENS: TokenHelp[] = [
-  { token: "firstName", description: "First word of their name — best for greetings." },
+  { token: "firstName", description: "First word of their name, best for greetings." },
   {
     token: "preferredName",
     description: "Their preferred name, falling back to their display name.",
@@ -81,12 +83,12 @@ const GROUP_TOKENS: TokenHelp[] = [
 
 /**
  * The weekly nudge's own map. It does NOT resolve {startDate} or
- * {preferredName} — a different module builds its tokens
- * (`src/lib/email/courseNudgeEmail.ts`) — so the lifecycle lists above are
+ * {preferredName}: a different module builds its tokens
+ * (`src/lib/email/courseNudgeEmail.ts`), so the lifecycle lists above are
  * replaced rather than added to when this template is open.
  */
 const WEEK_TOKENS: TokenHelp[] = [
-  { token: "firstName", description: "First word of their name — best for greetings." },
+  { token: "firstName", description: "First word of their name, best for greetings." },
   { token: "courseTitle", description: "The course's title, e.g. AI Safety Fundamentals." },
   { token: "runLabel", description: "Which run this is, e.g. Autumn 2026." },
   { token: "weekNumber", description: "The taught week the cohort is on, e.g. 3." },
@@ -95,15 +97,15 @@ const WEEK_TOKENS: TokenHelp[] = [
   {
     token: "weekPrep",
     description:
-      "A sentence counting what is in the week — readings to do, exercises to write up, roughly how long.",
+      "A sentence counting what is in the week: readings to do, exercises to write up, roughly how long.",
   },
   {
     token: "sessionWhen",
-    description: "When this recipient's group meets that week, e.g. Tuesday 21 October, 18:00–19:30.",
+    description: "When this recipient's group meets that week, e.g. Tuesday 21 October, 18:00 to 19:30.",
   },
   {
     token: "sessionWhere",
-    description: "Where that session is, e.g. Hallward Library, B12. Online groups say Online — never the meeting link.",
+    description: "Where that session is, e.g. Hallward Library, B12. Online groups say Online, never the meeting link.",
   },
   { token: "weekUrl", description: "Link straight to the week page in the learning space." },
   {
@@ -157,7 +159,7 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
   const [loading, setLoading] = useState(true);
 
   // Local edits layered on top of the server snapshot (or the defaults, when no
-  // doc exists yet). Empty == no unsaved changes — same idiom as the
+  // doc exists yet). Empty == no unsaved changes, the same idiom as the
   // application-email editor, avoiding setState-in-effect on hydration.
   const [overrides, setOverrides] = useState<Overrides>({});
 
@@ -214,7 +216,7 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
   // Stable object identity so EmailPreview's effect doesn't refetch on every
   // keystroke-driven re-render. `templateId` travels with the tokens because the
   // preview endpoint renders the weekly nudge through a different component and
-  // a different token pass than the five lifecycle templates — see
+  // a different token pass than the five lifecycle templates: see
   // `/api/admin/course-emails/preview`.
   const previewPayload = useMemo(
     () => ({ templateId, tokens: courseSampleTokens(templateId, "Alex Taylor") }),
@@ -289,7 +291,12 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
   }
 
   if (loading) {
-    return <p style={{ color: "var(--color-text-muted)" }}>Loading template…</p>;
+    return (
+      <div className={styles.wrap}>
+        <PageHead crumb={<EmailCrumb />} title={COURSE_DEFAULT_LABELS[templateId]} />
+        <p className={styles.statusLine}>Loading this email…</p>
+      </div>
+    );
   }
 
   const subjectOver = subject.length > COURSE_SUBJECT_MAX;
@@ -303,27 +310,28 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
 
   return (
     <div className={styles.wrap}>
-      <header className={styles.header}>
-        <div>
-          <h2 className={styles.title}>{COURSE_DEFAULT_LABELS[templateId]}</h2>
-          <p className={styles.subtitle}>
-            {usingDefaults
-              ? "No saved copy yet — this is NAISI's default wording, and it is what sends today. Saving takes over."
-              : "Saved copy. This is what sends."}
-          </p>
-        </div>
-        {dirty ? (
-          <Badge tone="warning">Unsaved changes</Badge>
-        ) : usingDefaults ? (
-          <Badge tone="neutral">Using defaults</Badge>
-        ) : (
-          <Badge tone="neutral">Saved</Badge>
-        )}
-      </header>
+      <PageHead
+        crumb={<EmailCrumb />}
+        title={COURSE_DEFAULT_LABELS[templateId]}
+        badges={
+          dirty ? (
+            <Badge tone="warning">Unsaved changes</Badge>
+          ) : usingDefaults ? (
+            <Badge tone="neutral">Using defaults</Badge>
+          ) : (
+            <Badge tone="neutral">Saved</Badge>
+          )
+        }
+        description={
+          usingDefaults
+            ? "No saved copy yet. This is NAISI's default wording, and it is what sends today. Saving takes over."
+            : "Saved copy. This is what sends."
+        }
+      />
 
       <section className={styles.tokens} aria-label="Available tokens">
         <p className={styles.tokensLead}>
-          Tokens you can use in the subject and body — each is replaced at send time:
+          Tokens you can use in the subject and body. Each is replaced at send time:
         </p>
         <dl className={styles.tokenList}>
           {(showsAdmissionsTokens
@@ -364,7 +372,7 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
         )}
         {!showsWeekTokens && !showsAdmissionsTokens && !showsGroupTokens && (
           <p className={styles.tokensNote}>
-            The last three only resolve on the group placement email — nobody has a group
+            The last three only resolve on the group placement email: nobody has a group
             yet when this one sends. Used here they arrive as the literal{" "}
             <code>{"{groupName}"}</code> text, which the preview shows you.
           </p>
@@ -372,8 +380,8 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
         {showsWeekTokens && (
           <p className={styles.tokensNote}>
             This email behaves differently from the other five, in one way worth knowing:
-            when a token has nothing to resolve to — a week with no summary written yet, a
-            member whose group has no time set — the whole sentence around it is removed
+            when a token has nothing to resolve to (a week with no summary written yet, a
+            member whose group has no time set), the whole sentence around it is removed
             rather than left with a gap in it. So keep one of these tokens per paragraph,
             in plain text rather than inside bold or a link, and the email simply gets
             shorter instead of reading oddly. The subject line is the one thing that
@@ -406,7 +414,7 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
               placeholder={
                 showsWeekTokens
                   ? "{weekTitle} · Week {weekNumber} of {courseTitle}"
-                  : "You're in — {courseTitle} starts {startDate}"
+                  : "You're in: {courseTitle} starts {startDate}"
               }
             />
           </Field>
@@ -470,7 +478,7 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
             )}
             {testStatus.kind === "sent" && testStatus.addresses.length === 0 && (
               <span className={`${styles.statusLine} ${styles.statusError}`}>
-                Test reported as sent but no addresses came back — check server logs.
+                Test reported as sent but no addresses came back. Check the server logs.
               </span>
             )}
             {testStatus.kind === "error" && (
@@ -496,12 +504,23 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
           extraPayload={previewPayload}
           hint={
             showsWeekTokens
-              ? "This is what a recipient sees, with sample course details filled in — including the unsubscribe footer every nudge carries. Every sample below resolves, so this is the LONGEST version anyone gets: a week with no summary, or a member whose group has no time set, receives a shorter email with those sentences removed. A token this email cannot resolve (a typo, or one borrowed from another template) stays visible as {token}."
-              : "This is what a recipient sees, with sample course details filled in. Tokens that don't resolve on this email stay visible as {token} — that's what would land in the inbox."
+              ? "This is what a recipient sees, with sample course details filled in, including the unsubscribe footer every nudge carries. Every sample below resolves, so this is the LONGEST version anyone gets: a week with no summary, or a member whose group has no time set, receives a shorter email with those sentences removed. A token this email cannot resolve (a typo, or one borrowed from another template) stays visible as {token}."
+              : "This is what a recipient sees, with sample course details filled in. Tokens that don't resolve on this email stay visible as {token}: that is what would land in the inbox."
           }
         />
       </div>
     </div>
+  );
+}
+
+/** The way back, above the email's name. */
+function EmailCrumb() {
+  return (
+    <>
+      <span>Site settings</span>
+      <span aria-hidden="true">/</span>
+      <Link href="/admin/email-designs">Sign-up emails</Link>
+    </>
   );
 }
 

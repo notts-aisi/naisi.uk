@@ -1,48 +1,82 @@
+/* Scheduled jobs, on the site notice and scheduled jobs page. Titled cards
+   are AdminPanel's and the ticks table is AdminTable's. */
+
 .stack {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-5);
+  min-width: 0;
 }
 
-.sectionTitle {
-  font-size: var(--text-xl);
-  margin-bottom: var(--space-2);
+/* The one switch over every job: a box a shade darker than its card. */
+.pause {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
 }
 
-.blurb {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  line-height: 1.6;
-  margin-bottom: var(--space-4);
-}
-
-.head {
-  display: flex;
+/* The words at the left and the switch at the right. The shared Switch draws
+   its track first, so the row is turned round. */
+.pause label {
+  flex-direction: row-reverse;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-4);
 }
 
-.jobList {
+/* "Last run", then when, then how it went. */
+.lastRun {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) 0.625rem;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-ok);
+}
+
+.empty {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+}
+
+/* === The jobs: one under another, with a hairline between === */
+.jobList {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .jobRow {
   display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-5) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.jobRow:last-child {
+  padding-bottom: 0;
+}
+
+.jobHead {
+  display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-elevated);
+  gap: var(--space-3) var(--space-6);
 }
 
 .jobMain {
@@ -50,138 +84,201 @@
   min-width: 0;
 }
 
+.jobName {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
 .jobDescription {
-  color: var(--color-text-muted);
+  margin: 0.25rem 0 0;
   font-size: var(--text-sm);
-  line-height: 1.5;
-  margin: var(--space-2) 0 0;
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+}
+
+.jobActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* On or Off as a word, then the switch. The shared Switch draws its track
+   first, so the row is turned round and the word comes first. */
+.jobSwitch label {
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: var(--space-2);
+  padding-block: 0;
+}
+
+.onWord {
+  display: inline-block;
+  min-width: 1.625rem;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.onWordOn {
+  color: var(--color-ok);
 }
 
 .jobMeta {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-top: var(--space-3);
-  color: var(--color-text-subtle);
-  font-size: var(--text-xs);
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+}
+
+/* A job's id, a marker's id: the metadata face, without its capitals. */
+.mono {
+  font-family: var(--font-meta);
+  letter-spacing: 0;
 }
 
 .jobError {
-  margin-top: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-danger-line);
+  border-radius: var(--radius-row);
   background: var(--color-danger-soft);
-  color: var(--color-danger);
-  font-size: var(--text-xs);
-  line-height: 1.5;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-danger-text);
   overflow-wrap: anywhere;
 }
 
-.jobActions {
+/* Run now, asked once more before it runs. */
+.ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+}
+
+.askText {
+  flex: 1 1 18rem;
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.askActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.footnote {
+  margin: calc(var(--space-2) * -1) 0 0;
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* === Stuck sends === */
+.markerList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: var(--space-3);
-  flex: 0 0 auto;
-}
-
-.tableScroll {
-  overflow-x: auto;
-  min-width: 0;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-}
-
-.table th,
-.table td {
-  text-align: left;
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--color-border);
-  white-space: nowrap;
-}
-
-.table th {
-  color: var(--color-text-subtle);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-weight: 700;
-}
-
-.wrapCell {
-  white-space: normal;
-  overflow-wrap: anywhere;
-  max-width: 22rem;
-}
-
-.mono {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.85em;
-}
-
-.empty {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  margin: 0;
-}
-
-.error {
-  color: var(--color-danger);
-  font-size: var(--text-sm);
-  margin: 0;
-}
-
-.note {
-  color: var(--color-success);
-  font-size: var(--text-sm);
-  margin: 0;
 }
 
 .markerRow {
   display: flex;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-3) var(--space-5);
   padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-border);
+}
+
+.markerRow:first-child {
+  padding-top: 0;
+  border-top: 0;
 }
 
 .markerRow:last-child {
-  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .markerId {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.85em;
+  font-family: var(--font-meta);
+  font-size: var(--text-caption);
+  color: var(--color-text);
   overflow-wrap: anywhere;
 }
 
 .markerMeta {
-  color: var(--color-text-subtle);
-  font-size: var(--text-xs);
   margin-top: var(--space-1);
+  font-size: var(--text-caption);
   line-height: 1.5;
+  color: var(--color-text-muted);
   overflow-wrap: anywhere;
 }
 
+/* === Recent ticks === */
+.bucket {
+  font-family: var(--font-meta);
+  font-size: var(--text-caption);
+  white-space: nowrap;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  .jobRow {
-    flex-direction: column;
-  }
-
+  /* A job's switch and Run now drop under its description and take the
+     card's width: the switch at the left, the button at the right. */
   .jobActions {
-    align-items: flex-start;
-    flex-direction: row;
-    flex-wrap: wrap;
-    width: 100%;
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+  .jobActions button {
+    min-height: 2.75rem;
   }
 
-  .markerRow {
-    flex-direction: column;
-    gap: var(--space-2);
+  /* The question takes the box's width and its two buttons share a line. */
+  .askActions {
+    flex: 1 1 100%;
+  }
+  .askActions > * {
+    flex: 1 1 auto;
+    min-height: 2.75rem;
+  }
+
+  .markerRow button {
+    flex: 1 1 100%;
+    min-height: 2.75rem;
   }
 }

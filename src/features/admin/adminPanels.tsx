@@ -43,6 +43,7 @@ export function AdminStat({
  * `<h1>` above it.
  */
 export function AdminPanel({
+  id,
   title,
   description,
   badges,
@@ -50,6 +51,8 @@ export function AdminPanel({
   tone = "plain",
   children,
 }: {
+  /** For a link from the top of a long page to land on this card. */
+  id?: string;
   title: ReactNode;
   /** One muted line or two under the title: what this card is for. */
   description?: ReactNode;
@@ -62,7 +65,10 @@ export function AdminPanel({
   children?: ReactNode;
 }) {
   return (
-    <section className={tone === "careful" ? `${styles.panel} ${styles.panelCareful}` : styles.panel}>
+    <section
+      id={id}
+      className={tone === "careful" ? `${styles.panel} ${styles.panelCareful}` : styles.panel}
+    >
       <div className={styles.panelHead}>
         <div className={styles.panelHeadMain}>
           <div className={styles.panelTitleRow}>
@@ -110,5 +116,66 @@ export function AdminActionRow({
       </div>
       <div className={styles.actionButtons}>{children}</div>
     </div>
+  );
+}
+
+/** A row of small counts inside a card: each a number over its name. */
+export function AdminTiles({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className={styles.tiles} role="group" aria-label={label}>
+      {children}
+    </div>
+  );
+}
+
+export function AdminTile({ value, label }: { value: ReactNode; label: ReactNode }) {
+  return (
+    <div className={styles.tile}>
+      <span className={styles.tileValue}>{value}</span>
+      <span className={`meta ${styles.tileLabel}`}>{label}</span>
+    </div>
+  );
+}
+
+/**
+ * A page of cards kept to a reading width. The page itself fills the frame
+ * (`AdminPage wide`), so its head starts where every other admin page's does;
+ * this is for what goes under the head when it is forms and sentences and not
+ * a table.
+ */
+export function AdminColumn({ children }: { children: ReactNode }) {
+  return <div className={styles.column}>{children}</div>;
+}
+
+/**
+ * A titled part of a page that is not itself a card: a heading, a muted line,
+ * then whatever follows, usually a table in its own card. The title is an
+ * `<h2>`, like a card's.
+ */
+export function AdminSection({
+  id,
+  title,
+  description,
+  actions,
+  children,
+}: {
+  id?: string;
+  title: ReactNode;
+  description?: ReactNode;
+  /** Buttons at the right of the title. */
+  actions?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <section id={id} className={styles.section}>
+      <div className={styles.panelHead}>
+        <div className={styles.panelHeadMain}>
+          <h2 className={styles.sectionTitle}>{title}</h2>
+          {description && <p className={styles.panelDescription}>{description}</p>}
+        </div>
+        {actions && <div className={styles.panelActions}>{actions}</div>}
+      </div>
+      {children}
+    </section>
   );
 }

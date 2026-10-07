@@ -641,8 +641,6 @@ function headsDrawnBy(pageFile) {
  * gains the mark, makes its line stale and fails.
  */
 const SECOND_HEADING_STILL_DRAWN = {
-  "/admin/registrations":
-    "The sign-up tracker writes its own <h1> in the page file. Its section is redrawn with the publicity and settings pages, which is when it takes the mark.",
   "/admin/admissions/[roundId]":
     "The older round editor names the round in an <h1>, while the list of older rounds under the same entry draws no head. No redesign covers the older rounds.",
   "/admin/admissions/[roundId]/appointments":

@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { AdminPage } from "@/features/admin/adminList";
+import { AdminProblem, AdminSection } from "@/features/admin/adminPanels";
 import { ensureTemplatesSeeded } from "@/features/admin/emailDesigns/seedTemplates";
 import Badge from "@/components/ui/Badge";
+import PageHead from "@/components/ui/PageHead";
 import { formatSiteDate } from "@/lib/datetime/siteTime";
 import {
   DEFAULT_LABELS,
@@ -25,19 +28,31 @@ import styles from "@/features/admin/emailDesigns/EmailDesignsList.module.css";
 
 export const dynamic = "force-dynamic";
 
-// Rendered on the server, so the zone and the locale are named rather than
-// left to the container, which is UTC and en-US.
+// Rendered on the server, so the zone and the locale are named and not left
+// to the container, which is UTC and en-US.
 function formatEdited(date: Date): string {
   return formatSiteDate(date, { day: "numeric", month: "short", year: "numeric" });
+}
+
+/** The head every state of this page is drawn under. */
+function Head() {
+  return (
+    <PageHead
+      crumb="Site settings"
+      title="Sign-up emails"
+      description="The emails the site sends by itself when somebody asks to join and when their request is decided, and the ones that go to people applying to a programme or taking part in one."
+    />
+  );
 }
 
 export default async function EmailDesignsPage() {
   const db = getAdminDb();
   if (!db) {
     return (
-      <p style={{ color: "var(--color-danger)" }}>
-        Firebase Admin is not configured on this environment.
-      </p>
+      <AdminPage wide>
+        <Head />
+        <AdminProblem>Firebase Admin is not configured on this environment.</AdminProblem>
+      </AdminPage>
     );
   }
 
@@ -80,21 +95,19 @@ export default async function EmailDesignsPage() {
   const rejected = ordered.filter((t) => t.trigger === "rejected");
 
   return (
-    <div style={{ width: "100%", maxWidth: "60rem", margin: "0 auto" }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-        <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
-          Boilerplate transactional emails sent automatically on membership application
-          lifecycle events.
-          Edit the subject, body and recipients for each template; rejection reasons are picked
-          by the admin at reject time.
-        </p>
-
-        <Group heading="When an application is submitted" templates={submitted} />
-        <Group heading="When an application is approved" templates={approved} />
-        <Group heading="Rejection reasons" templates={rejected} />
+    <AdminPage wide>
+      <Head />
+      <div className={styles.page}>
+        <Group heading="When a join request is sent" templates={submitted} />
+        <Group heading="When a join request is approved" templates={approved} />
+        <Group
+          heading="When a join request is turned down"
+          description="One email for each reason. The admin picks the reason when they turn the request down."
+          templates={rejected}
+        />
         <CourseGroup byId={courseById} />
       </div>
-    </div>
+    </AdminPage>
   );
 }
 
@@ -116,74 +129,91 @@ const COURSE_TRIGGER_LABELS: Record<CourseTemplateTrigger, string> = {
 
 function CourseGroup({ byId }: { byId: Map<CourseTemplateId, CourseTemplateDoc> }) {
   return (
-    <section className={styles.group}>
-      <h2 className={styles.groupHeader}>Course and admissions emails</h2>
-      <p
-        style={{
-          color: "var(--color-text-muted)",
-          fontSize: "var(--text-sm)",
-          margin: 0,
-        }}
-      >
-        Sent to people applying to an admissions round, and to learners across
-        a course run. Any template you haven&apos;t edited sends NAISI&apos;s
-        default copy: nothing is broken until you touch it, and you can always
-        reset back.
-      </p>
-      {COURSE_TEMPLATE_IDS.map((id) => {
-        const stored = byId.get(id);
-        const subject = stored?.subject || courseTemplateDefaults[id].subject;
-        return (
-          <Link
-            key={id}
-            href={`/admin/email-designs/course/${id}`}
-            className={styles.card}
-          >
-            <p className={styles.cardTitle}>
-              {stored?.label || COURSE_DEFAULT_LABELS[id]}
-            </p>
-            <p className={styles.cardSubject}>{subject}</p>
-            {/* alignItems inline: the shared .cardMeta row is text-only
-                elsewhere, and a stretched Badge next to a line of text reads as
-                a misaligned pill. */}
-            <div className={styles.cardMeta} style={{ alignItems: "center" }}>
-              <Badge tone={stored ? "accent" : "neutral"}>
-                {COURSE_TRIGGER_LABELS[COURSE_TEMPLATE_TRIGGER[id]]}
-              </Badge>
-              <span>
-                {stored?.updatedAt
-                  ? `Edited ${formatEdited(stored.updatedAt)}`
-                  : "Using defaults"}
-              </span>
-            </div>
-          </Link>
-        );
-      })}
-    </section>
+    <AdminSection
+      title="Course and application emails"
+      description="Sent to people applying to an admissions round, and to learners across a course run. Any email you have not edited sends NAISI's default wording: nothing is broken until you touch it, and you can always reset back."
+    >
+      <ul className={styles.list}>
+        {COURSE_TEMPLATE_IDS.map((id) => {
+          const stored = byId.get(id);
+          const subject = stored?.subject || courseTemplateDefaults[id].subject;
+          return (
+            <li key={id}>
+              <Link href={`/admin/email-designs/course/${id}`} className={styles.row}>
+                <span className={styles.rowMain}>
+                  <span className={styles.rowTitle}>{stored?.label || COURSE_DEFAULT_LABELS[id]}</span>
+                  <span className={styles.rowSubject}>{subject}</span>
+                </span>
+                <span className={styles.rowMeta}>
+                  <Badge tone={stored ? "accent" : "neutral"}>
+                    {COURSE_TRIGGER_LABELS[COURSE_TEMPLATE_TRIGGER[id]]}
+                  </Badge>
+                  <span className={styles.rowWhen}>
+                    {stored?.updatedAt ? `Edited ${formatEdited(stored.updatedAt)}` : "Using defaults"}
+                  </span>
+                </span>
+                <Chevron />
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </AdminSection>
   );
 }
 
-function Group({ heading, templates }: { heading: string; templates: TemplateDoc[] }) {
+function Group({
+  heading,
+  description,
+  templates,
+}: {
+  heading: string;
+  description?: string;
+  templates: TemplateDoc[];
+}) {
   if (templates.length === 0) return null;
   return (
-    <section className={styles.group}>
-      <h2 className={styles.groupHeader}>{heading}</h2>
-      {templates.map((t) => (
-        <Link
-          key={t.templateId}
-          href={`/admin/email-designs/${t.templateId}`}
-          className={styles.card}
-        >
-          <p className={styles.cardTitle}>{t.label}</p>
-          <p className={styles.cardSubject}>{t.subject || "(no subject set)"}</p>
-          <div className={styles.cardMeta}>
-            <span>Sends to: {RECIPIENT_MODIFIER_LABELS[t.recipients]}</span>
-            {t.updatedAt ? (
-              <span>Updated {formatEdited(t.updatedAt)}</span>
-            ) : null}
-          </div>
-        </Link>
-      ))}
-    </section>
+    <AdminSection title={heading} description={description}>
+      <ul className={styles.list}>
+        {templates.map((t) => (
+          <li key={t.templateId}>
+            <Link href={`/admin/email-designs/${t.templateId}`} className={styles.row}>
+              <span className={styles.rowMain}>
+                <span className={styles.rowTitle}>{t.label}</span>
+                <span className={styles.rowSubject}>{t.subject || "(no subject set)"}</span>
+              </span>
+              <span className={styles.rowMeta}>
+                <Badge tone="neutral">Sends to: {RECIPIENT_MODIFIER_LABELS[t.recipients]}</Badge>
+                {t.updatedAt ? (
+                  <span className={styles.rowWhen}>Edited {formatEdited(t.updatedAt)}</span>
+                ) : null}
+              </span>
+              <Chevron />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </AdminSection>
+  );
+}
+
+/** The mark at the end of a row that opens something. */
+function Chevron() {
+  return (
+    <svg
+      className={styles.chevron}
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M9 6l6 6-6 6" />
+    </svg>
   );
 }
