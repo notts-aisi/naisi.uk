@@ -370,4 +370,27 @@
   .group {
     padding: var(--space-4);
   }
+  /* Three names do not fit across a phone. The current step keeps its name
+     and the other two are their numbered dots: every name is still read out. */
+  .step:not(.stepOn) .stepLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .step:not(:last-child)::after {
+    min-width: 0.5rem;
+  }
+  .matchArrow {
+    display: none;
+  }
+  .footNote {
+    flex-basis: 100%;
+    order: -1;
+    text-align: left;
+  }
+  .foot > button {
+    flex: 1 1 auto;
+  }
 }

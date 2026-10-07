@@ -255,9 +255,13 @@ function Row({
         )}
       </td>
       <td data-label="Recorded">
-        <span className={styles.cellText} title={provenanceTitle(row)}>
-          {provenanceLine(row)}
-        </span>
+        {/* Nothing at all when nothing is recorded, so the cell is empty and a
+            phone's card leaves the line out. */}
+        {row.tier && (
+          <span className={styles.cellText} title={provenanceTitle(row)}>
+            {provenanceLine(row)}
+          </span>
+        )}
       </td>
       <td className={styles.changeCell}>
         <div className={styles.change}>

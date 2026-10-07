@@ -96,4 +96,12 @@
   .search {
     max-width: none;
   }
+  /* On a card the Change button sits under the facts, at their left edge. */
+  .changeCell {
+    text-align: left;
+  }
+  .change {
+    align-items: flex-start;
+    width: 100%;
+  }
 }
