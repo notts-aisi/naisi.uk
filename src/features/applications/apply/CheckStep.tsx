@@ -15,8 +15,10 @@ import styles from "./check.module.css";
 
 /**
  * Check and send: everything the person has entered, a section to a row, each
- * with a Change link back to its step. Then the one question asked here (SU
- * membership), and what happens to the application once it is sent.
+ * with a Change link back to its step. Then the two things asked here (SU
+ * membership, and the optional access-requirements box, which is its own
+ * component and is saved apart from the application), and what happens to
+ * the application once it is sent.
  *
  * The rows come from the same list of steps the person walked through, so a
  * section they were never asked does not appear.
@@ -84,12 +86,14 @@ export default function CheckStep({
   hrefFor,
   onGo,
   onSuMembership,
+  accessRequirements,
   closesLabel,
   issues,
   suProblem,
   sent,
   sendError,
   noticeRef,
+  hold,
 }: {
   content: ApplicationContent;
   /** The ticked programmes, in the person's order. */
@@ -102,6 +106,8 @@ export default function CheckStep({
   hrefFor: (stepId: string) => string;
   onGo: (stepId: string) => void;
   onSuMembership: (answer: SuMembershipAnswer) => void;
+  /** The access-requirements box (`AccessRequirementsBox`), drawn above who reads the application. */
+  accessRequirements: ReactNode;
   closesLabel: string | null;
   /** What still stops a send, shown once the person has pressed Send. */
   issues: readonly CheckIssue[];
@@ -109,6 +115,11 @@ export default function CheckStep({
   sent: SentState;
   sendError: string | null;
   noticeRef: React.Ref<HTMLDivElement>;
+  /**
+   * Drawn first on the step while a send is held for a university address
+   * that has not been checked. Null for everybody else.
+   */
+  hold: ReactNode;
 }) {
   const go = (stepId: string) => (event: MouseEvent<HTMLAnchorElement>) => {
     // A plain click moves within the page. Anything else (a new tab, say) is
@@ -120,9 +131,15 @@ export default function CheckStep({
   const orderStep = ranked.length >= 2 ? "rank" : "choose";
   const elsewhere = issues.filter((issue) => issue.stepId !== "check");
   const agreement = privacyAgreement();
+  // What the server found on this step that the page had not: said in the
+  // same list, so a refusal is never a notice with nothing under it.
+  const here = [...new Set(issues.filter((issue) => issue.stepId === "check").map((issue) => issue.message))].filter(
+    (message) => message !== suProblem,
+  );
 
   return (
     <div className={form.body}>
+      {hold}
       {issues.length > 0 ? (
         <div ref={noticeRef} tabIndex={-1} className={form.notice} data-tone="warn" role="alert">
           <p>A few things to finish before you send.</p>
@@ -136,6 +153,9 @@ export default function CheckStep({
               </li>
             ))}
             {suProblem ? <li>{suProblem}</li> : null}
+            {here.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
           </ul>
         </div>
       ) : sendError ? (
@@ -254,6 +274,7 @@ export default function CheckStep({
           </a>
         </p>
       </div>
+      {accessRequirements}
 
       <div className={styles.use}>
         {/*

@@ -48,6 +48,57 @@ A round with `formVersion: 2` is an application form and is edited only by the
 application form's own routes. The older round editor and its routes belong to
 rounds without it.
 
+### What is kept apart from an application
+
+Three things about a person are not on the application, and each is held
+narrower than the application is.
+
+**The access-requirements answer.** The last step has one optional box, with
+the older form's question, and what somebody writes there is in practice
+about their health, a disability or who they care for. It is stored where the
+older rounds store it, `admissionApplicationPrivate/{roundId}__{uid}`: a
+collection of its own, at the application's own id, holding that one answer.
+
+- It is not in `draft` and not in `sent`. It is saved as it is typed, through
+  a route of its own (`application/access-requirements`), there is one copy,
+  and an admin reads what is stored at that moment. It can be changed until
+  the close and needs no second Send. The form saves the draft first, because
+  the first save of a draft is what creates the application, and a row is
+  only ever written beside one: the application's id is the only way back to
+  the row. Both deletions take the row in the application's own batch.
+- The applicant reads back their own, and a view-as session is refused, the
+  read included, because the session is then not theirs.
+- **Only an admin reads anybody else's**, by pressing a button on the review
+  screen, and every read appends a log line of kind `access-requirements-read`
+  in the transaction that reads it
+  (`applications/[uid]/access-requirements`, a POST). A lead and a reviewer
+  are refused before anything is read. The answer is in no payload a review
+  screen is sent and not in the record kept afterwards.
+- One file under `src/lib/applications/` names the collection
+  (`applicant/accessRequirementsDoc.ts`), two modules import it, and two
+  routes import those. `tests/applications-d2-zeta-access-requirements-boundary.test.mjs`
+  walks the tree for anything wider, and lists every route in the site that
+  can reach an answer with what it is.
+
+**The record kept after a term.** `memberRecords/{uid}/applications/{roundId}`
+(what they applied for, the outcome, average scores, each reviewer's overall
+comment) is written when a term settles or a form is destroyed, and it
+outlives both the form and the account. It holds reviewers' comments about a
+named person, so it is read by admins and nobody else: one panel shows it, on
+the admin Members page, and `tests/applications-d2-zeta-member-record-readers.test.mjs`
+walks the tree for a second.
+
+**The log.** A log line about an application names the applicant by account
+id and never by name. The log is kept when an account is deleted, so a name on
+a line would outlive the person's account; the id leads to the name only while
+there is an account. That covers the five `application-` kinds and
+`access-requirements-read`: who a line is about is `subjectUid`, and the
+sentence says "an applicant". Anything that draws a line looks the name up
+then, and says "somebody whose account has been deleted" when there is none
+(`subjectLabel()` in `review/audit.ts`).
+`tests/applications-d2-zeta-audit-names.test.mjs` lists every file that
+names one of those kinds and runs every writer.
+
 ### The fence
 
 A form sits in the same collection as the rounds that came before it, so every
@@ -700,6 +751,7 @@ All in `src/lib/applications/`.
 | `status/load.ts`, `status/record.ts` | The page's read, and the one transaction a reply writes | server, applicant-safe |
 | `accounts/approve.ts`, `accounts/afterReply.ts` | Approving a waiting account on an acceptance, and the call an accepted invitation makes | server, applicant-safe |
 | `lifecycle/openForm.ts` | Which form is open, and which form speaks for each course, for a page that offers Apply | server, safe for a page any visitor can load |
+| `lifecycle/publicTerm.ts` | Where the term is (`none`, `before`, `open`, `closed`, `running`) and what is on it, for a page that draws the term | server, safe for a page any visitor can load |
 | `editor/courses.ts` | The courses a programme can be tied to, and the one rule the box and the route share | server, staff |
 
 ## Rules for anything built on this

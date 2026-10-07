@@ -360,6 +360,13 @@ const ROUND_SURFACES = {
       "loadVisibleForm, which starts from the form's own loader and answers null for a round " +
       "that is not a form, exactly as it does for a form that is still a draft",
   },
+  "/api/admissions/forms/[roundId]/application/access-requirements": {
+    kind: "form",
+    why:
+      "reads and saves the caller's own access-requirements answer on a form. It loads the " +
+      "round through the form's own loader, which answers null for a round that is not a " +
+      "form, so no row is ever written beside an application made on a round of the older kind",
+  },
   "/api/admissions/forms/[roundId]/application/reply": {
     kind: "form",
     why:
@@ -379,6 +386,13 @@ const ROUND_SURFACES = {
     why:
       "reads one application for review through loadReview, which starts from the form's own " +
       "loader and answers 404 for a round that is not a form, as for a form that is not there",
+  },
+  "/api/admissions/forms/[roundId]/applications/[uid]/access-requirements": {
+    kind: "form",
+    why:
+      "an admin opens one applicant's access-requirements answer through " +
+      "openAccessRequirements, which starts from the form's own loader and answers not found " +
+      "for a round that is not a form, before it reads the answer or records the read",
   },
   "/api/admissions/forms/[roundId]/applications/[uid]/decision": {
     kind: "form",

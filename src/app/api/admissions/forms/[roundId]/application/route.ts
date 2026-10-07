@@ -80,6 +80,7 @@ export async function GET(_req: Request, ctx: Ctx) {
       sets: loaded.sets.map(projectQuestionSetForApplicant),
       application: application ? projectApplicationForOwner(application) : null,
       account: account.about,
+      joined: account.joined,
     });
   } catch (err) {
     console.error("[applications] read failed", roundId, err);

@@ -583,6 +583,12 @@ const NOT_COVERED = {
     coverWhen:
       "Before the new form opens to applicants (the spring intake): an applicant spec that fills the form in, leaves it, comes back and sends it.",
   },
+  "/api/admissions/forms/[roundId]/application/access-requirements": {
+    reason:
+      "The applicant's own access-requirements answer on the new application form. Both handlers are executed against an in-memory store by tests/applications-d2-zeta-access-requirements.test.mjs (the gate, view-as, hidden forms, the window, the limit, no row without an application, the application left untouched), and the box that calls them has been driven by hand at 390 and 1440, but no browser spec drives it yet.",
+    coverWhen:
+      "With the applicant spec for the new form: it types in the box on the last step, leaves, comes back and finds it there.",
+  },
   "/api/admissions/forms/[roundId]/application/reply": {
     reason:
       "An applicant's reply to their offer or invitation on the new application form. Executed against an in-memory store by tests/applications-wave-f-reply-route.test.mjs (the gate, the body, hidden forms, every state of an application against every reply, the counters, a refusal writing nothing, the waiting account an accepted invitation approves), and pressed by hand at 390 for each outcome, but no browser spec drives it yet.",
@@ -615,6 +621,12 @@ const NOT_COVERED = {
       "Application review: saving a reviewer's own scores and comments is executed by tests/applications-review-routes.test.mjs, and no end-to-end fixture seeds an application form or a named reviewer yet.",
     coverWhen:
       "When the end-to-end fixtures can seed an application form and name a reviewer on a programme, ahead of the first term reviewed on these screens.",
+  },
+  "/api/admissions/forms/[roundId]/applications/[uid]/access-requirements": {
+    reason:
+      "An admin opening one applicant's access-requirements answer. Executed against an in-memory store by tests/applications-d2-zeta-access-requirements.test.mjs (every kind of account refused before anything is read, one log line for each open, an unsent draft not found), with no browser spec yet.",
+    coverWhen:
+      "With the review spec for the new form: an admin presses the button on one application and the log line is read back; a lead opens the same application and has no button.",
   },
   "/api/admissions/forms/[roundId]/applications/[uid]/decision": {
     reason:

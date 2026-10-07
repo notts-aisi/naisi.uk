@@ -25,6 +25,7 @@ import {
 import { NOTHING_SHOWN, WHAT_THEY_CHOSE_BEFORE, changesLine } from "./changesWords";
 import { Avatar, Chip, Icon, Key, ScoreBox, StandingChip } from "./parts";
 import parts from "./parts.module.css";
+import AccessRequirementsBlock from "./AccessRequirementsBlock";
 import styles from "./ReviewScreen.module.css";
 
 /**
@@ -1064,6 +1065,20 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
                 ) : null}
               </div>
             </section>
+          ) : null}
+
+          {/*
+            An admin's alone, and shut until they ask: the answer is not in
+            this screen's payload, and opening it is recorded. Keyed by the
+            applicant so the next application never shows the last one's.
+          */}
+          {viewer.isAdmin ? (
+            <AccessRequirementsBlock
+              key={applicant.uid}
+              apiBase={apiBase}
+              applicantUid={applicant.uid}
+              firstName={applicant.firstName}
+            />
           ) : null}
         </aside>
       </div>

@@ -3,6 +3,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { requireApplicant } from "@/lib/admissions/applicantSession";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
 import { loadOwnApplication } from "@/lib/applications/repo";
+import { sendHoldFor } from "@/lib/applications/applicant/join";
 import { projectApplicationForOwner } from "@/lib/applications/applicant/project";
 import {
   APPLICANT_RATE_LIMITS,
@@ -39,6 +40,17 @@ import { formWindowRefusal } from "@/lib/applications/applicant/window";
  * An applicant can change their answers until the form closes. Each send
  * replaces `sent` whole. Only the first one changes the application's status,
  * and that one moves the round's counters in the same transaction.
+ *
+ * ## It waits for a join request, and for the university address
+ *
+ * Saving never waits for either. Sending does, and the two reasons are in
+ * `sendHoldFor` (`applicant/join.ts`): an account that has signed in and
+ * never sent a join request has no name or address to put in front of a
+ * reviewer, and an account that is still waiting to be approved has to have
+ * followed the link emailed to its university address first, because being
+ * accepted approves it. Both are read off the caller's own account, never
+ * off the draft or the request, and both answer as a missing answer does: a
+ * 400 with one issue that names the step to go to.
  *
  * ## Nothing is sent to anybody
  *
@@ -83,6 +95,17 @@ export async function POST(req: Request, ctx: Ctx) {
     if (paused) return NextResponse.json({ error: paused }, { status: 503 });
 
     const account = await loadAccount(db, user.uid);
+    const hold = sendHoldFor({ joined: account.joined, role: user.role, about: account.about });
+    if (hold) {
+      return NextResponse.json(
+        {
+          error: hold.message,
+          issues: [{ step: hold.step, questionId: hold.questionId, message: hold.message }],
+        },
+        { status: 400 },
+      );
+    }
+
     const outcome = await sendApplication(
       db,
       loaded,

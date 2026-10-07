@@ -126,12 +126,21 @@ export async function loadFormTitle(
 export type Account = {
   /** The About you answers the account's profile holds. */
   about: AboutYou;
+  /**
+   * Whether the account has sent a join request at all: its `users` document
+   * is there. A session alone does not say. Somebody who signed in and never
+   * filled the profile in has a session, reads as `pending` to every gate,
+   * and has no document, no name and no university address. The form shows
+   * that person its first step as their join request, and a send is refused
+   * until they have made one.
+   */
+  joined: boolean;
 };
 
 /** The caller's own account, read for the answers the form opens with. */
 export async function loadAccount(db: Firestore, uid: string): Promise<Account> {
   const snap = await db.collection("users").doc(uid).get();
-  return { about: aboutYouFromAccount(snap.exists ? snap.data() : null) };
+  return { about: aboutYouFromAccount(snap.exists ? snap.data() : null), joined: snap.exists };
 }
 
 /**
@@ -155,6 +164,7 @@ export async function loadApplicantView(
     sets: loaded.sets.map(projectQuestionSetForApplicant),
     application: application ? projectApplicationForOwner(application) : null,
     account: account.about,
+    joined: account.joined,
   };
 }
 

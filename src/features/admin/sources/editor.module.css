@@ -320,7 +320,7 @@
 
   .footer {
     position: sticky;
-    bottom: 0;
+    bottom: var(--app-bottom-inset, 0px);
     padding: var(--space-3) 0;
     background: var(--color-bg);
     border-top: 1px solid var(--color-border);

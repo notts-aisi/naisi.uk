@@ -1363,11 +1363,17 @@ describe("a lead deciding for their programme", () => {
         actorUid: "claudia",
         actorName: "Claudia Reyes",
         targetLabel: "Autumn 2026 · AGI Strategy",
-        detail: "Claudia accepted Amara Okafor for AGI Strategy.",
+        // Who it is about is `subjectUid`, and nothing else on the row says:
+        // the log outlives an account, so it holds the id and never a name.
+        detail: "Claudia accepted an applicant for AGI Strategy.",
         roundId: ROUND,
         programmeId: AGI,
         at: NOW,
       },
+    );
+    assert.ok(
+      !/Amara|Okafor/.test(JSON.stringify(row)),
+      "the row names the applicant, in some field, and it must not",
     );
   });
 
@@ -1409,11 +1415,12 @@ describe("a lead deciding for their programme", () => {
       [entry.decision, entry.poolReason, entry.couldSuitProgrammeId],
       ["pool", "better-fit", TAIS],
     );
+    // Each line says whose it is by account id, and the sentence names nobody.
     assert.deepEqual(
-      auditRows(db).map((row) => row.detail),
+      auditRows(db).map((row) => [row.subjectUid, row.detail]),
       [
-        "Claudia accepted Dev Patel for AGI Strategy.",
-        "Claudia pooled Dev Patel for AGI Strategy. It was accepted before.",
+        ["dev", "Claudia accepted an applicant for AGI Strategy."],
+        ["dev", "Claudia pooled an applicant for AGI Strategy. It was accepted before."],
       ],
     );
     await decideAs(db, "claudia", "dev", { programmeId: AGI, decision: "decline" });
@@ -1717,7 +1724,9 @@ describe("an admin revoking an acceptance", () => {
       [row.kind, row.runId, row.roundId, row.programmeId, row.subjectUid, row.actorUid, row.reason],
       ["application-decision-revoked", "", ROUND, AGI, "amara", "zach", "She has taken a place elsewhere."],
     );
-    assert.equal(row.detail, "Zach revoked Amara Okafor’s acceptance for AGI Strategy. Reason: She has taken a place elsewhere.");
+    // The applicant is the row's `subjectUid` (above) and is named nowhere on it.
+    assert.equal(row.detail, "Zach revoked an applicant’s acceptance for AGI Strategy. Reason: She has taken a place elsewhere.");
+    assert.ok(!/Amara|Okafor/.test(JSON.stringify(row)), "the row names the applicant, and it must not");
 
     const seen = (await review(db, "claudia", "amara")).review;
     assert.deepEqual([seen.decision.standing, seen.decision.owesDecision], ["to-review", true]);
