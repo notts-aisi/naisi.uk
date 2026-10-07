@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
+import Notice from "@/components/ui/Notice";
 import FormRenderer from "./FormRenderer";
 import type { FormQuestion, RsvpAnswer } from "@/lib/firestore/events";
+import styles from "./RsvpPages.module.css";
 
 type Props = {
   eventId: string;
@@ -69,45 +70,31 @@ export default function ChangeRequestForm({
 
   if (state.kind === "submitted") {
     return (
-      <Card padding="lg">
-        <h2 style={{ fontSize: "var(--text-xl)", margin: "0 0 var(--space-2)" }}>
-          Request sent.
-        </h2>
-        <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
+      <div className={styles.card}>
+        <h1 className={styles.title}>Request sent.</h1>
+        <p className={styles.muted}>
           A NAISI organiser will review your proposed changes. We&apos;ll be in touch if
           anything else is needed.
         </p>
-      </Card>
+      </div>
     );
   }
 
   return (
-    <Card padding="lg">
-      <h2 style={{ fontSize: "var(--text-xl)", margin: "0 0 var(--space-2)" }}>
-        Update your answers for {eventTitle}
-      </h2>
-      <p style={{ color: "var(--color-text-muted)", marginBottom: "var(--space-4)" }}>
-        Hi {name || "there"} — adjust anything below and we&apos;ll review the change.
+    <div className={styles.card}>
+      <h1 className={styles.title}>Update your answers for {eventTitle}</h1>
+      <p className={styles.muted}>
+        Hi {name || "there"}. Adjust anything below and we&apos;ll review the change.
         Your original answers stay in place until we approve the update.
       </p>
       {hasPending && (
-        <p
-          style={{
-            color: "var(--color-warning)",
-            fontSize: "var(--text-sm)",
-            background: "var(--color-warning-soft, rgba(255,180,0,0.08))",
-            border: "1px solid var(--color-border)",
-            padding: "var(--space-2) var(--space-3)",
-            borderRadius: "var(--radius-md)",
-            marginBottom: "var(--space-3)",
-          }}
-        >
-          You already have a change request pending review — submitting again will
+        <Notice tone="warning" role="note">
+          You already have a change request pending review. Submitting again will
           overwrite it.
-        </p>
+        </Notice>
       )}
 
-      <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+      <form onSubmit={onSubmit} className={styles.form}>
         <FormRenderer
           questions={questions}
           answers={answers}
@@ -116,15 +103,17 @@ export default function ChangeRequestForm({
         />
 
         {state.kind === "error" && (
-          <p style={{ color: "var(--color-danger)", margin: 0 }}>{state.message}</p>
+          <p className={styles.danger} role="alert">
+            {state.message}
+          </p>
         )}
 
-        <div style={{ display: "flex", gap: "var(--space-3)" }}>
+        <div className={styles.actions}>
           <Button type="submit" disabled={state.kind === "submitting"}>
             {state.kind === "submitting" ? "Sending…" : "Send change request"}
           </Button>
         </div>
       </form>
-    </Card>
+    </div>
   );
 }

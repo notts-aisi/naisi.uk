@@ -1,16 +1,26 @@
+/* The brand link at the top left of the sign-in frame. A 44px target at every
+   width, in each of its three states. */
+.logoEntering,
+.logoEntered,
+.logoExiting {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  min-height: 2.75rem;
+  color: var(--color-text);
+}
+
 /* The logo defaults to an off-left invisible state. Once the auth page
  * signals it's ready (GIS loaded + about to swipe the card in), we add
  * .logoEntered which transitions the logo into place. The two motions
  * land roughly together: card sweeping in from the right, logo floating
  * in from the left. */
 .logoEntering {
-  display: inline-block;
   transform: translateX(-36px);
   opacity: 0;
 }
 
 .logoEntered {
-  display: inline-block;
   transform: translateX(0);
   opacity: 1;
   transition:
@@ -18,10 +28,9 @@
     opacity 460ms ease-out;
 }
 
-/* Header banner exit animation when the user clicks the logo to navigate
- * back to the homepage (slides up + fades). */
+/* Exit, when the page has taken a "back home" press and is playing its own:
+ * the logo floats back out to the left as the card leaves to the right. */
 .logoExiting {
-  display: inline-block;
   transform: translateX(-36px);
   opacity: 0;
   transition:
@@ -37,4 +46,9 @@
     transform: none;
     transition: opacity 200ms ease;
   }
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* Nothing to adapt: the link is the same size at every width. */
 }

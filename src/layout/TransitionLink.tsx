@@ -19,7 +19,7 @@ type Props = {
 const GIS_SCRIPT_URL = "https://accounts.google.com/gsi/client";
 
 /** Inject the Google Identity Services script into the document head if
- *  it isn't already there. Called when a user clicks Sign in / Join us
+ *  it isn't already there. Called when a user clicks Sign in or Join
  *  so the script downloads + executes during the homepage fade-out;
  *  by the time /login mounts (~320ms later) `window.google.accounts.id`
  *  is already available and the button renders without a visible
@@ -53,16 +53,30 @@ function markEnteringAppShell() {
   try {
     sessionStorage.setItem("naisi:from-signin", "1");
   } catch {
-    // ignore — fade-in falls back to a jump cut
+    // ignore: the fade-in falls back to a jump cut
   }
 }
 
+/** The page an address names, without its query or fragment. */
+const pathOf = (href: string) => href.split(/[?#]/)[0];
+
 /**
- * Wraps `next/link` so clicking it on a public page first fades the
- * page out (via the `PublicMain` context) before router.push fires.
- * Falls back to normal Link behavior if the page isn't a PublicMain
- * descendant. Respects modifier clicks (cmd/ctrl/shift) for
- * open-in-new-tab.
+ * True when an address leaves the public frame for the sign-in pages or the
+ * signed-in area. Only these get the exit: the header that lifts away is not
+ * put back until the public layout mounts again, so playing it on the way to
+ * another PUBLIC page would leave that page with no header.
+ */
+export function leavesPublicFrame(href: string): boolean {
+  const path = pathOf(href);
+  return AUTH_HREFS.has(path) || APP_HREFS.has(path);
+}
+
+/**
+ * Wraps `next/link` so clicking it on a public page first fades the page out
+ * (via the `PublicMain` context) before router.push fires, when the address
+ * leaves the public frame. For an address inside the frame, and anywhere
+ * that is not a PublicMain descendant, it is a plain Link. Respects modifier
+ * clicks (cmd/ctrl/shift) for open-in-new-tab.
  *
  * Also preloads the GIS script when navigating to an auth route so the
  * Google sign-in button doesn't flicker during the swipe-in.
@@ -82,24 +96,27 @@ export default function TransitionLink({
     if (e.defaultPrevented) return;
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     if (e.button !== 0) return;
+    const path = pathOf(href);
     // Preload GIS unconditionally for auth-destined links, even when
     // there's no PublicMain context (e.g. nav from a non-public page).
     // The fade-out is a bonus; the preload is the load-time benefit.
-    if (AUTH_HREFS.has(href)) {
+    if (AUTH_HREFS.has(path)) {
       preloadGoogleIdentityServices();
     }
     // Mark app-area navigation so AppShell fades in on mount instead
     // of jump-cutting. Same flag the login/register pages set on
-    // sign-in success — semantic re-use is intentional (both cases
+    // sign-in success: semantic re-use is intentional (both cases
     // share "public surface → app shell, please fade").
-    if (APP_HREFS.has(href)) {
+    if (APP_HREFS.has(path)) {
       markEnteringAppShell();
     }
     if (!ctx) return;
+    // While the page is already on its way out, no second navigation starts.
     if (ctx.exiting) {
       e.preventDefault();
       return;
     }
+    if (!leavesPublicFrame(href)) return;
     e.preventDefault();
     if (delayMs && delayMs > 0) {
       setTimeout(() => ctx.startExitTo(href), delayMs);

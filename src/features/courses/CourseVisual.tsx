@@ -1,63 +1,50 @@
-import type { CourseTrack } from "@/lib/firestore/courses";
+import type { CSSProperties } from "react";
+import NetField from "@/components/ui/NetField";
 import styles from "./CourseVisual.module.css";
 
 /**
- * THE GENERATED PER-TRACK VISUAL.
+ * THE PICTURE ON A PROGRAMME'S CARD.
  *
- * Every course gets artwork without anybody having to make any. The picture is
- * a pure function of two stored values, the page's `visualSeed` and the
- * course's `track`, so it is stable across renders, identical on the server
- * and the client (no hydration mismatch, no `useId`), and re-rollable by an
- * author typing a new seed.
- *
- * ## Why generated rather than an image
- *
- * Three reasons, in order of how much they cost when ignored:
- *
- *  1. A course with no cover image still has to look like something. The
- *     catalogue is a grid, and a grid of text blocks reads as an unfinished
- *     admin list rather than as a programme worth applying to.
- *  2. There is no image to host, resize, ship or forget the alt text on. This
- *     is inline SVG in the document: no request, no layout shift, no external
- *     asset for the CSP to allow, nothing to regenerate when the brand script
- *     runs.
- *  3. It themes. Every colour is a token, so light mode and any future palette
- *     swap come free, which a baked PNG does not.
+ * Every course gets a picture without anybody having to make one: the
+ * network motif on its navy ground, the same motif the page heroes use.
+ * Which part of the net a card shows is a pure function of one stored value,
+ * the page's `visualSeed`, so it is stable across renders, identical on the
+ * server and in the browser, and an author can change it by typing a new
+ * seed. Two courses with different seeds show different crops, so a row of
+ * cards does not repeat itself.
  *
  * ## The cover override
  *
- * An author who HAS a picture wins: `coverImageUrl` replaces the generated
- * composition entirely, rendered as a plain `<img>` (never `next/image`, see
- * the repo note; the default import resolves to an object under the Turbopack
- * production build). It requires `coverAlt`, which the write route enforces,
- * because an image with no alternative text is announced as nothing on a page
- * whose whole job is explaining a programme.
+ * An author who HAS a picture wins: `coverImageUrl` replaces the motif,
+ * rendered as a plain `<img>` (never `next/image`, see the repo note; the
+ * default import resolves to an object under the Turbopack production
+ * build). It requires `coverAlt`, which the write route enforces, because an
+ * image with no alternative text is announced as nothing.
  *
- * The generated composition, by contrast, is DECORATIVE: `aria-hidden`, no
- * title, no role. It carries no information the surrounding copy does not, and
- * announcing "abstract pattern of circles" to a screen reader on every card is
- * noise, not access.
+ * The motif, by contrast, is DECORATIVE: the shared component hides it from
+ * assistive technology, and it carries nothing the words beside it do not.
  */
 
 type Props = {
   /**
    * `coursePages.visualSeed`. Callers pass the course id when the field is
-   * empty, so a page nobody has authored still gets a stable composition
-   * rather than the same one as every other unauthored course.
+   * empty, so a page nobody has authored still gets a crop of its own and
+   * not the same one as every other unauthored course.
    */
   seed: string;
-  track: CourseTrack;
   /** Author's own artwork. Wins outright when present. */
   coverImageUrl?: string | null;
   /** Required alongside `coverImageUrl`; ignored without one. */
   coverAlt?: string;
-  /** `hero` is the wide banner, `card` the catalogue tile. */
-  size?: "hero" | "card";
+  /** A line of metadata over the foot of the picture: "6 weeks · ~5 hrs a week". */
+  label?: string;
+  /** `card` sits at the top of a programme card, `wide` beside a paragraph. */
+  size?: "card" | "wide";
   className?: string;
 };
 
 /**
- * FNV-1a over the seed. A hash rather than a character sum because two seeds
+ * FNV-1a over the seed. A hash and not a character sum, because two seeds
  * that differ by a letter must not produce two pictures that differ by a
  * pixel: "autumn-2026" and "autumn-2027" are exactly the pair an author will
  * try, and they have to look unrelated.
@@ -82,114 +69,53 @@ function rng(state: number): () => number {
   };
 }
 
-const TRACK_CLASS: Record<CourseTrack, string> = {
-  technical: styles.technical,
-  governance: styles.governance,
-  general: styles.general,
-};
-
-/** The drawing surface. A 3:2 field, cropped by CSS at either size. */
-const W = 420;
-const H = 280;
+/**
+ * Which part of the net this seed shows: how far in, which way round, and
+ * where. The shift never exceeds what the zoom leaves spare on each side, so
+ * the motif always covers the whole picture.
+ */
+function cropFor(seed: string): CSSProperties {
+  const next = rng(hashSeed(seed || "naisi"));
+  const zoom = 1.05 + Math.floor(next() * 4) * 0.08;
+  const spare = ((zoom - 1) / 2) * 100 * 0.9;
+  const shift = () => `${((next() * 2 - 1) * spare).toFixed(2)}%`;
+  return {
+    "--net-zoom": zoom.toFixed(2),
+    "--net-x": shift(),
+    "--net-y": shift(),
+    "--net-flip-x": next() < 0.5 ? "-1" : "1",
+    "--net-flip-y": next() < 0.5 ? "-1" : "1",
+  } as CSSProperties;
+}
 
 export default function CourseVisual({
   seed,
-  track,
   coverImageUrl,
   coverAlt,
+  label,
   size = "card",
   className,
 }: Props) {
   const wrap = [
     styles.visual,
-    size === "hero" ? styles.hero : styles.card,
-    TRACK_CLASS[track],
+    size === "wide" ? styles.wide : styles.card,
+    coverImageUrl ? styles.hasCover : "",
     className,
   ]
     .filter(Boolean)
     .join(" ");
 
-  if (coverImageUrl) {
-    return (
-      <div className={wrap}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={coverImageUrl} alt={coverAlt ?? ""} className={styles.cover} />
-      </div>
-    );
-  }
-
-  const hash = hashSeed(`${seed || "naisi"}::${track}`);
-  const next = rng(hash);
-
-  // A gradient id has to be unique in the document (two courses on the
-  // catalogue would otherwise share one definition and one of them would win),
-  // and it has to be the same string on the server and in the browser. The
-  // hash is both.
-  const gradientId = `cv-grad-${hash.toString(36)}`;
-
-  // Three rings, drifting off the right edge. The composition is deliberately
-  // off-centre: a centred bullseye reads as a loading spinner.
-  const rings = Array.from({ length: 3 }, (_, i) => ({
-    cx: W * (0.62 + next() * 0.22),
-    cy: H * (0.3 + next() * 0.4),
-    r: 46 + i * (30 + next() * 26),
-    width: 1 + next() * 1.4,
-  }));
-
-  // A jittered dot field on the left, thinning as it goes right, so the eye
-  // travels from the text side of the card toward the rings.
-  const dots: { x: number; y: number; r: number }[] = [];
-  for (let col = 0; col < 7; col += 1) {
-    for (let row = 0; row < 5; row += 1) {
-      // Thinning: later columns drop out more often.
-      if (next() < col / 9) continue;
-      dots.push({
-        x: 24 + col * 38 + (next() - 0.5) * 14,
-        y: 30 + row * 52 + (next() - 0.5) * 16,
-        r: 1.3 + next() * 2.2,
-      });
-    }
-  }
-
-  // One trace across the field: six points, monotonic in x, so it reads as a
-  // path through the material rather than as a scribble.
-  const trace = Array.from({ length: 6 }, (_, i) => {
-    const x = 12 + (i * (W - 24)) / 5;
-    const y = H * (0.25 + next() * 0.5);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
-
   return (
     <div className={wrap}>
-      <svg
-        className={styles.svg}
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="xMidYMid slice"
-        aria-hidden="true"
-        focusable="false"
-      >
-        <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" className={styles.stopStart} />
-            <stop offset="100%" className={styles.stopEnd} />
-          </linearGradient>
-        </defs>
-        <rect width={W} height={H} fill={`url(#${gradientId})`} />
-        {dots.map((d, i) => (
-          <circle key={`d${i}`} cx={d.x} cy={d.y} r={d.r} className={styles.dot} />
-        ))}
-        <polyline points={trace} className={styles.trace} />
-        {rings.map((ring, i) => (
-          <circle
-            key={`r${i}`}
-            cx={ring.cx}
-            cy={ring.cy}
-            r={ring.r}
-            className={styles.ring}
-            strokeWidth={ring.width}
-          />
-        ))}
-      </svg>
+      {coverImageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={coverImageUrl} alt={coverAlt ?? ""} className={styles.cover} />
+      ) : (
+        <div className={styles.net} style={cropFor(seed)}>
+          <NetField net="card" strength="strong" className={styles.fill} />
+        </div>
+      )}
+      {label ? <span className={`meta ${styles.label}`}>{label}</span> : null}
     </div>
   );
 }

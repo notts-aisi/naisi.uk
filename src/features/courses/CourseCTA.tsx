@@ -295,7 +295,9 @@ export default function CourseCTA({
       ) : null}
 
       {formOpen ? (
-        <p className={styles.line}>
+        // The form's own line is a short one, so the closing band sets it as
+        // large as a section's title. The extra class is only for that.
+        <p className={`${styles.line} ${styles.formLine}`}>
           <span className={styles.open}>
             {form.applyBy ? `Apply by ${form.applyBy}.` : `Applications are open for ${title}.`}
           </span>

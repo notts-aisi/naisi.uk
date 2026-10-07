@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
+import Notice from "@/components/ui/Notice";
+import OptionRow from "@/components/ui/OptionRow";
 import {
   RECAPTCHA_ENABLED,
   RecaptchaInvisible,
@@ -22,11 +24,13 @@ import {
   type FormQuestion,
   type RsvpAnswer,
 } from "@/lib/firestore/events";
+import { placesState, placesTone, placesWords } from "./eventWhen";
 import FormRenderer from "./FormRenderer";
+import links from "./eventLinks.module.css";
 import styles from "./RsvpForm.module.css";
 
 /**
- * The five facts the form needs, and NOT the event document.
+ * The six facts the form needs, and NOT the event document.
  *
  * This is a client component rendered by a Server Component on the public
  * event page, and React serialises every prop a client component receives
@@ -45,6 +49,8 @@ type Props = {
   capacity: number | null;
   /** Confirmed places taken, for the "full" state. Pending is not shown and not passed. */
   rsvpCountConfirmed: number;
+  /** Whether a full event keeps a waiting list. The events list already says so in public. */
+  waitlistEnabled: boolean;
   /** When true, renders a banner indicating test mode (still saves real RSVPs). */
   previewMode?: boolean;
 };
@@ -61,6 +67,7 @@ export default function RsvpForm({
   visibility,
   capacity,
   rsvpCountConfirmed,
+  waitlistEnabled,
   previewMode,
 }: Props) {
   const router = useRouter();
@@ -94,6 +101,8 @@ export default function RsvpForm({
   const questions: FormQuestion[] = signupForm;
   const needsLogin = visibility === "members" && !user && !authLoading;
   const full = capacity !== null && rsvpCountConfirmed >= capacity;
+  // The same words and tone the events list and the hero use for this event.
+  const places = placesState({ capacity, rsvpCountConfirmed, waitlistEnabled, noSignup: false });
 
   // Signed-in users have their identity locked to the session. Anonymous users
   // type their own name + email (public events only). If the session is missing
@@ -150,7 +159,7 @@ export default function RsvpForm({
         setState({
           kind: "error",
           message:
-            "The spam check has not finished loading yet. Give it a moment and press RSVP again.",
+            "The spam check has not finished loading yet. Give it a moment and press Request a place again.",
         });
         return;
       }
@@ -200,55 +209,67 @@ export default function RsvpForm({
 
   if (needsLogin) {
     return (
-      <Card padding="lg">
+      <section className={styles.panel}>
         <h2 className={styles.h2}>Members-only event</h2>
-        <p className={styles.hint}>
+        <p className={styles.lede}>
           This event is for signed-in NAISI members. Sign in to RSVP.
         </p>
-        <a href={`/login?redirect=/events/${eventId}`}>
-          <Button>Sign in</Button>
+        {/* An anchor, never a Button inside one: that nesting is invalid and
+            its tap behaviour is unreliable in iOS Safari. */}
+        <a
+          href={`/login?redirect=/events/${eventId}`}
+          className={`${links.link} ${links.primary} ${links.large} ${styles.wide}`}
+        >
+          Sign in
         </a>
-      </Card>
+      </section>
     );
   }
 
   if (state.kind === "success") {
     return (
-      <Card padding="lg">
+      <section className={styles.panel}>
         <h2 className={styles.h2}>Request submitted.</h2>
-        <p className={styles.hint}>
+        <p className={styles.lede}>
           A NAISI organiser will review your RSVP and confirm your spot. We&apos;ll be
           in touch if there&apos;s anything else we need from you.
         </p>
-      </Card>
+      </section>
     );
   }
 
   return (
-    <Card padding="lg">
-      <h2 className={styles.h2}>RSVP</h2>
+    <section className={styles.panel}>
+      <div className={styles.head}>
+        <h2 className={styles.h2}>Request a place</h2>
+        {places.kind !== "open" && (
+          <Badge tone={placesTone(places)}>{placesWords(places)}</Badge>
+        )}
+      </div>
+      <p className={styles.lede}>
+        {visibility === "members"
+          ? "This one is for people with a NAISI account."
+          : "Anyone can come."}
+      </p>
       {previewMode && (
-        <p className={styles.warn}>
+        <Notice tone="warning" role="note">
           Test mode: submissions here are saved like real ones. Use them to
           check the flow, then cancel them from the attendee dashboard.
-        </p>
+        </Notice>
       )}
-      <p className={styles.hint}>
-        RSVPs are reviewed by a NAISI organiser before being confirmed — this lets us
-        manage catering and numbers. You&apos;ll hear back once it&apos;s approved.
-      </p>
       {full && (
-        <p className={styles.warn}>
-          We&apos;ve hit capacity. You can still submit — approved RSVPs past capacity
-          go on the waitlist if one is open.
-        </p>
+        <Notice tone="warning" role="note">
+          {waitlistEnabled
+            ? "We\u2019ve hit capacity. You can still ask for a place, and we\u2019ll add you to the waiting list."
+            : "We\u2019ve hit capacity. You can still ask for a place, in case one comes free."}
+        </Notice>
       )}
 
       {signedInIdentity && (
-        <p className={styles.signedIn}>
+        <Notice tone="neutral" role="note">
           Signing up as <strong>{signedInIdentity.name || signedInIdentity.email}</strong>{" "}
           ({signedInIdentity.email}). Sign out to RSVP with a different account.
-        </p>
+        </Notice>
       )}
 
       {/* The bot gate. Mounted here rather than inside the form because Google
@@ -261,7 +282,7 @@ export default function RsvpForm({
       {/* Addressed by the browser end-to-end suite, which fills this form as a
           signed-out guest and checks it fits a phone. */}
       <form ref={formRef} onSubmit={onSubmit} className={styles.form} data-testid="rsvp-form">
-        <Field id="rsvp-name" label="Your name">
+        <Field id="rsvp-name" label="Name">
           <Input
             id="rsvp-name"
             maxLength={NAME_MAX}
@@ -269,9 +290,10 @@ export default function RsvpForm({
             readOnly={!!signedInIdentity}
             required
             autoComplete="name"
+            placeholder="Your name"
           />
         </Field>
-        <Field id="rsvp-email" label="Email" hint="We'll send your confirmation here.">
+        <Field id="rsvp-email" label="Email">
           <Input
             id="rsvp-email"
             type="email"
@@ -280,6 +302,7 @@ export default function RsvpForm({
             readOnly={!!signedInIdentity}
             required
             autoComplete="email"
+            placeholder="you@example.com"
           />
         </Field>
 
@@ -294,41 +317,27 @@ export default function RsvpForm({
 
         <fieldset className={styles.channels} disabled={state.kind === "submitting"}>
           <legend className={styles.channelsLegend}>Stay in the loop (optional)</legend>
-          <label className={styles.channelLabel}>
-            <input
-              type="checkbox"
-              className={styles.channelCheckbox}
-              checked={joinEvents}
-              onChange={(e) => setJoinEvents(e.target.checked)}
-            />
-            <span className={styles.channelText}>
-              <span className={styles.channelName}>Email me about future events</span>
-              <span className={styles.channelDescription}>
-                Get an email when we announce a new event.
-              </span>
-            </span>
-          </label>
-          <label className={styles.channelLabel}>
-            <input
-              type="checkbox"
-              className={styles.channelCheckbox}
-              checked={joinNewsletter}
-              onChange={(e) => setJoinNewsletter(e.target.checked)}
-            />
-            <span className={styles.channelText}>
-              <span className={styles.channelName}>NAISI newsletter</span>
-              <span className={styles.channelDescription}>
-                Occasional society updates and what we&apos;re working on.
-              </span>
-            </span>
-          </label>
+          <OptionRow
+            checked={joinEvents}
+            onChange={(e) => setJoinEvents(e.target.checked)}
+            description="Get an email when we announce a new event."
+          >
+            Email me about future events
+          </OptionRow>
+          <OptionRow
+            checked={joinNewsletter}
+            onChange={(e) => setJoinNewsletter(e.target.checked)}
+            description="Occasional society updates and what we're working on."
+          >
+            NAISI newsletter
+          </OptionRow>
         </fieldset>
 
         {/* data-testid: when the browser end-to-end suite does not reach the
             confirmation page it reads this, so a refusal is reported as the
             sentence the guest saw rather than as a navigation timeout. */}
         {state.kind === "error" && (
-          <p className={styles.danger} data-testid="rsvp-error">
+          <p className={styles.danger} role="alert" data-testid="rsvp-error">
             {state.message}
           </p>
         )}
@@ -336,19 +345,48 @@ export default function RsvpForm({
         {signupsPaused && (
           <SurfacePausedNotice notice={siteNotice} surface="eventSignups" />
         )}
-        <div className={styles.actions}>
-          {/* `!hydrated` carries the disabled attribute into the server markup,
-              so an early press or an Enter in a field does nothing at all
-              rather than submitting the form the browser's own way. */}
-          <Button
-            type="submit"
-            disabled={state.kind === "submitting" || signupsPaused || !hydrated}
-            data-testid="rsvp-submit"
-          >
-            {state.kind === "submitting" ? "Submitting…" : "Request RSVP"}
-          </Button>
-        </div>
+        {/* `!hydrated` carries the disabled attribute into the server markup,
+            so an early press or an Enter in a field does nothing at all
+            rather than submitting the form the browser's own way.
+
+            The button is an ordinary block in the form's column, as wide as
+            the panel. It is never pinned to the screen and nothing is laid
+            over it: the browser suite measures exactly that at two phone
+            sizes on every pull request. */}
+        <Button
+          type="submit"
+          size="lg"
+          fullWidth
+          disabled={state.kind === "submitting" || signupsPaused || !hydrated}
+          data-testid="rsvp-submit"
+        >
+          {state.kind === "submitting" ? "Submitting…" : "Request a place"}
+        </Button>
       </form>
-    </Card>
+      <p className={styles.after}>
+        <MailIcon />
+        <span>We&rsquo;ll email to confirm your spot.</span>
+      </p>
+    </section>
+  );
+}
+
+function MailIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect x="3.5" y="5.5" width="17" height="13" rx="2" />
+      <path d="M4 7l8 6 8-6" />
+    </svg>
   );
 }

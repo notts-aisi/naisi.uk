@@ -1,8 +1,12 @@
 .frame {
   position: relative;
-  border-radius: var(--radius-xl);
+  /* The edge and the corners are the frame's own by default. A page that
+     sets the cover flush inside a card of its own (the event page's hero)
+     switches them off through these two properties, so the cover keeps one
+     set of rules and the editor's preview keeps its frame. */
+  border-radius: var(--cover-radius, var(--radius-xl));
   overflow: hidden;
-  border: 1px solid var(--color-border);
+  border: var(--cover-border, 1px) solid var(--color-border);
   /* Emblem sizes use `cqw` so the logo scales with the cover, not the viewport
      — keeping the editor preview and the published page visually identical.
      The chip's padding/radius are also cqw rather than fixed px, so the
@@ -116,4 +120,10 @@
   cursor: crosshair;
   outline: 2px dashed var(--color-accent, rgba(120, 180, 255, 0.9));
   outline-offset: 2px;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* Nothing: the cover keeps its own shape and the emblem is sized from the
+     cover's width, so both scale with the page. */
 }

@@ -1,187 +1,323 @@
+/*
+  One source sheet: the page a printed QR code opens. The words and the
+  numbered list at the left, the material (its picture and its PDF) at the
+  right. On a phone the two stack, list first, because the list is what the
+  person holding the poster came for.
+
+  Everything here is plain layout: nothing is animated in and nothing waits
+  for a script, so the page reads from the first HTML on fair-day signal.
+*/
+
 .article {
-  padding: var(--space-16) 0;
+  padding: clamp(1rem, 2vw, 2rem) 0 clamp(4rem, 7.4vw, 6.5rem);
 }
 
-.wrap {
-  max-width: var(--prose-max-width);
+.columns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 2.5rem 4rem;
 }
+
+.main {
+  flex: 1 1 32.5rem;
+  min-width: 0;
+  max-width: 52rem;
+}
+
+/* The page shown for an address with nothing published behind it. */
+.missing {
+  padding-top: clamp(1.5rem, 3vw, 3rem);
+}
+
+.missing .title,
+.missing .summary {
+  max-width: 44rem;
+}
+
+/* === Head === */
 
 .back {
-  display: inline-block;
-  font-size: var(--text-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 2.75rem;
+  margin: 0 0 0.75rem -0.25rem;
+  font-size: var(--text-ui);
+  font-weight: 500;
   color: var(--color-text-muted);
-  text-decoration: none;
-  margin-bottom: var(--space-5);
+  transition: color var(--transition-fast);
 }
 
 .back:hover {
   color: var(--color-text);
 }
 
-.title {
-  margin-top: var(--space-4);
-  line-height: var(--leading-tight);
+.eyebrow {
+  color: var(--color-live);
 }
 
-.meta {
+.title {
+  margin: 0.875rem 0 0;
+  font-size: clamp(2.125rem, 3.8vw, 3.375rem);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  margin-top: 1rem;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
   align-items: center;
+  gap: 0.5rem 1rem;
+  font-size: var(--text-ui);
   color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  margin-top: var(--space-3);
+}
+
+/* The date, as metadata: "21 SEP 2026". The capitals are CSS. */
+.date {
+  font-family: var(--font-meta);
+  font-size: var(--text-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text);
 }
 
 .summary {
+  margin: 1.125rem 0 0;
+  max-width: 32em;
+  font-size: clamp(1.0625rem, 1.32vw, 1.1875rem);
+  line-height: var(--leading-normal);
+  color: var(--color-text-soft);
+  text-wrap: pretty;
+}
+
+/* === The list === */
+
+.listSection {
+  margin-top: clamp(2rem, 3.4vw, 3rem);
+}
+
+.listHeading {
+  margin: 0 0 0.75rem;
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+/*
+ * The numbers are PRINTED on the material, so each row shows its own stored
+ * value and the list must not renumber. The page writes that value out beside
+ * the row (.itemNumber) and turns the browser's own markers off: a marker
+ * counts positions unless told otherwise, and the stored number is the one
+ * that has to be on screen.
+ */
+.list {
+  list-style: none;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.item {
+  display: flex;
+  gap: clamp(0.875rem, 1.8vw, 1.75rem);
+  padding: 1.375rem 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.itemNumber {
+  flex: none;
+  width: clamp(2rem, 3.4vw, 3rem);
+  font-family: var(--font-meta);
+  font-size: clamp(1.125rem, 1.6vw, 1.375rem);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--color-accent-text);
+}
+
+.itemBody {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* A long title with no spaces is the one thing that forces a phone to scroll
+   sideways, so names break anywhere rather than pushing the page wide. */
+.itemName {
+  display: block;
+  font-family: var(--font-display);
+  font-size: clamp(1.0625rem, 1.35vw, 1.1875rem);
+  font-weight: 600;
+  line-height: 1.35;
   color: var(--color-text);
-  line-height: var(--leading-relaxed);
-  margin-top: var(--space-5);
+  overflow-wrap: anywhere;
+}
+
+/* The link is the row's main target: padded to 44px tall without moving the
+   line, and underlined so colour is not the only sign that it is one. */
+.itemLink {
+  padding: 0.6875rem 0;
+  margin: -0.6875rem 0;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  text-decoration-color: var(--color-text-muted);
+  transition: color var(--transition-fast), text-decoration-color var(--transition-fast);
+}
+
+.itemLink:hover {
+  color: var(--color-accent-text-hover);
+  text-decoration-color: currentColor;
+}
+
+/* Where the link goes, so a reader sees it before they follow it. */
+.itemHost {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.125rem;
+  color: var(--color-accent-text);
+}
+
+.itemHostName {
+  min-width: 0;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
+}
+
+.itemHost svg {
+  flex: none;
+}
+
+.itemComment {
+  margin: 0.5rem 0 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.noSources {
+  margin: 0;
+  padding: 1.375rem 0;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+/* === The material === */
+
+.material {
+  flex: 1 1 18.75rem;
+  min-width: 0;
+  max-width: 22.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .figure {
-  margin: var(--space-8) 0 0;
+  margin: 0;
 }
 
 .image {
   display: block;
   width: 100%;
   height: auto;
-  border-radius: var(--radius-lg);
   border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   background: var(--color-bg-elevated);
 }
 
+/* A link drawn as the outlined button. It goes somewhere, so it is an
+   anchor, and it fills the panel. */
 .download {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
-  margin-top: var(--space-6);
-  padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--color-border);
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.5rem 1.125rem;
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   background: var(--color-surface);
+  font-size: var(--text-ui);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.005em;
   color: var(--color-text);
-  text-decoration: none;
-  min-height: 44px;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
 }
 
 .download:hover {
   background: var(--color-surface-hover);
-  border-color: var(--color-border-strong);
+  border-color: var(--color-control-border);
 }
 
-.downloadText {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.downloadName {
-  font-weight: 600;
-  overflow-wrap: anywhere;
+.download:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+  box-shadow: none;
 }
 
 .downloadMeta {
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
-.listHeading {
-  font-size: var(--text-xl);
-  margin: var(--space-10) 0 var(--space-4);
-}
-
-/*
- * The numbers are PRINTED on the material, so each row carries its own stored
- * value and the list must not renumber. `<li value={n}>` is what keeps the
- * browser from counting 1..N, which means the marker has to stay a real list
- * marker: styling it through `::marker` rather than replacing it with a
- * counter or a span keeps the stored number as the thing on screen.
- */
-.list {
-  list-style: decimal;
-  list-style-position: outside;
-  padding-left: var(--space-8);
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-
-.list li::marker {
-  color: var(--color-accent);
-  font-weight: 700;
-  font-size: var(--text-md, 1rem);
-}
-
-.item {
-  padding-left: var(--space-2);
-}
-
-.itemName {
-  color: var(--color-text);
-  font-size: var(--text-md, 1rem);
-  line-height: var(--leading-normal);
-}
-
-/* A long URL with no spaces is the one thing that forces a phone to scroll
-   sideways, so links break anywhere rather than pushing the page wide. */
-.itemLink {
-  color: var(--color-accent);
-  overflow-wrap: anywhere;
-}
-
-.itemHost {
-  display: block;
-  color: var(--color-text-subtle);
-  font-size: var(--text-sm);
-  margin-top: 2px;
-  overflow-wrap: anywhere;
-}
-
-.itemComment {
+  font-size: var(--text-caption);
   color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
-  margin: var(--space-2) 0 0;
+  text-align: center;
 }
 
-.noSources {
-  color: var(--color-text-muted);
-  margin: 0;
-}
-
-.placeholder {
-  color: var(--color-text-muted);
-  line-height: var(--leading-relaxed);
-  margin: 0 0 var(--space-5);
-}
+/* === Not published yet === */
 
 .placeholderLinks {
+  margin-top: 1.5rem;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-4);
+  gap: 0.25rem 1.5rem;
 }
 
 .placeholderLink {
-  color: var(--color-accent);
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-accent-text);
+  transition: color var(--transition-fast);
+}
+
+.placeholderLink:hover {
+  color: var(--color-accent-text-hover);
 }
 
 /* === Print ===
    Somebody holding the poster may want the bibliography on paper beside it.
-   The page is already a single column of text, so printing it only needs the
-   backdrop removing and the links spelled out: a printed anchor whose URL is
+   The page prints as a single column of text, so it only needs the backdrop
+   removing and the links spelled out: a printed anchor whose URL is
    invisible is the reason a bibliography is printed in the first place. */
 @media print {
   .article {
     padding: 0;
   }
 
+  .columns {
+    display: block;
+  }
+
   .back,
-  .download {
+  .download,
+  .downloadMeta {
     display: none;
+  }
+
+  .material {
+    max-width: none;
+    margin-top: 1cm;
   }
 
   .image {
@@ -193,6 +329,7 @@
   .itemLink::after {
     content: " (" attr(href) ")";
     font-size: 0.85em;
+    font-weight: 400;
     overflow-wrap: anywhere;
   }
 
@@ -203,27 +340,8 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  .article {
-    padding: var(--space-8) 0 var(--space-12);
-  }
-
-  .listHeading {
-    margin-top: var(--space-8);
-    font-size: var(--text-lg);
-  }
-
-  /* A narrower indent: at 360px the desktop gutter costs a fifth of the line
-     and the citations wrap to four words each. */
-  .list {
-    padding-left: var(--space-6);
-    gap: var(--space-4);
-  }
-
-  .item {
-    padding-left: var(--space-1);
-  }
-
-  .download {
-    width: 100%;
+  /* The material fills the column under the list, as the list does. */
+  .material {
+    max-width: none;
   }
 }
