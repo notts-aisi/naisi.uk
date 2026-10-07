@@ -16,7 +16,9 @@ import { baseUrl } from "@/lib/events/rsvpToken";
  * copy of it here would be a second thing to keep in step with the nav.
  *
  * The two roots are included because a sitemap whose every entry hangs off an
- * unlisted parent is a sitemap missing its own tree.
+ * unlisted parent is a sitemap missing its own tree. The research incubator's
+ * page is listed beside them: it is a programme's page too, and it has no
+ * course tree of its own to be found through.
  *
  * `/links` is the one other page listed, by the same reasoning turned round:
  * it is deliberately NOT in the header or the footer (it is where printed QR
@@ -63,6 +65,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const roots: MetadataRoute.Sitemap = [
     { url: `${base}/`, changeFrequency: "weekly", priority: 1 },
     { url: `${base}/courses`, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${base}/incubator`, changeFrequency: "weekly", priority: 0.8 },
     { url: `${base}/links`, changeFrequency: "weekly", priority: 0.6 },
   ];
 

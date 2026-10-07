@@ -1,0 +1,550 @@
+/*
+  The pieces the three programme pages share: the list of fellowships
+  (/courses), one programme's page (/courses/[courseId]) and the research
+  incubator (/incubator).
+
+  A page here is a column of full-width sections. The first is the hero, on
+  the network ground; the rest alternate between the page floor and
+  --color-bg, each with a hairline over it. Inside a section the global
+  .container sets the width and the side gutter, so nothing in this file
+  adds a second gutter.
+
+  Sizes are the design's, turned into rem and vw. A width that the design
+  wrote in container units is written in vw here.
+*/
+
+/* === Sections === */
+
+.section {
+  padding-block: clamp(4rem, 7.4vw, 6.5rem);
+}
+
+/* The alternate ground. */
+.raised {
+  background: var(--color-bg);
+}
+
+/* A hairline over the section. The first section under a hero takes none:
+   the hero draws the line itself. */
+.rule {
+  border-top: 1px solid var(--color-border);
+}
+
+/* A section a link on the page jumps to lands clear of the sticky header. */
+.anchor {
+  scroll-margin-top: calc(var(--header-height) + var(--space-2));
+}
+
+/* === A section's head: a small label, a title, a line under it === */
+
+.head {
+  max-width: 40rem;
+  margin-bottom: var(--space-10);
+}
+
+.headTight {
+  margin-bottom: var(--space-8);
+}
+
+.headLoose {
+  margin-bottom: var(--space-12);
+}
+
+/* Prose sections keep the head and the paragraph in one narrow column. */
+.headProse {
+  max-width: 44rem;
+  margin-bottom: 0;
+}
+
+.eyebrow {
+  margin: 0;
+}
+
+/* The small label when it is the section's only heading. It restates the
+   metadata style, because a heading element's own font would otherwise win
+   over the global .meta class. */
+.eyebrowHeading {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.title {
+  margin: 0.625rem 0 0;
+  font-family: var(--font-display);
+  font-size: var(--text-display-2);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+}
+
+.lede {
+  margin: 0.875rem 0 0;
+  font-size: clamp(1.0625rem, 1.32vw, 1.1875rem);
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+
+/* The paragraph of a prose section: the same size, a shade lighter, and it
+   keeps the line breaks its author typed. */
+.prose {
+  margin: var(--space-4) 0 0;
+  font-size: clamp(1.0625rem, 1.32vw, 1.1875rem);
+  line-height: 1.55;
+  color: var(--color-text-soft);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+/* === The hero === */
+
+.hero {
+  padding-block: clamp(2.5rem, 5.6vw, 5rem) clamp(3.5rem, 6vw, 5.5rem);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* A hero that opens with a way back sits closer to the header. */
+.heroWithCrumb {
+  padding-top: clamp(1rem, 2vw, 2rem);
+}
+
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 2.75rem;
+  margin: 0 0 clamp(0.75rem, 2vw, 1.75rem) -0.25rem;
+  color: var(--color-text-muted);
+  font-size: var(--text-ui);
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  transition: color var(--transition-fast);
+}
+
+.crumb:hover {
+  color: var(--color-text);
+}
+
+.heroEyebrow {
+  margin: 0;
+  color: var(--color-live);
+}
+
+.pageTitle {
+  margin: 0.875rem 0 0;
+  font-family: var(--font-display);
+  font-size: var(--text-display-1);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  color: var(--color-text);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+/* A title that shares its row with a card beside it. */
+.pageTitleCompact {
+  font-size: clamp(2.125rem, 3.8vw, 3.375rem);
+}
+
+.pageLede {
+  max-width: 33em;
+  margin: 1.125rem 0 0;
+  font-size: clamp(1.0625rem, 1.32vw, 1.1875rem);
+  line-height: 1.55;
+  color: var(--color-text-soft);
+  text-wrap: pretty;
+}
+
+/* The row of plain facts under a hero's words: "6 weeks", "Free". */
+.factChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 1.375rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.factChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-bg) 55%, transparent);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: 1.75rem;
+}
+
+/* The one line of metadata under a hero's buttons, and the strip of dates
+   under that. Each is a box of its own around the term's component, so the
+   room above it does not depend on which stylesheet loads first. With no
+   term there is nothing inside, and the box takes no room. */
+.heroStatus {
+  margin-top: 0.875rem;
+}
+
+.heroDates {
+  margin-top: clamp(2.5rem, 4.6vw, 4rem);
+}
+
+.heroStatus:empty,
+.heroDates:empty {
+  display: none;
+}
+
+/* === Links drawn as buttons ===
+   The shared Button is a real button and takes no address, so a link gets
+   the same recipe here: 52px for a page's main actions, 44px elsewhere. */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  padding: 0.5rem 1.125rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--text-ui);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+.btnLg {
+  min-height: 3.25rem;
+  padding: 0.75rem 1.5rem;
+  font-size: var(--text-base);
+}
+
+/* The label is dark on the accent. */
+.btnPrimary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.btnPrimary:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+/* Outlined, over the network ground. */
+.btnOutline {
+  background: color-mix(in srgb, var(--color-bg) 55%, transparent);
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+.btnOutline:hover {
+  background: var(--color-surface);
+  border-color: var(--color-control-border);
+}
+
+/* Outlined, on a section or a card. */
+.btnSurface {
+  background: var(--color-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+.btnSurface:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-control-border);
+}
+
+/* A text action with an arrow. It is pulled left by its own padding so its
+   words line up with the text above it. */
+.btnText {
+  margin-left: -1.125rem;
+  color: var(--color-accent-text);
+}
+
+.btnText:hover {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text-hover);
+}
+
+.arrow {
+  flex: none;
+}
+
+/* === Rows of facts: a small label, then its answer === */
+
+.rows {
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.rowLabel {
+  flex: 0 0 var(--row-label, 8rem);
+  margin: 0;
+  padding-top: 0.1875rem;
+}
+
+.rowValue {
+  /* How much room an answer wants beside its label before it drops under it.
+     A narrow card asks for less, so its rows stay side by side on a phone. */
+  flex: 1 1 var(--row-value, 12.5rem);
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+/* A second line inside an answer: a qualification, a shade quieter. */
+.rowNote {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+}
+
+/* === Numbered steps === */
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(16.25rem, 100%), 1fr));
+  gap: 2.25rem 1.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Four steps in a row need a narrower floor than three. */
+.stepsFour {
+  grid-template-columns: repeat(auto-fit, minmax(min(13.75rem, 100%), 1fr));
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.stepTop {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.stepNumber {
+  font-family: var(--font-meta);
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--color-accent-text);
+}
+
+.stepRule {
+  flex: 1 1 auto;
+  border-top: 1px dashed var(--color-border-strong);
+}
+
+.stepTitle {
+  margin: var(--space-2) 0 0;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+.stepBody {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+
+.stepChip {
+  margin: 0.125rem 0 0;
+}
+
+/* A date inside a pill, set as metadata. */
+.metaChip {
+  font-family: var(--font-meta);
+  text-transform: uppercase;
+}
+
+/* === A callout: a line, a sentence and one action === */
+
+.callout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4) var(--space-6);
+  padding: var(--space-5) var(--space-6);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+}
+
+.calloutTinted {
+  border: 1px solid var(--color-accent-line);
+  background: var(--color-accent-soft);
+}
+
+.calloutWords {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+
+.calloutTitle {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0;
+  color: var(--color-text);
+}
+
+.calloutBody {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* === The closing band === */
+
+.band {
+  padding-block: clamp(4rem, 7.4vw, 6.5rem);
+  border-top: 1px solid var(--color-border);
+}
+
+.bandRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.75rem 3rem;
+}
+
+/* For a band whose first child lays out its own words and button. */
+.bandRowJoined {
+  column-gap: var(--space-3);
+}
+
+.bandWords {
+  flex: 1 1 20rem;
+  min-width: 0;
+  max-width: 40rem;
+}
+
+.bandTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-display-2);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+}
+
+.bandSub {
+  margin: 0.875rem 0 0;
+  font-size: clamp(1.0625rem, 1.32vw, 1.1875rem);
+  line-height: 1.55;
+  color: var(--color-text-soft);
+  text-wrap: pretty;
+}
+
+.bandActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .crumb {
+    transition: none;
+  }
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* A page's main buttons share the row and fill it between them. Two that
+     do not fit side by side take a row each, and each fills its row. */
+  .heroActions,
+  .bandActions {
+    width: 100%;
+  }
+
+  .heroActions > .btn,
+  .bandActions > .btn {
+    flex: 1 1 auto;
+  }
+
+  /* The band's words take a row of their own, with the buttons under them. */
+  .bandWords {
+    flex-basis: 100%;
+  }
+
+  /* A band whose first child hands its own lines and button to this row
+     (the course's call to action does, on a phone). The lines keep their own
+     margins, so the row adds none, and the link that follows sits beside the
+     button and fills what is left. */
+  .bandRowJoined {
+    row-gap: 0;
+  }
+
+  .bandRowJoined > .btn {
+    flex: 1 1 auto;
+    margin-top: var(--space-6);
+  }
+
+  .callout {
+    padding: var(--space-5);
+  }
+}

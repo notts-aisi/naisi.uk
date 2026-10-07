@@ -1,5 +1,6 @@
 import type { CoursePageJourneyStep } from "@/lib/firestore/coursePages";
 import { journeyStepStates } from "@/lib/courses/journeyStep";
+import SectionHead from "@/features/programmes/SectionHead";
 import styles from "./JourneyStrip.module.css";
 
 /**
@@ -21,8 +22,10 @@ import styles from "./JourneyStrip.module.css";
  * ## `aria-current`, and why the marker is not colour alone
  *
  * The current step carries `aria-current="step"` and a visible "You are here"
- * label. A coloured dot alone says nothing to a screen reader and nothing to a
- * reader who cannot separate the two accents.
+ * label. A coloured number alone says nothing to a screen reader and nothing
+ * to a reader who cannot separate the two accents.
+ *
+ * The step's number is drawn by the stylesheet, from the list's own order.
  */
 
 type Props = {
@@ -38,10 +41,8 @@ export default function JourneyStrip({ steps, todayKey, dateLabels }: Props) {
   const states = journeyStepStates(steps, todayKey);
 
   return (
-    <section className={styles.section} aria-labelledby="journey-heading">
-      <h2 id="journey-heading" className={styles.heading}>
-        How this term goes
-      </h2>
+    <>
+      <SectionHead id="journey-heading" eyebrow="How this term goes" space="tight" />
       <ol className={styles.strip}>
         {steps.map((step, i) => {
           const state = states[i];
@@ -64,6 +65,6 @@ export default function JourneyStrip({ steps, todayKey, dateLabels }: Props) {
           );
         })}
       </ol>
-    </section>
+    </>
   );
 }
