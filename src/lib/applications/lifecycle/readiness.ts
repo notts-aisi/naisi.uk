@@ -45,6 +45,14 @@ import { applicableSets, openProgrammes } from "../sections";
  * with no questions asks nothing, so it reads here as it reads to them, as
  * not there.
  *
+ * EVERYBODY WHO APPLIES IS ASKED SOMETHING. That is what the lines about
+ * general questions hold, and there are two ways to meet it. A set for
+ * everybody with a question in it meets it for every programme at once, and
+ * then no kind of programme needs a general set of its own: one that is
+ * missing or empty asks nobody anything, like a stream with no questions.
+ * Without it, each kind with a programme open needs its own general set, as
+ * it always has.
+ *
  * Pure. The caller reads the documents and says which leads still have the
  * standing to be one.
  */
@@ -54,6 +62,7 @@ export type FormReadinessCheckId =
   | "decisions"
   | "programmes"
   | "leads"
+  | "general-everybody"
   | "general-fellowship"
   | "general-incubator"
   | "facilitator"
@@ -123,6 +132,8 @@ const GENERAL_LABEL: Record<ProgrammeKind, string> = {
   fellowship: "People who tick a fellowship are asked the fellowship questions",
   incubator: "People who tick the incubator are asked the incubator questions",
 };
+
+const EVERYBODY_LABEL = "Everybody who applies is asked the questions for everyone";
 
 function passed(id: FormReadinessCheckId, label: string): FormReadinessCheck {
   return { id, label, ok: true, hint: "", fixAt: null };
@@ -355,9 +366,15 @@ export function formReadiness(input: FormReadinessInput, now: Date): FormReadine
   ];
   if (open.length > 0) {
     checks.push(leadsCheck(open, input.leadsInStanding));
-    for (const kind of PROGRAMME_KINDS) {
-      if (open.some((programme) => programme.kind === kind)) {
-        checks.push(generalCheck(form, sets, shown, kind));
+    if (shown.some((set) => set.scope.type === "everybody")) {
+      // One set with a question in it, asked of everybody: nobody who applies
+      // is asked nothing, whichever kind of programme they tick.
+      checks.push(passed("general-everybody", EVERYBODY_LABEL));
+    } else {
+      for (const kind of PROGRAMME_KINDS) {
+        if (open.some((programme) => programme.kind === kind)) {
+          checks.push(generalCheck(form, sets, shown, kind));
+        }
       }
     }
   }

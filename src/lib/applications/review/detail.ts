@@ -22,6 +22,7 @@ import {
 import { applicableSets } from "../sections";
 import { gaveBackOf } from "../status/reasons";
 import { changeCount } from "../versions/kept";
+import { namedAsQuestions } from "../words";
 import { availabilityViewFor } from "./availabilityView";
 import {
   aboutFactsHistory,
@@ -123,6 +124,8 @@ export function queuePlaceFor(order: readonly string[], queue: readonly string[]
 
 function sectionTitle(set: QuestionSetDoc): string {
   const label = set.label.trim();
+  // The set for everybody is called what its author called it, on every screen.
+  if (set.scope.type === "everybody" && label) return namedAsQuestions(label);
   if (/questions$/i.test(label)) return label;
   if (set.scope.type === "kind" && set.scope.kind === "fellowship") return "Fellowship questions";
   return label ? `${label} questions` : "Questions";
@@ -259,7 +262,11 @@ export function buildReview(input: {
       else if (canDecide) note = "You and admins decide these";
       else note = "The lead and admins decide these";
     } else {
-      if (set.scope.type === "kind" && set.scope.kind === "fellowship" && fellowships.length > 1) {
+      // A general set: read by everybody who may read the application, and
+      // scored by nobody. The chip says who was asked it.
+      if (set.scope.type === "everybody") {
+        chips.push({ text: "Asked of everyone", tone: "neutral" });
+      } else if (set.scope.type === "kind" && set.scope.kind === "fellowship" && fellowships.length > 1) {
         chips.push({
           text: fellowships.length === 2 ? "For both fellowships" : "For every fellowship",
           tone: "neutral",

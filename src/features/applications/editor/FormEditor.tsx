@@ -488,6 +488,7 @@ export default function FormEditor({
       {dialog?.kind === "new-set" && (
         <NewSetDialog
           form={form}
+          hasEverybody={sets.some((set) => set.scope.type === "everybody")}
           onClose={() => setDialog(null)}
           onSaved={(payload, id) => {
             adopt(payload);
@@ -889,13 +890,21 @@ function TermDialog({
   );
 }
 
-/** A new, empty question set: its name and who it is for. */
+/**
+ * A new, empty question set: its name and who it is for.
+ *
+ * A form has at most one set for everyone, so that choice is offered only
+ * while the form has none. The route refuses a second whatever is sent.
+ */
 function NewSetDialog({
   form,
+  hasEverybody,
   onClose,
   onSaved,
 }: {
   form: FormStaffView;
+  /** The form already has its set for everyone. */
+  hasEverybody: boolean;
   onClose: () => void;
   onSaved: (payload: EditorPayload, id: string) => void;
 }) {
@@ -919,13 +928,20 @@ function NewSetDialog({
       label: "Anyone who ticks the incubator",
       scope: { type: "kind", kind: "incubator" },
     });
+    if (!hasEverybody) {
+      out.push({
+        value: "everybody",
+        label: "Everyone, whatever they tick",
+        scope: { type: "everybody" },
+      });
+    }
     out.push({
       value: "facilitating",
       label: "People who say yes to facilitating",
       scope: { type: "facilitating" },
     });
     return out;
-  }, [form.programmes]);
+  }, [form.programmes, hasEverybody]);
   const [label, setLabel] = useState("");
   const [choice, setChoice] = useState(choices[0]?.value ?? "facilitating");
   const { busy, problem, run } = useSaving();
@@ -956,6 +972,9 @@ function NewSetDialog({
     >
       <p className={shared.dialogText}>
         A set starts empty. A set for one programme is a stream, and only a stream’s questions can be scored.
+        {hasEverybody
+          ? " This form already has its set for everyone."
+          : " A set for everyone is asked once, before the others, and a form has one."}
       </p>
       <div className={shared.dialogFields}>
         <div className={shared.field}>

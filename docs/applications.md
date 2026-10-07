@@ -19,7 +19,7 @@ Use these, one way each, in code and in the interface.
 | application form | The one form for a term. Stored on an admission round. |
 | programme | A fellowship or the incubator, for one term. |
 | stream | A programme's own questions. The only questions that can be scored. |
-| question set | A group of questions shown to the people it applies to. |
+| question set | A group of questions shown to the people it applies to: everybody, a kind of programme, one programme, or people who would facilitate. |
 | rank, 1st choice | Applicants rank what they tick. `choiceNumber()` gives 1 for a 1st choice. |
 | lead | Decides one programme. |
 | reviewer | Reads, scores and comments on one programme. Cannot decide. |
@@ -428,6 +428,62 @@ says anything, because a term that was called off promises no decision day.
 
 ## What the form asks
 
+### Question sets, and who is asked each
+
+A question set's `scope` says who is shown it, and its role follows from its
+scope. `setApplies()` in `sections.ts` is the one rule.
+
+| Scope | Shown to | Role | Scored |
+| --- | --- | --- | --- |
+| `everybody` | anybody who has picked at least one programme the form carries, whatever its kind | `general` | never |
+| `kind` | anybody who has picked a programme of that kind (a fellowship, or the incubator) | `general` | never |
+| `programme` | anybody who has picked that programme | `stream` | where its questions say so and the programme uses scores |
+| `facilitating` | anybody who said yes to facilitating | `facilitator` | never |
+
+**The set for everybody is asked once, first.** Somebody who picks a
+fellowship and the incubator is asked it once, before every other set. Where
+it is asked is a rule and not a place in a stored list: `everybodyFirst()`
+puts it first, `orderedSets()` and the editor's own list both go through it,
+and `orderWithNewSet()` stores it first when it is made. Nobody is asked it
+before they have picked a programme, because until then nobody reads the
+answers.
+
+**A form has at most one.** `createSet` (`editor/write.ts`) refuses a second,
+inside the transaction that would have made it, from the sets the form
+itself lists. The editor offers the choice only while the form has none.
+Like any set it is made, renamed, edited and deleted by an admin, until
+somebody sends an application and the questions lock. Its name is its
+author's own, and `namedAsQuestions()` (`words.ts`) is how every screen says
+it: "Shared" reads "Shared questions", and a name that already says it is
+questions is left as it is.
+
+**It is never scored.** The reader gives any set with this scope the role
+`general` whatever is stored, so a scored question is refused on write and
+cleared on read, and no programme's reviewers are offered a score for one of
+its answers. A reviewer can still comment on one.
+
+**Its answers are read by everybody who may read the application, and by
+nobody else.** That is `canReadApplication()`: an admin, and the lead and
+reviewers of each programme the person ranked or joined by accepting an
+invitation. The review screen draws it as an open section, first, marked
+"Asked of everyone" and "Not scored". It is what already held for a kind's
+general set among the programmes of that kind. Nothing reaches anybody who
+could not already read the application.
+
+**Readiness.** Everybody who applies has to be asked something. A set for
+everybody with a question in it meets that for every programme at once, and
+then no kind of programme needs a general set of its own: one that is
+missing or empty asks nobody anything, like a stream with no questions.
+Without it, each kind with a programme open needs its own general set, as it
+always has. An empty set for everybody is not there.
+
+**A scope is copied by name.** Each function that copies a scope or turns
+one into a role (`scopeForApplicant`, `scopeView`, `roleForScope`,
+`familyOf`) is a switch with no default, so a scope it does not name fails
+the build. `tests/applications-set-for-everybody.test.mjs` reads the scopes
+out of `model.ts` and puts each through every copy, and runs the set through
+the editor's routes, the applicant's and the review screen's.
+
 ### A help line can carry a link
 
 A question's help line is plain text. An author types it, and an applicant
@@ -492,7 +548,7 @@ component's.
 
 Scoring is per answer, 1 to 5, and optional per programme (`useScores`). Only a
 stream set's questions can carry `scored`; the flag is cleared on read anywhere
-else.
+else, the set asked of everybody included.
 
 - A reviewer's score for a programme is the mean of what they gave its answers.
 - The section score is the mean of the reviewers' scores, one voice each.
@@ -957,12 +1013,12 @@ All in `src/lib/applications/`.
 | `model.ts` | Types, limits, `questionKey()`, `applicationId()` | anywhere |
 | `keys.ts` | What an id is, and `own()`, the one way a map is read by one | anywhere |
 | `normalise.ts` | Reads stored documents into the model's shapes. Never throws. | anywhere |
-| `sections.ts` | Which steps and question sets one person sees | anywhere |
+| `sections.ts` | Which steps and question sets one person sees, and in what order | anywhere |
 | `validate.ts` | What stops a send; what is copied into `sent`; word counts | anywhere |
 | `versions/kept.ts` | What a send keeps of the application it replaces: what counts as a change, the cap, how the versions are read | anywhere |
 | `scoring.ts` | Scored questions, section scores, first-review blindness | anywhere |
 | `decisions.ts` | Placement, outcomes, who is in the term, who holds a place, tallies, readiness, recommendations | anywhere |
-| `words.ts` | Labels, ordinals, the words applicants never see | anywhere |
+| `words.ts` | Labels, ordinals, how a set its author named is called, the words applicants never see | anywhere |
 | `linkedText.ts` | Which parts of an author's line are links: `linkedParts()`, and the sentence the editor shows about it | anywhere |
 | `access.ts` | Staff predicates | server |
 | `roles.ts` | `setProgrammeRoles`, the one writer of leads and reviewers | server |

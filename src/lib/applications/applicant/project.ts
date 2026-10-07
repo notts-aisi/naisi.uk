@@ -115,9 +115,16 @@ function questionForApplicant(question: ApplicationQuestion): ApplicantQuestion 
 }
 
 function scopeForApplicant(scope: QuestionSetScope): QuestionSetScope {
-  if (scope.type === "kind") return { type: "kind", kind: scope.kind };
-  if (scope.type === "programme") return { type: "programme", programmeId: scope.programmeId };
-  return { type: "facilitating" };
+  switch (scope.type) {
+    case "everybody":
+      return { type: "everybody" };
+    case "kind":
+      return { type: "kind", kind: scope.kind };
+    case "programme":
+      return { type: "programme", programmeId: scope.programmeId };
+    case "facilitating":
+      return { type: "facilitating" };
+  }
 }
 
 /**

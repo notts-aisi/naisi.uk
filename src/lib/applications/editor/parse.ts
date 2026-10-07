@@ -217,6 +217,7 @@ export function parseFormChange(raw: unknown): Parsed<FormChange> {
 
 function readScope(raw: unknown): Parsed<QuestionSetScope> {
   const scope = asBody(raw);
+  if (scope?.type === "everybody") return { ok: true, value: { type: "everybody" } };
   if (scope?.type === "facilitating") return { ok: true, value: { type: "facilitating" } };
   if (scope?.type === "kind" && PROGRAMME_KINDS.includes(scope.kind as ProgrammeKind)) {
     return { ok: true, value: { type: "kind", kind: scope.kind as ProgrammeKind } };

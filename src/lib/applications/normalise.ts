@@ -263,6 +263,7 @@ export function normaliseForm(id: string, data: unknown): ApplicationForm {
 
 function asScope(v: unknown): QuestionSetScope | null {
   const raw = asRecord(v);
+  if (raw.type === "everybody") return { type: "everybody" };
   if (raw.type === "facilitating") return { type: "facilitating" };
   if (raw.type === "kind" && PROGRAMME_KINDS.includes(raw.kind as ProgrammeKind)) {
     return { type: "kind", kind: raw.kind as ProgrammeKind };
@@ -314,12 +315,13 @@ export function normaliseQuestionSet(id: string, data: unknown): QuestionSetDoc 
   if (!isId(id) || !scope) return null;
   const L = APPLICATION_LIMITS;
   // The role follows from the scope wherever the scope decides it, so a
-  // stored pair that disagrees cannot make a general set scorable.
+  // stored pair that disagrees cannot make a general set scorable. That
+  // covers both general scopes: a kind of programme, and everybody.
   const storedRole = raw.role as QuestionSetRole;
   const role: QuestionSetRole =
     scope.type === "facilitating"
       ? "facilitator"
-      : scope.type === "kind"
+      : scope.type === "kind" || scope.type === "everybody"
         ? "general"
         : QUESTION_SET_ROLES.includes(storedRole) && storedRole !== "facilitator"
           ? storedRole

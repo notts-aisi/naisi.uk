@@ -411,6 +411,13 @@ const USERS = new Map([
       "whether a refusal is decided from what the transaction read is only shown by running it",
   ],
   [
+    "applications-set-for-everybody.test.mjs",
+    "executes the editor's, the applicant's and the review screen's handlers against one " +
+      "in-memory term with a set asked of everybody, and the pure rules that say who is asked " +
+      "it and where, because whether somebody is asked it once, and who then reads the answer, " +
+      "is decided by the code that runs",
+  ],
+  [
     "applications-su-membership-answer.test.mjs",
     "executes the decision-day, pooled applicants and review handlers as two admins, a lead, a " +
       "reviewer and people with no role, and the applicant's own read and form (a .tsx server " +

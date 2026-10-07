@@ -112,9 +112,9 @@ export const APPLICATION_LIMITS = {
 // ---------------------------------------------------------------------------
 
 /**
- * A fellowship or the incubator. It decides which GENERAL question set a
- * person sees: the fellowship questions are asked once however many
- * fellowships they tick.
+ * A fellowship or the incubator. It decides which of the question sets kept
+ * for a KIND a person sees: the fellowship questions are asked once however
+ * many fellowships they tick.
  */
 export type ProgrammeKind = "fellowship" | "incubator";
 
@@ -219,7 +219,9 @@ export type ApplicationQuestion = {
 };
 
 /**
- * `general` is asked once to everybody who ticks a kind of programme.
+ * `general` is asked once of a group of people, whichever of their programmes
+ * brought them into it: everybody who ticks anything (scope `everybody`), or
+ * everybody who ticks a kind of programme (scope `kind`).
  * `stream` belongs to one programme and is the only kind that can be scored.
  * `facilitator` is asked to people who said yes to facilitating.
  */
@@ -233,6 +235,11 @@ export const QUESTION_SET_ROLES: readonly QuestionSetRole[] = [
 
 /** Who a question set is shown to. */
 export type QuestionSetScope =
+  /**
+   * Anyone who ranks at least one programme, whatever its kind. Asked once,
+   * before every other set, and never scored. A form has at most one.
+   */
+  | { type: "everybody" }
   /** Anyone who ranks at least one programme of this kind. */
   | { type: "kind"; kind: ProgrammeKind }
   /** Anyone who ranks this programme. */
@@ -245,7 +252,7 @@ export type QuestionSetDoc = {
   roundId: string;
   role: QuestionSetRole;
   scope: QuestionSetScope;
-  /** "Fellowships", "AGI Strategy", "Facilitator questions". */
+  /** "Fellowships", "AGI Strategy", "Facilitator questions". The author's own for a set made by hand. */
   label: string;
   /** One line under the heading. */
   intro: string;
