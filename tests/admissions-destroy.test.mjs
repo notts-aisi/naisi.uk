@@ -45,6 +45,13 @@
  *  7. **A resume finishes the job without double counting.** The budget is
  *     spent deliberately, the second call is the identical call, and the
  *     member-record sweep must not run (or count) twice.
+ *  8. **An application form goes whole.** A round that is an application form
+ *     keeps question sets under it, a decision document beside each
+ *     application and log lines about those decisions. A destroy that left any
+ *     of them would leave a judgement about a named applicant in a collection
+ *     nothing lists by person. Section 10 seeds a real form, counts it and
+ *     reads the store afterwards, and holds the member record written from it
+ *     to what the applicant ranked and what decision day told them.
  *
  * WHO IS TESTED: an admin, and then the three personas who are refused. The
  * refusals worth the lines are the NEAR MISSES, not the plain member: an
@@ -129,6 +136,12 @@ const { loadTs } = createLoader({ stubs: STUBS });
 function makeDb(seed = {}) {
   const docs = new Map(Object.entries(seed).map(([path, data]) => [path, { ...data }]));
   const log = [];
+  /**
+   * The paths each committed batch deleted, one list per commit. "In the same
+   * batch" is a claim about atomicity, and the flat write log above cannot
+   * tell one commit from two that ran back to back.
+   */
+  const batches = [];
   /** Paths whose next write must throw, to force a failure on purpose. */
   const failWrites = new Set();
   let autoId = 0;
@@ -314,6 +327,7 @@ function makeDb(seed = {}) {
   const db = {
     docs,
     log,
+    batches,
     failWrites,
     collection: collectionRef,
     doc: (path) => docRef(path),
@@ -351,6 +365,7 @@ function makeDb(seed = {}) {
             else if (op.kind === "update") apply(op.ref.path, op.data);
             else apply(op.ref.path, op.data, { merge: op.options?.merge === true });
           }
+          batches.push(ops.filter((op) => op.kind === "delete").map((op) => op.ref.path));
         },
       };
     },
@@ -406,6 +421,9 @@ const { normalizeApplicationRecord } = await loadTs(
 const { normalizeAdmissionRound } = await loadTs(
   join("lib", "firestore", "admissionRounds.ts"),
 );
+const { DECISIONS_COLLECTION } = await loadTs(join("lib", "applications", "staffRepo.ts"));
+const { QUESTION_SETS_SUBCOLLECTION } = await loadTs(join("lib", "applications", "model.ts"));
+const { COURSE_AUDIT_COLLECTION } = await loadTs(join("lib", "firestore", "courseAudit.ts"));
 
 const NO_PERMISSIONS = {
   draftNewsletter: false,
@@ -784,7 +802,13 @@ test("the manifest counts what dies, what is written and what is kept", async ()
     applications: 2,
     applicationPrivateRows: 1,
     reviews: 2,
+    // The three counters an application form adds. This round is not one, so
+    // each is counted and found to be nothing: a zero that was measured, which
+    // section 10 sets beside a form where none of them is zero.
+    decisions: 0,
     stages: 1,
+    questionSets: 0,
+    auditRows: 0,
     memberRecordEntriesWritten: 2,
     // rev1 and dec1 are named on no other round; rev2 is on r2.
     reviewerFlagsCleared: 2,
@@ -822,6 +846,12 @@ test("the manifest's counts are the rows the cascade actually removes", async ()
   assert.equal(audit.deleted.reviews, counts.reviews);
   assert.equal(audit.deleted.stages, counts.stages);
   assert.equal(audit.deleted.applicationPrivateRows, counts.applicationPrivateRows);
+  // A round that is not an application form has none of these, and its
+  // receipt must not grow a line for something that was never there.
+  for (const key of ["decisions", "questionSets", "auditRows"]) {
+    assert.equal(counts[key], 0);
+    assert.equal(key in audit.deleted, false, `${key} was reported as removed from a round with none`);
+  }
 
   // The two counters that are NOT deletions live on the row as their own
   // fields, never inside `deleted`. See the next test for why that matters.
@@ -1221,6 +1251,11 @@ test("a departed reviewer's notes survive a destroy of a settled round", async (
  * the smallest seed that spends it.
  */
 function seedBigRound() {
+  return seedBigRoundWith({});
+}
+
+/** The same round, with more documents laid over it. */
+function seedBigRoundWith(extra) {
   const world = {};
   for (let i = 0; i < 260; i += 1) {
     world[`admissionApplications/r1__b${i}`] = {
@@ -1246,7 +1281,7 @@ function seedBigRound() {
       notes: "Fine.",
     };
   }
-  return seedWorld(world);
+  return seedWorld({ ...world, ...extra });
 }
 
 test("a destroy that spends its budget reports incomplete and the same call resumes it", async () => {
@@ -1454,4 +1489,640 @@ test("a destroy sweep writes only the entries that are missing", async () => {
     "destroy",
     "and the missing one was written",
   );
+});
+
+// ===========================================================================
+// 10. AN APPLICATION FORM
+// ===========================================================================
+
+/**
+ * A closed application form with three programmes, three applicants and the
+ * documents only a form keeps: its question sets, a decision document beside
+ * each sent application, and log lines about those decisions.
+ *
+ * Each piece is here to make one assertion mean something:
+ *
+ *  - `u1` ranked Technical AI Safety ABOVE AGI Strategy while the form lists
+ *    them the other way round, and was placed on their 2nd choice, so the
+ *    record's order and its outcome can only be right if they were read off
+ *    the application.
+ *  - `rev2` scored TWELVE answers, ten at 5 and two at 2. A reader that kept
+ *    ten scores a row would call that a 5.
+ *  - `u2` never pressed Send.
+ *  - `u3` was pooled and invited to a programme they did not rank.
+ *  - The decision document for `u3` DOES NOT SAY WHICH ROUND IT IS FOR, and
+ *    the one for `gone` has NO APPLICATION. Between them they are the two
+ *    documents each of the cascade's two ways of finding a decision would miss
+ *    on its own.
+ *  - `lead2` is named on a programme and missing from the round's own
+ *    reviewer list, and `rev1` is named on a programme of ANOTHER form whose
+ *    list is empty. The flag predicate has to read the programmes to get
+ *    either of them right.
+ *  - One log line is keyed to a run and one to another round. Both stay.
+ */
+function seedFormWorld() {
+  const techScores = {};
+  for (let i = 1; i <= 12; i += 1) techScores[`tech.q${i}`] = i <= 10 ? 5 : 2;
+
+  return makeDb({
+    "admissionRounds/r1": {
+      kind: "enrolment",
+      label: ROUND_LABEL,
+      slug: "autumn-2026",
+      academicYear: "2026/27",
+      status: "closed",
+      formVersion: 2,
+      programmeIds: ["agi", "tech", "inc"],
+      programmes: {
+        agi: {
+          kind: "fellowship",
+          name: "AGI Strategy Fellowship",
+          shortName: "AGI Strategy",
+          useScores: true,
+          leadUid: "lead1",
+          reviewerUids: ["rev1"],
+          runId: "run-agi",
+        },
+        tech: {
+          kind: "fellowship",
+          name: "Technical AI Safety Fellowship",
+          shortName: "Technical AI Safety",
+          useScores: true,
+          leadUid: "lead2",
+          reviewerUids: ["rev2"],
+        },
+        inc: {
+          kind: "incubator",
+          name: "Research Incubator",
+          shortName: "Incubator",
+          useScores: false,
+          leadUid: "lead1",
+          reviewerUids: [],
+        },
+      },
+      questionSetIds: ["fellowships", "agi", "tech"],
+      asksFacilitating: true,
+      // The union the roles writer keeps, WITHOUT lead2: a list that has
+      // drifted from its programmes.
+      reviewerUids: ["lead1", "rev1", "rev2"],
+      finalDeciderUid: null,
+      authorUid: "admin1",
+    },
+    "admissionRounds/r1/questionSets/fellowships": {
+      roundId: "r1",
+      role: "general",
+      scope: { type: "kind", kind: "fellowship" },
+      label: "Fellowships",
+      intro: "",
+      questions: [{ id: "why", text: "Why a fellowship?", type: "long", required: true }],
+    },
+    "admissionRounds/r1/questionSets/agi": {
+      roundId: "r1",
+      role: "stream",
+      scope: { type: "programme", programmeId: "agi" },
+      label: "AGI Strategy",
+      intro: "",
+      questions: [
+        { id: "event", text: "Which event?", type: "long", scored: true },
+        { id: "plan", text: "What would you do next?", type: "long", scored: true },
+      ],
+    },
+    "admissionRounds/r1/questionSets/tech": {
+      roundId: "r1",
+      role: "stream",
+      scope: { type: "programme", programmeId: "tech" },
+      label: "Technical AI Safety",
+      intro: "",
+      questions: Array.from({ length: 12 }, (_, i) => ({
+        id: `q${i + 1}`,
+        text: `Question ${i + 1}`,
+        type: "short",
+        scored: true,
+      })),
+    },
+
+    // Another round, and another FORM. Everything under either must survive.
+    "admissionRounds/r2": {
+      kind: "enrolment",
+      label: "Spring 2027 intake",
+      status: "draft",
+      reviewerUids: ["rev2"],
+      finalDeciderUid: null,
+      authorUid: "admin1",
+    },
+    "admissionRounds/r3": {
+      kind: "enrolment",
+      label: "Spring 2027 applications",
+      status: "draft",
+      formVersion: 2,
+      programmeIds: ["agi"],
+      programmes: { agi: { kind: "fellowship", name: "AGI Strategy", leadUid: "rev1" } },
+      // Empty although a programme names rev1: the other direction of drift.
+      reviewerUids: [],
+      finalDeciderUid: null,
+      authorUid: "admin1",
+    },
+    "admissionRounds/r3/questionSets/agi": {
+      roundId: "r3",
+      role: "stream",
+      scope: { type: "programme", programmeId: "agi" },
+      label: "AGI Strategy",
+      questions: [],
+    },
+
+    "admissionApplications/r1__u1": {
+      roundId: "r1",
+      uid: "u1",
+      email: "u1@example.com",
+      displayName: "Mo Member",
+      formVersion: 2,
+      status: "accepted",
+      createdAt: new Date("2026-10-01T09:00:00Z"),
+      submittedAt: new Date("2026-10-10T09:00:00Z"),
+      sentAt: new Date("2026-10-12T09:00:00Z"),
+      draft: { rankedProgrammeIds: ["tech", "agi"] },
+      sent: {
+        rankedProgrammeIds: ["tech", "agi"],
+        answers: { agi: { event: "The reading group." } },
+      },
+      result: { kind: "accepted", programmeId: "agi", publishedAt: new Date("2026-10-18T17:00:00Z") },
+    },
+    "admissionApplications/r1__u2": {
+      roundId: "r1",
+      uid: "u2",
+      displayName: "Dee Draft",
+      formVersion: 2,
+      status: "draft",
+      createdAt: new Date("2026-10-02T09:00:00Z"),
+      draft: { rankedProgrammeIds: ["inc"] },
+      sent: null,
+    },
+    "admissionApplications/r1__u3": {
+      roundId: "r1",
+      uid: "u3",
+      displayName: "Indra Invited",
+      formVersion: 2,
+      status: "invited",
+      createdAt: new Date("2026-10-03T09:00:00Z"),
+      submittedAt: new Date("2026-10-11T09:00:00Z"),
+      draft: { rankedProgrammeIds: ["agi"] },
+      sent: { rankedProgrammeIds: ["agi"] },
+      result: { kind: "invited", programmeId: "tech", publishedAt: new Date("2026-10-18T17:00:00Z") },
+      invitation: { programmeId: "tech", replyBy: "2026-10-22", response: null },
+    },
+
+    [`${DECISIONS_COLLECTION}/r1__u1`]: {
+      roundId: "r1",
+      uid: "u1",
+      programmes: {
+        tech: { decision: "pool", poolReason: "capacity", decidedByUid: "lead2" },
+        agi: { decision: "accept", decidedByUid: "lead1" },
+      },
+      pooledOutcome: null,
+      exception: null,
+    },
+    // Says nothing about which round it is for. Found only at its
+    // application's id.
+    [`${DECISIONS_COLLECTION}/r1__u3`]: {
+      uid: "u3",
+      programmes: { agi: { decision: "pool", poolReason: "better-fit", decidedByUid: "lead1" } },
+      pooledOutcome: { kind: "invite", programmeId: "tech", setByUid: "admin1" },
+    },
+    // Names the round and has no application. Found only by the round it names.
+    [`${DECISIONS_COLLECTION}/r1__gone`]: {
+      roundId: "r1",
+      uid: "gone",
+      programmes: { agi: { decision: "decline", decidedByUid: "lead1" } },
+    },
+    // Another round's decision about the same person.
+    [`${DECISIONS_COLLECTION}/r3__u1`]: {
+      roundId: "r3",
+      uid: "u1",
+      programmes: { agi: { decision: "accept", decidedByUid: "rev1" } },
+    },
+
+    "admissionReviews/r1__u1__rev1": {
+      roundId: "r1",
+      applicantUid: "u1",
+      reviewerUid: "rev1",
+      scores: { "agi.event": 4, "agi.plan": 3 },
+      notes: "Clear about the event, thinner on what comes next.",
+      comments: [
+        { id: "c1", questionKey: "agi.event", text: "This is the strongest answer." },
+      ],
+    },
+    "admissionReviews/r1__u1__rev2": {
+      roundId: "r1",
+      applicantUid: "u1",
+      reviewerUid: "rev2",
+      scores: techScores,
+      notes: "Strong on the technical questions.",
+    },
+    "admissionReviews/r1__u1__lead1": {
+      roundId: "r1",
+      applicantUid: "u1",
+      reviewerUid: "lead1",
+      scores: {},
+      notes: "Read it. No scores from me.",
+    },
+    "admissionReviews/r1__u3__rev1": {
+      roundId: "r1",
+      applicantUid: "u3",
+      reviewerUid: "rev1",
+      scores: { "agi.event": 2 },
+      notes: "A better fit for the technical fellowship.",
+    },
+
+    [`${COURSE_AUDIT_COLLECTION}/a1`]: {
+      kind: "application-decision",
+      runId: "",
+      roundId: "r1",
+      subjectUid: "u1",
+      actorUid: "lead1",
+      actorName: "Lena Lead",
+      targetLabel: "AGI Strategy",
+      detail: "Accepted for AGI Strategy.",
+    },
+    [`${COURSE_AUDIT_COLLECTION}/a2`]: {
+      kind: "application-decisions-sent",
+      runId: "",
+      roundId: "r1",
+      actorUid: "admin1",
+      actorName: "Ada Admin",
+      detail: "Decision day sent.",
+    },
+    // Keyed to a RUN: the run's own history, which a round destroy leaves.
+    [`${COURSE_AUDIT_COLLECTION}/a3`]: {
+      kind: "facilitator-appointed",
+      runId: "run-agi",
+      actorUid: "admin1",
+      detail: "Appointed a facilitator.",
+    },
+    // Keyed to another round.
+    [`${COURSE_AUDIT_COLLECTION}/a4`]: {
+      kind: "application-decision",
+      runId: "",
+      roundId: "r3",
+      subjectUid: "u1",
+      actorUid: "rev1",
+      detail: "Accepted for AGI Strategy.",
+    },
+
+    "users/lead1": { displayName: "Lena Lead", admissionsReviewer: true },
+    "users/lead2": { displayName: "Lou Lead", admissionsReviewer: true },
+    "users/rev1": { displayName: "Rae Reviewer", admissionsReviewer: true },
+    "users/rev2": { displayName: "Sam Second", admissionsReviewer: true },
+    "users/u1": { displayName: "Mo Member" },
+    "users/u2": { displayName: "Dee Draft" },
+    "users/u3": { displayName: "Indra Invited" },
+    "emailSends/e1": { referenceId: "r1", kind: "task" },
+  });
+}
+
+test("the names this file seeds under are the ones the application system reads", () => {
+  // The engine imports these three; the account cascade spells the decisions
+  // collection as a literal. Pinned so a rename in one place cannot leave a
+  // cascade sweeping a collection nothing writes to.
+  assert.equal(DECISIONS_COLLECTION, "admissionDecisions");
+  assert.equal(QUESTION_SETS_SUBCOLLECTION, "questionSets");
+  assert.equal(COURSE_AUDIT_COLLECTION, "courseAudit");
+});
+
+test("a form's manifest counts its question sets, its decisions and its log lines", async () => {
+  const db = seedFormWorld();
+  install(db, ADMIN);
+
+  const res = await destroyManifest(manifestRequest(), ctx("r1"));
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body.counts, {
+    applications: 3,
+    // An application form asks no access-requirements question.
+    applicationPrivateRows: 0,
+    reviews: 4,
+    // u1's (which names the round AND sits at an application's id, counted
+    // once), u3's (at its application's id only) and the one with no
+    // application (by the round it names only).
+    decisions: 3,
+    stages: 0,
+    questionSets: 3,
+    // The two keyed to this round. Not the run's, and not the other round's.
+    auditRows: 2,
+    memberRecordEntriesWritten: 3,
+    // lead1 (on the list, named nowhere else) and lead2 (named by a programme
+    // only). rev1 is named by a programme of r3 and rev2 by r2's list.
+    reviewerFlagsCleared: 2,
+    emailSendRows: 1,
+    dataExportRows: 0,
+  });
+});
+
+test("a destroyed form takes its question sets, every decision and its log lines with it", async () => {
+  const db = seedFormWorld();
+  install(db, ADMIN);
+  const counts = await countRoundDestroyTargets(db, roundDoc(db));
+  const { last } = await destroyToCompletion(db);
+
+  assert.equal(last.status, 200);
+  assert.equal(last.body.complete, true);
+
+  for (const path of [
+    "admissionRounds/r1",
+    "admissionRounds/r1/questionSets/fellowships",
+    "admissionRounds/r1/questionSets/agi",
+    "admissionRounds/r1/questionSets/tech",
+    "admissionApplications/r1__u1",
+    "admissionApplications/r1__u2",
+    "admissionApplications/r1__u3",
+    "admissionDecisions/r1__u1",
+    "admissionDecisions/r1__u3",
+    "admissionDecisions/r1__gone",
+    "admissionReviews/r1__u1__rev1",
+    "admissionReviews/r1__u1__rev2",
+    "admissionReviews/r1__u1__lead1",
+    "admissionReviews/r1__u3__rev1",
+    "courseAudit/a1",
+    "courseAudit/a2",
+  ]) {
+    assert.equal(db.docs.has(path), false, `${path} must be gone`);
+  }
+  assert.deepEqual(
+    [...db.docs.keys()].filter(
+      (path) =>
+        path.startsWith("admissionDecisions/r1__") ||
+        path.startsWith("admissionRounds/r1/") ||
+        path.startsWith("admissionApplications/r1__"),
+    ),
+    [],
+    "nothing addressed under the destroyed form is left, listed or not",
+  );
+
+  // What belongs to another round, to a run, or to the person, stays.
+  for (const path of [
+    "admissionRounds/r2",
+    "admissionRounds/r3",
+    "admissionRounds/r3/questionSets/agi",
+    "admissionDecisions/r3__u1",
+    "courseAudit/a3",
+    "courseAudit/a4",
+    "memberRecords/u1/applications/r1",
+    "memberRecords/u2/applications/r1",
+    "memberRecords/u3/applications/r1",
+    "emailSends/e1",
+  ]) {
+    assert.ok(db.docs.has(path), `${path} must survive`);
+  }
+
+  // The receipt agrees with the manifest, key for key, on what a form adds.
+  const audit = db.docs.get(`destroyAudits/${last.body.auditId}`);
+  assert.equal(audit.deleted.decisions, counts.decisions);
+  assert.equal(audit.deleted.questionSets, counts.questionSets);
+  assert.equal(audit.deleted.auditRows, counts.auditRows);
+  assert.equal(audit.deleted.applications, counts.applications);
+  assert.equal(audit.deleted.reviews, counts.reviews);
+  assert.equal(audit.deleted.round, 1);
+  assert.deepEqual(
+    last.body.deleted,
+    { reviews: 4, decisions: 3, applications: 3, questionSets: 3, auditRows: 2, round: 1 },
+    "and it lists deletions only: no stage and no access-requirements line for " +
+      "a form that had neither",
+  );
+});
+
+test("a decision that names no round leaves in the same batch as its application", async () => {
+  const db = seedFormWorld();
+  install(db, ADMIN);
+  await destroyToCompletion(db);
+
+  // The stage that drains decisions by the round they name cannot see this
+  // one. It is the document at the application's own id, so it rides with the
+  // application, and "with" has to mean one commit: a decision deleted in a
+  // batch of its own could be left standing by a failure between the two.
+  const together = db.batches.find((paths) => paths.includes("admissionApplications/r1__u3"));
+  assert.ok(together, "the application was deleted in a batch");
+  assert.ok(
+    together.includes("admissionDecisions/r1__u3"),
+    "the decision at an application's id was not deleted in that application's batch",
+  );
+
+  // And the ones that DO name the round were already gone by then: they are
+  // about the applications, so they go first, exactly as the reviews do.
+  const firstApplication = db.log.findIndex(
+    (entry) => entry.op === "delete" && entry.path.startsWith("admissionApplications/"),
+  );
+  for (const path of ["admissionDecisions/r1__u1", "admissionDecisions/r1__gone"]) {
+    const at = db.log.findIndex((entry) => entry.op === "delete" && entry.path === path);
+    assert.ok(at >= 0 && at < firstApplication, `${path} must be deleted before any application`);
+  }
+});
+
+test("a form's records are written before the first delete, as any round's are", async () => {
+  const db = seedFormWorld();
+  install(db, ADMIN);
+  await destroyToCompletion(db);
+
+  const lastRecordWrite = db.log.findLastIndex((entry) =>
+    entry.path.startsWith("memberRecords/"),
+  );
+  const firstDelete = db.log.findIndex((entry) => entry.op === "delete");
+  assert.ok(lastRecordWrite >= 0 && firstDelete >= 0);
+  assert.ok(
+    lastRecordWrite < firstDelete,
+    "the question sets say which scored answer belongs to which programme, so " +
+      "the records have to be finished while the sets are still there",
+  );
+});
+
+test("the record of a form application says what they ranked and what they were told", async () => {
+  const db = seedFormWorld();
+  install(db, ADMIN);
+  await destroyToCompletion(db);
+
+  const entry = normalizeApplicationRecord(
+    "r1",
+    db.docs.get("memberRecords/u1/applications/r1"),
+  );
+  assert.equal(entry.roundTitle, ROUND_LABEL);
+  assert.deepEqual(
+    entry.appliedFor,
+    ["Technical AI Safety", "AGI Strategy"],
+    "their ranking, by short name, 1st choice first. The form lists the two " +
+      "the other way round, and the form's order must not win.",
+  );
+  assert.deepEqual(entry.outcome, {
+    decision: "accepted (AGI Strategy)",
+    status: "accepted",
+    targetRunId: "run-agi",
+  });
+  assert.deepEqual(entry.submittedAt, new Date("2026-10-10T09:00:00Z"));
+  assert.equal(entry.writtenBy, "destroy");
+
+  // Three people assessed them and two scored. rev1 gave 4 and 3 (3.5); rev2
+  // gave ten 5s and two 2s (4.5). A reader that kept ten scores a row would
+  // have made rev2 a 5 and the mean 4.25.
+  assert.deepEqual(entry.scoreSummary, {
+    reviewerCount: 3,
+    total: null,
+    mean: 4,
+    byCriterion: { tech: 4.5, agi: 3.5 },
+  });
+  assert.deepEqual(
+    entry.reviewerNotes.map((note) => [note.reviewerName, note.recommendation, note.total]),
+    [
+      ["Lena Lead", null, null],
+      ["Rae Reviewer", null, 3.5],
+      ["Sam Second", null, 4.5],
+    ],
+  );
+  assert.equal(entry.reviewerNotes[1].notes, "Clear about the event, thinner on what comes next.");
+  assert.ok(
+    !JSON.stringify(db.docs.get("memberRecords/u1/applications/r1")).includes(
+      "The reading group.",
+    ),
+    "none of the applicant's own answers reaches the record",
+  );
+
+  // Pooled, then invited to a programme they did not rank. The record names
+  // the programme the invitation was to, and keeps what they asked for apart.
+  const invited = normalizeApplicationRecord(
+    "r1",
+    db.docs.get("memberRecords/u3/applications/r1"),
+  );
+  assert.deepEqual(invited.appliedFor, ["AGI Strategy"]);
+  assert.deepEqual(invited.outcome, {
+    decision: "invited (Technical AI Safety)",
+    status: "invited",
+    targetRunId: null,
+  });
+  assert.deepEqual(invited.scoreSummary, {
+    reviewerCount: 1,
+    total: null,
+    mean: 2,
+    byCriterion: { agi: 2 },
+  });
+
+  // Never sent. Recorded as a draft, with what they had ranked so far.
+  const draft = normalizeApplicationRecord(
+    "r1",
+    db.docs.get("memberRecords/u2/applications/r1"),
+  );
+  assert.deepEqual(draft.appliedFor, ["Incubator"]);
+  assert.deepEqual(draft.outcome, { decision: null, status: "draft", targetRunId: null });
+  assert.equal(draft.submittedAt, null);
+  assert.deepEqual(
+    draft.scoreSummary,
+    { reviewerCount: 0, total: null, mean: null, byCriterion: {} },
+    "the incubator does not score its answers, so it has no score to be missing",
+  );
+});
+
+test("a form whose question sets cannot be read refuses, and nothing is deleted", async (t) => {
+  // The sync logs the read failure with its stack, which under this loader is
+  // a `data:` URL holding a whole module graph. The message is right in
+  // production and expected here, so it is muted for this case alone.
+  t.mock.method(console, "error", () => {});
+  const db = seedFormWorld();
+  install(db, ADMIN);
+  // The sets decide which scored answer belongs to which programme. A record
+  // written without them would be written from half the facts.
+  const realCollection = db.collection;
+  db.collection = (path) => {
+    const ref = realCollection(path);
+    if (path !== "admissionRounds") return ref;
+    return {
+      ...ref,
+      doc: (id) => {
+        const doc = ref.doc(id);
+        return {
+          ...doc,
+          collection: (name) => {
+            if (name === QUESTION_SETS_SUBCOLLECTION && id === "r1") {
+              return {
+                ...doc.collection(name),
+                async get() {
+                  throw new Error("UNAVAILABLE: questionSets");
+                },
+              };
+            }
+            return doc.collection(name);
+          },
+        };
+      },
+    };
+  };
+
+  const res = await destroyRound(request({ confirmName: ROUND_LABEL }), ctx("r1"));
+
+  assert.equal(res.status, 409);
+  assert.match(res.body.error, /Nothing was deleted/);
+  assert.deepEqual(
+    res.body.failedRecords.map((entry) => entry.uid).sort(),
+    ["u1", "u2", "u3"],
+    "every application that needed the form is named, not just the first",
+  );
+  assert.match(res.body.failedRecords[0].message, /application form could not be read/);
+  assert.equal(
+    db.log.some((entry) => entry.op === "delete"),
+    false,
+    "not one delete may have happened",
+  );
+  assert.ok(db.docs.has("admissionDecisions/r1__u1"));
+});
+
+test("a form's flag sweep reads the programmes as well as the list", async () => {
+  const db = seedFormWorld();
+  install(db, ADMIN);
+  const { last } = await destroyToCompletion(db);
+
+  assert.equal(db.docs.get("users/lead1").admissionsReviewer, false);
+  assert.equal(
+    db.docs.get("users/lead2").admissionsReviewer,
+    false,
+    "lead2 led a programme on this form and was missing from its reviewer " +
+      "list. They are named on nothing else, so the Admissions entry goes.",
+  );
+  assert.equal(
+    db.docs.get("users/rev1").admissionsReviewer,
+    true,
+    "rev1 leads a programme on another form whose reviewer list is empty. " +
+      "That form still names them, so the entry stays.",
+  );
+  assert.equal(db.docs.get("users/rev2").admissionsReviewer, true, "rev2 reviews r2");
+  assert.equal(last.body.writes.reviewerFlagsCleared, 2);
+});
+
+/**
+ * A destroy that stops between passes must never leave a decision standing
+ * over an application that has gone: that is a judgement about a named person
+ * with nothing left to say what it was a judgement of.
+ */
+test("no pass ends with a decision whose application has gone", async () => {
+  const world = {};
+  for (let i = 0; i < 260; i += 1) {
+    world[`admissionDecisions/r1__b${i}`] = {
+      roundId: "r1",
+      uid: `b${i}`,
+      programmes: { p1: { decision: "accept", decidedByUid: "rev1" } },
+    };
+  }
+  const db = seedBigRoundWith(world);
+  install(db, ADMIN);
+
+  const orphans = () =>
+    [...db.docs.keys()]
+      .filter((path) => path.startsWith("admissionDecisions/"))
+      .filter((path) => !db.docs.has(path.replace("admissionDecisions/", "admissionApplications/")));
+
+  let passes = 0;
+  for (;;) {
+    const res = await destroyRound(request({ confirmName: ROUND_LABEL }), ctx("r1"));
+    assert.equal(res.status, 200);
+    passes += 1;
+    assert.deepEqual(orphans(), [], `pass ${passes} left a decision without its application`);
+    if (res.body.complete) {
+      assert.equal(res.body.deleted.decisions, 260, "each counted once across the passes");
+      break;
+    }
+    assert.ok(passes < 10, "the destroy never reported complete");
+  }
+  assert.ok(passes > 1, "the seed is meant to spend more than one pass's budget");
 });

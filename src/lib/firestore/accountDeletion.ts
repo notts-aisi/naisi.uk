@@ -58,11 +58,21 @@ export type AccountDeletionSummary = {
   admissionApplicationsDeleted: number;
   /** Their access-requirements rows, deleted in the SAME batch. See below. */
   admissionApplicationPrivateDeleted: number;
+  /**
+   * The decision documents kept beside their applications to an application
+   * form: what each lead decided about them, the outcome picked if they were
+   * pooled, and any exception. Deleted in the SAME batch as the application
+   * they are about, at the id the two share. See below.
+   */
+  admissionDecisionsDeleted: number;
   /** Review rows written ABOUT this account. */
   admissionReviewsDeleted: number;
   /** Review rows written BY this account about other people. */
   admissionReviewsAuthoredDeleted: number;
-  /** Rounds this account was taken off as a reviewer or as the final decider. */
+  /**
+   * Rounds this account was taken off: as a reviewer, as the final decider, or
+   * as the lead or a reviewer of one of an application form's programmes.
+   */
   admissionRoundRolesCleared: number;
   /**
    * Membership rows keyed on this uid, one per period. The PERIODS themselves
@@ -131,15 +141,16 @@ const COURSE_MAX_PAGES = 60;
  * Rows per page for the admissions sweep, and deliberately NOT
  * `COURSE_PAGE_SIZE`.
  *
- * `deleteAdmissionApplications` commits TWO deletes per row in ONE batch (the
- * application and its `admissionApplicationPrivate` twin), and that single
- * batch is load-bearing rather than incidental: see that function for why the
- * two rows cannot be torn down by separate sweeps. A 300-row page would ask
- * one batch for up to 600 writes, past Firestore's 500-write cap, so the page
- * is the cap halved and rounded down. 250 × 2 = 500 exactly, and no real
- * account comes near even one page.
+ * `deleteAdmissionApplications` commits up to THREE deletes per row in ONE
+ * batch (the application, its `admissionApplicationPrivate` twin, and the
+ * decision document an application form keeps at the same id), and that
+ * single batch is load-bearing rather than incidental: see that function for
+ * why the rows cannot be torn down by separate sweeps. A 300-row page would
+ * ask one batch for up to 900 writes, past Firestore's 500-write cap, so the
+ * page is the cap divided by three and rounded down. 166 × 3 = 498, and no
+ * real account comes near even one page.
  */
-const ADMISSION_PAGE_SIZE = 250;
+const ADMISSION_PAGE_SIZE = 166;
 
 /**
  * Delete every row a member owns in one `uid`-keyed collection, a page at a
@@ -450,10 +461,11 @@ export async function clearCourseAttendanceMarks(
 }
 
 /**
- * Delete this account's admission applications AND their access-requirements
- * rows, a page at a time.
+ * Delete this account's admission applications AND the two documents that
+ * share each one's id, a page at a time: its access-requirements row, and the
+ * decision document an application form keeps beside it.
  *
- * ## Why these two cannot be separate sweeps
+ * ## Why the application and its private row cannot be separate sweeps
  *
  * `admissionApplicationPrivate` holds the answer to "is there anything we
  * should know about access requirements?", which in practice means disability
@@ -475,9 +487,30 @@ export async function clearCourseAttendanceMarks(
  * a failure leaves both, and a retry (re-reading the smaller remainder) is
  * the same operation again.
  *
- * That is also why the page size is `ADMISSION_PAGE_SIZE` (250) and not the
- * 300 the other course sweeps use: two deletes per row against Firestore's
- * 500-write batch cap.
+ * That is also why the page size is `ADMISSION_PAGE_SIZE` (166) and not the
+ * 300 the other course sweeps use: up to three deletes per row against
+ * Firestore's 500-write batch cap.
+ *
+ * ## The decision document goes in the same batch, for a different reason
+ *
+ * An application form (`src/lib/applications/`) keeps a document beside each
+ * application, at the application's own id: each lead's decision about this
+ * person, the outcome picked for them if they were pooled, and any exception
+ * an admin made. It is the committee's judgement about a named applicant, held
+ * where no applicant can read it, so it has no business outliving the
+ * application it judges.
+ *
+ * It does carry a `uid`, so unlike the private row it could be swept by a
+ * query of its own. It is deleted by address instead, in the application's
+ * batch, for two reasons. The pairing is then atomic: there is no failed
+ * request after which the application has gone and the judgement about it has
+ * not. And it does not rest on what the document says about itself: the one
+ * at an application's id is that applicant's, whatever its fields hold.
+ *
+ * This is one half of a rule the round destroy keeps the other half of:
+ * WHATEVER DELETES AN APPLICATION DELETES THE DECISION AT ITS ID IN THE SAME
+ * BATCH. `tests/application-decision-lifetime.test.mjs` walks the tree for
+ * anything that deletes an application without doing so.
  *
  * ## The counters are deliberately left alone
  *
@@ -494,16 +527,17 @@ export async function clearCourseAttendanceMarks(
 async function deleteAdmissionApplications(
   db: Firestore,
   uid: string,
-): Promise<{ applications: number; privateRows: number }> {
+): Promise<{ applications: number; privateRows: number; decisions: number }> {
   let applications = 0;
   let privateRows = 0;
+  let decisions = 0;
   for (let page = 0; page < COURSE_MAX_PAGES; page += 1) {
     const snap = await db
       .collection("admissionApplications")
       .where("uid", "==", uid)
       .limit(ADMISSION_PAGE_SIZE)
       .get();
-    if (snap.empty) return { applications, privateRows };
+    if (snap.empty) return { applications, privateRows, decisions };
 
     // Read the private rows before the batch only so the count is HONEST: a
     // `batch.delete` on a missing document succeeds silently, so counting the
@@ -513,14 +547,24 @@ async function deleteAdmissionApplications(
     );
     const livePrivate = (await db.getAll(...privateRefs)).filter((d) => d.exists);
 
+    // The decision documents, the same way and for the same reason: addressed
+    // at the id each shares with its application, and read first so the
+    // summary counts documents that existed.
+    const decisionRefs = snap.docs.map((d) =>
+      db.collection("admissionDecisions").doc(d.id),
+    );
+    const liveDecisions = (await db.getAll(...decisionRefs)).filter((d) => d.exists);
+
     const batch = db.batch();
     for (const d of livePrivate) batch.delete(d.ref);
+    for (const d of liveDecisions) batch.delete(d.ref);
     for (const d of snap.docs) batch.delete(d.ref);
     await batch.commit();
 
     applications += snap.size;
     privateRows += livePrivate.length;
-    if (snap.size < ADMISSION_PAGE_SIZE) return { applications, privateRows };
+    decisions += liveDecisions.length;
+    if (snap.size < ADMISSION_PAGE_SIZE) return { applications, privateRows, decisions };
   }
   throw new Error(
     `admissionApplications did not drain after ${COURSE_MAX_PAGES} pages`,
@@ -529,7 +573,9 @@ async function deleteAdmissionApplications(
 
 /**
  * Take a deleted account off every admission round that names it: out of
- * `reviewerUids`, and out of `finalDeciderUid` where it was the decider.
+ * `reviewerUids`, out of `finalDeciderUid` where it was the decider, and out
+ * of every programme of an application form that names it as its lead or as
+ * one of its reviewers.
  *
  * ## Why this is not "tidying"
  *
@@ -546,15 +592,37 @@ async function deleteAdmissionApplications(
  * Both queries are single-field, so no composite index. Rounds are counted in
  * tens, so one batch is enough, and a round appearing in both queries takes
  * one update carrying both fields.
+ *
+ * ## The programmes of an application form
+ *
+ * A form names people a second way: each entry in its `programmes` map has a
+ * `leadUid` and its own `reviewerUids`, and the round's top-level
+ * `reviewerUids` is kept as their union (`src/lib/applications/roles.ts`).
+ * Clearing the union alone would leave the account as a programme's lead with
+ * nothing saying so anywhere a query can see, and the next save of that
+ * programme's roles would put it straight back into the union.
+ *
+ * A name inside a map cannot be queried for without knowing the map's keys,
+ * so every round is read once, projected down to `programmes`, and the names
+ * are looked for in what comes back. That finds the account wherever a
+ * programme names it, including on a round whose union has drifted and no
+ * longer mentions them, which a search of the union alone would miss.
+ *
+ * Each programme field is addressed by PATH rather than as a dotted string,
+ * so a programme id is never read as part of a path. On every round where a
+ * programme named them the union is cleared in the same update, whether or
+ * not the first query found it there, so the two lists cannot be left
+ * disagreeing about somebody who has gone.
  */
 export async function clearAdmissionRoundRoles(
   db: Firestore,
   uid: string,
 ): Promise<number> {
   const rounds = db.collection("admissionRounds");
-  const [asReviewer, asDecider] = await Promise.all([
+  const [asReviewer, asDecider, withProgrammes] = await Promise.all([
     rounds.where("reviewerUids", "array-contains", uid).get(),
     rounds.where("finalDeciderUid", "==", uid).get(),
+    rounds.select("programmes").get(),
   ]);
 
   const updates = new Map<string, Record<string, unknown>>();
@@ -567,14 +635,53 @@ export async function clearAdmissionRoundRoles(
   for (const doc of asDecider.docs) {
     updates.set(doc.id, { ...(updates.get(doc.id) ?? {}), finalDeciderUid: null });
   }
+
+  // Per round, the fields inside single programmes that name this account.
+  const programmeEdits = new Map<string, [FieldPath, unknown][]>();
+  for (const doc of withProgrammes.docs) {
+    const programmes = (doc.data() ?? {}).programmes;
+    if (!programmes || typeof programmes !== "object" || Array.isArray(programmes)) continue;
+    const edits: [FieldPath, unknown][] = [];
+    for (const [programmeId, entry] of Object.entries(programmes as Record<string, unknown>)) {
+      if (!entry || typeof entry !== "object") continue;
+      const programme = entry as Record<string, unknown>;
+      if (programme.leadUid === uid) {
+        edits.push([new FieldPath("programmes", programmeId, "leadUid"), null]);
+      }
+      if (Array.isArray(programme.reviewerUids) && programme.reviewerUids.includes(uid)) {
+        edits.push([
+          new FieldPath("programmes", programmeId, "reviewerUids"),
+          FieldValue.arrayRemove(uid),
+        ]);
+      }
+    }
+    if (edits.length === 0) continue;
+    programmeEdits.set(doc.id, edits);
+    updates.set(doc.id, {
+      ...(updates.get(doc.id) ?? {}),
+      reviewerUids: FieldValue.arrayRemove(uid),
+    });
+  }
   if (updates.size === 0) return 0;
 
   const batch = db.batch();
   for (const [roundId, fields] of updates) {
-    batch.update(rounds.doc(roundId), {
-      ...fields,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    const ref = rounds.doc(roundId);
+    const topLevel = { ...fields, updatedAt: FieldValue.serverTimestamp() };
+    const nested = programmeEdits.get(roundId);
+    if (!nested) {
+      batch.update(ref, topLevel);
+      continue;
+    }
+    // One update for the round, with every field given as a path: the
+    // top-level ones and the ones inside its programmes together.
+    const [first, ...rest] = [
+      ...Object.entries(topLevel).map(
+        ([field, value]): [FieldPath, unknown] => [new FieldPath(field), value],
+      ),
+      ...nested,
+    ];
+    batch.update(ref, first[0], first[1], ...rest.flat());
   }
   await batch.commit();
   return updates.size;
@@ -712,6 +819,7 @@ export async function countRetainedMemberWork(
  * stronger one. `admissionApplications` carries the essays and the email;
  * `admissionReviews` carries other people's written assessments of this
  * person, and this person's written assessments of others;
+ * `admissionDecisions` carries what each programme's lead decided about them;
  * `memberConductFlags` carries a free-text allegation. All are keyed to the
  * uid alone. And `admissionApplicationPrivate` holds the access-requirements
  * answer, which will in practice contain disability and health information
@@ -778,6 +886,7 @@ export async function deleteAccountCascade(
     courseAttendanceMarksCleared: 0,
     admissionApplicationsDeleted: 0,
     admissionApplicationPrivateDeleted: 0,
+    admissionDecisionsDeleted: 0,
     admissionReviewsDeleted: 0,
     admissionReviewsAuthoredDeleted: 0,
     admissionRoundRolesCleared: 0,
@@ -1051,10 +1160,19 @@ export async function deleteAccountCascade(
   //     a document somebody can still administer, so with the users doc gone
   //     they are ghost rows no admin surface could find. Each is its own try
   //     so one failure does not cost the others.
+  //
+  //     The first of them is three collections in one step, on purpose: an
+  //     application, its access-requirements row and the decision document
+  //     kept beside it share one id and leave in one batch. See
+  //     `deleteAdmissionApplications`.
   try {
-    const { applications, privateRows } = await deleteAdmissionApplications(db, uid);
+    const { applications, privateRows, decisions } = await deleteAdmissionApplications(
+      db,
+      uid,
+    );
     summary.admissionApplicationsDeleted = applications;
     summary.admissionApplicationPrivateDeleted = privateRows;
+    summary.admissionDecisionsDeleted = decisions;
   } catch (err) {
     console.error("[deleteAccount] admissionApplications delete failed:", uid, err);
     partialFailure = true;

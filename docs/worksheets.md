@@ -490,6 +490,13 @@ entry missing, whichever comes first. Shape and reasoning in
 `src/lib/firestore/memberRecords.ts`, which is authoritative; the summary in
 the data model block above is a summary.
 
+An application made on an application form gets the same entry from its own
+builder (`buildFormApplicationRecord`): the programmes they ranked, by short
+name, 1st choice first; what decision day told them and the programme it
+named; and scores as means on the form's 1 to 5 scale, with one section score
+per ranked programme. It keeps each reviewer's overall comment and not their
+comments on single answers, which go with the answers.
+
 - **Read**: admins and SU-recognised committee, the same trust boundary the
   `users` collection draws, because an entry is roster-tier knowledge about a
   member. Reading it is the point of writing it: a later application is meant
@@ -597,10 +604,19 @@ nothing else. WRITES FIRST: any missing member-record entry, counted on the
 manifest as `memberRecordEntriesWritten`, which is a count of writes made
 rather than of rows destroyed. The destroy refuses if that write fails.
 
+A round that is an application form (`docs/applications.md`) keeps three more
+kinds of document, and they go with it: its question sets, the decision
+document beside each application (`admissionDecisions`), and the `courseAudit`
+lines its routes wrote under the form's id (`roundId`). A decision is found two
+ways and counted once: by the round it names, and at each application's id, in
+that application's batch. The reviewer flag reads each programme's lead and
+reviewers as well as the round's own list. `courseAudit` lines keyed to a run
+are the run's and are left.
+
 Manifest count keys: `applications`, `applicationPrivateRows`, `reviews`,
-`stages`, `memberRecordEntriesWritten` (written, not deleted),
-`reviewerFlagsCleared`, `emailSendRows` (retained), `dataExportRows`
-(retained).
+`decisions`, `stages`, `questionSets`, `auditRows`,
+`memberRecordEntriesWritten` (written, not deleted), `reviewerFlagsCleared`,
+`emailSendRows` (retained), `dataExportRows` (retained).
 
 ### Account deletion
 
@@ -608,6 +624,17 @@ Keeps responses and reviews, as it keeps tasks, and counts them in the deletion
 summary so the policy can be reversed knowingly. Authored worksheets stay in
 the library with their author shown as a former member. The member record is
 kept too, and counted, for the reason given above.
+
+An account's admission applications go, each with the two documents that share
+its id in the same batch: the access-requirements row, and the decision
+document an application form keeps beside it. The account is also taken off
+every round that names it, including as the lead or a reviewer of a programme
+on an application form.
+
+**The rule both cascades keep**: whatever deletes an application deletes the
+decision at its id in the same batch, so a decision never outlives the
+application it is about. `tests/application-decision-lifetime.test.mjs` walks
+the tree for anything that deletes an application without doing so.
 
 ### The manifest and the confirm
 

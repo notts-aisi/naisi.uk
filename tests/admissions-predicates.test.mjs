@@ -977,6 +977,8 @@ test("MODEL: the summary counts every admissions collection the sweep touches", 
   for (const key of [
     "admissionApplicationsDeleted",
     "admissionApplicationPrivateDeleted",
+    // The decision document an application form keeps beside each application.
+    "admissionDecisionsDeleted",
     "admissionReviewsDeleted",
     "admissionReviewsAuthoredDeleted",
     "conductFlagDeleted",
@@ -1033,6 +1035,52 @@ test("MODEL: the access-requirements row dies in the SAME BATCH as its applicati
   );
 });
 
+test("MODEL: the decision document dies in that SAME BATCH, addressed at the shared id", () => {
+  // An application form keeps each lead's decision about a person at the
+  // application's own id. It is a judgement about a named applicant, so it
+  // leaves with the application it judges, in the one batch: a failure then
+  // leaves both, and no request ends with the application gone and the
+  // decision standing. `tests/application-decision-lifetime.test.mjs` executes
+  // this; the pin here is the shape, beside the private row's.
+  const fn = ACCOUNT_DELETION.slice(
+    ACCOUNT_DELETION.indexOf("async function deleteAdmissionApplications"),
+    ACCOUNT_DELETION.indexOf("Take a deleted account off every admission round"),
+  );
+  assert.ok(fn.length > 0, "deleteAdmissionApplications is gone");
+
+  const batchAt = fn.indexOf("const batch = db.batch();");
+  const decisionDeleteAt = fn.indexOf("for (const d of liveDecisions) batch.delete(d.ref);");
+  const appDeleteAt = fn.indexOf("for (const d of snap.docs) batch.delete(d.ref);");
+  const commitAt = fn.indexOf("await batch.commit();");
+  assert.ok(batchAt !== -1 && commitAt !== -1, "the page is no longer written as one batch");
+  assert.ok(
+    batchAt < decisionDeleteAt && decisionDeleteAt < commitAt,
+    "the decision documents are not deleted inside the application batch",
+  );
+  assert.ok(batchAt < appDeleteAt && appDeleteAt < commitAt);
+  assert.equal(
+    (fn.match(/db\.batch\(\)/g) ?? []).length,
+    1,
+    "the function builds more than one batch, so the three deletes are no longer one write",
+  );
+  // Addressed, never queried: the id is the handle, whatever the document
+  // says about itself.
+  assert.match(fn, /db\.collection\("admissionDecisions"\)\.doc\(d\.id\)/);
+  assert.doesNotMatch(
+    ACCOUNT_DELETION_CODE,
+    /deleteOwnedCourseRows\(\s*db,\s*"admissionDecisions"/,
+    "admissionDecisions is being swept separately from its applications",
+  );
+  // Three deletes a row against a 500-write batch. The page has to leave room
+  // for all three, or a full page would be refused whole.
+  const pageSize = /const ADMISSION_PAGE_SIZE = (\d+);/.exec(ACCOUNT_DELETION);
+  assert.ok(pageSize, "ADMISSION_PAGE_SIZE is no longer a literal this pin can read");
+  assert.ok(
+    Number(pageSize[1]) * 3 <= 500,
+    `a page of ${pageSize[1]} applications can ask one batch for ${Number(pageSize[1]) * 3} writes`,
+  );
+});
+
 test("MODEL: reviews are swept from BOTH sides, and the conduct flag is addressed", () => {
   // The applicant side and the reviewer side name the same account through
   // two different fields, so one sweep would leave the other half behind.
@@ -1060,9 +1108,13 @@ test("MODEL: every admissions step is best-effort and none can abort the cascade
     ACCOUNT_DELETION.indexOf("// 5e. MEMBERSHIP"),
   );
   assert.ok(block.length > 0, "the admissions block moved or lost its marker comment");
-  // Four collections the account OWNS rows in, plus the rounds that merely
-  // NAME it: reviewer lists and final decider, cleared by the same rule.
-  assert.equal((block.match(/\btry \{/g) ?? []).length, 5, "one try per collection");
+  // Four steps over rows the account OWNS, plus the rounds that merely NAME
+  // it: reviewer lists, final decider and programme roles, cleared by the same
+  // rule. The first of the four is three collections in one step, because an
+  // application, its access-requirements row and the decision document beside
+  // it leave in one batch, so the count of steps did not move when the
+  // decision document arrived.
+  assert.equal((block.match(/\btry \{/g) ?? []).length, 5, "one try per step");
   assert.equal((block.match(/partialFailure = true;/g) ?? []).length, 5);
   assert.match(block, /clearAdmissionRoundRoles\(db, uid\)/);
   assert.doesNotMatch(block, /\bthrow\b/);

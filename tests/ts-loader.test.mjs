@@ -243,6 +243,14 @@ describe("the shared loader reads JSX", () => {
  */
 const USERS = new Map([
   [
+    "application-decision-lifetime.test.mjs",
+    "executes the whole account cascade against a store that records each committed batch as " +
+      "a unit, to prove a decision document leaves in the same batch as the application it is " +
+      "about; its graph is `accountDeletion.ts` and every collection helper it imports, and " +
+      "the Admin SDK sentinels are its only stub, because atomicity proved against a copy of " +
+      "the sweep would say nothing about the sweep that ships",
+  ],
+  [
     "applications-access.test.mjs",
     "executes src/lib/applications/access.ts and roles.ts with the real eligibility bar " +
       "underneath, against a cast that includes a lead who lost their standing, and the roles " +

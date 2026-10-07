@@ -1,9 +1,15 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import type { ApplicationFormFields, QuestionSetDoc } from "@/lib/applications/model";
+import {
+  normaliseApplication,
+  normaliseFormFields,
+  normaliseReview,
+} from "@/lib/applications/normalise";
+import { formRef, loadQuestionSets } from "@/lib/applications/repo";
 import {
   APPLICATIONS_COLLECTION,
   normalizeAdmissionApplication,
-  type AdmissionApplicationDoc,
 } from "@/lib/firestore/admissionApplications";
 import {
   normalizeAdmissionReview,
@@ -14,6 +20,7 @@ import {
   MEMBER_RECORDS_COLLECTION,
   MEMBER_RECORD_APPLICATIONS,
   buildApplicationRecord,
+  buildFormApplicationRecord,
   upsertApplicationRecord,
   type ApplicationRecordInput,
 } from "@/lib/firestore/memberRecords";
@@ -96,6 +103,32 @@ import {
  * absence of one. The status is copied as it stands, so nothing here has to
  * decide what a half-written application means.
  *
+ * ## An application made on an application form
+ *
+ * A round that is an application form (`src/lib/applications/`) holds a
+ * different kind of application, and the entry it owes is built by
+ * `buildFormApplicationRecord` from that system's own readers: the ranking,
+ * the published outcome, and review rows whose scores are keyed by question
+ * rather than by criterion.
+ *
+ * WHICH BUILDER RUNS IS DECIDED PER APPLICATION, by the document itself
+ * (`normaliseApplication` answers null for anything that is not one of these),
+ * so a round is never guessed at and an older round takes exactly the path it
+ * always took, with exactly the reads it always made. The form and its
+ * question sets are read once, the first time such an application turns up.
+ *
+ * THE REVIEW ROWS ARE READ TWICE OVER, on purpose. Both kinds of round share
+ * `admissionReviews`, and the older reader keeps at most ten scores per row,
+ * which is right for a round with ten criteria and wrong for a reviewer who
+ * scored a dozen answers across two programmes. So each row is kept as it was
+ * stored and the form path reads it through `normaliseReview`, which keeps
+ * every score. Reading a form's rows through the older reader would write a
+ * mean taken over whichever ten keys happened to come first.
+ *
+ * If the form or its question sets cannot be read, every application that
+ * needed them is reported as failed, never written from half the facts: a
+ * destroy then refuses and can be run again, and a settle warns.
+ *
  * ## One failure does not stop the others
  *
  * Each application is written inside its own try/catch and a failure becomes
@@ -172,6 +205,17 @@ function chunk<T>(items: readonly T[], size: number): T[][] {
 }
 
 /**
+ * One stored review row: what Firestore held, and the older round's reading
+ * of it. The form path reads `data` again through its own normaliser; see the
+ * module comment for why one reading cannot serve both.
+ */
+type ReviewRow = {
+  id: string;
+  data: Record<string, unknown>;
+  review: AdmissionReviewDoc;
+};
+
+/**
  * Every review on this round, grouped by the applicant it is about.
  *
  * ONE query for the whole round rather than one per applicant. It is a single
@@ -185,18 +229,20 @@ function chunk<T>(items: readonly T[], size: number): T[][] {
 async function reviewsByApplicant(
   db: Firestore,
   roundId: string,
-): Promise<Map<string, AdmissionReviewDoc[]>> {
+): Promise<Map<string, ReviewRow[]>> {
   const snap = await db
     .collection(REVIEWS_COLLECTION)
     .where("roundId", "==", roundId)
     .get();
-  const byApplicant = new Map<string, AdmissionReviewDoc[]>();
+  const byApplicant = new Map<string, ReviewRow[]>();
   for (const doc of snap.docs) {
-    const review = normalizeAdmissionReview(doc.id, doc.data() ?? {});
+    const data = doc.data() ?? {};
+    const review = normalizeAdmissionReview(doc.id, data);
     if (!review.applicantUid) continue;
+    const row: ReviewRow = { id: doc.id, data, review };
     const list = byApplicant.get(review.applicantUid);
-    if (list) list.push(review);
-    else byApplicant.set(review.applicantUid, [review]);
+    if (list) list.push(row);
+    else byApplicant.set(review.applicantUid, [row]);
   }
   return byApplicant;
 }
@@ -212,11 +258,11 @@ async function reviewsByApplicant(
  */
 async function reviewerNamesFor(
   db: Firestore,
-  reviews: Map<string, AdmissionReviewDoc[]>,
+  reviews: Map<string, ReviewRow[]>,
 ): Promise<Record<string, string>> {
   const uids = new Set<string>();
   for (const list of reviews.values()) {
-    for (const review of list) if (review.reviewerUid) uids.add(review.reviewerUid);
+    for (const { review } of list) if (review.reviewerUid) uids.add(review.reviewerUid);
   }
   const names: Record<string, string> = {};
   for (const batch of chunk([...uids], NAME_CHUNK)) {
@@ -238,6 +284,12 @@ function applicantNameOf(raw: Record<string, unknown>): string {
   const name = raw.displayName;
   return (typeof name === "string" && name.trim()) || "an applicant";
 }
+
+/** What the form path needs from the round it is on. Read once per sweep. */
+type FormContext = {
+  form: ApplicationFormFields;
+  sets: QuestionSetDoc[];
+};
 
 /**
  * One application, normalised and turned into the entry it owes, or the reason
@@ -286,6 +338,35 @@ export async function writeRecordsForRound(
   const reviews = await reviewsByApplicant(db, round.id);
   const reviewerNames = await reviewerNamesFor(db, reviews);
 
+  /**
+   * The form's programmes and its question sets, read ONCE and only when an
+   * application made on an application form turns up. A round with none never
+   * makes these two reads, so it behaves exactly as it did before forms
+   * existed.
+   *
+   * The promise is kept whether it resolved or rejected: a form that could
+   * not be read fails every application that needed it with the same sentence,
+   * instead of being asked for again once per applicant.
+   */
+  let formRead: Promise<FormContext> | null = null;
+  const formContext = (): Promise<FormContext> => {
+    formRead ??= (async () => {
+      try {
+        const snap = await formRef(db, round.id).get();
+        return {
+          form: normaliseFormFields(snap.data() ?? {}),
+          sets: await loadQuestionSets(db, round.id),
+        };
+      } catch (err) {
+        console.error("[memberRecordSync] could not read the form for round", round.id, err);
+        throw new Error(
+          "the application form could not be read, so what they applied for could not be named",
+        );
+      }
+    })();
+    return formRead;
+  };
+
   let written = 0;
   let alreadyPresent = 0;
   const failed: { uid: string; name: string; message: string }[] = [];
@@ -302,34 +383,57 @@ export async function writeRecordsForRound(
       // took it away is entitled to.
       if (!doc.exists) continue;
       const raw = doc.data() ?? {};
-      let application: AdmissionApplicationDoc | null = null;
+      // Kept outside the try so a failure can still name who it was about.
+      let uid = "";
+      let name = "";
       try {
-        application = normalizeAdmissionApplication(doc.id, raw, round.availabilityGrid);
-        // An application with no uid is a row nothing can hang a record off.
-        // It is reported rather than skipped: the whole promise of this pass
-        // is that every applicant on the round ends up with an entry, so a
-        // row that cannot have one is exactly what the caller needs told.
-        if (!application.uid) {
-          throw new Error("this application has no applicant on it");
-        }
-        pending.push({
-          ok: true,
-          uid: application.uid,
-          name: application.displayName || applicantNameOf(raw),
-          record: buildApplicationRecord({
+        let record: ApplicationRecordInput;
+        // Null for anything that is not an application made on an application
+        // form, which is what sends an older round down the path it always took.
+        const onForm = normaliseApplication(doc.id, raw, round.availabilityGrid);
+        if (onForm) {
+          uid = onForm.uid;
+          name = onForm.displayName;
+          if (!uid) throw new Error("this application has no applicant on it");
+          const { form, sets } = await formContext();
+          record = buildFormApplicationRecord({
             round,
-            application,
-            reviews: reviews.get(application.uid) ?? [],
+            form,
+            sets,
+            application: onForm,
+            reviews: (reviews.get(uid) ?? []).map((row) => normaliseReview(row.id, row.data)),
             reviewerNames,
             writtenBy,
             writtenByUid: actorUid,
-          }),
-        });
+          });
+        } else {
+          const application = normalizeAdmissionApplication(
+            doc.id,
+            raw,
+            round.availabilityGrid,
+          );
+          uid = application.uid;
+          name = application.displayName;
+          // An application with no uid is a row nothing can hang a record off.
+          // It is reported rather than skipped: the whole promise of this pass
+          // is that every applicant on the round ends up with an entry, so a
+          // row that cannot have one is exactly what the caller needs told.
+          if (!uid) throw new Error("this application has no applicant on it");
+          record = buildApplicationRecord({
+            round,
+            application,
+            reviews: (reviews.get(uid) ?? []).map((row) => row.review),
+            reviewerNames,
+            writtenBy,
+            writtenByUid: actorUid,
+          });
+        }
+        pending.push({ ok: true, uid, name: name || applicantNameOf(raw), record });
       } catch (err) {
         pending.push({
           ok: false,
-          uid: application?.uid || doc.id,
-          name: application?.displayName || applicantNameOf(raw),
+          uid: uid || doc.id,
+          name: name || applicantNameOf(raw),
           message: err instanceof Error ? err.message : "the record could not be built",
         });
       }
