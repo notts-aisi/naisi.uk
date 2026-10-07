@@ -47,7 +47,7 @@
 .leave:hover,
 .asideLink:hover,
 .resendLink:hover:not(:disabled) {
-  color: #c2cbff;
+  color: var(--color-accent-text-hover);
 }
 
 .leave:focus-visible,
@@ -86,7 +86,7 @@
 }
 
 .recaptcha a:hover {
-  color: #c2cbff;
+  color: var(--color-accent-text-hover);
 }
 
 /* === The second half: making the account === */
