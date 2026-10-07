@@ -554,7 +554,7 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
                       ) : (
                         <div className={styles.earlierRanking}>
                           {entry.ranked.map((choice) => (
-                            <Chip key={choice.shortName}>
+                            <Chip key={choice.choice}>
                               {choice.shortName} · {ordinal(choice.choice)}
                             </Chip>
                           ))}

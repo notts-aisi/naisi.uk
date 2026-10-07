@@ -40,7 +40,7 @@ import type {
  * shows. The runs before it are what it said before, newest first, each with
  * the day the first version of that run was sent.
  *
- * Three things are decided here and nowhere else:
+ * Four things are decided here and nowhere else:
  *
  *  - A PART IS COMPARED AS IT IS SHOWN. Two versions that would draw the same
  *    thing for a part are not a change to that part, whatever else differs
@@ -113,9 +113,10 @@ export function partHistory<T>(
   if (runs.length <= 1) return { earlier: [], changedAt: null };
   const current = runs[runs.length - 1];
   // The cap drops from between the first version kept and the next, and from
-  // nowhere else. A value first seen after the first version, with nothing
-  // read in between, may have arrived in a version that is gone.
-  const exact = !(timeline.gap && current.before === 0);
+  // nowhere else. So a value last read in the first version and next read in
+  // the one straight after it may have changed in a version that is gone. Any
+  // other change is between two versions that are both still here.
+  const exact = !(timeline.gap && current.before === 0 && current.first === 1);
   return {
     earlier: runs
       .slice(0, -1)

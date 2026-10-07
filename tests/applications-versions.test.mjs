@@ -621,9 +621,10 @@ describe("one part's history", () => {
     assert.equal(changed.changedAt.getTime(), SAT_17.getTime());
     // Not in the first version at all: it has no history, it arrived.
     assert.deepEqual(earlier.partHistory(timeline([absent(SAT_10), says("A", WED_14), says("A", SAT_17)]), read), { earlier: [], changedAt: null });
-    // Across the gap the cap leaves, the same caution, though a version was passed over on the way.
+    // With versions dropped after the first: the part was missing from the next one kept, so
+    // whatever the dropped ones said, what it says now began when it came back. That is exact.
     const gapped = earlier.partHistory(timeline([says("A", SAT_10), absent(WED_14), says("B", SAT_17)], true), read);
-    assert.equal(gapped.changedAt, null);
+    assert.equal(gapped.changedAt.getTime(), SAT_17.getTime());
     assert.deepEqual(gapped.earlier, [{ sentOn: "Sat 10 Oct", value: "A" }]);
   });
 
