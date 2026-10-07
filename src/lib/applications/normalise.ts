@@ -23,6 +23,7 @@ import {
   PROGRAMME_KINDS,
   QUESTION_SET_ROLES,
   QUESTION_TYPES,
+  RESULT_EMAIL_STATES,
   type AboutYou,
   type AnswerValue,
   type Answers,
@@ -48,6 +49,7 @@ import {
   type QuestionSetRole,
   type QuestionSetScope,
   type QuestionType,
+  type ResultEmailState,
   type ReviewComment,
   type ReviewDoc,
 } from "./model";
@@ -424,10 +426,16 @@ function asResult(v: unknown): ApplicationResult | null {
   const raw = asRecord(v);
   const kind = raw.kind as ApplicationResultKind;
   if (!APPLICATION_RESULT_KINDS.includes(kind)) return null;
+  const email = raw.email as ResultEmailState;
   return {
     kind,
     programmeId: isId(raw.programmeId) ? raw.programmeId : null,
     publishedAt: tsToDate(raw.publishedAt),
+    // A result that does not say what became of its email reads as
+    // unconfirmed, never as owed: nothing is sent to anybody on a guess.
+    email: RESULT_EMAIL_STATES.includes(email) ? email : "unconfirmed",
+    emailedAt: tsToDate(raw.emailedAt),
+    emailClaimedAt: tsToDate(raw.emailClaimedAt),
   };
 }
 

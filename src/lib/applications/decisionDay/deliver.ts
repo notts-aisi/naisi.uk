@@ -44,8 +44,8 @@ export type DecisionEmailSend = {
   email: DecisionEmail;
   /** The form's id, so one term's mail can be found in the send log. */
   roundId: string;
-  /** The admin who pressed Send. */
-  actorUid: string;
+  /** The admin who pressed Send. Absent for a reminder, which no person sends. */
+  actorUid?: string;
   /** A rehearsal to the admin's own address. */
   test?: boolean;
 };

@@ -16,6 +16,7 @@ import type {
   QuestionType,
 } from "../model";
 import { PROGRAMME_EMAIL_KINDS } from "../model";
+import { programmeEmailSubject } from "../decisionDay/emailCopy";
 import type { ApplicationForm } from "../normalise";
 import { RESULT_LABEL } from "../words";
 import { lockedSentence, questionsLocked, sentCount } from "./lock";
@@ -336,12 +337,13 @@ export function setsInFormOrder(
 // One programme's settings, for its lead and for admins
 // ---------------------------------------------------------------------------
 
-/** The subject a decision-day email goes out under until the programme words its own. */
-export function defaultEmailSubject(kind: ProgrammeEmailKind, shortName: string): string {
-  if (kind === "accepted") return `You’re in ${shortName}`;
-  if (kind === "invitation") return `An invitation to ${shortName}`;
-  return "Your NAISI application";
-}
+/**
+ * The subject a decision-day email goes out under until the programme words
+ * its own. It is the decision-day emails' own function under the name this
+ * module has always exported, so the standard subjects are written in one
+ * place and this page cannot show one the send does not use.
+ */
+export { standardSubject as defaultEmailSubject } from "../decisionDay/emailCopy";
 
 const EMAIL_TITLE: Record<ProgrammeEmailKind, string> = {
   accepted: RESULT_LABEL.accepted,
@@ -440,7 +442,8 @@ export function projectProgrammeForSetup(
     return {
       kind,
       title: EMAIL_TITLE[kind],
-      subject: wording?.subject.trim() || defaultEmailSubject(kind, programme.shortName),
+      // Asked of the code that sends, never worked out again here.
+      subject: programmeEmailSubject(form, programme, kind),
       note: EMAIL_NOTE[kind],
       wording: wording ? { subject: wording.subject, body: wording.body } : null,
     };

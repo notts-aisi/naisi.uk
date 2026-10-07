@@ -192,6 +192,41 @@ publishes each outcome onto the applicant's own document (`result`, and
 `invitation` where there is one) and sends the emails. Until it runs, every
 applicant's status stays "sent".
 
+### What became of the email
+
+A result is published first and its email follows, so the two can come apart:
+the mail can be down, or a press can be cut off between them. `result.email`
+records what became of the email, and that record is what a later press of
+Send goes by.
+
+| `result.email` | Means | A later press |
+| --- | --- | --- |
+| `owed` | Not sent, for certain: never tried, or tried and known to have handed nothing over. | Sends it. |
+| `sending` | A press has taken it up and has not yet recorded what happened. | Leaves it. |
+| `sent` | Handed to the mail provider. `result.emailedAt` says when. | Leaves it. |
+| `not-sent` | Deliberately not sent: a declined application with "Email them" off. | Leaves it. |
+| `held` | This copy of the site may not write to that address. | Leaves it. |
+| `suppressed` | The address is on the do-not-email list. | Leaves it. |
+| `unconfirmed` | It may or may not have gone, and nothing can say which. | Leaves it. The page names the person. |
+
+Only `owed` is ever sent, and it is taken up in a transaction that requires
+the state to be `owed`, so two presses racing cannot both send it. That is the
+whole of "nobody is emailed their decision twice". A failure is recorded as
+`owed` only when it is positively known to have handed nothing over
+(`handoverAfter`); anything else is `unconfirmed`. A `sending` older than any
+press can live reads as `unconfirmed` (`emailStanding`), and so does a stored
+result that does not say: nothing is sent on a guess. Both functions are in
+`decisionDay/emailState.ts`.
+
+This is still decision day writing to the applicant's own document, and
+nothing else doing so: the press that publishes a result, and a later press
+that sends an email the first one left owed, are the same send. Neither
+changes what the person was told.
+
+The term is marked as sent (`decisionsSentAt`) once everybody has a result. An
+email still owed does not hold that back, and stays listed on the decision-day
+page until it goes.
+
 ## What deletes what
 
 | When | What goes | What stays |

@@ -15,8 +15,8 @@
  *     number of emails is the number the admin was shown.
  *  2. PER PERSON: the result, the status and (for an invitation) the reply-by
  *     day are written together, and the form's counters move with them.
- *  3. NOBODY IS TOLD TWICE. Somebody who already has a result is skipped: no
- *     write, no email, whatever their decision says now.
+ *  3. NOBODY IS TOLD TWICE. Somebody who already has a result is never
+ *     published again, whatever their decision says now.
  *  4. THE EMAIL FOLLOWS THE RESULT and goes through the one mail door, one
  *     message per person, to the address on their own application, with the
  *     society's reply-to.
@@ -28,6 +28,17 @@
  *  7. THE COUNTS ADD UP, every time: each person a press looked at is in
  *     exactly one of them.
  *  8. ONLY AN ADMIN, decided before anything is read, on all three routes.
+ *     A programme's own test email is its lead's or an admin's, and goes to
+ *     the address on the caller's own session whatever the request says.
+ *  9. WHAT BECAME OF EACH EMAIL IS ON THE RESULT, and that record decides what
+ *     a later press does. An email known not to have gone is owed and a later
+ *     press sends it. One that was sent, held, refused by the do-not-email
+ *     list or deliberately not sent is never sent again. One nobody can vouch
+ *     for is never sent again either, and the person is named instead.
+ * 10. NOBODY IS EMAILED THEIR DECISION TWICE, and two presses racing is the
+ *     case run here: each takes an email up in a transaction, the store below
+ *     reruns a transaction whose reads went stale the way Firestore does, and
+ *     every address ends with exactly one message.
  *
  * Real: the send, the board builder, the three routes, the templates (what
  * was handed to the mail door is rendered and read), the pacer, and every
@@ -61,6 +72,7 @@ const { loadTs } = createLoader({
       "export const FieldValue = {\n" +
         "  serverTimestamp: () => ({ __op: 'serverTimestamp' }),\n" +
         "  increment: (by) => ({ __op: 'increment', by }),\n" +
+        "  delete: () => ({ __op: 'delete' }),\n" +
         "};",
     ],
     ["@/lib/firebase/admin", "export function getAdminDb() { return globalThis.__ddDb; }"],
@@ -77,7 +89,16 @@ const { loadTs } = createLoader({
         "  const mail = globalThis.__ddMail;\n" +
         "  mail.calls.push(args);\n" +
         "  const verdict = mail.verdict ? await mail.verdict(args, mail.calls.length) : 'sent';\n" +
-        "  if (verdict === 'throw') throw new Error('the mail server refused the connection');\n" +
+        // The mail server refused the connection: nothing was handed over.
+        "  if (verdict === 'throw') {\n" +
+        "    throw Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:587'), {\n" +
+        "      code: 'ESOCKET', syscall: 'connect', command: 'CONN',\n" +
+        "    });\n" +
+        "  }\n" +
+        // The conversation broke off with no answer: nobody can say whether it went.
+        "  if (verdict === 'cut-off') {\n" +
+        "    throw Object.assign(new Error('Timeout'), { code: 'ETIMEDOUT', command: 'CONN' });\n" +
+        "  }\n" +
         "  return {\n" +
         "    messageId: verdict === 'sent' ? 'm-' + mail.calls.length : '',\n" +
         "    delivered: verdict === 'sent' ? [args.to] : [],\n" +
@@ -95,6 +116,9 @@ const sendRoute = await loadTs(join("app", "api", "admissions", "forms", "[round
 const testRoute = await loadTs(
   join("app", "api", "admissions", "forms", "[roundId]", "send", "test", "route.ts"),
 );
+const programmeTestRoute = await loadTs(
+  join("app", "api", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "test-email", "route.ts"),
+);
 
 // ---------------------------------------------------------------------------
 // A Firestore small enough to read
@@ -103,6 +127,13 @@ const testRoute = await loadTs(
 function makeDb(seed) {
   const docs = new Map(Object.entries(seed).map(([path, data]) => [path, structuredClone(data)]));
   const counters = { reads: 0, writes: 0 };
+  /** Transactions run again because something they read was written first. */
+  let reruns = 0;
+  /** How many times each document has been written, which is how a stale read is caught. */
+  const versions = new Map();
+  const written = (path) => versions.set(path, (versions.get(path) ?? 0) + 1);
+  /** A test can make chosen commits fail: `sabotage(ops)` returning true throws. */
+  let sabotage = null;
   let autoId = 0;
 
   const resolveValue = (current, value) => {
@@ -123,6 +154,7 @@ function makeDb(seed) {
   };
   const apply = (op) => {
     counters.writes += 1;
+    written(op.path);
     if (op.kind === "create") {
       if (docs.has(op.path)) throw new Error(`ALREADY_EXISTS: ${op.path}`);
       docs.set(op.path, resolveValue(undefined, op.data));
@@ -135,7 +167,8 @@ function makeDb(seed) {
       let node = next;
       for (const part of parts.slice(0, -1)) node = node[part] ??= {};
       const last = parts[parts.length - 1];
-      node[last] = resolveValue(node[last], value);
+      if (value && typeof value === "object" && value.__op === "delete") delete node[last];
+      else node[last] = resolveValue(node[last], value);
     }
     docs.set(op.path, next);
   };
@@ -157,20 +190,45 @@ function makeDb(seed) {
     },
     getAll: async (...refs) => refs.map((r) => snap(r.path)),
     async runTransaction(fn) {
-      const ops = [];
-      const result = await fn({
-        get: async (r) => snap(r.path),
-        getAll: async (...refs) => refs.map((r) => snap(r.path)),
-        update: (r, data) => ops.push({ kind: "update", path: r.path, data }),
-        create: (r, data) => ops.push({ kind: "create", path: r.path, data }),
-      });
-      // Nothing is stored until the function has returned, as in a real transaction.
-      ops.forEach(apply);
-      return result;
+      for (let attempt = 1; ; attempt += 1) {
+        const ops = [];
+        const seen = new Map();
+        const read = (r) => {
+          if (!seen.has(r.path)) seen.set(r.path, versions.get(r.path) ?? 0);
+          return snap(r.path);
+        };
+        const result = await fn({
+          get: async (r) => read(r),
+          getAll: async (...refs) => refs.map(read),
+          update: (r, data) => ops.push({ kind: "update", path: r.path, data }),
+          create: (r, data) => ops.push({ kind: "create", path: r.path, data }),
+        });
+        // A document this transaction read was written by somebody else before
+        // it could commit. Firestore runs the function again from the top, and
+        // so does this: it is what makes two presses racing a fair test.
+        const stale = [...seen].some(([path, version]) => (versions.get(path) ?? 0) !== version);
+        if (stale) {
+          if (attempt >= 5) throw new Error("ABORTED: too much contention");
+          reruns += 1;
+          continue;
+        }
+        if (sabotage && sabotage(ops)) throw new Error("UNAVAILABLE: the commit did not go through");
+        // Nothing is stored until the function has returned, as in a real transaction.
+        ops.forEach(apply);
+        return result;
+      }
     },
     read: (path) => docs.get(path),
     /** For a test to change a document behind the send's back. */
-    patch: (path, change) => docs.set(path, { ...docs.get(path), ...change }),
+    patch: (path, change) => {
+      written(path);
+      docs.set(path, { ...docs.get(path), ...change });
+    },
+    reruns: () => reruns,
+    /** For a test to make chosen commits fail. Pass null to stop. */
+    failCommits: (when) => {
+      sabotage = when;
+    },
     paths: (prefix) => [...docs.keys()].filter((path) => path.startsWith(prefix)),
   };
 }
@@ -312,19 +370,41 @@ const mailTo = (address) => globalThis.__ddMail.calls.filter((call) => call.to =
 const press = (db, request = { emails: 7, emailDeclined: false }) =>
   send.runDecisionDay(db, ACTOR, ROUND, request, clock);
 
-/** Every person a press looked at is in exactly one count. */
+/** Every person a press looked at is in exactly one count, and so is every email it took up. */
 function assertAddsUp(report, people) {
   assert.equal(
-    report.published,
-    report.emailed + report.held + report.suppressed + report.failed + report.notEmailed,
-    "everybody told is emailed, held, suppressed, failed or deliberately not emailed",
+    report.published + report.retried,
+    report.emailed + report.held + report.suppressed + report.failed + report.unconfirmed + report.notEmailed,
+    "everybody told, and everybody whose owed email was taken up, is emailed, held, suppressed, " +
+      "failed, unconfirmed or deliberately not emailed",
   );
   assert.equal(
     people,
-    report.published + report.skipped + report.changed + report.notReached,
-    "everybody in the term is told, skipped, changed or left for the next press",
+    report.published + report.retried + report.skipped + report.changed + report.notReached,
+    "everybody in the term is told, taken up, skipped, changed or left for the next press",
   );
+  assert.equal(report.failedNames.length, report.failed, "everybody whose email is still owed is named");
+  assert.equal(report.unconfirmedNames.length, report.unconfirmed, "and everybody nobody can vouch for");
 }
+
+/** What a result says about its email: the state, when it went, and who holds it. */
+const emailOf = (db, uid) => {
+  const { result } = applicationOf(db, uid);
+  return [result.email, result.emailedAt, result.emailClaimedAt];
+};
+
+/** The press that tells nobody new and only sends what is still owed. */
+const pressOwed = (db, emails, at = clock) =>
+  send.runDecisionDay(db, ACTOR, ROUND, { emails, emailDeclined: false, owedOnly: true }, at);
+
+/** A result as an earlier press left it, with what became of its email. */
+const SENT = { email: "sent", emailedAt: DECIDED, emailClaimedAt: null };
+const toldDoc = (uid, name, ranked, kind, programmeId, email = SENT, over = {}) =>
+  applicationDoc(uid, name, ranked, {
+    status: kind,
+    result: { kind, programmeId, publishedAt: DECIDED, emailedAt: null, emailClaimedAt: null, ...email },
+    ...over,
+  });
 
 /** A failing email is logged by the send; the log is the code's, not the test's. */
 async function quietly(fn) {
@@ -352,16 +432,24 @@ describe("a send over a ready term", () => {
     const result = await press(db);
     assert.equal(result.ok, true);
     assert.deepEqual(result.report, {
+      owedOnly: false,
       published: 8,
+      retried: 0,
       emailed: 7,
       held: 0,
       suppressed: 0,
       failed: 0,
+      unconfirmed: 0,
       notEmailed: 1,
       skipped: 0,
       changed: 0,
       notReached: 0,
       failedNames: [],
+      unconfirmedNames: [],
+      // Wen was accepted while her account was still waiting.
+      accountsApproved: 1,
+      accountsFailed: [],
+      accountsRefused: [],
       stopped: null,
       complete: true,
     });
@@ -375,15 +463,22 @@ describe("a send over a ready term", () => {
       const application = applicationOf(db, uid);
       return [application.status, application.result, application.invitation];
     };
-    assert.deepEqual(told("amara"), ["accepted", { kind: "accepted", programmeId: AGI, publishedAt: NOW }, null]);
-    assert.deepEqual(told("wen"), ["accepted", { kind: "accepted", programmeId: TAIS, publishedAt: NOW }, null]);
+    // The email went, and the result says so and when. Nobody holds it any more.
+    const emailed = { email: "sent", emailedAt: NOW, emailClaimedAt: null };
+    assert.deepEqual(told("amara"), ["accepted", { kind: "accepted", programmeId: AGI, publishedAt: NOW, ...emailed }, null]);
+    assert.deepEqual(told("wen"), ["accepted", { kind: "accepted", programmeId: TAIS, publishedAt: NOW, ...emailed }, null]);
     assert.deepEqual(told("oliver"), [
       "invited",
-      { kind: "invited", programmeId: TAIS, publishedAt: NOW },
+      { kind: "invited", programmeId: TAIS, publishedAt: NOW, ...emailed },
       { programmeId: TAIS, replyBy: "2026-10-25", response: null, respondedAt: null, lastReminderOn: null },
     ]);
-    assert.deepEqual(told("nina"), ["no-offer", { kind: "no-offer", programmeId: null, publishedAt: NOW }, null]);
-    assert.deepEqual(told("zara"), ["declined", { kind: "declined", programmeId: null, publishedAt: NOW }, null]);
+    assert.deepEqual(told("nina"), ["no-offer", { kind: "no-offer", programmeId: null, publishedAt: NOW, ...emailed }, null]);
+    // Declined, with "Email them" off: deliberately not sent, and settled as that.
+    assert.deepEqual(told("zara"), [
+      "declined",
+      { kind: "declined", programmeId: null, publishedAt: NOW, email: "not-sent", emailedAt: null, emailClaimedAt: null },
+      null,
+    ]);
     // What they wrote is untouched.
     assert.deepEqual(applicationOf(db, "amara").sent.rankedProgrammeIds, [AGI, TAIS]);
   });
@@ -421,7 +516,8 @@ describe("a send over a ready term", () => {
         targetLabel: "Autumn 2026",
         detail:
           "Published 8 decisions for Autumn 2026: 7 emailed, 0 held, 0 suppressed, 0 failed, " +
-          "1 not emailed. Everybody in the term now has their result.",
+          "0 unconfirmed, 1 not emailed. Everybody in the term now has their result. " +
+          "Approved 1 waiting account.",
         at: NOW,
       },
     ]);
@@ -574,15 +670,10 @@ describe("nobody is told twice", () => {
   });
 
   test("a press that picks up a half-told term skips the people already told", async () => {
-    const told = (uid, name, ranked, kind, programmeId) =>
-      applicationDoc(uid, name, ranked, {
-        status: kind,
-        result: { kind, programmeId, publishedAt: DECIDED },
-      });
     const db = makeDb(
       seed({
-        [`admissionApplications/${ROUND}__amara`]: told("amara", "Amara Okafor", [AGI, TAIS], "accepted", AGI),
-        [`admissionApplications/${ROUND}__nina`]: told("nina", "Nina Petrova", [AGI], "no-offer", null),
+        [`admissionApplications/${ROUND}__amara`]: toldDoc("amara", "Amara Okafor", [AGI, TAIS], "accepted", AGI),
+        [`admissionApplications/${ROUND}__nina`]: toldDoc("nina", "Nina Petrova", [AGI], "no-offer", null),
         [`admissionRounds/${ROUND}`]: { ...roundDoc(), applicationCounts: { submitted: 6, accepted: 1, "no-offer": 1 } },
       }),
     );
@@ -688,10 +779,13 @@ describe("a failed email undoes nothing", () => {
     assertAddsUp(result.report, 8);
     assert.equal(applicationOf(db, "nina").status, "no-offer", "her result is still there to read");
     assert.equal(mailTo("nina@example.com").length, 2, "tried once more before giving up");
-    // Everybody has a result, so the term is sent, and the log says whose email failed.
+    // The mail server refused both attempts, so nothing was handed over: the
+    // email is owed, and nobody holds it.
+    assert.deepEqual(emailOf(db, "nina"), ["owed", null, null]);
+    // Everybody has a result, so the term is sent, and the log says whose email is owed.
     assert.equal(result.report.complete, true);
     assert.deepEqual(roundOf(db).decisionsSentAt, NOW);
-    assert.match(auditRows(db)[0].detail, /1 failed, 1 not emailed\..*Email failed for: nina\.$/);
+    assert.match(auditRows(db)[0].detail, /1 failed, 0 unconfirmed, 1 not emailed\..*Email still owed to: nina\.$/);
     assert.ok(!auditRows(db)[0].detail.includes("Petrova"), "the log names her by uid, not by name");
   });
 
@@ -718,6 +812,8 @@ describe("a failed email undoes nothing", () => {
     assert.equal(applicationOf(db, "sam").status, "accepted");
     assert.equal(globalThis.__ddMail.calls.length, 6);
     assertAddsUp(result.report, 8);
+    // Nothing was tried, so nothing is held: the email is owed until there is somewhere to send it.
+    assert.deepEqual(emailOf(db, "sam"), ["owed", null, null]);
   });
 
   test("when the very first email cannot be sent, the send stops with one person told", async () => {
@@ -734,16 +830,24 @@ describe("a failed email undoes nothing", () => {
     assert.equal(PEOPLE.filter(([uid]) => applicationOf(db, uid).result).length, 1, "nobody else was published");
     assert.match(auditRows(db)[0].detail, /Stopped because emails were failing\. The term is not finished\./);
 
-    // With the mail working again, the next press tells everybody else. The
-    // one person already told is skipped: their result is on the site, and
-    // the first press named them so somebody can write to them.
+    // With the mail working again, the next press tells everybody else AND
+    // sends the one email the first press left owed. Nobody has to write to
+    // that person by hand, and the button's number counts their email: 6 for
+    // the people not yet told, 1 owed.
+    const [stranded] = result.report.failedNames;
+    const [strandedUid] = PEOPLE.find(([, name]) => name === stranded);
+    assert.deepEqual(emailOf(db, strandedUid), ["owed", null, null]);
     globalThis.__ddMail.calls.length = 0;
     globalThis.__ddMail.verdict = null;
-    const [stranded] = result.report.failedNames;
-    const next = await press(db, { emails: 6, emailDeclined: false });
-    assert.deepEqual([next.report.published, next.report.skipped, next.report.complete], [7, 1, true]);
-    assert.equal(globalThis.__ddMail.calls.length, 6);
-    assert.ok(PEOPLE.some(([, name]) => name === stranded));
+    assert.equal((await press(db, { emails: 6, emailDeclined: false })).status, 409, "6 is no longer the number");
+    const next = await press(db, { emails: 7, emailDeclined: false });
+    assert.deepEqual(
+      [next.report.published, next.report.retried, next.report.skipped, next.report.emailed, next.report.complete],
+      [7, 1, 0, 7, true],
+    );
+    assert.equal(globalThis.__ddMail.calls.length, 7);
+    assert.equal(mailTo(`${strandedUid}@example.com`).length, 1, "their email went, once");
+    assert.deepEqual(emailOf(db, strandedUid), ["sent", NOW, null]);
     assertAddsUp(next.report, 8);
   });
 
@@ -790,11 +894,630 @@ describe("what the mail door decided is counted, not hidden", () => {
 
   test("the audit sentence fits the log's limit however long the list of failures", () => {
     const report = {
-      published: 500, emailed: 0, held: 0, suppressed: 0, failed: 500, notEmailed: 0,
-      skipped: 0, changed: 0, notReached: 0, failedNames: [], stopped: null, complete: true,
+      owedOnly: false, published: 500, retried: 0, emailed: 0, held: 0, suppressed: 0, failed: 250,
+      unconfirmed: 250, notEmailed: 0, skipped: 0, changed: 0, notReached: 0, failedNames: [],
+      unconfirmedNames: [], accountsApproved: 66, accountsFailed: [], accountsRefused: [],
+      stopped: null, complete: true,
     };
-    const uids = Array.from({ length: 500 }, (_, i) => `a-rather-long-uid-${i}`);
-    assert.ok(send.auditDetail("Autumn 2026", report, uids).length <= 1000);
+    const uids = Array.from({ length: 250 }, (_, i) => `a-rather-long-uid-${i}`);
+    assert.ok(send.auditDetail("Autumn 2026", report, uids, uids).length <= 1000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 1b. What became of each email, and what a later press does about it
+// ---------------------------------------------------------------------------
+
+/** Five minutes is how long a claim is read as a press still at work. */
+const later = (minutes) => () => new Date(NOW.getTime() + minutes * 60_000);
+
+describe("what became of the email is recorded on the result", () => {
+  test("while it is being handed over, the result says a press holds it", async () => {
+    const db = makeDb(seed());
+    const seen = [];
+    globalThis.__ddMail.verdict = (args) => {
+      const uid = args.to.split("@")[0];
+      seen.push(emailOf(db, uid));
+      return "sent";
+    };
+    await press(db);
+    assert.equal(seen.length, 7);
+    for (const held of seen) assert.deepEqual(held, ["sending", null, NOW]);
+  });
+
+  const STATES = [
+    // [the mail door's answer, the state recorded, when it went, the report's count]
+    ["sent", "sent", NOW, "emailed"],
+    ["held", "held", null, "held"],
+    ["suppressed", "suppressed", null, "suppressed"],
+    ["throw", "owed", null, "failed"],
+    ["cut-off", "unconfirmed", null, "unconfirmed"],
+  ];
+  for (const [verdict, state, emailedAt, count] of STATES) {
+    test(`the mail door answers "${verdict}": the result says ${state}, and nobody holds it`, async () => {
+      const db = makeDb(seed());
+      globalThis.__ddMail.verdict = (args) => (args.to === "ben@example.com" ? verdict : "sent");
+      const result = await quietly(() => press(db));
+      assert.deepEqual(emailOf(db, "ben"), [state, emailedAt, null]);
+      assert.equal(result.report[count], count === "emailed" ? 7 : 1);
+      assert.equal(applicationOf(db, "ben").status, "no-offer", "the result is published whatever the email did");
+      assertAddsUp(result.report, 8);
+      // Everybody else's went, and says so.
+      assert.deepEqual(emailOf(db, "amara"), ["sent", NOW, null]);
+    });
+  }
+
+  test("a declined application is settled as not sent, or as sent when the switch is on", async () => {
+    const off = makeDb(seed());
+    await press(off);
+    assert.deepEqual(emailOf(off, "zara"), ["not-sent", null, null]);
+    const on = makeDb(seed());
+    await press(on, { emails: 8, emailDeclined: true });
+    assert.deepEqual(emailOf(on, "zara"), ["sent", NOW, null]);
+  });
+
+  test("an attempt nobody can vouch for is not tried again, even within the press", async () => {
+    const db = makeDb(seed());
+    globalThis.__ddMail.verdict = (args) => (args.to === "nina@example.com" ? "cut-off" : "sent");
+    const result = await quietly(() => press(db));
+    assert.equal(mailTo("nina@example.com").length, 1, "one attempt: the message may already have gone");
+    assert.deepEqual(
+      [result.report.unconfirmed, result.report.unconfirmedNames, result.report.failed],
+      [1, ["Nina Petrova"], 0],
+    );
+    assert.match(auditRows(db)[0].detail, /0 failed, 1 unconfirmed, 1 not emailed\..*Email unconfirmed for: nina\.$/);
+    assertAddsUp(result.report, 8);
+  });
+
+  test("when the first email cannot be vouched for, the send stops with one person told", async () => {
+    const db = makeDb(seed());
+    globalThis.__ddMail.verdict = () => "cut-off";
+    const result = await quietly(() => press(db));
+    assert.deepEqual(
+      [result.report.published, result.report.unconfirmed, result.report.notReached, result.report.stopped],
+      [1, 1, 7, "emails-failing"],
+    );
+    assert.equal(globalThis.__ddMail.calls.length, 1);
+    assertAddsUp(result.report, 8);
+  });
+
+  test("the record that could not be written leaves the email held, and it is never sent again", async () => {
+    const db = makeDb(seed());
+    const ninaPath = `admissionApplications/${ROUND}__nina`;
+    // Her email goes, and then every attempt to record that it went fails.
+    db.failCommits((ops) => ops.some((op) => op.path === ninaPath && op.data["result.email"] === "sent"));
+    const result = await quietly(() => press(db));
+    db.failCommits(null);
+    assert.equal(mailTo("nina@example.com").length, 1, "it went");
+    assert.equal(result.report.emailed, 7, "and the press counts it as sent, which it was");
+    assert.deepEqual(emailOf(db, "nina"), ["sending", null, NOW], "but the record still says a press holds it");
+    assertAddsUp(result.report, 8);
+
+    // A minute later it reads as in flight, and after any press could still be
+    // alive it reads as unconfirmed. Either way no press takes it up.
+    const form = await repo.loadForm(db, ROUND);
+    const soon = await send.buildSendBoard(db, form, later(1)());
+    assert.deepEqual([soon.owed.inFlight, soon.owed.unconfirmed, soon.owed.people], [1, [], []]);
+    const afterwards = await send.buildSendBoard(db, form, later(6)());
+    assert.deepEqual(
+      [afterwards.owed.inFlight, afterwards.owed.unconfirmed.map((p) => p.name), afterwards.owed.people],
+      [0, ["Nina Petrova"], []],
+    );
+    for (const at of [later(1), later(6), later(600)]) {
+      const again = await pressOwed(db, 0, at);
+      assert.deepEqual([again.ok, again.report.retried, again.report.emailed], [true, 0, 0]);
+    }
+    assert.equal(mailTo("nina@example.com").length, 1, "nobody is emailed their decision twice");
+  });
+});
+
+describe("a later press sends what is owed, and nothing else", () => {
+  /** Press once with Nina's email refused: the term is sent, and one email is owed. */
+  async function withOneOwed() {
+    const db = makeDb(seed());
+    globalThis.__ddMail.verdict = (args) => (args.to === "nina@example.com" ? "throw" : "sent");
+    await quietly(() => press(db));
+    globalThis.__ddMail.verdict = null;
+    globalThis.__ddMail.calls.length = 0;
+    return db;
+  }
+
+  test("the term is marked as sent with an email still owed, and the owed press sends it", async () => {
+    const db = await withOneOwed();
+    assert.deepEqual(roundOf(db).decisionsSentAt, NOW, "everybody has their result, so the term is sent");
+    assert.deepEqual(emailOf(db, "nina"), ["owed", null, null]);
+    // The main press is finished for good. The owed press is not.
+    assert.equal((await press(db, { emails: 1, emailDeclined: false })).status, 409);
+
+    const result = await pressOwed(db, 1);
+    assert.deepEqual(result.report, {
+      owedOnly: true,
+      published: 0,
+      retried: 1,
+      emailed: 1,
+      held: 0,
+      suppressed: 0,
+      failed: 0,
+      unconfirmed: 0,
+      notEmailed: 0,
+      skipped: 7,
+      changed: 0,
+      notReached: 0,
+      failedNames: [],
+      unconfirmedNames: [],
+      accountsApproved: 0,
+      accountsFailed: [],
+      accountsRefused: [],
+      stopped: null,
+      complete: true,
+    });
+    assertAddsUp(result.report, 8);
+    assert.deepEqual(
+      globalThis.__ddMail.calls.map((call) => [call.to, call.subject, call.replyTo, call.kind]),
+      [["nina@example.com", "Your NAISI application", "ai-safety@uonsu.com", "admissions"]],
+    );
+    assert.deepEqual(emailOf(db, "nina"), ["sent", NOW, null]);
+    // What she was told is not rewritten: only the record of her email moved.
+    const { result: told, status } = applicationOf(db, "nina");
+    assert.deepEqual([status, told.kind, told.programmeId, told.publishedAt], ["no-offer", "no-offer", null, NOW]);
+    assert.deepEqual(roundOf(db).applicationCounts, { submitted: 0, accepted: 3, invited: 1, "no-offer": 3, declined: 1 });
+  });
+
+  test("it leaves one audit row of its own, and does not stamp the form again", async () => {
+    const db = await withOneOwed();
+    db.patch(`admissionRounds/${ROUND}`, { decisionsSentByUid: "somebody-else" });
+    await pressOwed(db, 1);
+    const rows = auditRows(db);
+    assert.equal(rows.length, 2);
+    assert.equal(
+      rows[1].detail,
+      "Took up 1 owed email for Autumn 2026: 1 emailed, 0 held, 0 suppressed, 0 failed, 0 unconfirmed, 0 not emailed.",
+    );
+    assert.equal(roundOf(db).decisionsSentByUid, "somebody-else", "who sent the term is not rewritten");
+  });
+
+  test("pressed again with nothing owed, it sends nothing, writes nothing and logs nothing", async () => {
+    const db = await withOneOwed();
+    await pressOwed(db, 1);
+    const writes = db.counters.writes;
+    const again = await pressOwed(db, 0);
+    assert.deepEqual([again.ok, again.report.retried, again.report.emailed, again.report.skipped], [true, 0, 0, 8]);
+    assert.equal(globalThis.__ddMail.calls.length, 1);
+    assert.equal(db.counters.writes, writes);
+    assert.equal(auditRows(db).length, 2);
+    assertAddsUp(again.report, 8);
+  });
+
+  test("it is refused when the number of emails is not the number the admin was shown", async () => {
+    const db = await withOneOwed();
+    const writes = db.counters.writes;
+    const result = await pressOwed(db, 3);
+    assert.deepEqual([result.status, result.error], [
+      409,
+      "The decisions have changed since this page loaded: this would now send 1 email, not 3. Reload the page and check again.",
+    ]);
+    assert.equal(db.counters.writes, writes);
+    assert.deepEqual(globalThis.__ddMail.calls, []);
+  });
+
+  test("an owed email that fails again stays owed, and one that goes after a refusal is sent once", async () => {
+    const db = await withOneOwed();
+    globalThis.__ddMail.verdict = () => "throw";
+    const failed = await quietly(() => pressOwed(db, 1));
+    assert.deepEqual(
+      [failed.report.retried, failed.report.failed, failed.report.failedNames, failed.report.stopped],
+      [1, 1, ["Nina Petrova"], "emails-failing"],
+    );
+    assert.deepEqual(emailOf(db, "nina"), ["owed", null, null]);
+    assertAddsUp(failed.report, 8);
+
+    globalThis.__ddMail.verdict = null;
+    globalThis.__ddMail.calls.length = 0;
+    const sent = await pressOwed(db, 1);
+    assert.deepEqual([sent.report.retried, sent.report.emailed], [1, 1]);
+    assert.equal(mailTo("nina@example.com").length, 1);
+    assert.deepEqual(emailOf(db, "nina"), ["sent", NOW, null]);
+  });
+
+  test("it does not wait for the rest of the term: an owed email goes while a decision is still owed", async () => {
+    // Amara was told and her email is owed. Ben's programme has not decided,
+    // so the term is not ready and the main press is refused.
+    const db = makeDb(
+      seed({
+        [`admissionApplications/${ROUND}__amara`]: toldDoc("amara", "Amara Okafor", [AGI, TAIS], "accepted", AGI, { email: "owed" }),
+        [`admissionDecisions/${ROUND}__ben`]: decisionDoc("ben", {}),
+        [`admissionRounds/${ROUND}`]: { ...roundDoc(), applicationCounts: { submitted: 7, accepted: 1 } },
+      }),
+    );
+    assert.equal((await press(db, { emails: 7, emailDeclined: false })).status, 409);
+    const result = await pressOwed(db, 1);
+    assert.deepEqual([result.report.retried, result.report.emailed, result.report.published, result.report.complete], [1, 1, 0, false]);
+    assert.deepEqual(globalThis.__ddMail.calls.map((call) => call.subject), ["You’re in AGI Strategy"]);
+    assert.equal(roundOf(db).decisionsSentAt, null, "it tells nobody new and never marks the term as sent");
+    assert.equal(applicationOf(db, "ben").result, null);
+  });
+
+  test("it is refused on a form that is archived or cancelled, and where the site has no address", async () => {
+    const owedAmara = {
+      [`admissionApplications/${ROUND}__amara`]: toldDoc("amara", "Amara Okafor", [AGI, TAIS], "accepted", AGI, { email: "owed" }),
+    };
+    const archived = makeDb(seed({ ...owedAmara, [`admissionRounds/${ROUND}`]: roundDoc({ archived: true }) }));
+    assert.deepEqual(
+      [(await pressOwed(archived, 1)).status, (await pressOwed(archived, 1)).error],
+      [409, "This application form is archived, so nothing can be sent from it."],
+    );
+    const cancelled = makeDb(seed({ ...owedAmara, [`admissionRounds/${ROUND}`]: roundDoc({ status: "cancelled" }) }));
+    assert.equal((await pressOwed(cancelled, 1)).status, 409);
+    const db = makeDb(seed(owedAmara));
+    process.env.NEXT_PUBLIC_APP_URL = "";
+    try {
+      assert.match((await pressOwed(db, 1)).error, /doesn’t know its own address/);
+    } finally {
+      process.env.NEXT_PUBLIC_APP_URL = APP_URL;
+    }
+    assert.deepEqual(globalThis.__ddMail.calls, []);
+  });
+
+  /** Everybody told already, one person in each state an email can be left in. */
+  function everyState() {
+    const claimed = (minutesAgo) => ({
+      email: "sending",
+      emailClaimedAt: new Date(NOW.getTime() - minutesAgo * 60_000),
+    });
+    const person = (uid, name, ranked, kind, programmeId, email, over) => [
+      `admissionApplications/${ROUND}__${uid}`,
+      toldDoc(uid, name, ranked, kind, programmeId, email, over),
+    ];
+    return Object.fromEntries([
+      person("amara", "Amara Okafor", [AGI, TAIS], "accepted", AGI, SENT),
+      person("sam", "Sam Whitfield", [TAIS], "accepted", TAIS, { email: "held" }),
+      person("wen", "Wen Zhao", [TAIS, AGI], "accepted", TAIS, { email: "suppressed" }),
+      person("oliver", "Oliver Grant", [INC], "invited", TAIS, { email: "unconfirmed" }),
+      // A press took Rosa's email up a minute ago and is still at work.
+      person("rosa", "Rosa García", [INC, AGI], "no-offer", null, claimed(1)),
+      // A press took Nina's up ten minutes ago and never said what happened.
+      person("nina", "Nina Petrova", [AGI], "no-offer", null, claimed(10)),
+      // Ben's is owed, and there is somewhere to send it.
+      person("ben", "Ben Hartley", [AGI], "no-offer", null, { email: "owed" }),
+      person("zara", "Zara Ahmed", [AGI], "declined", null, { email: "not-sent" }),
+    ]);
+  }
+  const allTold = { submitted: 0, accepted: 3, invited: 1, "no-offer": 3, declined: 1 };
+
+  test("of every state an email can be left in, only owed is sent", async () => {
+    const db = makeDb(seed({ ...everyState(), [`admissionRounds/${ROUND}`]: { ...roundDoc(), applicationCounts: allTold } }));
+    const before = Object.fromEntries(PEOPLE.map(([uid]) => [uid, structuredClone(applicationOf(db, uid).result)]));
+    const result = await pressOwed(db, 1);
+    assert.deepEqual([result.report.retried, result.report.emailed, result.report.skipped], [1, 1, 7]);
+    assert.deepEqual(globalThis.__ddMail.calls.map((call) => call.to), ["ben@example.com"]);
+    assert.deepEqual(emailOf(db, "ben"), ["sent", NOW, null]);
+    for (const [uid] of PEOPLE) {
+      if (uid !== "ben") assert.deepEqual(applicationOf(db, uid).result, before[uid], `${uid}'s result is untouched`);
+    }
+    assertAddsUp(result.report, 8);
+  });
+
+  test("the main press over the same term sends the owed one, finishes the term and emails nobody else", async () => {
+    const db = makeDb(seed({ ...everyState(), [`admissionRounds/${ROUND}`]: { ...roundDoc(), applicationCounts: allTold } }));
+    // Nobody is left to tell, so the button's number is the one owed email.
+    const result = await press(db, { emails: 1, emailDeclined: true });
+    assert.deepEqual([result.report.published, result.report.retried, result.report.emailed, result.report.complete], [0, 1, 1, true]);
+    assert.deepEqual(globalThis.__ddMail.calls.map((call) => call.to), ["ben@example.com"]);
+    assert.deepEqual(roundOf(db).decisionsSentAt, NOW);
+    assertAddsUp(result.report, 8);
+  });
+
+  test("a result with no record of its email is read as unconfirmed, and nothing is sent on a guess", async () => {
+    const bare = applicationDoc("ben", "Ben Hartley", [AGI], {
+      status: "no-offer",
+      result: { kind: "no-offer", programmeId: null, publishedAt: DECIDED },
+    });
+    const db = makeDb(seed({ ...everyState(), [`admissionApplications/${ROUND}__ben`]: bare }));
+    const view = await send.buildSendBoard(db, await repo.loadForm(db, ROUND), NOW);
+    assert.ok(view.owed.unconfirmed.some((person) => person.name === "Ben Hartley"));
+    assert.deepEqual(view.owed.people, []);
+    const result = await pressOwed(db, 0);
+    assert.equal(result.report.retried, 0);
+    assert.deepEqual(globalThis.__ddMail.calls, []);
+  });
+
+  test("an owed declined email goes whatever the switch says now: it was earned when they were told", async () => {
+    const db = makeDb(
+      seed({
+        ...everyState(),
+        [`admissionApplications/${ROUND}__ben`]: toldDoc("ben", "Ben Hartley", [AGI], "no-offer", null, SENT),
+        [`admissionApplications/${ROUND}__zara`]: toldDoc("zara", "Zara Ahmed", [AGI], "declined", null, { email: "owed" }),
+      }),
+    );
+    const result = await pressOwed(db, 1);
+    assert.equal(result.report.emailed, 1);
+    assert.deepEqual(globalThis.__ddMail.calls.map((call) => [call.to, call.subject]), [["zara@example.com", "Your NAISI application"]]);
+  });
+
+  test("somebody owed an email with no address is not taken up, and the page says so by name", async () => {
+    const db = makeDb(
+      seed({
+        ...everyState(),
+        [`admissionApplications/${ROUND}__ben`]: toldDoc("ben", "Ben Hartley", [AGI], "no-offer", null, { email: "owed" }, { email: null }),
+      }),
+    );
+    const view = await send.buildSendBoard(db, await repo.loadForm(db, ROUND), NOW);
+    assert.deepEqual([view.owed.people, view.owed.noAddress.map((p) => p.name)], [[], ["Ben Hartley"]]);
+    const result = await pressOwed(db, 0);
+    assert.deepEqual([result.ok, result.report.retried], [true, 0]);
+    assert.deepEqual(globalThis.__ddMail.calls, []);
+    assert.deepEqual(emailOf(db, "ben"), ["owed", null, null], "still owed, for when there is somewhere to send it");
+  });
+
+  test("an owed email goes to the address on the application now", async () => {
+    const db = await withOneOwed();
+    db.patch(`admissionApplications/${ROUND}__nina`, { email: "nina.petrova@example.com" });
+    await pressOwed(db, 1);
+    assert.deepEqual(globalThis.__ddMail.calls.map((call) => call.to), ["nina.petrova@example.com"]);
+  });
+
+  test("an application withdrawn since is owed nothing", async () => {
+    const db = await withOneOwed();
+    db.patch(`admissionApplications/${ROUND}__nina`, { status: "withdrawn", withdrawnAt: NOW });
+    const result = await pressOwed(db, 0);
+    assert.deepEqual([result.ok, result.report.retried], [true, 0]);
+    assert.deepEqual(globalThis.__ddMail.calls, []);
+  });
+});
+
+describe("two presses at once email nobody twice", () => {
+  /** A mail door slow enough for two presses to overlap. */
+  const slowly = (answer = () => "sent") => async (args, n) => {
+    await new Promise((resolve) => setTimeout(resolve, 3));
+    return answer(args, n);
+  };
+  const perAddress = () => {
+    const counts = {};
+    for (const call of globalThis.__ddMail.calls) counts[call.to] = (counts[call.to] ?? 0) + 1;
+    return counts;
+  };
+  const ONCE_EACH = {
+    "amara@example.com": 1,
+    "ben@example.com": 1,
+    "nina@example.com": 1,
+    "oliver@example.com": 1,
+    "rosa@example.com": 1,
+    "sam@example.com": 1,
+    "wen@example.com": 1,
+  };
+
+  test("two presses of Send over a ready term: each person is told once and emailed once", async () => {
+    const db = makeDb(seed());
+    globalThis.__ddMail.verdict = slowly();
+    const [first, second] = await Promise.all([press(db), press(db)]);
+    assert.deepEqual([first.ok, second.ok], [true, true]);
+    assert.deepEqual(perAddress(), ONCE_EACH);
+    assert.equal(first.report.published + second.report.published, 8, "each person was published by one press");
+    assert.equal(first.report.emailed + second.report.emailed, 7);
+    assertAddsUp(first.report, 8);
+    assertAddsUp(second.report, 8);
+    assert.ok(db.reruns() > 0, "the two presses really did meet on a document");
+    // The counters moved once per person, and everybody's email is settled.
+    assert.deepEqual(roundOf(db).applicationCounts, { submitted: 0, accepted: 3, invited: 1, "no-offer": 3, declined: 1 });
+    for (const [uid] of PEOPLE) {
+      assert.equal(emailOf(db, uid)[0], uid === "zara" ? "not-sent" : "sent", uid);
+    }
+    assert.deepEqual(roundOf(db).decisionsSentAt, NOW);
+  });
+
+  test("two presses for the same owed emails: each email is taken up by one of them", async () => {
+    const owedPeople = ["amara", "sam", "wen", "oliver", "rosa", "nina", "ben"];
+    const told = Object.fromEntries(
+      PEOPLE.map(([uid, name, ranked, verdicts, outcome]) => {
+        const kind = outcome ? (outcome.kind === "invite" ? "invited" : "no-offer") : Object.values(verdicts)[0] === "accept" ? "accepted" : "declined";
+        const programmeId = kind === "accepted" ? Object.keys(verdicts)[0] : kind === "invited" ? outcome.programmeId : null;
+        const email = owedPeople.includes(uid) ? { email: "owed" } : { email: "not-sent" };
+        return [`admissionApplications/${ROUND}__${uid}`, toldDoc(uid, name, ranked, kind, programmeId, email)];
+      }),
+    );
+    const db = makeDb(seed({ ...told, [`admissionRounds/${ROUND}`]: roundDoc({ decisionsSentAt: NOW, decisionsSentByUid: "zach" }) }));
+    globalThis.__ddMail.verdict = slowly();
+    const [first, second] = await Promise.all([pressOwed(db, 7), pressOwed(db, 7)]);
+    assert.deepEqual(perAddress(), ONCE_EACH);
+    assert.equal(first.report.retried + second.report.retried, 7, "each owed email was taken up by one press");
+    assert.equal(first.report.emailed + second.report.emailed, 7);
+    assertAddsUp(first.report, 8);
+    assertAddsUp(second.report, 8);
+    assert.ok(db.reruns() > 0, "the two presses really did meet on a document");
+    for (const uid of owedPeople) assert.deepEqual(emailOf(db, uid), ["sent", NOW, null], uid);
+  });
+
+  test("a press of Send and the owed press at once: the owed email still goes once", async () => {
+    const db = makeDb(
+      seed({
+        [`admissionApplications/${ROUND}__amara`]: toldDoc("amara", "Amara Okafor", [AGI, TAIS], "accepted", AGI, { email: "owed" }),
+        [`admissionRounds/${ROUND}`]: { ...roundDoc(), applicationCounts: { submitted: 7, accepted: 1 } },
+      }),
+    );
+    globalThis.__ddMail.verdict = slowly();
+    const [main, owedPress] = await Promise.all([press(db, { emails: 7, emailDeclined: false }), pressOwed(db, 1)]);
+    assert.deepEqual([main.ok, owedPress.ok], [true, true]);
+    assert.deepEqual(perAddress(), ONCE_EACH);
+    assert.equal(main.report.retried + owedPress.report.retried, 1);
+    assertAddsUp(main.report, 8);
+    assertAddsUp(owedPress.report, 8);
+  });
+
+  test("a refusal in one press does not let the other send it as well in the same moment", async () => {
+    // Both presses want Amara's owed email. Whichever takes it up is refused
+    // by the mail server; the other has already stood down, so one press tried
+    // it (twice, as a refusal allows) and it is owed again for the next press.
+    const db = makeDb(
+      seed({
+        ...Object.fromEntries(
+          PEOPLE.filter(([uid]) => uid !== "amara").map(([uid, name, ranked]) => [
+            `admissionApplications/${ROUND}__${uid}`,
+            toldDoc(uid, name, ranked, uid === "zara" ? "declined" : "no-offer", null, uid === "zara" ? { email: "not-sent" } : SENT),
+          ]),
+        ),
+        [`admissionApplications/${ROUND}__amara`]: toldDoc("amara", "Amara Okafor", [AGI, TAIS], "accepted", AGI, { email: "owed" }),
+        [`admissionRounds/${ROUND}`]: roundDoc({ decisionsSentAt: NOW, decisionsSentByUid: "zach" }),
+      }),
+    );
+    globalThis.__ddMail.verdict = slowly(() => "throw");
+    const [first, second] = await quietly(() => Promise.all([pressOwed(db, 1), pressOwed(db, 1)]));
+    assert.equal(first.report.retried + second.report.retried, 1, "one press took it up");
+    assert.equal(first.report.skipped + second.report.skipped, 15, "the other stood down");
+    assert.equal(mailTo("amara@example.com").length, 2, "the one press's two attempts, and no third");
+    assert.deepEqual(emailOf(db, "amara"), ["owed", null, null]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 1c. Accepting somebody approves an account that is still waiting
+// ---------------------------------------------------------------------------
+
+describe("accepting somebody approves an account that is still waiting", () => {
+  const userOf = (db, uid) => db.read(`users/${uid}`);
+  const waiting = (name) => userDoc(name, "pending");
+
+  test("the send approves it in the admin's name, with the change the Approvals tab makes", async () => {
+    const db = makeDb(seed());
+    const before = structuredClone(userOf(db, "wen"));
+    const result = await press(db);
+    // Three fields, and nothing else on her account.
+    assert.deepEqual(userOf(db, "wen"), { ...before, role: "member", approvedAt: NOW, approvedBy: "zach" });
+    assert.equal(result.report.accountsApproved, 1);
+    assert.deepEqual([result.report.accountsFailed, result.report.accountsRefused], [[], []]);
+    assert.match(auditRows(db)[0].detail, /Approved 1 waiting account\./);
+  });
+
+  test("she is a member before her email is handed over", async () => {
+    const db = makeDb(seed());
+    let roleAtEmail = "not asked";
+    globalThis.__ddMail.verdict = (args) => {
+      if (args.to === "wen@example.com") roleAtEmail = userOf(db, "wen").role;
+      return "sent";
+    };
+    await press(db);
+    assert.equal(roleAtEmail, "member");
+  });
+
+  test("only somebody told they are in: an invitation, a kind no and a declined application approve nobody", async () => {
+    const others = {
+      "users/oliver": waiting("Oliver Grant"),
+      "users/rosa": waiting("Rosa García"),
+      "users/nina": waiting("Nina Petrova"),
+      "users/ben": waiting("Ben Hartley"),
+      "users/zara": waiting("Zara Ahmed"),
+    };
+    const db = makeDb(seed(others));
+    const result = await press(db, { emails: 8, emailDeclined: true });
+    assert.equal(result.report.accountsApproved, 1, "Wen, and only Wen");
+    for (const [path, account] of Object.entries(others)) assert.deepEqual(db.read(path), account, path);
+  });
+
+  test("a member, a committee member and an admin who are accepted are left exactly as they are", async () => {
+    const accounts = {
+      "users/amara": userDoc("Amara Okafor", "committee"),
+      "users/sam": userDoc("Sam Whitfield", "admin"),
+      "users/wen": userDoc("Wen Zhao", "member"),
+    };
+    const db = makeDb(seed(accounts));
+    const result = await press(db);
+    assert.equal(result.report.accountsApproved, 0);
+    for (const [path, account] of Object.entries(accounts)) assert.deepEqual(db.read(path), account, path);
+    assert.ok(!auditRows(db)[0].detail.includes("Approved"));
+  });
+
+  test("a refused account stays refused, and is named before the send and after it", async () => {
+    const refused = { ...userDoc("Sam Whitfield", "rejected"), rejectedAt: DECIDED, rejectedBy: "zach", rejectionReason: "not-eligible" };
+    const db = makeDb(seed({ "users/sam": refused }));
+    const before = await send.buildSendBoard(db, await repo.loadForm(db, ROUND), NOW);
+    assert.deepEqual(before.accountsRefused, [{ uid: "sam", name: "Sam Whitfield" }]);
+    assert.equal(before.accountsWaiting, 1);
+
+    const result = await press(db);
+    assert.deepEqual(result.report.accountsRefused, ["Sam Whitfield"]);
+    assert.deepEqual(db.read("users/sam"), refused, "sending never undoes a refusal");
+    assert.equal(applicationOf(db, "sam").status, "accepted", "he is still told what the programme decided");
+    const after = await send.buildSendBoard(db, await repo.loadForm(db, ROUND), NOW);
+    assert.deepEqual([after.accountsRefused.map((p) => p.name), after.accountsWaiting], [["Sam Whitfield"], 0]);
+  });
+
+  test("somebody accepted with no account document is told, and nothing is invented for them", async () => {
+    // Amara, Sam and Wen have accounts in the seed. Take Sam's away.
+    const db = makeDb(Object.fromEntries(Object.entries(seed()).filter(([path]) => path !== "users/sam")));
+    const result = await press(db);
+    assert.equal(result.report.accountsApproved, 1);
+    assert.equal(db.read("users/sam"), undefined);
+    assert.deepEqual(result.report.accountsFailed, []);
+    assert.equal(applicationOf(db, "sam").status, "accepted");
+  });
+
+  test("an approval that fails does not stop the send, is named, and the next press approves it", async () => {
+    const db = makeDb(seed());
+    db.failCommits((ops) => ops.some((op) => op.path === "users/wen"));
+    const result = await quietly(() => press(db));
+    db.failCommits(null);
+    assert.deepEqual([result.report.accountsApproved, result.report.accountsFailed], [0, ["Wen Zhao"]]);
+    assert.equal(result.report.emailed, 7, "her email still went");
+    assert.equal(applicationOf(db, "wen").status, "accepted");
+    assert.equal(userOf(db, "wen").role, "pending");
+    // The term is sent, and the page still says one accepted account is waiting.
+    const view = await send.buildSendBoard(db, await repo.loadForm(db, ROUND), NOW);
+    assert.deepEqual([view.sentOn, view.accountsWaiting], ["Fri 23 Oct", 1]);
+
+    // Any later press tries again for somebody an earlier press told.
+    const again = await pressOwed(db, 0);
+    assert.deepEqual([again.report.accountsApproved, again.report.accountsFailed], [1, []]);
+    assert.deepEqual([userOf(db, "wen").role, userOf(db, "wen").approvedBy], ["member", "zach"]);
+    assert.equal(mailTo("wen@example.com").length, 1, "and she is not emailed again for it");
+    assert.equal(
+      auditRows(db).at(-1).detail,
+      "Took up 0 owed emails for Autumn 2026: 0 emailed, 0 held, 0 suppressed, 0 failed, 0 unconfirmed, 0 not emailed. Approved 1 waiting account.",
+    );
+  });
+
+  test("somebody who has said they can't take the place is not approved by a later press", async () => {
+    const gaveUp = toldDoc("wen", "Wen Zhao", [TAIS, AGI], "accepted", TAIS, SENT, {
+      attendance: { answer: "cant-make-it", answeredAt: DECIDED },
+    });
+    const db = makeDb(
+      seed({
+        [`admissionApplications/${ROUND}__wen`]: gaveUp,
+        [`admissionRounds/${ROUND}`]: { ...roundDoc(), applicationCounts: { submitted: 7, accepted: 1 } },
+      }),
+    );
+    const result = await press(db, { emails: 6, emailDeclined: false });
+    assert.equal(result.report.accountsApproved, 0);
+    assert.equal(userOf(db, "wen").role, "pending");
+  });
+
+  test("an invited person who has accepted is approved by the next press, if nothing approved them yet", async () => {
+    const invitation = (response) => ({
+      invitation: { programmeId: TAIS, replyBy: "2026-10-25", response, respondedAt: response ? DECIDED : null, lastReminderOn: null },
+    });
+    const db = makeDb(
+      seed({
+        [`admissionApplications/${ROUND}__oliver`]: toldDoc("oliver", "Oliver Grant", [INC], "invited", TAIS, SENT, invitation("accepted")),
+        [`admissionApplications/${ROUND}__rosa`]: toldDoc("rosa", "Rosa García", [INC, AGI], "invited", TAIS, SENT, invitation(null)),
+        "users/oliver": waiting("Oliver Grant"),
+        "users/rosa": waiting("Rosa García"),
+        "users/wen": userDoc("Wen Zhao", "member"),
+        [`admissionRounds/${ROUND}`]: { ...roundDoc(), applicationCounts: { submitted: 6, invited: 2 } },
+      }),
+    );
+    const result = await press(db, { emails: 5, emailDeclined: false });
+    assert.equal(result.report.accountsApproved, 1);
+    assert.equal(userOf(db, "oliver").role, "member");
+    assert.equal(userOf(db, "rosa").role, "pending", "an invitation nobody has answered approves nobody");
+  });
+
+  test("two presses at once approve her once", async () => {
+    const db = makeDb(seed());
+    globalThis.__ddMail.verdict = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 3));
+      return "sent";
+    };
+    const [first, second] = await Promise.all([press(db), press(db)]);
+    assert.equal(first.report.accountsApproved + second.report.accountsApproved, 1);
+    assert.deepEqual([userOf(db, "wen").role, userOf(db, "wen").approvedBy], ["member", "zach"]);
   });
 });
 
@@ -821,10 +1544,45 @@ describe("the decision-day page", () => {
     assert.deepEqual(view.declined, { count: 1 });
     assert.deepEqual(view.pending, { people: 8, emails: 7, declined: 1, perPress: send.MAX_PEOPLE_PER_PRESS });
     assert.deepEqual([view.replyBy, view.fromName, view.replyTo], ["Sun 25 Oct", "NAISI", "ai-safety@uonsu.com"]);
+    // "Edit wording" opens the settings of the programme each preview is
+    // worded by. "No offer this time" is the form's own, so it names none.
+    assert.deepEqual(
+      [view.accepted.wordingProgrammeId, view.invited.wordingProgrammeId, view.noOffer.wordingProgrammeId],
+      [AGI, TAIS, null],
+    );
+  });
+
+  test("an empty group has no wording to edit", async () => {
+    const nobodyInvited = PEOPLE.filter(([uid]) => uid !== "oliver");
+    const view = await board(makeDb(seed({}, nobodyInvited)));
+    assert.deepEqual([view.invited.preview, view.invited.wordingProgrammeId], [null, null]);
   });
 
   test("it says how many accepted people have an account still waiting", async () => {
-    assert.equal((await board(makeDb(seed()))).accountsWaiting, 1);
+    const db = makeDb(seed());
+    const before = await board(db);
+    assert.deepEqual([before.accountsWaiting, before.accountsRefused], [1, []]);
+    await press(db);
+    assert.equal((await board(db)).accountsWaiting, 0, "the send approved it");
+  });
+
+  // "They get a reminder each day until they reply" is a promise about a
+  // scheduled job, so the page makes it only while a scheduled run has
+  // actually run that job (`decisionDay/armed.ts`). NOW is 11:00 UTC on Fri
+  // 23 Oct, so the run the scheduler started in this quarter of an hour left
+  // its receipt under the id below.
+  test("it promises a daily reminder only while the scheduler has run the reminder job", async () => {
+    const receipt = (skipped) => ({
+      "schedulerRuns/tick__20261023T1100Z__d0": {
+        jobs: [
+          { id: "heartbeat", processed: 1, hasMore: false, durationMs: 1, error: null, skipped: null },
+          { id: "application-invitation-reminders", processed: 0, hasMore: false, durationMs: 3, error: null, skipped },
+        ],
+      },
+    });
+    assert.equal((await board(makeDb(seed()))).remindsDaily, false, "no scheduled run on this copy of the site");
+    assert.equal((await board(makeDb(seed(receipt("disabled"))))).remindsDaily, false, "the job is switched off");
+    assert.equal((await board(makeDb(seed(receipt(null))))).remindsDaily, true);
   });
 
   test("it says when this copy of the site only emails its own list", async () => {
@@ -881,6 +1639,42 @@ describe("the decision-day page", () => {
     assert.deepEqual(view.pending, { people: 0, emails: 0, declined: 0, perPress: send.MAX_PEOPLE_PER_PRESS });
     assert.deepEqual(view.accepted.people.map((p) => p.name), ["Amara Okafor", "Sam Whitfield", "Wen Zhao"]);
     assert.equal(view.blockers.length, 1);
+    assert.deepEqual(view.owed, { people: [], noAddress: [], unconfirmed: [], inFlight: 0, blockers: [] });
+  });
+
+  test("before anybody is told, nobody is owed an email", async () => {
+    const view = await board(makeDb(seed()));
+    assert.deepEqual(view.owed, { people: [], noAddress: [], unconfirmed: [], inFlight: 0, blockers: [] });
+  });
+
+  test("somebody whose email did not follow their result is named, sent or not", async () => {
+    const db = makeDb(seed());
+    globalThis.__ddMail.verdict = (args) =>
+      args.to === "nina@example.com" ? "throw" : args.to === "ben@example.com" ? "cut-off" : "sent";
+    await quietly(() => press(db));
+    const view = await board(db);
+    assert.equal(view.sentOn, "Fri 23 Oct", "the term is sent");
+    assert.deepEqual(view.owed, {
+      people: [{ uid: "nina", name: "Nina Petrova" }],
+      noAddress: [],
+      unconfirmed: [{ uid: "ben", name: "Ben Hartley" }],
+      inFlight: 0,
+      blockers: [],
+    });
+    // Still no address on the page, whoever is listed.
+    assert.ok(!JSON.stringify({ ...view, replyTo: "" }).includes("@"));
+  });
+
+  test("it says why an owed email cannot be sent from a form that is archived", async () => {
+    const db = makeDb(
+      seed({
+        [`admissionApplications/${ROUND}__amara`]: toldDoc("amara", "Amara Okafor", [AGI, TAIS], "accepted", AGI, { email: "owed" }),
+        [`admissionRounds/${ROUND}`]: roundDoc({ archived: true }),
+      }),
+    );
+    const view = await board(db);
+    assert.deepEqual(view.owed.people.map((p) => p.name), ["Amara Okafor"]);
+    assert.deepEqual(view.owed.blockers, ["This application form is archived, so nothing can be sent from it."]);
   });
 });
 
@@ -991,6 +1785,27 @@ describe("the three routes are an admin's, decided before anything is read", () 
     });
   }
 
+  test("nobody but an admin can make the send approve an account", async () => {
+    const waitingBefore = structuredClone(db.read("users/wen"));
+    const callers = [
+      null,
+      session("claudia", "committee", true),
+      session("lloyd", "committee", true),
+      session("amara", "member"),
+      // The waiting account itself, pressing for its own approval.
+      session("wen", "pending"),
+    ];
+    for (const user of callers) {
+      globalThis.__ddUser = user;
+      for (const body of [{ emails: 7, emailDeclined: false }, { emails: 0, owedOnly: true }]) {
+        const response = await sendRoute.POST(post(body), ctx());
+        assert.ok([401, 403].includes(response.status), `${user?.uid}: ${response.status}`);
+      }
+    }
+    assert.deepEqual(db.read("users/wen"), waitingBefore);
+    assert.deepEqual(db.counters, { reads: 0, writes: 0 });
+  });
+
   test("a view-as session is turned away from the send and from the test", async () => {
     globalThis.__ddBlocked = { status: 403, body: { error: "viewing as" } };
     assert.equal((await sendRoute.POST(post({ emails: 7 }), ctx())).status, 403);
@@ -1022,22 +1837,57 @@ describe("the three routes are an admin's, decided before anything is read", () 
     assert.equal(response.status, 200);
     assert.deepEqual(Object.keys(response.body), ["ok", "report", "board"]);
     assert.deepEqual(Object.keys(response.body.report), [
+      "owedOnly",
       "published",
+      "retried",
       "emailed",
       "held",
       "suppressed",
       "failed",
+      "unconfirmed",
       "notEmailed",
       "skipped",
       "changed",
       "notReached",
       "failedNames",
+      "unconfirmedNames",
+      "accountsApproved",
+      "accountsFailed",
+      "accountsRefused",
       "stopped",
       "complete",
     ]);
     assert.equal(response.body.report.emailed, 7);
     assert.equal(response.body.board.sentOn, "Fri 23 Oct");
     assert.equal(roundOf(db).decisionsSentByUid, "zach");
+  });
+
+  test("the owed press goes through the same route, and is the admin's alone", async () => {
+    globalThis.__ddMail.verdict = (args) => (args.to === "nina@example.com" ? "throw" : "sent");
+    await quietly(() => sendRoute.POST(post({ emails: 7, emailDeclined: false }), ctx()));
+    globalThis.__ddMail.verdict = null;
+    globalThis.__ddMail.calls.length = 0;
+
+    // Anything but a strict true is the main press, which is finished.
+    for (const owedOnly of [undefined, "true", 1, null]) {
+      const response = await sendRoute.POST(post({ emails: 1, emailDeclined: false, owedOnly }), ctx());
+      assert.equal(response.status, 409, String(owedOnly));
+    }
+    assert.deepEqual(globalThis.__ddMail.calls, []);
+
+    globalThis.__ddUser = session("claudia", "committee", true);
+    assert.equal((await sendRoute.POST(post({ emails: 1, owedOnly: true }), ctx())).status, 403);
+    assert.deepEqual(globalThis.__ddMail.calls, []);
+
+    globalThis.__ddUser = ZACH;
+    const response = await sendRoute.POST(post({ emails: 1, emailDeclined: false, owedOnly: true }), ctx());
+    assert.equal(response.status, 200);
+    assert.deepEqual(
+      [response.body.report.owedOnly, response.body.report.retried, response.body.report.emailed],
+      [true, 1, 1],
+    );
+    assert.deepEqual(globalThis.__ddMail.calls.map((call) => call.to), ["nina@example.com"]);
+    assert.deepEqual(response.body.board.owed.people, []);
   });
 
   test("the send's own refusals come back with their sentence", async () => {
@@ -1071,5 +1921,229 @@ describe("the three routes are an admin's, decided before anything is read", () 
     assert.equal((await testRoute.POST(post({ kind: "accepted" }), ctx())).status, 400);
     assert.deepEqual(globalThis.__ddMail.calls, []);
     assert.deepEqual(db.counters, { reads: 0, writes: 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. A test of one programme's own wording, from its settings page
+// ---------------------------------------------------------------------------
+
+describe("a test of a programme's own email goes to whoever asked, and to nobody else", () => {
+  const me = { uid: "claudia", email: "claudia@example.com", firstName: "Claudia" };
+  const form = (db) => repo.loadForm(db, ROUND);
+  const worded = (emailWording) =>
+    seed({
+      [`admissionRounds/${ROUND}`]: roundDoc({
+        programmes: {
+          ...roundDoc().programmes,
+          [AGI]: programme("AGI Strategy Fellowship", "AGI Strategy", 32, "claudia", { emailWording }),
+        },
+      }),
+    });
+
+  test("You’re in: this programme's email, addressed to the asker by their own name", async () => {
+    const db = makeDb(seed());
+    const result = await send.sendProgrammeTestEmail(db, me, await form(db), AGI, "accepted");
+    assert.deepEqual(result, { ok: true, delivery: "sent", subject: "You’re in AGI Strategy" });
+    const { calls } = globalThis.__ddMail;
+    assert.equal(calls.length, 1);
+    assert.deepEqual(
+      [calls[0].to, calls[0].subject, calls[0].kind, calls[0].replyTo, calls[0].actorUid, calls[0].referenceId],
+      ["claudia@example.com", "[TEST] You’re in AGI Strategy", "admin-test", "ai-safety@uonsu.com", "claudia", ROUND],
+    );
+    const text = await render(calls[0].react, { plainText: true });
+    assert.ok(text.includes("Hi Claudia,"));
+    assert.ok(text.includes("You’re in the AGI Strategy Fellowship. It starts w/c 26 Oct."));
+    assert.ok(text.includes("AGI Strategy lead, NAISI"));
+    // It borrows no applicant: nobody's name but the asker's is in it.
+    for (const [, name] of PEOPLE) assert.ok(!text.includes(name.split(" ")[0]), name);
+    assert.equal(db.counters.writes, 0);
+  });
+
+  test("Invitation: an invitation to this programme, with the form's reply-by day", async () => {
+    const db = makeDb(seed());
+    const result = await send.sendProgrammeTestEmail(db, me, await form(db), TAIS, "invitation");
+    assert.equal(result.subject, "An invitation to Technical AI Safety");
+    const text = await render(globalThis.__ddMail.calls[0].react, { plainText: true });
+    assert.ok(text.includes("Thanks for applying. The pool was really strong"));
+    assert.ok(text.includes("you’d be a great fit for the Technical AI Safety Fellowship instead."));
+    assert.ok(text.includes("Accept your invitation by Sun 25 Oct to let us know you’re coming."));
+    assert.ok(text.includes("Technical AI Safety lead, NAISI"));
+  });
+
+  test("Declined: the kind no, signed for this programme, until the programme writes its own", async () => {
+    const db = makeDb(seed());
+    const standard = await send.sendProgrammeTestEmail(db, me, await form(db), AGI, "declined");
+    assert.equal(standard.subject, "Your NAISI application");
+    const text = await render(globalThis.__ddMail.calls[0].react, { plainText: true });
+    assert.ok(text.includes("Thanks for applying. We can’t offer you a place this term."));
+    assert.ok(text.includes("AGI Strategy lead, NAISI"));
+
+    const own = makeDb(worded({ declined: { subject: "About your application", body: "This one is not for us.\n\nThank you for sending it." } }));
+    const result = await send.sendProgrammeTestEmail(own, me, await form(own), AGI, "declined");
+    assert.equal(result.subject, "About your application");
+    const sent = await render(globalThis.__ddMail.calls[1].react, { plainText: true });
+    assert.ok(sent.includes("This one is not for us.") && sent.includes("Thank you for sending it."));
+    assert.ok(!sent.includes("We can’t offer you a place this term."));
+  });
+
+  test("what is sent is the wording as it is saved, and each kind reads its own", async () => {
+    const db = makeDb(
+      worded({
+        accepted: { subject: "Welcome aboard", body: "You have a place.\n\nSee you there." },
+        invitation: { subject: "Join us instead", body: "We would love to have you." },
+      }),
+    );
+    const accepted = await send.sendProgrammeTestEmail(db, me, await form(db), AGI, "accepted");
+    const invitation = await send.sendProgrammeTestEmail(db, me, await form(db), AGI, "invitation");
+    assert.deepEqual([accepted.subject, invitation.subject], ["Welcome aboard", "Join us instead"]);
+    assert.deepEqual(globalThis.__ddMail.calls.map((call) => call.subject), ["[TEST] Welcome aboard", "[TEST] Join us instead"]);
+    const text = await render(globalThis.__ddMail.calls[0].react, { plainText: true });
+    assert.ok(text.includes("You have a place.") && text.includes("See you there."));
+    // Another programme on the same form still has the standard words.
+    const other = await send.sendProgrammeTestEmail(db, me, await form(db), TAIS, "accepted");
+    assert.equal(other.subject, "You’re in Technical AI Safety");
+  });
+
+  test("a programme the form does not carry has nothing to test, whatever its name", async () => {
+    const db = makeDb(seed());
+    for (const id of ["not-on-the-form", "constructor", "__proto__", ""]) {
+      const result = await send.sendProgrammeTestEmail(db, me, await form(db), id, "accepted");
+      assert.deepEqual([result.ok, result.status], [false, 404], id);
+    }
+    assert.deepEqual(globalThis.__ddMail.calls, []);
+  });
+
+  test("what the mail door did with it is reported", async () => {
+    const db = makeDb(seed());
+    globalThis.__ddMail.verdict = () => "held";
+    assert.equal((await send.sendProgrammeTestEmail(db, me, await form(db), AGI, "accepted")).delivery, "held");
+    globalThis.__ddMail.verdict = () => "throw";
+    const failed = await quietly(async () => send.sendProgrammeTestEmail(db, me, await form(db), AGI, "accepted"));
+    assert.deepEqual([failed.ok, failed.status], [false, 502]);
+  });
+});
+
+describe("the programme test route: its lead or an admin, and only to themselves", () => {
+  const pctx = (programmeId = AGI, roundId = ROUND) => ({ params: Promise.resolve({ roundId, programmeId }) });
+  const ask = (body, where = pctx()) => programmeTestRoute.POST(post(body), where);
+  let db;
+  beforeEach(() => {
+    // Claudia leads AGI Strategy and Lloyd reviews it. Zach leads the other two.
+    db = makeDb(
+      seed({
+        [`admissionRounds/${ROUND}`]: roundDoc({
+          programmes: {
+            ...roundDoc().programmes,
+            [AGI]: programme("AGI Strategy Fellowship", "AGI Strategy", 32, "claudia", { reviewerUids: ["lloyd"] }),
+            [TAIS]: programme("Technical AI Safety Fellowship", "Technical AI Safety", 24, "priya"),
+          },
+        }),
+      }),
+    );
+    globalThis.__ddDb = db;
+    globalThis.__ddUser = session("claudia", "committee", true, "Claudia Reyes");
+    globalThis.__ddBlocked = null;
+  });
+
+  test("the lead of the programme gets its test, at their own address", async () => {
+    const response = await ask({ kind: "accepted" });
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body, { ok: true, kind: "accepted", delivery: "sent", subject: "You’re in AGI Strategy" });
+    assert.deepEqual(globalThis.__ddMail.calls.map((call) => [call.to, call.kind]), [["claudia@example.com", "admin-test"]]);
+    assert.ok((await render(globalThis.__ddMail.calls[0].react, { plainText: true })).includes("Hi Claudia,"));
+    assert.equal(db.counters.writes, 0);
+  });
+
+  test("an admin gets any programme's test", async () => {
+    globalThis.__ddUser = ZACH;
+    for (const programmeId of [AGI, TAIS, INC]) assert.equal((await ask({ kind: "invitation" }, pctx(programmeId))).status, 200);
+    assert.deepEqual(globalThis.__ddMail.calls.map((call) => call.to), ["zach@example.com", "zach@example.com", "zach@example.com"]);
+  });
+
+  test("nobody can address a test to another person: the body's addresses are not read", async () => {
+    const response = await ask({
+      kind: "accepted",
+      to: "amara@example.com",
+      email: "amara@example.com",
+      uid: "amara",
+      recipient: "amara@example.com",
+      actor: { email: "amara@example.com" },
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(globalThis.__ddMail.calls.map((call) => call.to), ["claudia@example.com"]);
+    assert.deepEqual(mailTo("amara@example.com"), []);
+  });
+
+  const REFUSED = [
+    ["signed out", null, 401],
+    ["a reviewer on the programme", session("lloyd", "committee", true), 403],
+    ["the lead of another programme on the same form", session("priya", "committee", true), 404],
+    ["SU-recognised committee named nowhere", session("yusuf", "committee", true), 404],
+    ["a member", session("amara", "member"), 404],
+    ["an account still waiting", session("jasmine", "pending"), 404],
+    // Named as lead, and no longer the kind of account a lead has to be.
+    ["a lead whose standing has lapsed", session("claudia", "committee", false), 404],
+    ["a lead whose account is now a plain member's", session("claudia", "member"), 404],
+  ];
+  for (const [who, user, status] of REFUSED) {
+    test(`${who}: ${status}, and nothing is sent`, async () => {
+      globalThis.__ddUser = user;
+      for (const kind of ["accepted", "invitation", "declined"]) {
+        assert.equal((await ask({ kind })).status, status, kind);
+      }
+      assert.deepEqual(globalThis.__ddMail.calls, []);
+      assert.equal(db.counters.writes, 0);
+    });
+  }
+
+  test("somebody with no role is told the same thing as for a programme or a form that does not exist", async () => {
+    globalThis.__ddUser = session("amara", "member");
+    const noRole = await ask({ kind: "accepted" });
+    const noProgramme = await ask({ kind: "accepted" }, pctx("not-on-the-form"));
+    const noForm = await ask({ kind: "accepted" }, pctx(AGI, "no-such-form"));
+    for (const response of [noRole, noProgramme, noForm]) {
+      assert.deepEqual([response.status, response.body], [404, { error: "That programme is not on this form." }]);
+    }
+    // And so is an admin asking about one that is not there.
+    globalThis.__ddUser = ZACH;
+    assert.equal((await ask({ kind: "accepted" }, pctx("not-on-the-form"))).status, 404);
+    assert.equal((await ask({ kind: "accepted" }, pctx(AGI, "no-such-form"))).status, 404);
+  });
+
+  test("a body that names no email of this programme's is refused before anything is read", async () => {
+    for (const body of [{}, { kind: "no-offer" }, { kind: "invited" }, { kind: "constructor" }, { kind: 1 }, null]) {
+      assert.equal((await ask(body)).status, 400, JSON.stringify(body));
+    }
+    assert.equal((await programmeTestRoute.POST({ json: async () => { throw new SyntaxError("bad"); } }, pctx())).status, 400);
+    assert.deepEqual(db.counters, { reads: 0, writes: 0 });
+  });
+
+  test("an id that could not be one is not looked up", async () => {
+    for (const where of [pctx("a.b"), pctx("constructor"), pctx(AGI, "a/b"), pctx(AGI, "__proto__")]) {
+      assert.equal((await ask({ kind: "accepted" }, where)).status, 404);
+    }
+    assert.deepEqual(db.counters, { reads: 0, writes: 0 });
+  });
+
+  test("an account with no address has nowhere to send a test, said before anything is read", async () => {
+    globalThis.__ddUser = { ...session("claudia", "committee", true), email: null };
+    assert.equal((await ask({ kind: "accepted" })).status, 400);
+    assert.deepEqual(db.counters, { reads: 0, writes: 0 });
+    assert.deepEqual(globalThis.__ddMail.calls, []);
+  });
+
+  test("a view-as session is turned away before anything else: the address on it is the member's", async () => {
+    globalThis.__ddUser = ZACH;
+    globalThis.__ddBlocked = { status: 403, body: { error: "viewing as" } };
+    assert.equal((await ask({ kind: "accepted" })).status, 403);
+    assert.deepEqual(db.counters, { reads: 0, writes: 0 });
+    assert.deepEqual(globalThis.__ddMail.calls, []);
+  });
+
+  test("a test that cannot be sent says so, and is not reported as sent", async () => {
+    globalThis.__ddMail.verdict = () => "throw";
+    const response = await quietly(() => ask({ kind: "accepted" }));
+    assert.deepEqual([response.status, response.body.error], [502, "That test could not be sent. Try again in a minute."]);
   });
 });

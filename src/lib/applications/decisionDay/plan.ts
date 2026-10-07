@@ -18,6 +18,7 @@ import type { ApplicationDoc, ApplicationResult, ApplicationResultKind, Decision
 import type { ApplicationForm } from "../normalise";
 import { rankedProgrammes } from "../sections";
 import type { DecisionEmailOutcome } from "./emailCopy";
+import { emailStanding, type EmailStanding } from "./emailState";
 import { programmeOf } from "./programmes";
 
 /**
@@ -76,6 +77,12 @@ function firstWord(text: string): string {
   return text.trim().split(/\s+/)[0] ?? "";
 }
 
+/** What an email calls somebody: the name they go by, or the first word of their name. */
+export function firstNameOf(application: Pick<ApplicationDoc, "displayName" | "sent">): string {
+  const preferred = application.sent?.aboutYou.preferredName.trim() ?? "";
+  return preferred || firstWord(application.displayName);
+}
+
 export function planTerm(
   form: ApplicationForm,
   applications: readonly Sent[],
@@ -92,7 +99,7 @@ export function planTerm(
     people.push({
       uid: application.uid,
       name,
-      firstName: preferred || firstWord(application.displayName),
+      firstName: firstNameOf(application),
       email: application.email,
       ranked,
       decision,
@@ -166,6 +173,22 @@ export function emailOutcomeFor(
 /** People decision day has not reached yet, in the order it will reach them. */
 export function unpublished(term: Term): TermPerson[] {
   return term.people.filter((person) => person.result === null);
+}
+
+/** People already told whose email stands a given way right now. */
+export function toldWithEmail(term: Term, standing: EmailStanding, now: Date): TermPerson[] {
+  return term.people.filter(
+    (person) => person.result !== null && emailStanding(person.result, now) === standing,
+  );
+}
+
+/**
+ * People already told whose email a press of Send takes up: it is owed, and
+ * their application has an address to send it to. Somebody owed an email with
+ * no address is not in this list, because no press can do anything for them.
+ */
+export function owedEmails(term: Term, now: Date): TermPerson[] {
+  return toldWithEmail(term, "owed", now).filter((person) => (person.email ?? "").trim() !== "");
 }
 
 /** How many emails a press of Send would attempt for these people. */
@@ -261,6 +284,18 @@ export function civilDateLabel(key: string | null): string | null {
   return key ? (formatRunStartShort(key) ?? null) : null;
 }
 
+const NO_SITE_ADDRESS =
+  "This copy of the site doesn’t know its own address, so the buttons in the emails would lead nowhere.";
+
+/** Why nothing at all can be sent from this form, or null. */
+function formClosedToSending(form: ApplicationForm): string | null {
+  if (form.round.archived) return "This application form is archived, so nothing can be sent from it.";
+  if (form.round.status === "cancelled") {
+    return "This application form was cancelled, so nothing can be sent from it.";
+  }
+  return null;
+}
+
 export type BlockerInput = {
   form: ApplicationForm;
   term: Term;
@@ -286,10 +321,8 @@ export function sendBlockers({ form, term, now, appUrl }: BlockerInput): string[
         "They can’t be sent again.",
     ];
   }
-  if (round.archived) return ["This application form is archived, so nothing can be sent from it."];
-  if (round.status === "cancelled") {
-    return ["This application form was cancelled, so nothing can be sent from it."];
-  }
+  const closed = formClosedToSending(form);
+  if (closed) return [closed];
   const window = roundWindowState(round, now);
   if (round.status === "draft" || window.state === "not-yet") {
     return ["Applications have not opened on this form yet."];
@@ -354,10 +387,22 @@ export function sendBlockers({ form, term, now, appUrl }: BlockerInput): string[
       );
     }
   }
-  if (!appUrl.trim()) {
-    blockers.push(
-      "This copy of the site doesn’t know its own address, so the buttons in the emails would lead nowhere.",
-    );
-  }
+  if (!appUrl.trim()) blockers.push(NO_SITE_ADDRESS);
+  return blockers;
+}
+
+/**
+ * What stops an email that is still owed from being sent, one sentence each.
+ *
+ * Much less than {@link sendBlockers}: the person has their result already,
+ * so whether the rest of the term is ready has nothing to do with them, and
+ * neither has whether the term is marked as sent. Only the two things that
+ * would make the email itself wrong are asked.
+ */
+export function owedBlockers({ form, appUrl }: Pick<BlockerInput, "form" | "appUrl">): string[] {
+  const blockers: string[] = [];
+  const closed = formClosedToSending(form);
+  if (closed) blockers.push(closed);
+  if (!appUrl.trim()) blockers.push(NO_SITE_ADDRESS);
   return blockers;
 }

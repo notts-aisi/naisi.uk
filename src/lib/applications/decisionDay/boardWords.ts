@@ -1,5 +1,6 @@
 import { STATUS_LABELS, type AffiliationStatus } from "@/lib/firestore/users";
 import type { AboutYou } from "../model";
+import type { SendReport } from "./views";
 
 /**
  * THE SENTENCES THE TWO SCREENS BUILD FROM NUMBERS.
@@ -135,13 +136,174 @@ export function declinedLine(count: number, emailThem: boolean): string {
  * term is too big for one press, or an earlier press was cut short, it says
  * that too, so the number on the button is always the number that goes.
  */
-export function sendButtonLabel(emails: number, people: number, perPress: number, alreadyPublished: number): string {
+export function sendButtonLabel(
+  emails: number,
+  people: number,
+  perPress: number,
+  alreadyPublished: number,
+  owed = 0,
+): string {
   // Everybody has their result and the term was never marked as sent: an
-  // earlier press was cut short at the very end.
-  if (people === 0 && alreadyPublished > 0) return "Finish the send";
-  if (people > perPress) {
-    return `Send the ${alreadyPublished > 0 ? "next" : "first"} ${perPress} of ${people} decisions`;
+  // earlier press was cut short at the very end. What is left is the emails
+  // still owed, when there are any, and marking the term.
+  if (people === 0 && alreadyPublished > 0) {
+    return owed > 0 ? owedButtonLabel(owed) : "Finish the send";
+  }
+  if (people + owed > perPress) {
+    return `Send the ${alreadyPublished > 0 ? "next" : "first"} ${perPress} of ${people + owed} decisions`;
   }
   if (alreadyPublished > 0) return `Send the remaining ${emailsLabel(emails)}`;
   return `Send ${emailsLabel(emails)}`;
+}
+
+/** The button that sends only what is still owed to people already told. */
+export function owedButtonLabel(owed: number): string {
+  return owed === 1 ? "Send the 1 email still owed" : `Send the ${owed} emails still owed`;
+}
+
+/** How many names a sentence lists before it says how many more there are. */
+const NAMES_IN_A_SENTENCE = 8;
+
+/** "Ada Obi", "Ada Obi and Ben Hartley", "Ada Obi, Ben Hartley and 3 more". */
+export function nameList(names: readonly string[], cap = NAMES_IN_A_SENTENCE): string {
+  if (names.length === 0) return "";
+  if (names.length > cap) return `${names.slice(0, cap).join(", ")} and ${names.length - cap} more`;
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/** Who has their result and not their email, and which button sends it. */
+export function owedLine(names: readonly string[], sentByTheMainButton: boolean): string {
+  const one = names.length === 1;
+  const line =
+    `${nameList(names)} ${one ? "has" : "have"} their result on the site, ` +
+    `but ${one ? "their email has" : "their emails have"} not gone.`;
+  return sentByTheMainButton
+    ? `${line} The Send button below sends ${one ? "it" : "them"} too.`
+    : line;
+}
+
+/** Somebody owed an email whose application has no address to send it to. */
+export function noAddressLine(names: readonly string[]): string {
+  const one = names.length === 1;
+  return (
+    `${nameList(names)} ${one ? "has" : "have"} no email address on their ${one ? "application" : "applications"}, ` +
+    `so there is nowhere to send ${one ? "their email" : "their emails"}. ` +
+    `${one ? "Their result is" : "Their results are"} on the site.`
+  );
+}
+
+/** Emails a press is sending at this moment. */
+export function inFlightLine(count: number): string {
+  return (
+    `${count} ${count === 1 ? "email is" : "emails are"} being sent right now. ` +
+    "Reload the page in a minute."
+  );
+}
+
+/**
+ * Why an email nobody can vouch for is left alone, and what to do about it.
+ * Said after a press and again on the page for as long as it is true.
+ */
+export function unconfirmedLine(names: readonly string[]): string {
+  return (
+    `We can’t tell whether the email to ${nameList(names)} went: the send was cut off while it was being handed over. ` +
+    "It won’t be sent again, so nobody gets their decision twice. " +
+    "Look for it in Deliverability, and write to them yourself if it isn’t there."
+  );
+}
+
+/**
+ * Accepted people whose account is still waiting, and where to approve them.
+ * Said when the send does not approve accounts, and again after a send that
+ * could not approve somebody's.
+ */
+export function accountsWaitingLine(waiting: number, sendingApproves: boolean): string {
+  const one = waiting === 1;
+  const who = `${waiting} of them ${one ? "has" : "have"} an account that’s still waiting.`;
+  return sendingApproves
+    ? `${who} Approve ${one ? "it" : "them"} in Approvals.`
+    : `${who} Sending doesn’t approve it, so approve ${one ? "it" : "them"} in Approvals.`;
+}
+
+/** Accepted people whose join request was refused before they were accepted. */
+export function accountsRefusedLine(names: readonly string[]): string {
+  const one = names.length === 1;
+  return (
+    `${nameList(names)} ${one ? "was" : "were"} accepted, but ${one ? "their join request was" : "their join requests were"} refused earlier. ` +
+    `Sending leaves ${one ? "that account as it is" : "those accounts as they are"}.`
+  );
+}
+
+/** What one press did, in sentences whose numbers add up to the people it looked at. */
+export function reportLines(report: SendReport): string[] {
+  const lines: string[] = [];
+  const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
+
+  const did: string[] = [];
+  if (report.published > 0) did.push(`${people(report.published)} told`);
+  if (report.retried > 0) {
+    did.push(`${report.retried} owed ${report.retried === 1 ? "email" : "emails"} taken up`);
+  }
+  if (did.length > 0) {
+    const parts = [`${report.emailed} emailed`];
+    if (report.held > 0) parts.push(`${report.held} held`);
+    if (report.suppressed > 0) parts.push(`${report.suppressed} on the do-not-email list`);
+    if (report.failed > 0) parts.push(`${report.failed} failed`);
+    if (report.unconfirmed > 0) parts.push(`${report.unconfirmed} not confirmed`);
+    if (report.notEmailed > 0) parts.push(`${report.notEmailed} declined and not emailed`);
+    lines.push(`${did.join(" and ")}: ${parts.join(", ")}.`);
+  } else {
+    lines.push(report.owedOnly ? "No owed email was sent." : "Nobody new was told.");
+  }
+  if (report.held > 0) {
+    lines.push(
+      "Held means this copy of the site may not write to that address, so nothing was sent to it. That is how a rehearsal works.",
+    );
+  }
+  if (report.failed > 0) {
+    lines.push(
+      `The email could not be sent to ${nameList(report.failedNames)}. ` +
+        "Their result is on their application page, and the email is still owed: it is listed on this page until it goes.",
+    );
+  }
+  if (report.unconfirmed > 0) lines.push(unconfirmedLine(report.unconfirmedNames));
+  if (report.accountsApproved > 0) {
+    lines.push(
+      report.accountsApproved === 1
+        ? "1 account that was waiting is now approved."
+        : `${report.accountsApproved} accounts that were waiting are now approved.`,
+    );
+  }
+  if (report.accountsFailed.length > 0) {
+    const one = report.accountsFailed.length === 1;
+    lines.push(
+      `Could not approve the ${one ? "account" : "accounts"} of ${nameList(report.accountsFailed)}. ` +
+        `Approve ${one ? "it" : "them"} in Approvals.`,
+    );
+  }
+  if (report.accountsRefused.length > 0) lines.push(accountsRefusedLine(report.accountsRefused));
+  if (!report.owedOnly && report.skipped > 0) {
+    lines.push(`${people(report.skipped)} already had their result, so nothing went to them again.`);
+  }
+  if (report.changed > 0) {
+    lines.push(
+      `${people(report.changed)} ${report.changed === 1 ? "was" : "were"} left out because their decision changed after you pressed Send. Check the page and send again.`,
+    );
+  }
+  if (report.stopped === "emails-failing") {
+    lines.push(
+      report.owedOnly
+        ? "The send stopped because emails were failing. Try again once the mail is working."
+        : "The send stopped because emails were failing. Nobody else was told. Press Send again once the mail is working.",
+    );
+  } else if (report.notReached > 0) {
+    lines.push(
+      report.owedOnly
+        ? `${report.notReached} owed ${report.notReached === 1 ? "email was" : "emails were"} not reached. Press the button again for the rest.`
+        : `${people(report.notReached)} still to be told. Press Send again for the rest.`,
+    );
+  }
+  if (report.complete && !report.owedOnly) lines.push("Everybody in the term now has their result.");
+  return lines;
 }

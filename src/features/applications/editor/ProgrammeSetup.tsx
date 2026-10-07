@@ -115,6 +115,49 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
   const [dialog, setDialog] = useState<
     { kind: "wording"; email: ProgrammeEmailKind } | { kind: "close" } | null
   >(null);
+  /** The email a test is being sent of, and what the last test did. */
+  const [testing, setTesting] = useState<ProgrammeEmailKind | null>(null);
+  const [testNote, setTestNote] = useState<{ ok: boolean; text: string } | null>(null);
+
+  /**
+   * Send this programme's own wording of one email to whoever pressed. The
+   * request says which email and nothing else: the server sends it to the
+   * address on their own session, never to one named here.
+   */
+  const sendTest = async (email: ProgrammeEmailKind, title: string) => {
+    setTesting(email);
+    setTestNote(null);
+    try {
+      const response = await fetch(
+        `/api/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.id)}/test-email`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ kind: email }),
+        },
+      );
+      const answer = (await response.json().catch(() => null)) as
+        | { delivery?: "sent" | "held" | "suppressed"; error?: string }
+        | null;
+      if (!response.ok || !answer?.delivery) {
+        setTestNote({ ok: false, text: answer?.error ?? "That test could not be sent. Try again in a minute." });
+      } else if (answer.delivery === "held") {
+        setTestNote({
+          ok: true,
+          text: "The test was held, not sent. This copy of the site doesn’t email your address, which is how a rehearsal works.",
+        });
+      } else if (answer.delivery === "suppressed") {
+        setTestNote({ ok: false, text: "Your address is on the do-not-email list, so the test was not sent." });
+      } else {
+        const at = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+        setTestNote({ ok: true, text: `Test of “${title}” sent to you at ${at}.` });
+      }
+    } catch {
+      setTestNote({ ok: false, text: "Could not reach the site to send that test. Check your connection and try again." });
+    } finally {
+      setTesting(null);
+    }
+  };
 
   const { patch, problem: heldBack } = changesIn(draft, view);
   const key = JSON.stringify(patch);
@@ -560,21 +603,26 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
                   <PencilIcon />
                   <span>Edit wording</span>
                 </button>
-                {/* Sending a test waits for the decision-day emails themselves. */}
+                {/* The wording as it is saved, to the person pressing and nobody else. */}
                 <button
                   type="button"
                   className={`${shared.btn} ${shared.btnSm} ${shared.btnQuiet}`}
-                  aria-label={`Send a test of the ${email.title} email`}
-                  title="Not available yet"
-                  disabled
+                  aria-label={`Send a test of the ${email.title} email to yourself`}
+                  disabled={!live || testing !== null}
+                  onClick={() => void sendTest(email.kind, email.title)}
                 >
                   <MailIcon />
-                  <span>Send a test</span>
+                  <span>{testing === email.kind ? "Sending…" : "Send a test"}</span>
                 </button>
               </div>
             </li>
           ))}
         </ul>
+        {testNote ? (
+          <p role={testNote.ok ? "status" : "alert"} className={testNote.ok ? shared.cardNote : shared.problem}>
+            {testNote.text}
+          </p>
+        ) : null}
         <div className={`${shared.aside} ${styles.emailsNote}`}>
           <span className={shared.asideIcon}>
             <InfoIcon size={16} />

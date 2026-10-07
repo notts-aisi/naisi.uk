@@ -23,13 +23,23 @@
  *     to a page, with no answer in its address.
  *  4. NOBODY IS WAITLISTED OR REJECTED. No default email uses a word
  *     applicants never read, and none uses a dash for punctuation.
+ *  5. THE SETTINGS PAGE AND THE SEND GIVE ONE ANSWER. A programme's settings
+ *     page shows the subject each of its emails goes out under and tells a
+ *     lead that an empty box keeps the standard wording for that part. The
+ *     page's projection (`editor/views.ts`) and the composer are run against
+ *     the same stored form and held to the same subject, for each email and
+ *     each way a wording can be partly filled in, and the tree is walked for
+ *     a second copy of a standard subject.
  *
- * Nothing is stubbed: the copy module is pure, and the templates compile and
- * render through the real `@react-email/components`.
+ * Nothing is stubbed: the copy module and the settings projection are pure,
+ * and the templates compile and render through the real
+ * `@react-email/components`.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { readFileSync, readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { render } from "@react-email/render";
 import { createLoader } from "./lib/tsLoader.mjs";
 
@@ -37,6 +47,8 @@ const { loadTs } = createLoader();
 const at = (file) => join("lib", "applications", file);
 
 const copy = await loadTs(at(join("decisionDay", "emailCopy.ts")));
+const editorViews = await loadTs(at(join("editor", "views.ts")));
+const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 const normalise = await loadTs(at("normalise.ts"));
 const words = await loadTs(at("words.ts"));
 const AcceptedEmail = (await loadTs(join("emails", "ApplicationAcceptedEmail.tsx"))).default;
@@ -422,5 +434,204 @@ describe("an email changes nothing by being opened", () => {
       assert.ok(!DASHES.test(said), `${email.kind} uses a dash for punctuation`);
       assert.ok(!said.includes("pooled"), `${email.kind} uses the committee's word for it`);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The settings page and the send give one answer about every subject
+// ---------------------------------------------------------------------------
+
+/**
+ * A programme's settings page lists its three emails with the subject each
+ * goes out under, and tells a lead that an empty box keeps the standard
+ * wording for that part. The emails themselves are composed here. Those are
+ * two halves of one promise, built by two modules, so this block runs both
+ * against the same stored form and holds them to the same string, for each
+ * email and for each way a wording can be partly filled in.
+ */
+describe("the settings page shows the subject that is sent, and empty means standard part by part", () => {
+  const KINDS = ["accepted", "invitation", "declined"];
+  /** The outcome that makes the send compose each of a programme's emails. */
+  const OUTCOME = {
+    accepted: { kind: "accepted", programmeId: AGI },
+    invitation: { kind: "invited", programmeId: AGI },
+    declined: { kind: "declined" },
+  };
+  /** Somebody invited to AGI Strategy ranked something else; the other two ranked it. */
+  const RANKED = { accepted: [AGI], invitation: [INC], declined: [AGI] };
+  const STANDARD = {
+    accepted: "You’re in AGI Strategy",
+    invitation: "An invitation to AGI Strategy",
+    declined: "Your NAISI application",
+  };
+
+  const sent = (kind, form) => compose(OUTCOME[kind], "Chloe", RANKED[kind], form);
+  /** The row for one email as the settings page is handed it. */
+  const row = (kind, form) =>
+    editorViews
+      .projectProgrammeForSetup(form, [], form.programmes[AGI], {
+        now: new Date("2026-10-19T09:00:00Z"),
+        viewerUid: "lead",
+        roleOn: () => "lead",
+        names: new Map(),
+        canRunTerm: false,
+        role: "lead",
+        candidates: [],
+        applications: 0,
+      })
+      .emails.find((email) => email.kind === kind);
+  const worded = (kind, wording, formFields) => formWith({ [AGI]: { emailWording: { [kind]: wording } } }, formFields);
+
+  for (const kind of KINDS) {
+    test(`${kind}: with nothing stored, the standard subject is shown and is sent`, () => {
+      const form = formWith();
+      assert.equal(editorViews.defaultEmailSubject(kind, "AGI Strategy"), STANDARD[kind]);
+      assert.equal(copy.standardSubject(kind, "AGI Strategy"), STANDARD[kind]);
+      assert.equal(row(kind, form).subject, STANDARD[kind]);
+      assert.equal(sent(kind, form).subject, STANDARD[kind]);
+    });
+
+    test(`${kind}: a wording with only a body keeps the standard subject, on the page and in the email`, () => {
+      for (const subject of ["", "   ", "\n\t"]) {
+        const form = worded(kind, { subject, body: "Our own words.\n\nAnd a second paragraph." });
+        const email = sent(kind, form);
+        assert.equal(email.subject, STANDARD[kind], JSON.stringify(subject));
+        assert.equal(row(kind, form).subject, email.subject);
+        assert.deepEqual(email.paragraphs, ["Our own words.", "And a second paragraph."]);
+      }
+    });
+
+    test(`${kind}: a wording with only a subject keeps the standard body under it`, () => {
+      const standardBody = sent(kind, formWith()).paragraphs;
+      for (const body of ["", "   ", "\n\n \n"]) {
+        const form = worded(kind, { subject: "Our own subject", body });
+        const email = sent(kind, form);
+        assert.equal(email.subject, "Our own subject");
+        assert.equal(row(kind, form).subject, "Our own subject");
+        assert.deepEqual(email.paragraphs, standardBody, JSON.stringify(body));
+      }
+    });
+
+    test(`${kind}: with both written, both are theirs, and the page says the same subject`, () => {
+      const form = worded(kind, { subject: "  Our own subject  ", body: "Our own words." });
+      const email = sent(kind, form);
+      assert.deepEqual([email.subject, email.paragraphs], ["Our own subject", ["Our own words."]]);
+      assert.equal(row(kind, form).subject, "Our own subject");
+    });
+
+    test(`${kind}: a wording with both boxes empty is the standard email`, () => {
+      const form = worded(kind, { subject: "", body: "" });
+      const standard = sent(kind, formWith());
+      const email = sent(kind, form);
+      assert.deepEqual([email.subject, email.paragraphs], [standard.subject, standard.paragraphs]);
+      assert.equal(row(kind, form).subject, standard.subject);
+    });
+  }
+
+  test("the page's function is the send's function under another name, not a copy of it", () => {
+    for (const kind of KINDS) {
+      for (const shortName of ["AGI Strategy", "Technical AI Safety", ""]) {
+        assert.equal(editorViews.defaultEmailSubject(kind, shortName), copy.standardSubject(kind, shortName));
+      }
+    }
+    const source = readFileSync(join(SRC, "lib", "applications", "editor", "views.ts"), "utf8");
+    assert.match(source, /export \{ standardSubject as defaultEmailSubject \} from "\.\.\/decisionDay\/emailCopy";/);
+  });
+
+  test("declined: the standard is the form's own “No offer this time”, part by part, on the page and in the email", () => {
+    const FORM_NO = { noOfferWording: { subject: "About your application", body: "Not this term." } };
+    // The programme wrote nothing: the declined email is the form's kind no.
+    const none = formWith({}, FORM_NO);
+    assert.deepEqual([sent("declined", none).subject, sent("declined", none).paragraphs], ["About your application", ["Not this term."]]);
+    assert.equal(row("declined", none).subject, "About your application");
+    // Only a body: the subject it would have had anyway is kept.
+    const bodyOnly = worded("declined", { subject: "", body: "We could not take this one forward." }, FORM_NO);
+    assert.deepEqual(
+      [sent("declined", bodyOnly).subject, sent("declined", bodyOnly).paragraphs],
+      ["About your application", ["We could not take this one forward."]],
+    );
+    assert.equal(row("declined", bodyOnly).subject, "About your application");
+    // Only a subject: the body it would have had anyway is kept.
+    const subjectOnly = worded("declined", { subject: "Your application", body: "" }, FORM_NO);
+    assert.deepEqual(
+      [sent("declined", subjectOnly).subject, sent("declined", subjectOnly).paragraphs],
+      ["Your application", ["Not this term."]],
+    );
+    assert.equal(row("declined", subjectOnly).subject, "Your application");
+    // The form's own wording can be partly filled in too.
+    const formBodyOnly = formWith({}, { noOfferWording: { subject: "", body: "Not this term." } });
+    assert.deepEqual(
+      [sent("declined", formBodyOnly).subject, compose({ kind: "no-offer" }, "Hannah", [AGI], formBodyOnly).subject],
+      ["Your NAISI application", "Your NAISI application"],
+    );
+    assert.equal(row("declined", formBodyOnly).subject, "Your NAISI application");
+  });
+
+  test("the form's “No offer this time” wording never reaches a programme's other two emails", () => {
+    const form = formWith({}, { noOfferWording: { subject: "About your application", body: "Not this term." } });
+    for (const kind of ["accepted", "invitation"]) {
+      assert.equal(sent(kind, form).subject, STANDARD[kind]);
+      assert.equal(row(kind, form).subject, STANDARD[kind]);
+    }
+  });
+
+  test("for every programme on the form, every row's subject is the subject its email is sent under", () => {
+    const form = formWith(
+      {
+        [AGI]: { emailWording: { accepted: { subject: "Welcome", body: "" }, declined: { subject: "", body: "No." } } },
+        [TAIS]: { emailWording: { invitation: { subject: "Join us", body: "Do." } } },
+      },
+      { noOfferWording: { subject: "About your application", body: "" } },
+    );
+    for (const programmeId of [AGI, TAIS, INC]) {
+      const rows = editorViews.projectProgrammeForSetup(form, [], form.programmes[programmeId], {
+        now: new Date("2026-10-19T09:00:00Z"),
+        viewerUid: "lead",
+        roleOn: () => "lead",
+        names: new Map(),
+        canRunTerm: false,
+        role: "lead",
+        candidates: [],
+        applications: 0,
+      }).emails;
+      const other = [AGI, TAIS, INC].find((id) => id !== programmeId);
+      const emails = {
+        accepted: compose({ kind: "accepted", programmeId }, "Chloe", [programmeId], form),
+        invitation: compose({ kind: "invited", programmeId }, "Chloe", [other], form),
+        declined: compose({ kind: "declined" }, "Chloe", [programmeId], form),
+      };
+      assert.deepEqual(
+        rows.map((email) => [email.kind, email.subject]),
+        KINDS.map((kind) => [kind, emails[kind].subject]),
+        programmeId,
+      );
+    }
+  });
+
+  test("the three standard subjects are written in one file", () => {
+    // A second copy is how the page and the email come to disagree, so the
+    // tree is walked for one. A string that starts a standard subject and
+    // goes straight into a name is a subject; a body that says "You're in
+    // the ..." is not.
+    const SHAPES = [/Your NAISI application/, /An invitation to \$\{/, /You’re in \$\{/];
+    const HOME = join("lib", "applications", "decisionDay", "emailCopy.ts");
+    const offenders = [];
+    const walk = (dir) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (/\.tsx?$/.test(entry.name)) {
+          const name = path.slice(SRC.length + 1);
+          if (name === HOME) continue;
+          const source = readFileSync(path, "utf8");
+          if (SHAPES.some((shape) => shape.test(source))) offenders.push(name);
+        }
+      }
+    };
+    walk(SRC);
+    assert.deepEqual(offenders, [], "a standard subject is written outside the one module that owns them");
+    // And the one module really does hold all three.
+    const home = readFileSync(join(SRC, HOME), "utf8");
+    for (const shape of SHAPES) assert.match(home, shape);
   });
 });

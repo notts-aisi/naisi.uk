@@ -47,11 +47,21 @@ export async function loadFirstNames(
   return names;
 }
 
-/** How many of these people have an account that is still waiting to be approved. */
-export async function countWaitingAccounts(db: Firestore, uids: readonly string[]): Promise<number> {
-  let waiting = 0;
+/**
+ * The role each of these people's accounts holds, by uid. Somebody with no
+ * account document is absent. Read to say whose account is still waiting; it
+ * decides nothing by itself, because the function that approves an account
+ * reads the role again inside its own transaction.
+ */
+export async function loadAccountRoles(
+  db: Firestore,
+  uids: readonly string[],
+): Promise<Map<string, string>> {
+  const roles = new Map<string, string>();
   for (const doc of await userDocs(db, uids)) {
-    if (doc.exists && (doc.data() ?? {}).role === "pending") waiting += 1;
+    if (!doc.exists) continue;
+    const role: unknown = (doc.data() ?? {}).role;
+    roles.set(doc.id, typeof role === "string" ? role : "");
   }
-  return waiting;
+  return roles;
 }
