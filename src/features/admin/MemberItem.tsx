@@ -33,6 +33,7 @@ import MemberApplicationHistory from "./MemberApplicationHistory";
 import MemberEditForm from "./MemberEditForm";
 import { ROLE_WORDS, accountName, joinedDay, roleTone } from "./MembersTable";
 import MembershipChip from "./MembershipChip";
+import StudyChangeNotes from "./StudyChangeNotes";
 import {
   deleteUser,
   setPermissions,
@@ -733,6 +734,14 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
         <p className={styles.cardNote}>
           What {firstName} told us when they joined. Nothing changes until you press Save changes.
         </p>
+        {/* What they have since changed about their own degree or graduation,
+            with what each said before. Nothing is drawn for somebody who has
+            changed neither. This page is the only one that shows it. */}
+        <StudyChangeNotes
+          changes={user.studyChanges}
+          firstName={firstName}
+          status={user.profile?.status}
+        />
         <MemberEditForm user={user} />
       </section>
 
