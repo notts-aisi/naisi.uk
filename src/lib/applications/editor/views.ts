@@ -19,7 +19,7 @@ import { PROGRAMME_EMAIL_KINDS } from "../model";
 import { programmeEmailSubject } from "../decisionDay/emailCopy";
 import type { ApplicationForm } from "../normalise";
 import { RESULT_LABEL } from "../words";
-import { lockedSentence, questionsLocked, sentCount } from "./lock";
+import { lockedSentence, questionsLocked, scoresHeldSentence, sentCount } from "./lock";
 import { own } from "./own";
 import {
   describeSet,
@@ -416,6 +416,11 @@ export type ProgrammeSetupView = {
   groupCount: number | null;
   groupSize: string;
   useScores: boolean;
+  /**
+   * Why this caller cannot switch scores on or off, as a sentence, or null
+   * when they can. The switch is drawn switched off for anybody who has one.
+   */
+  scoresHeldSentence: string | null;
   closed: boolean;
   /** The course whose public page offers this programme, or null for no course page. */
   courseId: string | null;
@@ -442,6 +447,11 @@ export type SetupContext = StaffContext & {
   courses: readonly CourseChoiceView[];
   /** People whose sent application ranks this programme. */
   applications: number;
+  /**
+   * True when this caller may not switch the programme's scores: reviewing
+   * has begun on it and they are not an admin. Always false for an admin.
+   */
+  scoresHeld: boolean;
 };
 
 /**
@@ -490,6 +500,7 @@ export function projectProgrammeForSetup(
     groupCount: programme.groupCount,
     groupSize: programme.groupSize,
     useScores: programme.useScores,
+    scoresHeldSentence: context.scoresHeld ? scoresHeldSentence(programme.shortName) : null,
     closed: programme.closed,
     courseId: programme.courseId,
     courses: context.courses.map((course) => ({

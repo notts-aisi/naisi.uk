@@ -290,6 +290,13 @@ const USERS = new Map([
       "counters are transactions and only running them shows what was written",
   ],
   [
+    "applications-blind-first.test.mjs",
+    "executes the review screen's read, the review save, a programme's list and its settings " +
+      "route as leads and reviewers who are not admins, against an in-memory term with every " +
+      "kind of programme that has nothing to score, because whose scores and comments somebody " +
+      "is sent before they have saved a review of their own is decided by the code that runs",
+  ],
+  [
     "applications-d2-delta-join.test.mjs",
     "executes the rules of joining on the application form (src/lib/applications/applicant/join.ts: " +
       "what stops a join request, what is sent as one, what is kept while somebody signs in, " +

@@ -86,7 +86,7 @@ const inSrc = (file) => posix(relative(SRC, file));
 // ---------------------------------------------------------------------------
 
 /** The staff repository's reads of everybody's applications, decisions and reviews. */
-const LIST_READERS = ["listSentApplications", "listDecisions", "listReviews", "listReviewsOf"];
+const LIST_READERS = ["listSentApplications", "listDecisions", "listReviews", "listReviewsOf", "loadReviewedIn"];
 /** A parameter that is the person the screen is for, by the names this library gives one. */
 const THE_VIEWER = ["user", "viewerUid", "viewer", "actor"];
 /** The functions that leave the viewer's own application out, each of which takes the viewer. */
@@ -127,6 +127,16 @@ const READS_THE_LISTS = {
     kind: "everybody",
     why: "how many applications rank a programme: it reads no decision and no review, so it says nothing about where anybody's application stands",
     holds: "no-decisions",
+  },
+  "lib/applications/editor/load.ts#reviewingBegunOn": {
+    kind: "everybody",
+    why: "whether anybody has reviewed an application on a programme's list, for its settings page: a yes or a no, and nothing about anybody",
+    holds: "yes-or-no",
+  },
+  "lib/applications/editor/write.ts#reviewingBegun": {
+    kind: "everybody",
+    why: "the same yes or no, read inside the transaction that decides who may switch a programme's scores",
+    holds: "yes-or-no",
   },
   "lib/applications/editor/load.ts#loadTermTally": {
     kind: "everybody",
@@ -249,6 +259,16 @@ describe("every reader of the committee's lists says what it does about the view
         for (const reader of ["listDecisions", "listReviews", "listReviewsOf", "loadDecision"]) {
           assert.ok(!calls(fn.body, reader), `${key} calls ${reader}`);
         }
+      });
+    }
+    if (entry.holds === "yes-or-no") {
+      test(`${key} answers yes or no, and hands on nothing it read`, () => {
+        const returned = [...fn.body.matchAll(/\breturn\s+([^;]+);/g)].map((match) => match[1].trim());
+        assert.ok(returned.length > 0);
+        for (const value of returned) {
+          assert.match(value, /^(true|false|reviewingHasBegunOn\(form, programmeId, applications, reviews\))$/, `${key} returns ${value}`);
+        }
+        assert.match(mod.functions.get(fn.name).text, /\): Promise<boolean> \{/, `${key} is typed to answer a boolean`);
       });
     }
     if (entry.holds === "uncalled") {

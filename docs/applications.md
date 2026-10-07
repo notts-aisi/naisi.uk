@@ -266,6 +266,10 @@ Somebody who says no thanks is never read by the programme they turned down.
 `tests/applications-wave-h-joined.test.mjs` runs every kind of account
 against every way an invitation can stand.
 
+A lead edits their own programme's settings, with two exceptions that are
+an admin's: closing the programme, and switching its scores on or off once
+reviewing has begun on it (see "Scores").
+
 A lead or a reviewer has to be an admin or SU-recognised committee, because
 applications are personal. That is checked against their live user document
 when they are named (`setProgrammeRoles` in `roles.ts`, the one writer) and
@@ -365,20 +369,56 @@ else.
 
 - A reviewer's score for a programme is the mean of what they gave its answers.
 - The section score is the mean of the reviewers' scores, one voice each.
-- **A first review is blind to other reviewers.** A lead or a reviewer who has
-  not yet scored every answer there is to score for a programme is not shown
-  what anybody else gave or wrote for it (`reviewsVisibleTo`). An admin can
-  switch that off for the form (`revealOtherReviews`), which changes what
-  leads and reviewers are shown.
+- **A first review is blind to other reviewers.** A lead or a reviewer is not
+  shown what anybody else gave or wrote about an application until they have
+  saved a review of their own for it (`firstReviewOf` in `scoring.ts`). An
+  admin can switch that off for the form (`revealOtherReviews`), which changes
+  what leads and reviewers are shown.
+- **What a review of their own is.** Where there is anything for them to
+  score on the application, it is every one of those scores. Where there is
+  nothing for them to score, it is an overall comment of their own, with
+  something in it. Nothing to score is not already scored: a programme with
+  scores switched off, a stream with no scored question, an applicant who
+  left every scored question blank, and somebody who joined by invitation
+  and so answered none of the programme's questions, all leave a reviewer
+  with nothing to score, and none of those is a review. A comment on one
+  answer is not one either. A score or an overall comment taken back makes
+  it a first review again.
+- **It is one answer for the application, across every programme on it that
+  the person reviews.** An overall comment is one text about the whole
+  application, and a comment on a shared answer belongs to no one programme.
+  So somebody who reviews two programmes an applicant ranked has both to
+  finish before either shows them anybody else's, and what they are shown is
+  the same whichever of the two they open the application under. `lookingAt`
+  in `review/term.ts` is the one place the rule's question is put together,
+  with every programme the application is listed on, and the list and the
+  review screen both ask through it.
+- **While anything is held back, the screen says what is left to do.** The
+  payload carries it (`others.until`) and
+  `src/features/applications/review/otherReviewsWords.ts` words it: answers
+  still to score here, answers still to score for another of their
+  programmes, or an overall comment.
+- **A programme's scores are its lead's to switch until reviewing begins on
+  it, and an admin's from then on.** Scores decide what a review of the
+  programme is. So once any review says something about an application on
+  the programme's list (`reviewingHasBegunOn` in `scoring.ts`), switching
+  them on or off is held to an admin, as closing the programme is.
+  `changeProgramme` asks inside the transaction that writes, and the
+  settings page shows a lead the switch switched off, with the reason.
 - **An admin is never blind.** An admin is shown every score and comment, on
   every programme, whether or not they have scored and whatever the switch
   says: on a programme's list, on the single application and in the
   recommendations made from the scores. "Admin" is the role on the site,
   never a role on a programme, so a lead who is not an admin still scores
   blind first. `otherReviewsShownTo` in `scoring.ts` is the whole rule. Every
-  caller hands it the caller's own standing, and nothing else reads the
-  switch as a condition: `tests/applications-review-routes.test.mjs` walks
-  the tree for both.
+  caller hands it the one object `lookingAt` made, which carries the
+  caller's own standing, and nothing else reads the switch as a condition:
+  `tests/applications-review-routes.test.mjs` walks the tree for both, and
+  holds that whether there is anything left to score (`hasScored`, which is
+  true of nothing) decides the list of applications still waiting and
+  nothing about whose work anybody is shown.
+  `tests/applications-blind-first.test.mjs` runs the rule through the routes
+  for every kind of "nothing to score".
 - **Names are shown.** Reviewers see who they are reading. The form says who
   reads an application and does not mention names.
 

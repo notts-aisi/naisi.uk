@@ -66,6 +66,7 @@ const decide = await loadTs(lib("decide.ts"));
 const ownership = await loadTs(lib("own.ts"));
 const normalise = await loadTs(join("lib", "applications", "normalise.ts"));
 const scoring = await loadTs(join("lib", "applications", "scoring.ts"));
+const otherReviewsWords = await loadTs(join("features", "applications", "review", "otherReviewsWords.ts"));
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -928,7 +929,13 @@ describe("one application, for review", () => {
     const { review: seen } = await review(db, "lloyd", "amara");
     assert.deepEqual(seen.review.scores, { [`${AGI}.event`]: 3 });
     assert.equal(seen.review.ownScore, "3.0");
-    assert.deepEqual(seen.review.others, { count: 1, hidden: 1, visible: [] });
+    // Held back, with what ends it: he has one of AGI Strategy's two answers left to score.
+    assert.deepEqual(seen.review.others, {
+      count: 1,
+      hidden: 1,
+      until: { needs: "scores", here: true, elsewhere: [] },
+      visible: [],
+    });
     assert.deepEqual(seen.review.comments.map((comment) => [comment.key, comment.mine]), [["fellowships.why", true]]);
     const everything = stringsIn(seen).join("\n");
     assert.equal(everything.includes("Argued from both sides."), false, "her comment");
@@ -944,6 +951,7 @@ describe("one application, for review", () => {
     assert.deepEqual(seen.review.others, {
       count: 1,
       hidden: 0,
+      until: null,
       visible: [{ reviewerUid: "lloyd", name: "Lloyd", score: "3.0", overallComment: "A bit general." }],
     });
     assert.deepEqual(
@@ -983,6 +991,7 @@ describe("one application, for review", () => {
     assert.deepEqual(seen.review.others, {
       count: 2,
       hidden: 0,
+      until: null,
       visible: [
         { reviewerUid: "claudia", name: "Claudia", score: "4.5", overallComment: "Strong. Would do well in a group." },
         { reviewerUid: "lloyd", name: "Lloyd", score: "3.0", overallComment: "A bit general." },
@@ -1022,38 +1031,72 @@ describe("one application, for review", () => {
     }
   });
 
-  test("a comment on another stream's answer waits for that stream's first review, where the caller reviews it", async () => {
-    // Somebody who is not an admin and reviews both streams: Lloyd, named on
-    // Technical AI Safety as well for this test. He has finished AGI Strategy
-    // for Amara and has not touched Technical AI Safety. (This used to be run
-    // with an admin as the caller. An admin is never blind now, so the wait
-    // is a lead's or a reviewer's, and the admin's half is asserted below.)
+  // A first review is decided for the application, across every programme on
+  // it that the caller reviews: an overall comment is one text about the
+  // whole application, and a shared answer belongs to no one programme. So
+  // somebody who reviews two programmes an applicant ranked has both to score
+  // before either shows them anybody else's, and what they are shown is the
+  // same whichever of the two they open it under. (This test once held a
+  // rule stream by stream. The rule is now one for the application.)
+  test("somebody who reviews two programmes an applicant ranked is shown nobody else's until both are scored, whichever it is opened under", async () => {
+    // Lloyd, who is not an admin, named on Technical AI Safety as well for
+    // this test. He has finished AGI Strategy for Amara and has not touched
+    // Technical AI Safety.
     const both = roundDoc();
     both.programmes[TAIS].reviewerUids = ["lloyd"];
-    const db = makeDb(
-      seed({
-        [`admissionRounds/${ROUND}`]: both,
-        [`admissionReviews/${ROUND}__amara__lloyd`]: reviewDoc(
-          "amara",
-          "lloyd",
-          { [`${AGI}.event`]: 3, [`${AGI}.plan`]: 4 },
-          [["c1", "fellowships.why", "Clear about why this term."]],
-          "A bit general.",
-        ),
-      }),
-    );
-    const { review: seen } = await review(db, "lloyd", "amara");
-    assert.equal(seen.viewer.isAdmin, false);
-    assert.equal(seen.admin, null);
-    const texts = seen.review.comments.map((comment) => comment.text);
-    assert.ok(texts.includes("Argued from both sides."), "AGI Strategy is unblinded for him");
-    assert.ok(texts.includes("Clear about why this term."), "his own");
-    assert.equal(texts.includes("Careful write-up."), false, "that one is on a stream he still owes a first review");
-    // Opened under the stream he has not scored, Tess's review of it is a count and not a body.
+    const lloydsRow = (scores) => ({
+      [`admissionRounds/${ROUND}`]: both,
+      [`admissionReviews/${ROUND}__amara__lloyd`]: reviewDoc(
+        "amara",
+        "lloyd",
+        scores,
+        [["c1", "fellowships.why", "Clear about why this term."]],
+        "A bit general.",
+      ),
+    });
+    const db = makeDb(seed(lloydsRow({ [`${AGI}.event`]: 3, [`${AGI}.plan`]: 4 })));
+    const SOMEBODY_ELSES = ["Argued from both sides.", "Strong. Would do well in a group.", "Careful write-up."];
+
+    const underAgi = (await review(db, "lloyd", "amara")).review;
+    assert.equal(underAgi.viewer.isAdmin, false);
+    assert.equal(underAgi.admin, null);
+    assert.deepEqual(underAgi.review.comments.map((comment) => comment.text), ["Clear about why this term."], "his own, and no other");
+    // His own scores for AGI Strategy are all in, and the reviews are still
+    // held: the payload says which programme he has left.
+    assert.equal(underAgi.review.ownScore, "3.5");
+    assert.deepEqual(underAgi.review.others, {
+      count: 1,
+      hidden: 1,
+      until: { needs: "scores", here: false, elsewhere: ["Technical AI Safety"] },
+      visible: [],
+    });
+
+    // Opened under the stream he has not scored: the same, said as "here".
     const underTais = (await review(db, "lloyd", "amara", TAIS)).review;
-    assert.deepEqual(underTais.review.others, { count: 1, hidden: 1, visible: [] });
-    assert.equal(stringsIn(underTais).some((text) => text.includes("Careful write-up.")), false);
-    // The same application, the same moment, for an admin who has scored neither stream.
+    assert.deepEqual(underTais.review.others, {
+      count: 1,
+      hidden: 1,
+      until: { needs: "scores", here: true, elsewhere: [] },
+      visible: [],
+    });
+    assert.deepEqual(underTais.review.comments.map((comment) => comment.text), ["Clear about why this term."]);
+    for (const opened of [underAgi, underTais]) {
+      const everything = stringsIn(opened).join("\n");
+      for (const text of SOMEBODY_ELSES) assert.equal(everything.includes(text), false, text);
+    }
+
+    // With both scored, both ways in show him everybody's.
+    const done = makeDb(
+      seed(lloydsRow({ [`${AGI}.event`]: 3, [`${AGI}.plan`]: 4, [`${TAIS}.python`]: 2, [`${TAIS}.built`]: 3 })),
+    );
+    for (const programmeId of [AGI, TAIS]) {
+      const opened = (await review(done, "lloyd", "amara", programmeId)).review;
+      assert.deepEqual([opened.review.others.hidden, opened.review.others.until], [0, null], programmeId);
+      const texts = opened.review.comments.map((comment) => comment.text);
+      assert.ok(texts.includes("Argued from both sides.") && texts.includes("Careful write-up."), programmeId);
+    }
+
+    // The same application, the first moment, for an admin who has scored neither stream.
     const forAdmin = (await review(db, "zach", "amara")).review;
     assert.ok(forAdmin.review.comments.some((comment) => comment.text === "Careful write-up."));
   });
@@ -1944,15 +1987,32 @@ describe("a withdrawn row says what the person said and why", () => {
 
 describe("who is shown other reviewers' scores is one rule, and an admin is never blind", () => {
   const SRC = join(REPO_ROOT, "src");
-  const KEYS = [`${AGI}.event`, `${AGI}.plan`];
-  const row = (reviewerUid, scores) => ({ reviewerUid, scores, comments: [], overallComment: "" });
-  const BLIND = { revealOtherReviews: false };
-  const OPEN = { revealOtherReviews: true };
+  const row = (reviewerUid, scores, overallComment = "") => ({ reviewerUid, scores, comments: [], overallComment });
+  const SET_DOCS = Object.entries(SETS).map(([id, set]) =>
+    normalise.normaliseQuestionSet(id, { roundId: ROUND, intro: "", ...set }),
+  );
+  const BLIND = normalise.normaliseForm(ROUND, roundDoc());
+  const OPEN = normalise.normaliseForm(ROUND, roundDoc({ revealOtherReviews: true }));
+  /** Somebody who sent both of AGI Strategy's scored answers, read by one of its reviewers. */
+  const SENT = { answers: { [AGI]: { event: "A new law.", plan: "Read it." } } };
+  const looking = (viewerIsAdmin, mine, form = BLIND, over = {}) => ({
+    viewerIsAdmin,
+    roles: { [AGI]: "reviewer" },
+    form,
+    sets: SET_DOCS,
+    sent: SENT,
+    listed: [AGI],
+    mine,
+    ...over,
+  });
   const nothing = row("me", {});
   const half = row("me", { [`${AGI}.event`]: 3 });
   const all = row("me", { [`${AGI}.event`]: 3, [`${AGI}.plan`]: 4 });
   const theirs = row("somebody-else", { [`${AGI}.event`]: 5, [`${AGI}.plan`]: 5 });
 
+  // The rule takes one object, a person reading an application, where it used
+  // to take one programme's answers. Every row of the table it was held to is
+  // still here, asked the new way.
   test("the rule: an admin always; anybody else once they have scored everything, or when the switch is on", () => {
     /** [admin, own row, switch, shown] */
     const TABLE = [
@@ -1970,33 +2030,87 @@ describe("who is shown other reviewers' scores is one rule, and an admin is neve
     ];
     for (const [admin, mine, form, shown] of TABLE) {
       assert.equal(
-        scoring.otherReviewsShownTo(admin, mine, KEYS, form),
+        scoring.otherReviewsShownTo(looking(admin, mine, form)),
         shown,
         `admin ${admin}, own row ${JSON.stringify(mine?.scores ?? null)}, switch ${form.revealOtherReviews}`,
       );
     }
-    // A programme with nothing to score has no first review to protect.
-    assert.equal(scoring.otherReviewsShownTo(false, null, [], BLIND), true);
+  });
+
+  // Nothing to score is not a review. Where there is nothing for somebody to
+  // score, their review is an overall comment of their own.
+  test("nothing to score is not already scored: the review is then their own overall comment", () => {
+    const noScores = roundDoc();
+    noScores.programmes[AGI].useScores = false;
+    const NOTHING_TO_SCORE = [
+      ["scores switched off", looking(false, null, normalise.normaliseForm(ROUND, noScores))],
+      ["every scored question left blank", looking(false, null, BLIND, { sent: { answers: { [AGI]: {} } } })],
+      ["no answers at all", looking(false, null, BLIND, { sent: { answers: {} } })],
+      ["a programme they joined by invitation, which they answered nothing for", looking(false, null, BLIND, { sent: { answers: {} }, listed: [AGI] })],
+    ];
+    for (const [why, blank] of NOTHING_TO_SCORE) {
+      assert.deepEqual(scoring.firstReviewOf(blank), { over: false, needs: "overall-comment" }, why);
+      assert.equal(scoring.otherReviewsShownTo(blank), false, why);
+      // A row of their own that says nothing is not a review either.
+      for (const empty of [row("me", {}), row("me", {}, "   ")]) {
+        assert.equal(scoring.otherReviewsShownTo({ ...blank, mine: empty }), false, why);
+      }
+      assert.equal(scoring.otherReviewsShownTo({ ...blank, mine: row("me", {}, "Clear and specific.") }), true, why);
+      assert.equal(scoring.otherReviewsShownTo({ ...blank, viewerIsAdmin: true }), true, `${why}: an admin`);
+    }
+    // And where there IS something to score, an overall comment does not stand in for the scores.
+    assert.equal(scoring.otherReviewsShownTo(looking(false, row("me", {}, "Clear and specific."))), false);
+    assert.equal(scoring.otherReviewsShownTo(looking(false, { ...half, overallComment: "Clear." })), false);
+  });
+
+  test("it is decided across every programme on the application that the person reviews, and only those", () => {
+    const TWO = { answers: { [AGI]: { event: "A new law.", plan: "Read it." }, [TAIS]: { python: 1, built: "A classifier." } } };
+    const onBoth = (mine, listed = [AGI, TAIS]) =>
+      looking(false, mine, BLIND, { roles: { [AGI]: "reviewer", [TAIS]: "reviewer" }, sent: TWO, listed });
+    const agiOnly = all;
+    const bothScored = row("me", { ...all.scores, [`${TAIS}.python`]: 2, [`${TAIS}.built`]: 4 });
+    assert.deepEqual(scoring.firstReviewOf(onBoth(agiOnly)), { over: false, needs: "scores", programmeIds: [TAIS] });
+    assert.deepEqual(scoring.firstReviewOf(onBoth(null)), { over: false, needs: "scores", programmeIds: [AGI, TAIS] });
+    assert.deepEqual(scoring.firstReviewOf(onBoth(bothScored)), { over: true });
+    // The order the programmes are handed in changes nothing.
+    assert.equal(scoring.otherReviewsShownTo(onBoth(agiOnly, [TAIS, AGI])), false);
+    assert.equal(scoring.otherReviewsShownTo(onBoth(bothScored, [TAIS, AGI])), true);
+    // A programme they hold no role on is not theirs to score, and does not hold them.
+    assert.equal(scoring.otherReviewsShownTo(looking(false, all, BLIND, { sent: TWO, listed: [AGI, TAIS] })), true);
+    // One with scores and one without: the scores are the review, whichever it is opened under.
+    const mixed = roundDoc();
+    mixed.programmes[TAIS].useScores = false;
+    const mixedForm = normalise.normaliseForm(ROUND, mixed);
+    const onMixed = (mine) =>
+      looking(false, mine, mixedForm, { roles: { [AGI]: "reviewer", [TAIS]: "reviewer" }, sent: TWO, listed: [TAIS, AGI] });
+    assert.deepEqual(scoring.firstReviewOf(onMixed(null)), { over: false, needs: "scores", programmeIds: [AGI] });
+    assert.equal(scoring.otherReviewsShownTo(onMixed(row("me", {}, "An overall comment."))), false);
+    assert.equal(scoring.otherReviewsShownTo(onMixed(all)), true);
   });
 
   test("only a strict true is an admin, so a caller that says nothing hides rather than shows", () => {
     for (const notAdmin of [undefined, null, 0, 1, "", "admin", "true", {}, []]) {
-      assert.equal(scoring.otherReviewsShownTo(notAdmin, nothing, KEYS, BLIND), false, JSON.stringify(notAdmin));
-      assert.deepEqual(scoring.reviewsVisibleTo("me", [nothing, theirs], KEYS, BLIND, notAdmin), [nothing]);
-      assert.equal(scoring.hiddenReviewCount("me", [nothing, theirs], KEYS, BLIND, notAdmin), 1);
+      const who = looking(notAdmin, nothing);
+      assert.equal(scoring.otherReviewsShownTo(who), false, JSON.stringify(notAdmin));
+      assert.deepEqual(scoring.reviewsVisibleTo("me", [nothing, theirs], who), [nothing]);
+      assert.equal(scoring.hiddenReviewCount("me", [nothing, theirs], who), 1);
+    }
+    // The switch is a strict true as well: a form that carries anything else leaves the blind on.
+    for (const notOn of [undefined, null, 0, 1, "true", {}]) {
+      assert.equal(scoring.otherReviewsShownTo(looking(false, half, { ...BLIND, revealOtherReviews: notOn })), false);
     }
   });
 
   test("an admin is handed every review and none is counted as hidden, with or without a row of their own", () => {
-    assert.deepEqual(scoring.reviewsVisibleTo("me", [theirs], KEYS, BLIND, true), [theirs]);
-    assert.deepEqual(scoring.reviewsVisibleTo("me", [half, theirs], KEYS, BLIND, true), [half, theirs]);
-    assert.equal(scoring.hiddenReviewCount("me", [theirs], KEYS, BLIND, true), 0);
-    assert.equal(scoring.hiddenReviewCount("me", [half, theirs], KEYS, BLIND, true), 0);
+    assert.deepEqual(scoring.reviewsVisibleTo("me", [theirs], looking(true, null)), [theirs]);
+    assert.deepEqual(scoring.reviewsVisibleTo("me", [half, theirs], looking(true, half)), [half, theirs]);
+    assert.equal(scoring.hiddenReviewCount("me", [theirs], looking(true, null)), 0);
+    assert.equal(scoring.hiddenReviewCount("me", [half, theirs], looking(true, half)), 0);
     // The same people, for a lead or a reviewer who is not an admin.
-    assert.deepEqual(scoring.reviewsVisibleTo("me", [theirs], KEYS, BLIND, false), []);
-    assert.deepEqual(scoring.reviewsVisibleTo("me", [half, theirs], KEYS, BLIND, false), [half]);
-    assert.equal(scoring.hiddenReviewCount("me", [half, theirs], KEYS, BLIND, false), 1);
-    assert.deepEqual(scoring.reviewsVisibleTo("me", [all, theirs], KEYS, BLIND, false), [all, theirs]);
+    assert.deepEqual(scoring.reviewsVisibleTo("me", [theirs], looking(false, null)), []);
+    assert.deepEqual(scoring.reviewsVisibleTo("me", [half, theirs], looking(false, half)), [half]);
+    assert.equal(scoring.hiddenReviewCount("me", [half, theirs], looking(false, half)), 1);
+    assert.deepEqual(scoring.reviewsVisibleTo("me", [all, theirs], looking(false, all)), [all, theirs]);
   });
 
   /** Every `.ts` and `.tsx` under `src`, comments taken out. */
@@ -2030,25 +2144,75 @@ describe("who is shown other reviewers' scores is one rule, and an admin is neve
     return out;
   }
 
+  // Who is looking is part of the one object the rule takes, which one
+  // function makes (`lookingAt`). So the check has three parts: every call
+  // hands over a `looking`, every `looking` comes from `lookingAt`, and
+  // `lookingAt` takes who is looking from the caller's own standing.
   test("every caller hands the rule the caller's own standing as an admin, and that comes from their site role", () => {
     assert.ok(sources.length > 400, `only ${sources.length} files were read: the walk has stopped seeing src`);
     let calls = 0;
+    const askers = new Set();
     for (const [file, code] of sources) {
       if (file === "lib/applications/scoring.ts") continue;
-      for (const name of ["otherReviewsShownTo", "reviewsVisibleTo", "hiddenReviewCount"]) {
+      for (const name of ["otherReviewsShownTo", "reviewsVisibleTo", "hiddenReviewCount", "firstReviewOf"]) {
         for (const args of callsOf(code, name)) {
           calls += 1;
+          askers.add(file);
           assert.match(
             args,
-            /\bviewer\.isAdmin\b/,
-            `${file} calls ${name}(${args.replace(/\s+/g, " ")}) without viewer.isAdmin: say who is looking`,
+            /(^|,\s*)looking$/,
+            `${file} calls ${name}(${args.replace(/\s+/g, " ")}) with something other than the looking it was handed`,
           );
         }
       }
     }
-    assert.equal(calls, 7, "the list asks three times and the single-application screen four; a new caller is read here");
+    assert.equal(calls, 7, "the list asks twice and the single-application screen five times; a new caller is read here");
+    for (const file of askers) {
+      const code = sources.find(([name]) => name === file)[1];
+      const made = [...code.matchAll(/\bconst looking\b\s*=\s*([^;]+);/g)].map((match) => match[1]);
+      assert.equal(made.length, 1, `${file} makes its looking once`);
+      assert.match(made[0], /^lookingAt\(\{ form, sets, term, viewer, application \}\)$/, `${file} makes its own looking`);
+    }
+    // The one place a looking is made says who is looking, and every programme the application is on.
+    const term = sources.find(([file]) => file === "lib/applications/review/term.ts")[1];
+    const body = term.slice(term.indexOf("export function lookingAt("));
+    assert.match(body, /viewerIsAdmin: viewer\.isAdmin,/);
+    assert.match(body, /roles: viewer\.roles,/);
+    assert.match(body, /listed: listedOn\(term, application\.uid\),/);
+    // Other features have a property of the same name. Here it is the
+    // application system's files, and anything that takes the type.
+    const makers = sources
+      .filter(([file, code]) => /^(lib|features)\/applications\//.test(file) || /\bLooking\b/.test(code))
+      .filter(([, code]) => /\bviewerIsAdmin\s*:/.test(code))
+      .map(([file]) => file);
+    assert.deepEqual(makers.sort(), ["lib/applications/review/term.ts", "lib/applications/scoring.ts"], "a looking is made in one place, and declared in one");
     const loader = sources.find(([file]) => file === "lib/applications/review/load.ts")[1];
     assert.match(loader, /viewer: \{ uid: user\.uid, name, isAdmin: user\.role === "admin", roles \}/);
+  });
+
+  // Whether there is anything left to score is true of an empty list. It is
+  // the right question for the list of applications still waiting for a
+  // reviewer, and it decides nothing about whose work anybody is shown.
+  test("whether there is anything left to score decides the queue, and nothing about who sees whose work", () => {
+    // Whoever takes the function from the scoring module. (The member
+    // records have a function of their own by the same name, about one row.)
+    const asking = sources
+      .filter(([, code]) => /import\s*\{[^}]*\bhasScored\b[^}]*\}\s*from\s*"[^"]*\/scoring"/.test(code))
+      .map(([file]) => file);
+    assert.deepEqual(asking.sort(), ["lib/applications/review/board.ts"], "hasScored is asked by the list, for its queue");
+    const board = sources.find(([file]) => file === "lib/applications/review/board.ts")[1];
+    assert.deepEqual(callsOf(board, "hasScored"), ["mine, keys"]);
+    assert.match(board, /const viewerHasScored = hasScored\(mine, keys\);/);
+    for (const use of board.matchAll(/\bviewerHasScored\b[^\n]*/g)) {
+      assert.doesNotMatch(use[0], /reviewsVisibleTo|otherReviewsShownTo|sectionScore/, use[0]);
+    }
+    // Inside the rule itself, the vacuous answer is not consulted.
+    const rule = sources.find(([file]) => file === "lib/applications/scoring.ts")[1];
+    for (const name of ["firstReviewOf", "otherReviewsShownTo", "reviewsVisibleTo", "hiddenReviewCount"]) {
+      const from = rule.indexOf(`export function ${name}(`);
+      const body = rule.slice(from, rule.indexOf("\n}\n", from));
+      assert.ok(from !== -1 && !/\bhasScored\(/.test(body), `${name} asks hasScored, which is true of nothing to score`);
+    }
   });
 
   /**
@@ -2100,8 +2264,16 @@ describe("who is shown other reviewers' scores is one rule, and an admin is neve
     assert.ok(screen.includes("<span className={styles.switchLabel}>Show other reviewers\u2019 scores</span>"), "the board's label");
     assert.ok(screen.includes("For leads and reviewers who haven\u2019t scored yet. Admins always see them."));
     assert.equal(/hidden until you score these/.test(screen), false);
-    // A lead or a reviewer is still told theirs are held back, in the board's words.
-    assert.ok(screen.includes("Hidden on a first review. An admin can turn them on."));
+    // A lead or a reviewer is still told theirs are held back, in the board's
+    // words, which now come from the function that also words the two newer
+    // cases. The screen draws whatever that function says.
+    assert.deepEqual(otherReviewsWords.hiddenReviewsLine({ needs: "scores", here: true, elsewhere: [] }), {
+      wide: "Hidden on a first review. An admin can turn them on.",
+      narrow: "Hidden. An admin can turn them on.",
+    });
+    assert.ok(screen.includes("<span className={styles.wideOnly}>{hiddenLine.wide}</span>"));
+    assert.ok(screen.includes("<span className={styles.narrowOnly}>{hiddenLine.narrow}</span>"));
+    assert.ok(screen.includes("const hiddenLine = hiddenReviewsLine(review.review.others.until);"));
   });
 });
 

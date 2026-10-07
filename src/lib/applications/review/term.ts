@@ -8,8 +8,9 @@ import {
   type TermTally,
 } from "../decisions";
 import { own } from "../keys";
-import type { ApplicationDoc, DecisionDoc, ReviewDoc } from "../model";
+import type { ApplicationDoc, DecisionDoc, QuestionSetDoc, ReviewDoc } from "../model";
 import type { ApplicationForm } from "../normalise";
+import type { Looking } from "../scoring";
 import { rankedProgrammes } from "../sections";
 
 /**
@@ -122,6 +123,42 @@ export function listedOn(term: TermPicture, uid: string): string[] {
   const order = term.ranked.get(uid) ?? [];
   const invitedTo = term.joined.get(uid);
   return invitedTo === undefined ? order : [...order, invitedTo];
+}
+
+/**
+ * ONE CALLER READING ONE APPLICATION, as the rule that decides whether they
+ * are shown other reviewers' work takes it (`otherReviewsShownTo` in
+ * `../scoring`).
+ *
+ * THIS IS THE ONE PLACE A `Looking` IS MADE, so that the rule is always asked
+ * about the whole application: `listed` is every programme whose list the
+ * application is on, never the one programme a screen was opened under, and
+ * `roles` is every role the caller holds. The list and the review screen
+ * both ask here, so they cannot disagree about whose first review is over.
+ * `tests/applications-blind-first.test.mjs` holds every caller of the rule
+ * to a `Looking` that came from this function.
+ *
+ * Null for an application that was never sent, which nobody reviews.
+ */
+export function lookingAt(input: {
+  form: ApplicationForm;
+  sets: readonly QuestionSetDoc[];
+  term: TermPicture;
+  viewer: Viewer;
+  application: Pick<ApplicationDoc, "uid" | "sent">;
+}): Looking | null {
+  const { form, sets, term, viewer, application } = input;
+  if (!application.sent) return null;
+  const rows = term.reviews.get(application.uid) ?? [];
+  return {
+    viewerIsAdmin: viewer.isAdmin,
+    roles: viewer.roles,
+    form,
+    sets,
+    sent: application.sent,
+    listed: listedOn(term, application.uid),
+    mine: rows.find((review) => review.reviewerUid === viewer.uid) ?? null,
+  };
 }
 
 /** Places a programme still has, from the term's own tally. */

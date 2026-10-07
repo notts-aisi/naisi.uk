@@ -32,9 +32,11 @@ import {
   type ApplicationForm,
 } from "../normalise";
 import { formRef, questionSetRef } from "../repo";
+import { reviewingHasBegunOn } from "../scoring";
+import { loadReviewedIn } from "../staffRepo";
 import { courseOnOffer, readsCourseDrafts } from "./courses";
 import { mintId } from "./ids";
-import { lockedSentence, questionsLocked, sentCount } from "./lock";
+import { lockedSentence, questionsLocked, scoresHeldSentence, sentCount } from "./lock";
 import { own } from "./own";
 import {
   COURSE_NOT_ON_OFFER,
@@ -72,6 +74,11 @@ import {
  *  - TWO EDITORS. A programme's settings are written as field paths
  *    (`programmes.<id>.places`), never as the whole `programmes` map, so two
  *    leads saving two programmes at once each keep their own change.
+ *  - WHAT ONLY AN ADMIN MAY CHANGE. Closing a programme, and switching its
+ *    scores on or off once reviewing has begun on it. Both change what other
+ *    people are in the middle of, so neither is a lead's. Whether reviewing
+ *    has begun is read inside the same transaction, so a review saved while
+ *    this runs makes it run again and meet the answer.
  *
  * A refusal comes back as a status and a sentence. Somebody with no role on
  * the form is told there is no form, whether or not there is one.
@@ -105,6 +112,24 @@ async function readForm(
   const snap = await tx.get(formRef(db, roundId));
   if (!snap.exists || !isApplicationForm(snap.data())) return null;
   return normaliseForm(snap.id, snap.data());
+}
+
+/**
+ * Has reviewing begun on this programme? Read inside the transaction: every
+ * review row on the form, and the application each one is about, which says
+ * whether it is on this programme's list (`loadReviewedIn` makes the reads,
+ * so nothing here holds a reference to an application). A term is a few
+ * hundred documents, and this is read only when somebody who is not an admin
+ * asks to switch a programme's scores.
+ */
+async function reviewingBegun(
+  tx: Transaction,
+  db: Firestore,
+  form: ApplicationForm,
+  programmeId: string,
+): Promise<boolean> {
+  const { reviews, applications } = await loadReviewedIn(tx, db, form);
+  return reviewingHasBegunOn(form, programmeId, applications, reviews);
 }
 
 async function readSets(
@@ -619,7 +644,8 @@ export async function deleteSet(
 
 /**
  * Change one programme's settings. Its lead or an admin; closing it, or
- * opening it again, is an admin's alone.
+ * opening it again, is an admin's alone, and so is switching its scores on
+ * or off once reviewing has begun on it (`reviewingHasBegunOn`).
  *
  * Each field is written at its own path under `programmes.<id>`, so this never
  * replaces another programme's settings, or this programme's lead and
@@ -651,6 +677,18 @@ export async function changeProgramme(
     }
     if (change.closed !== undefined && !canRunTerm(actor)) {
       return refuse(403, "Only an admin can close a programme.");
+    }
+    // Scores decide what a review of this programme IS: what its reviewers
+    // are asked for, and what ends a first review. Once anybody has reviewed
+    // an application on its list, changing that is not its lead's to do
+    // alone. Asked only for a real change, by somebody who is not an admin.
+    if (
+      change.useScores !== undefined &&
+      change.useScores !== programme.useScores &&
+      !canRunTerm(actor) &&
+      (await reviewingBegun(tx, db, form, programmeId))
+    ) {
+      return refuse(403, scoresHeldSentence(programme.shortName));
     }
 
     const at = (field: string) => `programmes.${programmeId}.${field}`;
