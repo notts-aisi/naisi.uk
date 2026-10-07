@@ -112,8 +112,10 @@ export default async function ReConsentPage() {
           decision is shown or sent before decision day, what you are told
           then and how you reply, and what stays in our records afterwards.
           Outside that section, it now names the event sign-up form among the
-          forms that use Google reCAPTCHA, and says what the application form
-          keeps in your browser if you start it before you have an account.
+          forms that use Google reCAPTCHA, says what the application form
+          keeps in your browser if you start it before you have an account,
+          and says that a change you make to your degree or expected
+          graduation on your profile is kept with what it said before.
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}

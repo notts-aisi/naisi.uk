@@ -419,9 +419,16 @@ function RegisterPageInner() {
   // cohort" long before they have one.
   const [prefs, setPrefs] = useState<NotificationPrefs>({
     channels: { gmail: true, uniEmail: false },
+    // `newsletter` and `events` start OFF. They are the two OPT-IN rows: the
+    // privacy policy says those emails go to people who have opted in, and a
+    // switch that starts on is not somebody opting in. So the registrant
+    // turns each on themselves, which is also how a join request made on an
+    // application form starts (DEFAULT_NOTIFICATION_PREFS).
+    // tests/privacy-policy.test.mjs holds the policy's sentence and these two
+    // values together: change one and the other has to change with it.
     // `tasks` starts ON for the same reason as `courses` and is not rendered
     // (see REGISTER_CATEGORIES).
-    categories: { newsletter: true, events: true, courses: true, tasks: true },
+    categories: { newsletter: false, events: false, courses: true, tasks: true },
     // No switch on this form, and there should not be one: push is per
     // device and a registrant has not enabled notifications on anything yet.
     // The stored defaults are written so the shape is complete from the first

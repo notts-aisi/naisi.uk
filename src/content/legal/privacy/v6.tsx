@@ -57,10 +57,11 @@
  *     promised, and points to "Your rights" for the right to a copy of the
  *     data, scores and comments included. Admins see every application but
  *     their own.
- * 13. **Two sentences made exact.** The newsletter and event announcements
- *     also go to somebody who left them switched on when they set up their
- *     account, and a new version is put to a member the next time they open
- *     the member area, which is where the gate is.
+ * 13. **One sentence made exact.** A new version is put to a member the next
+ *     time they open the member area, and to a collaborator the next time
+ *     they open their collaborator space: those two are where the gate is.
+ *     (The newsletter and event announcements still go only to somebody who
+ *     opted in: the account set-up form's two switches for them start off.)
  * 14. **A changed degree or graduation.** A member's own change to either on
  *     their profile is kept with what it said before, on their account
  *     record, and admins see it on their page for that account (`studyWrite`
@@ -743,8 +744,7 @@ export default function PrivacyContentV6({
                 </li>
                 <li>
                   Send you the newsletter and event announcements where you
-                  have opted in, or left them switched on when you set up your
-                  account.
+                  have opted in to those.
                 </li>
                 <li>
                   Send push notifications to a device where you have turned
@@ -1233,8 +1233,9 @@ export default function PrivacyContentV6({
                 When we change this policy we will update the date at the top
                 of the page. We do not have to tell you by email. For changes
                 that materially affect how we use your data, the next time you
-                open the member area you will be shown the new version and
-                asked to accept or decline it. Declining signs you out, and you
+                open the member area, or your collaborator space, you will be
+                shown the new version and asked to accept or decline it.
+                Declining signs you out, and you
                 can then email us to have the account removed. The application
                 form does not ask that question: its last step says that
                 sending your application is agreeing to this policy, with the

@@ -884,22 +884,24 @@ describe("the notification grid passage", () => {
     );
   });
 
-  test("the newsletter and event announcements go to people who opted in, or who left them switched on at account set-up", () => {
+  test("the newsletter and event announcements go to people who opted in, and the account set-up form's two switches start off", () => {
     // OWNER DECISION, 7 October 2026: on the account set-up form the email
-    // switches start switched on. Somebody who leaves them on has not opted
-    // in, so the page must not say opting in is the only way these emails
-    // come to be sent.
+    // switches for the newsletter and for event announcements start switched
+    // OFF. The page says those emails go to people who have opted in, and a
+    // switch that starts on is not somebody opting in. So the sentence and
+    // where the switches start are held together here.
     assert.match(
       CURRENT_FLAT,
-      /Send you the newsletter and event announcements where you have opted in, or left them switched on when you set up your account\./i,
+      /Send you the newsletter and event announcements where you have opted in to those\./i,
     );
     assert.ok(
-      !/where you have opted in to those/i.test(CURRENT_FLAT),
-      "v6 says again that the newsletter and event announcements go only " +
-        "where somebody opted in. The account set-up form's switches start on.",
+      !/left them switched on/i.test(CURRENT_FLAT),
+      "v6 says the newsletter and event announcements also go to somebody " +
+        "who left a switch on. The account set-up form's two switches start " +
+        "off, so nobody is in that position.",
     );
-    // The form draws a switch for each of the two, so leaving one on is
-    // something the person saw, and each starts switched on.
+    // The form draws a switch for each of the two, and each starts off, so
+    // one that is on was turned on by the person in front of it.
     const setUp = read("src/app/(auth)/register/page.tsx");
     const rows = /const REGISTER_CATEGORIES: NotificationCategory\[\] = \[([^\]]*)\];/.exec(setUp);
     assert.ok(rows, "could not find the rows the account set-up form asks about");
@@ -907,15 +909,22 @@ describe("the notification grid passage", () => {
     assert.match(rows[1], /"events"/);
     assert.match(setUp, /\{REGISTER_CATEGORIES\.map\(\(cat\) => \(/);
     assert.match(setUp, /checked=\{prefs\.categories\[cat\]\}/);
+    // One place sets where the switches start, and it is this line.
+    assert.equal(
+      (setUp.match(/categories: \{/g) ?? []).length,
+      1,
+      "the account set-up form sets its email switches in more than one place",
+    );
     assert.match(
       setUp,
-      /categories: \{ newsletter: true, events: true, courses: true, tasks: true \},/,
-      "the account set-up form's email switches no longer start switched on, " +
-        "so the policy's \"or left them switched on\" describes a form that " +
-        "does not exist. Decide which is right and move the other.",
+      /categories: \{ newsletter: false, events: false, courses: true, tasks: true \},/,
+      "the account set-up form's switches for the newsletter and for event " +
+        "announcements no longer start switched off, so the policy's \"where " +
+        "you have opted in\" is not true of somebody who never touched them. " +
+        "Decide which is right and move the other.",
     );
     // Joining from the application form is the other way to make an account,
-    // and it starts both off: §2d runs that request.
+    // and it starts both off too: §2d runs that request.
     assert.equal(notificationPrefs.DEFAULT_NOTIFICATION_PREFS.categories.newsletter, false);
     assert.equal(notificationPrefs.DEFAULT_NOTIFICATION_PREFS.categories.events, false);
   });
@@ -2305,19 +2314,22 @@ describe("the re-consent gate", () => {
     assert.match(AUTHED_LAYOUT, /redirect\("\/re-consent"\)/);
   });
 
-  test("the page says when a member is asked: the next time they open the member area", () => {
-    // Not "the next time you sign in". The gate is on the layout every page
-    // of the member area passes through, and nowhere else: somebody who signs
-    // in from the application form goes back to the form, which is a public
-    // page, and is not asked there (the page says that too, and §2d holds it).
+  test("the page says when somebody is asked: the next time they open the member area, or their collaborator space", () => {
+    // Not "the next time you sign in". The gate is on two layouts and nowhere
+    // else: the one every page of the member area passes through, and the one
+    // an external collaborator's space passes through. The sentence names
+    // both. Somebody who signs in from the application form goes back to the
+    // form, which is a public page, and is not asked there (the page says
+    // that too, and §2d holds it).
     assert.match(
       PAGE_FLAT,
-      /the next time you open the member area you will be shown the new version and asked to accept or decline it/i,
+      /the next time you open the member area, or your collaborator space, you will be shown the new version and asked to accept or decline it/i,
     );
     assert.ok(
       !/the next time you sign in you will be shown/i.test(PAGE_FLAT),
       "v6 says again that a member is asked at their next sign-in. They are " +
-        "asked the next time they open the member area.",
+        "asked the next time they open the member area, or their " +
+        "collaborator space.",
     );
     assert.match(AUTHED_LAYOUT, /redirect\("\/re-consent"\)/);
     // Every place that asks, with comments left out so a note about the gate
@@ -2346,6 +2358,40 @@ describe("the re-consent gate", () => {
     for (const route of ["src/app/api/auth/session/route.ts", "src/app/(auth)/AuthEntry.tsx"]) {
       assert.ok(!/re-consent/.test(read(route)), `${route} now sends somebody to accept a new version at sign-in`);
     }
+  });
+
+  test("the accept page's \"What changed\" names what this version changes for every member", () => {
+    // The paragraph is what somebody reads before they press Accept. Most of
+    // v6 is about the application form, which only an applicant meets. Three
+    // things in it reach people who never apply, and the paragraph says each:
+    // the spam check on the event sign-up form, what the application form
+    // keeps in a browser, and that a change to a degree or a graduation on a
+    // profile is kept with what it said before (which v6 says under "Data we
+    // collect", and §2d holds to the code).
+    const accept = read("src/app/re-consent/page.tsx").replace(/\s+/g, " ");
+    const from = accept.indexOf("What changed:");
+    assert.ok(from !== -1, "the accept page no longer has its \"What changed\" paragraph");
+    const paragraph = accept.slice(from, accept.indexOf("</p>", from));
+    assert.match(paragraph, /names the event sign-up form among the forms that use Google reCAPTCHA/);
+    assert.match(paragraph, /says what the application form keeps in your browser if you start it before you have an account/);
+    assert.match(
+      paragraph,
+      /says that a change you make to your degree or expected graduation on your profile is kept with what it said before/,
+      "the accept page no longer tells a member that v6 says a changed degree " +
+        "or graduation is kept. It is the one thing in this version that " +
+        "touches every member's own profile.",
+    );
+    // And the policy still says it, so the paragraph describes the page.
+    assert.match(
+      CURRENT_FLAT,
+      /If you later change your degree \(or area of work\) or your expected graduation on your profile, we keep what it said before and when you changed it/,
+    );
+    // Nothing here about the newsletter: v6 says of it what v5 said.
+    assert.ok(
+      !/newsletter/i.test(paragraph),
+      "the accept page says v6 changed something about the newsletter. Its " +
+        "sentence is version 5's, word for word.",
+    );
   });
 
   test("is not left behind on the dashboard layout alone", () => {
