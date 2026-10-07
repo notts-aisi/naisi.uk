@@ -13,10 +13,14 @@
  * `kind` is the discriminator; `runId` is the query axis, and `roundId` is the
  * axis for the kinds that are about an application form rather than a run.
  *
- * APPEND-ONLY, AND WRITE-SHUT TO EVERY CLIENT INCLUDING ADMINS. This is the
- * `courseDeletions` posture verbatim, for the reason stated there: an audit
- * its own actor can amend is not an audit. Reads are admin-only. Every writer
- * is an Admin SDK route.
+ * APPEND-ONLY, AND SHUT TO EVERY CLIENT INCLUDING ADMINS. No client writes it:
+ * that is the `courseDeletions` posture, for the reason stated there, that an
+ * audit its own actor can amend is not an audit. No client reads it either. A
+ * line about a decision on an application carries the applicant's account id,
+ * the programme and the outcome, which the decision documents keep from every
+ * browser until decision day, and an admin can be an applicant. Every writer
+ * is an Admin SDK route, and every reader is server code that decides what the
+ * person in front of it may see.
  *
  * NOT SWEPT BY ACCOUNT DELETION, and that is a decision rather than an
  * oversight. A row here names the ACTOR of a staff action (and sometimes its

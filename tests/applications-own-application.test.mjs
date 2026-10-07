@@ -32,6 +32,12 @@
  *    only when they have one. What holds the send is said in the words of
  *    what they are shown.
  *  - A TEST EMAIL IS NEVER THEIR OWN. A test is somebody's real email.
+ *  - NO BROWSER READS WHAT WAS DECIDED. Every rule above is kept by a screen
+ *    or a route, and a browser can read a collection with neither in the
+ *    way. So every collection a decision is written to refuses every client
+ *    read in `firestore.rules`, an admin's included: the decision documents,
+ *    the log that keeps a line for each decision, the applications and the
+ *    form.
  *
  * ## The two halves of this file
  *
@@ -39,7 +45,9 @@
  * decisions or reviews is listed with whether it leaves the viewer's own out
  * or why it reads everybody, and every reader of the whole term is listed
  * with what it does with it. Both lists are checked against the source in
- * both directions.
+ * both directions. Then the modules that write a decision are found, every
+ * collection they address is followed to its name, and `firestore.rules` is
+ * read for each: a block that lets any client read one fails here by name.
  *
  * THE HANDLERS. The routes above are run for real against a small term in
  * which the admin has applied, and what the admin is sent is compared with
@@ -54,6 +62,7 @@
  */
 import { describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FIELD_VALUE_STUB, makeDb } from "./lib/applicationsStore.mjs";
@@ -73,7 +82,8 @@ import {
   stringsIn,
   userDoc,
 } from "./lib/applicationsSmallTerm.mjs";
-import { calls, callsOf, firstCall, scanModule, usesOf, walkSource } from "./lib/functionScan.mjs";
+import { calls, callsOf, firstCall, resolveImport, scanModule, usesOf, walkSource } from "./lib/functionScan.mjs";
+import { stripSource } from "./lib/stripSource.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -354,6 +364,327 @@ describe("the whole term is held only where a written reason says", () => {
       assert.deepEqual(uses.filter((how) => !entry.only.includes(how)), [], `${key}: ${entry.why}`);
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Where a decision is written, and who can read it there
+// ---------------------------------------------------------------------------
+
+/**
+ * EVERY MODULE THAT CAN WRITE WHAT IS DECIDED ABOUT AN APPLICATION, with what
+ * it does. `decisionRef` in the staff repository is the one way to a decision
+ * document, so these are found as the files that import it.
+ */
+const DECISION_WRITERS = {
+  "lib/applications/review/decide.ts": "a lead's decision for a programme, and an admin taking an acceptance back",
+  "lib/applications/decisionDay/pool.ts": "the outcome an admin picks for a pooled applicant",
+  "lib/applications/decisionDay/send.ts": "decision day: it reads each decision and writes the result onto its applicant's own document",
+};
+
+/**
+ * EVERY COLLECTION ONE OF THOSE MODULES ADDRESSES, with what a decision
+ * leaves there. NO CLIENT READS ANY OF THEM: `firestore.rules` is read below,
+ * and the block for each has to refuse every read.
+ *
+ * Every screen already leaves the viewer's own application out. The rules are
+ * held as well because a browser reads a collection directly, with no screen
+ * in the way, and anybody on the committee can apply, an admin included. A
+ * copy of a decision in a collection an admin's browser may read is that
+ * admin's own outcome before decision day.
+ *
+ * A NEW ENTRY IS A DECISION. A writer that starts to address another
+ * collection fails here until the collection is listed, and stays red until
+ * that collection's block refuses every client read. Where a person has to be
+ * shown something a writer keeps, a server page shows it, built for whoever
+ * is looking.
+ *
+ * WHAT THE WALK READS. The collections a writer names itself: one it asks the
+ * database for by name, and one a function it calls gives it a reference to.
+ * A function of another module that reads or writes for a writer is that
+ * module's own to hold.
+ */
+const DECIDED_IN = {
+  admissionDecisions: "each programme's decision and the outcome picked for a pooled applicant, kept there until decision day",
+  courseAudit: "one line for each decision, with the applicant's account id, the programme and the outcome",
+  admissionApplications: "the result, written onto the applicant's own document on decision day, which a route serves to its owner",
+  admissionRounds: "the form: the day its decisions were sent, and the counters a result moves",
+};
+
+/** A database handle that only remembers the path it was asked for. */
+const pathAt = (path) => ({
+  path,
+  collection: (name) => ({ doc: (id = "new") => pathAt(`${path}/${name}/${id}`) }),
+});
+const PATHS_ONLY = { collection: (name) => ({ doc: (id = "new") => pathAt(`${name}/${id}`) }) };
+/** The collection a document is in: `a/1` is in `a`, and `a/1/b/2` in `a/{}/b`. */
+const collectionOf = (path) => path.split("/").filter((_, at) => at % 2 === 0).join("/{}/");
+
+/**
+ * Every collection one module addresses, and everything this could not follow
+ * to a collection.
+ *
+ * A module names a place in two ways. It asks the database handle for a
+ * collection by name, and the name is read from the module that declares it.
+ * Or it calls a function that is handed the handle and gives back a
+ * reference, and that function is called here with a handle that only
+ * remembers the path. Anything else a module does with the handle is
+ * reported, never skipped.
+ */
+async function addressedBy(file, loadModule) {
+  const scanned = scan(file);
+  const code = stripSource(scanned.text, { keepStrings: true });
+  const where = inSrc(file);
+  const found = new Set();
+  const unread = [];
+
+  // The handle is read by its name, so every function has to call it `db`.
+  for (const fn of scanned.functions.values()) {
+    for (const param of fn.params) {
+      if (/\bFirestore\b/.test(param.type) && param.name !== "db") {
+        unread.push(`${where}#${fn.name} takes the database as \`${param.name}\`, and this reads it as \`db\``);
+      }
+    }
+  }
+  // Two things are asked of the handle: a transaction, and a collection.
+  for (const [, asked] of code.matchAll(/\bdb\s*\.\s*([A-Za-z_$][\w$]*)/g)) {
+    if (asked !== "runTransaction" && asked !== "collection") {
+      unread.push(`${where} calls db.${asked}(), and this cannot tell which collection that reaches`);
+    }
+  }
+  // A collection asked for by name.
+  const named = [...code.matchAll(/(\bdb\s*)?\.\s*collection\s*\(\s*([^()]*?)\s*\)/g)];
+  for (const [, onTheHandle, name] of named) {
+    if (!onTheHandle) {
+      unread.push(`${where} asks something other than the database for the collection \`${name}\``);
+      continue;
+    }
+    const literal = /^(["'])([^"']+)\1$/.exec(name);
+    const from = scanned.imports.get(name);
+    const declaredIn = from ? resolveImport(file, from, SRC) : null;
+    const value = literal ? literal[2] : declaredIn ? (await loadModule(declaredIn))[name] : undefined;
+    if (typeof value === "string" && value) found.add(value);
+    else unread.push(`${where} asks for the collection \`${name}\`, which is not a name this could read`);
+  }
+  // A function that is handed the handle and gives back a reference.
+  for (const [name, from] of scanned.imports) {
+    if (!calls(code, name)) continue;
+    const declaredIn = resolveImport(file, from, SRC);
+    const helper = declaredIn ? scan(declaredIn).functions.get(name) : null;
+    if (!helper || !/\bFirestore\b/.test(helper.params[0]?.type ?? "")) continue;
+    // A function that waits has read or written by the time it answers. It
+    // names its own collections, in its own module.
+    if (/^(?:export\s+)?async\b/.test(helper.text)) continue;
+    let reference = null;
+    try {
+      reference = (await loadModule(declaredIn))[name](PATHS_ONLY, "round", "uid", "other");
+    } catch {
+      // Reported below, like anything else that gave back no path.
+    }
+    if (typeof reference?.path === "string") found.add(collectionOf(reference.path));
+    else unread.push(`${where} calls ${name}(db, ...), and this could not tell which collection that reaches`);
+  }
+  return { found, unread };
+}
+
+/**
+ * The rules file as code: every comment and the inside of every string
+ * replaced by spaces. A brace or the word `allow` in either is then never
+ * read as a rule, and nothing moves.
+ */
+function rulesAsCode(text) {
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    const two = text.slice(i, i + 2);
+    if (two === "//") {
+      const end = text.indexOf("\n", i);
+      const stop = end === -1 ? text.length : end;
+      out += " ".repeat(stop - i);
+      i = stop;
+    } else if (two === "/*") {
+      const end = text.indexOf("*/", i + 2);
+      const stop = end === -1 ? text.length : end + 2;
+      out += text.slice(i, stop).replace(/[^\n]/g, " ");
+      i = stop;
+    } else if (text[i] === "'" || text[i] === '"') {
+      const quote = text[i];
+      let j = i + 1;
+      while (j < text.length && text[j] !== quote && text[j] !== "\n") j += text[j] === "\\" ? 2 : 1;
+      j = Math.min(j, text.length);
+      const closed = text[j] === quote;
+      out += quote + " ".repeat(j - i - 1) + (closed ? quote : "");
+      i = closed ? j + 1 : j;
+    } else {
+      out += text[i];
+      i += 1;
+    }
+  }
+  return out;
+}
+
+/**
+ * What the rules say about reading one collection: how many blocks match its
+ * documents, and every statement in them that lets a client read.
+ *
+ * A statement lets a client read when it names `read`, `get` or `list` and
+ * its condition is anything but the one word `false`. Only the statements
+ * written directly in a block are its own: one inside a nested block is about
+ * a subcollection.
+ */
+function clientReadsOf(code, collection) {
+  const path = collection
+    .split("/{}/")
+    .map((name) => `${name}/\\{\\w+(?:=\\*\\*)?\\}`)
+    .join("/");
+  const blocks = [...code.matchAll(new RegExp(`\\bmatch\\s+/${path}\\s*\\{`, "g"))];
+  const open = [];
+  for (const block of blocks) {
+    let depth = 0;
+    let own = "";
+    for (let i = block.index + block[0].length - 1; i < code.length; i += 1) {
+      if (code[i] === "{") depth += 1;
+      else if (code[i] === "}") {
+        depth -= 1;
+        if (depth === 0) break;
+      } else if (depth === 1) own += code[i];
+    }
+    for (const [statement, methods, condition] of own.matchAll(/\ballow\s+([a-z\s,]+?)\s*(?::\s*if\b([^;]*))?;/g)) {
+      const reads = methods.split(",").some((method) => ["read", "get", "list"].includes(method.trim()));
+      // A statement with no condition allows outright.
+      const refuses = (condition ?? "true").replace(/\s+/g, " ").trim() === "false";
+      if (reads && !refuses) open.push(statement.replace(/\s+/g, " "));
+    }
+  }
+  return { blocks: blocks.length, open };
+}
+
+/** A block whose first segment is a variable matches every collection. */
+const COVERS_EVERY_COLLECTION = /\bmatch\s+\/\{[^}]*\}/g;
+
+describe("no browser reads what was decided", () => {
+  const rules = rulesAsCode(readFileSync(join(REPO_ROOT, "firestore.rules"), "utf8"));
+  const loadModule = createLoader({
+    stubs: new Map([
+      ["server-only", "export {};"],
+      ["firebase-admin/firestore", FIELD_VALUE_STUB],
+    ]),
+  }).loadTs;
+  const writerFiles = Object.keys(DECISION_WRITERS).map((key) => join(SRC, ...key.split("/")));
+
+  test("the modules that can write a decision are the ones listed", () => {
+    const importing = sourceFiles
+      .filter((file) => file !== staffRepo && scan(file).imports.has("decisionRef"))
+      .map(inSrc);
+    assert.deepEqual(
+      importing.sort(),
+      Object.keys(DECISION_WRITERS).sort(),
+      "the files that import `decisionRef` are not the ones in DECISION_WRITERS. A module that can write a decision is listed with what it writes, and every collection it addresses is then held to a closed read below.",
+    );
+    for (const [key, why] of Object.entries(DECISION_WRITERS)) {
+      assert.ok(typeof why === "string" && why.length > 20, `${key} needs what it writes written down`);
+    }
+  });
+
+  test("every collection they address is on the list, and nothing they address goes unread", async () => {
+    const addressed = new Set();
+    const unread = [];
+    for (const file of writerFiles) {
+      const one = await addressedBy(file, loadModule);
+      for (const collection of one.found) addressed.add(collection);
+      unread.push(...one.unread);
+    }
+    assert.deepEqual(unread, [], "a decision writer names a place this guard could not follow to a collection");
+    assert.deepEqual(
+      [...addressed].filter((collection) => !Object.hasOwn(DECIDED_IN, collection)),
+      [],
+      "a module that writes decisions addresses a collection that is not in DECIDED_IN. List it with what a decision leaves there. It can be listed only once its block in firestore.rules refuses every client read.",
+    );
+    assert.deepEqual(
+      Object.keys(DECIDED_IN).filter((collection) => !addressed.has(collection)),
+      [],
+      "DECIDED_IN names a collection no decision writer addresses any more",
+    );
+    for (const [collection, why] of Object.entries(DECIDED_IN)) {
+      assert.ok(typeof why === "string" && why.length > 20, `${collection} needs what a decision leaves there written down`);
+    }
+  });
+
+  test("the walk follows each writer to where it writes, so the list is not empty by accident", async () => {
+    const reached = async (key) => [...(await addressedBy(join(SRC, ...key.split("/")), loadModule)).found].sort();
+    // A decision and a pooled outcome go to the decision document and to the log.
+    for (const key of ["lib/applications/review/decide.ts", "lib/applications/decisionDay/pool.ts"]) {
+      const found = await reached(key);
+      assert.ok(found.includes("admissionDecisions") && found.includes("courseAudit"), `${key} reaches ${found.join(", ")}`);
+    }
+    // The send reads a decision and publishes it onto the application.
+    assert.deepEqual(await reached("lib/applications/decisionDay/send.ts"), Object.keys(DECIDED_IN).sort());
+  });
+
+  for (const [collection, why] of Object.entries(DECIDED_IN)) {
+    test(`firestore.rules refuses every client read of ${collection}`, () => {
+      const { blocks, open } = clientReadsOf(rules, collection);
+      assert.equal(
+        blocks,
+        1,
+        `firestore.rules has ${blocks} blocks for \`${collection}\`. It needs exactly one, written out: with none the lockdown is only implied, and with two a read that either allows is allowed.`,
+      );
+      assert.deepEqual(
+        open,
+        [],
+        `firestore.rules lets a client read \`${collection}\`: \`${open.join("` and `")}\`. ` +
+          `A decision is written there (${why}). What is decided about a person is not theirs to read before decision day, ` +
+          "and anybody on the committee can apply, an admin included, so no client reads this collection at all. " +
+          "If a person has to be shown something from it, a server page shows it, built for whoever is looking.",
+      );
+    });
+  }
+
+  test("no block matches every collection at once", () => {
+    const wide = [...rules.matchAll(COVERS_EVERY_COLLECTION)].map((match) => match[0]);
+    assert.deepEqual(
+      wide,
+      [],
+      "firestore.rules has a block whose first segment is a variable. It matches every collection, the ones a decision is written to among them, and what it allows is allowed there whatever their own blocks say.",
+    );
+  });
+
+  test("the reading of the rules notices each way a block can let a client in", () => {
+    const service = (body) => rulesAsCode(`service cloud.firestore {\n  match /databases/{database}/documents {\n${body}\n  }\n}\n`);
+    const reads = (body) => clientReadsOf(service(body), "courseAudit");
+    // Closed, three ways of writing it.
+    assert.deepEqual(reads("match /courseAudit/{id} { allow read, write: if false; }"), { blocks: 1, open: [] });
+    assert.deepEqual(reads("match /courseAudit/{id} {\n  allow read:  if false;\n  allow write: if false;\n}"), { blocks: 1, open: [] });
+    assert.deepEqual(reads("match /courseAudit/{id} { }"), { blocks: 1, open: [] });
+    // Open: to an admin, to a single get, to a list, with no condition, and beside a write.
+    assert.deepEqual(reads("match /courseAudit/{id} { allow read: if isAdmin(); allow write: if false; }").open, ["allow read: if isAdmin();"]);
+    assert.deepEqual(reads("match /courseAudit/{id} { allow get: if request.auth != null; }").open, ["allow get: if request.auth != null;"]);
+    assert.deepEqual(reads("match /courseAudit/{id} { allow list: if isAdmin(); }").open, ["allow list: if isAdmin();"]);
+    assert.deepEqual(reads("match /courseAudit/{id} { allow read; }").open, ["allow read;"]);
+    assert.deepEqual(reads("match /courseAudit/{id} { allow create, get: if isAdmin(); }").open, ["allow create, get: if isAdmin();"]);
+    assert.deepEqual(reads("match /courseAudit/{id} { allow read: if false || isAdmin(); }").open, ["allow read: if false || isAdmin();"]);
+    // A second block is counted, and what it allows is found.
+    assert.deepEqual(
+      reads("match /courseAudit/{id} { allow read, write: if false; }\nmatch /courseAudit/{other} { allow read: if isAdmin(); }"),
+      { blocks: 2, open: ["allow read: if isAdmin();"] },
+    );
+    // A block that takes the collection and everything under it.
+    assert.deepEqual(reads("match /courseAudit/{rest=**} { allow read: if isAdmin(); }").open, ["allow read: if isAdmin();"]);
+    // Prose and strings are not rules, and a write is not a read.
+    assert.deepEqual(
+      reads("match /courseAudit/{id} {\n  // allow read: if isAdmin();\n  /* allow get: if true; */\n  allow write: if request.resource.data.note == 'allow read: if true;';\n}"),
+      { blocks: 1, open: [] },
+    );
+    // A subcollection's statements are its own, and another collection's block is not this one's.
+    assert.deepEqual(
+      reads("match /courseAudit/{id} {\n  allow read, write: if false;\n  match /notes/{note} { allow read: if isAdmin(); }\n}\nmatch /courseAuditNotes/{id} { allow read: if true; }"),
+      { blocks: 1, open: [] },
+    );
+    assert.deepEqual(clientReadsOf(service("match /other/{id} { allow read: if true; }"), "courseAudit"), { blocks: 0, open: [] });
+    // And a block that matches every collection is seen.
+    assert.equal([...service("match /{document=**} { allow read: if isAdmin(); }").matchAll(COVERS_EVERY_COLLECTION)].length, 1);
+    assert.equal([...service("match /{collection}/{id} { allow read: if isAdmin(); }").matchAll(COVERS_EVERY_COLLECTION)].length, 1);
+    assert.equal([...service("match /courseAudit/{id} { allow read: if false; }").matchAll(COVERS_EVERY_COLLECTION)].length, 0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -891,5 +1222,39 @@ describe("the send still sees them", () => {
     assert.deepEqual([response.body.report.published, response.body.report.complete], [1, true]);
     assert.equal(db.read(applicationPath("zach")).result.kind, "accepted");
     assert.ok(db.read(`admissionRounds/${ROUND}`).decisionsSentAt instanceof Date);
+  });
+});
+
+describe("until decision day a decision is in two places, and no browser reads either", () => {
+  test("a decision, an acceptance taken back and a pooled outcome write the decision document and the log, and nothing else", async () => {
+    // The tree half follows the collections a writer names itself. This runs
+    // the writers, so a write made for one of them by another module's
+    // function would be seen here.
+    const db = term(DEV_WAITING, OWN_POOLED);
+    as("priya");
+    const decide = (uid, body) => decisionRoute.PUT(request("PUT", body), ctx({ uid }));
+    const steps = [
+      ["a changed decision", await decide("amara", { programmeId: AGI, decision: "pool" })],
+      ["an acceptance taken back", await revoke("wen", TAIS)],
+      ["an outcome picked for one person", await pick({ uid: "dev", outcome: { kind: "no-offer" } })],
+      ["an outcome picked for everybody left", await pick({ everyoneWithoutOne: true, outcome: { kind: "no-offer" } })],
+    ];
+    for (const [what, response] of steps) {
+      assert.equal(response.status, 200, `${what}: ${JSON.stringify(response.body)}`);
+    }
+    const written = [...new Set(db.stats.writes.map(([, path]) => path.split("/")[0]))].sort();
+    assert.deepEqual(
+      written,
+      ["admissionDecisions", "courseAudit"],
+      "before decision day a decision is written to the decision document and to the log. Anywhere else it is written has to be a collection no client reads, listed in DECIDED_IN.",
+    );
+    for (const collection of written) {
+      assert.ok(Object.hasOwn(DECIDED_IN, collection), `${collection} is written and is not held to a closed read above`);
+    }
+    // Each step left its line in the log, and nobody's own document moved.
+    assert.equal(db.paths().filter((path) => path.startsWith("courseAudit/")).length, steps.length);
+    for (const uid of ["amara", "dev", "wen", "zach"]) {
+      assert.deepEqual([db.read(applicationPath(uid)).status, db.read(applicationPath(uid)).result], ["submitted", null], uid);
+    }
   });
 });

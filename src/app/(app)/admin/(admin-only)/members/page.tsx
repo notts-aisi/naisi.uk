@@ -20,6 +20,7 @@ import MembersToolbar, {
   type TrackFilter,
 } from "@/features/admin/MembersToolbar";
 import { useMembers } from "@/features/admin/useMembers";
+import { degreeOf } from "@/features/profile/studyChange";
 import {
   canApproveNewsletter,
   canDraftNewsletter,
@@ -36,7 +37,7 @@ function matchesQuery(u: UserDoc, needle: string): boolean {
     u.title,
     u.profile?.preferredName,
     u.profile?.universityEmail,
-    u.profile?.subject,
+    degreeOf(u.profile),
   ];
   return haystacks.some((s) => s && s.toLowerCase().includes(q));
 }

@@ -210,6 +210,18 @@ The same shape, older:
   the key pattern in `firestore.rules` with the constants the form reads, and
   lists every file under `src` that names the field with what it does with
   it, both ways, so a second reader of the entries cannot appear unlisted.
+  The same pair holds what a degree IS to one reading. The rule decides
+  whether a save changed somebody's degree by reading `subject` where it is
+  text with something in it and the older `course` otherwise, and `degreeOf`
+  in the form's module reads it the same way for every page that shows a
+  degree, searches by it or fills a box with it. `tests/lib/storedDegrees.mjs`
+  is one table of stored profiles with the degree each holds: the unit file
+  runs it through the function and the rules suite through the rule. The unit
+  file also lists, both ways, every file that reads a property called
+  `course`, every caller of the function and every file that reads `subject`
+  straight off a profile, so a second reading cannot appear unlisted. And the
+  rule holds the three fields to text, or nothing, in whatever an account
+  writes to its own document, on a create and on an update.
 - `tests/authority-at-use.test.mjs`: being named on a document is not a
   standing grant. A dozen documents carry an array of uids that decides what
   the people in it may do (a run's `trackLeadUids`, a round's `reviewerUids`,
