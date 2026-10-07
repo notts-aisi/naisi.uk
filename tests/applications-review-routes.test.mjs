@@ -1457,9 +1457,19 @@ describe("a lead deciding for their programme", () => {
   test("the applicant has to have sent an application that ranks the programme", async () => {
     const db = makeDb(seed());
     const body = { programmeId: AGI, decision: "accept" };
-    assert.equal((await decideAs(db, "claudia", "sam", body)).status, 409, "Sam did not rank it");
-    assert.equal((await decideAs(db, "claudia", "zara", body)).status, 404, "a draft");
-    assert.equal((await decideAs(db, "claudia", "nobody", body)).status, 404);
+    // Sam ranked Technical AI Safety alone, so Sam's application is not one
+    // Claudia, who leads AGI Strategy, may read. She is answered exactly as
+    // she is for a draft and for nobody at all: the review screen answers
+    // "Not found" for the same pair, and a refusal to decide says no more
+    // than the screen does.
+    const NOTHING_SENT = [false, 404, "There is no sent application here."];
+    for (const [uid, why] of [["sam", "sent, and not hers to read"], ["zara", "a draft"], ["nobody", "no application"]]) {
+      const refused = await decideAs(db, "claudia", uid, body);
+      assert.deepEqual([refused.ok, refused.status, refused.error], NOTHING_SENT, why);
+    }
+    // An admin reads every application, so an admin is told what is in the way.
+    const asAdmin = await decideAs(db, "zach", "sam", body);
+    assert.deepEqual([asAdmin.status, asAdmin.error], [409, "They did not rank AGI Strategy."]);
     assert.equal((await decideAs(db, "zach", "amara", { programmeId: "no-such-programme", decision: "accept" })).status, 404);
     assert.equal(
       (await decideAs(db, "claudia", "amara", { programmeId: AGI, decision: "pool", couldSuitProgrammeId: "gone" })).status,
@@ -1619,7 +1629,10 @@ describe("accepting or pooling several at once", () => {
       changed: 2,
       unchanged: 0,
       refused: [
-        { uid: "sam", name: "Sam Whitfield", reason: "They did not rank AGI Strategy." },
+        // Sam ranked Technical AI Safety alone: not Claudia's to read, so the
+        // line for Sam is word for word the line for somebody who sent
+        // nothing, and carries no name.
+        { uid: "sam", name: "", reason: "There is no sent application here." },
         { uid: "ghost", name: "", reason: "There is no sent application here." },
         { uid: "claudia", name: "", reason: "You can’t decide your own application." },
       ],
@@ -1629,6 +1642,16 @@ describe("accepting or pooling several at once", () => {
     assert.equal(db.read(`admissionDecisions/${ROUND}__sam`).programmes[AGI], undefined);
     assert.equal(auditRows(db).length, 2, "one line in the log for each decision made");
     assert.ok(db.writes.every((write) => !write.path.startsWith("admissionApplications/")));
+
+    // The same list from an admin, who may read Sam's application, says why.
+    const asAdmin = await decide.decideMany(makeDb(seed()), CAST.zach, ROUND, AGI, {
+      decision: "accept",
+      uids: ["sam", "ghost"],
+    });
+    assert.deepEqual(asAdmin.result.refused, [
+      { uid: "sam", name: "Sam Whitfield", reason: "They did not rank AGI Strategy." },
+      { uid: "ghost", name: "", reason: "There is no sent application here." },
+    ]);
 
     const again = await decide.decideMany(db, CAST.claudia, ROUND, AGI, { decision: "accept", uids: ["amara", "ben"] });
     assert.deepEqual([again.result.changed, again.result.unchanged], [1, 1], "Ben was pooled and is now accepted; Amara already was");

@@ -371,6 +371,13 @@ const USERS = new Map([
       "an authored paragraph",
   ],
   [
+    "applications-readable-before-answering.test.mjs",
+    "executes the decision route and the route that decides several at once as a programme's " +
+      "lead, against an in-memory term, for every way an application can be one she may not " +
+      "read, because whether an answer names somebody or says where their application stands " +
+      "is decided by the writer that runs",
+  ],
+  [
     "applications-review-routes.test.mjs",
     "executes the review loaders, builders and writers under src/lib/applications/review with " +
       "access.ts and the real eligibility bar underneath, against an in-memory Firestore, " +

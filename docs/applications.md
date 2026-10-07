@@ -200,6 +200,19 @@ their mind needs no recount.
 "Runs the term" is the form itself, the outcome each pooled applicant hears,
 revoking an acceptance, an exception, and the decision-day send.
 
+**A refusal says nothing about an application its caller may not read.**
+Deciding is a right over a programme, and reading is a right over one
+person's application. So a writer that is handed somebody's id asks
+`canReadApplication()`, the predicate the review screens read by, before it
+names the applicant or says where their application stands. Somebody who may
+not read the application is answered exactly as if nothing had been sent: the
+same status, the same words and no name, whatever the real reason, for one
+decision and for several at once. Somebody who may read it is told what is
+in the way. `tests/applications-readable-before-answering.test.mjs` lists
+every function under `review/` and `decisionDay/` that takes the database,
+with what it is handed and what holds it, and reads each entry's claim out
+of the source.
+
 **Somebody who joins by invitation is read from the moment they accept, and
 not before.** An invitation is to a programme the person did not pick, so
 while it is only picked, or sent and not yet answered, that programme's lead
@@ -762,6 +775,13 @@ All in `src/lib/applications/`.
 - **A route that serves staff** takes its answer from `access.ts`, after
   `getCurrentUser()` and before any read. A mutating route calls
   `assertNotImpersonating()` first.
+- **A function that is handed an applicant's id asks who may read the
+  application before it answers about it.** A right to act on a programme is
+  not a right to be told about a person. A new function under `review/` or
+  `decisionDay/` that takes the database is added to the list in
+  `tests/applications-readable-before-answering.test.mjs` with what it is
+  handed: it asks `canReadApplication()`, or it is for an admin alone, or
+  nothing outside this library can call it.
 - **No query that sorts or ranges on the server.** Every read here is one or
   two equalities, which need no composite index. A term is a few hundred
   documents: filter and sort in memory.

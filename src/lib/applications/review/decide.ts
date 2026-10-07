@@ -3,8 +3,8 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
 import type { SessionUser } from "@/lib/firebase/session";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
-import { canDecideFor, canRunTerm, roleOnProgramme } from "../access";
-import { hasBeenTold } from "../decisions";
+import { canDecideFor, canReadApplication, canRunTerm, roleOnProgramme } from "../access";
+import { hasBeenTold, joinedByInvitation } from "../decisions";
 import {
   APPLICATION_LIMITS,
   POOL_REASONS,
@@ -34,6 +34,7 @@ import { UNNAMED_APPLICANT, UNNAMED_STAFF, applicantName, firstWord } from "./pe
 import {
   DECISIONS_SENT,
   NOT_FOUND,
+  NO_SENT_APPLICATION,
   alreadyTold,
   alreadyToldTheyAreIn,
   closedToStaffWrites,
@@ -54,6 +55,14 @@ import type { BulkDecisionResult, DecisionChange, Refusal } from "./types";
  *
  *  - ONLY THE PROGRAMME'S LEAD OR AN ADMIN decides (`canDecideFor`). Somebody
  *    with no role on the programme is told "Not found".
+ *  - A REFUSAL SAYS NOTHING ABOUT AN APPLICATION THE CALLER MAY NOT READ.
+ *    Before a writer names an applicant or says where their application
+ *    stands, it asks `canReadApplication`, the one predicate the review
+ *    screens read by. Somebody who may not read the application is answered
+ *    exactly as if nothing had been sent: the same status, the same words and
+ *    no name, whatever the real reason, one at a time and several at once.
+ *    `tests/applications-readable-before-answering.test.mjs` holds every
+ *    function here that is handed an applicant's id to that.
  *  - THE APPLICANT RANKED THE PROGRAMME, in the application they sent.
  *  - NOBODY DECIDES THEIR OWN APPLICATION.
  *  - UNTIL DECISION DAY. Once the form's decisions have been sent a decision
@@ -194,15 +203,24 @@ async function applyDecision(
     const application = appSnap.exists
       ? normaliseApplication(appSnap.id, appSnap.data(), form.round.availabilityGrid)
       : null;
-    if (!application?.sent) {
-      return {
-        outcome: "refused",
-        status: 404,
-        reason: "There is no sent application here.",
-        name: "",
-      };
+    const sent = application?.sent ?? null;
+    const ranked = sent ? rankedProgrammes(form, sent).map((entry) => entry.id) : [];
+    // ONE ANSWER for "nothing was sent here" and "sent, and not this caller's
+    // to read", in one statement so the two cannot come apart: the same
+    // status, the same words and no name. Deciding for a programme is a
+    // right over the programme. What may be said about one person's
+    // application is the read path's question, so it is the read path's
+    // predicate that is asked, before anything below names the applicant or
+    // says where their application stands. An admin reads every application,
+    // so an admin is still told exactly why a decision was not taken.
+    if (
+      !application ||
+      !sent ||
+      !canReadApplication(user, form, ranked, joinedByInvitation(application))
+    ) {
+      return { outcome: "refused", status: 404, reason: NO_SENT_APPLICATION, name: "" };
     }
-    const name = applicantName(application.sent.aboutYou, application.displayName);
+    const name = applicantName(sent.aboutYou, application.displayName);
     if (form.decisionsSentAt) return { outcome: "refused", status: 409, reason: DECISIONS_SENT, name };
     // Fixed for this person from the moment they are told, which can be a
     // whole press of Send before the term is stamped as sent. Asked of the
@@ -211,7 +229,6 @@ async function applyDecision(
     if (hasBeenTold(application)) {
       return { outcome: "refused", status: 409, reason: alreadyTold(name), name };
     }
-    const ranked = rankedProgrammes(form, application.sent).map((entry) => entry.id);
     if (!ranked.includes(change.programmeId)) {
       return {
         outcome: "refused",
