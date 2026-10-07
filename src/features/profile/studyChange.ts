@@ -27,10 +27,10 @@ import { FIELD_LIMITS } from "@/lib/firestore/users";
  *
  *  - An answer is text with something in it. A field that is missing or empty
  *    holds no answer, and filling it leaves no entry.
- *  - The degree is `profile.subject`, or the older `profile.course` on an
- *    account that never stored a subject, which is how the admin's page reads
- *    it. So the first degree typed over an older account's `course` is a
- *    change, noted with what `course` said.
+ *  - The degree is what `degreeOf` below says it is: `profile.subject`, or
+ *    the older `profile.course` on an account with no subject. Every page
+ *    reads it through that one function. So the first degree typed over an
+ *    older account's `course` is a change, noted with what `course` said.
  *  - An account still waiting to be approved is not noted. Its answers are
  *    its join request, which registration sends whole.
  *
@@ -41,6 +41,31 @@ import { FIELD_LIMITS } from "@/lib/firestore/users";
 /** Text with something in it. The rule's own test for "this field held an answer". */
 function answer(value: unknown): string {
   return typeof value === "string" && value.length > 0 ? value : "";
+}
+
+/**
+ * WHAT SOMEBODY'S DEGREE IS: the newer `subject` where it holds an answer,
+ * otherwise the older `course` where that does, otherwise nothing ("").
+ *
+ * THIS IS THE ONE READING OF IT. The users rule in firestore.rules decides
+ * whether a member's own save changed their degree by reading the two fields
+ * exactly this way (`degreeOf` there), and a change it sees has to carry its
+ * entry. A page that read them another way could show a degree the rule
+ * never saw change. So every page that shows somebody's degree, searches by
+ * it or fills a box with it calls this function, and nothing else in `src`
+ * reads `course`.
+ *
+ * Text only. A stored value that is not text is no answer to the rule, so it
+ * is none here and is never shown.
+ *
+ * `tests/profile-study-changes.test.mjs` lists every file that reads the
+ * older field or calls this, and the rules suite puts one table of stored
+ * profiles through this function and through the rule.
+ */
+export function degreeOf(
+  profile: { subject?: unknown; course?: unknown } | null | undefined,
+): string {
+  return answer(profile?.subject) || answer(profile?.course);
 }
 
 /**
@@ -129,10 +154,10 @@ export function studyWrite(input: StudyWriteInput): StudyWrite {
     patch["profile.expectedGraduation"] = graduation;
   }
 
-  // The degree before and after, read the way the rule reads it.
-  const degreeBefore = answer(stored.subject) || answer(stored.course);
-  const degreeAfter =
-    "profile.subject" in patch ? subject || answer(stored.course) : degreeBefore;
+  // The degree before and after, each read the one way: the stored profile,
+  // and the stored profile with what is typed in place of its subject.
+  const degreeBefore = degreeOf(stored);
+  const degreeAfter = "profile.subject" in patch ? degreeOf({ ...stored, subject }) : degreeBefore;
   const degreeMoves = degreeBefore !== "" && degreeAfter !== degreeBefore;
 
   const graduationBefore = answer(stored.expectedGraduation);

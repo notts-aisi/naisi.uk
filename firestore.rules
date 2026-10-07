@@ -125,6 +125,11 @@ service cloud.firestore {
         // before, and one written at create would be a history that never
         // happened. No client create sends the field.
         && !('studyChanges' in request.resource.data)
+        // The degree and the graduation arrive as text, or not at all. The
+        // helpers further down say why (`isTextOrNothing`). Registration
+        // sends `subject` as text, `expectedGraduation` as text or leaves it
+        // out, and never sends the older `course`.
+        && newStudyAnswersAreText()
         // `email` is the address the rest of the system treats as PROVEN: the
         // subscription sync marks rows `confirmed` from it without a click, the
         // newsletter sender resolves recipients from it, and the application
@@ -199,12 +204,57 @@ service cloud.firestore {
       //    below make room for), so its answers are still its join request.
       //    The role cannot be changed by its holder, so this is no way round.
       //
-      // The degree is read the way the admin's page reads it: `subject`, or
-      // the older `course` on an account that never stored a subject.
+      // The degree is `subject` where that holds an answer, otherwise the
+      // older `course`. Every page reads it the same way, through one
+      // function. The next comment says what keeps the two readings one.
       //
       // An admin's write takes the isAdmin() branch and is held to none of
       // this: an admin correcting somebody's profile is not that member's
       // change.
+      //
+      // WHAT AN ACCOUNT MAY STORE AS ITS DEGREE OR ITS GRADUATION: TEXT, OR
+      // NOTHING.
+      //
+      // `profile.subject`, the older `profile.course` and
+      // `profile.expectedGraduation` are each text, absent or null in what an
+      // account writes to its own document. Two things stand on that:
+      //
+      //  - THE DEGREE IS READ ONE WAY: here by `degreeOf` below, and on every
+      //    page by `degreeOf` in src/features/profile/studyChange.ts. Both
+      //    take `subject` where it is text with something in it and `course`
+      //    otherwise, and to both a value that is not text is no answer. The
+      //    entry a change owes is judged by this reading, and what an admin
+      //    is shown is the page's, so the two have to stay one: the rules
+      //    suite puts one table of stored profiles through both. Change one
+      //    and the other changes with it.
+      //  - Pages treat all three as text: they trim them, search them and
+      //    print them. A value of another type has no place in any of that.
+      //
+      // ONE READING THAT KEEPS AN OLDER DOCUMENT SAVING. A value that is
+      // already stored, and that the write leaves exactly as it was, is not
+      // the write's. A document carrying something else in one of these
+      // fields (only a hand edit could leave one) still saves its name and
+      // its notification switches. Such a value can be replaced only by text
+      // or by nothing.
+      function isTextOrNothing(value) { return value == null || value is string; }
+      function newStudyAnswerIsText(field) {
+        return isTextOrNothing(request.resource.data.get(['profile', field], null));
+      }
+      function newStudyAnswersAreText() {
+        return newStudyAnswerIsText('subject')
+          && newStudyAnswerIsText('course')
+          && newStudyAnswerIsText('expectedGraduation');
+      }
+      function studyAnswerIsTextOrKept(field) {
+        return newStudyAnswerIsText(field)
+          || request.resource.data.get(['profile', field], null)
+               == resource.data.get(['profile', field], null);
+      }
+      function studyAnswersAreTextOrKept() {
+        return studyAnswerIsTextOrKept('subject')
+          && studyAnswerIsTextOrKept('course')
+          && studyAnswerIsTextOrKept('expectedGraduation');
+      }
       function studyField(data, field) { return data.get(['profile', field], ''); }
       function isAnswer(value)         { return value is string && value.size() > 0; }
       function degreeOf(data) {
@@ -342,6 +392,12 @@ service cloud.firestore {
                   == resource.data.get(['profile', 'universityEmail'], '')
               )
             )
+            // The degree and the graduation are stored as text, or not at
+            // all: nothing else may be put there by the account itself. See
+            // `isTextOrNothing` above. It comes before the entry clause
+            // because that clause reads the degree, and the degree is read
+            // one way only while these fields are text.
+            && studyAnswersAreTextOrKept()
             // A change to the degree or the graduation carries its entry in
             // `studyChanges`, and no write here touches an earlier one. The
             // helpers and their reasons are above this rule. Inside the
@@ -2748,13 +2804,32 @@ service cloud.firestore {
     // ONE append-only log for every course operational action that has to
     // stay answerable after the fact: a register pushed or edited after the
     // lock, a facilitator appointed or removed, a member dropping out, a run
-    // settled, a run's enrolment mode changed, a week unlocked early, and an
-    // applicant's access-requirements answer being read.
+    // settled, a run's enrolment mode changed, a week unlocked early, an
+    // applicant's access-requirements answer being read, and each decision
+    // made about an application.
     //
-    // The posture is `courseDeletions`', verbatim and for its reason: reads
-    // are admin-only and writes are shut to EVERY client, admins included.
-    // An append-only log its own actor can amend is not an audit trail. Every
-    // writer is an Admin SDK route.
+    // SHUT TO EVERY CLIENT, ADMINS INCLUDED, on both axes. Every writer is an
+    // Admin SDK route and every reader is server code.
+    //
+    // WRITE. An append-only log its own actor can amend is not an audit
+    // trail, and the actors here are admins. That is the `courseDeletions`
+    // posture, for its reason.
+    //
+    // READ. Not `isAdmin()`, and it has to stay that way. A line about a
+    // decision on an application carries the applicant's account id, the
+    // programme and the outcome. That is a copy of what `admissionDecisions`
+    // below keeps from every browser, so that nobody reads what was decided
+    // about them before decision day. An admin can be an applicant, and a
+    // browser reads a collection directly, past every screen that leaves a
+    // viewer's own application out. So the copy is closed the way the
+    // decision documents are. Nothing in the site reads this log from a
+    // browser. Whatever shows a line to a person is server code, which
+    // decides what that person may see: today that is the review screen's
+    // loader (src/lib/applications/review/load.ts), for somebody who may
+    // decide for a programme, and never about the reader's own application.
+    // tests/applications-own-application.test.mjs finds every collection a
+    // decision is written to and fails when a rule here lets a client read
+    // one of them.
     //
     // Rows are staff-action METADATA, never member content: `detail` is a
     // route-written sentence, and nothing here holds an applicant's answers,
@@ -2763,8 +2838,7 @@ service cloud.firestore {
     // .ts for the retention decision (audits survive account deletion, as
     // impersonations and courseDeletions already do) and the kind union.
     match /courseAudit/{auditId} {
-      allow read:  if isAdmin();
-      allow write: if false;
+      allow read, write: if false;
     }
 
     // === config ===

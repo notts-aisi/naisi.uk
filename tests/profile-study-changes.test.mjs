@@ -28,8 +28,20 @@
  *     draws it is held to the admin-only tree.
  *  5. WHAT THE MEMBER IS TOLD when a save is refused, at the cap or by the
  *     rule: a sentence they can act on, never the database's own.
+ *  6. WHAT A DEGREE IS. The rule decides whether a save changed somebody's
+ *     degree by reading two fields one way: the newer `subject` where it is
+ *     text with something in it, otherwise the older `course`. A page that
+ *     read them another way could show a degree the rule never saw change.
+ *     So one function, `degreeOf` in the form's module, is the only reading
+ *     in `src`. Held here four ways: the function against one table of
+ *     stored profiles (`tests/lib/storedDegrees.mjs`, which the rules suite
+ *     runs through the rule itself); the rule's own lines; every file that
+ *     reads a property called `course`, listed with what it is a property
+ *     of; and every file that calls the function or reads `subject` straight
+ *     off a profile, listed with what it does. Each list is checked both
+ *     ways.
  *
- * ## Mutation check (each was run against these 40 tests; restore bit-exact afterwards)
+ * ## Mutation check (each was run against these 52 tests; restore bit-exact afterwards)
  *
  *  1. In `studyWrite`, return before the entry is added -> 11 go red, every
  *     row of the table that ends in an entry. Drop `input.role !==
@@ -37,8 +49,8 @@
  *     Drop `graduationBefore !== "" &&` -> 3, the first answers.
  *  2. In `studyWrite`, compare the degree untrimmed (`subject !==
  *     storedSubject`) -> "spaces at either end are not a change".
- *  3. In `studyWrite`, drop `|| answer(stored.course)` from `degreeBefore` ->
- *     the older account's first degree.
+ *  3. In `degreeOf`, drop `|| answer(profile?.course)` -> the older account's
+ *     first degree, and the table.
  *  4. In `firestore.rules`, change `before.size() < 20` to `< 21` -> "the cap
  *     is one number"; change the key pattern's `{1,40}` to `{1,41}` -> "a key
  *     is held to one pattern".
@@ -54,12 +66,28 @@
  *     component draws it".
  *  8. In the form, drop the cap's early return, or show the error as the
  *     database worded it -> the two tests under "a refused save".
+ *  9. In `degreeOf`, fall back with `??` in place of `||` -> the table, and
+ *     "every answer is text". In `studyWrite`, read the degree before by hand
+ *     (`answer(stored.subject) || answer(stored.course)`) -> "the older field
+ *     of a profile is read in one function".
+ * 10. In src/features/admin/MemberItem.tsx, read `user.profile?.subject ??
+ *     user.profile?.course` by hand -> three go red, each naming the file:
+ *     the list of `course` readers, the list of files that call the function
+ *     and the list of files that read `subject` off a profile. Seed the
+ *     admin's box from `user.profile?.subject` in MemberEditForm.tsx -> "the
+ *     admin's box is filled from it both times".
+ * 11. In `firestore.rules`, make the rule's `degreeOf` read `course` first,
+ *     or delete either of the two clauses that hold the fields to text ->
+ *     "the rule reads it the same way" and "the rule holds the three fields
+ *     to text".
  */
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
+import { STORED_DEGREES } from "./lib/storedDegrees.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
 
@@ -72,7 +100,7 @@ const posix = (file) => relative(REPO_ROOT, file).split("\\").join("/");
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
 
 const { loadTs } = createLoader();
-const { studyWrite, newStudyChangeId, STUDY_CHANGE_ID, STUDY_CHANGES_FULL } = await loadTs(
+const { studyWrite, degreeOf, newStudyChangeId, STUDY_CHANGE_ID, STUDY_CHANGES_FULL } = await loadTs(
   "features/profile/studyChange.ts",
 );
 const { FIELD_LIMITS, normalizeUser } = await loadTs("lib/firestore/users.ts");
@@ -691,6 +719,307 @@ describe("who reads the record", () => {
       ["studyChanges?.length ?? 0,"],
       "the profile form reads how many entries there are and nothing else of them",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. What a degree is
+// ---------------------------------------------------------------------------
+
+const DEGREE_MODULE = "src/features/profile/studyChange.ts";
+
+/**
+ * Every read of a property called `name` in one file: `x.name`, `x?.name`,
+ * `x["name"]`, and `{ name }` taken out of something. Each comes with what it
+ * was read off, as written, and the function of the file it is in.
+ *
+ * Read with the compiler's parser, so a variable called `course` is not a
+ * read of a property called `course`, and neither is a word in a comment.
+ */
+function propertyReads(file, name) {
+  const text = readFileSync(file, "utf8");
+  if (!text.includes(name)) return [];
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const within = (node) => {
+    for (let up = node.parent; up; up = up.parent) {
+      if (ts.isFunctionDeclaration(up) && up.name) return up.name.text;
+      if ((ts.isArrowFunction(up) || ts.isFunctionExpression(up)) && ts.isVariableDeclaration(up.parent)) {
+        return up.parent.name.getText(source);
+      }
+    }
+    return null;
+  };
+  const reads = [];
+  const visit = (node) => {
+    let off = null;
+    if (ts.isPropertyAccessExpression(node) && node.name.text === name) {
+      off = node.expression;
+    } else if (
+      ts.isElementAccessExpression(node) &&
+      ts.isStringLiteralLike(node.argumentExpression) &&
+      node.argumentExpression.text === name
+    ) {
+      off = node.expression;
+    } else if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {
+      const key = node.propertyName ?? node.name;
+      // Taken out of a value (`= context`), or out of a parameter, which is
+      // read as the whole parameter with its type.
+      if (ts.isIdentifier(key) && key.text === name) off = node.parent.parent.initializer ?? node.parent.parent;
+    }
+    if (off) reads.push({ off: off.getText(source).replace(/\s+/g, " "), within: within(node) });
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return reads;
+}
+
+/** `file -> its reads of a property called name`, for every file under `src` that has one. */
+function filesReading(name, only = () => true) {
+  const found = new Map();
+  for (const file of walk(SRC)) {
+    const reads = propertyReads(file, name).filter(only);
+    if (reads.length > 0) found.set(posix(file), reads);
+  }
+  return found;
+}
+
+/** Read off something called a profile, which is how every such read in the tree is written. */
+const offAProfile = (read) => /profile/i.test(read.off);
+
+/**
+ * EVERY FILE UNDER `src` THAT READS A PROPERTY CALLED `course`, with what it
+ * is a property of. Both ways: a file that reads one and is not here fails,
+ * and an entry for a file that reads none fails.
+ *
+ * The older field of a profile is called `course`, and so is the course a
+ * public page is about. Every reader is listed so that the first kind stays
+ * at one: a second reader of a profile's `course` is a second opinion about
+ * what somebody's degree is.
+ */
+const READS_A_PROPERTY_CALLED_COURSE = new Map([
+  [DEGREE_MODULE, { of: "a profile", why: "`degreeOf`, the one reading of what somebody's degree is" }],
+  ["src/app/(public)/courses/page.tsx", { of: "a course", why: "the public list of courses: the course each entry is about" }],
+  ["src/app/(public)/courses/[courseId]/page.tsx", { of: "a course", why: "one course's public page" }],
+  ["src/app/(public)/courses/[courseId]/apply/page.tsx", { of: "a course", why: "the page that leads to one course's sign-up" }],
+  ["src/app/(public)/courses/[courseId]/weeks/[week]/page.tsx", { of: "a course", why: "one week of a course's public curriculum" }],
+  ["src/features/courses/fetchCourses.ts", { of: "a course", why: "the server lookups those public pages are built from" }],
+  ["src/features/courses/CourseDangerZone.tsx", { of: "a course", why: "the course an admin is archiving or destroying, handed in as a prop" }],
+  ["src/features/courses/useDestroy.ts", { of: "a course", why: "a destroy's manifest, which names the course it is for" }],
+]);
+
+/**
+ * EVERY FILE THAT CALLS `degreeOf`, with what it does with the degree. A page
+ * that shows somebody's degree, searches by it or fills a box with it is
+ * here, and reads neither field itself.
+ */
+const READS_THE_DEGREE = new Map([
+  ["src/features/admin/MemberItem.tsx", "shows it under the person's name, on the admin's page for one person"],
+  ["src/features/admin/MemberEditForm.tsx", "fills the box an admin edits it in, when the form opens and when it is put back"],
+  ["src/features/admin/ApprovalCard.tsx", "shows it on a join request"],
+  ["src/app/(app)/admin/(admin-only)/members/page.tsx", "searches the admin's list of people by it"],
+  ["src/app/(app)/dashboard/homeData.ts", "answers yes or no for Home: has this member said what they study"],
+]);
+
+/**
+ * EVERY FILE THAT READS `subject` STRAIGHT OFF A PROFILE, with why it does
+ * not go through the function. Each takes the newer field alone, on purpose,
+ * and none of them reads the older one.
+ */
+const READS_THE_NEWER_FIELD_ALONE = new Map([
+  [DEGREE_MODULE, "`degreeOf` itself"],
+  [
+    "src/features/profile/ProfileForm.tsx",
+    "the member's own box is the newer field alone. An older account types its degree there afresh, and the " +
+      "save notes that first degree with what the older field said (the table of writes above)",
+  ],
+  [
+    "src/lib/applications/applicant/account.ts",
+    "fills an application's About you step from the newer field alone, held to text and to its limit. What " +
+      "is confirmed there is saved on the application and never on the profile",
+  ],
+  [
+    "src/lib/firestore/applicationEmails.ts",
+    "the field of study a join request's emails name is the newer field alone",
+  ],
+]);
+
+describe("one function says what somebody's degree is", () => {
+  test("the table: each stored profile holds the degree written beside it", () => {
+    assert.ok(STORED_DEGREES.length >= 20, "the table has lost rows");
+    for (const row of STORED_DEGREES) {
+      assert.equal(degreeOf(row.stored), row.degree, `${JSON.stringify(row.stored)}: ${row.why}`);
+    }
+    // Nobody's profile, and an account with none.
+    assert.equal(degreeOf(null), "");
+    assert.equal(degreeOf(undefined), "");
+  });
+
+  test("every answer is text, whatever is stored", () => {
+    for (const row of STORED_DEGREES) {
+      assert.equal(typeof degreeOf(row.stored), "string", JSON.stringify(row.stored));
+    }
+    // What a page does with it: trims it, searches it, joins it to a line.
+    for (const stored of [{ subject: ["Medicine"] }, { subject: 7, course: { name: "Maths" } }, { course: true }]) {
+      assert.equal(degreeOf(stored).trim().toLowerCase(), "");
+    }
+  });
+
+  test("the table tries each thing a field can hold in place of an answer, beside an older field that has one", () => {
+    // A row is only worth having where the two readings could part: the
+    // newer field holds something, it is not an answer, and the older one is.
+    const kindOf = (value) => (value === null ? "null" : Array.isArray(value) ? "list" : typeof value);
+    const tried = STORED_DEGREES.filter((row) => "subject" in row.stored && row.degree === "Maths").map((row) =>
+      row.stored.subject === "" ? "empty text" : kindOf(row.stored.subject),
+    );
+    assert.deepEqual(tried.sort(), ["boolean", "empty text", "list", "null", "number", "object"]);
+  });
+
+  test("the write reads the degree through it, before and after", () => {
+    const code = stripSource(read(DEGREE_MODULE), { keepStrings: true });
+    assert.match(code, /const degreeBefore = degreeOf\(stored\);/);
+    assert.match(code, /degreeOf\(\{ \.\.\.stored, subject \}\)/);
+  });
+
+  describe("the rule in firestore.rules", () => {
+    const rules = read("firestore.rules");
+    const users = rules
+      .slice(rules.indexOf("match /users/{uid} {"), rules.indexOf("// === collaborators ==="))
+      // Comments out, and every run of spaces to one, so the lines can be read as written.
+      .replace(/\/\/.*$/gm, "")
+      .replace(/\s+/g, " ");
+
+    test("reads it the same way: the newer field where it is an answer, otherwise the older one", () => {
+      for (const line of [
+        "function studyField(data, field) { return data.get(['profile', field], ''); }",
+        "function isAnswer(value) { return value is string && value.size() > 0; }",
+        "function degreeOf(data) { return isAnswer(studyField(data, 'subject')) ? studyField(data, 'subject') : studyField(data, 'course'); }",
+      ]) {
+        assert.ok(
+          users.includes(line),
+          `the users block of firestore.rules does not carry \`${line}\`. The rule and \`degreeOf\` in ` +
+            `${DEGREE_MODULE} have to read a degree the same way: change both, and the table in ` +
+            "tests/lib/storedDegrees.mjs, together. The rules suite runs that table through the rule.",
+        );
+      }
+    });
+
+    test("holds the three fields to text, on a new account and on an account's own save", () => {
+      const three = (helper) =>
+        `${helper}('subject') && ${helper}('course') && ${helper}('expectedGraduation');`;
+      for (const line of [
+        "function isTextOrNothing(value) { return value == null || value is string; }",
+        `function newStudyAnswersAreText() { return ${three("newStudyAnswerIsText")} }`,
+        `function studyAnswersAreTextOrKept() { return ${three("studyAnswerIsTextOrKept")} }`,
+      ]) {
+        assert.ok(users.includes(line), `the users block of firestore.rules does not carry \`${line}\``);
+      }
+      // Each is asked where it has to be: once in the create rule, and once
+      // in the account's own update, before the clause that reads the degree.
+      const create = users.slice(users.indexOf("allow create:"), users.indexOf("function isTextOrNothing"));
+      assert.equal(create.split("&& newStudyAnswersAreText()").length - 1, 1, "the create rule asks it once");
+      const update = users.slice(users.indexOf("allow update:"));
+      const asked = update.indexOf("&& studyAnswersAreTextOrKept()");
+      assert.ok(
+        asked !== -1 && asked < update.indexOf("&& studyChangesHold()))"),
+        "an account's own update has to hold the three fields to text, and before it reads the degree: " +
+          "the degree is read one way only while those fields are text",
+      );
+    });
+  });
+
+  describe("who reads it", () => {
+    const course = filesReading("course");
+    const calling = [];
+    for (const file of walk(SRC)) {
+      if (posix(file) === DEGREE_MODULE) continue;
+      if (/\bdegreeOf\s*\(/.test(stripSource(readFileSync(file, "utf8"), { keepStrings: true }))) {
+        calling.push(posix(file));
+      }
+    }
+    const newer = filesReading("subject", offAProfile);
+
+    test("the walks read the tree, so the lists below are not empty by accident", () => {
+      assert.ok(course.size >= 5 && newer.size >= 2 && calling.length >= 3);
+      assert.ok(course.has(DEGREE_MODULE) && newer.has(DEGREE_MODULE));
+    });
+
+    test("every file that reads a property called `course` is listed, with what it is a property of", () => {
+      assert.deepEqual(
+        [...course.keys()].filter((file) => !READS_A_PROPERTY_CALLED_COURSE.has(file)),
+        [],
+        "these files read a property called `course` and are not in READS_A_PROPERTY_CALLED_COURSE. If it is " +
+          "a profile's older field, call `degreeOf` in its place: it is the one reading of what somebody's " +
+          "degree is, and the rule in firestore.rules reads it the same way. If it is a course, list the file.",
+      );
+      assert.deepEqual(
+        [...READS_A_PROPERTY_CALLED_COURSE.keys()].filter((file) => !course.has(file)),
+        [],
+        "these entries name a file that reads no property called `course`",
+      );
+      for (const [file, entry] of READS_A_PROPERTY_CALLED_COURSE) {
+        assert.ok(["a profile", "a course"].includes(entry.of), `${file}: ${entry.of}`);
+        assert.ok(entry.why.trim().length > 20, `${file} needs a reason a reader can check`);
+      }
+    });
+
+    test("the older field of a profile is read in one function", () => {
+      const profiles = [...READS_A_PROPERTY_CALLED_COURSE].filter(([, entry]) => entry.of === "a profile");
+      assert.deepEqual(profiles.map(([file]) => file), [DEGREE_MODULE]);
+      assert.deepEqual(
+        (course.get(DEGREE_MODULE) ?? []).map((one) => `${one.off}.course in ${one.within}`),
+        ["profile.course in degreeOf"],
+        "a profile's `course` is read once, inside `degreeOf`. Anything else that needs the degree calls it.",
+      );
+      // And no file listed for a course reads one off a profile.
+      for (const [file, entry] of READS_A_PROPERTY_CALLED_COURSE) {
+        if (entry.of !== "a course") continue;
+        assert.deepEqual(
+          (course.get(file) ?? []).filter(offAProfile).map((one) => one.off),
+          [],
+          `${file} is listed as reading a course's \`course\`, and reads one off a profile`,
+        );
+      }
+    });
+
+    test("every file that calls the function is listed, with what it does with the degree", () => {
+      assert.deepEqual(
+        calling.sort(),
+        [...READS_THE_DEGREE.keys()].sort(),
+        "the files that call `degreeOf` are not the ones in READS_THE_DEGREE. A page that shows somebody's " +
+          "degree, searches by it or fills a box with it is listed with what it does.",
+      );
+      for (const [file, why] of READS_THE_DEGREE) {
+        assert.ok(why.trim().length > 20, `${file} needs a reason a reader can check`);
+      }
+    });
+
+    test("every file that reads `subject` straight off a profile is listed, with why it may", () => {
+      assert.deepEqual(
+        [...newer.keys()].sort(),
+        [...READS_THE_NEWER_FIELD_ALONE.keys()].sort(),
+        "the files that read `subject` straight off a profile are not the ones in " +
+          "READS_THE_NEWER_FIELD_ALONE. Something that shows or seeds somebody's degree calls `degreeOf`. A " +
+          "file that wants the newer field alone is listed with why.",
+      );
+      for (const [file, why] of READS_THE_NEWER_FIELD_ALONE) {
+        assert.ok(why.trim().length > 10, `${file} needs a reason a reader can check`);
+      }
+      // A page that calls the function reads neither field by hand.
+      assert.deepEqual([...READS_THE_DEGREE.keys()].filter((file) => newer.has(file) || course.has(file)), []);
+      // In the function's own module the newer field is read off a profile
+      // in the function, and nowhere else.
+      assert.deepEqual(
+        newer.get(DEGREE_MODULE).map((one) => `${one.off}.subject in ${one.within}`),
+        ["profile.subject in degreeOf"],
+      );
+    });
+
+    test("the admin's box is filled from it both times: when the form opens, and when it is put back", () => {
+      const form = stripSource(read("src/features/admin/MemberEditForm.tsx"), { keepStrings: true });
+      assert.match(form, /useState\(degreeOf\(user\.profile\)\)/);
+      assert.match(form, /setSubject\(degreeOf\(user\.profile\)\)/);
+      assert.equal([...form.matchAll(/\bdegreeOf\(/g)].length, 2);
+    });
   });
 });
 

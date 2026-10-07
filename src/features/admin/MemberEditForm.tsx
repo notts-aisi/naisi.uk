@@ -6,6 +6,7 @@ import CountedTextarea from "@/components/ui/CountedTextarea";
 import GraduationSelect from "@/components/ui/GraduationSelect";
 import StatusSelect from "@/components/ui/StatusSelect";
 import { Field, Input } from "@/components/ui/Input";
+import { degreeOf } from "@/features/profile/studyChange";
 import {
   FIELD_LIMITS,
   STATUSES_WITH_GRADUATION,
@@ -38,9 +39,7 @@ export default function MemberEditForm({ user }: Props) {
   const [universityEmail, setUniversityEmail] = useState(user.profile?.universityEmail ?? "");
   const [status, setStatus] = useState<AffiliationStatus | "">(user.profile?.status ?? "");
   const [statusOther, setStatusOther] = useState(user.profile?.statusOther ?? "");
-  const [subject, setSubject] = useState(
-    user.profile?.subject ?? user.profile?.course ?? "",
-  );
+  const [subject, setSubject] = useState(degreeOf(user.profile));
   const [expectedGraduation, setExpectedGraduation] = useState(
     user.profile?.expectedGraduation ?? "",
   );
@@ -57,7 +56,7 @@ export default function MemberEditForm({ user }: Props) {
     setUniversityEmail(user.profile?.universityEmail ?? "");
     setStatus(user.profile?.status ?? "");
     setStatusOther(user.profile?.statusOther ?? "");
-    setSubject(user.profile?.subject ?? user.profile?.course ?? "");
+    setSubject(degreeOf(user.profile));
     setExpectedGraduation(user.profile?.expectedGraduation ?? "");
     setMotivation(user.profile?.motivation ?? "");
     setInterests(user.profile?.interests ?? "");
