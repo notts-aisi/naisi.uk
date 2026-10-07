@@ -1,0 +1,17 @@
+/*
+  The link to the application form. The page that draws it gives it its look,
+  as a button or as a line of text. All that is set here is a target tall
+  enough for a thumb, written so that any class of the page's wins over it
+  whichever stylesheet loads first.
+*/
+
+:where(.link) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* The target is already 44px tall at every width. Nothing to change. */
+}

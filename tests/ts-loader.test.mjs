@@ -350,6 +350,13 @@ const USERS = new Map([
       "templates behind it are compiled for real",
   ],
   [
+    "applications-public-term.test.mjs",
+    "executes the lookup a public page asks what a visitor may be told about this term, against a " +
+      "database that records its queries, and renders the three components a page draws the term " +
+      "with (all .tsx) to HTML, because the stage, what leaves for a visitor's page and the words " +
+      "and dates printed for each stage are decided by the code that runs",
+  ],
+  [
     "applications-review-routes.test.mjs",
     "executes the review loaders, builders and writers under src/lib/applications/review with " +
       "access.ts and the real eligibility bar underneath, against an in-memory Firestore, " +
