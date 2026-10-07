@@ -14,18 +14,28 @@
 
    A column refuses touch scrolling so that a finger paints. The
    page scrolls from anywhere else.
+
+   NOTHING MOVES THE WEEK. Every box above it is always on the
+   page at one height, and the route by typing sits under it, so
+   opening that panel, adding a time and removing one all happen
+   below the week. A rule added above the week has to keep that:
+   a fixed height, never one that follows its contents.
    ============================================================ */
 
 .when {
   gap: var(--space-5);
 }
 
-.bar {
-  display: flex;
-  flex-wrap: wrap;
+/* === Above the week ===
+   The total, and beside it the line that says what was just done. On a phone
+   the day strip and the two day actions sit between the two. */
+
+.top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 8px 16px;
+  column-gap: var(--space-4);
+  min-width: 0;
 }
 
 .total {
@@ -33,6 +43,9 @@
   color: var(--color-text-muted);
   font-size: 16px;
   line-height: 1.5;
+  /* One line whatever it says. At its longest it is 290px wide on a phone, and
+     on a 320px screen that wrapped it and pushed the week down a line. */
+  white-space: nowrap;
 }
 
 .total strong {
@@ -40,7 +53,50 @@
   font-weight: 600;
 }
 
-/* === Typing a time instead === */
+/* What was just done, and Undo. There are two of these boxes, one above the
+   week and one in the typed panel, and the line is drawn in whichever the
+   change was made from. A box keeps this height empty or full, and the words
+   clamp to the two lines it holds, so the line coming and going moves nothing. */
+.said {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  min-width: 0;
+  height: 2.75rem;
+  text-align: right;
+}
+
+.saidText {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.undo {
+  flex: none;
+}
+
+/* === Typing a time instead ===
+   Under the week: the list in the panel grows by a row with every time, and
+   anything above the week would push it down the page. */
+
+.typing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin-top: calc(var(--space-3) * -1);
+}
+
+.typeLink {
+  align-self: flex-start;
+}
 
 .typed {
   display: flex;
@@ -50,6 +106,23 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
+}
+
+/* In the panel the line reads from the left, under the fields it answers. Its
+   box sits 8px from the row above and from the list below. */
+.typed .said {
+  justify-content: flex-start;
+  margin-block: calc(var(--space-1) * -1);
+  text-align: left;
+}
+
+/* The panel opens off the screen as often as on it, and so does the entry a
+   press on a block asks for. Both are brought into view with room to spare
+   for the site's header, which stays at the top of a laptop's screen. */
+.typed,
+.remove {
+  scroll-margin-top: calc(var(--header-height) + var(--space-4));
+  scroll-margin-bottom: var(--space-4);
 }
 
 .typedRow {
@@ -109,7 +182,6 @@
 .day {
   appearance: none;
   -webkit-appearance: none;
-  flex: 1 1 0;
   min-width: 0;
   min-height: 56px;
   display: flex;
@@ -150,20 +222,6 @@
 
 .dot[data-on="true"] {
   background: var(--color-accent-text);
-}
-
-.said {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-top: calc(var(--space-3) * -1);
-}
-
-.saidText {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: 14px;
-  line-height: 1.45;
 }
 
 /* === The week === */
@@ -305,11 +363,11 @@
 }
 
 @media (max-width: 48rem) { /* --bp-md */
-  .bar {
-    flex-direction: column-reverse;
-    align-items: flex-start;
-    gap: 0;
-    margin-top: calc(var(--space-3) * -1);
+  .top {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-5);
   }
 
   .total {
@@ -325,8 +383,12 @@
     grid-column: 1 / -1;
   }
 
+  /* Seven equal tracks, and not a row that shares out what is left: the day
+     showing has a thicker border, which in a shared-out row made it 2px wider
+     than the rest and nudged the strip along whenever the day changed. */
   .days {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 4px;
     margin-top: -10px;
   }
@@ -343,6 +405,31 @@
   .actions > * {
     flex: 1 1 auto;
     padding: 0 var(--space-3);
+  }
+
+  /* The line sits under the two day actions, which are what it most often
+     answers. The margins hand back the gaps on either side of its box: the
+     words end up as far from the buttons as from the first hour line, and
+     Undo stays 8px clear of the buttons above and the column below. */
+  .said {
+    justify-content: flex-start;
+    margin-top: calc(var(--space-3) * -1);
+    margin-bottom: calc(var(--space-5) * -1);
+    text-align: left;
+  }
+
+  .undo {
+    min-width: 2.75rem;
+    justify-content: center;
+  }
+
+  /* On a phone the form's own bars are held to the top and the bottom of the
+     screen (form.module.css: 59px and 73px, plus the safe areas). Nothing is
+     brought into view underneath either. If a bar grows, so do these. */
+  .typed,
+  .remove {
+    scroll-margin-top: calc(4.5rem + env(safe-area-inset-top, 0px));
+    scroll-margin-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
   }
 
   .board {

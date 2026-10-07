@@ -18,7 +18,10 @@
  *     folder is read, so a new step is held to the same rule the day it is
  *     added.
  *  3. THE STYLESHEETS keep the house mobile rules, and the components keep to
- *     real controls: the shared Select, no test ids, no framework image.
+ *     real controls: the shared Select, no test ids, no framework image. The
+ *     availability step also keeps its route by typing UNDER the week, with
+ *     nothing above the week that comes and goes, so that nothing the step
+ *     does moves the grid a person is painting on.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -774,6 +777,89 @@ describe("the components keep to real controls", () => {
     assert.ok(when.includes("Add times by typing instead"));
     assert.match(when, /typedRun\(fromText, toText, grid\)/);
     assert.match(when, /event\.key === "Delete" \|\| event\.key === "Backspace"/);
+  });
+
+  test("availability: the route by typing sits under the week, and nothing above the week comes and goes", () => {
+    // The owner's instruction of 7 October 2026. The typed panel used to open
+    // ABOVE the day strip and the grid, and its list grows by a row with every
+    // time: measured in a browser, opening it moved the grid down 265px on a
+    // phone (126px on a laptop), the first time added another 113px, and every
+    // time after that 48px. With the link and the panel under the week the
+    // same measurements read 0px, for opening, adding, removing and Undo, at
+    // 320, 390, 768, 800, 1024 and 1440 wide. No browser runs in this suite,
+    // so what is held here is each thing that made that true.
+    const when = codeOf("AvailabilityStep.tsx");
+    const opens = "<div className={`${form.body} ${form.bodyWide} ${styles.when}`}>";
+    assert.equal(when.split(opens).length, 2, "the step's outer element was not found exactly once");
+    const markup = when.slice(when.indexOf(opens));
+    const at = (needle) => {
+      const index = markup.indexOf(needle);
+      assert.notEqual(index, -1, `not in the step's markup: ${needle}`);
+      assert.equal(markup.indexOf(needle, index + 1), -1, `in the step's markup more than once: ${needle}`);
+      return index;
+    };
+    const board = at("<div className={styles.board}");
+
+    // 1. The order on the page: the week, then the link, then the panel the
+    //    link opens. The link still says what it opens and whether it is open,
+    //    and the panel still carries its name.
+    const link = at("Add times by typing instead");
+    const panel = at('<div id={panelId} ref={panelRef} className={styles.typed} role="group" aria-label="Add times by typing">');
+    assert.ok(board < link, "the link to the typed panel is above the week");
+    assert.ok(link < panel, "the typed panel is above its own link");
+    assert.ok(at("aria-expanded={typing}") > board && at("aria-expanded={typing}") < link);
+    assert.ok(at("aria-controls={panelId}") > board && at("aria-controls={panelId}") < link);
+    for (const inPanel of ["<div className={styles.typedRow}>", "styles.typedAdd", '<ul className={styles.typedList} aria-label="Your times">']) {
+      assert.ok(at(inPanel) > panel, `no longer inside the typed panel: ${inPanel}`);
+    }
+
+    // 2. Above the week no element is drawn only some of the time: one that
+    //    came and went there would move the week by its own height. (The words
+    //    inside a box may change; `<>` is words, and is let through.)
+    const above = markup.slice(0, board);
+    assert.equal(/(?:\?|&&|\|\|)\s*\(?\s*<[A-Za-z]/.test(above), false, "an element above the week is drawn only some of the time");
+    for (const always of ['<p role="status" className={styles.total}>', '<div role="group" aria-label="Day" className={styles.days}>', "<div className={styles.actions}>"]) {
+      assert.ok(at(always) < board, `no longer above the week: ${always}`);
+    }
+
+    // 3. The line that says what was just done, with Undo, is one line drawn
+    //    in one of two boxes that are both always there: above the week, or in
+    //    the panel when that is where the change was made.
+    assert.equal(markup.split("<div className={styles.said}>").length, 3, "the line has two boxes, one above the week and one in the panel");
+    assert.ok(at("<div className={styles.said}>{undoInPanel ? null : saidLine}</div>") < board);
+    assert.ok(at("<div className={styles.said}>{undoInPanel ? saidLine : null}</div>") > panel);
+    assert.match(when, /const undoInPanel = undo !== null && undo\.typed && typing;/);
+    assert.equal(when.split(">\n        Undo\n").length, 2, "Undo is written once, in the one line");
+
+    // 4. The stylesheet keeps those boxes at one height whatever is in them.
+    const css = sourceOf("availability.module.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    const rule = (selector) => {
+      const found = topLevelBlocks(css).filter((block) => block.prelude === selector);
+      assert.equal(found.length, 1, `${selector} has ${found.length} rules outside the phone block`);
+      return found[0].body;
+    };
+    const declares = (body, property, value) => body.split(";").some((each) => each.trim() === `${property}: ${value}`);
+    assert.ok(declares(rule(".said"), "height", "2.75rem"), "the line's box follows its contents");
+    assert.equal(/min-height/.test(rule(".said")), false, "the line's box can grow");
+    assert.ok(declares(rule(".saidText"), "-webkit-line-clamp", "2"), "the line's words can outgrow their box");
+    assert.ok(declares(rule(".saidText"), "overflow", "hidden"));
+    // The total is one line whatever it says: wrapped, it pushed the week down.
+    assert.ok(declares(rule(".total"), "white-space", "nowrap"), "the total can wrap onto a second line");
+    // The day strip is seven equal tracks: shared out as a row, the thicker
+    // border of the day showing made it 2px wider and nudged the others along
+    // whenever a typed time changed the day.
+    const phone = topLevelBlocks(css).filter((block) => block.prelude.startsWith("@media")).at(-1).body;
+    assert.match(phone, /\.days\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(7, minmax\(0, 1fr\)\);/);
+
+    // 5. Opening the panel moves the keyboard into it and brings it into view,
+    //    since it now opens off the screen as often as on it; so does a press
+    //    on a painted block, twice running if it is pressed twice. Nobody who
+    //    has asked for less motion is given a gliding scroll.
+    assert.match(when, /setPanelFocus\(opening \? \{ run: null \} : null\);/);
+    assert.match(when, /setPanelFocus\(\{ run: runKey\(day, run\) \}\);/);
+    assert.match(when, /target\?\.focus\(\{ preventScroll: true \}\);/);
+    assert.match(when, /const still = window\.matchMedia\("\(prefers-reduced-motion: reduce\)"\)\.matches;/);
+    assert.match(when, /\(entry \?\? panel\)\.scrollIntoView\(\{ block: "nearest", behavior: still \? "instant" : "smooth" \}\);/);
   });
 
   test("a client file in the form imports nothing that only runs on the server", () => {
