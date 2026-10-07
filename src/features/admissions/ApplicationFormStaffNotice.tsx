@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Badge from "@/components/ui/Badge";
 import { EDITED_IN_THE_APPLICATION_FORM } from "@/lib/admissions/formFence";
+import { applicationFormPath } from "@/lib/applications/editor/olderRounds";
 import ApplicationFormDangerZone from "./ApplicationFormDangerZone";
 import styles from "./RoundEditor.module.css";
 
@@ -14,6 +15,10 @@ import styles from "./RoundEditor.module.css";
  * sentence saying where a form is edited, and, for an admin, the danger zone.
  * See `src/lib/admissions/formFence.ts` for the rule.
  *
+ * `canOpen` draws the link to the form's own pages. The page that renders
+ * this decides it, with the question those pages ask of a caller, so the link
+ * is only ever offered to somebody it will open for.
+ *
  * A server component. The sentence is the same one the older routes answer
  * with, read from the same constant, so the page and a refused save cannot
  * come to say different things.
@@ -26,11 +31,13 @@ export default function ApplicationFormStaffNotice({
   label,
   academicYear,
   isAdmin,
+  canOpen,
 }: {
   roundId: string;
   label: string;
   academicYear: string;
   isAdmin: boolean;
+  canOpen: boolean;
 }) {
   return (
     <div className={styles.column}>
@@ -46,6 +53,11 @@ export default function ApplicationFormStaffNotice({
 
       <section className={styles.section}>
         <p style={{ margin: 0 }}>{EDITED_IN_THE_APPLICATION_FORM}</p>
+        {canOpen && (
+          <p style={{ margin: "var(--space-3) 0 0" }}>
+            <Link href={applicationFormPath(roundId)}>Open the application form</Link>
+          </p>
+        )}
       </section>
 
       {isAdmin && (

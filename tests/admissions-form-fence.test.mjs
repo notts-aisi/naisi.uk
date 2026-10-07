@@ -1292,6 +1292,16 @@ describe("the loaders an older surface may reach a round through", () => {
       "the editor is drawn before the notice",
     );
     assert.ok(at(bare, "requireAdmissionsPage(") < at(bare, "applicationFormHere("), "the gate has to run before the round is read");
+    // The link to the form's own pages is decided here, with the question
+    // those pages ask of a caller, of the stored document, and only once the
+    // caller is known to be somebody who may see the round.
+    assert.ok(importsFrom(reading.scope, "canSeeForm", "@/lib/applications/access"));
+    assert.match(body, /canOpen:\s*canSeeForm\s*\(\s*user\s*,\s*normaliseFormFields\s*\(\s*snap\.data\s*\(\s*\)\s*\)\s*\)/);
+    assert.ok(
+      at(body, /!canSeeRound\s*\(/) < at(body, /\bcanSeeForm\s*\(/),
+      "the page works out who may open the form before it knows the caller may see the round",
+    );
+    assert.match(bare, /<ApplicationFormStaffNotice\b[^>]*\bcanOpen=\{form\.canOpen\}/);
   });
 
   test("the staff notice keeps the danger zone, for an admin, and nothing else of the editor", () => {
@@ -1302,6 +1312,11 @@ describe("the loaders an older surface may reach a round through", () => {
     for (const older of ["RoundEditor", "StagesSection", "patchRound", "setRoundStatus", "setRoundRoles"]) {
       assert.ok(!new RegExp(String.raw`\b${older}\b`).test(notice.bare), `the notice reaches for ${older}`);
     }
+    // The one way on from the notice is the form's own pages, and it is drawn
+    // only when the page says this caller is somebody they open for.
+    assert.ok(importsFrom(notice.scope, "applicationFormPath", "@/lib/applications/editor/olderRounds"));
+    assert.match(notice.bare, /\{\s*canOpen\s*&&\s*\(\s*<p\b[^>]*>\s*<Link href=\{applicationFormPath\(roundId\)\}>/);
+    assert.equal(countOf(notice.bare, /<Link\b/), 2, "the notice has grown a link this test does not know about");
     const zone = read(join(SRC, "features", "admissions", "ApplicationFormDangerZone.tsx"));
     assert.match(zone.kept, /kind="admission-round"/);
     assert.ok(importsFrom(zone.scope, "DestroyPanel", "@/features/destroy/DestroyPanel"));
@@ -2192,21 +2207,36 @@ describe("what the older pages return for an application form", () => {
     const { default: ApplicationFormStaffNotice } = await notices.loadTs("features/admissions/ApplicationFormStaffNotice.tsx");
     const props = { roundId: FORM_ID, label: "Autumn 2026", academicYear: "2026/27" };
 
-    const admin = render(ApplicationFormStaffNotice, { ...props, isAdmin: true });
+    const hrefs = (html) => [...html.matchAll(/href="([^"]*)"/g)].map((match) => match[1]);
+    const OWN_PAGES = `/admin/admissions/forms/${FORM_ID}`;
+
+    const admin = render(ApplicationFormStaffNotice, { ...props, isAdmin: true, canOpen: true });
     assert.match(admin, /<h1[^>]*>Autumn 2026<\/h1>/);
     assert.ok(admin.includes(`<p style="margin:0">${fence.EDITED_IN_THE_APPLICATION_FORM}</p>`), admin);
     assert.match(admin, /<a href="\/admin\/admissions">/);
+    assert.ok(admin.includes(`<a href="${OWN_PAGES}">Open the application form</a>`), admin);
     assert.ok(
       admin.includes(`<div data-danger-zone="${FORM_ID}" data-label="Autumn 2026" data-subtitle="Application form · 2026/27"></div>`),
       admin,
     );
 
-    const reviewer = render(ApplicationFormStaffNotice, { ...props, isAdmin: false });
+    const reviewer = render(ApplicationFormStaffNotice, { ...props, isAdmin: false, canOpen: true });
     assert.ok(reviewer.includes(fence.EDITED_IN_THE_APPLICATION_FORM));
     assert.ok(!reviewer.includes("data-danger-zone"), "somebody who is not an admin was drawn the danger zone");
-    // One link, and it goes back to the list. The form's own editor is where
-    // the next link belongs once it has an address.
-    assert.deepEqual([...reviewer.matchAll(/href="([^"]*)"/g)].map((match) => match[1]), ["/admin/admissions"]);
+    // Two links and no more: back to the list, and on to the form's own
+    // pages. This was one link, back to the list, while the form's pages had
+    // no address. They have one now, so the notice leads to it, for somebody
+    // those pages open for.
+    assert.deepEqual(hrefs(reviewer), ["/admin/admissions", OWN_PAGES]);
+
+    // Somebody who may see the round and is named on no programme (a course
+    // author on no form) is not offered the way on: the form's own pages
+    // would tell them there is no form there. For them it is still one link,
+    // and it goes back to the list.
+    const author = render(ApplicationFormStaffNotice, { ...props, isAdmin: false, canOpen: false });
+    assert.ok(author.includes(fence.EDITED_IN_THE_APPLICATION_FORM));
+    assert.deepEqual(hrefs(author), ["/admin/admissions"]);
+    assert.ok(!author.includes("Open the application form"), author);
   });
 
   test("a form with no year says so in fewer words, and its name is text, never markup", async () => {

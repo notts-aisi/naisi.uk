@@ -119,6 +119,13 @@ export default function RoundList() {
         can be offered a fellowship place without applying twice.
       </p>
 
+      {/* The term's application form has screens of its own. Everybody this
+          page admits is admitted there too, and is listed the forms they work
+          on, so the link never leads to a page that turns them away. */}
+      <p className={styles.intro}>
+        <Link href="/admin/admissions/forms">Application forms</Link>
+      </p>
+
       {canAuthor && (
         <Card as="section" padding="md">
           <h2 style={{ fontSize: "var(--text-lg)", marginBottom: "var(--space-4)" }}>

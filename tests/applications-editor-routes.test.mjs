@@ -1337,4 +1337,15 @@ describe("the older round console refuses to edit an application form", () => {
     const source = code(join(REPO_ROOT, "src", "features", "admissions", "RoundList.tsx"));
     assert.match(source, /formIds\.has\(round\.id\)\s*\?\s*applicationFormPath\(round\.id\)/);
   });
+
+  test("the older Admissions page links to the application forms, at an address that is a page", () => {
+    // The form's own screens are in neither the sidebar nor the admin tabs, so
+    // this link is how somebody reaches them without typing an address.
+    const source = code(join(REPO_ROOT, "src", "features", "admissions", "RoundList.tsx"));
+    assert.match(source, /<Link href="\/admin\/admissions\/forms">Application forms<\/Link>/);
+    assert.ok(
+      statSync(join(REPO_ROOT, "src", "app", "(app)", "admin", "admissions", "forms", "page.tsx")).isFile(),
+      "the link leads to a page that is gone",
+    );
+  });
 });
