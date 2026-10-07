@@ -2,6 +2,7 @@ import "server-only";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
+import { VIEW_AS_NOTICE } from "@/features/applications/viewAsNotice";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentCollaborator, type SessionUser } from "@/lib/firebase/session";
 import { projectFormForApplicant } from "@/lib/applications/applicant/project";
@@ -41,6 +42,15 @@ import styles from "./form.module.css";
  * A session does not say whether there is a join request (the session reads
  * a missing account document as an account that is waiting), so that is
  * asked of the document itself: `view.joined`.
+ *
+ * ## A view-as session is not the applicant
+ *
+ * While an admin is viewing the site as a member, the member's own
+ * application is not read here at all: not the draft, not what was sent, not
+ * the account answers the first step shows. The form's own existence is
+ * asked, so a round that is not a form still falls through to the page, and
+ * a notice is drawn where the form would have been. The check is made before
+ * `loadApplicantView`, which is the first read of anything of the member's.
  */
 
 function StateCard({
@@ -206,6 +216,19 @@ export async function renderApplicationForm({
             returnTo={returnTo}
           />
         )}
+      </ApplicationsRoot>
+    );
+  }
+
+  if (viewingAs) {
+    // The session is a member's, borrowed by an admin. Nothing of the
+    // member's is read: only whether there is a form here to say so about.
+    if (!(await loadVisibleForm(db, roundId, now))) return null;
+    return (
+      <ApplicationsRoot className={`${styles.tokens} ${styles.root}`}>
+        <StateCard title={VIEW_AS_NOTICE.title}>
+          <p className={styles.stateBody}>{VIEW_AS_NOTICE.body}</p>
+        </StateCard>
       </ApplicationsRoot>
     );
   }

@@ -216,6 +216,21 @@ const review = (scores) => ({
   updatedAt: null,
 });
 
+/**
+ * Somebody who is not an admin, with a row that has scored nothing, reading
+ * an application that is listed on `name` and on AGI Strategy: what the
+ * blindness rule in `scoring.ts` is asked.
+ */
+const reading = (name, roles) => ({
+  viewerIsAdmin: false,
+  roles,
+  form: FORM,
+  sets: SETS,
+  sent: content([AGI]),
+  listed: [name, AGI],
+  mine: review({}),
+});
+
 /** A Firestore that answers the one read `setProgrammeRoles` makes before it refuses. */
 function formDb() {
   const writes = [];
@@ -618,12 +633,26 @@ const CONTRACT = {
       assert.equal(scoring.reviewerScore(review({ "agi.event": 4 }), [name, "agi.event"]), 4);
     },
     hasScored: (name) => assert.equal(scoring.hasScored(review({}), [name]), false),
+    // The rule is asked about a person reading an application: every
+    // programme the application is listed on, and every role the person
+    // holds, each by id. A name every object carries is listed here beside a
+    // real programme, with a row that has scored nothing and roles that are a
+    // plain object. Read as a programme they review, or as a score they gave,
+    // it must not end a first review.
+    firstReviewOf: (name) => {
+      assert.deepEqual(scoring.firstReviewOf(reading(name, {})), { over: false, needs: "overall-comment" });
+      assert.deepEqual(
+        scoring.firstReviewOf(reading(name, { [AGI]: "reviewer" })),
+        { over: false, needs: "scores", programmeIds: [AGI] },
+        `${name} was read as a programme with something to score, or as a score`,
+      );
+    },
     otherReviewsShownTo: (name) =>
       // Somebody who is not an admin and has scored nothing. Read as scored
       // under a name every object carries, they would be shown what the other
       // reviewer gave before giving their own.
       assert.equal(
-        scoring.otherReviewsShownTo(false, review({}), [name], { revealOtherReviews: false }),
+        scoring.otherReviewsShownTo(reading(name, { [AGI]: "reviewer" })),
         false,
         `a reviewer who had scored nothing was read as having scored ${name}`,
       ),
@@ -635,7 +664,7 @@ const CONTRACT = {
       const mine = review({});
       const theirs = { ...review({ "agi.event": 5 }), reviewerUid: "somebody-else" };
       assert.deepEqual(
-        scoring.reviewsVisibleTo("reviewer", [mine, theirs], [name], { revealOtherReviews: false }),
+        scoring.reviewsVisibleTo("reviewer", [mine, theirs], reading(name, { [AGI]: "reviewer" })),
         [mine],
         `a reviewer who had scored nothing was read as having scored ${name}`,
       );
@@ -644,9 +673,18 @@ const CONTRACT = {
       const mine = review({});
       const theirs = { ...review({ "agi.event": 5 }), reviewerUid: "somebody-else" };
       assert.equal(
-        scoring.hiddenReviewCount("reviewer", [mine, theirs], [name], { revealOtherReviews: false }),
+        scoring.hiddenReviewCount("reviewer", [mine, theirs], reading(name, { [AGI]: "reviewer" })),
         1,
       );
+    },
+    reviewingHasBegunOn: (name) => {
+      // An application that ranks such a name beside a real programme, and a
+      // review of it that says something. The name is no programme, so
+      // nothing is on its list and no reviewing has begun on it.
+      const application = { uid: "applicant", sent: content([name, AGI]), result: null, invitation: null };
+      const said = [{ ...review({ "agi.event": 4 }), overallComment: "Clear." }];
+      assert.equal(scoring.reviewingHasBegunOn(FORM, name, [application], said), false);
+      assert.equal(scoring.reviewingHasBegunOn(FORM, AGI, [application], said), true);
     },
     formatScore: "formats a number and takes no id",
     cleanScores: (name) =>
@@ -689,6 +727,8 @@ const CONTRACT = {
     listDecisions: "queries a collection and keys the answer in a Map",
     loadDecision: "addresses a document by id and normalises it; reads no map by an id",
     listReviews: "queries a collection and normalises each document; reads no map by an id",
+    loadReviewedIn:
+      "queries a collection through a transaction and addresses each application the rows name by id; reads no map by an id",
     listReviewsOf: "queries a collection and normalises each document; reads no map by an id",
   },
   "validate.ts": {

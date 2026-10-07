@@ -21,7 +21,7 @@
  *    one that calls `requireAdmissionsPage()`. This asserts every admin page
  *    lives in one of those trees and that every gate is still in place, so a course
  *    permission holder cannot reach /admin (approvals), /admin/members,
- *    /admin/danger-zone or any other section. A new page dropped straight into
+ *    /admin/deliverability or any other section. A new page dropped straight into
  *    `src/app/(app)/admin/` fails here, which is the point: that location has
  *    no role gate of its own any more.
  */
@@ -50,7 +50,7 @@ const GATED_TREES = [
   {
     dir: "(admin-only)",
     gate: "requireAdminPage",
-    why: "full admins only: approvals, members, collaborators, registrations, projects, newsletter, subscriptions, email designs, deliverability, task templates, site status, danger zone",
+    why: "full admins only: approvals, members, collaborators, registrations, projects, newsletter, subscriptions, email designs, deliverability, task templates, site status",
   },
   {
     dir: "courses",
@@ -75,7 +75,7 @@ const GATED_TREES = [
 const ADMIN_ONLY_ROUTES = [
   { route: "/admin", file: join("(admin-only)", "page.tsx") },
   { route: "/admin/members", file: join("(admin-only)", "members", "page.tsx") },
-  { route: "/admin/danger-zone", file: join("(admin-only)", "danger-zone", "page.tsx") },
+  { route: "/admin/deliverability", file: join("(admin-only)", "deliverability", "page.tsx") },
   { route: "/admin/subscriptions", file: join("(admin-only)", "subscriptions", "page.tsx") },
   { route: "/admin/email-designs", file: join("(admin-only)", "email-designs", "page.tsx") },
 ];

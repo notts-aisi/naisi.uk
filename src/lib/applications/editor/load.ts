@@ -7,8 +7,9 @@ import { isInTerm, tallyTerm, type TermTally } from "../decisions";
 import { FORM_VERSION, type ProgrammeSettings, type QuestionSetDoc } from "../model";
 import { isApplicationForm, isId, normaliseForm, type ApplicationForm } from "../normalise";
 import { loadForm, loadQuestionSets } from "../repo";
+import { reviewingHasBegunOn } from "../scoring";
 import { rankedProgrammes } from "../sections";
-import { listDecisions, listSentApplications } from "../staffRepo";
+import { listDecisions, listReviews, listSentApplications } from "../staffRepo";
 import { listCourseChoices, readsCourseDrafts } from "./courses";
 import { own } from "./own";
 import { eligibleReviewers, namesOnForm } from "./people";
@@ -191,6 +192,24 @@ export async function loadProgrammeForStaff(
   };
 }
 
+/**
+ * Has anybody reviewed an application on this programme's list? A yes or a
+ * no, for the settings page's scores switch: once reviewing has begun the
+ * switch is an admin's (`changeProgramme` decides the same thing again, inside
+ * its own transaction, when somebody presses it). Nobody is listed or counted.
+ */
+async function reviewingBegunOn(
+  db: Firestore,
+  form: ApplicationForm,
+  programmeId: string,
+): Promise<boolean> {
+  const [applications, reviews] = await Promise.all([
+    listSentApplications(db, form),
+    listReviews(db, form.round.id),
+  ]);
+  return reviewingHasBegunOn(form, programmeId, applications, reviews);
+}
+
 export type LoadedSetup = {
   form: ApplicationForm;
   sets: QuestionSetDoc[];
@@ -218,10 +237,12 @@ export async function loadSetup(
   if (loaded.role === "reviewer" || !canEditProgramme(user, loaded.form, programmeId)) {
     return { status: "not-yours" };
   }
-  const [sets, candidates, courses] = await Promise.all([
+  const [sets, candidates, courses, scoresHeld] = await Promise.all([
     loadQuestionSets(db, loaded.form.round.id),
     eligibleReviewers(db),
     listCourseChoices(db, loaded.programme.courseId, readsCourseDrafts(user)),
+    // Only somebody who is not an admin can be held, so only they are asked.
+    canRunTerm(user) ? false : reviewingBegunOn(db, loaded.form, programmeId),
   ]);
   return {
     status: "ok",
@@ -235,6 +256,7 @@ export async function loadSetup(
         candidates,
         courses,
         applications: loaded.applications,
+        scoresHeld,
       },
     },
   };

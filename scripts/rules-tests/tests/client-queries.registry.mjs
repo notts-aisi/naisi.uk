@@ -1925,7 +1925,7 @@ export const REGISTRY = [
     path: "tasks",
     clauses: ["where(visibility,==)"],
     unresolved:
-      "useTasks builds its constraint array conditionally and spreads it into query(), so the scanner can see the collection but not the clauses. The three shapes its callers actually produce are declared as three entries, found by reading every call site: /committee/tasks and the admin's Home pass { visibility: 'committee' }, /tasks and MyWorkSummary pass { completerUid }, and /admin/danger-zone passes neither. `projectId` and `source` are supported by the hook and passed by nobody. Each of the three names the hook in `callers`, and the test holds every file that calls it to a pin in one of them, so a new caller is read before it ships.",
+      "useTasks builds its constraint array conditionally and spreads it into query(), so the scanner can see the collection but not the clauses. The three shapes its callers actually produce are declared as three entries, found by reading every call site: /committee/tasks and the admin's Home pass { visibility: 'committee' }, /tasks and MyWorkSummary pass { completerUid }, and the same two pass neither in the render before sign-in resolves. `projectId` and `source` are supported by the hook and passed by nobody. Each of the three names the hook in `callers`, and the test holds every file that calls it to a pin in one of them, so a new caller is read before it ships.",
     reason:
       "The committee board's query. `visibility == 'committee'` matches the rule's committee branch, but that branch is still resource-dependent (it reads the document's visibility), so the clause alone does not save a caller who is not SU committee: the board is gated to SU committee and admins in committee/layout.tsx for exactly that reason. The admin's Home issues the same shape for its count of tasks due this week; it is mounted only when the page has read the role as admin on the server, which is the one persona this shape is allowed for unconditionally.",
     outcomes: {
@@ -1983,10 +1983,6 @@ export const REGISTRY = [
     callers: "useTasks",
     pins: [
       {
-        file: "src/app/(app)/admin/(admin-only)/danger-zone/page.tsx",
-        text: "useTasks({ includeArchived: true })",
-      },
-      {
         file: "src/app/(app)/tasks/page.tsx",
         text: "useTasks(user ? { completerUid: user.uid, includeArchived: false } : {})",
       },
@@ -1999,9 +1995,9 @@ export const REGISTRY = [
     path: "tasks",
     clauses: [],
     unresolved:
-      "The third shape behind the spread: no constraints at all. Issued deliberately by /admin/danger-zone, and issued INCIDENTALLY by /tasks and MyWorkSummary in the render before Firebase Auth resolves, because both pass `{}` while `user` is still null. That transient copy is refused for a member and logged; it is not a bug, but it is why this shape has to be registered rather than treated as admin-only.",
+      "The third shape behind the spread: no constraints at all. No page asks for it on purpose. It is issued INCIDENTALLY by /tasks and MyWorkSummary in the render before Firebase Auth resolves, because both pass `{}` while `user` is still null. That transient copy is refused for a member and logged; it is not a bug, but it is why this shape has to be registered.",
     reason:
-      "Every task including archived ones, for the danger zone's wipe count. Only the admin branch of the rule is resource-independent, so this is an admin-only shape, which matches the (admin-only) route group it is mounted in.",
+      "Every task, with no clause to narrow it. Only the admin branch of the rule is resource-independent, so this is an admin-only shape: the copy a member's page issues before sign-in resolves is refused, and an admin's is allowed.",
     outcomes: {
       "signed-out": "refused",
       pending: "refused",

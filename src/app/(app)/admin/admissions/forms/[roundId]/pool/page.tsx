@@ -46,6 +46,6 @@ export default async function PooledApplicantsPage({
     );
   }
 
-  const board = await buildPoolBoard(db, form, new Date());
+  const board = await buildPoolBoard(db, form, user.uid, new Date());
   return <PoolBoard initial={board} />;
 }

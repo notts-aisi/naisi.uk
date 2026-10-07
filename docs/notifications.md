@@ -611,6 +611,19 @@ a fifth row cannot appear in the model and be missing from the page.
   un-awaited `POST /api/subscriptions/sync`); the push cells save themselves on
   toggle through a LEAF write at `profile.notifications.push`. Flipping a
   notification must not write somebody's half-typed preferred name.
+- **The Save button carries the member's own details too**, in the same
+  write: the name, the university email, and the degree and the graduation,
+  each of those two only when it changed. A change of either from one answer
+  to another also adds one entry to `studyChanges` on the member's document,
+  holding what the answer was and the server's time, so an admin can read the
+  earlier answer on that person's page (`/admin/members/[uid]`, and nowhere
+  else). The users rule refuses a member's own write that changes either
+  field without its entry, or that removes or rewrites an earlier one, so
+  that part of the write is built in one function,
+  `src/features/profile/studyChange.ts`, which the rules suite runs
+  (`scripts/rules-tests/tests/users-profile-self-edit.test.mjs`). The push
+  leaf write names neither field and is untouched by any of this. An admin's
+  edit of somebody's profile is not the member's change and adds no entry.
 - **The dirty flag** is what makes those two coexist. A push leaf write changes
   `users/{uid}`, the form's own snapshot listener fires with it, and refilling
   every field on each snapshot would throw away an unsaved edit. A one-shot
@@ -645,11 +658,17 @@ after the suppression list and before anything is rendered.
 | --- | --- |
 | The live site: `EMAIL_AUDIENCE=everyone` AND the production project | Everyone |
 | The mail server is this machine (the harness's catcher) | Everything, because nothing can leave it |
-| `EMAIL_AUDIENCE` lists addresses | Those addresses, and the harness's reserved domain |
-| The setting is missing, empty or unreadable | Nobody, apart from the harness's reserved domain |
+| `EMAIL_AUDIENCE` lists addresses | Those addresses |
+| The setting is missing, empty or unreadable | Nobody |
 
-Four things a maintainer has to keep:
+Five things a maintainer has to keep:
 
+- **The harness's own addresses are no exception to the last two rows.** An
+  address under `e2e.invalid` cannot receive mail, so a real mail server has
+  nothing to do with a message to one but bounce it. It is handed over only
+  where everything is: a mail server on this machine. A suite that executes
+  the real send path sets its mail server to a loopback address, which is
+  what its catcher is.
 - **The setting is added on each backend itself, never in `apphosting.yaml`.**
   Both backends read that file, so a value written there is a value staging
   inherits. `tests/email-audience.test.mjs` fails if the file declares it.

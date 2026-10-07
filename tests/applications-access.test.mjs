@@ -228,7 +228,14 @@ function makeDb(seed) {
       };
     },
     getAll: async (...refs) => refs.map((r) => snap(r.path)),
-    runTransaction: async (fn) => fn({ get: async (r) => snap(r.path), update: (r, patch) => update(r.path, patch) }),
+    // A transaction reads one document or several, as a real one does: the
+    // roles writer reads the people it names inside its transaction.
+    runTransaction: async (fn) =>
+      fn({
+        get: async (r) => snap(r.path),
+        getAll: async (...refs) => refs.map((r) => snap(r.path)),
+        update: (r, patch) => update(r.path, patch),
+      }),
     batch() {
       const writes = [];
       return {

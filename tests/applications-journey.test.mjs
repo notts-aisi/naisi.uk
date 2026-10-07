@@ -1743,16 +1743,19 @@ describe("one term, from nothing to settled", () => {
 
     test("a first review is blind to the others until it is complete", () => {
       const before = seen.lloydBeforeScoring.body.review;
-      assert.deepEqual(before.review.others, { count: 1, hidden: 1, visible: [] });
+      // Held back, and the payload says what ends it: his own scores, here.
+      const HELD = { count: 1, hidden: 1, until: { needs: "scores", here: true, elsewhere: [] }, visible: [] };
+      assert.deepEqual(before.review.others, HELD);
       assert.ok(!stringsIn(seen.lloydBeforeScoring.body).some((text) => text.includes("Strong on the law.")));
       const rowBefore = seen.lloydListBeforeScoring.body.board.rows.find((row) => row.uid === "amara");
       assert.equal(rowBefore.score, null, "the list's score column is blind too");
 
       // One of two answers scored is not a finished review.
-      assert.deepEqual(seen.lloydHalfScored.body.review.review.others, { count: 1, hidden: 1, visible: [] });
+      assert.deepEqual(seen.lloydHalfScored.body.review.review.others, HELD);
 
       const after = seen.lloydScored.body.review.review.others;
       assert.equal(after.hidden, 0);
+      assert.equal(after.until, null);
       assert.equal(after.visible.length, 1);
       assert.ok(stringsIn(after.visible).some((text) => text.includes("Strong on the law.")));
       const rowAfter = seen.lloydListAfterScoring.body.board.rows.find((row) => row.uid === "amara");

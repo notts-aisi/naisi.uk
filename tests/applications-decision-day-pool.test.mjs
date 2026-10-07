@@ -369,7 +369,8 @@ const session = (uid, role, suRecognised = false, displayName = uid) => ({
 const ZACH = session("zach", "admin", false, "Zach Levin");
 const ACTOR = { uid: "zach", displayName: "Zach Levin" };
 
-const board = async (db) => pool.buildPoolBoard(db, await repo.loadForm(db, ROUND), NOW);
+// The page is built for whoever is looking: the admin, who has not applied.
+const board = async (db) => pool.buildPoolBoard(db, await repo.loadForm(db, ROUND), ACTOR.uid, NOW);
 const row = (view, uid) => view.rows.find((r) => r.uid === uid);
 const decisionOf = (db, uid) => db.read(`admissionDecisions/${ROUND}__${uid}`);
 const applicationOf = (db, uid) => db.read(`admissionApplications/${ROUND}__${uid}`);

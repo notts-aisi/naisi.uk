@@ -56,11 +56,22 @@ import { formWindowRefusal } from "@/lib/applications/applicant/window";
  *
  * A form that is still being written, or has been archived, answers with the
  * same 404 as a round that does not exist.
+ *
+ * ## A view-as session is refused, the read included
+ *
+ * During one the session is a member's, borrowed by an admin, so "the
+ * caller's own application" would be somebody else's: the draft they have
+ * not sent to anybody, and answers the form promises no reader is shown. The
+ * GET refuses first, as the access-requirements route beside it does, and
+ * reads nothing.
  */
 
 type Ctx = { params: Promise<{ roundId: string }> };
 
 export async function GET(_req: Request, ctx: Ctx) {
+  const blocked = await assertNotImpersonating();
+  if (blocked) return blocked;
+
   const { roundId } = await ctx.params;
 
   const caller = await requireApplicant();

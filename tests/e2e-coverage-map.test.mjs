@@ -487,12 +487,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
   },
-  "/api/admin/nuke-tasks": {
-    reason:
-      "Admin CRUD: /api/admin/nuke-tasks answers one admin's deliberate press, and its failure lands on that admin's own screen.",
-    coverWhen:
-      "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
-  },
   "/api/admin/registrations": {
     reason:
       "Admin CRUD: /api/admin/registrations answers one admin's deliberate press, and its failure lands on that admin's own screen.",
@@ -1267,12 +1261,6 @@ const NOT_COVERED = {
   "/(app)/admin/(admin-only)/collaborators": {
     reason:
       "Admin CRUD: /(app)/admin/(admin-only)/collaborators is used by one admin, fails loudly on the screen of the person who pressed the button, and nothing member-facing waits on it.",
-    coverWhen:
-      "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
-  },
-  "/(app)/admin/(admin-only)/danger-zone": {
-    reason:
-      "Admin CRUD: /(app)/admin/(admin-only)/danger-zone is used by one admin, fails loudly on the screen of the person who pressed the button, and nothing member-facing waits on it.",
     coverWhen:
       "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
   },

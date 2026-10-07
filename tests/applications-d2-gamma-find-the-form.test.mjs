@@ -788,7 +788,12 @@ describe("the dashboard's way back to your applications", () => {
   test("the dashboard reads with the list's own loader, by the session's own uid", () => {
     assert.ok(DASHBOARD.includes('import { loadStatusRows } from "@/lib/admissions/statusHubData";'));
     assert.ok(DASHBOARD.includes("const rows = await loadStatusRows(db, uid, new Date());"));
-    assert.ok(DASHBOARD.includes("const applications = user ? await applicationsOf(user.uid) : [];"));
+    // And not at all while an admin is viewing the site as this member: the
+    // answer is then "could not be read", decided before the loader is called.
+    assert.ok(DASHBOARD.includes("const viewingAs = markerIsLive(await getImpersonator(), user?.uid ?? null);"));
+    assert.ok(DASHBOARD.includes("const applications = user ? await applicationsOf(user.uid, viewingAs) : [];"));
+    assert.ok(DASHBOARD.indexOf("if (viewingAs) return null;") < DASHBOARD.indexOf("const rows = await loadStatusRows("));
+    assert.ok(DASHBOARD.includes("if (viewingAs) return null;"));
     // Nothing a request could carry names whose applications are read.
     assert.ok(!/searchParams|params\b|cookies\(|headers\(/.test(DASHBOARD), "the dashboard reads something off the request");
   });

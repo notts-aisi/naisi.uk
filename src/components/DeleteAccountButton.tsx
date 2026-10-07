@@ -49,7 +49,7 @@ export default function DeleteAccountButton() {
           setError(null);
           setConfirming(true);
         }}
-        style={{ ...linkStyle, color: "var(--color-danger)" }}
+        style={{ ...linkStyle, color: "var(--color-danger-text)" }}
       >
         Delete account
       </button>

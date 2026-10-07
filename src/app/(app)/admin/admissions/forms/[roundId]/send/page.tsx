@@ -41,6 +41,6 @@ export default async function SendDecisionsPage({
     );
   }
 
-  const board = await buildSendBoard(db, form, new Date());
+  const board = await buildSendBoard(db, form, user.uid, new Date());
   return <SendBoard initial={board} />;
 }

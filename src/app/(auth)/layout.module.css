@@ -21,8 +21,7 @@
   /* Viewport-pinned under viewport-fit: cover, so it reaches the physical
      edges and takes the top and side insets itself, at every width. The bar
      and the page add their own gutters inside. Deliberately NO bottom inset
-     here: the legal links below carry it, and so does the sign-in step's
-     sticky action bar, and a third would stack on both. */
+     here: the legal links below carry it. */
   padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0
     env(safe-area-inset-left, 0px);
   overflow-x: hidden;
@@ -193,15 +192,12 @@
     overflow-y: auto;
     overscroll-behavior: contain;
   }
-  /* A flex column at least as tall as the screen under the bar, which is
-     what the sign-in step's stylesheet relies on to fill the screen and sit
-     its action bar flush with the bottom edge. No bottom padding, for the
-     same bar. The legal links come after, one scroll further down. */
+  /* A column, with the board's phone gutters. The card brings its own gap
+     under it, and the legal links follow straight after. */
   .main {
     display: flex;
     flex-direction: column;
-    min-height: 100%;
-    padding: var(--space-4) var(--space-4) 0;
+    padding: var(--space-6) var(--space-5) 0;
   }
   /* The initials and Sign out fit beside the brand; the address does not.
      It stays in the page for a screen reader. */

@@ -61,6 +61,14 @@ export const FIELD_LIMITS = {
   title: 60,
   bio: 500,
   maxPaidMembershipYears: 10,
+  /**
+   * How many of a member's own changes to their degree or graduation one
+   * account keeps (`UserDoc.studyChanges`). The users rule in firestore.rules
+   * carries the same number and refuses the next one; the profile form reads
+   * this one so it can say so before it tries. Nothing trims the record to
+   * make room: trimming is erasing.
+   */
+  maxStudyChanges: 20,
 } as const;
 
 /**
@@ -397,6 +405,48 @@ export function hasPaidMembership(
   return Boolean(user.paidMembershipYears?.includes(year));
 }
 
+/**
+ * One change a member made to their own degree or graduation, on their own
+ * profile page: what each field they changed said BEFORE, and when.
+ *
+ * Stored on the member's own document as a MAP, one entry per save, keyed by
+ * an id the browser makes up:
+ *
+ *   studyChanges: { "<id>": { at, subject?, expectedGraduation? } }
+ *
+ * A map and not a list, because Firestore refuses a server timestamp inside a
+ * list and accepts one inside a map. So `at` is the server's own time, the
+ * users rule holds it to exactly that, and a phone with the wrong clock can
+ * neither be refused for it nor date an entry as it likes.
+ *
+ * Three things a maintainer has to keep:
+ *
+ *  - THE SAVE WRITES IT. The profile form adds the entry in the same write as
+ *    the change (`src/features/profile/studyChange.ts`), and the users rule in
+ *    firestore.rules refuses a member's own write that changes either field
+ *    without one. A change is from one answer to another: filling a field
+ *    that was empty leaves no entry.
+ *  - NOTHING REMOVES ONE. The same rule refuses a member's own write that
+ *    takes an entry away or rewrites it, and no code trims the map. An admin's
+ *    edit of somebody's profile is not the member's change and adds nothing.
+ *  - ONE PAGE SHOWS IT: the admin's page for one person. A new reader has to
+ *    be written down in `tests/profile-study-changes.test.mjs`, which lists
+ *    every file that names the field.
+ */
+export type StudyChange = {
+  /** The entry's key in the stored map. */
+  id: string;
+  /** When the change was saved. Null only between a save and the server's answer to it. */
+  at: Date | null;
+  /**
+   * What the degree said before, when this save changed it: `profile.subject`,
+   * or the older `profile.course` on an account that never stored a subject.
+   */
+  subject?: string;
+  /** What `profile.expectedGraduation` said before ("2027-06"), when this save changed it. */
+  expectedGraduation?: string;
+};
+
 export type UserDoc = {
   uid: string;
   email: string | null;
@@ -404,6 +454,11 @@ export type UserDoc = {
   photoURL: string | null;
   role: Role;
   profile?: UserProfile;
+  /**
+   * The member's own changes to their degree or graduation, newest first.
+   * Absent on an account that has made none. See `StudyChange`.
+   */
+  studyChanges?: StudyChange[];
   title?: string | null;
   bio?: string | null;
   showOnMembers?: boolean;
@@ -483,6 +538,41 @@ function asAcademicYearList(v: unknown): string[] {
     .slice(0, FIELD_LIMITS.maxPaidMembershipYears);
 }
 
+/**
+ * A member's own changes to their degree or graduation, newest first.
+ *
+ * EVERY key of the stored map is one entry, so the length of what comes back
+ * is the number the users rule counts against its cap. A part of an entry that
+ * cannot be read is left off it; the entry itself is never dropped. Anything
+ * that is not a map (no field at all on an older account, or a hand edit)
+ * reads as no changes.
+ */
+function asStudyChanges(v: unknown): StudyChange[] {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return [];
+  const changes = Object.entries(v as Raw).map(([id, stored]): StudyChange => {
+    const entry =
+      stored && typeof stored === "object" && !Array.isArray(stored) ? (stored as Raw) : {};
+    const change: StudyChange = { id, at: tsToDate(entry.at) };
+    if (typeof entry.subject === "string" && entry.subject.length > 0) {
+      change.subject = entry.subject;
+    }
+    if (typeof entry.expectedGraduation === "string" && entry.expectedGraduation.length > 0) {
+      change.expectedGraduation = entry.expectedGraduation;
+    }
+    return change;
+  });
+  // An entry with no time yet was written a moment ago and the server has not
+  // answered, so it is the newest there is.
+  const when = (change: StudyChange) =>
+    change.at ? change.at.getTime() : Number.POSITIVE_INFINITY;
+  return changes.sort((a, b) => {
+    const [ta, tb] = [when(a), when(b)];
+    if (ta !== tb) return tb > ta ? 1 : -1;
+    // The same instant: by id, so the order is the same on every read.
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+}
+
 export function normalizeUser(id: string, data: Raw): UserDoc {
   const rawTracks = Array.isArray(data.tracks) ? (data.tracks as unknown[]) : [];
   const tracks = rawTracks.filter(
@@ -490,6 +580,7 @@ export function normalizeUser(id: string, data: Raw): UserDoc {
   );
   // Absent rather than empty when there is nothing to show — see UserDoc.
   const paidMembershipYears = asAcademicYearList(data.paidMembershipYears);
+  const studyChanges = asStudyChanges(data.studyChanges);
   const rawPermissions = (data.permissions ?? {}) as Record<string, unknown>;
   const permissions: UserPermissions = {
     draftNewsletter: Boolean(rawPermissions.draftNewsletter),
@@ -508,6 +599,7 @@ export function normalizeUser(id: string, data: Raw): UserDoc {
     photoURL: (data.photoURL as string) ?? null,
     role: (data.role as Role) ?? "pending",
     profile: data.profile as UserProfile | undefined,
+    ...(studyChanges.length > 0 ? { studyChanges } : {}),
     title: (data.title as string | null | undefined) ?? null,
     bio: (data.bio as string | null | undefined) ?? null,
     showOnMembers: Boolean(data.showOnMembers),

@@ -133,13 +133,21 @@ document and then does one of three things.
 
 The refusal comes after a route's "not found" answers, never before them. A
 form nobody has opened reads to an applicant as a round that is not there, and
-somebody who may not see a round is not told it is a form.
+somebody who may not see a round is not told it is a form. So who is asking
+comes before what the round is, on every older route that refuses: an account
+with no role is given one answer by each of them, whatever its id addresses
+(a form, a form nobody has opened, a round of the older kind in any state, or
+nothing). The decide route reads the round first, because its decider is
+named on the round, and answers "not found" to anybody who may not see it
+before it says anything else.
 
 `tests/admissions-form-fence.test.mjs` walks the tree for every route, page and
 layout with a round id in its address, and for every other file that can
 address a round. Each is listed with what it does about a form, and what its
-entry says is read out of the source and then executed. A new one fails until
-somebody decides what it does.
+entry says is read out of the source and then executed. Every handler that
+refuses a form itself also says what its refusal comes after, and each staff
+route is run as an account with no role against everything an id can address.
+A new one fails until somebody decides what it does.
 
 The routes under `/api/admissions/forms` are the form's own, and the routes
 under `/api/admissions/rounds` are the older ones. A form's own route reaches a
@@ -200,6 +208,76 @@ their mind needs no recount.
 "Runs the term" is the form itself, the outcome each pooled applicant hears,
 revoking an acceptance, an exception, and the decision-day send.
 
+**A refusal says nothing about an application its caller may not read.**
+Deciding is a right over a programme, and reading is a right over one
+person's application. So a writer that is handed somebody's id asks
+`canReadApplication()`, the predicate the review screens read by, before it
+names the applicant or says where their application stands. Somebody who may
+not read the application is answered exactly as if nothing had been sent: the
+same status, the same words and no name, whatever the real reason, for one
+decision and for several at once. Somebody who may read it is told what is
+in the way. `tests/applications-readable-before-answering.test.mjs` lists
+every function under `review/` and `decisionDay/` that takes the database,
+with what it is handed and what holds it, and reads each entry's claim out
+of the source.
+
+**Nobody reads or decides their own application on a committee screen.**
+Anybody on the committee can apply, an admin included, and what is scored
+and decided about a person is not theirs to see before decision day. So
+every committee screen is built for whoever is looking, with their own
+application left out before anything is listed or counted: the review list
+and the review screen (`termPictureFor()` in `review/term.ts`), and pooled
+applicants, decision day and the term page's pooled numbers (`termsFor()` in
+`decisionDay/plan.ts`, read as `shown`). A number that counted it, beside a
+list that did not show it, would say where it stands, so it is in no number
+either: not a count of people, and not a programme's places. The two pages
+an admin runs the term from say so in one line whenever the viewer has
+applied, wherever their application stands.
+
+Every writer refuses the caller's own id in one sentence (`OWN_APPLICATION`
+in `review/refusals.ts`), before anything is read: a decision, an acceptance
+taken back, and the outcome a pooled applicant hears. "Everybody with nothing
+picked" is everybody but the caller. Their own outcome is another admin's to
+choose. The writer of a pooled outcome still counts free places over the
+whole term, whoever is asking, so an invitation always has a real place
+behind it.
+
+**The send still tells them.** Decision day is one send for the whole term,
+and an admin who applied hears on it like everybody else. `termsFor()` hands
+back the whole term beside the one the viewer is shown, and the whole term is
+read for two things only: the send itself, and whether it may go
+(`sendBlockersFor()`). An application of the viewer's with no outcome holds
+the send like anybody's, a press publishes their result and emails them, and
+the term is marked as sent only when they have one. What holds the send is
+said in the words of what the viewer is shown, and when the only thing in
+the way is their own application, one sentence says that and nothing about
+what it needs. The number a press sends back is the number the page showed,
+so it is counted the way the page counted it.
+
+`tests/applications-own-application.test.mjs` lists every function that
+reads the committee's lists of applications, decisions or reviews, with
+whether it leaves the viewer's own out or why it reads everybody, and every
+function that holds the whole term, with what it does with it.
+
+**A view-as session is not the applicant.** Admin "view as" borrows a
+member's session, so every read addressed by "the caller's own uid" would be
+the member's. An application is its owner's to read: the people who review it
+read what was sent and never the draft, and nobody who reads an application
+is shown the SU membership answer. So while a view-as session is live
+(`markerIsLive`, the one comparison the admin area and the write guard go by)
+the person's own application is not shown and not read. The form
+(`/apply/<roundId>`), the list (`/applications`) and the page for one
+application (`/applications/<roundId>`) each draw a notice in its place
+(`src/features/applications/viewAsNotice.ts`). The form's own `GET` and the
+list's `GET` refuse, as every write already does. The dashboard card offers
+the way to the list and names nothing on it. The check comes before the read
+on each of them, so nothing of the application is fetched to be left out
+afterwards, and nothing of it is in the page. A marker left over from a
+session that has ended is not a session. A round of the older kind keeps the
+rule its own page states. `tests/applications-view-as-own-application.test.mjs`
+lists every place under `src/app` and `src/features` that reads the caller's
+own application, with how each is held to the check.
+
 **Somebody who joins by invitation is read from the moment they accept, and
 not before.** An invitation is to a programme the person did not pick, so
 while it is only picked, or sent and not yet answered, that programme's lead
@@ -215,12 +293,25 @@ Somebody who says no thanks is never read by the programme they turned down.
 `tests/applications-wave-h-joined.test.mjs` runs every kind of account
 against every way an invitation can stand.
 
+A lead edits their own programme's settings, with two exceptions that are
+an admin's: closing the programme, and switching its scores on or off once
+reviewing has begun on it (see "Scores").
+
 A lead or a reviewer has to be an admin or SU-recognised committee, because
 applications are personal. That is checked against their live user document
 when they are named (`setProgrammeRoles` in `roles.ts`, the one writer) and
 again every time the role is used (`isNamedWithStanding`), because nothing
 takes a name off a form when its owner's standing changes. Only an admin
 changes a lead. A lead can add and remove their own programme's reviewers.
+
+Naming somebody is an access grant, so both of its questions (is the caller
+this programme's lead, or an admin; is each person named eligible) are asked
+inside the transaction that writes, of the form and the user documents that
+transaction read. A lead who was replaced, or somebody named who stopped
+being eligible, after the request began makes the transaction run again and
+meet the refusal. The same two questions are asked once before it, to answer
+a request that is plainly not allowed without opening a transaction, and that
+earlier answer decides nothing by itself.
 
 The round's `reviewerUids` is kept as the union of every lead and reviewer on
 the form, with the `users.admissionsReviewer` flag that draws the sidebar
@@ -314,20 +405,56 @@ else.
 
 - A reviewer's score for a programme is the mean of what they gave its answers.
 - The section score is the mean of the reviewers' scores, one voice each.
-- **A first review is blind to other reviewers.** A lead or a reviewer who has
-  not yet scored every answer there is to score for a programme is not shown
-  what anybody else gave or wrote for it (`reviewsVisibleTo`). An admin can
-  switch that off for the form (`revealOtherReviews`), which changes what
-  leads and reviewers are shown.
+- **A first review is blind to other reviewers.** A lead or a reviewer is not
+  shown what anybody else gave or wrote about an application until they have
+  saved a review of their own for it (`firstReviewOf` in `scoring.ts`). An
+  admin can switch that off for the form (`revealOtherReviews`), which changes
+  what leads and reviewers are shown.
+- **What a review of their own is.** Where there is anything for them to
+  score on the application, it is every one of those scores. Where there is
+  nothing for them to score, it is an overall comment of their own, with
+  something in it. Nothing to score is not already scored: a programme with
+  scores switched off, a stream with no scored question, an applicant who
+  left every scored question blank, and somebody who joined by invitation
+  and so answered none of the programme's questions, all leave a reviewer
+  with nothing to score, and none of those is a review. A comment on one
+  answer is not one either. A score or an overall comment taken back makes
+  it a first review again.
+- **It is one answer for the application, across every programme on it that
+  the person reviews.** An overall comment is one text about the whole
+  application, and a comment on a shared answer belongs to no one programme.
+  So somebody who reviews two programmes an applicant ranked has both to
+  finish before either shows them anybody else's, and what they are shown is
+  the same whichever of the two they open the application under. `lookingAt`
+  in `review/term.ts` is the one place the rule's question is put together,
+  with every programme the application is listed on, and the list and the
+  review screen both ask through it.
+- **While anything is held back, the screen says what is left to do.** The
+  payload carries it (`others.until`) and
+  `src/features/applications/review/otherReviewsWords.ts` words it: answers
+  still to score here, answers still to score for another of their
+  programmes, or an overall comment.
+- **A programme's scores are its lead's to switch until reviewing begins on
+  it, and an admin's from then on.** Scores decide what a review of the
+  programme is. So once any review says something about an application on
+  the programme's list (`reviewingHasBegunOn` in `scoring.ts`), switching
+  them on or off is held to an admin, as closing the programme is.
+  `changeProgramme` asks inside the transaction that writes, and the
+  settings page shows a lead the switch switched off, with the reason.
 - **An admin is never blind.** An admin is shown every score and comment, on
   every programme, whether or not they have scored and whatever the switch
   says: on a programme's list, on the single application and in the
   recommendations made from the scores. "Admin" is the role on the site,
   never a role on a programme, so a lead who is not an admin still scores
   blind first. `otherReviewsShownTo` in `scoring.ts` is the whole rule. Every
-  caller hands it the caller's own standing, and nothing else reads the
-  switch as a condition: `tests/applications-review-routes.test.mjs` walks
-  the tree for both.
+  caller hands it the one object `lookingAt` made, which carries the
+  caller's own standing, and nothing else reads the switch as a condition:
+  `tests/applications-review-routes.test.mjs` walks the tree for both, and
+  holds that whether there is anything left to score (`hasScored`, which is
+  true of nothing) decides the list of applications still waiting and
+  nothing about whose work anybody is shown.
+  `tests/applications-blind-first.test.mjs` runs the rule through the routes
+  for every kind of "nothing to score".
 - **Names are shown.** Reviewers see who they are reading. The form says who
   reads an application and does not mention names.
 
@@ -467,8 +594,10 @@ applicant's status stays "sent".
 
 No press of Send is taken until an admin has sent themselves a test of the
 emails as they are worded now. The test is the page's "Send a test to me":
-the first person's real email in a group, to the admin's own address. Each
-one that is handed to the mail provider is recorded on the form as
+the first person's real email in a group, to the admin's own address. It is
+never the admin's own: an application of theirs is not in the group a test
+is taken from, as it is not on the page. Each one that is handed to the mail
+provider is recorded on the form as
 `decisionEmailTest`: who sent it, when, and a fingerprint of every decision
 email's wording at that moment (each programme's own `emailWording`, and the
 form's `noOfferWording`). A test this copy of the site held, or one to an
@@ -759,9 +888,37 @@ All in `src/lib/applications/`.
 - **A route that serves an applicant** is gated by `requireApplicant()` and
   imports `repo.ts`, never `staffRepo.ts`. It returns a projection listed field
   by field, never a spread of a stored document.
+- **Anything that reads the caller's own application asks first whether the
+  session is a view-as session**, and reads nothing if it is: a route refuses
+  with `assertNotImpersonating()` as its first statement, reads included, and
+  a screen draws the notice. A new one is added to the list in
+  `tests/applications-view-as-own-application.test.mjs`.
 - **A route that serves staff** takes its answer from `access.ts`, after
   `getCurrentUser()` and before any read. A mutating route calls
   `assertNotImpersonating()` first.
+- **A writer asks who may inside the transaction that writes.** A role on a
+  form, a right to read an application and somebody's standing are all read
+  off stored documents, which can change between a read and a write. So a
+  function that writes in a transaction asks them of the documents that
+  transaction read, as `editor/write.ts`, `roles.ts` and `review/decide.ts`
+  do. `tests/applications-roles-in-transaction.test.mjs` walks every function
+  in the library that reaches a transaction and fails one that asks on the
+  way there and not inside. `canRunTerm` is asked of the session alone, so
+  it is not one of them.
+- **A function that is handed an applicant's id asks who may read the
+  application before it answers about it.** A right to act on a programme is
+  not a right to be told about a person. A new function under `review/` or
+  `decisionDay/` that takes the database is added to the list in
+  `tests/applications-readable-before-answering.test.mjs` with what it is
+  handed: it asks `canReadApplication()`, or it is for an admin alone, or
+  nothing outside this library can call it.
+- **A committee screen is built for somebody.** A function that reads
+  everybody's applications, decisions or reviews takes the viewer and leaves
+  their own application out through `termPictureFor()` or `termsFor()`, or
+  it is on the list in `tests/applications-own-application.test.mjs` with
+  why it reads everybody. A term is never planned from a raw list anywhere
+  else. A writer that is handed an applicant's id refuses the caller's own
+  before it reads.
 - **No query that sorts or ranges on the server.** Every read here is one or
   two equalities, which need no composite index. A term is a few hundred
   documents: filter and sort in memory.

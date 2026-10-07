@@ -47,3 +47,16 @@ export function lockedSentence(applied: number): string {
     ? "1 person has applied, so the questions are locked."
     : `${applied} people have applied, so the questions are locked.`;
 }
+
+/**
+ * WHEN A PROGRAMME'S SCORES STOP BEING ITS LEAD'S TO SWITCH.
+ *
+ * Once anybody has reviewed an application on a programme's list
+ * (`reviewingHasBegunOn` in `../scoring`), switching its scores on or off is
+ * an admin's, as closing it is. The sentence is the refusal the route gives a
+ * lead, and the settings page shows the same reason beside the switch it has
+ * switched off, so nobody is offered a change that will be turned away.
+ */
+export function scoresHeldSentence(shortName: string): string {
+  return `Reviewing has started on ${shortName}, so only an admin can switch its scores on or off now.`;
+}

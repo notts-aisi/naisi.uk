@@ -607,6 +607,10 @@ const SITES = {
     role: "renderer",
     reason: "Home's upcoming events, for a signed-in member: it carries publicLocationText from the helper to the page's cards and reads no location field of its own.",
   },
+  "src/app/(app)/events/manage/page.tsx": {
+    role: "renderer",
+    reason: "The committee's list of events: under each event's name it prints the public text from the helper, and reads no location field of its own.",
+  },
   "src/app/api/events/[id]/rsvp/route.ts": {
     role: "relay",
     reason: "Hands the event to sendRsvpEmail, and snapshots the exact location onto the RSVP row, which only SU-recognised committee and admins may read.",

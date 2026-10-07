@@ -237,10 +237,12 @@ const OLDER_PLUMBING = [
  *
  *  - `older`: written for rounds of the older kind, and it refuses a form. A
  *    route says how PER HANDLER (`refuses`: it calls `refuseApplicationForm`
- *    itself; or the name of a shared loader above). `after` names something
- *    in the handler the refusal has to come after, where the route has a
- *    "not found" answer of its own that a stranger must get first. A page
- *    says the same once for the file, with the notice it returns.
+ *    itself; or the name of a shared loader above). A handler that refuses
+ *    itself also says what its refusal comes `after`: the check of who is
+ *    asking, or the "not found" answer a stranger must get first. EVERY such
+ *    handler says so, so that only somebody the route answers at all is told
+ *    an id is a form (`REFUSAL_COMES_AFTER` below is what `after` may name).
+ *    A page says the same once for the file, with the notice it returns.
  *  - `form`: the application form's own. It reaches a round only through the
  *    form's own code and never reads one with the older plumbing.
  *  - `both`: it serves a form and an older round alike, on purpose. `proof`
@@ -495,6 +497,7 @@ const ROUND_SURFACES = {
       },
       PATCH: {
         fence: "refuses",
+        after: "canAuthorRounds(",
         why:
           "edits a round's own fields, and on a form several of those are the form's to keep: " +
           "its dates, its availability grid, its reminder schedule",
@@ -550,10 +553,13 @@ const ROUND_SURFACES = {
     handlers: {
       POST: {
         fence: "refuses",
+        after: "canSeeRound(",
         why:
           "decides one application on an appointment round: it moves the round's counters, " +
           "writes a run's facilitator list and emails the applicant. A form is decided programme " +
-          "by programme in its own documents, and nobody on one hears before decision day",
+          "by programme in its own documents, and nobody on one hears before decision day. " +
+          "Refused after the answer for a round the caller may not see, so only somebody who " +
+          "can see the round is told it is a form",
       },
     },
   },
@@ -577,6 +583,7 @@ const ROUND_SURFACES = {
     handlers: {
       POST: {
         fence: "refuses",
+        after: "canAuthorRounds(",
         why:
           "runs the deadline reminders for one round by hand, which sends everybody holding a " +
           "draft the older apply flow's reminder",
@@ -588,6 +595,7 @@ const ROUND_SURFACES = {
     handlers: {
       PUT: {
         fence: "refuses",
+        after: "user.role !==",
         why:
           "writes the round's reviewer list from the request. On a form that list is the union " +
           "of every programme's lead and reviewers, kept by the one writer in " +
@@ -613,12 +621,14 @@ const ROUND_SURFACES = {
     handlers: {
       PUT: {
         fence: "refuses",
+        after: "canAuthorRounds(",
         why:
           "writes a stage document and the round's stage list. A form asks its questions " +
           "through question sets and has no stages",
       },
       DELETE: {
         fence: "refuses",
+        after: "canAuthorRounds(",
         why: "deletes a stage document and rewrites the round's stage list",
       },
     },
@@ -628,6 +638,7 @@ const ROUND_SURFACES = {
     handlers: {
       POST: {
         fence: "refuses",
+        after: "canAuthorRounds(",
         why:
           "stamps a stage as released and runs the stage release job, which emails and pushes " +
           "to everybody live on the round",
@@ -639,6 +650,7 @@ const ROUND_SURFACES = {
     handlers: {
       POST: {
         fence: "refuses",
+        after: "canAuthorRounds(",
         why:
           "moves a round along the older lifecycle by the older readiness check, which counts " +
           "stages a form does not have. A form is opened and closed by the form's own routes",
@@ -693,6 +705,24 @@ function importsTheQuestion(path, scope) {
 }
 
 /**
+ * WHAT A HANDLER'S OWN REFUSAL MAY COME AFTER, and whether asking it needs the
+ * round read as a round of the older kind first.
+ *
+ * The first two are asked of the session alone, before any document is read:
+ * somebody who may not author rounds is turned away the same whatever the id
+ * addresses. The last two are asked of the round, so the round is read
+ * first: `canSeeRound` answers "not found" to anybody the round does not
+ * name, and `round.archived` is the applicant's "not found" for a round
+ * nobody has opened.
+ */
+const REFUSAL_COMES_AFTER = {
+  "canAuthorRounds(": { readsTheRound: false },
+  "user.role !==": { readsTheRound: false },
+  "canSeeRound(": { readsTheRound: true },
+  "round.archived": { readsTheRound: true },
+};
+
+/**
  * What is wrong with one `older` route handler, as sentences. Empty means the
  * handler is fenced the way its entry says. Pure, so section 5 can hand it
  * handlers written to be wrong.
@@ -716,11 +746,17 @@ function handlerProblems(body, entry, scope) {
     if (at(body, /\.exists\b/) > fenceAt) {
       problems.push("asks before it has loaded the round, so its own not-found answer comes second");
     }
-    if (entry.after) {
-      if (at(body, entry.after) > fenceAt) {
-        problems.push(`refuses before \`${entry.after}\`, which its entry says has to come first`);
-      }
-    } else if (at(body, /\bnormalizeAdmissionRound\s*\(/) < fenceAt) {
+    const comesAfter = Object.hasOwn(REFUSAL_COMES_AFTER, entry.after ?? "")
+      ? REFUSAL_COMES_AFTER[entry.after]
+      : null;
+    if (!entry.after) {
+      problems.push("its entry does not say what the refusal comes after: who is asking, or its own not-found answer");
+    } else if (!comesAfter) {
+      problems.push(`its entry puts the refusal after \`${entry.after}\`, which is not a check of who is asking`);
+    } else if (at(body, entry.after) > fenceAt) {
+      problems.push(`refuses before \`${entry.after}\`, which its entry says has to come first`);
+    }
+    if (!comesAfter?.readsTheRound && at(body, /\bnormalizeAdmissionRound\s*\(/) < fenceAt) {
       problems.push("reads the form as a round of the older kind before it refuses");
     }
     if (firstEffect < fenceAt) {
@@ -1682,9 +1718,12 @@ describe("the loaders an older surface may reach a round through", () => {
 
 describe("the checks catch what they are for", () => {
   const withFence = { imports: new Map([["refuseApplicationForm", FENCE_MODULE]]), locals: new Map() };
-  const REFUSES_ENTRY = { fence: "refuses", why: "" };
+  const REFUSES_ENTRY = { fence: "refuses", after: "canAuthorRounds(", why: "" };
+  /** Who is asking, as every handler that refuses asks it before it reads. */
+  const GATE = 'if (!canAuthorRounds(user)) return NextResponse.json({ error: "" }, { status: 403 });';
 
   const GOOD = `
+    ${GATE}
     const snap = await ref.get();
     if (!snap.exists) return NextResponse.json({ error: "" }, { status: 404 });
     const fenced = refuseApplicationForm(snap.data());
@@ -1710,6 +1749,7 @@ describe("the checks catch what they are for", () => {
 
   test("a handler that writes first fails", () => {
     const late = `
+      ${GATE}
       const snap = await ref.get();
       if (!snap.exists) return NextResponse.json({ error: "" }, { status: 404 });
       await ref.update({ label: "" });
@@ -1721,6 +1761,7 @@ describe("the checks catch what they are for", () => {
 
   test("a handler that reads the form as a round first fails, unless its entry names what comes first", () => {
     const normalisedFirst = `
+      ${GATE}
       const snap = await ref.get();
       if (!snap.exists) return NextResponse.json({ error: "" }, { status: 404 });
       const round = normalizeAdmissionRound(snap.id, snap.data() ?? {});
@@ -1728,7 +1769,9 @@ describe("the checks catch what they are for", () => {
       const fenced = refuseApplicationForm(snap.data());
       if (fenced) return fenced;
     `;
-    assert.match(handlerProblems(normalisedFirst, REFUSES_ENTRY, withFence).join(" "), /before it refuses/);
+    assert.deepEqual(handlerProblems(normalisedFirst, REFUSES_ENTRY, withFence), [
+      "reads the form as a round of the older kind before it refuses",
+    ]);
     assert.deepEqual(
       handlerProblems(normalisedFirst, { fence: "refuses", after: "canSeeRound(", why: "" }, withFence),
       [],
@@ -1750,8 +1793,45 @@ describe("the checks catch what they are for", () => {
     );
   });
 
+  test("an entry that does not say what the refusal comes after fails, and so does one that names something else", () => {
+    assert.deepEqual(handlerProblems(GOOD, { fence: "refuses", why: "" }, withFence), [
+      "its entry does not say what the refusal comes after: who is asking, or its own not-found answer",
+    ]);
+    assert.deepEqual(handlerProblems(GOOD, { fence: "refuses", after: "snap.exists", why: "" }, withFence), [
+      "its entry puts the refusal after `snap.exists`, which is not a check of who is asking",
+    ]);
+  });
+
+  test("a handler that refuses before it has asked who is calling fails", () => {
+    const refusesFirst = `
+      const snap = await ref.get();
+      if (!snap.exists) return NextResponse.json({ error: "" }, { status: 404 });
+      const fenced = refuseApplicationForm(snap.data());
+      if (fenced) return fenced;
+      ${GATE}
+    `;
+    assert.deepEqual(handlerProblems(refusesFirst, REFUSES_ENTRY, withFence), [
+      "refuses before `canAuthorRounds(`, which its entry says has to come first",
+    ]);
+  });
+
+  test("every handler that refuses a form itself says what its refusal comes after", () => {
+    const silent = [];
+    let refusing = 0;
+    for (const [key, entry] of Object.entries(ROUND_SURFACES)) {
+      for (const [method, handler] of Object.entries(entry.handlers ?? {})) {
+        if (handler.fence !== "refuses") continue;
+        refusing += 1;
+        if (!Object.hasOwn(REFUSAL_COMES_AFTER, handler.after ?? "")) silent.push(`${key} ${method}`);
+      }
+    }
+    assert.deepEqual(silent, []);
+    assert.equal(refusing, 10, "the handlers that refuse a form themselves: a new one is counted here");
+  });
+
   test("a handler that asks before it has loaded anything fails", () => {
     const blind = `
+      ${GATE}
       const fenced = refuseApplicationForm(body);
       if (fenced) return fenced;
       const snap = await ref.get();
@@ -2463,6 +2543,60 @@ describe("every older handler, called with an application form", () => {
       });
     }
   }
+
+  // WHO IS ASKING COMES BEFORE WHAT THE ROUND IS. An account with no role is
+  // given one answer by each of these routes, whatever is stored at the id: a
+  // form, a form nobody has opened, a round of the older kind in any state,
+  // or nothing. So nothing a route says tells it what an id addresses.
+  const STORED = [
+    ["an open form", FORM_ID, { [`admissionRounds/${FORM_ID}`]: formDoc() }],
+    ["a form nobody has opened", FORM_ID, { [`admissionRounds/${FORM_ID}`]: formDoc({ status: "draft" }) }],
+    ["an enrolment round", OLDER_ID, { [`admissionRounds/${OLDER_ID}`]: roundDoc() }],
+    ["an appointment round", OLDER_ID, { [`admissionRounds/${OLDER_ID}`]: roundDoc({ kind: "appointment" }) }],
+    ["an archived appointment round", OLDER_ID, { [`admissionRounds/${OLDER_ID}`]: roundDoc({ kind: "appointment", archived: true }) }],
+    ["nothing", "no-such-round", {}],
+  ];
+  for (const entry of OLDER_HANDLERS.filter((each) => each.reader !== "applicant")) {
+    test(`${entry.key} ${entry.method} gives somebody with no role one answer, whatever the id addresses`, async () => {
+      const answers = new Map();
+      for (const [what, id, seed] of STORED) {
+        const db = stage({ user: MEMBER, seed });
+        const response = await call(entry, id);
+        assert.ok(!isRefusal(response), `somebody with no role was told that ${what} is an application form`);
+        assert.deepEqual(db.writes, [], `a request from somebody with no role wrote to ${what}`);
+        answers.set(what, JSON.stringify([response.status, response.body]));
+      }
+      const distinct = [...new Set(answers.values())];
+      assert.equal(distinct.length, 1, `the answer depends on what the id addresses: ${JSON.stringify([...answers])}`);
+      assert.ok([403, 404].includes(JSON.parse(distinct[0])[0]), distinct[0]);
+    });
+  }
+
+  test("the decide route tells somebody the round names, who is not its decider, only that", async () => {
+    const decide = OLDER_HANDLERS.find((entry) => entry.key === "/api/admissions/rounds/[roundId]/decide");
+    const reviewer = { uid: "reviewer-1", role: "committee", suRecognised: true, email: "reviewer-1@example.com", displayName: "Rae" };
+    const named = { reviewerUids: ["reviewer-1"] };
+    // Before the round's kind, and before its state.
+    for (const round of [
+      roundDoc({ ...named, kind: "appointment" }),
+      roundDoc({ ...named }),
+      roundDoc({ ...named, kind: "appointment", archived: true }),
+      roundDoc({ ...named, kind: "appointment", status: "cancelled" }),
+    ]) {
+      const db = stage({ user: reviewer, seed: { [`admissionRounds/${OLDER_ID}`]: round } });
+      const response = await call(decide, OLDER_ID);
+      assert.deepEqual(
+        [response.status, response.body],
+        [403, { error: "Only this round's final decider or an admin can appoint a facilitator. Reviewers can read the queue." }],
+        JSON.stringify(round),
+      );
+      assert.deepEqual(db.writes, []);
+    }
+    // A form they are named on is one they may see, so they are told what it is.
+    stage({ user: reviewer, seed: { [`admissionRounds/${FORM_ID}`]: formDoc() } });
+    const onAForm = await call(decide, FORM_ID);
+    assert.deepEqual([onAForm.status, onAForm.body], [409, { error: fence.EDITED_IN_THE_APPLICATION_FORM }]);
+  });
 
   test("somebody who may not see the round is told it is not there, form or not", async () => {
     const read = OLDER_HANDLERS.find((entry) => entry.key === "/api/admissions/rounds/[roundId]" && entry.method === "GET");

@@ -1,5 +1,6 @@
 import { STATUS_LABELS, type AffiliationStatus } from "@/lib/firestore/users";
 import type { AboutYou } from "../model";
+import type { OwnApplication } from "./plan";
 import type { SendReport } from "./views";
 
 /**
@@ -25,6 +26,23 @@ const MONTHS = [
   "November",
   "December",
 ];
+
+/**
+ * The one line that tells an admin who has applied that their own
+ * application is not on the page. Null for somebody who has not.
+ *
+ * It is said whenever they have one, wherever it stands, so the line itself
+ * says nothing about that. Once decision day has told them, nobody has an
+ * outcome left to choose, and they know it: their own page shows it.
+ */
+export function ownApplicationLine(own: OwnApplication, page: "pool" | "send"): string | null {
+  if (own === "none") return null;
+  const notShown = "Your own application is not shown or counted here.";
+  if (own === "told") return notShown;
+  return page === "pool"
+    ? `${notShown} Another admin has to choose its outcome.`
+    : `${notShown} Another admin has to choose its outcome, and you hear with everybody else.`;
+}
 
 function invitations(n: number): string {
   return `${n} ${n === 1 ? "invitation" : "invitations"}`;

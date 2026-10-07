@@ -431,14 +431,16 @@ describe("the applicant's gate", () => {
     assert.equal(db.data(appPath("jasmine")).status, "submitted");
   });
 
-  test("during a view-as session the save and the send refuse before anything else", async () => {
+  test("during a view-as session the save, the send and the read refuse before anything else", async () => {
     globalThis.__applyBlocked = NextResponse.json({ error: "view-as" }, { status: 403 });
     assert.equal((await PUT({ draft: fullDraft() })).body.error, "view-as");
     assert.equal((await SEND()).body.error, "view-as");
+    // The read as well: during one the session is a member's, borrowed by an
+    // admin, and an application is its owner's to read.
+    const read = await GET();
+    assert.deepEqual([read.status, read.body], [403, { error: "view-as" }]);
     assert.deepEqual(db.reads, []);
     assert.deepEqual(db.writes, []);
-    // Reading what the member sees is what view-as is for.
-    assert.equal((await GET()).status, 200);
   });
 });
 
