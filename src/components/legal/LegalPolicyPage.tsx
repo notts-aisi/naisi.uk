@@ -36,7 +36,9 @@ export default function LegalPolicyPage({
     <p className={styles.meta}>
       <Chip>Version {v}</Chip>
       <span>Updated {entry.lastUpdated}</span>
-      <span aria-hidden="true">·</span>
+      <span className={styles.metaDot} aria-hidden="true">
+        ·
+      </span>
       <Link className={styles.metaLink} href={`${meta.href}/versions`}>
         Earlier versions
       </Link>

@@ -423,3 +423,29 @@
     margin-top: 3rem;
   }
 }
+
+@media (max-width: 36rem) { /* --bp-sm */
+  /* The version line no longer fits on one row here, so the dot that
+     separates its last two parts would hang at the end of the first. */
+  .metaDot {
+    display: none;
+  }
+
+  .lede {
+    font-size: 1.0625rem;
+  }
+
+  .section h2 {
+    font-size: var(--text-2xl);
+    gap: 0.75rem;
+  }
+
+  .section p,
+  .section li {
+    font-size: var(--text-base);
+  }
+
+  .contactCard {
+    padding: 1.25rem;
+  }
+}
