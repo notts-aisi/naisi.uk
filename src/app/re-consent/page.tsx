@@ -106,10 +106,14 @@ export default async function ReConsentPage() {
           change is that the people who read an application see the
           applicant&apos;s name: the version before said reviewers scored with
           names hidden. It also says who reads an application (admins, and the
-          lead and reviewers of each programme you rank), that nothing about a
+          lead and reviewers of each programme you rank), that only admins can
+          open what you write under access requirements, that the versions you
+          sent before are kept for the people reading it, that nothing about a
           decision is shown or sent before decision day, what you are told
-          then and how you reply, that the versions you sent before are kept
-          for the people reading it, and what stays in our records afterwards.
+          then and how you reply, and what stays in our records afterwards.
+          Outside that section, it now names the event sign-up form among the
+          forms that use Google reCAPTCHA, and says what the application form
+          keeps in your browser if you start it before you have an account.
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}
