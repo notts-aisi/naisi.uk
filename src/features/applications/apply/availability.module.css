@@ -1,0 +1,407 @@
+/* ============================================================
+   Availability: a week of quarter hours to paint.
+
+   Laptop-first. On a laptop the seven days sit side by side in
+   one card, twelve pixels a quarter hour. On a phone (the adapt
+   block at the foot) one day shows at a time as a tall column,
+   sixteen pixels a quarter hour, under a strip of day buttons.
+   The seven columns are the same elements in both.
+
+   Everything that is positioned by time reads two numbers set
+   on the element (--from and --len, in slots) and one set here
+   (--slot-h), so a block, the outline under a drag, the hour
+   labels and the grid lines cannot drift apart.
+
+   A column refuses touch scrolling so that a finger paints. The
+   page scrolls from anywhere else.
+   ============================================================ */
+
+.when {
+  gap: var(--space-5);
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.total {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.total strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* === Typing a time instead === */
+
+.typed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.typedRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.typedField {
+  min-width: 0;
+}
+
+.typedAdd {
+  min-height: 2.75rem;
+}
+
+.typedList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--color-border);
+}
+
+.typedItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 3rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: 15px;
+}
+
+.typedItem:last-child {
+  border-bottom: 0;
+}
+
+.remove {
+  min-height: 2.75rem;
+  padding: 0 var(--space-3);
+  border-color: transparent;
+  color: var(--color-accent-text);
+  font-size: 14px;
+}
+
+/* === Phone only: the day strip and the two day actions === */
+
+.days,
+.actions {
+  display: none;
+}
+
+.day {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  background: var(--color-bg);
+  color: #c3cad9;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.day[aria-pressed="true"] {
+  border: 2px solid var(--color-accent);
+  background: var(--ap-selected);
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.day:focus-visible,
+.block:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.dot[data-on="true"] {
+  background: var(--color-accent-text);
+}
+
+.said {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: calc(var(--space-3) * -1);
+}
+
+.saidText {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* === The week === */
+
+.board {
+  --slot-h: 12px;
+  display: grid;
+  grid-template-columns: 48px repeat(7, minmax(0, 1fr));
+  column-gap: 4px;
+  min-width: 0;
+  padding: 18px 12px 16px 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.head {
+  padding-bottom: 10px;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.gutter {
+  position: relative;
+  height: calc(var(--slot-h) * var(--slots));
+}
+
+.hour {
+  position: absolute;
+  top: calc(var(--slot-h) * var(--at) - 8px);
+  right: 10px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.column {
+  position: relative;
+  min-width: 0;
+  height: calc(var(--slot-h) * var(--slots));
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg);
+  /* A line on the hour, a fainter one on the half, a faint one on the quarter. */
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      var(--color-border) 0 1px,
+      transparent 1px calc(var(--slot-h) * 4)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--color-border) 50%, transparent) 0 1px,
+      transparent 1px calc(var(--slot-h) * 2)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--color-border) 22%, transparent) 0 1px,
+      transparent 1px var(--slot-h)
+    );
+  cursor: crosshair;
+  /* A drag down the column paints. It must not scroll the page or select text. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.block {
+  appearance: none;
+  -webkit-appearance: none;
+  position: absolute;
+  top: calc(var(--slot-h) * var(--from) + 1px);
+  left: 4px;
+  right: 4px;
+  height: calc(var(--slot-h) * var(--len) - 2px);
+  display: flex;
+  align-items: flex-start;
+  padding: 5px 7px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 6px;
+  background: var(--color-accent);
+  color: var(--color-floor);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+/* The run under a drag, before the pointer lifts. */
+.pending {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--slot-h) * var(--from));
+  left: 4px;
+  right: 4px;
+  height: calc(var(--slot-h) * var(--len));
+  padding: 5px 7px;
+  border: 2px dashed var(--color-accent-hover);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-accent) 24%, transparent);
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  pointer-events: none;
+}
+
+.pending[data-paints="false"] {
+  border-color: var(--color-text);
+  background: color-mix(in srgb, var(--color-floor) 62%, transparent);
+}
+
+/* The phone writes the times inside the outline; the laptop hangs a tag under it. */
+.pendingText,
+.grip {
+  display: none;
+}
+
+.pendingTag {
+  position: absolute;
+  z-index: 3;
+  top: calc(100% + 6px);
+  left: 0;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--color-text);
+  color: var(--color-floor);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .bar {
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    gap: 0;
+    margin-top: calc(var(--space-3) * -1);
+  }
+
+  .total {
+    font-size: 15px;
+  }
+
+  .typedRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .typedField:first-child,
+  .typedAdd {
+    grid-column: 1 / -1;
+  }
+
+  .days {
+    display: flex;
+    gap: 4px;
+    margin-top: -10px;
+  }
+
+  .actions {
+    display: flex;
+    gap: var(--space-2);
+  }
+
+  .actions > * {
+    flex: 1 1 auto;
+    padding: 0 var(--space-3);
+  }
+
+  .board {
+    --slot-h: 16px;
+    display: flex;
+    padding: 8px 0 12px;
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+
+  .corner,
+  .head {
+    display: none;
+  }
+
+  .gutter {
+    flex: none;
+    width: 52px;
+  }
+
+  .column {
+    display: none;
+    flex: 1 1 auto;
+    border-radius: 10px;
+  }
+
+  .column[data-active="true"] {
+    display: block;
+  }
+
+  .block,
+  .pending {
+    left: 6px;
+    right: 6px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+
+  .pendingTag {
+    display: none;
+  }
+
+  .pendingText {
+    display: inline;
+  }
+
+  .grip {
+    position: absolute;
+    bottom: -14px;
+    left: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 24px;
+    border: 3px solid var(--color-floor);
+    border-radius: var(--radius-pill);
+    background: var(--color-accent);
+    color: var(--color-floor);
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--color-accent) 18%, transparent);
+    transform: translateX(-50%);
+  }
+}
