@@ -1,6 +1,6 @@
 import { formatRoundDate } from "@/lib/admissions/window";
 import { formatRunStartShort } from "@/lib/courses/window";
-import { owesDecision, placementFor, standingWith } from "../decisions";
+import { isInTerm, owesDecision, placementFor, standingWith } from "../decisions";
 import {
   questionKey,
   type AnswerValue,
@@ -322,7 +322,8 @@ export function buildReview(input: {
   const entry = own(decision?.programmes, programmeId) ?? null;
   const standing = standingWith(decision, programmeId);
   const owes = owesDecision(ranked, decision, programmeId);
-  const placement = placementFor(ranked, decision);
+  // Somebody who has left the term holds no place, whatever was decided.
+  const placement = isInTerm(application) ? placementFor(ranked, decision) : null;
 
   // -------------------------------------------------------------------------
   // What only an admin is sent

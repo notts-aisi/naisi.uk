@@ -3,7 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import type { SessionUser } from "@/lib/firebase/session";
 import { ROUNDS_COLLECTION } from "@/lib/firestore/admissionRounds";
 import { canEditProgramme, canRunTerm, canSeeForm, roleOnProgramme } from "../access";
-import { tallyTerm, type TermTally } from "../decisions";
+import { isInTerm, tallyTerm, type TermTally } from "../decisions";
 import { FORM_VERSION, type ProgrammeSettings, type QuestionSetDoc } from "../model";
 import { isApplicationForm, isId, normaliseForm, type ApplicationForm } from "../normalise";
 import { loadForm, loadQuestionSets } from "../repo";
@@ -106,9 +106,10 @@ export async function loadEditor(
 }
 
 /**
- * How many people have applied to one programme: everybody whose sent
- * application ranks it. Counted with the same function the manager's tallies
- * use, so the number beside a tab is the number of rows behind it.
+ * How many people have applied to one programme: everybody in the term
+ * (`isInTerm`) whose sent application ranks it. Counted with the same
+ * function, over the same people, as the manager's tallies, so the number
+ * beside a tab is the number the list behind it shows on its own "All".
  */
 export async function countApplicationsTo(
   db: Firestore,
@@ -117,7 +118,7 @@ export async function countApplicationsTo(
 ): Promise<number> {
   const applicants = [];
   for (const application of await listSentApplications(db, form)) {
-    if (!application.sent) continue;
+    if (!isInTerm(application) || !application.sent) continue;
     applicants.push({
       uid: application.uid,
       ranked: rankedProgrammes(form, application.sent).map((programme) => programme.id),
@@ -128,9 +129,10 @@ export async function countApplicationsTo(
 }
 
 /**
- * Every count the term's page shows, from the sent applications and what each
- * lead has decided so far. Worked out when it is read, by the one function
- * that knows the arithmetic, so nothing here can drift from the manager.
+ * Every count the term's page shows, from the applications in the term
+ * (`isInTerm`) and what each lead has decided so far. Worked out when it is
+ * read, by the one function that knows the arithmetic, so nothing here can
+ * drift from the manager.
  */
 export async function loadTermTally(db: Firestore, form: ApplicationForm): Promise<TermTally> {
   const [applications, decisions] = await Promise.all([
@@ -139,7 +141,7 @@ export async function loadTermTally(db: Firestore, form: ApplicationForm): Promi
   ]);
   const applicants = [];
   for (const application of applications) {
-    if (!application.sent) continue;
+    if (!isInTerm(application) || !application.sent) continue;
     applicants.push({
       uid: application.uid,
       ranked: rankedProgrammes(form, application.sent).map((programme) => programme.id),

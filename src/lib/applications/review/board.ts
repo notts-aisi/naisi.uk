@@ -1,6 +1,7 @@
 import { formatRunStartShort } from "@/lib/courses/window";
 import {
   BORDERLINE_MARGIN,
+  isInTerm,
   owesDecision,
   placementFor,
   recommendationsFor,
@@ -42,6 +43,13 @@ import type {
  *    score they have yet to give.
  *  - NO ADDRESS. A row carries a name and a degree and never an email.
  *
+ * EVERY NUMBER HERE IS OF THE PEOPLE IN THE TERM (`isInTerm`). Somebody who
+ * withdrew, or gave a place or an invitation back, keeps their row, marked
+ * `withdrawn`, with the standing the decision documents still record. They
+ * are in no count, they are not in the queue "Review next" walks, they are
+ * not among the people the scores recommend for a place, and their row names
+ * no programme they are placed on, because they hold no place.
+ *
  * Pure, with no server import: the route gates the caller and loads the
  * documents, and hands them here.
  */
@@ -54,6 +62,8 @@ type Working = {
   viewerHasScored: boolean;
   /** Decision day has published this person's outcome and emailed them. */
   emailed: boolean;
+  /** Part of the term's arithmetic. False for a withdrawn application. */
+  inTerm: boolean;
 };
 
 function commentCount(reviews: readonly ReviewDoc[]): number {
@@ -102,7 +112,9 @@ function buildRow(input: {
 
   const standing = standingWith(decision, programmeId);
   const owes = owesDecision(ranked, decision, programmeId);
-  const placement = placementFor(ranked, decision);
+  // Somebody who has left the term holds no place, whatever was decided.
+  const inTerm = isInTerm(application);
+  const placement = inTerm ? placementFor(ranked, decision) : null;
   const name = applicantName(sent.aboutYou, application.displayName);
   const detail = applicantDetail(sent.aboutYou);
   const rankedNames = ranked.map((id) => programmeOn(form, id)?.shortName ?? "");
@@ -113,6 +125,7 @@ function buildRow(input: {
     elsewhere,
     // A declined application is published and not emailed.
     emailed: application.result !== null && application.result.kind !== "declined",
+    inTerm,
     row: {
       uid: application.uid,
       name,
@@ -143,7 +156,8 @@ function recommendationsOf(
   working: readonly Working[],
 ): BoardRecommendations {
   const places = programmeOn(form, programmeId)?.places ?? null;
-  const scored: ScoredApplicant[] = working.map(({ row, elsewhere }) => ({
+  // The scores recommend people for places, so only people still in the term.
+  const scored: ScoredApplicant[] = working.filter(({ inTerm }) => inTerm).map(({ row, elsewhere }) => ({
     uid: row.uid,
     choice: row.choice,
     score: row.scoreValue,
@@ -213,8 +227,9 @@ export function buildProgrammeBoard(input: {
   // reviewer cannot decide, so what they have left is whoever they have not
   // finished scoring.
   const queue = working
-    .filter(({ row, viewerHasScored }) => {
-      if (!row.owesDecision) return false;
+    .filter(({ row, viewerHasScored, inTerm }) => {
+      // Nobody is waiting on an application its owner has taken out.
+      if (!inTerm || !row.owesDecision) return false;
       return canDecide || !programme.useScores || !viewerHasScored;
     })
     .map(({ row }) => row.uid);
@@ -242,7 +257,7 @@ export function buildProgrammeBoard(input: {
       decided,
       toReview,
       placedElsewhere: Math.max(0, applications - decided - toReview),
-      emailed: working.filter((entry) => entry.emailed).length,
+      emailed: working.filter((entry) => entry.inTerm && entry.emailed).length,
       placed: tally?.placed ?? 0,
       invited: tally?.invited ?? 0,
       placesLeft: placesLeftOn(form, term, programmeId),

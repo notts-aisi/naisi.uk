@@ -227,6 +227,33 @@ The term is marked as sent (`decisionsSentAt`) once everybody has a result. An
 email still owed does not hold that back, and stays listed on the decision-day
 page until it goes.
 
+## Replies
+
+After decision day somebody answers on their own application, through one
+applicant route (`application/reply`). A place is presumed: "I'm coming"
+records `attendance` and changes nothing else. "I can't make it" (from anybody
+holding a place) and "No thanks" (to an invitation) give the place back: the
+reply is recorded, the status becomes `withdrawn`, and the form's counters
+move with it. An accepted invitation records `invitation.response` and makes
+the status `accepted`. `result` is what decision day said and no reply changes
+it. A place given back cannot be taken again from the page. `standingOf()` in
+`status/standing.ts` reads all of that off the document, and `decideReply()`
+in `status/replies.ts` is the whole table.
+
+### Who is in the term
+
+A reply cannot touch the decision documents, so they go on saying Accept for
+somebody who has given the place back, and `tallyTerm()` counts a place from
+the decision documents. What frees the place is `isInTerm()` in
+`decisions.ts`: an application is part of the term's arithmetic when it has
+been sent and is not `withdrawn`. Every caller of `tallyTerm()`, and anything
+else that counts places, decisions owed or people to be told, filters by it
+first, so a place given back is free on the review list, the term page, the
+pooled applicants screen and the send in the same moment. A screen may still
+list somebody who has left (the review list keeps the row, marked as
+withdrawn). It may not count them.
+`tests/applications-journey-in-term.test.mjs` walks the tree for callers.
+
 ## What deletes what
 
 | When | What goes | What stays |
@@ -270,12 +297,14 @@ All in `src/lib/applications/`.
 | `sections.ts` | Which steps and question sets one person sees | anywhere |
 | `validate.ts` | What stops a send; what is copied into `sent`; word counts | anywhere |
 | `scoring.ts` | Scored questions, section scores, first-review blindness | anywhere |
-| `decisions.ts` | Placement, outcomes, tallies, readiness, recommendations | anywhere |
+| `decisions.ts` | Placement, outcomes, who is in the term, tallies, readiness, recommendations | anywhere |
 | `words.ts` | Labels, ordinals, the words applicants never see | anywhere |
 | `access.ts` | Staff predicates | server |
 | `roles.ts` | `setProgrammeRoles`, the one writer of leads and reviewers | server |
 | `repo.ts` | The form, its sets, the caller's own application | server, applicant-safe |
 | `staffRepo.ts` | Everybody's applications, reviews, decisions | server, staff only |
+| `status/standing.ts`, `status/replies.ts`, `status/view.ts` | Where one person stands after sending, what each reply does, what their page says | anywhere |
+| `status/load.ts`, `status/record.ts` | The page's read, and the one transaction a reply writes | server, applicant-safe |
 
 ## Rules for anything built on this
 
@@ -303,6 +332,10 @@ All in `src/lib/applications/`.
   kept.
 - **Counters move with the status.** A route that changes an application's
   `status` moves the round's `applicationCounts` in the same transaction.
+- **Count the people in the term.** Filter by `isInTerm()` before
+  `tallyTerm()`, and before any other count of places, decisions owed or
+  people to be told. Listing somebody who has left is fine; counting them is
+  how two screens come to disagree about a place.
 - **Questions lock once somebody has sent an application.** Editing a question
   set after that would change what an answer already given was an answer to.
 - **Email** goes through `sendEmail()` with reply-to set to the society's

@@ -1,5 +1,5 @@
 import { isId, own } from "./keys";
-import type { ApplicationFormFields, DecisionDoc } from "./model";
+import type { ApplicationDoc, ApplicationFormFields, DecisionDoc } from "./model";
 import { PROGRAMME_DECISION_STANDING, type ProgrammeStanding } from "./words";
 
 /**
@@ -164,7 +164,31 @@ export function isPooled(outcome: Outcome): boolean {
 // The whole term at once
 // ---------------------------------------------------------------------------
 
-/** One sent application, reduced to what the arithmetic needs. */
+/**
+ * Is this application part of the term's arithmetic? It has to have been
+ * sent, and its owner must not have taken it out since: by withdrawing, or
+ * by giving a place or an invitation back after decision day, which moves
+ * the application to `withdrawn` in the same write.
+ *
+ * EVERY CALLER OF `tallyTerm` FILTERS BY THIS FIRST, and so does anything
+ * else that counts places, decisions owed or people to be told. That is what
+ * makes a place given back free on every screen at once: the decision
+ * documents still say Accept for somebody who has gone, because an
+ * applicant's reply never touches them, and the arithmetic below would go on
+ * counting that place. `tests/applications-journey-in-term.test.mjs` walks
+ * the tree for callers and holds each one to it.
+ *
+ * A screen may still LIST somebody who has left (the review list keeps the
+ * row, marked as withdrawn). It may not count them.
+ */
+export function isInTerm(application: Pick<ApplicationDoc, "sent" | "status">): boolean {
+  return application.sent !== null && application.status !== "withdrawn";
+}
+
+/**
+ * One application that is in the term (see {@link isInTerm}), reduced to
+ * what the arithmetic needs.
+ */
 export type Applicant = {
   uid: string;
   /** Their ranking, as the form knows it. */
@@ -218,7 +242,10 @@ function emptyProgrammeTally(): ProgrammeTally {
   };
 }
 
-/** Every count the manager shows, from the applications and their decisions. */
+/**
+ * Every count the manager shows, from the applications and their decisions.
+ * `applicants` is the people in the term: filter by {@link isInTerm} first.
+ */
 export function tallyTerm(
   form: Pick<ApplicationFormFields, "programmeIds">,
   applicants: readonly Applicant[],

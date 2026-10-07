@@ -4,6 +4,7 @@ import { formatRunStartShort } from "@/lib/courses/window";
 import type { AdmissionApplicationStatus } from "@/lib/firestore/admissionApplications";
 import {
   freePlaces,
+  isInTerm,
   isPooled,
   outcomeFor,
   placesHeld,
@@ -65,13 +66,10 @@ export type Term = {
   readiness: Readiness;
 };
 
-/**
- * Is this application part of the term's decisions? It has to have been sent,
- * and its owner must not have withdrawn it since.
- */
-export function isInTerm(application: Pick<ApplicationDoc, "sent" | "status">): boolean {
-  return application.sent !== null && application.status !== "withdrawn";
-}
+// Who is in the term is the contract's rule, in one place. It is handed on
+// from here because the decision-day modules beside this one ask it of this
+// file.
+export { isInTerm };
 
 function firstWord(text: string): string {
   return text.trim().split(/\s+/)[0] ?? "";

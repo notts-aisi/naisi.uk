@@ -369,7 +369,13 @@ export type Invitation = {
   lastReminderOn: string | null;
 };
 
-/** An accepted person's reply. Optional, and no reply means they are coming. */
+/**
+ * The reply of somebody who holds a place: by their own ranking, or by an
+ * invitation they accepted, whose `invitation.response` stays `accepted`
+ * whatever they answer here. Optional, and no reply means they are coming.
+ * `cant-make-it` gives the place back: the same write makes the application
+ * `withdrawn`, which is what takes it out of the term (`isInTerm`).
+ */
 export type Attendance = {
   answer: "coming" | "cant-make-it";
   answeredAt: Date | null;
@@ -397,7 +403,15 @@ export type ApplicationDoc = ApplicationFields & {
   /** From the session at the time, never from the request. */
   email: string | null;
   displayName: string;
+  /**
+   * On an application form: `submitted` from the first send until decision
+   * day, then what decision day said (`accepted`, `invited`, `no-offer`,
+   * `declined`). A reply moves it twice more: `accepted` also covers an
+   * invitation the person accepted, and `withdrawn` also covers a place or an
+   * invitation they gave back. `result` keeps what decision day said.
+   */
   status: AdmissionApplicationStatus;
+  /** When they withdrew, or gave a place or an invitation back. */
   withdrawnAt: Date | null;
   createdAt: Date | null;
   updatedAt: Date | null;
