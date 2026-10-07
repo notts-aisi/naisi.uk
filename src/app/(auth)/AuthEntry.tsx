@@ -539,7 +539,11 @@ export default function AuthEntry({ initialMode }: { initialMode: Mode }) {
             await nextPaint();
             hardNavigate(dest);
           } else {
-            router.push("/register?type=collaborator");
+            // No join request and no collaborator record. From an application
+            // form that is the form's own first step, by the same rule the
+            // Google branch keeps for a new account. From anywhere else it is
+            // the collaborator application, as it has always been.
+            router.push((await joinStepForNewAccount(safeNext)) ?? "/register?type=collaborator");
           }
         } catch (err) {
           setFormError(

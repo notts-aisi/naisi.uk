@@ -776,6 +776,30 @@ describe("where signing in returns to", () => {
     );
   });
 
+  test("the sign-in page asks before it sends an email account with no join request anywhere", () => {
+    // HELD BY READING THE FILE, for the same reason: the branch runs after a
+    // real sign-in. Somebody who made an account by email, chose a password
+    // and never sent a join request has neither kind of record. From a form,
+    // that person belongs on the form's first step; from anywhere else the
+    // sign-in page still offers the collaborator application.
+    const entry = stripSource(readFileSync(join(REPO_ROOT, "src", "app", "(auth)", "AuthEntry.tsx"), "utf8"), {
+      keepStrings: true,
+    });
+    const from = entry.indexOf("const result = await signInWithEmailPassword(trimmed, password);");
+    assert.ok(from !== -1, "the email sign-in is gone");
+    const body = entry.slice(from, entry.indexOf("} catch (err) {", from));
+    // An account that has a record goes where it always went, and is not asked about.
+    assert.match(body, /if \(result\.kind === "collaborator" \|\| result\.kind === "member"\) \{/);
+    assert.match(body, /const dest =\s*result\.kind === "collaborator" \? "\/collaborator" : safeNext;/);
+    const known = body.slice(0, body.indexOf("} else {"));
+    assert.equal(/joinStepForNewAccount/.test(known), false, "an account with a record is asked about");
+    // One with neither is asked, and the collaborator application is what is left.
+    assert.match(body, /\} else \{\s*router\.push\(\(await joinStepForNewAccount\(safeNext\)\) \?\? "\/register\?type=collaborator"\);\s*\}/);
+    assert.equal((body.match(/router\.(?:replace|push)\(/g) ?? []).length, 1);
+    // The function is called from these two branches of the page and nowhere else on it.
+    assert.equal((entry.match(/joinStepForNewAccount\(/g) ?? []).length, 2);
+  });
+
   test("the step's three links to the sign-in page are that one address", () => {
     const step = codeOf("JoinStep.tsx");
     assert.match(step, /const signInHref = signInHrefFor\(roundId\);/);

@@ -181,8 +181,9 @@ export const ASK_THE_FORM_MS = 4000;
 /**
  * Where the sign-in page sends an account with no join request that was
  * handed `next` as its return address: the address of a form's first step,
- * or null for "nowhere of ours", which the sign-in page reads as the register
- * page, as it always has.
+ * or null for "nowhere of the form's". On null the sign-in page sends the
+ * account where it always has: the register page after a sign-in with
+ * Google, the collaborator application after one with a password.
  *
  * The rule is `newAccountReturn` (`src/lib/applications/applicant/join.ts`).
  * An address the step marked is answered at once. An address with a form's
@@ -192,8 +193,8 @@ export const ASK_THE_FORM_MS = 4000;
  *
  * IT NEVER THROWS AND NEVER WAITS FOR EVER. A sign-in is in the middle of
  * finishing when this is called, so a route that fails, says no, or has not
- * answered within `limitMs` is null, and the person carries on to the
- * register page exactly as before this existed.
+ * answered within `limitMs` is null, and the person carries on exactly as
+ * they did before this existed.
  */
 export async function joinStepForNewAccount(next: string, limitMs: number = ASK_THE_FORM_MS): Promise<string | null> {
   const where = newAccountReturn(next);
