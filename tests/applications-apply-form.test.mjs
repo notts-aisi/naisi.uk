@@ -12,10 +12,11 @@
  *     run here against the sample term the boards were drawn from, and have
  *     to produce the boards' own words.
  *  2. COPY. An applicant never reads the words the committee keeps to itself
- *     (`WORDS_APPLICANTS_NEVER_SEE`), the form says in words that reviewers
- *     see names, and it does not show the older notice that says the
- *     opposite. Every file in the form's folder is read, so a new step is
- *     held to the same rule the day it is added.
+ *     (`WORDS_APPLICANTS_NEVER_SEE`), the form says in words who reads an
+ *     application and says nothing about names, and it does not show the
+ *     older notice, which says names are hidden. Every file in the form's
+ *     folder is read, so a new step is held to the same rule the day it is
+ *     added.
  *  3. THE STYLESHEETS keep the house mobile rules, and the components keep to
  *     real controls: the shared Select, no test ids, no framework image.
  */
@@ -438,13 +439,30 @@ describe("what an applicant reads", () => {
     }
   });
 
-  test("the form says who reads an application, and that they see the name", () => {
+  test("the form says who reads an application, in one sentence, word for word", () => {
     const checkStep = sourceOf("CheckStep.tsx");
     assert.ok(
-      checkStep.includes("Your application is read by the lead and the reviewers of each programme you pick. They see your name."),
+      checkStep.includes(
+        "Your application is read by the lead and the reviewers of each programme you pick, and by NAISI\u2019s admins.",
+      ),
     );
     assert.match(checkStep, /const PRIVACY_HREF = "\/privacy#courses";/);
     assert.ok(checkStep.includes("How we use your application"));
+  });
+
+  // The owner's decision of 7 October 2026: the form says who reads an
+  // application and does not mention that they see the person's name. Every
+  // file in the form's folder is read, comments included, so the sentence
+  // cannot come back on another step either.
+  test("no step says anybody sees the applicant's name", () => {
+    const SEES_A_NAME =
+      /\b(see|sees|shown|show|read|reads)\b[^.\n]{0,60}\b(your|their|the applicant[\u2019']s)\s+name\b|\b(your|their)\s+name\b[^.\n]{0,60}\b(seen|shown|visible)\b/i;
+    for (const file of formFiles.filter((name) => /\.tsx?$/.test(name))) {
+      assert.equal(SEES_A_NAME.test(sourceOf(file)), false, `${file} says somebody sees the applicant's name`);
+    }
+    // The pattern is not vacuous: it catches the sentence the form used to carry.
+    assert.equal(SEES_A_NAME.test("They see your name."), true);
+    assert.equal(SEES_A_NAME.test("reviewers see the applicant\u2019s name"), true);
   });
 
   test("the older notice, which says names are hidden, is not shown by the new form", () => {

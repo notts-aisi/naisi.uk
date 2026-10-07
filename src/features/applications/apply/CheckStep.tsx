@@ -21,8 +21,9 @@ import styles from "./check.module.css";
  * The rows come from the same list of steps the person walked through, so a
  * section they were never asked does not appear.
  *
- * WHO READS IT is said in words, above the link to the privacy notice:
- * reviewers see the applicant's name, and the form has to tell them so.
+ * WHO READS IT is said in words, above the link to the privacy notice. The
+ * sentence says who, and says nothing about what they see of the person: the
+ * form does not mention names.
  */
 
 /** The full "Courses and programmes" section of the privacy notice. */
@@ -249,8 +250,16 @@ export default function CheckStep({
       </div>
 
       <div className={styles.use}>
+        {/*
+          WHO THIS NAMES IS WHO `canReadApplication` LETS IN
+          (src/lib/applications/access.ts) for the programmes a person picks:
+          an admin, or somebody with a role, lead or reviewer, on a programme
+          in their ranking. It is a promise made to the person sending, so if
+          that predicate changes, this sentence changes with it: a test holds
+          the two together.
+        */}
         <p className={styles.readers}>
-          Your application is read by the lead and the reviewers of each programme you pick. They see your name.
+          Your application is read by the lead and the reviewers of each programme you pick, and by NAISI’s admins.
         </p>
         <Link href={PRIVACY_HREF} className={form.quietLink}>
           How we use your application
