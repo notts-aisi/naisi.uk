@@ -1,218 +1,336 @@
 /**
- * Generates the optimized NAISI brand assets used across the site, emails, and
- * favicon from the two master logo files in `brand-source/`.
+ * Makes every brand file the site serves from the masters in `brand-source/`.
  *
- *   brand-source/NAISI_logo_without_name.png  -> emblem (castle + shield + head)
- *   brand-source/NAISI_logo_with_name.png     -> emblem + stacked wordmark
+ *   npm run brand
  *
- * Run after the master files change:  node scripts/generate-brand-assets.mjs
+ * The masters are the society's artwork as its owner handed it over, in his
+ * folders, with his README saying what each file is for. To change the
+ * artwork, replace the files in `brand-source/` and run the command: nothing
+ * this script writes is ever placed or edited by hand. A second run with the
+ * same masters writes nothing.
  *
- * Outputs (all committed to the repo):
- *   public/brand/naisi-emblem.png        emblem, original navy/cyan colorway
- *   public/brand/naisi-emblem-white.png  emblem, monochrome white (dark UI)
- *   public/brand/naisi-lockup.png        emblem + wordmark, original colorway
- *   src/app/icon.png                     favicon, white emblem on the page floor
- *   src/app/apple-icon.png               apple touch icon, same treatment
- *   public/icons/icon-192.png            web app manifest icon, purpose "any"
- *   public/icons/icon-512.png            web app manifest icon, purpose "any"
- *   public/icons/icon-maskable-512.png   web app manifest icon, purpose "maskable"
- *   public/offline.html                  offline fallback, emblem inlined as a
- *                                        data URI from scripts/offline-template.html
+ * Two rules decide how each served file is made (`OUTPUTS` below is the list):
  *
- * Why a white emblem is generated here: the master logo is a dark navy/cyan
- * colorway that sinks into the near-black site background. The emblem is a
- * dark navy shape with a bright cyan offset-shadow behind it; we drop the cyan
- * (it would double the edge when flattened) and render the navy shape white.
+ *   copy   Where the masters hold a finished picture at exactly the size the
+ *          site needs, that picture is copied byte for byte. The tab icon, the
+ *          home-screen icons, the email logo and the link-preview card arrive
+ *          finished for their size (the tab icon is drawn on a 16px grid, the
+ *          app icons sit on their own ground), and a redraw here could only
+ *          differ from the picture that was approved.
+ *   draw   Anything else is drawn from the SVG master at the size needed.
+ *          Never from one of the PNG exports beside it, which would be a
+ *          picture of a picture.
  *
- * Why every app icon uses that white emblem on the dark page floor rather than
- * the original colorway on white: Android crops launcher icons to a circle or
- * squircle, and a white tile letterboxes badly inside that mask, so the icon
- * reads as a pale blob rather than as NAISI. A dark ground fills the mask edge
- * to edge and matches the app the icon opens. The original navy/cyan emblem is
- * invisible on #050810, so the dark ground forces the whitened variant. The
- * favicon and the apple touch icon use the same treatment so one app does not
- * show two different icons across platforms.
+ * What this script never does is change the mark. The emblem's outlines and
+ * its two inks come from the files as they are, and the cyan copy set behind
+ * the emblem is part of the mark, so there is no one-colour emblem to make.
+ * An earlier version of this script painted the emblem white and dropped the
+ * cyan; `public/brand/naisi-emblem-white.png` keeps its name because pages
+ * point at it, and is now the Night emblem (white over cyan).
+ *
+ * The tab icon and the home-screen icon are different pictures on purpose: a
+ * tower cut for 16 pixels in the tab, the whole emblem on the home screen.
+ * Each is wired to its own master, so changing one never changes the other.
+ *
+ * `tests/brand-assets.test.mjs` holds the served files to this script and the
+ * masters, in both directions: a served file this script does not make, a
+ * master it neither reads nor accounts for (`MASTERS_NOT_SERVED`), or a file
+ * that differs from what a run would write, fails `npm test`.
  */
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SRC_EMBLEM = path.join(root, "brand-source/NAISI_logo_without_name.png");
-const SRC_LOCKUP = path.join(root, "brand-source/NAISI_logo_with_name.png");
+export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-/*
- * The site's page floor. Mirrored from `body { background }` in
- * src/app/globals.css and from PAGE_FLOOR in src/theme/brandColors.ts.
- * Hardcoded rather than imported because this is a plain .mjs script and
- * cannot import a .ts module. Keep all three in sync.
+/** Where the masters live, relative to the repository. Not served. */
+export const MASTERS_DIR = "brand-source";
+
+/** The offline page's template, and the mark in it that the emblem replaces. */
+export const OFFLINE_TEMPLATE = "scripts/offline-template.html";
+const OFFLINE_PLACEHOLDER = "__EMBLEM_DATA_URI__";
+const OFFLINE_BANNER =
+  "<!-- GENERATED from scripts/offline-template.html by scripts/generate-brand-assets.mjs. Do not edit directly. -->\n";
+
+/**
+ * Every file this script writes. `from` is a master, relative to
+ * `brand-source/`. One of `copy`, `draw`, `offline` or `text` says how it is
+ * made:
+ *
+ *   copy: true                 the master's own bytes
+ *   draw: { height } | { width }   a PNG of the SVG master at that size. The
+ *                              other side follows the SVG's own view box,
+ *                              rounded up, and the drawing is fitted inside
+ *                              without being stretched (see drawSvg)
+ *   offline: true              the offline page, with the SVG inlined
+ *   text: "..."                the words themselves (no master)
  */
-const PAGE_FLOOR = "#050810";
+export const OUTPUTS = [
+  // --- The emblem and the lockup, as pictures a page can point at ---------
+  {
+    to: "public/brand/naisi-emblem.png",
+    from: "1-emblem/naisi-emblem.svg",
+    draw: { height: 480 },
+    why:
+      "The colour emblem, for light grounds. 393 by 480, the size it has always been served at, " +
+      "so a page that sizes it by one side keeps the other.",
+  },
+  {
+    to: "public/brand/naisi-emblem-white.png",
+    from: "1-emblem/naisi-emblem-night.svg",
+    draw: { height: 480 },
+    why:
+      "The Night emblem, for dark grounds and photographs (event covers). The name is the one " +
+      "pages have always read; the picture is white over the cyan copy, not one colour. The " +
+      "same shape as the colour emblem, so the same 393 by 480 box.",
+  },
+  {
+    to: "public/brand/naisi-lockup.png",
+    from: "2-lockup/naisi-lockup.svg",
+    draw: { width: 1200 },
+    why: "The emblem with the name beside it, colour, for light grounds.",
+  },
 
-/** Tile options shared by every app icon. See tile() for what each field does. */
-const ICON_ANY = { pad: 0.12, background: PAGE_FLOOR, flatten: true };
-const ICON_MASKABLE = { pad: 0.195, background: PAGE_FLOOR, flatten: true };
+  // --- Email ---------------------------------------------------------------
+  {
+    to: "public/brand/naisi-lockup-email.png",
+    from: "2-lockup/naisi-lockup-email-600w.png",
+    copy: true,
+    why:
+      "The logo at the top of every email that uses src/emails/EmailChrome.tsx. A PNG because mail " +
+      "clients do not show SVG; 600px wide and shown at 300 so it is sharp on a dense screen.",
+  },
 
-/** Re-encode as an optimized, palette-quantized PNG. */
-const png = (img) => img.png({ palette: true, compressionLevel: 9 });
+  // --- Link previews -------------------------------------------------------
+  // Next reads these two by name from src/app/ and writes the og:image and
+  // twitter:image tags itself, with the picture's real size and a query that
+  // changes when the picture does, so a new card is not held back by a
+  // messaging app's cache.
+  {
+    to: "src/app/opengraph-image.png",
+    from: "2-lockup/naisi-link-preview-1200x630.png",
+    copy: true,
+    why: "The card a shared link shows: the Night lockup on the site's ground, 1200 by 630.",
+  },
+  {
+    to: "src/app/opengraph-image.alt.txt",
+    text: "Nottingham AI Safety Initiative",
+    why: "What a screen reader says for the card. Next reads it beside the picture.",
+  },
 
-/** Recolor every kept pixel white, dropping the cyan offset-shadow. */
-async function whiten(srcBuffer) {
-  const { data, info } = await sharp(srcBuffer)
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const out = Buffer.alloc(data.length);
-  for (let i = 0; i < info.width * info.height; i++) {
-    const o = i * 4;
-    const g = data[o + 1];
-    const b = data[o + 2];
-    const a = data[o + 3];
-    // Cyan accent is bright in both green and blue; the navy body is dark.
-    const isCyan = g > 150 && b > 150;
-    if (a === 0 || isCyan) continue; // leave transparent
-    out[o] = out[o + 1] = out[o + 2] = 255;
-    out[o + 3] = a;
-  }
-  return sharp(out, {
-    raw: { width: info.width, height: info.height, channels: 4 },
-  });
+  // --- The browser tab -----------------------------------------------------
+  // Next reads favicon.ico and icon.svg by name from src/app/. A browser that
+  // takes an SVG tab icon uses icon.svg; any other uses the .ico, which holds
+  // the same tower at 16, 32 and 48.
+  {
+    to: "src/app/favicon.ico",
+    from: "4-favicon/favicon.ico",
+    copy: true,
+    why: "The tab icon for browsers that only take an .ico.",
+  },
+  {
+    to: "src/app/icon.svg",
+    from: "4-favicon/favicon.svg",
+    copy: true,
+    why: "The tab icon: the tower on a navy square, drawn on a 16px grid.",
+  },
+
+  // --- The home screen and the installed app -------------------------------
+  {
+    to: "src/app/apple-icon.png",
+    from: "3-app-icon/apple-touch-icon.png",
+    copy: true,
+    why: "The iOS home-screen icon, 180px. Opaque: iOS paints transparency black.",
+  },
+  // Named by literal address in src/app/manifest.ts, public/sw.js (the push
+  // notification) and src/app/global-error.tsx, so these two keep their
+  // addresses. The emblem sits inside the circle Android guarantees to show,
+  // so each file serves as both a plain and a maskable icon.
+  {
+    to: "public/icons/icon-192.png",
+    from: "3-app-icon/icon-192.png",
+    copy: true,
+    why: "The installed app's icon, 192px.",
+  },
+  {
+    to: "public/icons/icon-512.png",
+    from: "3-app-icon/icon-512.png",
+    copy: true,
+    why: "The installed app's icon, 512px, and the Android splash screen's picture.",
+  },
+
+  // --- The offline page ----------------------------------------------------
+  // The one document the service worker serves with no network, so it cannot
+  // point at a picture: the emblem goes in as a data URI. The SVG itself, not
+  // a PNG of it: the official file to the byte, and sharp on any screen.
+  {
+    to: "public/offline.html",
+    from: "1-emblem/naisi-emblem-night.svg",
+    offline: true,
+    why: "The offline fallback, from scripts/offline-template.html.",
+  },
+];
+
+/**
+ * Masters this script does not read, each with the reason. A file added to
+ * `brand-source/` has to be read above or accounted for here.
+ */
+export const MASTERS_NOT_SERVED = {
+  "README.md": "The owner's notes on what each file is for.",
+  "1-emblem/naisi-emblem.png": "His PNG export of the colour emblem. The SVG beside it is the master.",
+  "1-emblem/naisi-emblem-night.png": "His PNG export of the Night emblem. The SVG beside it is the master.",
+  "2-lockup/naisi-lockup.png": "His PNG export of the colour lockup. The SVG beside it is the master.",
+  "2-lockup/naisi-lockup-night.svg":
+    "The Night lockup. No page or email shows it from a file: on the site's dark ground the lockup is drawn in place by src/components/BrandMark.tsx.",
+  "2-lockup/naisi-lockup-night.png": "His PNG export of the Night lockup. See the SVG beside it.",
+  "2-lockup/naisi-link-preview-1200x630.svg":
+    "The card's vector source. The PNG beside it is the finished picture at the size a link preview takes.",
+  "3-app-icon/naisi-app-icon.svg":
+    "The app icon's master, for a size he has not supplied. The 180, 192 and 512 beside it are finished.",
+  "3-app-icon/naisi-app-icon-1024.png": "The app icon at 1024px. Nothing on the site takes that size.",
+  "4-favicon/favicon-16.png": "The tab icon at 16px. The .ico carries the same picture.",
+  "4-favicon/favicon-32.png": "The tab icon at 32px. The .ico carries the same picture.",
+};
+
+/**
+ * The finished pictures in the masters, each beside the SVG it is a picture
+ * of. A copied picture is served as it is, and this script cannot tell one
+ * exported before its SVG last changed from a current one, so the test draws
+ * each SVG and checks the pair still agree. It is a coarse check: it catches
+ * a picture of something else, not a nudge. (The test reads favicon.ico
+ * against favicon.svg too, to the pixel.)
+ */
+export const FINISHED_FROM = {
+  "2-lockup/naisi-lockup-email-600w.png": "2-lockup/naisi-lockup.svg",
+  "2-lockup/naisi-link-preview-1200x630.png": "2-lockup/naisi-link-preview-1200x630.svg",
+  "3-app-icon/apple-touch-icon.png": "3-app-icon/naisi-app-icon.svg",
+  "3-app-icon/icon-192.png": "3-app-icon/naisi-app-icon.svg",
+  "3-app-icon/icon-512.png": "3-app-icon/naisi-app-icon.svg",
+  "4-favicon/favicon-16.png": "4-favicon/favicon.svg",
+  "4-favicon/favicon-32.png": "4-favicon/favicon.svg",
+};
+
+const master = (rel) => path.join(ROOT, MASTERS_DIR, rel);
+
+/** The width and height of an SVG's own view box, in its own units. */
+export function viewBoxSize(svgText) {
+  const found = svgText.match(/<svg\b[^>]*\sviewBox="([^"]+)"/);
+  if (!found) throw new Error("the SVG has no viewBox");
+  const [, , width, height] = found[1].trim().split(/[\s,]+/).map(Number);
+  if (!(width > 0 && height > 0)) throw new Error(`unreadable viewBox "${found[1]}"`);
+  return { width, height };
 }
 
 /**
- * Composite an emblem, padded, onto a square opaque tile.
- *
- * @param pad        fraction of `size` reserved as padding on each edge.
- *                   0.12 for favicons and for manifest icons with
- *                   purpose "any"; 0.195 for a maskable icon (see below).
- * @param background tile ground.
- * @param flatten    drop the alpha channel. iOS composites any transparency
- *                   in a home-screen icon onto black, and Android does the
- *                   same inside an adaptive mask, so app icons must be fully
- *                   opaque rather than relying on the create() background
- *                   showing through.
+ * Draw an SVG master as a PNG. One side is given; the other follows the view
+ * box, rounded up to a whole pixel, and the drawing sits centred inside that
+ * box at its own proportions, the way an <img> of that size would show it.
+ * Rounding to the nearest pixel and filling the box would squeeze the mark by
+ * a fraction of a pixel or clip its edge, and a mark is neither squeezed nor
+ * clipped; the cost of not doing so is under a pixel of clear margin on two
+ * sides. No palette and no quantising either, so every pixel inside a shape
+ * is the file's own ink.
  */
-async function tile(emblemBuffer, size, { pad = 0.12, background = "#ffffff", flatten = false } = {}) {
-  const padPx = Math.round(size * pad);
-  const inner = await sharp(emblemBuffer)
-    .resize({ height: size - padPx * 2, fit: "inside" })
-    .toBuffer();
-  const img = sharp({
-    create: { width: size, height: size, channels: 4, background },
-  }).composite([{ input: inner, gravity: "center" }]);
-  return (flatten ? img.flatten({ background }) : img).png();
+export async function drawSvg(svgBuffer, { width, height }) {
+  const text = svgBuffer.toString("utf8");
+  const box = viewBoxSize(text);
+  // The small subtraction keeps a side that is already whole from being
+  // pushed up a pixel by floating-point dust.
+  const up = (n) => Math.ceil(n - 1e-6);
+  const w = width ?? up((height * box.width) / box.height);
+  const h = height ?? up((width * box.height) / box.width);
+  // The file's own width and height say how big to draw it when nobody asks
+  // for a size. Here somebody does, so the copy that is drawn carries the
+  // size asked for. Nothing else in it is touched: the view box, the
+  // outlines and the inks are the master's.
+  const sized = text.replace(/<svg\b[^>]*>/, (tag) =>
+    tag.replace(/\s(?:width|height)="[^"]*"/g, "").replace(/^<svg\b/, `<svg width="${w}" height="${h}"`),
+  );
+  const png = await sharp(Buffer.from(sized, "utf8")).png({ compressionLevel: 9 }).toBuffer();
+  const meta = await sharp(png).metadata();
+  if (meta.width !== w || meta.height !== h) {
+    throw new Error(`drew ${meta.width} by ${meta.height}, expected ${w} by ${h}`);
+  }
+  return png;
 }
 
-async function report(label, file) {
-  const meta = await sharp(file).metadata();
-  console.log(
-    `  ${label.padEnd(26)} ${meta.width}x${meta.height}  ar(w/h)=${(
-      meta.width / meta.height
-    ).toFixed(4)}`,
+/** The offline page: the template with the emblem's SVG inlined. */
+async function offlinePage(svgBuffer) {
+  const template = await readFile(path.join(ROOT, OFFLINE_TEMPLATE), "utf8");
+  if (template.split(OFFLINE_PLACEHOLDER).length !== 2) {
+    throw new Error(`${OFFLINE_TEMPLATE} must carry ${OFFLINE_PLACEHOLDER} exactly once`);
+  }
+  const uri = `data:image/svg+xml;base64,${svgBuffer.toString("base64")}`;
+  return Buffer.from(OFFLINE_BANNER + template.replace(OFFLINE_PLACEHOLDER, uri), "utf8");
+}
+
+/**
+ * What a run writes: one `{ to, bytes, how }` per entry of OUTPUTS, in order.
+ * Reads the masters and writes nothing.
+ */
+export async function build() {
+  const made = [];
+  for (const output of OUTPUTS) {
+    if (typeof output.text === "string") {
+      made.push({ to: output.to, bytes: Buffer.from(output.text, "utf8"), how: "text" });
+      continue;
+    }
+    const source = await readFile(master(output.from));
+    if (output.copy) made.push({ to: output.to, bytes: source, how: "copy" });
+    else if (output.draw) made.push({ to: output.to, bytes: await drawSvg(source, output.draw), how: "draw" });
+    else if (output.offline) made.push({ to: output.to, bytes: await offlinePage(source), how: "offline" });
+    else throw new Error(`${output.to}: no way to make it is given`);
+  }
+  return made;
+}
+
+/** True when two PNGs hold the same pixels, whatever their encoding. */
+async function samePixels(a, b) {
+  const [x, y] = await Promise.all(
+    [a, b].map((png) => sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })),
   );
+  return x.info.width === y.info.width && x.info.height === y.info.height && x.data.equals(y.data);
+}
+
+async function describe(bytes, to) {
+  if (/\.(png|svg)$/.test(to)) {
+    const meta = await sharp(bytes).metadata();
+    return `${meta.width}x${meta.height}`;
+  }
+  return "";
 }
 
 async function main() {
-  // Emblem, original colorway. Used in emails (light background).
-  const emblem = await png(
-    sharp(await sharp(SRC_EMBLEM).trim().toBuffer()).resize({ height: 480 }),
-  ).toBuffer();
-  await sharp(emblem).toFile(path.join(root, "public/brand/naisi-emblem.png"));
-
-  // Emblem, monochrome white. Used on every dark site surface.
-  const emblemWhite = await png(
-    (await whiten(await sharp(SRC_EMBLEM).trim().toBuffer()))
-      .trim()
-      .resize({ height: 480 }),
-  ).toBuffer();
-  await sharp(emblemWhite).toFile(
-    path.join(root, "public/brand/naisi-emblem-white.png"),
-  );
-
-  // Full stacked lockup, original colorway. Kept for press / general use.
-  await png(
-    sharp(await sharp(SRC_LOCKUP).trim().toBuffer()).resize({ width: 480 }),
-  ).toFile(path.join(root, "public/brand/naisi-lockup.png"));
-
-  // Favicon + apple touch icon: the white emblem on the page floor. Opaque,
-  // because iOS composites any transparency in a home-screen icon onto black.
-  // Same artwork as the manifest icons below so the Safari tab, the iOS home
-  // screen and the Android launcher all show one icon.
-  await png(await tile(emblemWhite, 256, ICON_ANY)).toFile(
-    path.join(root, "src/app/icon.png"),
-  );
-  await png(await tile(emblemWhite, 180, ICON_ANY)).toFile(
-    path.join(root, "src/app/apple-icon.png"),
-  );
-
-  // Web app manifest icons. Kept separate from the favicons above because they
-  // are OS-facing (Android launcher, task switcher, the Chrome install dialog
-  // and its splash screen) and are referenced by literal URL from
-  // src/app/manifest.ts, which cannot name the content-hashed URLs Next serves
-  // src/app/icon.png from.
-  const iconsDir = path.join(root, "public/icons");
-  await mkdir(iconsDir, { recursive: true });
-
-  for (const size of [192, 512]) {
-    await png(await tile(emblemWhite, size, ICON_ANY)).toFile(
-      path.join(iconsDir, `icon-${size}.png`),
-    );
+  console.log(`Brand files, from ${MASTERS_DIR}/:`);
+  let written = 0;
+  for (const { to, bytes, how } of await build()) {
+    const file = path.join(ROOT, to);
+    let current = null;
+    try {
+      current = await readFile(file);
+    } catch (err) {
+      if (err.code !== "ENOENT") throw err;
+    }
+    // A drawn PNG is left alone when its pixels are already right, so a
+    // machine whose encoder packs the same picture differently changes nothing.
+    const same =
+      current !== null && (current.equals(bytes) || (how === "draw" && (await samePixels(current, bytes))));
+    if (!same) {
+      await mkdir(path.dirname(file), { recursive: true });
+      await writeFile(file, bytes);
+      written++;
+    }
+    const state = same ? "unchanged" : current === null ? "created" : "updated";
+    const size = `${(bytes.length / 1024).toFixed(1)} KB`;
+    console.log(`  ${state.padEnd(9)} ${to.padEnd(36)} ${how.padEnd(7)} ${(await describe(bytes, to)).padEnd(9)} ${size}`);
   }
-
-  // purpose: "maskable". Android crops adaptive icons to an arbitrary shape and
-  // guarantees only a centre circle of radius 40% of the icon width, so the
-  // artwork needs a much bigger safe zone than a favicon.
-  //
-  // Deriving the 0.195 pad rather than guessing it: the white emblem is 391x480
-  // (aspect 0.8146). The safe circle at 512px has diameter 0.8 * 512 = 409.6px.
-  // A 0.195 pad is round(512 * 0.195) = 100px per edge, leaving a 312px-tall
-  // emblem, so 254x312, whose half-diagonal is 201.2px. That sits inside the
-  // 204.8px safe radius with a little room, and a larger pad would start to
-  // shrink the emblem for no benefit. Recompute this if the master art's aspect
-  // ratio ever changes.
-  await png(await tile(emblemWhite, 512, ICON_MASKABLE)).toFile(
-    path.join(iconsDir, "icon-maskable-512.png"),
-  );
-
-  // Offline fallback page. Rendered from the committed template with the
-  // white emblem inlined as a data URI, because this is the one document the
-  // service worker serves with no network: it cannot reference an image URL,
-  // and /_next/* asset paths die with every deploy. 72px display size, 144px
-  // bitmap for retina.
-  const emblemSmall = await sharp(emblemWhite)
-    .resize({ height: 144, fit: "inside" })
-    .png({ palette: true, compressionLevel: 9 })
-    .toBuffer();
-  const template = await readFile(
-    path.join(root, "scripts/offline-template.html"),
-    "utf8",
-  );
-  const banner =
-    "<!-- GENERATED from scripts/offline-template.html by scripts/generate-brand-assets.mjs. Do not edit directly. -->\n";
-  await writeFile(
-    path.join(root, "public/offline.html"),
-    banner +
-      template.replace(
-        "__EMBLEM_DATA_URI__",
-        `data:image/png;base64,${emblemSmall.toString("base64")}`,
-      ),
-  );
-
-  console.log("Brand assets generated:");
-  await report("public/brand/naisi-emblem", path.join(root, "public/brand/naisi-emblem.png"));
-  await report("public/brand/...-white", path.join(root, "public/brand/naisi-emblem-white.png"));
-  await report("public/brand/naisi-lockup", path.join(root, "public/brand/naisi-lockup.png"));
-  await report("src/app/icon", path.join(root, "src/app/icon.png"));
-  await report("src/app/apple-icon", path.join(root, "src/app/apple-icon.png"));
-  await report("public/icons/icon-192", path.join(root, "public/icons/icon-192.png"));
-  await report("public/icons/icon-512", path.join(root, "public/icons/icon-512.png"));
-  await report("public/icons/...maskable", path.join(root, "public/icons/icon-maskable-512.png"));
-  const offlineBytes = (await readFile(path.join(root, "public/offline.html"))).length;
-  console.log(`  ${"public/offline.html".padEnd(26)} ${(offlineBytes / 1024).toFixed(1)} KB`);
+  console.log(written === 0 ? "Nothing changed." : `${written} file${written === 1 ? "" : "s"} written.`);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
