@@ -50,13 +50,17 @@ function answer(value: unknown): string {
  */
 export const STUDY_CHANGE_ID = /^[A-Za-z0-9]{1,40}$/;
 
-const ID_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-
-/** A new key for an entry: twenty letters and digits, never used before on this document. */
+/**
+ * A new key for an entry: twenty letters and digits, never used before on this
+ * document. Ten random bytes, each written as its two hexadecimal digits, so
+ * every byte becomes exactly two characters and no key is likelier than
+ * another. (Folding a byte onto a longer alphabet with a remainder would
+ * favour its first few letters.)
+ */
 export function newStudyChangeId(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(20));
+  const bytes = crypto.getRandomValues(new Uint8Array(10));
   let id = "";
-  for (const byte of bytes) id += ID_LETTERS[byte % ID_LETTERS.length];
+  for (const byte of bytes) id += byte.toString(16).padStart(2, "0");
   return id;
 }
 
