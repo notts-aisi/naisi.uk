@@ -1,0 +1,90 @@
+/* Email delivery (/admin/deliverability): the two small cards at the top and
+   the cells of its three tables. The tables themselves are AdminTable's, in
+   adminList.module.css; the cards and section heads are in
+   adminPanels.module.css. */
+
+/* Who the site can email, beside the task emails switch. */
+.pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(22rem, 100%), 1fr));
+  gap: var(--space-4);
+  align-items: start;
+  min-width: 0;
+}
+
+/* A setting on a line of its own: a box a shade darker than its card. */
+.switchRow {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+}
+
+.muted {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+/* === Cells === */
+.address {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.when {
+  white-space: nowrap;
+  color: var(--color-text-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.detail {
+  color: var(--color-text-muted);
+}
+
+.file {
+  overflow-wrap: anywhere;
+}
+
+/* A chip is never broken in the middle of a word by a narrow column. */
+.chip {
+  white-space: nowrap;
+}
+
+.action {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* A kind this build does not know, shown as stored beside its label. */
+.unknownKind {
+  margin-left: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* Each row of the three tables is a card here (AdminTable's stacking),
+     with its facts labelled under its first line. That first line is the
+     address or the kind of file, and has the card's whole width. */
+  .address {
+    font-size: var(--text-ui);
+  }
+  .when {
+    white-space: normal;
+  }
+  .action button {
+    min-height: 2.75rem;
+  }
+}

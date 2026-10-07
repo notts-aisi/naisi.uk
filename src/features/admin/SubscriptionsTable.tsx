@@ -1,14 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
+import Chip from "@/components/ui/Chip";
+import InitialsChip from "@/components/ui/InitialsChip";
+import Notice from "@/components/ui/Notice";
+import PageHead from "@/components/ui/PageHead";
 import ResponsiveSelect from "@/components/ui/ResponsiveSelect";
 import { downloadCSV, toCSV } from "@/lib/csv";
-import { AdminLoadingBar } from "./adminList";
+import { AdminLoadingBar, AdminSearch } from "./adminList";
 import {
   useSubscriptions,
   type SubscriptionRow,
@@ -26,6 +30,9 @@ type StatusFilter = "all" | SubscriptionDisplayStatus;
 type AudienceFilter = "all" | "user" | "guest";
 
 const PAGE_SIZE = 30;
+
+/** How many people the "Find someone" card lists before it says to keep typing. */
+const FIND_LIMIT = 6;
 
 const STATUS_LABEL: Record<SubscriptionDisplayStatus, string> = {
   subscribed: "Subscribed",
@@ -320,6 +327,12 @@ export default function SubscriptionsTable() {
   const [page, setPage] = useState(0);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [busyId, setBusyId] = useState<string | null>(null);
+  /** The recipient whose every row is being unsubscribed, at their request. */
+  const [stoppingKey, setStoppingKey] = useState<string | null>(null);
+  /** Whether the table of every row is open. `null` until somebody chooses:
+   *  it then follows the address, open when the page was opened on one person. */
+  const [showAllChoice, setShowAllChoice] = useState<boolean | null>(null);
+  const everyRowId = useId();
   /** `${recipientKey}::${email}` while that stale column is being removed. */
   const [deletingEmail, setDeletingEmail] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -436,6 +449,31 @@ export default function SubscriptionsTable() {
     return { subscribed, unsubscribed, pending, lapsed, guests, members, stale };
   }, [rows, recipients, staleByKey]);
 
+  // The four numbers at the top of the page. Each counts ADDRESSES, never rows:
+  // one address on two lists is one person's inbox, and a row count would say
+  // two.
+  const reach = useMemo(() => {
+    const all = new Set<string>();
+    const noAccount = new Set<string>();
+    const newsletter = new Set<string>();
+    const events = new Set<string>();
+    const unconfirmed = new Set<string>();
+    for (const r of rows) {
+      all.add(r.email);
+      if (r.audience === "guest") noAccount.add(r.email);
+      if (r.displayStatus === "subscribed" && r.channel === "newsletter") newsletter.add(r.email);
+      if (r.displayStatus === "subscribed" && r.channel === "events") events.add(r.email);
+      if (r.displayStatus === "pending") unconfirmed.add(r.email);
+    }
+    return {
+      addresses: all.size,
+      noAccount: noAccount.size,
+      newsletter: newsletter.size,
+      events: events.size,
+      unconfirmed: unconfirmed.size,
+    };
+  }, [rows]);
+
   function clearPin() {
     router.replace("/admin/subscriptions");
   }
@@ -477,6 +515,33 @@ export default function SubscriptionsTable() {
       setActionError(err instanceof Error ? err.message : "Action failed");
     } finally {
       setBusyId(null);
+    }
+  }
+
+  /**
+   * Somebody asked us to stop emailing them. Every row of theirs that is still
+   * switched on is switched off, one call each to the same route the single
+   * Unsubscribe button uses, so each one is written to the history under the
+   * admin's name. Then the list is read again, so the card shows what is
+   * stored and not what was hoped for.
+   */
+  async function onUnsubscribeOnRequest(recipient: Recipient) {
+    const live = liveCells(recipient);
+    if (live.length === 0) return;
+    setStoppingKey(recipient.key);
+    setActionError(null);
+    try {
+      for (const cell of live) await setRowSubscribed(cell.id, false);
+    } catch (err) {
+      console.error(err);
+      setActionError(
+        err instanceof Error
+          ? `Not every list was switched off: ${err.message}`
+          : "Not every list was switched off.",
+      );
+    } finally {
+      await reload();
+      setStoppingKey(null);
     }
   }
 
@@ -524,18 +589,32 @@ export default function SubscriptionsTable() {
 
   if (loading) {
     return (
-      <Card padding="md">
-        <AdminLoadingBar label="Loading subscriptions…" />
-      </Card>
+      <>
+        <PageHead
+          crumb="People"
+          title="Mailing list"
+          description="Who gets which emails. People choose for themselves, so only change someone’s when they ask."
+        />
+        <Card padding="md">
+          <AdminLoadingBar label="Loading the mailing list…" />
+        </Card>
+      </>
     );
   }
   if (error) {
     return (
-      <Card padding="md">
-        <p style={{ color: "var(--color-danger)" }}>
-          Couldn&apos;t load subscriptions: {error.message}
-        </p>
-      </Card>
+      <>
+        <PageHead
+          crumb="People"
+          title="Mailing list"
+          description="Who gets which emails. People choose for themselves, so only change someone’s when they ask."
+        />
+        <Card padding="md">
+          <p style={{ color: "var(--color-danger-text)" }}>
+            Couldn&apos;t load the mailing list: {error.message}
+          </p>
+        </Card>
+      </>
     );
   }
 
@@ -543,230 +622,413 @@ export default function SubscriptionsTable() {
   const gridTemplate = `minmax(11rem, 1.7fr) 6rem 7rem repeat(${channelColumns.length}, minmax(8rem, 1fr)) 2.75rem`;
   const tableMinWidth = `${11 + 6 + 7 + channelColumns.length * 8 + 2.75 + 3}rem`;
 
+  const finding = search.trim() !== "";
+  const showAll = showAllChoice ?? pinnedAudienceId !== null;
+  const found = finding ? filtered.slice(0, FIND_LIMIT) : [];
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
-      <div className={styles.summary}>
-        <div>
-          <div className={styles.bigCount}>{recipients.length}</div>
-          <div className={styles.bigLabel}>
-            Recipient{recipients.length === 1 ? "" : "s"}
-          </div>
-        </div>
-        <div className={styles.minis}>
-          <Mini count={counts.subscribed} label="Subscribed rows" />
-          <Mini count={counts.pending} label="Pending rows" />
-          <Mini count={counts.unsubscribed} label="Unsubscribed rows" />
-          <Mini count={counts.lapsed} label="Lapsed rows" />
-          <Mini count={counts.members} label="Member rows" />
-          <Mini count={counts.guests} label="Guest rows" />
-          <Mini count={counts.stale} label="Stale rows" warn={counts.stale > 0} />
-        </div>
+    <>
+      <PageHead
+        crumb="People"
+        title="Mailing list"
+        description="Who gets which emails. People choose for themselves, so only change someone’s when they ask."
+        meta={
+          <span>
+            {reach.addresses} {reach.addresses === 1 ? "address" : "addresses"}, including{" "}
+            {reach.noAccount} {reach.noAccount === 1 ? "person" : "people"} without an account.
+          </span>
+        }
+        actions={
+          <Button
+            variant="secondary"
+            onClick={onDownload}
+            title="The rows for whoever is in view below: everybody, or whoever the search and the filters have left"
+            leading={<DownloadMark />}
+          >
+            Export CSV
+          </Button>
+        }
+      />
+
+      <div className={styles.reach}>
+        <ReachCard
+          count={reach.newsletter}
+          label="get the newsletter"
+          note="Members and people without an account"
+        />
+        <ReachCard
+          count={reach.events}
+          label="get event emails"
+          note="An email when a new event goes up"
+        />
+        <ReachCard
+          count={reach.unconfirmed}
+          label={reach.unconfirmed === 1 ? "hasn’t confirmed" : "haven’t confirmed"}
+          note="They haven’t clicked the link in our email yet"
+        />
       </div>
 
-      <Card padding="md">
-        <div className={styles.toolbar}>
-          <div className={`${styles.filterField} ${styles.filterFieldGrow}`}>
-            <label className={styles.filterLabel} htmlFor="sub-search">
-              Search
-            </label>
-            <Input
-              id="sub-search"
-              type="search"
-              value={search}
-              onChange={(e) => onSearch(e.target.value)}
-              placeholder="Name or email, case-insensitive"
-            />
-          </div>
-          <div className={styles.filterField}>
-            <label className={styles.filterLabel} htmlFor="sub-channel">
-              Channel
-            </label>
-            <ResponsiveSelect
-              value={channelFilter}
-              onChange={onChannel}
-              options={[
-                { value: "all", label: "All channels" },
-                ...channelColumns.map((c) => ({ value: c, label: titleCase(c) })),
-              ]}
-              ariaLabel="Channel"
-            />
-          </div>
-          <div className={styles.filterField}>
-            <label className={styles.filterLabel} htmlFor="sub-status">
-              Status
-            </label>
-            <ResponsiveSelect<StatusFilter>
-              value={statusFilter}
-              onChange={onStatus}
-              options={[
-                { value: "all", label: "All statuses" },
-                { value: "subscribed", label: "Subscribed" },
-                { value: "pending", label: "Pending" },
-                { value: "unsubscribed", label: "Unsubscribed" },
-                { value: "lapsed", label: "Lapsed" },
-              ]}
-              ariaLabel="Status"
-            />
-          </div>
-          <div className={styles.filterField}>
-            <label className={styles.filterLabel} htmlFor="sub-audience">
-              Audience
-            </label>
-            <ResponsiveSelect<AudienceFilter>
-              value={audienceFilter}
-              onChange={onAudience}
-              options={[
-                { value: "all", label: "All audiences" },
-                { value: "user", label: "Members" },
-                { value: "guest", label: "Guests" },
-              ]}
-              ariaLabel="Audience"
-            />
-          </div>
-          <div className={styles.toolbarActions}>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={onRunBackfill}
-              disabled={backfillState.kind === "running"}
-              title="Two-pass migration: writes a row per (verified email, channel) for every user, then converts any legacy-shape rows to the new schema. Idempotent."
-            >
-              {backfillState.kind === "running" ? "Running…" : "Run backfill"}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={onDownload}>
-              Download CSV
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={reload}
-              disabled={refreshing}
-              title="Reload subscriptions from Firestore (the list is one-shot, not realtime)."
-            >
-              {refreshing ? "Refreshing…" : "Refresh"}
-            </Button>
-          </div>
+      <section className={styles.find} aria-labelledby="mailing-find">
+        <div>
+          <h2 id="mailing-find" className={styles.findTitle}>
+            Find someone
+          </h2>
+          <p className={styles.findNote}>For when someone asks you to stop emailing them.</p>
         </div>
+        <AdminSearch
+          id="sub-search"
+          label="Search by name or email"
+          className={styles.findSearch}
+          value={search}
+          onChange={(e) => onSearch(e.target.value)}
+        />
 
-        {pinnedAudienceId && (
-          <div className={styles.pinnedRow}>
-            <span className={styles.pinnedFilter}>
-              Pinned to one user
-              <button
-                type="button"
-                className={styles.pinnedFilterClear}
-                onClick={clearPin}
-                aria-label="Clear pinned filter"
-              >
-                ×
-              </button>
-            </span>
-          </div>
-        )}
-
-        {backfillState.kind === "done" && (
-          <p className={styles.toolbarNote}>
-            Backfill complete. Scanned {backfillState.result.usersScanned} user
-            {backfillState.result.usersScanned === 1 ? "" : "s"}, wrote{" "}
-            {backfillState.result.memberRowsWritten} member row
-            {backfillState.result.memberRowsWritten === 1 ? "" : "s"}, migrated{" "}
-            {backfillState.result.legacyRowsMigrated} legacy row
-            {backfillState.result.legacyRowsMigrated === 1 ? "" : "s"}
-            {backfillState.result.usersWithNoEmail > 0
-              ? `, skipped ${backfillState.result.usersWithNoEmail} user(s) without email`
+        {finding && (
+          <p className={styles.findCount} role="status">
+            {filtered.length} {filtered.length === 1 ? "match" : "matches"}
+            {filtered.length > FIND_LIMIT
+              ? `. The first ${FIND_LIMIT} are here: keep typing, or open every row below.`
               : ""}
-            .
           </p>
         )}
-        {backfillState.kind === "error" && (
-          <p className={`${styles.toolbarNote} ${styles.toolbarNoteError}`}>
-            {backfillState.message}
-          </p>
-        )}
-      </Card>
+
+        {found.map((r) => {
+          const live = liveCells(r);
+          const displayName = r.name || "No name on file";
+          return (
+            <div key={r.key} className={styles.person}>
+              <InitialsChip name={r.name || r.emails[0] || "?"} uid={r.audienceId} size="lg" />
+              <div className={styles.personText}>
+                <span className={styles.personName}>{displayName}</span>
+                <span className={styles.personSub}>
+                  {r.emails.join(", ")} ·{" "}
+                  {r.audience === "user" ? (
+                    <Link href={`/admin/members/${encodeURIComponent(r.audienceId)}`}>
+                      has an account
+                    </Link>
+                  ) : (
+                    "no account"
+                  )}
+                </span>
+              </div>
+              <div className={styles.personLists}>
+                {r.channels.map((ch) => {
+                  const roll = rollupChannelState(r, ch);
+                  if (roll.state === "subscribed") return <Chip key={ch}>{titleCase(ch)}</Chip>;
+                  if (roll.state === "pending") {
+                    return (
+                      <Chip key={ch} tone="warning" title="They haven’t clicked the link in our email yet">
+                        {titleCase(ch)}, not confirmed
+                      </Chip>
+                    );
+                  }
+                  return null;
+                })}
+                {live.length === 0 && <span className={styles.personSub}>Gets no emails from us</span>}
+              </div>
+              {live.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={stoppingKey !== null}
+                  onClick={() => onUnsubscribeOnRequest(r)}
+                >
+                  {stoppingKey === r.key ? "Unsubscribing…" : "Unsubscribe on request"}
+                </Button>
+              )}
+            </div>
+          );
+        })}
+
+        <p className={styles.findNote}>
+          “Unsubscribe on request” stops every email to that person, at each of their addresses,
+          and the history under each row records that an admin did it.
+        </p>
+      </section>
+
+      <Notice
+        tone="info"
+        role="note"
+        actions={
+          <Link href="/admin/deliverability" className={styles.noticeLink}>
+            See Email delivery
+          </Link>
+        }
+      >
+        Addresses that bounced or marked us as spam are never emailed.
+      </Notice>
 
       {actionError && (
         <Card padding="sm">
-          <p style={{ color: "var(--color-danger)", margin: 0 }}>{actionError}</p>
-        </Card>
-      )}
-
-      {filtered.length === 0 ? (
-        <Card padding="md">
-          <p style={{ color: "var(--color-text-muted)" }}>
-            No recipients match the current filters.
+          <p role="alert" style={{ color: "var(--color-danger-text)", margin: 0 }}>
+            {actionError}
           </p>
         </Card>
-      ) : (
-        <>
-          <div className={styles.tableScroll}>
-            <div className={styles.tableInner} style={{ minWidth: tableMinWidth }}>
-              <div
-                className={styles.tableHeader}
-                style={{ gridTemplateColumns: gridTemplate }}
+      )}
+
+      <section className={styles.every}>
+        <button
+          type="button"
+          className={styles.everyToggle}
+          aria-expanded={showAll}
+          aria-controls={everyRowId}
+          onClick={() => setShowAllChoice(!showAll)}
+        >
+          <span className={styles.everyTitle}>{showAll ? "Hide every row" : "Show every row"}</span>
+          <span className={styles.everyCount}>
+            {reach.addresses} {reach.addresses === 1 ? "address" : "addresses"}
+          </span>
+          <svg
+            className={showAll ? `${styles.everyChevron} ${styles.everyChevronOpen}` : styles.everyChevron}
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+
+        <div id={everyRowId} className={styles.everyBody} hidden={!showAll}>
+          <div className={styles.minis}>
+            <Mini count={recipients.length} label={recipients.length === 1 ? "Person" : "People"} />
+            <Mini count={counts.subscribed} label="Subscribed rows" />
+            <Mini count={counts.pending} label="Pending rows" />
+            <Mini count={counts.unsubscribed} label="Unsubscribed rows" />
+            <Mini count={counts.lapsed} label="Lapsed rows" />
+            <Mini count={counts.members} label="Member rows" />
+            <Mini count={counts.guests} label="Guest rows" />
+            <Mini count={counts.stale} label="Stale rows" warn={counts.stale > 0} />
+          </div>
+
+          <div className={styles.toolbar}>
+            <div className={styles.filterField}>
+              <label className={styles.filterLabel} htmlFor="sub-channel">
+                List
+              </label>
+              <ResponsiveSelect
+                id="sub-channel"
+                value={channelFilter}
+                onChange={onChannel}
+                options={[
+                  { value: "all", label: "Every list" },
+                  ...channelColumns.map((c) => ({ value: c, label: titleCase(c) })),
+                ]}
+                ariaLabel="List"
+              />
+            </div>
+            <div className={styles.filterField}>
+              <label className={styles.filterLabel} htmlFor="sub-status">
+                Status
+              </label>
+              <ResponsiveSelect<StatusFilter>
+                id="sub-status"
+                value={statusFilter}
+                onChange={onStatus}
+                options={[
+                  { value: "all", label: "Any status" },
+                  { value: "subscribed", label: "Subscribed" },
+                  { value: "pending", label: "Pending" },
+                  { value: "unsubscribed", label: "Unsubscribed" },
+                  { value: "lapsed", label: "Lapsed" },
+                ]}
+                ariaLabel="Status"
+              />
+            </div>
+            <div className={styles.filterField}>
+              <label className={styles.filterLabel} htmlFor="sub-audience">
+                Who
+              </label>
+              <ResponsiveSelect<AudienceFilter>
+                id="sub-audience"
+                value={audienceFilter}
+                onChange={onAudience}
+                options={[
+                  { value: "all", label: "Everybody" },
+                  { value: "user", label: "People with an account" },
+                  { value: "guest", label: "People without one" },
+                ]}
+                ariaLabel="Who"
+              />
+            </div>
+            <div className={styles.toolbarActions}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={onRunBackfill}
+                disabled={backfillState.kind === "running"}
+                title="Two-pass migration: writes a row per (verified email, channel) for every user, then converts any legacy-shape rows to the new schema. Idempotent."
               >
-                <span>Recipient</span>
-                <span>Audience</span>
-                <span>Emails</span>
-                {channelColumns.map((c) => (
-                  <span key={c}>{titleCase(c)}</span>
-                ))}
-                <span aria-hidden />
-              </div>
-              <div className={styles.recipientList}>
-                {pageRecipients.map((r) => (
-                  <RecipientRow
-                    key={r.key}
-                    recipient={r}
-                    expanded={expanded.has(r.key)}
-                    onToggle={() => toggleExpand(r.key)}
-                    channelColumns={channelColumns}
-                    channelFilter={channelFilter}
-                    statusFilter={statusFilter}
-                    busyId={busyId}
-                    onToggleSubscribed={onToggleSubscribed}
-                    staleEmails={staleByKey.get(r.key) ?? new Set()}
-                    deletingEmail={deletingEmail}
-                    onDeleteEmailRows={onDeleteEmailRows}
-                    gridTemplate={gridTemplate}
-                    eventsBySubId={eventsBySubId}
-                  />
-                ))}
-              </div>
+                {backfillState.kind === "running" ? "Running…" : "Run backfill"}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={reload}
+                disabled={refreshing}
+                title="Read the list again (it does not update by itself)."
+              >
+                {refreshing ? "Refreshing…" : "Refresh"}
+              </Button>
             </div>
           </div>
 
-          <div className={styles.pagination}>
-            <span className={styles.paginationInfo}>
-              {filtered.length} recipient{filtered.length === 1 ? "" : "s"} ·
-              Showing {pageStart + 1} to{" "}
-              {Math.min(pageStart + PAGE_SIZE, filtered.length)}
-            </span>
-            <div className={styles.paginationActions}>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={safePage === 0}
-                onClick={() => setPage(safePage - 1)}
-              >
-                Prev
-              </Button>
-              <span className={styles.muted}>
-                Page {safePage + 1} / {pageCount}
+          {pinnedAudienceId && (
+            <div className={styles.pinnedRow}>
+              <span className={styles.pinnedFilter}>
+                Showing one person
+                <button
+                  type="button"
+                  className={styles.pinnedFilterClear}
+                  onClick={clearPin}
+                  aria-label="Show everybody"
+                >
+                  ×
+                </button>
               </span>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={safePage >= pageCount - 1}
-                onClick={() => setPage(safePage + 1)}
-              >
-                Next
-              </Button>
             </div>
-          </div>
-        </>
-      )}
+          )}
+
+          {backfillState.kind === "done" && (
+            <p className={styles.toolbarNote}>
+              Backfill complete. Scanned {backfillState.result.usersScanned} user
+              {backfillState.result.usersScanned === 1 ? "" : "s"}, wrote{" "}
+              {backfillState.result.memberRowsWritten} member row
+              {backfillState.result.memberRowsWritten === 1 ? "" : "s"}, migrated{" "}
+              {backfillState.result.legacyRowsMigrated} legacy row
+              {backfillState.result.legacyRowsMigrated === 1 ? "" : "s"}
+              {backfillState.result.usersWithNoEmail > 0
+                ? `, skipped ${backfillState.result.usersWithNoEmail} user(s) without email`
+                : ""}
+              .
+            </p>
+          )}
+          {backfillState.kind === "error" && (
+            <p className={`${styles.toolbarNote} ${styles.toolbarNoteError}`}>
+              {backfillState.message}
+            </p>
+          )}
+
+          {filtered.length === 0 ? (
+            <p className={styles.muted}>Nobody matches the search and the filters.</p>
+          ) : (
+            <>
+              <div className={styles.tableScroll}>
+                <div className={styles.tableInner} style={{ minWidth: tableMinWidth }}>
+                  <div
+                    className={styles.tableHeader}
+                    style={{ gridTemplateColumns: gridTemplate }}
+                  >
+                    <span>Person</span>
+                    <span>Account</span>
+                    <span>Addresses</span>
+                    {channelColumns.map((c) => (
+                      <span key={c}>{titleCase(c)}</span>
+                    ))}
+                    <span aria-hidden />
+                  </div>
+                  <div className={styles.recipientList}>
+                    {pageRecipients.map((r) => (
+                      <RecipientRow
+                        key={r.key}
+                        recipient={r}
+                        expanded={expanded.has(r.key)}
+                        onToggle={() => toggleExpand(r.key)}
+                        channelColumns={channelColumns}
+                        channelFilter={channelFilter}
+                        statusFilter={statusFilter}
+                        busyId={busyId}
+                        onToggleSubscribed={onToggleSubscribed}
+                        staleEmails={staleByKey.get(r.key) ?? new Set()}
+                        deletingEmail={deletingEmail}
+                        onDeleteEmailRows={onDeleteEmailRows}
+                        gridTemplate={gridTemplate}
+                        eventsBySubId={eventsBySubId}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.pagination}>
+                <span className={styles.paginationInfo}>
+                  {filtered.length} {filtered.length === 1 ? "person" : "people"} · Showing{" "}
+                  {pageStart + 1} to {Math.min(pageStart + PAGE_SIZE, filtered.length)}
+                </span>
+                <div className={styles.paginationActions}>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={safePage === 0}
+                    onClick={() => setPage(safePage - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <span className={styles.muted}>
+                    Page {safePage + 1} of {pageCount}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={safePage >= pageCount - 1}
+                    onClick={() => setPage(safePage + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
+/** The rows of one person that still send them something: switched on,
+ *  whether or not the address has been confirmed yet. */
+function liveCells(recipient: Recipient): SubscriptionRow[] {
+  const live: SubscriptionRow[] = [];
+  for (const email of recipient.emails) {
+    for (const cell of Object.values(recipient.cells[email] ?? {})) {
+      if (cell.subscribed) live.push(cell);
+    }
+  }
+  return live;
+}
+
+function ReachCard({ count, label, note }: { count: number; label: string; note: string }) {
+  return (
+    <div className={styles.reachCard}>
+      <span className={styles.reachCount}>{count}</span>
+      <span className={styles.reachLabel}>{label}</span>
+      <span className={styles.reachNote}>{note}</span>
     </div>
+  );
+}
+
+function DownloadMark() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M12 4v11M7 11l5 5 5-5M5 20h14" />
+    </svg>
   );
 }
 
@@ -842,7 +1104,7 @@ function RecipientRow({
               recipient.name ? "" : styles.recipientNameMuted
             }`}
           >
-            {recipient.name || "(no name on file)"}
+            {recipient.name || "No name on file"}
           </span>
           {hasStale && (
             <span className={styles.staleChip} title="Has a stale orphan row">
@@ -853,7 +1115,7 @@ function RecipientRow({
 
         <span className={styles.cellAudience}>
           <Badge tone={recipient.audience === "user" ? "accent" : "neutral"}>
-            {recipient.audience}
+            {recipient.audience === "user" ? "Account" : "No account"}
           </Badge>
         </span>
 

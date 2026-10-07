@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import PageHead from "@/components/ui/PageHead";
+import Switch from "@/components/ui/Switch";
+import { AdminLoadingBar, AdminTable } from "./adminList";
+import { AdminPanel, AdminProblem, AdminSection } from "./adminPanels";
 import DeliverabilityExports from "./DeliverabilityExports";
+import styles from "./Deliverability.module.css";
 
 type SendStatus = "sent" | "bounced" | "complained" | "suppressed" | "held";
 
@@ -32,7 +37,7 @@ type Suppression = {
 };
 
 function formatDate(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "Not recorded";
   try {
     return new Date(iso).toLocaleString(undefined, {
       day: "numeric",
@@ -130,7 +135,16 @@ function kindBadge(kind: string, surface?: string) {
   );
 }
 
-export default function DeliverabilityDashboard() {
+/**
+ * Email delivery: the send log, the addresses we no longer email, and the log
+ * of downloads the site has made.
+ *
+ * It draws the page's head itself, because Refresh belongs there and is this
+ * component's own state. `audience` is the card that says who this copy of
+ * the site may email: a Server Component the page hands in, so its answer is
+ * worked out on the server and only the sentence reaches the browser.
+ */
+export default function DeliverabilityDashboard({ audience }: { audience?: ReactNode }) {
   const [sends, setSends] = useState<Send[]>([]);
   const [suppressions, setSuppressions] = useState<Suppression[]>([]);
   const [loading, setLoading] = useState(true);
@@ -192,159 +206,150 @@ export default function DeliverabilityDashboard() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-      <header
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          gap: "var(--space-4)",
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <h2 style={{ fontSize: "var(--text-2xl)", marginBottom: "var(--space-1)" }}>
-            Deliverability
-          </h2>
-          <p style={{ color: "var(--color-text-muted)", fontSize: "var(--text-sm)", margin: 0 }}>
-            Recent sends and the suppression list fed by email provider bounce +
-            complaint events, plus the log of downloads the site has generated.
-          </p>
-        </div>
-        <Button size="sm" variant="secondary" onClick={refresh} disabled={loading}>
-          {loading ? "Refreshing…" : "Refresh"}
-        </Button>
-      </header>
+    <>
+      <PageHead
+        crumb="Site settings"
+        title="Email delivery"
+        description="What the site has sent lately, the addresses it no longer emails, and the downloads it has made."
+        actions={
+          <Button variant="secondary" onClick={refresh} disabled={loading}>
+            {loading ? "Refreshing…" : "Refresh"}
+          </Button>
+        }
+      />
 
-      {error && (
-        <Card padding="md">
-          <p style={{ color: "var(--color-danger)", margin: 0 }}>{error}</p>
-        </Card>
-      )}
+      {error && <AdminProblem>{error}</AdminProblem>}
 
-      <TaskEmailKillSwitch />
+      <div className={styles.pair}>
+        {/* Read before the send log below: a row marked Held is this card's
+            answer applied to one message. */}
+        {audience}
+        <TaskEmailKillSwitch />
+      </div>
 
-      <section style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-        <h3 style={{ fontSize: "var(--text-lg)" }}>Recent sends</h3>
+      <AdminSection title="Recent sends">
         {loading && sends.length === 0 ? (
           <Card padding="md">
-            <p style={{ color: "var(--color-text-muted)", margin: 0 }}>Loading…</p>
+            <AdminLoadingBar label="Loading the send log…" />
           </Card>
         ) : sends.length === 0 ? (
           <Card padding="md">
-            <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
+            <p className={styles.muted}>
               No sends logged yet. Rows appear here once anyone triggers an outbound email.
             </p>
           </Card>
         ) : (
-          <Card padding="sm">
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--text-sm)" }}>
-                <thead>
-                  <tr style={{ textAlign: "left", color: "var(--color-text-muted)" }}>
-                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }}>To</th>
-                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }}>Kind</th>
-                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }}>Subject</th>
-                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }}>Sent</th>
-                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sends.map((s) => (
-                    <tr key={s.id} style={{ borderTop: "1px solid var(--color-border)" }}>
-                      <td style={{ padding: "var(--space-2)", wordBreak: "break-all" }}>{s.to}</td>
-                      <td style={{ padding: "var(--space-2)" }}>{kindBadge(s.kind, s.surface)}</td>
-                      <td style={{ padding: "var(--space-2)" }}>{s.subject}</td>
-                      <td style={{ padding: "var(--space-2)", whiteSpace: "nowrap" }}>
-                        {formatDate(s.sentAt)}
-                      </td>
-                      <td style={{ padding: "var(--space-2)" }}>
-                        {statusBadge(s.status, s.statusReason)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+          <AdminTable caption="Recent sends" minWidth="52rem" stackOnPhone>
+            <thead>
+              <tr>
+                <th scope="col" style={{ width: "22%" }}>
+                  To
+                </th>
+                <th scope="col" style={{ width: "18%" }}>
+                  Kind
+                </th>
+                <th scope="col" style={{ width: "27%" }}>
+                  Subject
+                </th>
+                <th scope="col" style={{ width: "15%" }}>
+                  Sent
+                </th>
+                <th scope="col" style={{ width: "18%" }}>
+                  Status
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sends.map((s) => (
+                <tr key={s.id}>
+                  <td className={styles.address}>{s.to}</td>
+                  <td data-label="Kind">{kindBadge(s.kind, s.surface)}</td>
+                  <td data-label="Subject">{s.subject}</td>
+                  <td data-label="Sent" className={styles.when}>
+                    {formatDate(s.sentAt)}
+                  </td>
+                  <td data-label="Status">{statusBadge(s.status, s.statusReason)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </AdminTable>
         )}
-      </section>
+      </AdminSection>
 
-      <section style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-        <h3 style={{ fontSize: "var(--text-lg)" }}>Suppressed addresses</h3>
+      <AdminSection
+        title="Suppressed addresses"
+        description="Addresses that bounced or marked us as spam. Nothing is sent to them until they are taken off this list."
+      >
         {loading && suppressions.length === 0 ? (
           <Card padding="md">
-            <p style={{ color: "var(--color-text-muted)", margin: 0 }}>Loading…</p>
+            <AdminLoadingBar label="Loading the suppression list…" />
           </Card>
         ) : suppressions.length === 0 ? (
           <Card padding="md">
-            <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
-              No addresses suppressed — healthy list.
-            </p>
+            <p className={styles.muted}>No addresses suppressed. The list is healthy.</p>
           </Card>
         ) : (
-          <Card padding="sm">
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--text-sm)" }}>
-                <thead>
-                  <tr style={{ textAlign: "left", color: "var(--color-text-muted)" }}>
-                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }}>Email</th>
-                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }}>Reason</th>
-                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }}>Detail</th>
-                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }}>Added</th>
-                    <th style={{ padding: "var(--space-2)", fontWeight: 500 }} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {suppressions.map((s) => (
-                    <tr key={s.id} style={{ borderTop: "1px solid var(--color-border)" }}>
-                      <td style={{ padding: "var(--space-2)", wordBreak: "break-all" }}>{s.email}</td>
-                      <td style={{ padding: "var(--space-2)" }}>
-                        {s.reason === "complaint" ? (
-                          <Badge tone="warning">Complaint</Badge>
-                        ) : (
-                          <Badge tone="danger">Bounce</Badge>
-                        )}
-                      </td>
-                      <td style={{ padding: "var(--space-2)", color: "var(--color-text-muted)" }}>
-                        {s.subReason ?? "—"}
-                      </td>
-                      <td style={{ padding: "var(--space-2)", whiteSpace: "nowrap" }}>
-                        {formatDate(s.addedAt)}
-                      </td>
-                      <td style={{ padding: "var(--space-2)", textAlign: "right" }}>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => void onUnsuppress(s.id)}
-                          disabled={unsuppressing === s.id}
-                        >
-                          {unsuppressing === s.id ? "Removing…" : "Un-suppress"}
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+          <AdminTable caption="Suppressed addresses" minWidth="44rem" stackOnPhone>
+            <thead>
+              <tr>
+                <th scope="col" style={{ width: "34%" }}>
+                  Email
+                </th>
+                <th scope="col">Reason</th>
+                <th scope="col">Detail</th>
+                <th scope="col">Added</th>
+                <th scope="col">
+                  <span className={styles.srOnly}>Take off the list</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {suppressions.map((s) => (
+                <tr key={s.id}>
+                  <td className={styles.address}>{s.email}</td>
+                  <td data-label="Reason" className={styles.chip}>
+                    {s.reason === "complaint" ? (
+                      <Badge tone="warning">Complaint</Badge>
+                    ) : (
+                      <Badge tone="danger">Bounce</Badge>
+                    )}
+                  </td>
+                  <td data-label="Detail" className={styles.detail}>
+                    {s.subReason ?? "None given"}
+                  </td>
+                  <td data-label="Added" className={styles.when}>
+                    {formatDate(s.addedAt)}
+                  </td>
+                  <td className={styles.action}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => void onUnsuppress(s.id)}
+                      disabled={unsuppressing === s.id}
+                    >
+                      {unsuppressing === s.id ? "Removing…" : "Un-suppress"}
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </AdminTable>
         )}
-      </section>
+      </AdminSection>
 
       {/* The export log. Its own component with its own fetch: the rows come
-          from a different route, they are read once rather than watched, and
-          the export routes that write them land in later PRs. Sharing this
-          dashboard's Refresh button through `reloadKey` is the only coupling. */}
+          from a different route, they are read once and not watched, and
+          sharing this page's Refresh button through `reloadKey` is the only
+          coupling. */}
       <DeliverabilityExports reloadKey={reloadKey} />
-    </div>
+    </>
   );
 }
 
 /**
- * Admin-toggleable kill switch for task-manager outbound emails. Dev
- * affordance — lets us click through task flows on dev without spamming
- * real inboxes. Other email pipelines (newsletter, auth, deliverability
- * webhook notifications) are unaffected.
+ * The switch for the task manager's outbound emails. With it off, task flows
+ * can be clicked through on the practice site without mailing real inboxes.
+ * Other email (the newsletter, sign-in, delivery reports) is unaffected.
  */
 function TaskEmailKillSwitch() {
   const [enabled, setEnabled] = useState<boolean | null>(null);
@@ -399,54 +404,35 @@ function TaskEmailKillSwitch() {
   }
 
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-      <h3 style={{ fontSize: "var(--text-lg)" }}>Task email kill switch</h3>
-      <Card padding="md">
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--space-3)",
-            flexWrap: "wrap",
+    <AdminPanel
+      title="Task emails"
+      badges={
+        <Badge tone={enabled === false ? "warning" : "success"}>
+          {enabled === null ? "Loading…" : enabled ? "Emails on" : "Emails off"}
+        </Badge>
+      }
+      description={
+        <>
+          When <strong>off</strong>, the task manager&apos;s comment and send-for-review emails
+          stop before they reach the mail provider. Comments still post on the site. Every other
+          kind of email is unaffected.
+        </>
+      }
+    >
+      <div className={styles.switchRow}>
+        <Switch
+          checked={enabled === true}
+          disabled={enabled === null || busy}
+          label="Send task emails"
+          description={busy ? "Saving…" : updatedAt ? `Last changed ${formatDate(updatedAt)}` : undefined}
+          onChange={(next) => {
+            // The route is told the opposite of what is stored, as the
+            // button it replaces did. A press that changes nothing is dropped.
+            if (next !== enabled) void toggle();
           }}
-        >
-          <div style={{ flex: 1, minWidth: "16rem" }}>
-            <p style={{ margin: 0, fontSize: "var(--text-sm)" }}>
-              When <strong>off</strong>, the task manager&apos;s comment-notify and
-              send-for-review endpoints short-circuit before calling the mail
-              provider. Comments still post in-app. Other pipelines (newsletter,
-              auth, deliverability webhooks) are unaffected.
-            </p>
-            {updatedAt && (
-              <p
-                style={{
-                  margin: "var(--space-1) 0 0",
-                  fontSize: "var(--text-xs)",
-                  color: "var(--color-text-muted)",
-                }}
-              >
-                Last changed {formatDate(updatedAt)}
-              </p>
-            )}
-            {err && (
-              <p style={{ margin: "var(--space-1) 0 0", color: "var(--color-danger)", fontSize: "var(--text-xs)" }}>
-                {err}
-              </p>
-            )}
-          </div>
-          <Badge tone={enabled === false ? "warning" : "success"}>
-            {enabled === null ? "Loading…" : enabled ? "Emails on" : "Emails off"}
-          </Badge>
-          <Button
-            size="sm"
-            variant={enabled ? "secondary" : "primary"}
-            onClick={() => void toggle()}
-            disabled={enabled === null || busy}
-          >
-            {busy ? "Saving…" : enabled ? "Turn off" : "Turn on"}
-          </Button>
-        </div>
-      </Card>
-    </section>
+        />
+      </div>
+      {err && <AdminProblem>{err}</AdminProblem>}
+    </AdminPanel>
   );
 }

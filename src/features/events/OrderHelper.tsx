@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Card from "@/components/ui/Card";
+import { Field, Input } from "@/components/ui/Input";
 import ResponsiveSelect from "@/components/ui/ResponsiveSelect";
 import type {
   EventDoc,
@@ -44,11 +45,13 @@ export default function OrderHelper({ event, rsvps }: Props) {
 
   return (
     <section className={styles.section}>
-      <h2 className={styles.title}>Pizza order helper</h2>
-      <p className={styles.hint}>
-        Built from the &quot;toppings to avoid&quot; answers of {analysis.headcount}{" "}
-        confirmed attendee{analysis.headcount === 1 ? "" : "s"}.
-      </p>
+      <div>
+        <h2 className={styles.title}>Pizza order helper</h2>
+        <p className={styles.hint}>
+          Worked out from the “toppings to avoid” answers of {analysis.headcount}{" "}
+          {analysis.headcount === 1 ? "person" : "people"} with a confirmed place.
+        </p>
+      </div>
 
       {multiSelects.length > 1 && (
         <div className={styles.picker}>
@@ -67,7 +70,7 @@ export default function OrderHelper({ event, rsvps }: Props) {
       {analysis.headcount === 0 ? (
         <Card padding="md">
           <p className={styles.muted}>
-            No confirmed attendees yet. Numbers appear here as you approve RSVPs.
+            Nobody has a confirmed place yet. The numbers show here as you approve requests.
           </p>
         </Card>
       ) : (
@@ -120,36 +123,40 @@ export default function OrderHelper({ event, rsvps }: Props) {
           <Card padding="md">
             <h3 className={styles.cardTitle}>Suggested order</h3>
             <div className={styles.mathRow}>
-              <label className={styles.mathField}>
-                Slices per person
-                <input
-                  type="number"
-                  min={1}
-                  className={styles.numInput}
-                  value={slicesPerPerson}
-                  onChange={(e) => {
-                    const n = Math.floor(Number(e.target.value));
-                    if (Number.isFinite(n) && n >= 1 && n <= 50) {
-                      setSlicesPerPerson(n);
-                    }
-                  }}
-                />
-              </label>
-              <label className={styles.mathField}>
-                Slices per pizza
-                <input
-                  type="number"
-                  min={1}
-                  className={styles.numInput}
-                  value={slicesPerPizza}
-                  onChange={(e) => {
-                    const n = Math.floor(Number(e.target.value));
-                    if (Number.isFinite(n) && n >= 1 && n <= 50) {
-                      setSlicesPerPizza(n);
-                    }
-                  }}
-                />
-              </label>
+              <div className={styles.mathField}>
+                <Field id="order-slices-per-person" label="Slices per person">
+                  <Input
+                    id="order-slices-per-person"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    value={slicesPerPerson}
+                    onChange={(e) => {
+                      const n = Math.floor(Number(e.target.value));
+                      if (Number.isFinite(n) && n >= 1 && n <= 50) {
+                        setSlicesPerPerson(n);
+                      }
+                    }}
+                  />
+                </Field>
+              </div>
+              <div className={styles.mathField}>
+                <Field id="order-slices-per-pizza" label="Slices per pizza">
+                  <Input
+                    id="order-slices-per-pizza"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    value={slicesPerPizza}
+                    onChange={(e) => {
+                      const n = Math.floor(Number(e.target.value));
+                      if (Number.isFinite(n) && n >= 1 && n <= 50) {
+                        setSlicesPerPizza(n);
+                      }
+                    }}
+                  />
+                </Field>
+              </div>
             </div>
 
             {plan.types.length === 1 && plan.types[0].avoid.length === 0 ? (
@@ -161,9 +168,9 @@ export default function OrderHelper({ event, rsvps }: Props) {
             ) : (
               <>
                 <p className={styles.planIntro}>
-                  Every attendee is grouped into one pizza type. Order the
-                  counts below, then choose the real toppings yourself, keeping
-                  each pizza clear of its avoid list.
+                  Everyone is put into one kind of pizza. Order the numbers
+                  below, then choose the toppings yourself, keeping each pizza
+                  clear of the ones its group avoids.
                 </p>
                 <ul className={styles.planList}>
                   {plan.types.map((t) => (
@@ -181,9 +188,7 @@ export default function OrderHelper({ event, rsvps }: Props) {
                         <span className={styles.planFeeds}>
                           {t.avoid.length === 0
                             ? `for ${t.headcount} with nothing to avoid`
-                            : `for ${t.headcount} attendee${
-                                t.headcount === 1 ? "" : "s"
-                              }`}
+                            : `for ${t.headcount} ${t.headcount === 1 ? "person" : "people"}`}
                         </span>
                       </span>
                     </li>
@@ -201,8 +206,8 @@ export default function OrderHelper({ event, rsvps }: Props) {
                   </p>
                 )}
                 <p className={styles.muted}>
-                  An estimate. Adjust the slice counts to match your plan; any
-                  free-text notes below still need a check.
+                  An estimate. Change the slice counts to match your plan. Any
+                  notes below still need reading.
                 </p>
               </>
             )}
@@ -212,9 +217,9 @@ export default function OrderHelper({ event, rsvps }: Props) {
             <Card padding="md">
               <h3 className={styles.cardTitle}>Notes to check by hand</h3>
               <p className={styles.noteHint}>
-                Free-text from the &quot;Other&quot; box on the
-                toppings-to-avoid question, so read each as a topping that
-                attendee wants to avoid. Work them into the order by hand.
+                What people typed in the “Other” box of the toppings question.
+                Read each one as a topping that person wants to avoid, and
+                work it into the order by hand.
               </p>
               <ul className={styles.noteList}>
                 {analysis.freeTextNotes.map((n, i) => (

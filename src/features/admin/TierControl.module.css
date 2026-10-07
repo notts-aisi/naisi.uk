@@ -1,3 +1,5 @@
+/* One person's membership, changed in place on the members table. */
+
 .wrap {
   display: flex;
   flex-direction: column;
@@ -17,12 +19,13 @@
 }
 
 .error {
-  color: var(--color-danger);
+  color: var(--color-danger-text);
   font-size: var(--text-xs);
   max-width: 20rem;
 }
 
-@media (max-width: 48rem) {
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
   .controls {
     /* Full width, so the select and both buttons stay comfortable targets. */
     width: 100%;

@@ -32,6 +32,7 @@ import { own } from "./keys";
  *    been checked. See the note on that function for why.
  *  - WHERE THE EMAILED LINK MAY RETURN TO (`joinReturnFor`,
  *    `formJoinReturn`).
+ *  - WHERE SIGNING IN RETURNS TO (`signInHrefFor`, `newAccountReturn`).
  */
 
 /** The About you answers a join request carries. The address's verified flag is never one of them. */
@@ -294,4 +295,64 @@ const JOIN_RETURN = /^\/apply\/[A-Za-z0-9_-]{1,200}\?join=1$/;
  */
 export function formJoinReturn(raw: string | null | undefined): string | null {
   return typeof raw === "string" && JOIN_RETURN.test(raw) ? raw : null;
+}
+
+// ---------------------------------------------------------------------------
+// Where signing in returns to
+// ---------------------------------------------------------------------------
+
+/**
+ * The sign-in page, with this form as the place to come back to.
+ *
+ * THE ONE WAY THE FORM'S FIRST STEP MAKES AN ADDRESS OF THE SIGN-IN PAGE. The
+ * step has three links there (somebody who already has an account, the same
+ * from the screen that says to check an inbox, and the route to Google where
+ * Google's own button cannot be drawn), and all three carry this.
+ *
+ * The return address is the MARKED one. A sign-in page that is handed it
+ * knows, from the address alone, that an account with no join request belongs
+ * back on this step, which is that account's join request, and not on the
+ * register page's own profile form.
+ */
+export function signInHrefFor(roundId: string): string {
+  return `/login?next=${encodeURIComponent(joinReturnFor(roundId))}`;
+}
+
+const BARE_FORM_ADDRESS = /^\/apply\/([A-Za-z0-9_-]{1,200})$/;
+
+/**
+ * What a sign-in page does with an account that has NO JOIN REQUEST, read
+ * from the return address it was handed and from nothing else.
+ *
+ *  - `form`: the address is one a form's first step marked. Go to `href`.
+ *  - `ask`: the address has the shape of a form's and carries no mark: a link
+ *    that does not come from the step, a bookmark, an address typed by hand.
+ *    Older rounds live at the same kind of address and need the register
+ *    page's profile form first, and an address cannot say which this is. So
+ *    the caller asks the form's own route about `roundId`, and goes to `href`
+ *    only when the answer is a form that is open and has no join request from
+ *    this account. Anything else is `register`.
+ *  - `register`: every other address, and no address. The register page, as
+ *    it has always been.
+ *
+ * Two things a maintainer has to keep:
+ *
+ *  - `href` IS BUILT HERE, FROM THE ID ALONE (`joinReturnFor`). Nothing else
+ *    of the address handed in is carried, so nothing can ride on it, and the
+ *    whole shape is matched before an id is read out of it.
+ *  - NEVER TURN `ask` INTO `form`. Sending an account with no join request to
+ *    an older round's page, or to a form that is not open, leaves it with no
+ *    way to join at all.
+ */
+export type NewAccountReturn =
+  | { to: "form"; href: string }
+  | { to: "ask"; roundId: string; href: string }
+  | { to: "register" };
+
+export function newAccountReturn(raw: string | null | undefined): NewAccountReturn {
+  const marked = formJoinReturn(raw);
+  if (marked) return { to: "form", href: marked };
+  const bare = typeof raw === "string" ? BARE_FORM_ADDRESS.exec(raw) : null;
+  if (bare) return { to: "ask", roundId: bare[1], href: joinReturnFor(bare[1]) };
+  return { to: "register" };
 }

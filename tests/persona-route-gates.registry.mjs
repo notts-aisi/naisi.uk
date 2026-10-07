@@ -2063,6 +2063,16 @@ export const PAGES = {
       "course and membership permission holders included, because the admin front door " +
       "admits them and this inner gate is what keeps them out of the rest.",
   },
+  "/(app)/admin/(admin-only)/members/[uid]": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, the " +
+      "course and membership permission holders included, because the admin front door " +
+      "admits them and this inner gate is what keeps them out of the rest. The uid segment " +
+      "changes nothing about the gate: the page never calls notFound, so an admin gets it " +
+      "whatever the uid, and an id that is on no account is answered on the page in a " +
+      "sentence. Its reads are the roster's own, under the admin-only users rule.",
+  },
   "/(app)/admin/(admin-only)/newsletter": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
     why:

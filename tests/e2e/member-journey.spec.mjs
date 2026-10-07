@@ -688,7 +688,8 @@ test(
            * tightest layout. The tightest is one pixel ABOVE that breakpoint,
            * where the stack has not taken over and the sidebar is back: at a
            * 961px window `.main` is 729px, its own padding takes 80 and the
-           * Card another 64, leaving about 585px for a three-track grid. Track
+           * section's card another 50 (its padding and its border), leaving
+           * 599px for a three-track grid. Track
            * minimums that add up to more than that cannot shrink, so the Push
            * column is painted past the card's right border and the document
            * scrolls sideways. Every other step here runs at 1280px, where the

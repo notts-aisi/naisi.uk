@@ -3,6 +3,7 @@ import Link from "next/link";
 import { cache } from "react";
 import { getPublishedSourceSheet } from "@/features/sources/fetchSourceSheets";
 import { formatSiteDate } from "@/lib/datetime/siteTime";
+import { linkPreviewImages } from "@/lib/linkPreviewCard";
 import styles from "./sourceSheet.module.css";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -38,12 +39,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description,
       type: "article",
       publishedTime: sheet.publishedAt || undefined,
-      images: sheet.image ? [{ url: sheet.image.url }] : undefined,
+      // The picture of the material, or the card for a sheet with none.
+      images: linkPreviewImages(sheet.image?.url),
     },
     twitter: {
       card: "summary_large_image",
       title: `Sources: ${sheet.title}`,
       description,
+      images: linkPreviewImages(sheet.image?.url),
     },
   };
 }

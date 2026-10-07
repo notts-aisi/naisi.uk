@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
 import { Field, Input } from "@/components/ui/Input";
 import ResponsiveSelect, {
   type ResponsiveSelectOption,
@@ -11,6 +10,8 @@ import PersonSelector from "@/components/ui/PersonSelector";
 import type { ProjectDoc } from "@/lib/firestore/projects";
 import type { UserDoc } from "@/lib/firestore/users";
 import { createProject, updateProject } from "./adminMutations";
+import { AdminPanel, AdminProblem } from "./adminPanels";
+import styles from "./Projects.module.css";
 
 type Props = {
   existing?: ProjectDoc;
@@ -27,7 +28,7 @@ export default function ProjectForm({ existing, committee, onDone }: Props) {
 
   // Lead must be committee or admin (same gate as before). The previous build
   // also defaulted leadUid to committee[0].uid but that silently picked a lead
-  // without the user realising — switching to explicit placeholder instead.
+  // without the user realising, so the first option is an explicit placeholder.
   const leadOptions = useMemo(
     () =>
       committee
@@ -59,35 +60,32 @@ export default function ProjectForm({ existing, committee, onDone }: Props) {
       onDone();
     } catch (err) {
       console.error(err);
-      setError("Failed to save — try again.");
+      setError("That did not save. Try again.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Card padding="lg">
-      <h3 style={{ fontSize: "var(--text-lg)", marginBottom: "var(--space-4)" }}>
-        {existing ? "Edit project" : "New project"}
-      </h3>
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+    <AdminPanel title={existing ? "Edit project" : "New project"}>
+      <form onSubmit={handleSubmit} className={styles.form}>
         <Field id="project-name" label="Name">
           <Input
             id="project-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Technical Alignment Reading Group"
+            placeholder="Technical reading group"
             required
           />
         </Field>
 
-        <Field id="project-lead" label="Lead" hint="Committee members + admins only.">
+        <Field id="project-lead" label="Lead" hint="Committee members and admins only.">
           <ResponsiveSelect
             value={leadUid}
             onChange={setLeadUid}
             options={
               [
-                { value: "", label: "— pick a lead —" },
+                { value: "", label: "Pick a lead" },
                 ...leadOptions.map((m) => ({
                   value: m.uid,
                   label: `${m.displayName ?? m.email ?? m.uid}${
@@ -103,7 +101,7 @@ export default function ProjectForm({ existing, committee, onDone }: Props) {
         <Field
           id="project-members"
           label="Members"
-          hint="Filter by role or search by name. Any role can be a project member."
+          hint="Filter by role or search by name. Anybody with an account can be a project member."
         >
           <PersonSelector
             users={committee}
@@ -115,11 +113,9 @@ export default function ProjectForm({ existing, committee, onDone }: Props) {
           />
         </Field>
 
-        {error && (
-          <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>
-        )}
+        {error && <AdminProblem>{error}</AdminProblem>}
 
-        <div style={{ display: "flex", gap: "var(--space-3)" }}>
+        <div className={styles.formActions}>
           <Button type="submit" disabled={busy}>
             {busy ? "Saving…" : existing ? "Save changes" : "Create project"}
           </Button>
@@ -128,6 +124,6 @@ export default function ProjectForm({ existing, committee, onDone }: Props) {
           </Button>
         </div>
       </form>
-    </Card>
+    </AdminPanel>
   );
 }

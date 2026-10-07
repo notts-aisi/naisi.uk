@@ -1,0 +1,1108 @@
+/* ============================================================
+   Home: the first page after signing in, in its four forms.
+
+   One stylesheet for every card on the page, so a card of one
+   form and a card of another are the same card.
+
+   THE PAGE IS A SIZE CONTAINER. The shell decides how wide the
+   page is (its sidebar can be open or closed, and its cap is its
+   own), so the two columns fold on the width the page actually
+   has and never on the window's. Only the last block, for
+   phones, asks about the window.
+   ============================================================ */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+  container-type: inline-size;
+  container-name: home;
+}
+
+/* The page head sets its own space below it; the page's gap is enough. */
+.page > header {
+  margin-bottom: 0;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+/* The column spaces what is in it. A card that brings a margin of its own
+   (the applications card was made for a page that had no gap) gives it up
+   here, so every card is the same distance from the next. */
+.page .stack > * {
+  margin-bottom: 0;
+}
+
+/* A column with nothing in it takes no room, so its neighbour has the row. */
+.stack:empty {
+  display: none;
+}
+
+.columns:has(> .stack:empty) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* === A card === */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+/* A section with a heading and no box of its own. */
+.plain,
+.eventsPlain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.cardTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.cardCount {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.quiet {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.small {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* === Links that look like buttons, and links that look like links ===
+   A navigation target is an anchor, so it takes the button's look from here
+   and not from the Button component, which is a real <button>. */
+
+.primary,
+.secondary,
+.primaryLarge,
+.secondaryLarge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  padding: 0.5rem 1.125rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--text-ui);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.primary,
+.primaryLarge {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.secondary,
+.secondaryLarge {
+  background: var(--color-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+.primaryLarge,
+.secondaryLarge {
+  min-height: 3.25rem;
+  padding: 0.75rem 1.5rem;
+  font-size: var(--text-base);
+}
+
+.primary:focus-visible,
+.secondary:focus-visible,
+.primaryLarge:focus-visible,
+.secondaryLarge:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+.textLink,
+.headLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 2.75rem;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-accent-text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* In a card's head the link is tall enough to press without making the head
+   taller: the margin takes the extra height back out of the row. */
+.headLink {
+  margin: calc(-1 * var(--space-2)) 0;
+  font-size: var(--text-sm);
+}
+
+.inlineLink {
+  font-weight: 600;
+  color: var(--color-accent-text);
+}
+
+/* A glyph beside a label keeps its size when the row runs out of room. */
+.primary > svg,
+.secondary > svg,
+.textLink > svg,
+.headLink > svg {
+  flex: none;
+}
+
+.textLink:focus-visible,
+.headLink:focus-visible,
+.inlineLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+/* Hover-capable pointers only: on touch a :hover rule fires on tap and sticks
+   until the next tap elsewhere. */
+@media (hover: hover) {
+  .primary:hover,
+  .primaryLarge:hover {
+    background: var(--color-accent-hover);
+    border-color: var(--color-accent-hover);
+  }
+
+  .secondary:hover,
+  .secondaryLarge:hover {
+    background: var(--color-surface-hover);
+    border-color: var(--color-control-border);
+  }
+
+  .textLink:hover,
+  .headLink:hover,
+  .inlineLink:hover {
+    color: var(--color-accent-text-hover);
+  }
+}
+
+.dashed {
+  padding: 1.125rem var(--space-5);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-row);
+}
+
+.dashedTitle {
+  margin: 0;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-text);
+}
+
+/* === The greeting ===
+   A laptop reads the programme under the name. A phone reads it over the
+   name, in the small capitals, and the line under the name is not drawn. */
+
+.phoneEyebrow {
+  display: none;
+  margin: 0 0 calc(-1 * var(--space-4));
+}
+
+/* === The term === */
+
+.term {
+  display: flex;
+  flex-wrap: wrap;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.termBody {
+  display: flex;
+  flex: 3 1 26.25rem;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: 1.75rem;
+}
+
+.termEyebrow {
+  margin: 0;
+  color: var(--color-live);
+}
+
+.termTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.termLine {
+  max-width: 36em;
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--color-text-soft);
+  text-wrap: pretty;
+}
+
+/* The term's dates are a shared piece sized for a public page. In a card
+   they are the board's smaller cells: a 2px rule and an 18px date. */
+.termDates {
+  gap: var(--space-4) var(--space-5);
+}
+
+.termDates > div {
+  flex-basis: 9.375rem;
+  padding-top: var(--space-3);
+  border-top-width: 2px;
+}
+
+.termDates dt + dd {
+  margin-top: var(--space-1);
+  font-size: var(--text-lg);
+  line-height: 1.15;
+}
+
+.termLinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-6);
+}
+
+.termLinks:empty {
+  display: none;
+}
+
+.termNet {
+  flex: 2 1 16.25rem;
+  min-height: 13.75rem;
+  border-left: 1px solid var(--color-border);
+}
+
+/* === Events === */
+
+.eventRows,
+.eventCards,
+.weekEvents,
+.todo,
+.site,
+.reading,
+.steps,
+.people,
+.pips {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.eventRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.eventRow:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.eventRow:last-child {
+  padding-bottom: 0;
+}
+
+.eventBody {
+  flex: 1 1 13.75rem;
+  min-width: 0;
+}
+
+.eventTitle {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+/* A title is a link, and one line of text is too short a thing to press:
+   the padding gives it the height and the margin takes it back out of the
+   row. */
+.eventTitle a {
+  display: inline-block;
+  margin: -0.75rem 0;
+  padding: 0.75rem 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.eventTitle a:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.eventMeta,
+.eventChips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) 0.625rem;
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.eventChips:empty {
+  display: none;
+}
+
+.eventAction {
+  flex: none;
+}
+
+/* The pair of small cards under a programme. */
+.eventCards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+/* In a small card the title's link covers the whole card, so the card is
+   the thing to press. */
+.eventCard {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.eventCard .eventTitle a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.eventCard .eventBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  padding: var(--space-4) var(--space-4) var(--space-4) 1.125rem;
+}
+
+.eventCard .eventTitle {
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+}
+
+.eventCard .eventChips {
+  margin-top: auto;
+  padding-top: var(--space-3);
+}
+
+/* === Finish your profile === */
+
+.progressRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.progressRow > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.progressCount {
+  flex: none;
+  white-space: nowrap;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-4);
+}
+
+.stepDone,
+.stepToDo {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+  font-size: var(--text-ui);
+  line-height: 1.35;
+  color: var(--color-text);
+}
+
+.stepMark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--color-ok);
+}
+
+/* Not done yet: an empty ring where the tick will go. */
+.stepToDo .stepMark::before {
+  content: "";
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 1.5px solid var(--color-control-border);
+  border-radius: 50%;
+}
+
+/* === The next session === */
+
+.session {
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.sessionTile {
+  align-self: stretch;
+}
+
+.sessionMain {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sessionBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.625rem;
+  padding: 1.625rem clamp(1rem, 2vw, 1.75rem);
+}
+
+.sessionEyebrow {
+  margin: 0;
+  color: var(--color-live);
+}
+
+/* Two wordings of one line: the stylesheet draws one of them. */
+.phoneOnly {
+  display: none;
+}
+
+.sessionWhen {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.625rem, 3.1vw, 2.75rem);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  color: var(--color-text);
+}
+
+.sessionFacts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.sessionFacts:empty {
+  display: none;
+}
+
+.sessionRoom {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sessionPeople {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sessionFaces {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+
+.sessionNote {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.sessionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  margin-top: var(--space-1);
+}
+
+.sessionFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-1) clamp(1rem, 2vw, 1.75rem);
+  border-top: 1px solid var(--color-border);
+  background: rgba(10, 14, 22, 0.35);
+}
+
+.sessionFootLine {
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* === This week's reading === */
+
+.readingRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.readingRow:first-child {
+  border-top: 0;
+}
+
+.readingRow:last-child {
+  padding-bottom: 0;
+}
+
+/* Whether a reading is done is something Home reports and does not take:
+   a green tick for done and an empty ring for not yet, the marks "Finish
+   your profile" uses, and neither drawn as a box to press. */
+.tick,
+.tickDone {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  margin: 0 var(--space-2);
+  color: var(--color-ok);
+}
+
+.tick::before {
+  content: "";
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 1.5px solid var(--color-control-border);
+  border-radius: 50%;
+}
+
+.readingBody {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The title gives way; the link beside it does not. */
+.readingRow > .textLink {
+  flex: none;
+}
+
+.readingTitle,
+.readingTitleDone {
+  margin: 0;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.readingTitleDone {
+  color: var(--color-text-muted);
+}
+
+.readingMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+/* === Your attendance === */
+
+.attendanceCount {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: 1.2;
+  color: var(--color-text-muted);
+}
+
+.attendanceCount strong {
+  margin-right: var(--space-1);
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.pips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pipHere,
+.pipMissed,
+.pipEmpty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.875rem;
+  height: 1.875rem;
+  border: 1px solid var(--color-ok-line);
+  border-radius: var(--radius-md);
+  background: var(--color-success-soft);
+  font-family: var(--font-meta);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--color-ok);
+}
+
+.pipMissed {
+  border-color: var(--color-warning-line);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.pipEmpty {
+  border: 1px dashed var(--color-border-strong);
+  background: none;
+  color: var(--color-text-muted);
+}
+
+/* === Your group === */
+
+.people {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: var(--space-2);
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-surface);
+}
+
+.personName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* === An admin's to do === */
+
+.todoRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.todoRow:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.todoRow:last-child {
+  padding-bottom: 0;
+}
+
+.todoFigure {
+  flex: none;
+  width: 3.75rem;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.todoBody {
+  flex: 1 1 13.75rem;
+  min-width: 0;
+}
+
+.todoTitle,
+.siteName,
+.weekBlockTitle {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0;
+  color: var(--color-text);
+}
+
+.siteRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.siteRow:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.siteRow:last-child {
+  padding-bottom: 0;
+}
+
+.siteName {
+  flex: 0 0 8.25rem;
+}
+
+.siteState {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  min-width: 0;
+}
+
+.siteWhen {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* === An admin's week === */
+
+.weekHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.weekHead p {
+  margin: 0;
+}
+
+.weekEvent {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.weekEvent:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.weekEvent:last-child {
+  padding-bottom: 0;
+}
+
+.weekEventBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.weekEventLine {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.weekBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+
+.weekBlock > p:first-child {
+  margin: 0;
+}
+
+.weekBlock > div {
+  margin-top: var(--space-1);
+}
+
+/* === A narrow page: one column ===
+   The page's own width, whatever the window is: with the sidebar open, a
+   1000px window leaves the page about 650px. */
+@container home (max-width: 48rem) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .eventCards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .page {
+    gap: var(--space-5);
+  }
+
+  .card {
+    padding: var(--space-4);
+  }
+
+  .termBody {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .termTitle {
+    font-size: var(--text-2xl);
+  }
+
+  /* The picture is decoration, and a phone has no room to spend on it. */
+  .termNet {
+    display: none;
+  }
+
+  /* The programme goes over the name, in the small capitals. */
+  .phoneEyebrow {
+    display: block;
+  }
+
+  .headLine {
+    display: none;
+  }
+
+  /* === The next session, as the phone boards draw it ===
+     A narrower tile, the short eyebrow, and who it is with on a line of its
+     own in the quieter colour, without the initials. */
+  .wideOnly {
+    display: none;
+  }
+
+  .phoneOnly {
+    display: inline;
+  }
+
+  .sessionTile {
+    width: 4.75rem;
+  }
+
+  .sessionBody {
+    gap: var(--space-2);
+    padding: var(--space-4);
+  }
+
+  .sessionWhen {
+    font-size: var(--text-2xl);
+  }
+
+  .sessionFacts {
+    font-size: var(--text-ui);
+  }
+
+  .sessionPeople {
+    flex-basis: 100%;
+    color: var(--color-text-muted);
+  }
+
+  .sessionFaces {
+    display: none;
+  }
+
+  /* The things to do about a session share a row, each as wide as it can be. */
+  .sessionActions > * {
+    flex: 1 1 8.75rem;
+  }
+
+  .sessionFoot {
+    padding: var(--space-2) var(--space-4);
+  }
+
+  /* === This week's reading sits on the page, not in a box === */
+  .readingCard {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+
+  .tick,
+  .tickDone {
+    margin: 0 var(--space-1) 0 0;
+  }
+
+  /* A row's one action goes under its words, the full width of the card. */
+  .eventAction,
+  .eventAction > .secondary {
+    width: 100%;
+  }
+
+  .todoRow > .primary,
+  .todoRow > .secondary {
+    width: 100%;
+  }
+
+  /* A row with no figure starts at the edge like the rows that have one. */
+  .todoFigure {
+    width: auto;
+    min-width: 2.25rem;
+  }
+
+  .todoFigure:empty {
+    display: none;
+  }
+
+  .siteName {
+    flex-basis: 100%;
+  }
+
+  .people {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

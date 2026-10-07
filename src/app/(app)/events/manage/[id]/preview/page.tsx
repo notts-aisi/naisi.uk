@@ -1,12 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
+import Notice from "@/components/ui/Notice";
 import EventDetailView from "@/features/events/EventDetailView";
 import { getEventForPreview } from "@/features/events/fetchEvents";
-import { EVENT_STATUS_LABEL } from "@/lib/firestore/events";
+import { STATUS_WORDS } from "@/features/events/manageWords";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
+import styles from "../../events.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -30,37 +31,27 @@ export default async function EventPreviewPage({
   const event = await getEventForPreview(id);
   if (!event) notFound();
 
+  // The event's own page below draws the h1, so this page adds a notice and
+  // no head of its own.
   return (
-    <section style={{ padding: "var(--space-8) 0" }}>
-      <div className="container">
-        <Card padding="md">
-          <div
-            style={{
-              display: "flex",
-              gap: "var(--space-3)",
-              alignItems: "center",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
-            }}
-          >
-            <div>
-              <strong>Preview</strong>
-              <p style={{ margin: "var(--space-1) 0 0", color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>
-                This is how the event looks to a visitor. Current status:{" "}
-                <strong>{EVENT_STATUS_LABEL[event.status]}</strong>. RSVPs submitted here
-                are saved for real, so it&apos;s useful for end-to-end testing before publish.
-              </p>
-            </div>
-            <Link href={`/events/manage/${event.id}`}>
-              <Button variant="ghost">Back to editor</Button>
-            </Link>
-          </div>
-        </Card>
+    <div className={styles.page}>
+      <Notice
+        role="note"
+        title={`Preview · ${STATUS_WORDS[event.status]}`}
+        actions={
+          <Link href={`/events/manage/${event.id}`} className={styles.buttonLink}>
+            <Button variant="secondary" size="sm" tabIndex={-1}>
+              Back to the event
+            </Button>
+          </Link>
+        }
+      >
+        This is the event as a visitor sees it. A sign-up sent from here is
+        saved like a real one, which makes it a way to try the whole thing
+        before the event goes live.
+      </Notice>
 
-        <div style={{ marginTop: "var(--space-8)" }}>
-          <EventDetailView event={event} previewMode />
-        </div>
-      </div>
-    </section>
+      <EventDetailView event={event} previewMode />
+    </div>
   );
 }

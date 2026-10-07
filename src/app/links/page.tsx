@@ -8,6 +8,7 @@ import { listPublishedEvents } from "@/features/events/fetchEvents";
 import { fetchLinksPage } from "@/features/links/fetchLinksPage";
 import { formatSiteDate } from "@/lib/datetime/siteTime";
 import { publicLocationText } from "@/lib/events/location";
+import { linkPreviewImages } from "@/lib/linkPreviewCard";
 import LinksSignup from "./LinksSignup";
 import styles from "./links.module.css";
 
@@ -49,11 +50,15 @@ export const metadata: Metadata = {
   title: "Links",
   description:
     "Every NAISI link in one place: the mailing list, upcoming events, our courses, Instagram and how to join.",
+  // This page sets its own `openGraph`, which replaces the root layout's,
+  // card included. It has no picture of its own, so it names the card.
   openGraph: {
     title: "NAISI: every link in one place",
     description:
       "The mailing list, upcoming events, our courses, Instagram and how to join the Nottingham AI Safety Initiative.",
+    images: linkPreviewImages(),
   },
+  twitter: { card: "summary_large_image", images: linkPreviewImages() },
 };
 
 async function upcomingEvents() {

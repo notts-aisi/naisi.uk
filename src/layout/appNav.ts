@@ -160,6 +160,22 @@ export type AdminPage = {
   visible: (access: AdminTabAccess) => boolean;
   /** The count drawn beside the label. The strip owns the numbers. */
   count?: "joinRequests" | "collaborators" | "courseApplications";
+  /**
+   * This page, and every page under its address, draws its own head: its own
+   * name as the page's one <h1>, with the section's name as a small crumb
+   * above it. The shared head (`AdminTabs`) then draws the strip and no
+   * heading at all.
+   *
+   * Left off, the shared head draws that same shape itself, from this entry:
+   * the section as the crumb and `label` as the <h1>. So every admin page
+   * reads the same way whoever draws its head.
+   *
+   * It is a statement about EVERY page file under the address, and
+   * `tests/app-frame.test.mjs` walks them both ways: a flagged page that
+   * draws no head would have no <h1>, and an unflagged one that draws a head
+   * would have two.
+   */
+  ownHead?: boolean;
 };
 
 export type AdminSection = {
@@ -202,18 +218,18 @@ export const ADMIN_SECTIONS: AdminSection[] = [
       // This address or one beneath it, never a plain prefix:
       // "/admin/membership" starts with "/admin/members", so a prefix test
       // would light Accounts up on the membership console.
-      { label: "Accounts", href: "/admin/members", match: under("/admin/members"), visible: ADMIN_ONLY },
-      { label: "Join requests", href: "/admin", match: (p) => p === "/admin", visible: ADMIN_ONLY, count: "joinRequests" },
-      { label: "Collaborators", href: "/admin/collaborators", match: under("/admin/collaborators"), visible: ADMIN_ONLY, count: "collaborators" },
-      { label: "SU membership", href: "/admin/membership", match: under("/admin/membership"), visible: (a) => a.isAdmin || a.canManageMembership },
-      { label: "Mailing list", href: "/admin/subscriptions", match: under("/admin/subscriptions"), visible: ADMIN_ONLY },
+      { label: "Accounts", href: "/admin/members", match: under("/admin/members"), visible: ADMIN_ONLY, ownHead: true },
+      { label: "Join requests", href: "/admin", match: (p) => p === "/admin", visible: ADMIN_ONLY, count: "joinRequests", ownHead: true },
+      { label: "Collaborators", href: "/admin/collaborators", match: under("/admin/collaborators"), visible: ADMIN_ONLY, count: "collaborators", ownHead: true },
+      { label: "SU membership", href: "/admin/membership", match: under("/admin/membership"), visible: (a) => a.isAdmin || a.canManageMembership, ownHead: true },
+      { label: "Mailing list", href: "/admin/subscriptions", match: under("/admin/subscriptions"), visible: ADMIN_ONLY, ownHead: true },
     ],
   },
   {
     id: "programmes",
     label: "Programmes",
     pages: [
-      { label: "Application forms", href: "/admin/admissions/forms", match: under("/admin/admissions/forms"), visible: ADMISSIONS },
+      { label: "Application forms", href: "/admin/admissions/forms", match: under("/admin/admissions/forms"), visible: ADMISSIONS, ownHead: true },
       { label: "Older rounds", href: "/admin/admissions", match: underBut("/admin/admissions", "/admin/admissions/forms"), visible: ADMISSIONS },
       { label: "Courses", href: "/admin/courses", match: under("/admin/courses"), visible: (a) => a.isAdmin || a.canAuthorCourses, count: "courseApplications" },
     ],
@@ -222,26 +238,26 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     id: "publicity",
     label: "Publicity",
     pages: [
-      { label: "Short links", href: "/admin/links", match: underBut("/admin/links", "/admin/links/page-content"), visible: ADMIN_ONLY },
-      { label: "The /links page", href: "/admin/links/page-content", match: under("/admin/links/page-content"), visible: ADMIN_ONLY },
-      { label: "Source sheets", href: "/admin/sources", match: under("/admin/sources"), visible: ADMIN_ONLY },
+      { label: "Short links", href: "/admin/links", match: underBut("/admin/links", "/admin/links/page-content"), visible: ADMIN_ONLY, ownHead: true },
+      { label: "The /links page", href: "/admin/links/page-content", match: under("/admin/links/page-content"), visible: ADMIN_ONLY, ownHead: true },
+      { label: "Source sheets", href: "/admin/sources", match: under("/admin/sources"), visible: ADMIN_ONLY, ownHead: true },
     ],
   },
   {
     id: "site",
     label: "Site settings",
     pages: [
-      { label: "Site notice and scheduled jobs", href: "/admin/site-status", match: under("/admin/site-status"), visible: ADMIN_ONLY },
-      { label: "Email delivery", href: "/admin/deliverability", match: under("/admin/deliverability"), visible: ADMIN_ONLY },
-      { label: "Sign-up problems", href: "/admin/registrations", match: under("/admin/registrations"), visible: ADMIN_ONLY },
-      { label: "Sign-up emails", href: "/admin/email-designs", match: under("/admin/email-designs"), visible: ADMIN_ONLY },
-      { label: "Projects", href: "/admin/projects", match: under("/admin/projects"), visible: ADMIN_ONLY },
-      { label: "Task templates", href: "/admin/task-templates", match: under("/admin/task-templates"), visible: ADMIN_ONLY },
-      { label: "Newsletter recipients", href: "/admin/newsletter", match: under("/admin/newsletter"), visible: ADMIN_ONLY },
+      { label: "Site notice and scheduled jobs", href: "/admin/site-status", match: under("/admin/site-status"), visible: ADMIN_ONLY, ownHead: true },
+      { label: "Email delivery", href: "/admin/deliverability", match: under("/admin/deliverability"), visible: ADMIN_ONLY, ownHead: true },
+      { label: "Sign-up problems", href: "/admin/registrations", match: under("/admin/registrations"), visible: ADMIN_ONLY, ownHead: true },
+      { label: "Sign-up emails", href: "/admin/email-designs", match: under("/admin/email-designs"), visible: ADMIN_ONLY, ownHead: true },
+      { label: "Projects", href: "/admin/projects", match: under("/admin/projects"), visible: ADMIN_ONLY, ownHead: true },
+      { label: "Task templates", href: "/admin/task-templates", match: under("/admin/task-templates"), visible: ADMIN_ONLY, ownHead: true },
+      { label: "Newsletter recipients", href: "/admin/newsletter", match: under("/admin/newsletter"), visible: ADMIN_ONLY, ownHead: true },
       // TEMP: fire-once data-wipe controls. Remove this entry along with
       // `src/app/(app)/admin/(admin-only)/danger-zone/` and
       // `src/app/api/admin/nuke-tasks/` once both environments have been reset.
-      { label: "Danger zone", href: "/admin/danger-zone", match: under("/admin/danger-zone"), visible: ADMIN_ONLY },
+      { label: "Danger zone", href: "/admin/danger-zone", match: under("/admin/danger-zone"), visible: ADMIN_ONLY, ownHead: true },
     ],
   },
 ];

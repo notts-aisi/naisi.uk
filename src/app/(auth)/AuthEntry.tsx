@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
@@ -25,6 +26,7 @@ import {
 import { useAuth } from "@/auth/AuthProvider";
 import { useHydrated } from "@/hooks/useHydrated";
 import { isFunnelReturn } from "@/lib/authReturn";
+import { POLICIES } from "@/lib/legal/policies";
 import { hardNavigate } from "@/lib/navigation/hardNavigate";
 import { claimSelfHealAttempt } from "@/lib/navigation/selfHealGuard";
 import { minWidth } from "@/theme/breakpoints";
@@ -33,6 +35,7 @@ import {
   RECAPTCHA_ENABLED,
   type RecaptchaHandle,
 } from "@/components/ui/RecaptchaInvisible";
+import { joinStepForNewAccount } from "@/features/applications/apply/joinClient";
 
 type Mode = "signin" | "register";
 type SignInPhase = "idle" | "active" | "navigating" | "exitingBack";
@@ -393,6 +396,22 @@ export default function AuthEntry({ initialMode }: { initialMode: Mode }) {
           // set and lands them on the right form (?type carries the audience,
           // since the in-place toggle's history.replaceState isn't observed by
           // the router).
+          //
+          // An application form takes the join request on its own first step,
+          // so an account with none that came here from one goes straight
+          // back to that step, where what it typed is still in the tab, and
+          // is never shown the register page's profile form. Which return
+          // addresses count is `newAccountReturn`
+          // (`src/lib/applications/applicant/join.ts`): one the step marked
+          // is taken at once, and one that only has a form's shape is taken
+          // when the form's own route says it is open for this account.
+          // Asked BEFORE the sign-in is marked finished below, so nothing
+          // else on this page moves while the answer is on its way. The
+          // collaborator route keeps its own branch and is never asked.
+          const onTheForm =
+            mode === "register" && audience === "collaborator"
+              ? null
+              : await joinStepForNewAccount(safeNext);
           credentialReceivedRef.current = false;
           setPhase("idle");
           // A funnel return address survives the hop. Without this, someone
@@ -411,7 +430,7 @@ export default function AuthEntry({ initialMode }: { initialMode: Mode }) {
           router.replace(
             mode === "register" && audience === "collaborator"
               ? "/register?type=collaborator"
-              : funnelNext,
+              : (onTheForm ?? funnelNext),
           );
           return;
         }
@@ -522,7 +541,11 @@ export default function AuthEntry({ initialMode }: { initialMode: Mode }) {
             await nextPaint();
             hardNavigate(dest);
           } else {
-            router.push("/register?type=collaborator");
+            // No join request and no collaborator record. From an application
+            // form that is the form's own first step, by the same rule the
+            // Google branch keeps for a new account. From anywhere else it is
+            // the collaborator application, as it has always been.
+            router.push((await joinStepForNewAccount(safeNext)) ?? "/register?type=collaborator");
           }
         } catch (err) {
           setFormError(
@@ -672,24 +695,25 @@ export default function AuthEntry({ initialMode }: { initialMode: Mode }) {
         >
         <Card padding="lg" className={styles.card} style={{ width: "100%" }}>
           <h1 className={styles.heading}>Check your inbox</h1>
-          <p style={{ color: "var(--color-text-muted)", marginBottom: "var(--space-5)", lineHeight: 1.5 }}>
+          <p className={styles.lede}>
             If <strong>{sentEmail}</strong>{" "}
             <u>isn&apos;t already registered</u>, we&apos;ve sent it a link to
             confirm your email and finish signing up. Click it and you&apos;ll be
             brought right back here.
           </p>
-          <ResendButton email={sentEmail} />
-          <div style={{ marginTop: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+          <div className={styles.stack}>
+            <ResendButton email={sentEmail} />
             <Button
               type="button"
               variant="secondary"
               size="lg"
               fullWidth
+              className={styles.longLabel}
               onClick={() => switchMode("signin")}
             >
               Already have an account? Log in here
             </Button>
-            <p style={{ color: "var(--color-text-subtle)", fontSize: "var(--text-sm)", textAlign: "center", margin: 0, lineHeight: 1.5 }}>
+            <p className={styles.fieldNote}>
               No email is sent if you already have an account.
             </p>
           </div>
@@ -711,28 +735,27 @@ export default function AuthEntry({ initialMode }: { initialMode: Mode }) {
     <>
     <div className={`${frameClass} ${styles.frame}`}>
       <Card padding="lg" className={styles.card} style={{ width: "100%" }}>
-        <ModeToggle value={mode} onChange={switchMode} />
-
+        {/* One heading for both halves of the card: the toggle under it says
+            which half is showing. */}
         <AnimatedText
           as="h1"
           className={styles.heading}
-          style={{ minHeight: "1.25em" }}
-          text={mode === "register" ? "Join NAISI" : "Welcome back"}
+          style={{ minHeight: "1.15em" }}
+          text="Sign in or create an account"
         />
+        {/* Held to two lines, so swapping the sentence does not move the rows
+            below it. */}
         <AnimatedText
-          style={{
-            display: "block",
-            color: "var(--color-text-muted)",
-            lineHeight: 1.5,
-            marginBottom: "var(--space-6)",
-            minHeight: "2.8em",
-          }}
+          className={styles.lede}
+          style={{ display: "block", minHeight: "3.1em" }}
           text={
             mode === "register"
               ? TAGLINE[audience]
-              : "Sign in to access your dashboard, tasks, and course materials."
+              : "Use it to apply for programmes and for some events."
           }
         />
+
+        <ModeToggle value={mode} onChange={switchMode} />
 
         {/* Audience toggle (register only) animates its own height; the rows
             below move via flow. On sign-in it waits the sequencing beat (moveT
@@ -782,15 +805,13 @@ export default function AuthEntry({ initialMode }: { initialMode: Mode }) {
           does not complete, use your email and password above, or open
           naisi.uk in Safari.
         </p>
-        <div className={styles.divider} style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", margin: "var(--space-6) 0 var(--space-4)" }}>
-          <span style={{ flex: 1, height: 1, background: "var(--color-border)" }} />
-          <span style={{ color: "var(--color-text-subtle)", fontSize: "var(--text-xs)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            or
-          </span>
-          <span style={{ flex: 1, height: 1, background: "var(--color-border)" }} />
+        <div className={styles.divider}>
+          <span className={styles.dividerLine} />
+          <span>or</span>
+          <span className={styles.dividerLine} />
         </div>
 
-        <form ref={formRef} id="auth-form" className={styles.authForm} onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+        <form ref={formRef} id="auth-form" className={styles.authForm} onSubmit={handleSubmit}>
           <div>
             <Field id="auth-email" label="Email">
               <Input
@@ -819,8 +840,8 @@ export default function AuthEntry({ initialMode }: { initialMode: Mode }) {
                   transition={moveT}
                   style={{ overflow: "hidden" }}
                 >
-                  <p style={{ marginTop: "var(--space-2)", fontSize: "var(--text-sm)", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
-                    Use a personal email you&apos;ll keep — not a university
+                  <p className={`${styles.fieldNote} ${styles.afterField}`}>
+                    Use a personal email you&apos;ll keep, not a university
                     address. You&apos;ll confirm any university affiliation
                     separately.
                   </p>
@@ -854,11 +875,11 @@ export default function AuthEntry({ initialMode }: { initialMode: Mode }) {
                     required
                   />
                 </Field>
-                <div style={{ display: "flex", justifyContent: "center", paddingTop: "var(--space-2)" }}>
+                <div className={styles.linkRow}>
                   <button
                     type="button"
                     onClick={() => void handleReset()}
-                    style={{ background: "none", border: "none", color: "var(--color-text-muted)", fontSize: "var(--text-xs)", cursor: "pointer", textDecoration: "underline" }}
+                    className={styles.textLink}
                   >
                     Forgot password?
                   </button>
@@ -866,84 +887,17 @@ export default function AuthEntry({ initialMode }: { initialMode: Mode }) {
               </motion.div>
             )}
           </AnimatePresence>
-          {formError && (
-            <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{formError}</p>
-          )}
-          {resetNote && (
-            <p style={{ color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>{resetNote}</p>
-          )}
-          {/* Invisible reCAPTCHA — register only (keeps the floating badge off the
-              sign-in screen). No layout footprint; driven via the ref on submit. */}
+          {formError && <p className={styles.formError}>{formError}</p>}
+          {resetNote && <p className={styles.formNote}>{resetNote}</p>}
+          {/* Invisible reCAPTCHA, register only. No layout footprint; driven via
+              the ref on submit. Its floating badge is hidden by the
+              stylesheet, and the sentence under the card stands in for it. */}
           {mode === "register" && RECAPTCHA_ENABLED && (
             <RecaptchaInvisible ref={recaptchaRef} />
           )}
         </form>
 
         <div className={styles.footer}>
-          {/* Mobile-only: the bar's top edge as a smooth accent line that bumps
-              up and around the chevron tab (drawn on top of the feather). */}
-          <svg
-            className={styles.barEdge}
-            viewBox="0 0 200 30"
-            preserveAspectRatio="none"
-            aria-hidden="true"
-          >
-            <path
-              className={styles.barEdgeFill}
-              d="M0 30 L0 28 L78 28 C88 28 88 5 96 5 L104 5 C112 5 112 28 122 28 L200 28 L200 30 Z"
-            />
-            <path
-              className={styles.barEdgeStroke}
-              d="M0 28 L78 28 C88 28 88 5 96 5 L104 5 C112 5 112 28 122 28 L200 28"
-              vectorEffect="non-scaling-stroke"
-              strokeWidth="1.25"
-            />
-          </svg>
-          <button
-            type="button"
-            className={styles.loaderHandle}
-            onClick={() => {
-              const next = !loaderOpen;
-              try {
-                localStorage.setItem(LOADER_OPEN_KEY, next ? "1" : "0");
-              } catch {
-                /* storage unavailable */
-              }
-              setLoaderOpen(next);
-            }}
-            aria-expanded={loaderOpen}
-            aria-label={loaderOpen ? "Hide the sign-in animation" : "Show the sign-in animation"}
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              style={{ transition: "transform 0.3s ease", transform: loaderOpen ? "rotate(180deg)" : "none" }}
-            >
-              <path d="M7 14.5 L12 9.5 L17 14.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          <AnimatePresence initial={false}>
-            {loaderOpen && (
-              <motion.div
-                key="loader"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={LAYOUT_T}
-                style={{ overflow: "hidden" }}
-              >
-                {/* Gap lives on an INNER element so it's part of the animated
-                    auto-height (collapses fully to 0). On the collapsing element
-                    itself, padding can't shrink — the bar would stall at the
-                    padding height then snap. */}
-                <div style={{ paddingBottom: "var(--space-3)" }}>
-                  <SigningIn active={phase !== "idle"} />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
           {/* Disabled until React is listening. It is the form's default
               button, so while it carries `disabled` an Enter press in either
               field submits nothing either, which is the press a password
@@ -964,8 +918,87 @@ export default function AuthEntry({ initialMode }: { initialMode: Mode }) {
                 ? "Signing in…"
                 : "Sign in"}
           </Button>
+          {/* The ambient animation sits under the button, so the button is
+              where the eye lands and the animation is the card's last row.
+              The chevron's direction is the stylesheet's, read from
+              aria-expanded. */}
+          <button
+            type="button"
+            className={styles.loaderHandle}
+            onClick={() => {
+              const next = !loaderOpen;
+              try {
+                localStorage.setItem(LOADER_OPEN_KEY, next ? "1" : "0");
+              } catch {
+                /* storage unavailable */
+              }
+              setLoaderOpen(next);
+            }}
+            aria-expanded={loaderOpen}
+            aria-label={loaderOpen ? "Hide the sign-in animation" : "Show the sign-in animation"}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 14.5 L12 9.5 L17 14.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <AnimatePresence initial={false}>
+            {loaderOpen && (
+              <motion.div
+                key="loader"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={LAYOUT_T}
+                style={{ overflow: "hidden" }}
+              >
+                {/* Any gap lives on an INNER element so it is part of the
+                    animated auto-height (it collapses fully to 0). On the
+                    collapsing element itself, padding cannot shrink: the row
+                    would stall at the padding height and then snap. */}
+                <div className={styles.loaderSlot}>
+                  <SigningIn active={phase !== "idle"} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </Card>
+      {/* Under the card. The second line stands in for Google's floating
+          badge, which the stylesheet hides inside this card. */}
+      <div className={styles.under}>
+        <p className={styles.underLine}>
+          By continuing you agree to our{" "}
+          <Link href={POLICIES.terms.href} target="_blank" className={styles.inlineLink}>
+            Terms
+          </Link>{" "}
+          and{" "}
+          <Link href={POLICIES.privacy.href} target="_blank" className={styles.inlineLink}>
+            Privacy policy
+          </Link>
+          .
+        </p>
+        <p className={styles.underLine}>
+          This site is protected by reCAPTCHA. Google&rsquo;s{" "}
+          <a
+            href="https://policies.google.com/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.inlineLink}
+          >
+            Privacy Policy
+          </a>{" "}
+          and{" "}
+          <a
+            href="https://policies.google.com/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.inlineLink}
+          >
+            Terms of Service
+          </a>{" "}
+          apply.
+        </p>
+      </div>
     </div>
     {navDest !== null && <NavigatingPane dest={navDest} />}
     </>
@@ -1038,19 +1071,19 @@ function NavigatingPane({ dest }: { dest: string }) {
   );
 }
 
-/** Sign in ↔ Create account — sliding-pill toggle (shared-layout `motion.span`). */
+/** Sign in or Create account: a sliding-pill toggle (shared-layout `motion.span`). */
 function ModeToggle({ value, onChange }: { value: Mode; onChange: (m: Mode) => void }) {
   const opts: { v: Mode; label: string }[] = [
     { v: "register", label: "Create account" },
     { v: "signin", label: "Sign in" },
   ];
   return (
-    <div style={{ textAlign: "center", marginBottom: "var(--space-5)" }}>
+    <div className={styles.toggleBlock}>
       <div
         data-testid="auth-mode-toggle"
         role="radiogroup"
         aria-label="Sign in or create an account"
-        style={{ display: "inline-flex", position: "relative", padding: "3px", gap: "3px", background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)" }}
+        className={styles.toggle}
       >
         {opts.map((o) => {
           const active = o.v === value;
@@ -1061,17 +1094,18 @@ function ModeToggle({ value, onChange }: { value: Mode; onChange: (m: Mode) => v
               role="radio"
               aria-checked={active}
               onClick={() => onChange(o.v)}
-              style={{ position: "relative", appearance: "none", background: "transparent", border: "none", cursor: "pointer", padding: "0.4rem 0.9rem", fontSize: "var(--text-sm)", fontWeight: 500, color: active ? "white" : "var(--color-text-muted)", borderRadius: "calc(var(--radius-md) - 3px)", transition: "color var(--transition-fast)", whiteSpace: "nowrap" }}
+              className={styles.toggleOption}
+              style={{ color: active ? "var(--color-on-accent)" : "var(--color-text-muted)" }}
             >
               {active && (
                 <motion.span
                   layoutId="auth-mode-pill"
                   aria-hidden="true"
-                  style={{ position: "absolute", inset: 0, background: "var(--color-accent)", borderRadius: "calc(var(--radius-md) - 3px)", zIndex: 0 }}
+                  className={styles.togglePill}
                   transition={{ type: "spring", stiffness: 380, damping: 32 }}
                 />
               )}
-              <span style={{ position: "relative", zIndex: 1 }}>{o.label}</span>
+              <span className={styles.toggleText}>{o.label}</span>
             </button>
           );
         })}
@@ -1125,13 +1159,14 @@ function ResendButton({ email }: { email: string }) {
       type="button"
       onClick={() => void onResend()}
       disabled={disabled}
-      style={{ position: "relative", overflow: "hidden", width: "100%", padding: "var(--space-3)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)", background: "var(--color-bg-elevated)", color: disabled ? "var(--color-text-muted)" : "var(--color-accent)", fontSize: "var(--text-sm)", fontWeight: 500, cursor: disabled ? "default" : "pointer" }}
+      className={styles.resend}
     >
       <span
         aria-hidden="true"
-        style={{ position: "absolute", inset: 0, transformOrigin: "left", transform: `scaleX(${pct / 100})`, background: "var(--color-surface-hover)", transition: "transform 90ms linear", zIndex: 0 }}
+        className={styles.resendFill}
+        style={{ transform: `scaleX(${pct / 100})` }}
       />
-      <span style={{ position: "relative", zIndex: 1 }}>
+      <span className={styles.resendText}>
         {disabled ? `Resend email in ${secondsLeft}s` : "Resend email"}
       </span>
     </button>

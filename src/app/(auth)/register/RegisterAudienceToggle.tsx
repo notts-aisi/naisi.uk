@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
+import styles from "./registerSignIn.module.css";
 
 export type RegisterAudience = "member" | "collaborator";
 
@@ -31,30 +32,12 @@ export default function RegisterAudienceToggle({
   onChange: (next: RegisterAudience) => void;
 }) {
   return (
-    <div style={{ textAlign: "center", marginBottom: "var(--space-6)" }}>
-      <p
-        style={{
-          color: "var(--color-text-subtle)",
-          fontSize: "var(--text-xs)",
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-          marginBottom: "var(--space-3)",
-        }}
-      >
-        Registering as
-      </p>
+    <div className={styles.toggleBlock}>
+      <p className={styles.toggleLabel}>Registering as</p>
       <div
         role="radiogroup"
         aria-label="Choose whether you're a University of Nottingham member or an external collaborator"
-        style={{
-          display: "inline-flex",
-          position: "relative",
-          padding: "3px",
-          gap: "3px",
-          background: "var(--color-bg-elevated)",
-          border: "1px solid var(--color-border)",
-          borderRadius: "var(--radius-md)",
-        }}
+        className={styles.toggle}
       >
         {OPTIONS.map((opt) => {
           const active = opt.value === value;
@@ -66,36 +49,18 @@ export default function RegisterAudienceToggle({
               aria-checked={active}
               title={opt.title}
               onClick={() => onChange(opt.value)}
-              style={{
-                position: "relative",
-                appearance: "none",
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                padding: "0.4rem 0.85rem",
-                fontSize: "var(--text-sm)",
-                fontWeight: 500,
-                color: active ? "white" : "var(--color-text-muted)",
-                borderRadius: "calc(var(--radius-md) - 3px)",
-                transition: "color var(--transition-fast)",
-                whiteSpace: "nowrap",
-              }}
+              className={styles.toggleOption}
+              style={{ color: active ? "var(--color-on-accent)" : "var(--color-text-muted)" }}
             >
               {active && (
                 <motion.span
                   layoutId="register-audience-pill"
                   aria-hidden="true"
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    background: "var(--color-accent)",
-                    borderRadius: "calc(var(--radius-md) - 3px)",
-                    zIndex: 0,
-                  }}
+                  className={styles.togglePill}
                   transition={{ type: "spring", stiffness: 380, damping: 32 }}
                 />
               )}
-              <span style={{ position: "relative", zIndex: 1 }}>{opt.label}</span>
+              <span className={styles.toggleText}>{opt.label}</span>
             </button>
           );
         })}

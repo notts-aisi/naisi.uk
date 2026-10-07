@@ -3,17 +3,28 @@
 import { useState } from "react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import PageHead from "@/components/ui/PageHead";
 import {
+  AdminFilterPill,
   AdminPage,
   AdminLoadingBar,
   AdminListFooter,
   useClientPagination,
 } from "@/features/admin/adminList";
+import { AdminProblem } from "@/features/admin/adminPanels";
 import ProjectCard from "@/features/admin/ProjectCard";
 import ProjectForm from "@/features/admin/ProjectForm";
+import styles from "@/features/admin/Projects.module.css";
 import { useMembers } from "@/features/admin/useMembers";
 import { useProjects } from "@/features/admin/useProjects";
 
+/**
+ * Projects: the groups of committee work a task can belong to.
+ *
+ * Under `(admin-only)`, so `requireAdminPage()` in that group's layout is the
+ * gate. Reads and writes go client-direct under the admin-only `projects`
+ * rule, and the people pickers read the roster the Accounts list reads.
+ */
 export default function ProjectsAdminPage() {
   const [creating, setCreating] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
@@ -25,91 +36,71 @@ export default function ProjectsAdminPage() {
   const { shown, hasMore, loadMore, total, shownCount } = useClientPagination(visible, 20);
 
   return (
-    <AdminPage>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "var(--space-5)",
-          flexWrap: "wrap",
-          gap: "var(--space-3)",
-        }}
-      >
-        <p style={{ color: "var(--color-text-muted)" }}>
-          {loading
-            ? "Loading projects…"
-            : `${visible.length} project${visible.length === 1 ? "" : "s"}${
-                showArchived ? "" : " (active)"
-              }`}
-        </p>
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-2)",
-              fontSize: "var(--text-sm)",
-              color: "var(--color-text-muted)",
-              cursor: "pointer",
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={showArchived}
-              onChange={(e) => setShowArchived(e.target.checked)}
-            />
-            <span>Show archived</span>
-          </label>
-          <Button onClick={() => setCreating(true)} size="sm">
-            New project
-          </Button>
+    <AdminPage wide>
+      <PageHead
+        crumb="Site settings"
+        title="Projects"
+        description="The groups of committee work a task can belong to, each with a lead and its members."
+        meta={
+          !loading && !error ? (
+            <span>
+              {visible.length} {visible.length === 1 ? "project" : "projects"}
+              {showArchived ? ", archived ones included" : ", not counting archived ones"}
+            </span>
+          ) : undefined
+        }
+        actions={
+          creating ? (
+            <Button variant="secondary" onClick={() => setCreating(false)}>
+              Cancel
+            </Button>
+          ) : (
+            <Button onClick={() => setCreating(true)}>New project</Button>
+          )
+        }
+      />
+
+      <div className={styles.column}>
+        <div className={styles.filters}>
+          <AdminFilterPill pressed={showArchived} onToggle={() => setShowArchived((v) => !v)}>
+            Show archived
+          </AdminFilterPill>
         </div>
-      </div>
 
-      {creating && (
-        <div style={{ marginBottom: "var(--space-5)" }}>
-          <ProjectForm committee={members} onDone={() => setCreating(false)} />
-        </div>
-      )}
+        {creating && <ProjectForm committee={members} onDone={() => setCreating(false)} />}
 
-      {error && (
-        <Card padding="md">
-          <p style={{ color: "var(--color-danger)" }}>Couldn&apos;t load: {error.message}</p>
-        </Card>
-      )}
+        {error && <AdminProblem>Couldn&apos;t load: {error.message}</AdminProblem>}
 
-      {loading && (
-        <Card padding="md">
-          <AdminLoadingBar label="Loading projects…" />
-        </Card>
-      )}
+        {loading && (
+          <Card padding="md">
+            <AdminLoadingBar label="Loading projects…" />
+          </Card>
+        )}
 
-      {!loading && !error && visible.length === 0 && !creating && (
-        <Card padding="md">
-          <p style={{ color: "var(--color-text-muted)" }}>
-            No projects yet. Click <strong>New project</strong> to create the first one.
-          </p>
-        </Card>
-      )}
+        {!loading && !error && visible.length === 0 && !creating && (
+          <Card padding="md">
+            <p className={styles.muted}>
+              No projects yet. Press <strong>New project</strong> to make the first one.
+            </p>
+          </Card>
+        )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
         {shown.map((p) => (
           <ProjectCard key={p.id} project={p} committee={members} />
         ))}
-      </div>
 
-      {!loading && !error && total > 0 && (
-        <AdminListFooter
-          shownCount={shownCount}
-          total={total}
-          hasMore={hasMore}
-          onLoadMore={loadMore}
-          onRefresh={reload}
-          refreshing={refreshing}
-          noun="projects"
-        />
-      )}
+        {!loading && !error && total > 0 && (
+          <AdminListFooter
+            shownCount={shownCount}
+            total={total}
+            hasMore={hasMore}
+            onLoadMore={loadMore}
+            onRefresh={reload}
+            refreshing={refreshing}
+            noun="projects"
+          />
+        )}
+      </div>
     </AdminPage>
   );
 }

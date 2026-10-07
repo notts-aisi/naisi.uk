@@ -117,15 +117,15 @@ export default async function ReConsentPage() {
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}
-          <Link href="/privacy" target="_blank" style={{ color: "var(--color-accent)" }}>
+          <Link href="/privacy" target="_blank" style={{ color: "var(--color-accent-text)" }}>
             Privacy Policy
           </Link>{" "}
           ·{" "}
-          <Link href="/privacy/versions" target="_blank" style={{ color: "var(--color-accent)" }}>
+          <Link href="/privacy/versions" target="_blank" style={{ color: "var(--color-accent-text)" }}>
             version history
           </Link>{" "}
           ·{" "}
-          <Link href="/terms" target="_blank" style={{ color: "var(--color-accent)" }}>
+          <Link href="/terms" target="_blank" style={{ color: "var(--color-accent-text)" }}>
             Terms of Use
           </Link>
           .

@@ -337,12 +337,16 @@ test(
         // Somebody who already has an account is sent to sign in and brought
         // back to this form, and nowhere else. The step's own link, which is
         // inside the page's main area: the site's header has one of the same
-        // name that goes to the bare sign-in page.
+        // name that goes to the bare sign-in page. What it carries is the
+        // address the form marks for the way back (`?join=1`), the one the
+        // emailed link returns to further down, so the sign-in page sends an
+        // account with no join request back to this step and not on to the
+        // register page's own profile form.
         const signIn = page.locator("main").getByRole("link", { name: "Sign in", exact: true });
         assert.equal(
           await signIn.getAttribute("href"),
-          `/login?next=${encodeURIComponent(formPath)}`,
-          "the sign-in link does not carry this form as its return address",
+          `/login?next=${encodeURIComponent(`${formPath}?join=1`)}`,
+          "the sign-in link does not carry this form's marked address as its return address",
         );
       });
 

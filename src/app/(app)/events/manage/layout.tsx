@@ -19,23 +19,7 @@ export default async function EventsLayout({
     canApproveEvent(user);
   if (!allowed) redirect("/dashboard");
 
-  return (
-    <div>
-      <div style={{ marginBottom: "var(--space-8)" }}>
-        <div
-          style={{
-            color: "var(--color-text-muted)",
-            fontSize: "var(--text-sm)",
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            marginBottom: "var(--space-2)",
-          }}
-        >
-          Events
-        </div>
-        <h1 style={{ fontSize: "var(--text-3xl)" }}>Drafts & publishing</h1>
-      </div>
-      {children}
-    </div>
-  );
+  // No heading here: each page of the area draws its own, so every one of
+  // them has a single h1 that names what it is.
+  return <>{children}</>;
 }
