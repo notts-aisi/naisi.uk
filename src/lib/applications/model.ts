@@ -166,6 +166,18 @@ export type ProgrammeSettings = {
   closed: boolean;
   /** The course run accepted people are placed on, once one exists. */
   runId: string | null;
+  /**
+   * The course this programme is for, or null for a programme with no course
+   * page. While it is set, that course's public page offers the application
+   * form: its Apply button leads to the one form, whichever course's button
+   * somebody presses. Something else than `runId`: a course is the evergreen
+   * page, a run is one term of it that people are placed on.
+   *
+   * A course's id as it was when somebody picked it. A course can be
+   * unpublished or deleted afterwards, and nothing here follows that, so
+   * whatever reads this treats a course that is not there as no course.
+   */
+  courseId: string | null;
   /** The programme's own wording for its decision-day emails. */
   emailWording: Partial<Record<ProgrammeEmailKind, EmailWording>>;
 };

@@ -174,6 +174,40 @@ The round's `reviewerUids` is kept as the union of every lead and reviewer on
 the form, with the `users.admissionsReviewer` flag that draws the sidebar
 entry, so every existing gate keeps working without knowing about programmes.
 
+## A programme and its course page
+
+A programme is for a course, and `programmes.<id>.courseId` says which: the
+id of a course on the site, or null for a programme with no course page. It
+is something else than `runId`. A course is the evergreen page; a run is one
+term of it, and `runId` is the run accepted people are placed on.
+
+**One writer.** The programme's `PATCH`
+(`/api/admissions/forms/[roundId]/programmes/[programmeId]`) is the only
+thing that stores it, for the programme's lead or an admin, from the "Course
+page" box on the Settings tab. `editor/courses.ts` holds the one rule the box
+and the route both go by, so the route accepts exactly what the box offered
+the caller:
+
+| A course that is | Can be picked by |
+| --- | --- |
+| published | the programme's lead, or an admin |
+| a draft | somebody who may read a draft course: an admin, or a holder of `draftCourse` or `approveCourse` |
+| archived, or not there | nobody |
+
+"Not there" and "not yours to pick" are refused in the same sentence, after
+the route has decided the caller may change the programme at all, so the
+route says nothing about which ids exist. The box always shows the course
+already chosen, whatever has become of it: by its title to somebody who may
+read it, and by a few words in its place to somebody who may not, or when it
+has been deleted. A tie already stored is never checked again by a later save
+of the same page, so a course somebody else unpublished cannot stop a lead
+changing their places.
+
+**Nothing follows a course around.** A course can be unpublished, archived
+or deleted after a programme is tied to it, and no write is made to the form
+when that happens. Whatever reads `courseId` treats a course that is not
+there, or has no public page, as no course.
+
 ## Scores
 
 Scoring is per answer, 1 to 5, and optional per programme (`useScores`). Only a
@@ -499,6 +533,7 @@ every kind of reply has been made, through each of them.
 | A form is destroyed | The form, its question sets, every application with the access-requirements row beside it, every review, every decision document, and the log lines about the form's decisions | Each applicant's member record, the delivery log, the download log, the course runs |
 | An account is deleted | Each of its applications with the access-requirements row and the decision document beside it, the reviews about it, the reviews it wrote, and its name wherever a round carries it: the reviewer list, the final decider, and the lead and reviewers of each programme | Its member record, the log lines |
 | A course run is destroyed | Nothing on a form | The form, with any programme whose `runId` named that run |
+| A course is destroyed | Nothing on a form | The form, with any programme whose `courseId` named that course |
 
 - **A form is destroyed through the round destroy**
   (`src/lib/admissions/destroy.ts`), the one older action a form shares. It
@@ -522,6 +557,11 @@ every kind of reply has been made, through each of them.
 - **A programme's `runId` can name a run that has since been destroyed.** The
   run destroy writes no round. Whatever reads a programme's `runId` treats a
   run that is not there as no run.
+- **A programme's `courseId` can name a course that has since been
+  destroyed**, for the same reason: the course destroy writes no round. The
+  Settings tab shows such a tie as a course that is no longer on the site,
+  and no public page can be offered the form through it, because there is no
+  page.
 - **An application's earlier versions go with the application.** They are
   fields of its own document, so every delete above takes them in the same
   write, and nothing else holds a copy.
