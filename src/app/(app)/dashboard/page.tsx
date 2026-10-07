@@ -1,13 +1,35 @@
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { loadStatusRows } from "@/lib/admissions/statusHubData";
-import Badge from "@/components/ui/Badge";
+import { formatSiteDate } from "@/lib/datetime/siteTime";
 import YourApplications, {
   type YourApplicationRow,
 } from "@/features/applications/home/YourApplications";
-import MyCoursesSummary from "@/features/courses/MyCoursesSummary";
-import MyWorkSummary from "@/features/tasks/components/MyWorkSummary";
 import { InstallCard } from "@/features/pwa/InstallCard";
+import { fetchPublicTerm } from "@/features/term/fetchPublicTerm";
+import { termCivilDay } from "@/features/term/termWords";
+import ComingUp from "./ComingUp";
+import { FinishProfile, NoApplicationsYet } from "./HomeAside";
+import HomeAdmin from "./HomeAdmin";
+import HomeMember from "./HomeMember";
+import TermCard from "./TermCard";
+import { homeEvents, profileSteps } from "./homeData";
+import { firstName } from "./homeWords";
+import styles from "./home.module.css";
+
+/**
+ * Home: the first page somebody sees after signing in.
+ *
+ * It has four forms. An admin's is chosen here, from the role the session
+ * holds. The other three (a facilitator, a member on a programme, a member
+ * who is not) are chosen in the browser by `HomeMember`, from the list of
+ * runs the member touches, which only a signed-in request can ask for.
+ *
+ * What is the same for every reader is read here, once, and handed down as
+ * finished pieces: the term (through `fetchPublicTerm`, so no date is written
+ * in a file), the next events, the member's own applications and what is
+ * missing from their profile.
+ */
 
 /**
  * What this member has applied to, as the dashboard names it, or null when
@@ -33,31 +55,65 @@ async function applicationsOf(uid: string): Promise<YourApplicationRow[] | null>
   }
 }
 
+/** "Morning", "Afternoon" or "Evening", by the site's own clock. */
+function partOfDay(now: Date): string {
+  const hour = Number(formatSiteDate(now, { hour: "2-digit" }));
+  if (hour < 12) return "Morning";
+  return hour < 18 ? "Afternoon" : "Evening";
+}
+
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   const applications = user ? await applicationsOf(user.uid) : [];
+  const now = new Date();
+  const [term, events, steps] = await Promise.all([
+    fetchPublicTerm(now),
+    homeEvents(now),
+    user ? profileSteps(user.uid) : null,
+  ]);
+  const given = firstName(user?.displayName);
+
+  // The way back to somebody's applications. It draws nothing for a member
+  // who has not applied; while applications are open, a member who is not on
+  // a programme is told "Nothing yet" in the same place.
+  const yourApplications = <YourApplications rows={applications} />;
+  const nothingYet =
+    term.stage === "open" && applications !== null && applications.length === 0 ? (
+      <NoApplicationsYet closesAt={term.closesAt} />
+    ) : null;
+
+  // Quiet install invitation: phones only, dismissible once, hidden when
+  // already installed. Each form draws it under its greeting. See
+  // src/features/pwa/InstallCard.tsx.
+  const invite = <InstallCard />;
 
   return (
-    <div>
-      <div style={{ marginBottom: "var(--space-8)" }}>
-        <Badge tone="accent">Dashboard</Badge>
-        <h1 style={{ marginTop: "var(--space-3)" }}>
-          Welcome back{user?.displayName ? `, ${user.displayName.split(" ")[0]}` : ""}.
-        </h1>
-        <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-2)" }}>
-          Your home base. Open tasks, overdue items, and what&apos;s coming up next.
-        </p>
-      </div>
-
-      {/* Quiet install invitation: phones only, dismissible once, hidden
-          when already installed. See src/features/pwa/InstallCard.tsx. */}
-      <InstallCard />
-
-      <MyCoursesSummary />
-      {/* The way back to somebody's applications. Nothing is drawn for a
-          member who has not applied to anything. */}
-      <YourApplications rows={applications} />
-      <MyWorkSummary />
+    <div className={styles.page}>
+      {user?.role === "admin" ? (
+        <HomeAdmin
+          given={given}
+          invite={invite}
+          greeting={partOfDay(now)}
+          applicationsInHand={term.stage === "open" || term.stage === "closed"}
+          decisionsBy={term.decisionsByDate ? termCivilDay(term.decisionsByDate) : null}
+          weekRange={events.week.range}
+          weekEvents={events.week.events}
+          weekStartsAt={events.week.startsAt}
+          weekEndsAt={events.week.endsAt}
+          applications={yourApplications}
+        />
+      ) : (
+        <HomeMember
+          given={given}
+          invite={invite}
+          termCard={<TermCard term={term} />}
+          comingUpRows={<ComingUp events={events.upcoming} layout="rows" />}
+          comingUpCards={<ComingUp events={events.upcoming} layout="cards" />}
+          applications={yourApplications}
+          nothingYet={nothingYet}
+          finishProfile={<FinishProfile steps={steps} />}
+        />
+      )}
     </div>
   );
 }

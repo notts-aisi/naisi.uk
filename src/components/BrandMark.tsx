@@ -11,6 +11,12 @@ import styles from "./BrandMark.module.css";
   edited by hand. There are two cuts of the castle: at small sizes the gap
   between it and the shield is wider, so the two do not close up.
 
+  The large cut, its box, its offset and both inks are the Night emblem in
+  brand-source/1-emblem/, and tests/brand-assets.test.mjs holds them to that
+  file character for character. The small cut is the redesign's own; the
+  masters do not hold it, so the same test pins it by digest and a change to
+  it is a decision about the mark.
+
   The name is set in the display face (Space Grotesk 600), as every board is.
 */
 

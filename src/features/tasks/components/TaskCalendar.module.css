@@ -29,10 +29,13 @@
   display: grid;
   grid-template-columns: repeat(7, var(--cell-px));
   gap: 2px;
+  font-family: var(--font-meta);
   font-size: var(--text-xs);
-  color: var(--color-text-subtle);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
   text-align: center;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .dayGrid {
@@ -84,9 +87,10 @@
      gap sits between them. */
   flex: 1;
   padding: 0.4rem 1rem;
-  color: #ffffff;
-  border: none;
-  border-radius: var(--radius-sm);
+  /* The line is always there and takes each variant's colour, so the two
+     buttons are the same size whichever has a visible edge. */
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
   font-size: var(--text-sm);
   font-weight: 600;
   font-family: inherit;
@@ -96,7 +100,7 @@
      Result: on Safari (desktop + iOS) the Clear / Done buttons read as
      missing entirely because the white text sits invisibly on Safari's
      default light grey button face. Resetting appearance lets our
-     class-driven background + color: #ffffff paint correctly. */
+     class-driven background and label colour paint correctly. */
   appearance: none;
   -webkit-appearance: none;
   /* Belt-and-braces: explicitly remove the user-agent box-shadow that
@@ -106,23 +110,36 @@
      it so the variant background colour reads as authoritative. */
   -webkit-tap-highlight-color: transparent;
   outline: none;
-  /* Backgrounds are set by the variant classes below. */
+  /* Grounds and label colours are set by the variant classes below. */
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
+/* Done keeps the date: the primary button (an accent fill with a dark label). */
 .actionBtnSuccess {
-  background-color: #16a34a;
+  background-color: var(--color-accent);
+  color: var(--color-on-accent);
 }
 
-.actionBtnSuccess:hover {
-  background-color: #15803d;
+.actionBtnSuccess:hover:not(:disabled) {
+  background-color: var(--color-accent-hover);
 }
 
+/* Clear removes the date: the careful outline. Red is never a fill. */
 .actionBtnDanger {
-  background-color: var(--color-danger);
+  background-color: transparent;
+  color: var(--color-danger-text);
+  border-color: var(--color-danger-line);
 }
 
-.actionBtnDanger:hover {
-  filter: brightness(0.92);
+.actionBtnDanger:hover:not(:disabled) {
+  background-color: var(--color-danger-soft);
+}
+
+.actionBtn:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
 }
 
 .actionBtn:disabled {

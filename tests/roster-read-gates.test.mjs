@@ -258,6 +258,14 @@ const CALL_SITES = new Map([
         "The same badge on the admin tab strip. AdminTabs renders under `/admin`, whose front door also admits course drafters and approvers, so the hook's own refusal is what covers them.",
     },
   ],
+  [
+    "usePendingCount in src/app/(app)/dashboard/HomeAdmin.tsx",
+    {
+      kind: "self-guarded",
+      reason:
+        "The join requests row on an admin's Home. /dashboard is rendered for every approved member and the admin's form of it is chosen from the role in the page, so there is no route tree to name as the gate; the hook refuses the query itself for anybody who is not an admin.",
+    },
+  ],
 ]);
 
 /**

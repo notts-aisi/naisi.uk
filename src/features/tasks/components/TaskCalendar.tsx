@@ -240,7 +240,7 @@ export default function TaskCalendar({
             bg = isOverdue
               ? "var(--color-danger)"
               : "var(--color-accent)";
-            color = "#ffffff";
+            color = "var(--color-on-accent)";
             border = "1px solid transparent";
           } else if (isToday) {
             border = "1px solid var(--color-accent)";

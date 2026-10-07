@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import Badge from "@/components/ui/Badge";
-import Card from "@/components/ui/Card";
 import { useAuth } from "@/auth/AuthProvider";
 import { useProjects } from "@/features/admin/useProjects";
 import { isOverdue, type TaskDoc } from "@/lib/firestore/tasks";
@@ -11,6 +10,23 @@ import { useTaskRoster } from "../hooks/useTaskRoster";
 import { useTasks } from "../hooks/useTasks";
 import TaskDetailModal from "./TaskDetailModal";
 import DueDateBadge from "./DueDateBadge";
+import styles from "./MyWorkSummary.module.css";
+
+/**
+ * The member's own open tasks, on Home: one card, the late ones first.
+ *
+ * It renders NOTHING for somebody with no open task, which is most members
+ * most of the time: the card is for a person who has been given something to
+ * do (a worksheet, a week's reading mirrored from their programme, a
+ * committee job), and an empty one is noise on a page that is otherwise about
+ * their programme. The whole list is always one click away, at /tasks.
+ *
+ * A row opens the task where it stands, in the same window the task board
+ * uses, so marking something done from Home is the same act as anywhere else.
+ */
+
+/** Rows past this are one scroll too many on a summary card; /tasks has all. */
+const MAX_ROWS = 5;
 
 export default function MyWorkSummary() {
   const { user, role } = useAuth();
@@ -23,76 +39,46 @@ export default function MyWorkSummary() {
 
   const open = useMemo(() => tasks.filter((t) => t.status !== "done"), [tasks]);
   const overdue = useMemo(() => open.filter((t) => isOverdue(t)), [open]);
-  const upcoming = useMemo(
-    () =>
-      open
-        .filter((t) => !isOverdue(t))
-        .sort((a, b) => {
-          if (a.dueDate && b.dueDate) return a.dueDate.getTime() - b.dueDate.getTime();
-          if (a.dueDate) return -1;
-          if (b.dueDate) return 1;
-          return 0;
-        })
-        .slice(0, 5),
-    [open],
-  );
+  // Late first, then by the day each is due, then the ones with no day.
+  const rows = useMemo(() => {
+    const byDue = (a: TaskDoc, b: TaskDoc) => {
+      if (a.dueDate && b.dueDate) return a.dueDate.getTime() - b.dueDate.getTime();
+      if (a.dueDate) return -1;
+      if (b.dueDate) return 1;
+      return 0;
+    };
+    return [...overdue.sort(byDue), ...open.filter((t) => !isOverdue(t)).sort(byDue)].slice(
+      0,
+      MAX_ROWS,
+    );
+  }, [open, overdue]);
 
-  if (!user || !role) return null;
+  if (!user || !role || open.length === 0) return null;
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gap: "var(--space-4)",
-        gridTemplateColumns: "repeat(auto-fit, minmax(18rem, 1fr))",
-      }}
-    >
-      <Card padding="md">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-3)" }}>
-          <h3 style={{ fontSize: "var(--text-lg)", margin: 0 }}>Due soon</h3>
-          <Link
-            href="/tasks"
-            style={{ fontSize: "var(--text-sm)", color: "var(--color-accent)" }}
-          >
-            View all →
-          </Link>
-        </div>
-        {upcoming.length === 0 ? (
-          <p style={{ color: "var(--color-text-muted)", fontSize: "var(--text-sm)", margin: 0 }}>
-            Nothing lined up. Nice.
-          </p>
-        ) : (
-          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-            {upcoming.map((t) => (
-              <TaskRow key={t.id} task={t} onClick={() => setOpenId(t.id)} />
-            ))}
-          </ul>
-        )}
-      </Card>
+    <section className={styles.card} aria-labelledby="home-my-work">
+      <div className={styles.head}>
+        <h2 id="home-my-work" className={styles.title}>
+          My work
+        </h2>
+        <Badge tone={overdue.length > 0 ? "warning" : "neutral"}>
+          {overdue.length > 0 ? `${overdue.length} late` : `${open.length} open`}
+        </Badge>
+        <Link href="/tasks" className={styles.viewAll}>
+          All my work
+        </Link>
+      </div>
 
-      {overdue.length > 0 && (
-        <Card padding="md" style={{ borderColor: "var(--color-danger)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-3)" }}>
-            <h3 style={{ fontSize: "var(--text-lg)", margin: 0 }}>Overdue</h3>
-            <Badge tone="danger">{overdue.length}</Badge>
-          </div>
-          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-            {overdue.slice(0, 5).map((t) => (
-              <TaskRow key={t.id} task={t} onClick={() => setOpenId(t.id)} />
-            ))}
-          </ul>
-        </Card>
-      )}
-
-      <Card padding="md">
-        <h3 style={{ fontSize: "var(--text-lg)", margin: 0, marginBottom: "var(--space-3)" }}>
-          Open
-        </h3>
-        <p style={{ fontSize: "var(--text-3xl)", fontWeight: 700, margin: 0 }}>{open.length}</p>
-        <p style={{ color: "var(--color-text-muted)", fontSize: "var(--text-sm)", marginTop: "var(--space-1)" }}>
-          assigned to you
-        </p>
-      </Card>
+      <ul className={styles.list} role="list">
+        {rows.map((task) => (
+          <li key={task.id}>
+            <button type="button" className={styles.row} onClick={() => setOpenId(task.id)}>
+              <span className={styles.name}>{task.title}</span>
+              <DueDateBadge dueDate={task.dueDate} />
+            </button>
+          </li>
+        ))}
+      </ul>
 
       {openId && (
         <TaskDetailModal
@@ -106,36 +92,6 @@ export default function MyWorkSummary() {
           onClose={() => setOpenId(null)}
         />
       )}
-    </div>
-  );
-}
-
-function TaskRow({ task, onClick }: { task: TaskDoc; onClick: () => void }) {
-  return (
-    <li>
-      <button
-        type="button"
-        onClick={onClick}
-        style={{
-          width: "100%",
-          textAlign: "left",
-          padding: "var(--space-2) var(--space-3)",
-          background: "var(--color-bg-elevated)",
-          border: "1px solid var(--color-border)",
-          borderRadius: "var(--radius-md)",
-          color: "var(--color-text)",
-          cursor: "pointer",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: "var(--space-2)",
-        }}
-      >
-        <span style={{ fontSize: "var(--text-sm)", flex: 1, textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>
-          {task.title}
-        </span>
-        <DueDateBadge dueDate={task.dueDate} />
-      </button>
-    </li>
+    </section>
   );
 }

@@ -7,6 +7,7 @@ import type { ProjectDoc } from "@/lib/firestore/projects";
 import type { UserDoc } from "@/lib/firestore/users";
 import TaskCard from "./TaskCard";
 import { setTaskStatus } from "../taskMutations";
+import styles from "./TaskList.module.css";
 
 type Props = {
   tasks: TaskDoc[];
@@ -29,26 +30,18 @@ export default function TaskList({
   if (tasks.length === 0) {
     return (
       <Card padding="md">
-        <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
-          {emptyMessage ?? "Nothing here yet."}
-        </p>
+        <p className={styles.empty}>{emptyMessage ?? "Nothing here yet."}</p>
       </Card>
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+    <div className={styles.list}>
       {tasks.map((task) => (
-        <div key={task.id} style={{ position: "relative" }}>
+        <div key={task.id} className={styles.item}>
           <TaskCard task={task} projects={projects} users={users} onOpen={onOpenTask} />
           {showQuickComplete && task.status !== "done" && (
-            <div
-              style={{
-                position: "absolute",
-                top: "var(--space-3)",
-                right: "var(--space-3)",
-              }}
-            >
+            <div className={styles.quickComplete}>
               <Button
                 size="sm"
                 variant="secondary"

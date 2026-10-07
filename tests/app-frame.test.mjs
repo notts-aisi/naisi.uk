@@ -438,7 +438,6 @@ const NOT_UNDER_THE_BAR = {
   "features/admin/adminLock.module.css .overlay": WHOLE_SCREEN,
   "features/maintenance/StatusPage.module.css .modalBackdrop": OUTSIDE,
   "features/applications/apply/form.module.css .bottomBar": OUTSIDE,
-  "app/(auth)/register/registerSignIn.module.css .footer": OUTSIDE,
   "app/(auth)/register/registerSignIn.module.css .navPane": OUTSIDE,
 };
 

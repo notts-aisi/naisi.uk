@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { canApproveNewsletter, canDraftNewsletter } from "@/lib/firestore/users";
+import NewsletterHead from "@/features/newsletter/NewsletterHead";
 
 export default async function NewsletterLayout({
   children,
@@ -15,20 +16,11 @@ export default async function NewsletterLayout({
 
   return (
     <div>
-      <div style={{ marginBottom: "var(--space-8)" }}>
-        <div
-          style={{
-            color: "var(--color-text-muted)",
-            fontSize: "var(--text-sm)",
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            marginBottom: "var(--space-2)",
-          }}
-        >
-          Newsletter
-        </div>
-        <h1 style={{ fontSize: "var(--text-3xl)" }}>Drafts & publishing</h1>
-      </div>
+      <NewsletterHead
+        canDraft={canDraftNewsletter(user)}
+        canApprove={canApproveNewsletter(user)}
+        isAdmin={user.role === "admin"}
+      />
       {children}
     </div>
   );
