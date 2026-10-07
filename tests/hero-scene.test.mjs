@@ -240,11 +240,13 @@ describe("the script and the stylesheet pick the same form", () => {
     for (const condition of mediaConditions) assert.ok(!condition.includes("var("), `a media condition reads a custom property: ${condition}`);
   });
 
-  test("a drag is held by one rule, which cannot apply under reduced motion", () => {
-    assert.equal(css.split("touch-action").length - 1, 1, "touch-action is set in exactly one place");
-    const at = css.indexOf("touch-action");
-    const block = css.lastIndexOf("@media", at);
-    assert.match(css.slice(block, at), /^@media \(prefers-reduced-motion: no-preference\) \{\s*\.root\[data-hold\] \{\s*$/);
+  test("nothing in the stylesheet keeps a touch for the hero", () => {
+    // The hero is one screen high, so on a phone every swipe starts on it. A
+    // rule that took the swipe away from the page would leave a first screen
+    // that does not scroll.
+    assert.equal(css.includes("touch-action"), false, "touch-action is set in the hero's stylesheet");
+    assert.equal(css.includes("data-hold"), false, "the stylesheet still styles a held drag");
+    assert.equal(/overscroll-behavior|overflow:\s*hidden[^;]*;[^}]*position:\s*fixed/.test(css), false);
   });
 });
 
@@ -499,7 +501,8 @@ describe("the scene runs only when it should", () => {
   test("stopping it cancels the frame and gives back every listener, observer and attribute", async () => {
     const { page, unmount } = await mounted({ form: "tablet", width: 834, height: 1194 });
     assert.ok(page.listenersLeft() > 10, "the scene and its controller listen while they run");
-    assert.ok(page.log.observers.length >= 3, "the engine observes its size and whether it is on screen");
+    // Two, both the engine's. The controller watched the page's size as well while it held a drag; it holds none now.
+    assert.ok(page.log.observers.length >= 2, "the engine observes its size and whether it is on screen");
     page.runFrame();
     unmount();
     assert.equal(page.log.frames.size, 0, "the pending frame was not cancelled");
@@ -547,58 +550,36 @@ describe("the typed headline never takes away words a visitor has read", () => {
   });
 });
 
-describe("a drag on the hero is held only where the owner asked for it", () => {
-  const held = (page) => page.attrs.has("data-hold");
+describe("a finger on the hero scrolls the page", () => {
+  // The design holds a drag on the phone and tablet forms so that it moves
+  // the network. It was built, tried on a phone and taken out: the hero is the
+  // whole first screen, and a first screen that keeps the swipe reads as a
+  // page that will not scroll. These hold the rule that replaced it.
 
-  test("held on the phone and tablet forms, never on the desktop form", async () => {
-    for (const [form, expected] of [["phone", true], ["tablet", true], ["desktop", false]]) {
-      const { page, unmount } = await mounted({ form });
-      assert.equal(held(page), expected, `${form} form`);
-      unmount();
+  test("no form marks the hero as holding a drag, with motion or without", async () => {
+    for (const form of ["phone", "tablet", "desktop"]) {
+      for (const reduced of [false, true]) {
+        const { page, unmount } = await mounted({ form, reduced });
+        assert.equal(page.attrs.has("data-hold"), false, `${form} form, reduced motion ${reduced}`);
+        // A press on the words and on a link change nothing about it either.
+        page.clickOn(page.words);
+        page.clickOn(page.link);
+        assert.equal(page.attrs.has("data-hold"), false, `${form} form after a press`);
+        unmount();
+      }
     }
   });
 
-  test("never under reduced motion", async () => {
-    const { page, unmount } = await mounted({ form: "phone", reduced: true });
-    assert.equal(held(page), false);
-    unmount();
-  });
-
-  test("never when the hero does not end on the first screen, or the page is zoomed in", async () => {
-    const tall = await mounted({ form: "phone", height: 900, screen: 700 });
-    assert.equal(held(tall.page), false, "the words would be out of reach");
-    tall.unmount();
-
-    // A notice above the header pushes a hero that is one screen high off the foot of the screen.
-    const pushed = fakePage({ form: "phone" });
-    pushed.root.offsetTop = 40;
-    pushed.use();
-    const stop = (await loadHero()).mount.mountHero(pushed.root, pushed.canvas);
-    assert.equal(held(pushed), false, "the foot of the hero is off the screen");
-    stop();
-
-    const zoomed = await mounted({ form: "phone" });
-    assert.equal(held(zoomed.page), true);
-    zoomed.page.win.visualViewport.scale = 2;
-    zoomed.page.win.visualViewport.fire("resize", {});
-    assert.equal(held(zoomed.page), false, "one finger has to be able to move a zoomed page");
-    zoomed.unmount();
-  });
-
-  test("a press on the words changes nothing; a press on a link lets go for the rest of the visit", async () => {
-    const { page, mountHero, unmount } = await mounted({ form: "phone" });
-    page.clickOn(page.words);
-    assert.equal(held(page), true);
-    page.clickOn(page.link);
-    assert.equal(held(page), false);
-    unmount();
-
-    // The same script, a later look at the homepage: still let go.
-    const again = fakePage({ form: "phone" });
-    again.use();
-    const stop = mountHero(again.root, again.canvas);
-    assert.equal(held(again), false);
-    stop();
+  test("none of the hero's own modules stops a touch or sets how one is handled", () => {
+    // engine.js is the design's script, pinned above; it listens to pointer
+    // events and never cancels one. Everything else in the folder is ours.
+    for (const file of ["mount.ts", "scene.ts", "HeroScene.tsx", "parts.tsx", "keepOut.ts"]) {
+      const source = read(file).replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "");
+      assert.doesNotMatch(source, /touchAction|touch-action|data-hold/, `${file} sets how a touch is handled`);
+      assert.doesNotMatch(source, /["'`]touch(start|move|end|cancel)["'`]/, `${file} listens for raw touches`);
+      assert.doesNotMatch(source, /preventDefault\s*\(/, `${file} cancels an event`);
+    }
+    assert.doesNotMatch(ENGINE, /preventDefault|touchstart|touchmove|touch-action|touchAction/);
   });
 
   test("a finger that goes down on a link is not kept captured, and the engine is told when it lifts elsewhere", async () => {
