@@ -577,6 +577,18 @@ const NOT_COVERED = {
     coverWhen:
       "When the first application form is opened to applicants, because from then on what an admin saves here is what real people are asked.",
   },
+  "/api/admissions/forms/[roundId]/application": {
+    reason:
+      "The new application form's read and draft save. Both are executed against an in-memory store by tests/applications-apply-routes.test.mjs (gate, hidden forms, window, the first save, the counters), and the form that calls them has been driven by hand at 390 and 1440, but no browser spec drives it yet.",
+    coverWhen:
+      "Before the new form opens to applicants (the spring intake): an applicant spec that fills the form in, leaves it, comes back and sends it.",
+  },
+  "/api/admissions/forms/[roundId]/application/send": {
+    reason:
+      "The new application form's send. Executed by tests/applications-apply-routes.test.mjs (issues refused, the two copies, the counters, sending again), with no browser spec yet.",
+    coverWhen:
+      "With the spec above: the send is the last step of the same journey.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
     reason:
       "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId] is pressed by a programme's lead or an admin who reads the outcome on the screen in front of them, and tests/applications-editor-routes.test.mjs executes it as every kind of caller.",

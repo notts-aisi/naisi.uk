@@ -305,16 +305,14 @@ const ROUND_SURFACES = {
     },
   },
   "/(public)/apply/[roundId]": {
-    kind: "older",
-    page: {
-      fence: "asks",
-      notice: "ApplicationFormNotice",
-      why:
-        "the older apply flow, which saves and submits through the older apply routes. Its " +
-        "loader stops at a form before it reads stages or anybody's application, and the page " +
-        "returns the applicant notice. The form itself is to be served at this address, and " +
-        "this entry becomes `both` when it is",
-    },
+    kind: "both",
+    proof: ["await renderApplicationForm({", "if (isApplicationForm(roundSnap.data())) return null;"],
+    why:
+      "one address for both kinds. A form that is there to be seen is shown by the form's own " +
+      "screen, which the page asks for first and returns. Everything after that is the older " +
+      "apply flow, which saves and submits through the older apply routes. Its loader still " +
+      "stops at a form before it reads stages or anybody's application, so to the older half a " +
+      "form is a round that is not there and the older flow is never drawn for one",
   },
   "/api/admissions/forms/[roundId]": {
     kind: "form",
@@ -322,6 +320,20 @@ const ROUND_SURFACES = {
       "reads and changes the form itself: its name, its dates, the order of its programmes, a " +
       "new programme. The GET loads through loadFormForStaff and the PATCH writes through " +
       "changeForm, whose transaction reads the round and stops unless it is a form",
+  },
+  "/api/admissions/forms/[roundId]/application": {
+    kind: "form",
+    why:
+      "the applicant's own read and draft save on a form. It reaches the round only through " +
+      "loadVisibleForm, which starts from the form's own loader and answers null for a round " +
+      "that is not a form, exactly as it does for a form that is still a draft",
+  },
+  "/api/admissions/forms/[roundId]/application/send": {
+    kind: "form",
+    why:
+      "sends the applicant's stored draft as their application. It loads the round through " +
+      "loadVisibleForm, the same way, and writes through sendApplication, which is handed the " +
+      "form that loader returned",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
     kind: "form",
@@ -683,7 +695,7 @@ describe("every route, page and layout with a round id in its address", () => {
 
   test("the walk finds them", () => {
     assert.ok(
-      surfaces.length >= 26,
+      surfaces.length >= 28,
       `only ${surfaces.length} files with a [roundId] segment were found: the trees have moved`,
     );
   });
@@ -918,6 +930,19 @@ const ROUND_READERS = new Map([
     },
   ],
   [
+    "src/lib/applications/applicant/store.ts",
+    {
+      kind: "form",
+      asks: 0,
+      proof: ["const form = await loadForm(db, roundId);", "form: ApplicationForm,", "loaded: LoadedForm,"],
+      why:
+        "what the applicant's two routes and the form's own screen load and write. It reads no " +
+        "round itself. Its one way to what a round holds is the form's own loader, which asks " +
+        "and answers null for a round that is not a form, and its two writers are handed the " +
+        "form that loader returned and touch the round only to move its counters",
+    },
+  ],
+  [
     "src/lib/applications/editor/load.ts",
     {
       kind: "form",
@@ -1060,8 +1085,11 @@ describe("everything else that can address a round", () => {
           entry.asks > 0 || (Array.isArray(entry.proof) && entry.proof.length > 0),
           "asks no times and names nothing the file has to contain",
         );
-        // The definition is not a call, so the module that defines the
-        // question is the one file allowed to ask it no times.
+        // The definition is not a call, so it is not counted: the module
+        // that defines the question asks it no times. So does a module that
+        // reads no round of its own and is handed a form the form's own loader
+        // already asked about. Either way the entry names what the file has to
+        // contain instead, which the check above holds it to.
         const definitions = countOf(bare, /\bfunction\s+isApplicationForm\s*\(/);
         assert.equal(
           countOf(bare, ASKS) - definitions,
@@ -1264,19 +1292,47 @@ describe("the loaders an older surface may reach a round through", () => {
     assert.ok(stands < at(bare, "row.stages"), "the older read-back comes before the notice");
   });
 
-  test("the apply page stops at a form before it reads anything in the older shape", () => {
+  test("the apply page shows a form on the form's own screen, and its older half still stops at one", () => {
     const reading = read(join(APP, "(public)", "apply", "[roundId]", "page.tsx"));
     const body = reading.scope.locals.get("loadRound")?.text;
     assert.ok(body, "the page no longer has a loader of its own");
+
+    // THE OLDER HALF. Its loader asks after the answer a draft or archived
+    // round gets, and before it reads anything in the older shape. It answers
+    // a form the way it answers a round that is not there.
     const asks = at(body, ASKS);
     assert.ok(at(body, "round.archived") < asks && asks < Infinity, "a draft or archived round has to be answered first");
+    assert.match(
+      body,
+      /if\s*\(\s*isApplicationForm\s*\(\s*roundSnap\.data\s*\(\s*\)\s*\)\s*\)\s*return null\s*;/,
+      "the older loader hands a form on instead of stopping at it",
+    );
     assert.ok(asks < at(body, "STAGES_SUBCOLLECTION"), "the stages are read before the question is asked");
     assert.ok(asks < at(body, "admissionApplicationId("), "an application is read before the question is asked");
+
+    // THE PAGE. While the form had no screen of its own the page returned the
+    // applicant notice for one, after its not-found answer, and this test held
+    // that order. The form is shown at this address now, so the order held is
+    // the new one: the form's own screen is asked for first and what it
+    // answers is returned, the older loader is called only after that, and the
+    // older flow is drawn only past that loader's not-found answer. With the
+    // loader's null for a form, the older flow can never be drawn for one.
     const { bare } = reading;
-    const notFoundAt = at(bare, /if\s*\(\s*!loaded\s*\)\s*notFound\s*\(\s*\)/);
-    const noticeAt = at(bare, /if\s*\(\s*loaded\s*===\s*APPLICATION_FORM\s*\)\s*return\s*<ApplicationFormNotice\b/);
-    assert.ok(notFoundAt < noticeAt && noticeAt < Infinity, "the notice has to come after the not-found answer");
-    assert.ok(noticeAt < at(bare, "<ApplyFlow"), "the older flow is drawn before the notice");
+    assert.ok(importsFrom(reading.scope, "renderApplicationForm", "@/features/applications/apply/ApplyScreen"));
+    const pageAt = at(bare, /export\s+default\s+async\s+function\s+ApplyPage\b/);
+    assert.ok(pageAt < Infinity, "the page's own function could not be found");
+    const page = bare.slice(pageAt);
+    const formAt = at(
+      page,
+      /const\s+([A-Za-z_$][\w$]*)\s*=\s*await\s+renderApplicationForm\s*\(\s*\{[^;]*\}\s*\)\s*;\s*if\s*\(\s*\1\s*\)\s*return\s+\1\s*;/,
+    );
+    assert.ok(formAt < Infinity, "the page does not return what the form's own screen answers");
+    const olderAt = at(page, /\bloadRound\s*\(/);
+    const notFoundAt = at(page, /if\s*\(\s*!loaded\s*\)\s*notFound\s*\(\s*\)/);
+    assert.ok(formAt < olderAt, "the older loader is called before the form's own screen has been asked for");
+    assert.ok(olderAt < notFoundAt && notFoundAt < Infinity, "the older loader's answer is not checked before anything is drawn");
+    assert.ok(notFoundAt < at(page, "<ApplyFlow"), "the older flow is drawn before the not-found answer");
+    assert.ok(at(page, "<ApplyFlow") < Infinity, "the older flow is gone, so this page is no longer both");
   });
 
   test("the older round page shows a form only to somebody who may see the round", () => {

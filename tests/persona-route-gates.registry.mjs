@@ -535,6 +535,31 @@ export const ROUTES = {
         "is read, and the admin meets the validation on an empty change before any read.",
     },
   },
+  "/api/admissions/forms/[roundId]/application": {
+    GET: {
+      expect: signedIn(404, { rejected: 403 }),
+      why:
+        "The applicant lane (requireApplicant): a pending account is an applicant and is " +
+        "admitted, a rejected one is refused, and the form is then missing. A form that is " +
+        "still a draft answers with the same 404.",
+    },
+    PUT: {
+      expect: signedIn(400, { rejected: 403 }),
+      why:
+        "The applicant lane, then the body is checked before any document is read: a save " +
+        "with no draft in it is a 400 for every session that gets past requireApplicant, and " +
+        "a rejected account is refused first.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/application/send": {
+    POST: {
+      expect: signedIn(404, { rejected: 403 }),
+      why:
+        "The applicant lane (requireApplicant): pending is admitted and rejected refused. The " +
+        "send reads nothing from the body, so the first answer after the gate is that the " +
+        "form is missing.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
     GET: {
       expect: signedIn(404),

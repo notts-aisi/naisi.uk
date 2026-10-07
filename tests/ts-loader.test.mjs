@@ -266,6 +266,30 @@ const USERS = new Map([
       "by the code that runs and not by its comments",
   ],
   [
+    "applications-apply-draft.test.mjs",
+    "executes the draft clean-up (src/lib/applications/applicant/draft.ts, account.ts, keys.ts) " +
+      "against a small form, including ids that are only the names of things every object " +
+      "inherits, because what a save may store is decided by the code that runs",
+  ],
+  [
+    "applications-apply-form.test.mjs",
+    "executes the applicant form's pure helpers (step names, availability wording, the typed " +
+      "route into the grid, the lines on the last step) against the sample term, because they " +
+      "have to produce the boards' own words",
+  ],
+  [
+    "applications-apply-projection.test.mjs",
+    "executes the three applicant projections over a form, a question set and an application " +
+      "whose every staff-only field carries a marker, because only running them shows no " +
+      "marker survives",
+  ],
+  [
+    "applications-apply-routes.test.mjs",
+    "executes the applicant's GET, PUT and send handlers with the real gate, rate limiter and " +
+      "application modules against an in-memory Firestore, because the two copies and the " +
+      "counters are transactions and only running them shows what was written",
+  ],
+  [
     "applications-editor-routes.test.mjs",
     "executes the six route files under src/app/api/admissions/forms against an in-memory " +
       "Firestore as every kind of caller, with the real access predicates, the real roles " +

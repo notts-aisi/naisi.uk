@@ -148,8 +148,15 @@ const DEADLINE_NAMES = new Map([
           of: "an admission round",
           binds: "an applicant",
           why: "The last instant a round accepts a submission of any kind.",
-          told: ["src/lib/admissions/applyRoutes.ts", "src/features/admissions/ApplyFlow.tsx"],
-          enforced: ["src/lib/admissions/applyContext.ts"],
+          // The last file in each list is the application form's: its screen
+          // prints the close, and its draft save and its send are refused
+          // past it through `formWindowRefusal`.
+          told: [
+            "src/lib/admissions/applyRoutes.ts",
+            "src/features/admissions/ApplyFlow.tsx",
+            "src/features/applications/apply/ApplicationForm.tsx",
+          ],
+          enforced: ["src/lib/admissions/applyContext.ts", "src/lib/applications/applicant/window.ts"],
           predicate: "roundWindowState(",
         },
         {
@@ -575,6 +582,13 @@ const DEADLINE_PREDICATES = new Map([
         [
           "src/app/api/admissions/rounds/[roundId]/stages/[stageId]/release/route.ts",
           { role: "enforces", why: "refuses a manual release into a round nobody can answer" },
+        ],
+        [
+          "src/lib/applications/applicant/window.ts",
+          {
+            role: "enforces",
+            why: "`formWindowRefusal`, which the application form's draft save and its send both call before they write",
+          },
         ],
         [
           "src/lib/applications/editor/views.ts",

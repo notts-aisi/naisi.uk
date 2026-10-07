@@ -127,6 +127,26 @@ const PROJECTIONS = {
     serves: "admins",
     why: "the conduct flag as the approvals queue shows it, with the reviewer's uid resolved to a name",
   },
+  projectFormForApplicant: {
+    from: "@/lib/applications/applicant/project",
+    serves: "the applicant",
+    why:
+      "the form's label, its dates as labels, the public half of each programme and the grid's " +
+      "geometry; withholds leadUid, reviewerUids, places, groupCount, groupSize, useScores, runId " +
+      "and emailWording on every programme, and the round's counters, reviewers and author",
+  },
+  projectQuestionSetForApplicant: {
+    from: "@/lib/applications/applicant/project",
+    serves: "the applicant",
+    why: "a question set as it is asked; withholds each question's scored flag and the set's committee-facing intro",
+  },
+  projectApplicationForOwner: {
+    from: "@/lib/applications/applicant/project",
+    serves: "the applicant, on their own application",
+    why:
+      "the draft, the sent copy, the status and the timestamps, plus result, invitation and " +
+      "attendance once decision day has published them; withholds the stored email and display name",
+  },
   projectFormForStaff: {
     from: "@/lib/applications/editor/views",
     serves: "anybody with a role on the application form: an admin, a programme's lead, a programme's reviewer",
