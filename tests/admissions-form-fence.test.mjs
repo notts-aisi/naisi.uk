@@ -279,6 +279,19 @@ const ROUND_SURFACES = {
       "the question sets from the form's own repository, so a round of the older kind renders " +
       "the same 'no application form here' as one that does not exist",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications": {
+    kind: "form",
+    why:
+      "the list of one programme's applications. It loads through loadProgrammeBoard, which " +
+      "starts from the form's own loader, so a round of the older kind has no programme and no " +
+      "applications to list and the page says there is nothing here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
+    kind: "form",
+    why:
+      "one application, to read, score and decide. It loads through loadReview, which starts " +
+      "from the form's own loader and finds nothing for a round that is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/layout.tsx": {
     kind: "form",
     why:
@@ -335,6 +348,25 @@ const ROUND_SURFACES = {
       "loadVisibleForm, the same way, and writes through sendApplication, which is handed the " +
       "form that loader returned",
   },
+  "/api/admissions/forms/[roundId]/applications/[uid]": {
+    kind: "form",
+    why:
+      "reads one application for review through loadReview, which starts from the form's own " +
+      "loader and answers 404 for a round that is not a form, as for a form that is not there",
+  },
+  "/api/admissions/forms/[roundId]/applications/[uid]/decision": {
+    kind: "form",
+    why:
+      "records and revokes a programme's decision through decideApplication and " +
+      "revokeAcceptance. Each reads the round inside its transaction and stops unless it is a " +
+      "form, so a decision document is never written against a round of the older kind",
+  },
+  "/api/admissions/forms/[roundId]/applications/[uid]/review": {
+    kind: "form",
+    why:
+      "saves the caller's own scores and comments through saveReview, and reads the " +
+      "application back through loadReview. Both start from the form's own loader",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
     kind: "form",
     why:
@@ -342,11 +374,25 @@ const ROUND_SURFACES = {
       "through changeProgramme, and both stop at a round that is not a form before anything " +
       "is read as a programme",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/applications": {
+    kind: "form",
+    why:
+      "lists a programme's applications through loadProgrammeBoard and decides several at once " +
+      "through decideMany, whose every decision is a transaction that reads the round and " +
+      "stops unless it is a form",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/roles": {
     kind: "form",
     why:
       "names a programme's lead and reviewers through setProgrammeRoles, the one writer, " +
       "which asks whether the round is a form before its transaction and again inside it",
+  },
+  "/api/admissions/forms/[roundId]/review-settings": {
+    kind: "form",
+    why:
+      "switches whether a first review shows other reviewers' scores, through " +
+      "setRevealOtherReviews, which loads the round with the form's own loader before it " +
+      "writes the one field, so the switch is never set on a round of the older kind",
   },
   "/api/admissions/forms/[roundId]/sets": {
     kind: "form",
@@ -695,7 +741,7 @@ describe("every route, page and layout with a round id in its address", () => {
 
   test("the walk finds them", () => {
     assert.ok(
-      surfaces.length >= 28,
+      surfaces.length >= 35,
       `only ${surfaces.length} files with a [roundId] segment were found: the trees have moved`,
     );
   });
@@ -983,6 +1029,18 @@ const ROUND_READERS = new Map([
       kind: "form",
       asks: 1,
       why: "the form's own loader, which answers null for a round that is not a form",
+    },
+  ],
+  [
+    "src/lib/applications/review/decide.ts",
+    {
+      kind: "form",
+      asks: 2,
+      proof: ["const form = await loadForm(db, roundId);"],
+      why:
+        "the decision writers and the reviewers' switch. A decision and a revocation are each a " +
+        "transaction that reads the round and asks before it writes anything. The gate in front " +
+        "of them and the switch load the round through the form's own loader, which asks too",
     },
   ],
   [

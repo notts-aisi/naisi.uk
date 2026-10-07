@@ -304,6 +304,19 @@ const USERS = new Map([
       "running them says so",
   ],
   [
+    "applications-review-routes.test.mjs",
+    "executes the review loaders, builders and writers under src/lib/applications/review with " +
+      "access.ts and the real eligibility bar underneath, against an in-memory Firestore, " +
+      "because who is sent which score, and whether a decision touches an applicant's own " +
+      "document, are decided by the code that runs",
+  ],
+  [
+    "applications-review-views.test.mjs",
+    "executes the pure halves of the review screens (the availability picture and its lines " +
+      "of words, the line under a name, the list's filters and sorts, the queue), because " +
+      "each is worked out from stored data and only running it shows the words match",
+  ],
+  [
     "applications-own-keys.test.mjs",
     "executes every exported function of every module under src/lib/applications against " +
       "each name Object.prototype carries, with the real eligibility bar and the real roles " +

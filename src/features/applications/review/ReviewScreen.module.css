@@ -1,0 +1,1412 @@
+/*
+  One application, for the person reviewing it.
+
+  On a laptop: what the applicant sent on the left, the review and the
+  decision on the right. On a phone the same parts are shown one section at a
+  time under a row of tabs, and the decision sits in a bar at the bottom.
+  The phone arrangement is the block at the end of this file.
+*/
+
+.screen {
+  max-width: 76rem;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+/* Words a phone has no room for, and the shorter ones it uses instead. */
+.narrowOnly {
+  display: none;
+}
+
+/* --- Where you are in the queue -------------------------------------- */
+
+.top {
+  margin-bottom: 24px;
+}
+.eyebrow {
+  margin-bottom: 6px;
+  letter-spacing: 0.12em;
+}
+.topRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.back {
+  min-height: 44px;
+  margin-left: -4px;
+  padding: 0 10px 0 0;
+  font-size: 15px;
+}
+.counter {
+  margin-left: auto;
+  font-size: 15px;
+  color: var(--color-text-muted);
+}
+.counter strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+.stepper {
+  display: inline-flex;
+  gap: 12px;
+}
+.keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.keyGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* --- The two columns -------------------------------------------------- */
+
+.columns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px;
+}
+.main {
+  display: flex;
+  flex: 1 1 520px;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.side {
+  display: flex;
+  flex: 1 1 340px;
+  flex-direction: column;
+  gap: 40px;
+  max-width: 440px;
+  min-width: 0;
+}
+
+/* --- Who they are ------------------------------------------------------ */
+
+.personRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+}
+.personAvatarNarrow {
+  display: none;
+}
+.personText {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+.name {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.personDetail {
+  margin-top: 4px;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+.personChips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.flag {
+  font-size: 13px;
+  color: var(--color-warning);
+}
+
+/* Section tabs are a phone's way through the page. */
+.tabs {
+  display: none;
+}
+
+/* --- A card of answers ------------------------------------------------- */
+
+.card {
+  min-width: 0;
+  padding: 20px 24px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.cardFocus {
+  padding-bottom: 20px;
+  border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+.cardClosed {
+  padding: 16px 24px;
+}
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.cardTitles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  min-width: 0;
+}
+.cardTitle {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.cardAside {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+.asideNote {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+.disclose {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.disclose:hover {
+  background: var(--color-surface-hover);
+}
+.chevronOpen {
+  display: inline-flex;
+  transform: rotate(180deg);
+}
+.cardBody {
+  margin-top: 16px;
+}
+.cardBody[data-open="false"] {
+  display: none;
+}
+
+.rule {
+  margin: 18px 0;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  gap: 12px 20px;
+  margin: 16px 0 0;
+}
+.facts > div {
+  min-width: 0;
+}
+.facts dt {
+  font-size: 13px;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+}
+.facts dd {
+  margin: 2px 0 0;
+  font-size: 15px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.answerBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.question {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.optional {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+.answer {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--review-text-soft);
+}
+.noAnswer {
+  font-size: 15px;
+  color: var(--color-text-muted);
+}
+.scaleNote {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+.picked {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* --- A score, 1 to 5 --------------------------------------------------- */
+
+.scoreCard {
+  margin-top: 8px;
+  padding: 14px clamp(10px, 3vw, 16px);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+}
+.scoreGroup {
+  max-width: 340px;
+}
+.scoreTitle {
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.scoreButtons,
+.scoreWords {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: clamp(4px, 1.5vw, 8px);
+}
+.scoreButton {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.scoreButton:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+.scoreButton[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-floor);
+}
+.scoreButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.scoreWords {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* --- Internal comments -------------------------------------------------- */
+
+.commentBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.commentBlock:has(.comments) {
+  margin-top: 4px;
+}
+.comments {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.comment {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+.commentBody {
+  min-width: 0;
+}
+.commentHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: 14px;
+  line-height: 1.3;
+}
+.commentHead strong {
+  font-weight: 600;
+}
+.commentWhen {
+  color: var(--color-text-muted);
+}
+.commentRemove {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.commentText {
+  margin-top: 4px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--review-text-soft);
+}
+.commentAction {
+  margin-left: -8px;
+  padding: 0 8px;
+}
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.composerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.textarea {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.55;
+  resize: vertical;
+}
+.textarea::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+/* --- When they are free ------------------------------------------------- */
+
+.week {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 5px 10px;
+  margin-top: 14px;
+}
+.axis {
+  position: relative;
+  height: 18px;
+}
+.tick {
+  position: absolute;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.tick[data-edge="start"] {
+  transform: none;
+}
+.tick[data-edge="end"] {
+  transform: translateX(-100%);
+}
+.dayLabel {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 500;
+}
+.dayTrack {
+  position: relative;
+  height: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background-color: var(--color-bg);
+  background-image: repeating-linear-gradient(
+    to right,
+    color-mix(in srgb, var(--color-border) 90%, transparent) 0 1px,
+    transparent 1px var(--hour, 8.3333%)
+  );
+}
+.block {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 4px;
+  background: var(--color-accent);
+}
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 0 46px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.legendSwatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--color-accent);
+}
+.times {
+  font-size: 15px;
+  line-height: 1.6;
+}
+.timesTotal {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+/* --- Your review -------------------------------------------------------- */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 22px 22px 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.panelHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.panelTitle {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.saveState {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.error {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--review-danger-text);
+  overflow-wrap: anywhere;
+}
+
+.ownScore {
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+.ownScoreFigure {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 6px;
+}
+.ownScoreNumber {
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.ownScoreOutOf {
+  font-size: 15px;
+  color: var(--color-text-muted);
+}
+.ownScoreEmpty {
+  margin-top: 6px;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+}
+.ownScoreNote {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.fieldLabel {
+  display: block;
+  margin-bottom: 8px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.fieldHint {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+.privacy,
+.othersHidden {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+.noteIcon {
+  flex: none;
+  margin-top: 1px;
+}
+.panelRule {
+  margin: 2px 0 0;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+/* --- The decision ------------------------------------------------------- */
+
+.decision {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.decided {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+.revoked {
+  padding: 10px 12px;
+  border: 1px solid var(--review-danger-line);
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.revoked strong {
+  font-weight: 600;
+}
+.revokedReason {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--review-text-soft);
+}
+.option {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 14px 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+  cursor: pointer;
+}
+.option[data-checked="true"] {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-bg));
+}
+.options:disabled .option {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.optionInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.radio {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border: 1.5px solid var(--color-text-subtle);
+  border-radius: 50%;
+  background: var(--color-bg);
+}
+.optionInput:checked + .radio {
+  border-color: var(--color-accent);
+}
+.optionInput:checked + .radio::after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+.optionInput:focus-visible + .radio {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+.optionText {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.optionTitle {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.optionSub {
+  display: block;
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+.optionWarn {
+  color: var(--color-warning);
+}
+.optionKey {
+  flex: none;
+  margin-top: 1px;
+}
+
+.poolWhy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 2px 4px;
+}
+.poolWhyLabel {
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+}
+.poolReasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.reason {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.reason[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  background: var(--review-accent-tint);
+  font-weight: 600;
+}
+.couldSuit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.more {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.more:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.menu {
+  max-width: 300px;
+  margin-top: 6px;
+  padding: 6px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-lg);
+}
+.menuItem {
+  appearance: none;
+  -webkit-appearance: none;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--review-danger-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.menuItem:hover {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+}
+.readDecision {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.next {
+  width: 100%;
+  padding: 0 18px;
+  font-size: 15px;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+}
+.fine {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* --- Other reviews ------------------------------------------------------ */
+
+.others {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.othersHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.othersIcon {
+  display: none;
+}
+.othersTitle {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-text-muted);
+}
+.othersCount {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+.othersHidden {
+  font-size: 14px;
+  color: var(--color-text);
+}
+.othersNote {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+.otherList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.other {
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+.otherHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.otherHead strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+}
+.otherComment {
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--review-text-soft);
+}
+
+/* --- What an admin sees -------------------------------------------------- */
+
+.admin {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.adminHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.adminHead > div {
+  letter-spacing: 0.12em;
+}
+.adminLine {
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--color-border);
+}
+.adminBox {
+  padding: 16px 18px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+}
+.switchRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.switchLabel {
+  font-size: 15px;
+  font-weight: 500;
+}
+.switchInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.switchTrack {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+}
+.switchKnob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  transition: transform var(--transition-fast);
+}
+.switchInput:checked + .switchTrack {
+  background: var(--color-accent);
+}
+.switchInput:checked + .switchTrack .switchKnob {
+  transform: translateX(16px);
+}
+.switchInput:focus-visible + .switchTrack {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+.adminTitle {
+  margin: 10px 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 24px;
+}
+.sectionScores {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sectionScore {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sectionScoreText {
+  min-width: 0;
+}
+.sectionScoreName {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.sectionScoreLine {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+}
+.adminRule {
+  margin: 18px 0 6px;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+.acceptedRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+.acceptedWho {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.acceptedText {
+  min-width: 0;
+}
+.acceptedName {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.careful {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--review-danger-line);
+  border-radius: 10px;
+}
+.carefulTitle {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+.carefulNote {
+  margin-top: -8px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+.carefulActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+.carefulLogged {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+/* The decision bar belongs to a phone. */
+.bar {
+  display: none;
+}
+
+.disclose:focus-visible,
+.scoreButton:focus-visible,
+.textarea:focus-visible,
+.more:focus-visible,
+.menuItem:focus-visible,
+.reason:focus-visible,
+.commentRemove:focus-visible,
+.tab:focus-visible,
+.barMore:focus-visible,
+.barButton:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .wideOnly,
+  .wideOnlyBlock {
+    display: none;
+  }
+  .narrowOnly {
+    display: inline;
+  }
+
+  /* The header becomes one bar: back, where you are, and nothing else. */
+  .top {
+    margin: 0 -16px 12px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .eyebrow,
+  .keys,
+  .stepper {
+    display: none;
+  }
+  .topRow {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 8px;
+    min-height: 56px;
+  }
+  .back {
+    justify-self: start;
+    margin-left: 0;
+    padding: 0;
+    font-weight: 400;
+    gap: 4px;
+  }
+  .counter {
+    margin-left: 0;
+    color: var(--color-text);
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  /* One column, and one line of it: a wrapping column would size itself to
+     its widest child (the row of tabs) instead of to the screen. */
+  .columns {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 14px;
+  }
+  .main {
+    flex: none;
+    gap: 14px;
+  }
+  .side {
+    flex: none;
+    gap: 20px;
+    max-width: none;
+  }
+
+  .personRow {
+    flex-wrap: nowrap;
+    gap: 12px;
+  }
+  .personAvatarWide {
+    display: none;
+  }
+  .personAvatarNarrow {
+    display: inline-flex;
+  }
+  .personText {
+    flex: 1 1 auto;
+  }
+  .name {
+    font-size: 21px;
+  }
+  .personDetail {
+    margin-top: 1px;
+    font-size: 14px;
+  }
+  .personChips {
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin: 0 -16px;
+    padding: 0 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tab {
+    appearance: none;
+    -webkit-appearance: none;
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    min-height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--review-text-chip);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .tab[aria-current="true"] {
+    border-color: var(--color-accent);
+    background: var(--review-accent-tint);
+    color: var(--color-text);
+    font-weight: 600;
+  }
+
+  /* One section at a time, and no card around it. */
+  .card[data-shown="false"] {
+    display: none;
+  }
+  .card,
+  .cardFocus,
+  .cardClosed {
+    padding: 4px 0 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+  .cardTitle {
+    font-size: 18px;
+  }
+  .cardAside {
+    flex-basis: 100%;
+  }
+  .disclose {
+    display: none;
+  }
+  .card .cardBody[data-open="false"] {
+    display: block;
+  }
+  .cardBody {
+    margin-top: 10px;
+  }
+  .question {
+    font-size: 15px;
+  }
+  .answer {
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  .scoreCard {
+    margin-top: 6px;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .commentAction {
+    font-size: 15px;
+  }
+  .legend {
+    margin-left: 46px;
+  }
+
+  /* The review loses its card too, and the other reviews come first. */
+  .panel {
+    gap: 14px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+  .panelTitle,
+  .ownScore,
+  .decision {
+    display: none;
+  }
+  /* With its title gone the head is only the saving note, and with nothing
+     to say it should not hold a gap open. */
+  .panelHead {
+    display: contents;
+  }
+  .saveState {
+    order: -2;
+    text-align: right;
+  }
+  .saveState:empty {
+    display: none;
+  }
+  .overall .textarea {
+    height: 4.75rem;
+  }
+  .others {
+    order: -1;
+    gap: 0;
+    padding: 8px 12px 9px 38px;
+    position: relative;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    background: var(--color-surface);
+  }
+  .othersIcon {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    display: block;
+    color: var(--color-text-muted);
+  }
+  .othersHead {
+    justify-content: flex-start;
+  }
+  .othersTitle {
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.4;
+    letter-spacing: 0;
+    color: var(--color-text);
+  }
+  .othersTitle .narrowOnly {
+    font-weight: 500;
+    color: var(--color-text-muted);
+  }
+  .othersHidden,
+  .othersNote {
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--color-text-muted);
+  }
+  .otherList {
+    margin-bottom: 4px;
+  }
+  .privacy {
+    margin-top: -6px;
+  }
+  .fine {
+    text-align: left;
+  }
+  .next {
+    order: 5;
+  }
+
+  /* The decision, in reach of a thumb for as long as the page is. */
+  .bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 16px -16px 0;
+    padding: 10px 16px max(14px, env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-bg) 97%, transparent);
+  }
+  .barMore,
+  .barButton {
+    appearance: none;
+    -webkit-appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 48px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 10px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .barMore {
+    flex: none;
+    width: 48px;
+  }
+  .barButton {
+    flex: 1 1 0;
+    padding: 0 18px;
+    border-radius: var(--radius-md);
+  }
+  .barButton[aria-pressed="true"] {
+    border-color: var(--color-accent);
+    background: var(--review-accent-tint);
+  }
+  .barAccept {
+    flex: 1.4 1 0;
+    min-height: 48px;
+    font-size: 15px;
+  }
+  .bar .menu {
+    position: absolute;
+    right: 16px;
+    bottom: calc(100% + 6px);
+    left: 16px;
+    max-width: none;
+    margin: 0;
+  }
+}

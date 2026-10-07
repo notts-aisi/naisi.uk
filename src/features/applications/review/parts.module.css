@@ -1,0 +1,253 @@
+/*
+  The small pieces the review screens share: the scope that carries the few
+  colours these screens add, an initials disc, chips, the quiet buttons, a
+  keyboard key and a score box.
+
+  Colours come from the theme tokens (src/theme/tokens.css) and from the
+  application kit's scoped ones (--color-accent-text, --color-ok, --font-meta).
+  A tint is the token mixed with transparent, never a second hex value.
+*/
+
+.scope {
+  /* Answers and comment bodies: a step softer than headings. */
+  --review-text-soft: color-mix(in srgb, var(--color-text) 80%, var(--color-text-muted));
+  /* Labels on neutral chips and unpressed filters. */
+  --review-text-chip: color-mix(in srgb, var(--color-text) 45%, var(--color-text-muted));
+  /* Danger as TEXT on a dark ground: decline and revoke. */
+  --review-danger-text: color-mix(in srgb, var(--color-danger) 62%, white);
+  --review-accent-tint: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  --review-accent-line: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  --review-ok-tint: color-mix(in srgb, var(--color-success) 16%, transparent);
+  --review-ok-line: color-mix(in srgb, var(--color-ok) 35%, transparent);
+  --review-danger-line: color-mix(in srgb, var(--review-danger-text) 40%, transparent);
+
+  color: var(--color-text);
+  font-family: var(--font-body);
+  min-width: 0;
+}
+
+/* --- Initials disc --------------------------------------------------- */
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border-radius: 50%;
+  color: white;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  user-select: none;
+  background: hsl(var(--avatar-hue) var(--avatar-sat, 40%) 36%);
+}
+.avatar_xs { width: 22px; height: 22px; font-size: 11px; }
+.avatar_sm { width: 26px; height: 26px; font-size: 11px; }
+.avatar_md { width: 32px; height: 32px; font-size: 12px; }
+.avatar_lg { width: 40px; height: 40px; font-size: 15px; }
+.avatar_xl { width: 64px; height: 64px; font-size: 24px; }
+
+/* Six hues at one lightness, so white initials read at the same contrast on
+   every disc. Indexed by the uid hash in parts.tsx: the count there (TONES)
+   must match the number of classes here. */
+.tone0 { --avatar-hue: 340; }
+.tone1 { --avatar-hue: 30; --avatar-sat: 52%; }
+.tone2 { --avatar-hue: 209; --avatar-sat: 49%; }
+.tone3 { --avatar-hue: 228; --avatar-sat: 46%; }
+.tone4 { --avatar-hue: 184; --avatar-sat: 42%; }
+.tone5 { --avatar-hue: 144; --avatar-sat: 27%; }
+
+/* --- Chips ----------------------------------------------------------- */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface-hover);
+  color: var(--review-text-chip);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+}
+.chipDot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+}
+.chip_accent {
+  background: var(--review-accent-tint);
+  border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
+  color: var(--color-accent-text);
+}
+.chip_ok {
+  background: var(--review-ok-tint);
+  border-color: var(--review-ok-line);
+  color: var(--color-ok);
+}
+.chip_bad {
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+  border-color: var(--review-danger-line);
+  color: var(--review-danger-text);
+}
+
+/* --- A score in its box ---------------------------------------------- */
+
+.scoreBox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- A keyboard key --------------------------------------------------- */
+
+.key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 22px;
+  padding: 0 5px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-family: var(--font-meta);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.icon {
+  display: block;
+  flex: none;
+}
+
+/* --- Buttons the kit does not carry ----------------------------------- */
+
+/* A secondary action: "Show them", "Previous", "Show more". */
+.quiet,
+.textAction,
+.dangerOutline {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.quiet {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.quiet:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+.quiet[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  background: var(--review-accent-tint);
+}
+
+/* An action that reads as a link: "Comment", "Clear", "Show the 4". */
+.textAction {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-accent-text);
+}
+.textAction:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.textAction[aria-pressed="true"] {
+  background: var(--review-accent-tint);
+}
+
+/* A careful action: "Revoke acceptance". */
+.dangerOutline {
+  border: 1px solid var(--review-danger-line);
+  background: transparent;
+  color: var(--review-danger-text);
+}
+.dangerOutline:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+}
+
+.quiet:disabled,
+.textAction:disabled,
+.dangerOutline:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.quiet:focus-visible,
+.textAction:focus-visible,
+.dangerOutline:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* What a screen says when there is nothing for this person here. */
+.notHere {
+  max-width: 34rem;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.notHereTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-2);
+}
+.notHereBody {
+  color: var(--color-text-muted);
+  font-size: 15px;
+  line-height: 1.55;
+}
+.notHereBody a {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* A finger needs the full 44px that a pointer does not. */
+  .quiet,
+  .textAction,
+  .dangerOutline {
+    min-height: 44px;
+  }
+}
