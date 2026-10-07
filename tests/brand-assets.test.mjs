@@ -26,7 +26,9 @@
  *     an SVG in an email, a logo on the wrong ground, a root layout that
  *     overrides the generated card;
  *   - an email that does not tell a mail app it is light, so that dark mode
- *     darkens the card under the logo's navy ink.
+ *     darkens the card under the logo's navy ink;
+ *   - a page whose shared link shows no picture at all, because it set its
+ *     own `openGraph` and so dropped the card every other page gets.
  *
  * Each of those reaches a real device silently. None of them fails a build.
  */
@@ -37,6 +39,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
+import ts from "typescript";
 import {
   FINISHED_FROM,
   MASTERS_DIR,
@@ -812,4 +815,191 @@ test("the link-preview card is the size a preview takes, and the root layout lea
   assert.doesNotMatch(layout, /\bmanifest\s*:/, "the root layout sets `manifest`: Next already reads src/app/manifest.ts");
   // A 1200 by 630 card is the large format.
   assert.match(layout, /twitter:\s*\{\s*card:\s*"summary_large_image"\s*\}/);
+});
+
+/*
+ * The root layout's card reaches a page only while that page sets no
+ * `openGraph` of its own. Next merges metadata a whole key at a time, so a
+ * page that writes `openGraph: { title }` has replaced the layout's
+ * `openGraph`, card included, and its shared link shows no picture. Nothing
+ * fails: the page renders, the build passes, and the preview is a bare line
+ * of text in whichever app the link was pasted into.
+ *
+ * So every `openGraph` in `src`, and the `twitter` beside it, names its
+ * pictures through one helper, `linkPreviewImages` in the module below: the
+ * page's own picture when it has one, the card when it has none.
+ */
+const CARD_MODULE = "src/lib/linkPreviewCard.ts";
+
+test("the card a page falls back to is the generated picture: its address, size, type and words", async () => {
+  const source = strip(readFileSync(at(CARD_MODULE), "utf8"));
+  const block = source.match(/\bexport const LINK_PREVIEW_CARD = \{([^{}]*)\};/)?.[1];
+  assert.ok(block, `could not read LINK_PREVIEW_CARD in ${CARD_MODULE}`);
+  const text = (name) => block.match(new RegExp(`\\b${name}:\\s*"([^"]*)"`))?.[1];
+  const number = (name) => Number(block.match(new RegExp(`\\b${name}:\\s*(\\d+)\\b`))?.[1]);
+
+  // The address is where Next serves the file the script writes: a picture
+  // at the top of src/app/ is served from the top of the site.
+  const picture = OUTPUTS.find((o) => o.to === "src/app/opengraph-image.png");
+  assert.ok(picture, "`npm run brand` no longer makes src/app/opengraph-image.png");
+  assert.equal(text("url"), picture.to.replace(/^src\/app/, ""), "the card's address is not where its file is served");
+  // What a preview is told about the picture is what the picture is.
+  const meta = await sharp(read(picture.to)).metadata();
+  assert.equal(number("width"), meta.width, "the card's declared width is not the picture's");
+  assert.equal(number("height"), meta.height, "the card's declared height is not the picture's");
+  assert.equal(text("type"), `image/${meta.format}`, "the card's declared type is not the picture's");
+  assert.equal(text("alt"), readFileSync(at("src/app/opengraph-image.alt.txt"), "utf8"), "the card's words are not the ones Next reads beside the picture");
+
+  // The helper: the page's own picture when it has one, the card when not.
+  assert.match(
+    source,
+    /\bexport function linkPreviewImages\(own\?: string \| null\) \{\s*return \[own \? \{ url: own \} : \{ \.\.\.LINK_PREVIEW_CARD \}\];\s*\}/,
+    "linkPreviewImages no longer answers with the page's own picture, or the card when it has none",
+  );
+});
+
+/*
+ * Files that set `openGraph` and do not name a picture through the helper,
+ * each with the reason.
+ */
+const OPEN_GRAPH_WITHOUT_A_PICTURE = {
+  "src/app/layout.tsx":
+    "The root layout. Next writes the card's tags itself from src/app/opengraph-image.png for every page that keeps " +
+    "this `openGraph`, and an `images` key here would switch that off (the test above holds that there is none).",
+};
+
+/** Every place a file sets `openGraph` or `twitter`, read from its syntax tree. */
+function previewSettings(file) {
+  const text = readFileSync(at(file), "utf8");
+  const kind = { ts: ts.ScriptKind.TS, tsx: ts.ScriptKind.TSX, js: ts.ScriptKind.JS, jsx: ts.ScriptKind.JSX, mjs: ts.ScriptKind.JS }[file.split(".").pop()];
+  const tree = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, kind);
+  const lineOf = (node) => tree.getLineAndCharacterOfPosition(node.getStart(tree)).line + 1;
+  const nameOf = (property) => (property.name && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) ? property.name.text : undefined);
+  const member = (object, name) => object.properties.find((property) => nameOf(property) === name);
+
+  const objectOf = (property) =>
+    property && ts.isPropertyAssignment(property) && ts.isObjectLiteralExpression(property.initializer) ? property.initializer : undefined;
+
+  /**
+   * One `openGraph` or `twitter`. `unreadable` says why when it is not an
+   * object written out where it is set: this check reads what is on the page
+   * and does not follow a name to wherever its value was built.
+   */
+  function read(property, key) {
+    const line = lineOf(property);
+    const object = objectOf(property);
+    if (!object) return { line, unreadable: `\`${key}\` is not written out as an object where it is set, so this check cannot read it` };
+    if (object.properties.some((p) => ts.isSpreadAssignment(p))) {
+      return { line, unreadable: `\`${key}\` spreads another object in, so this check cannot read it` };
+    }
+    const images = member(object, "images");
+    const call = images && ts.isPropertyAssignment(images) && ts.isCallExpression(images.initializer) ? images.initializer : undefined;
+    const viaHelper = Boolean(call && ts.isIdentifier(call.expression) && call.expression.text === "linkPreviewImages");
+    const card = member(object, "card");
+    return {
+      line,
+      // "none", "helper" (the page's own picture or the card), or "other".
+      images: !images ? "none" : viaHelper ? "helper" : "other",
+      // What the helper is handed, as written: "" for the card alone.
+      picture: viaHelper ? call.arguments.map((argument) => argument.getText(tree)).join(", ") : undefined,
+      card: card && ts.isPropertyAssignment(card) && ts.isStringLiteral(card.initializer) ? card.initializer.text : undefined,
+    };
+  }
+
+  const settings = [];
+  (function visit(node) {
+    if (ts.isObjectLiteralExpression(node)) {
+      const openGraph = member(node, "openGraph");
+      const twitter = member(node, "twitter");
+      // Beside an `openGraph`, a `twitter` is metadata whatever it looks
+      // like. Alone, it is metadata when it is an object that names a card
+      // or a picture; anything else called `twitter` (a link to an account,
+      // say) is not this check's business.
+      const alone = objectOf(twitter);
+      const twitterIsMetadata = twitter && (Boolean(openGraph) || Boolean(alone && (member(alone, "card") || member(alone, "images"))));
+      if (openGraph || twitterIsMetadata) {
+        settings.push({
+          openGraph: openGraph ? read(openGraph, "openGraph") : undefined,
+          twitter: twitterIsMetadata ? read(twitter, "twitter") : undefined,
+        });
+      }
+    }
+    ts.forEachChild(node, visit);
+  })(tree);
+
+  const importsHelper = tree.statements.some(
+    (statement) =>
+      ts.isImportDeclaration(statement) &&
+      ts.isStringLiteral(statement.moduleSpecifier) &&
+      statement.moduleSpecifier.text === "@/lib/linkPreviewCard" &&
+      statement.importClause?.namedBindings &&
+      ts.isNamedImports(statement.importClause.namedBindings) &&
+      statement.importClause.namedBindings.elements.some((element) => element.name.text === "linkPreviewImages" && !element.propertyName),
+  );
+  return { settings, importsHelper };
+}
+
+test("a page that sets its own openGraph names a picture or falls back to the card, under openGraph and twitter both", () => {
+  const wrong = [];
+  const setters = new Map();
+  for (const file of walk("src").filter((f) => /\.(?:tsx?|jsx?|mjs)$/.test(f))) {
+    // Cheap first: only a file that says one of the two words is parsed.
+    if (!/\b(?:openGraph|twitter)\b/.test(readFileSync(at(file), "utf8"))) continue;
+    const { settings, importsHelper } = previewSettings(file);
+    if (settings.length === 0) continue;
+    setters.set(file, settings);
+    if (file in OPEN_GRAPH_WITHOUT_A_PICTURE) continue;
+
+    for (const { openGraph, twitter } of settings) {
+      const where = `${file}:${(openGraph ?? twitter).line}`;
+      const say = (problem) => wrong.push(`${where}: ${problem}`);
+      for (const [key, set] of [["openGraph", openGraph], ["twitter", twitter]]) {
+        if (!set) continue;
+        if (set.unreadable) say(set.unreadable);
+        // Beside an `openGraph` a picture is required under both names.
+        // Alone, a `twitter` with no picture still gets the layout's card,
+        // so only a picture it does name has to come through the helper.
+        else if (set.images === "none" && openGraph) say(`\`${key}\` names no picture`);
+        else if (set.images === "other") say(`\`${key}.images\` is not \`linkPreviewImages(...)\``);
+      }
+      if (openGraph) {
+        // The same picture under both names. Next fills twitter:image from
+        // og:image when a page gives it none, but that is the framework's
+        // habit and not its promise, so each page says it.
+        if (!twitter) say("sets `openGraph` and no `twitter` beside it");
+        else if (openGraph.images === "helper" && twitter.images === "helper" && openGraph.picture !== twitter.picture) {
+          say(`\`openGraph\` shows linkPreviewImages(${openGraph.picture}) and \`twitter\` shows linkPreviewImages(${twitter.picture})`);
+        }
+      }
+      // The card is 1200 by 630. In the small format a preview crops it to a
+      // square and cuts the name.
+      if (twitter && !twitter.unreadable && twitter.card !== "summary_large_image") {
+        say(`\`twitter.card\` is ${twitter.card ? `"${twitter.card}"` : "not set"}, and the card is drawn for "summary_large_image"`);
+      }
+      if ((openGraph?.images === "helper" || twitter?.images === "helper") && !importsHelper) {
+        say("calls `linkPreviewImages` without importing it from @/lib/linkPreviewCard");
+      }
+    }
+  }
+  assert.deepEqual(
+    wrong,
+    [],
+    "A page that sets its own `openGraph` has replaced the root layout's, card included. Give `images: linkPreviewImages(<its own picture, if any>)` " +
+      `under both \`openGraph\` and \`twitter\` (${CARD_MODULE}), or list the file in OPEN_GRAPH_WITHOUT_A_PICTURE with the reason.`,
+  );
+
+  // The other direction. An exception names a file that still sets
+  // `openGraph` and still names no picture, and the walk is still finding
+  // the pages it exists for.
+  for (const [file, reason] of Object.entries(OPEN_GRAPH_WITHOUT_A_PICTURE)) {
+    const settings = setters.get(file);
+    assert.ok(settings?.some((setting) => setting.openGraph), `${file} is listed and sets no \`openGraph\`. Remove the entry.`);
+    assert.ok(
+      settings.every((setting) => [setting.openGraph, setting.twitter].every((set) => !set || set.images === "none")),
+      `${file} is listed as naming no picture, and names one or can no longer be read. Remove the entry, or the picture.`,
+    );
+    assert.ok(typeof reason === "string" && reason.length > 20, `${file}: say why it names no picture.`);
+  }
+  const pages = [...setters.keys()].filter((file) => !(file in OPEN_GRAPH_WITHOUT_A_PICTURE));
+  assert.ok(pages.length >= 3, `found only ${pages.length} files that set their own link preview: the walk has stopped seeing them`);
 });
