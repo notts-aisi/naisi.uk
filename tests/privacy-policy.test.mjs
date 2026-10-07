@@ -1022,6 +1022,7 @@ function assertExactlyTheseFiles(found, expected, what, ifNew) {
 }
 
 const joinRules = await loadTs("lib/applications/applicant/join.ts");
+const keptAnswers = await loadTs("features/applications/apply/keptAnswers.ts");
 const keptVersions = await loadTs("lib/applications/versions/kept.ts");
 const releaseReasons = await loadTs("lib/applications/status/reasons.ts");
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
@@ -1456,24 +1457,69 @@ describe("the application form passage", () => {
     );
   });
 
-  test("somebody with no account joins on the form, and what is kept in the browser is what the page says", () => {
+  test("somebody with no account joins on the form, and what is kept in the browser is what the page says", (t) => {
     assert.match(PAGE_FLAT, /You can start the form without an account/i);
+    // OWNER DECISION, 7 October 2026: what is typed before there is an
+    // account may be kept where another tab of the browser can read it, with
+    // three limits: only for somebody who continues with an email address
+    // (the emailed link opens in a tab of its own), for an hour at most, and
+    // until the request to join has been sent. The page says each of the
+    // three, and each is held to the code below.
     assert.match(
       PAGE_FLAT,
       // The JSX keeps the space before the key with `{" "}`, so allow for it.
-      /kept in that browser tab, in its session storage under a key beginning(?:\{" "\})? <code>naisi\.apply\.join<\/code>/i,
+      /If you start an application before you have an account and choose to continue with an email address, what you typed on the form&apos;s first step is kept in your browser&apos;s local storage, under a key beginning(?:\{" "\})? <code>naisi\.apply\.join<\/code>, so that it is also there in the tab our emailed link opens/i,
     );
-    // The tab's session storage, and not the browser's local storage, which
-    // outlives the tab and which the page lists separately.
-    const keeper = read("src/features/applications/apply/keptAnswers.ts");
-    assert.match(keeper, /return typeof window === "undefined" \? null : window\.sessionStorage;/);
     assert.ok(
-      !/\blocalStorage\b/.test(keeper),
-      "what is typed before there is an account is now kept in local storage, " +
-        "which outlives the tab. The policy says it is kept in the tab and goes " +
-        "when the tab closes.",
+      !/in its session storage under a key beginning/i.test(PAGE_FLAT),
+      "v6 says again that what is typed is kept in the tab alone. A copy " +
+        "crosses tabs for somebody who continues with an email address.",
     );
     assert.equal(joinRules.keptKey("autumn-2026"), "naisi.apply.join:autumn-2026");
+
+    // The browser's local storage outlives the tab and is read by every tab,
+    // so one function alone reaches it, and that function is where the three
+    // limits are. Everything else the step keeps is in the tab's own session
+    // storage, as it always has been.
+    const keeper = read("src/features/applications/apply/keptAnswers.ts");
+    const keeperCode = keeper.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+    assert.match(keeperCode, /return typeof window === "undefined" \? null : window\.sessionStorage;/);
+    assert.equal(
+      (keeperCode.match(/\blocalStorage\b/g) ?? []).length,
+      1,
+      "the step's keeper reaches local storage in more than one place, so " +
+        "something typed can be kept there outside the three limits the " +
+        "policy states.",
+    );
+    const oneFunction = keeperCode.slice(
+      keeperCode.indexOf("export function acrossTabs("),
+      keeperCode.indexOf("export function loadKept("),
+    );
+    assert.match(oneFunction, /const shared = window\.localStorage;/);
+
+    /** A stand-in for one of the browser's two stores, which remembers each write. */
+    const store = (initial = {}) => {
+      const items = new Map(Object.entries(initial));
+      const written = [];
+      return {
+        items,
+        written,
+        getItem: (key) => (items.has(key) ? items.get(key) : null),
+        setItem: (key, value) => {
+          written.push(key);
+          items.set(key, String(value));
+        },
+        removeItem: (key) => {
+          items.delete(key);
+        },
+      };
+    };
+    const tab = store();
+    const shared = store();
+    globalThis.window = { sessionStorage: tab, localStorage: shared };
+    t.after(() => {
+      delete globalThis.window;
+    });
 
     // "Your answers to that step and the time you typed them, and nothing
     // else": the rule that packs them, run on more than it should keep.
@@ -1510,20 +1556,94 @@ describe("the application form passage", () => {
         "answers. The policy says it holds no password, no sign-in address and " +
         "not whether the person agreed to the terms.",
     );
+    assert.match(
+      PAGE_FLAT,
+      /It is your answers to that step and when you last changed them, and nothing else: no password, no sign-in address, and not whether you agreed to our terms/i,
+    );
+    assert.match(PAGE_FLAT, /Those answers are not sent to us until you have signed in/i);
 
-    // "It is ignored once it is a day old."
-    assert.match(PAGE_FLAT, /it is ignored once it is a day old, and it goes when you close the tab/i);
-    assert.ok(joinRules.readKept(packed, now + 23 * 3_600_000), "kept answers are no longer read back within the day");
+    // LIMIT 1, "and choose to continue with an email address". Run: on a page
+    // that has not asked for an emailed link, nothing the step does writes to
+    // local storage. That is every way of making an account but the emailed
+    // link: Google's button, and both links to the sign-in page.
+    const typedHere = { ...typed, universityEmailVerified: false };
+    keptAnswers.keepAnswers("no-link-asked", typedHere);
+    keptAnswers.acrossTabs("no-link-asked", "answers-changed", now);
+    keptAnswers.loadKept("no-link-asked");
+    assert.ok(tab.items.has("naisi.apply.join:no-link-asked"), "the tab kept nothing, so the next line proves nothing");
+    assert.deepEqual(
+      shared.written,
+      [],
+      "what somebody typed was written to local storage though no link had " +
+        "been emailed. The policy says that happens only for somebody who " +
+        "chooses to continue with an email address.",
+    );
+    // And the step asks for the copy in one place: once the register route
+    // has taken the address the link will be emailed to.
+    const step = read("src/features/applications/apply/JoinStep.tsx");
+    const stepCode = step.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+    assert.equal((stepCode.match(/acrossTabs\(/g) ?? []).length, 1);
+    assert.match(
+      stepCode,
+      /const started = await startEmailRegistration\(email, token, joinReturnFor\(roundId\)\);\s*setBusy\(null\);\s*if \(!started\.ok\) \{\s*setError\(started\.error\);\s*return;\s*\}\s*acrossTabs\(roundId, "link-emailed"\);/,
+      "the copy that crosses tabs is no longer made at the one moment the " +
+        "policy names: when somebody has chosen to continue with an email " +
+        "address and the link is on its way.",
+    );
+
+    // "So that it is also there in the tab our emailed link opens", and what
+    // crosses is the tab's own text: the same answers and the same time.
+    tab.items.set("naisi.apply.join:link-asked", packed);
+    keptAnswers.acrossTabs("link-asked", "link-emailed", now + 60_000);
+    assert.equal(shared.items.get("naisi.apply.join:link-asked"), packed);
+    assert.deepEqual([...shared.items.keys()], ["naisi.apply.join:link-asked"]);
+    // The link's tab has a session store of its own, with nothing in it.
+    const linksTab = store();
+    globalThis.window = { sessionStorage: linksTab, localStorage: shared };
+    assert.equal(
+      keptAnswers.acrossTabs("link-asked", "read", now + 120_000)?.preferredName,
+      "Ada",
+      "the tab the emailed link opens was not given the answers",
+    );
+    assert.deepEqual(linksTab.written, [], "reading the copy wrote something");
+    // And a page that opens asks for it: its own tab's answers first, then these.
+    assert.match(keeperCode, /const left = acrossTabs\(roundId, "read"\);/);
+    assert.match(keeperCode, /return readKept\(keptStore\(\)\?\.getItem\(keptKey\(roundId\)\), Date\.now\(\)\) \?\? left;/);
+
+    // LIMIT 2, "it is ignored once it is an hour old". The rule, run at the
+    // hour and a millisecond past it, and then the function itself.
+    assert.match(PAGE_FLAT, /and it is ignored once it is an hour old/i);
+    assert.ok(
+      !/ignored once it is a day old/i.test(PAGE_FLAT),
+      "v6 says the copy is believed for a day. The copy that crosses tabs is believed for an hour.",
+    );
+    assert.equal(joinRules.ACROSS_TABS_MAX_AGE_MS, 3_600_000);
+    assert.ok(joinRules.readKept(packed, now + 3_600_000, joinRules.ACROSS_TABS_MAX_AGE_MS));
+    assert.equal(joinRules.readKept(packed, now + 3_600_001, joinRules.ACROSS_TABS_MAX_AGE_MS), null);
+    assert.ok(keptAnswers.acrossTabs("link-asked", "read", now + 3_600_000), "the copy was not believed within its hour");
+    assert.equal(keptAnswers.acrossTabs("link-asked", "read", now + 3_600_001), null, "a copy more than an hour old was believed");
+    assert.equal(shared.items.size, 0, "a copy past its hour was left in local storage");
+    // The tab's own copy is the step's as it always was: session storage, and
+    // believed for a day.
+    assert.ok(joinRules.readKept(packed, now + 23 * 3_600_000), "the tab's own answers are no longer read back within the day");
     assert.equal(joinRules.readKept(packed, now + 24 * 3_600_000 + 1), null);
 
-    // "Removed when your request to join is sent."
-    assert.match(PAGE_FLAT, /The copy in the tab is removed when your request to join is sent/i);
+    // LIMIT 3, "removed when your request to join is sent": the step forgets
+    // straight after the join request, and forgetting is both copies.
+    assert.match(PAGE_FLAT, /The copy in your browser is removed when your request to join is sent/i);
     assert.match(
-      read("src/features/applications/apply/JoinStep.tsx"),
-      /await completeRegistration\(joinRequestFrom\(answers\)\);[\s\S]{0,400}?forgetAnswers\(roundId\);/,
-      "the join step no longer throws away what the tab kept once the join " +
+      stepCode,
+      /await completeRegistration\(joinRequestFrom\(answers\)\);\s*\} catch \(err\) \{[^}]*return false;\s*\}\s*forgetAnswers\(roundId\);/,
+      "the join step no longer throws away what it kept the moment the join " +
         "request has gone.",
     );
+    globalThis.window = { sessionStorage: tab, localStorage: shared };
+    tab.items.set("naisi.apply.join:sent", packed);
+    keptAnswers.acrossTabs("sent", "link-emailed", now);
+    assert.equal(shared.items.size, 1);
+    keptAnswers.forgetAnswers("sent");
+    assert.equal(shared.items.size, 0, "the join request has gone and the copy is still in local storage");
+    assert.equal(tab.items.has("naisi.apply.join:sent"), false);
 
     // "Joining this way does not sign you up to the newsletter or to event
     // announcements": the join request the step sends, run.
@@ -1658,7 +1778,7 @@ describe("what loads from Google, and what the browser keeps", () => {
     );
   });
 
-  test("the browser's local storage holds the four things the page lists, and nothing else", () => {
+  test("the browser's local storage holds the four preferences and the one copy the page describes, and nothing else", () => {
     assert.match(PAGE_FLAT, /In your browser&apos;s own local storage the site keeps four small preferences/i);
     const users = new Map([
       ["src/layout/AppShell.tsx", "naisi.sidebar.collapsed"],
@@ -1670,19 +1790,34 @@ describe("what loads from Google, and what the browser keeps", () => {
       assert.ok(read(file).includes(`"${key}"`), `${file} no longer keeps ${key} in local storage`);
       assert.ok(PAGE_FLAT.includes(`<code>${key}</code>`), `the policy no longer lists ${key}`);
     }
+    // The fifth thing is not a preference: what somebody typed on the
+    // application form's first step, for the tab an emailed link opens. The
+    // page says so in a paragraph of its own, with the key it is under, and
+    // §2d holds that paragraph's three limits to the one function that
+    // reaches local storage from the form.
+    assert.match(
+      PAGE_FLAT,
+      /is kept in your browser&apos;s local storage, under a key beginning(?:\{" "\})? <code>naisi\.apply\.join<\/code>/i,
+    );
+    assert.ok(joinRules.keptKey("any-form").startsWith("naisi.apply.join"));
     assertExactlyTheseFiles(
       sourceFilesNaming(/\blocalStorage\b/),
       new Map([
         ...[...users].map(([file, key]) => [file, `keeps ${key}, which the page lists by name`]),
+        [
+          "src/features/applications/apply/keptAnswers.ts",
+          "keeps, for somebody who continues with an email address, a copy of the application form's first step under a key beginning naisi.apply.join, which the page describes with its three limits",
+        ],
         ["src/features/pwa/LastRouteTracker.tsx", "a comment about the last-route key, which lastRoute.ts keeps"],
         ["src/features/admissions/ApplyFlow.tsx", "a comment saying the older form deliberately keeps no copy there"],
         ["src/features/courses/PacingBanner.tsx", "a comment saying a dismissal is deliberately not kept there"],
       ]),
       "naming the browser's local storage",
-      "The policy lists exactly what the site keeps there, by name, and says " +
-        "there are four. Something kept there that the page does not list " +
-        "makes the page wrong: list it in a new version, or keep it somewhere " +
-        "that does not outlive the tab and say so.",
+      "The policy lists exactly what the site keeps there: four preferences " +
+        "by name, and one copy of the application form's first step with the " +
+        "key it is under. Something kept there that the page does not say " +
+        "makes the page wrong: say it in a new version, or keep it somewhere " +
+        "that does not outlive the tab.",
     );
   });
 });

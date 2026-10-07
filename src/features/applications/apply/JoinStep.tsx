@@ -35,7 +35,7 @@ import {
   startEmailRegistration,
   type AccountKind,
 } from "./joinClient";
-import { forgetAnswers, keepAnswers, loadKept } from "./keptAnswers";
+import { acrossTabs, forgetAnswers, keepAnswers, loadKept } from "./keptAnswers";
 import { STEP_PARAM } from "./steps";
 import styles from "./form.module.css";
 import join from "./join.module.css";
@@ -468,6 +468,9 @@ export default function JoinStep({
         setError(started.error);
         return;
       }
+      // The link opens in a tab of its own, so that tab is left what was
+      // typed here. This is the only way of making an account that does it.
+      acrossTabs(roundId, "link-emailed");
       setInboxFor(email);
       setMoved((count) => count + 1);
     },

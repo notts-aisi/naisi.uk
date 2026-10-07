@@ -40,11 +40,13 @@
  *     average and not a sum, a conduct flag is not shown on the review
  *     screens, and the examples of email we send name the decision.
  *  9. **Joining on the form.** Somebody with no account makes their request
- *     to join on the form's first step. What they type is kept in the browser
- *     tab until they have signed in (`keptAnswers.ts`), the spam check and
- *     Google's sign-in script load only at the point an account is made, and
- *     an account still waiting to be approved cannot send until its
- *     university address is verified (`sendHoldFor`).
+ *     to join on the form's first step. What they type stays in the browser
+ *     until they have signed in, and for somebody who continues with an email
+ *     address a copy is kept, for an hour at most, where the tab the emailed
+ *     link opens can read it (`keptAnswers.ts`). The spam check and Google's
+ *     sign-in script load only at the point an account is made, and an
+ *     account still waiting to be approved cannot send until its university
+ *     address is verified (`sendHoldFor`).
  * 10. **Where the spam check runs.** The event sign-up form is named beside
  *     the registration and application forms, because it runs there too.
  *
@@ -931,17 +933,17 @@ export default function PrivacyContentV6({
                 site-data settings at any time.
               </p>
               <p>
-                If you start an application before you have an account, what
-                you type on the form&apos;s first step is kept in that browser
-                tab, in its session storage under a key beginning{" "}
-                <code>naisi.apply.join</code>, so that it is still there once
-                you have signed in. It is your answers to that step and when
-                you last changed them, and nothing else: no password, no
+                If you start an application before you have an account and
+                choose to continue with an email address, what you typed on the
+                form&apos;s first step is kept in your browser&apos;s local
+                storage, under a key beginning{" "}
+                <code>naisi.apply.join</code>, so that it is also there in the
+                tab our emailed link opens. It is your answers to that step and
+                when you last changed them, and nothing else: no password, no
                 sign-in address, and not whether you agreed to our terms. Those
                 answers are not sent to us until you have signed in. The copy
-                in the tab is removed when your request to join is sent, it is
-                ignored once it is a day old, and it goes when you close the
-                tab.
+                in your browser is removed when your request to join is sent,
+                and it is ignored once it is an hour old.
               </p>
             </section>
 
