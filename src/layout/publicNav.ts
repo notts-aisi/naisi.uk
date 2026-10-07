@@ -76,7 +76,7 @@ export const HEADER_PAGES: readonly NavEntry[] = [
   { key: "fellowships", label: "Fellowships", href: "/courses", live: true },
   { key: "incubator", label: "Incubator", href: "/incubator", live: true },
   { key: "events", label: "Events", href: "/events", live: true },
-  { key: "about", label: "About", href: "/about", live: false },
+  { key: "about", label: "About", href: "/about", live: true },
 ];
 
 /**
@@ -89,7 +89,7 @@ export const HEADER_PAGES: readonly NavEntry[] = [
  */
 export const ACCOUNT_ENTRIES = {
   signIn: { key: "sign-in", label: "Sign in", href: "/login", live: true },
-  join: { key: "join", label: "Join", href: "/join", live: false, meanwhile: "/register" },
+  join: { key: "join", label: "Join", href: "/join", live: true, meanwhile: "/register" },
   /** An approved account: into the signed-in area. */
   dashboard: { key: "dashboard", label: "Dashboard", href: "/dashboard", live: true },
   /** An account the committee has not approved yet: its waiting page. */
@@ -130,7 +130,7 @@ export const FOOTER_COLUMNS: readonly NavColumn[] = [
     heading: "NAISI",
     entries: [
       { key: "events", label: "Events", href: "/events", live: true },
-      { key: "about", label: "About us", href: "/about", live: false },
+      { key: "about", label: "About us", href: "/about", live: true },
       { key: "sources", label: "Sources for our claims", href: "/sources", live: true },
       { key: "links", label: "All our links", href: LINKS_PAGE_PATH, live: true },
     ],
