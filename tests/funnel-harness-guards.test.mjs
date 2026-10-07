@@ -338,13 +338,13 @@ test("the browser harness routes every collection access through the chokepoint"
   );
   assert.match(
     codeOf(CORE),
-    /export const FIXTURE_SUBCOLLECTIONS = \["stages", "weeks"\];/,
+    /export const FIXTURE_SUBCOLLECTIONS = \["stages", "weeks", "questionSets"\];/,
     "FIXTURE_SUBCOLLECTIONS must stay a literal list: the grep above trusts " +
       "fixtureSubcollection because it can read the values here.",
   );
   assert.deepEqual(
     FIXTURE_SUBCOLLECTIONS,
-    ["stages", "weeks"],
+    ["stages", "weeks", "questionSets"],
     "a subcollection joined the list. Add it to the pin above in the same change, " +
       "so the value stays readable off the source.",
   );
