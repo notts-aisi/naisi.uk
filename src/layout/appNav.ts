@@ -254,10 +254,6 @@ export const ADMIN_SECTIONS: AdminSection[] = [
       { label: "Projects", href: "/admin/projects", match: under("/admin/projects"), visible: ADMIN_ONLY, ownHead: true },
       { label: "Task templates", href: "/admin/task-templates", match: under("/admin/task-templates"), visible: ADMIN_ONLY, ownHead: true },
       { label: "Newsletter recipients", href: "/admin/newsletter", match: under("/admin/newsletter"), visible: ADMIN_ONLY, ownHead: true },
-      // TEMP: fire-once data-wipe controls. Remove this entry along with
-      // `src/app/(app)/admin/(admin-only)/danger-zone/` and
-      // `src/app/api/admin/nuke-tasks/` once both environments have been reset.
-      { label: "Danger zone", href: "/admin/danger-zone", match: under("/admin/danger-zone"), visible: ADMIN_ONLY, ownHead: true },
     ],
   },
 ];

@@ -13,6 +13,7 @@ import {
 } from "@/features/events/eventWhen";
 import links from "@/features/events/eventLinks.module.css";
 import { listPublishedEvents } from "@/features/events/fetchEvents";
+import { fetchPublicTerm } from "@/features/term/fetchPublicTerm";
 import { formatSiteDate } from "@/lib/datetime/siteTime";
 import { publicLocationText } from "@/lib/events/location";
 import styles from "./events.module.css";
@@ -56,9 +57,20 @@ function splitByEnd(events: ListedEvent[]): {
 }
 
 export default async function PublicEventsIndex() {
-  const events = await listPublishedEvents();
+  // The two reads do not depend on each other. Of the term, the page takes
+  // the one field it prints and never the term itself.
+  const [events, { label: termLabel }] = await Promise.all([
+    listPublishedEvents(),
+    fetchPublicTerm(),
+  ]);
   const { upcoming, past, thisYear } = splitByEnd(events);
   const shownPast = past.slice(0, PAST_LIMIT);
+  // The line over the heading is the term's own name, as its application
+  // form carries it, while there is a term a visitor may be told about. With
+  // no such term, and when the term cannot be read (`fetchPublicTerm` then
+  // answers as if there were none), the page says what it is. No term's name
+  // and no date is written in this file.
+  const eyebrow = termLabel?.trim() || "Events";
 
   const emails = (
     <div className={styles.emails}>
@@ -79,7 +91,7 @@ export default async function PublicEventsIndex() {
       <section className={styles.hero}>
         <NetField net="hero" strength="medium" className={styles.heroField}>
           <div className="container">
-            <p className={`meta ${styles.eyebrow}`}>Events</p>
+            <p className={`meta ${styles.eyebrow}`}>{eyebrow}</p>
             <h1 className={styles.title}>What&rsquo;s on.</h1>
             <p className={styles.lede}>
               Socials, talks and film nights. They&rsquo;re free, and you can just turn up to

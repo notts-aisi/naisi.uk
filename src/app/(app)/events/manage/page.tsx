@@ -22,6 +22,7 @@ import {
   tileParts,
   yearOf,
 } from "@/features/events/manageWords";
+import { publicLocationText } from "@/lib/events/location";
 import type { EventDoc } from "@/lib/firestore/events";
 import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
 import styles from "./events.module.css";
@@ -269,6 +270,10 @@ function EventRow({
   const title = e.title || "Untitled event";
   const tile = e.startAt ? tileParts(e.startAt) : null;
   const year = e.startAt && yearOf(e.startAt) !== thisYear ? yearOf(e.startAt) : null;
+  // The public wording, from the one module that decides it: a hidden
+  // location's label, never its exact text. It is what the preview page
+  // already shows everybody who can open this list.
+  const where = publicLocationText(e);
   // "Manage" where this person runs the event or approves events; "View"
   // where they can only look. Both open the same page, which decides again
   // what they may change.
@@ -304,6 +309,7 @@ function EventRow({
               ) : (
                 "No date yet"
               )}
+              {where ? ` · ${where}` : ""}
             </div>
             {e.status === "rejected" && e.reviewerNotes && (
               <p className={styles.sentBack}>

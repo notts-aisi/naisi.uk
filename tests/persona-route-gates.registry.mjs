@@ -376,14 +376,6 @@ export const ROUTES = {
         "admin would not. The migration is idempotent and ran against the emulator here.",
     },
   },
-  "/api/admin/nuke-tasks": {
-    POST: {
-      expect: everyone(403, { admin: 400 }),
-      why:
-        "Admin only, decided before the body is read: every other session is forbidden and " +
-        "the admin meets the validation. The danger-zone action needs its typed confirmation.",
-    },
-  },
   "/api/admin/registrations": {
     GET: {
       expect: everyone(403, { admin: 200 }),
@@ -2015,13 +2007,6 @@ export const PAGES = {
       "admits them and this inner gate is what keeps them out of the rest.",
   },
   "/(app)/admin/(admin-only)/collaborators": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
-    why:
-      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, the " +
-      "course and membership permission holders included, because the admin front door " +
-      "admits them and this inner gate is what keeps them out of the rest.",
-  },
-  "/(app)/admin/(admin-only)/danger-zone": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
     why:
       "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, the " +
