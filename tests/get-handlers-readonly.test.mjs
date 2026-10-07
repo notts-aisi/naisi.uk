@@ -89,6 +89,9 @@ const MUTATION_HELPERS = {
   // What an applicant says after decision day. The write is made in
   // `src/lib/applications/status/record.ts`, beside the read of the same page.
   recordReply: "records an applicant's reply, moves their application's status and the round's counters",
+  // What follows from accepting an invitation, called by the same route once
+  // the reply is written. The write is `approveWaitingAccount`, one file down.
+  approveAfterAcceptedInvitation: "makes the account of somebody who accepted an invitation a member's, if it was still waiting",
   // The form's lifecycle. The status route holds no GET today, and the write
   // and the member records are made in `src/lib/applications/lifecycle/move.ts`,
   // so a GET added beside it later could call this and show nothing in its body.
