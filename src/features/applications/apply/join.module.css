@@ -99,7 +99,12 @@
   max-width: 24rem;
 }
 
-/* Google's own button, which is 320px wide whatever surrounds it. */
+/* The box Google's own button is drawn in. The button measures this box
+   before it is drawn: 320px wide where there is that much room, as wide as
+   the box where there is not, and never under 200px. So this stays a plain
+   block, as wide as the column: given a width, a padding or a row of its
+   own, the button would be drawn to the wrong measure. The height is held
+   while the button is on its way, and for as long as it has not come. */
 .google {
   min-height: 2.75rem;
 }

@@ -638,7 +638,23 @@ describe("what an applicant reads", () => {
   test("the ways out of the join step carry this form's address and nothing else", async () => {
     const step = codeOf("JoinStep.tsx");
     assert.match(step, /const formUrl = `\/apply\/\$\{encodeURIComponent\(roundId\)\}`;/);
-    assert.match(step, /const signInHref = `\/login\?next=\$\{encodeURIComponent\(formUrl\)\}`;/);
+    // The way to the sign-in page is made by the one function that makes it,
+    // from this form's id and nothing else, and neither file spells the
+    // sign-in page's address out itself. What it carries is the address the
+    // form MARKS for the way back, not the bare form address: the sign-in
+    // page sends an account with no join request that carries the mark
+    // straight back to this step, and has to ask about one that carries the
+    // bare address, because an older round lives at the same kind of address
+    // and still needs the register page's own profile form first.
+    assert.match(step, /const signInHref = signInHrefFor\(roundId\);/);
+    for (const file of ["JoinStep.tsx", "JoinAccount.tsx"]) {
+      assert.equal(/\/login\b/.test(codeOf(file)), false, `${file} spells out the sign-in page's address`);
+    }
+    const joinRules = await loadTs(join("lib", "applications", "applicant", "join.ts"));
+    assert.equal(
+      joinRules.signInHrefFor(FORM.id),
+      `/login?next=${encodeURIComponent(`/apply/${FORM.id}?join=1`)}`,
+    );
     // Every place the step sends anybody: home, the society's address and the
     // two policies the reCAPTCHA line has to link. Its second half adds one:
     // the sign-in page, with this form as the place to come back to.
@@ -656,11 +672,12 @@ describe("what an applicant reads", () => {
     for (const file of ["JoinStep.tsx", "JoinAccount.tsx"]) {
       assert.equal(/\/register\b(?!\/resend)/.test(codeOf(file)), false, `${file} sends somebody to the register page`);
     }
-    // The address is one the registration flow hands people back to. If the
-    // form ever moves, or that list is narrowed, a visitor would finish
-    // signing in and be left somewhere else.
+    // The address is one the registration flow hands people back to, with
+    // the mark and without it. If the form ever moves, or that list is
+    // narrowed, a visitor would finish signing in and be left somewhere else.
     const { safeFunnelReturn } = await loadTs(join("lib", "authReturn.ts"));
     assert.equal(safeFunnelReturn(`/apply/${FORM.id}`), `/apply/${FORM.id}`);
+    assert.equal(safeFunnelReturn(`/apply/${FORM.id}?join=1`), `/apply/${FORM.id}?join=1`);
   });
 
   test("the step says it is a join request, and that is true of the file that says it", () => {
