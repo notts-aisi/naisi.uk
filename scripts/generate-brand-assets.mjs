@@ -32,7 +32,8 @@
  *
  * The masters hold two cuts of the emblem: the full one, which everything
  * here is drawn from, and the header cut, for small sizes. No file is made
- * from the header cut: `src/components/BrandMark.tsx` draws it in place.
+ * from the header cut: `src/components/BrandMark.tsx` draws it in place, and
+ * the test holds what that component draws to the master.
  *
  * The tab icon and the home-screen icon are different pictures on purpose: a
  * tower cut for 16 pixels in the tab, the whole emblem on the home screen.
@@ -190,7 +191,7 @@ export const MASTERS_NOT_SERVED = {
   "1-emblem/naisi-emblem.png": "His PNG export of the colour emblem. The SVG beside it is the master.",
   "1-emblem/naisi-emblem-night.png": "His PNG export of the Night emblem. The SVG beside it is the master.",
   "1-emblem/naisi-emblem-header-night.svg":
-    "The header cut, Night: the emblem for small sizes. No page shows it from a file: src/components/BrandMark.tsx draws it in place in every header and sidebar.",
+    "The header cut, Night: the emblem for 64px and under. No page shows it from a file: src/components/BrandMark.tsx draws it in place in every header and sidebar, and tests/brand-assets.test.mjs holds those outlines to this file.",
   "1-emblem/naisi-emblem-header.svg":
     "The header cut in colour, for light grounds. Every header on the site sits on the dark ground, so nothing draws it.",
   "1-emblem/naisi-emblem-white.svg":

@@ -19,7 +19,9 @@
  *   - an app icon on a ground that is not the colour the installed app opens
  *     on, which shows on the opening screen as a square of its own;
  *   - an outline of the emblem written into the code (the header draws the
- *     mark in place) that is not the master's outline;
+ *     mark in place) that is not an outline of one of the masters' two cuts,
+ *     or the small cut drawn up to a size the masters' README does not give
+ *     it;
  *   - an email logo or a link-preview card wired in a way that cannot work:
  *     an SVG in an email, a logo on the wrong ground, a root layout that
  *     overrides the generated card.
@@ -448,8 +450,9 @@ test("the offline page carries the Night emblem itself, and nothing from the net
  * emblem is drawn in place from outlines written into the code
  * (src/components/BrandMark.tsx). Those outlines are a second copy of the
  * artwork, and a copy drifts. So every outline in `src` that starts the way
- * one of the emblem's does has to BE that outline, character for character,
- * wherever it is written and however the string is split across lines.
+ * one of the emblem's does has to BE an outline of one of the masters' two
+ * cuts, character for character, wherever it is written and however the
+ * string is split across lines.
  */
 const nightEmblem = readFileSync(at(MASTERS_DIR, "1-emblem/naisi-emblem-night.svg"), "utf8");
 const headerEmblem = readFileSync(at(MASTERS_DIR, "1-emblem/naisi-emblem-header-night.svg"), "utf8");
@@ -466,18 +469,22 @@ const sha = (text) => createHash("sha256").update(text).digest("hex").slice(0, 1
  * Outlines that begin like the emblem's and are not in the masters, by the
  * first 16 characters of their SHA-256, each with the reason it is drawn.
  * An outline is added here only by a decision about the mark, never to make
- * this test pass.
+ * this test pass. There are none: the castle a header draws was listed here
+ * by its digest until the header cut became a master, and is now held to its
+ * file like every other outline.
  */
-const OUTLINES_NOT_IN_THE_MASTERS = {
-  c041bdda9a4115bd:
-    "The castle as the redesign's boards draw it in a header: a wider gap to the shield, so the two do not close " +
-    "up at 40px and under. The masters hold one cut of the emblem and this is not it.",
-};
+const OUTLINES_NOT_IN_THE_MASTERS = {};
 
 /** Every string in a source file, with `"a" + "b"` joined back into one. */
 function stringsIn(source) {
   const joined = source.replace(/(["'`])\s*\+\s*\1/g, "");
   return [...joined.matchAll(/(["'`])((?:(?!\1)[^\\\n])*)\1/g)].map((m) => m[2]);
+}
+
+/** One string constant of a source file by its name, joined the same way. */
+function constantIn(source, name) {
+  const found = source.match(new RegExp(`\\bconst ${name} =\\s*((?:"[^"\\n]*"\\s*\\+?\\s*)+);`));
+  return found ? stringsIn(found[1]).join("") : undefined;
 }
 
 /*
@@ -533,78 +540,122 @@ test("the masters draw the emblem in two cuts, and every SVG that carries it car
   }
 });
 
-test("every copy of the emblem's outlines in src is the master's, character for character", () => {
-  const starts = EMBLEM.map((outline) => outline.slice(0, 20));
+test("every copy of the emblem's outlines in src is one of the masters' two cuts, character for character", () => {
   const copies = [];
   for (const file of walk("src").filter((f) => /\.(?:tsx?|jsx?|mjs|css|svg)$/.test(f))) {
     for (const text of stringsIn(readFileSync(at(file), "utf8"))) {
-      if (starts.some((start) => text.startsWith(start))) copies.push({ file, text });
+      if (startsLikeTheEmblem(text)) copies.push({ file, text });
     }
   }
+  const inTheMasters = new Set([...EMBLEM, ...HEADER]);
   const wrong = copies
-    .filter(({ text }) => !EMBLEM.includes(text) && !(sha(text) in OUTLINES_NOT_IN_THE_MASTERS))
+    .filter(({ text }) => !inTheMasters.has(text) && !(sha(text) in OUTLINES_NOT_IN_THE_MASTERS))
     .map(({ file, text }) => `${file}: an outline starting "${text.slice(0, 44)}" (${sha(text)})`);
   assert.deepEqual(
     wrong,
     [],
-    `These outlines begin like the emblem's and are not the ones in ${MASTERS_DIR}/1-emblem/naisi-emblem-night.svg. ` +
-      "Copy the outline from that file. The emblem is never redrawn.",
+    `These outlines begin like the emblem's and are in neither ${MASTERS_DIR}/1-emblem/naisi-emblem-night.svg nor ` +
+      "naisi-emblem-header-night.svg beside it. Copy the outline from the file. The emblem is never redrawn.",
   );
-  // The component that draws the mark on every page carries all three.
+  // The component that draws the mark on every page carries both cuts: the
+  // emblem's three outlines and the header cut's castle.
   const inBrandMark = copies.filter((c) => c.file === "src/components/BrandMark.tsx").map((c) => c.text);
-  for (const outline of EMBLEM) {
+  for (const outline of inTheMasters) {
     assert.ok(inBrandMark.includes(outline), `BrandMark.tsx no longer carries the outline starting "${outline.slice(0, 24)}"`);
   }
+  // And it is the only place the header cut is drawn. BrandMark picks the cut
+  // by the size it is asked for; the header cut's castle pasted anywhere else
+  // would be drawn at whatever size that place is.
+  assert.deepEqual(
+    [...new Set(copies.filter((c) => c.text === HEADER[0]).map((c) => c.file))],
+    ["src/components/BrandMark.tsx"],
+    "the header cut's castle is written outside BrandMark.tsx. Draw a small emblem with BrandMark, which picks the cut by size.",
+  );
   // The other direction: an exception nothing draws any more is removed.
   for (const digest of Object.keys(OUTLINES_NOT_IN_THE_MASTERS)) {
     assert.ok(copies.some(({ text }) => sha(text) === digest), `no outline in src has the digest ${digest}. Remove the entry.`);
   }
 });
 
-test("BrandMark draws the emblem in the master's own box, offset and inks", () => {
+test("BrandMark draws each cut in its master's own box, offset and inks", () => {
   const component = readFileSync(at("src/components/BrandMark.tsx"), "utf8");
   const css = readFileSync(at("src/components/BrandMark.module.css"), "utf8");
   const numbers = (text) => text.trim().split(/[\s,]+/).map(Number);
-
-  // The box the large cut is drawn in is the SVG's own view box, and the
-  // cyan copy is set off by the distance the SVG sets it off by.
-  const viewBox = numbers(nightEmblem.match(/viewBox="([^"]+)"/)[1]);
-  const [echo, body] = [...nightEmblem.matchAll(/<g\b([^>]*)>/g)].map((m) => m[1]);
-  const [dx, dy] = numbers(echo.match(/transform="translate\(([^)]+)\)"/)[1]);
-  assert.ok(!/transform=/.test(body), "the emblem's body is drawn where it is, only the cyan copy is moved");
-  assert.equal(-dx, dy, "the cyan copy sits the same distance left and down");
-  const box = component.match(/[:=]\s*\{ x: ([\d.]+), y: ([\d.]+), w: ([\d.]+), h: ([\d.]+), shift: ([\d.]+) \};/);
-  assert.ok(box, "could not read the large cut's box in BrandMark.tsx");
-  assert.deepEqual(box.slice(1, 5).map(Number), viewBox, "BrandMark's box for the large cut is not the master's view box");
-  assert.equal(Number(box[5]), dy, "BrandMark's offset for the cyan copy is not the master's");
-
-  // The two inks.
   const ink = (name) => css.match(new RegExp(`--emblem-${name}:\\s*(#[0-9a-fA-F]{6})`))?.[1].toLowerCase();
-  assert.equal(ink("echo"), echo.match(/fill="(#[0-9a-fA-F]{6})"/)[1].toLowerCase(), "the cyan copy's ink");
-  assert.equal(ink("face"), body.match(/fill="(#[0-9a-fA-F]{6})"/)[1].toLowerCase(), "the body's ink");
+
+  // The two boxes, on the line that chooses between them: the header cut's
+  // for a small mark, the emblem's for any other.
+  const box = "\\{ x: ([\\d.]+), y: ([\\d.]+), w: ([\\d.]+), h: ([\\d.]+), shift: ([\\d.]+) \\}";
+  const boxes = component.match(new RegExp(`const box = small \\? ${box} : ${box};`));
+  assert.ok(boxes, "could not read the two boxes in BrandMark.tsx");
+  const inCode = { header: boxes.slice(1, 6).map(Number), full: boxes.slice(6, 11).map(Number) };
+
+  for (const [cut, master, file] of [
+    ["full", nightEmblem, "naisi-emblem-night.svg"],
+    ["header", headerEmblem, "naisi-emblem-header-night.svg"],
+  ]) {
+    // The box a cut is drawn in is its SVG's own view box, and the cyan copy
+    // is set off by the distance that SVG sets it off by.
+    const viewBox = numbers(master.match(/viewBox="([^"]+)"/)[1]);
+    const [echo, body] = [...master.matchAll(/<g\b([^>]*)>/g)].map((m) => m[1]);
+    const [dx, dy] = numbers(echo.match(/transform="translate\(([^)]+)\)"/)[1]);
+    assert.ok(!/transform=/.test(body), `${file}: the emblem's body is drawn where it is, only the cyan copy is moved`);
+    assert.equal(-dx, dy, `${file}: the cyan copy sits the same distance left and down`);
+    assert.deepEqual(inCode[cut].slice(0, 4), viewBox, `BrandMark's box for the ${cut} cut is not the view box of ${file}`);
+    assert.equal(inCode[cut][4], dy, `BrandMark's offset for the ${cut} cut's cyan copy is not the one in ${file}`);
+
+    // The two inks. BrandMark keeps one pair for both cuts, so both masters
+    // have to agree with it.
+    assert.equal(ink("echo"), echo.match(/fill="(#[0-9a-fA-F]{6})"/)[1].toLowerCase(), `${file}: the cyan copy's ink`);
+    assert.equal(ink("face"), body.match(/fill="(#[0-9a-fA-F]{6})"/)[1].toLowerCase(), `${file}: the body's ink`);
+  }
+});
+
+test("BrandMark draws the header cut up to the size the masters' README gives it, and the emblem above that", () => {
+  const component = strip(readFileSync(at("src/components/BrandMark.tsx"), "utf8"));
+  // The README beside the masters says what the header cut is for.
+  const readme = readFileSync(at(MASTERS_DIR, "README.md"), "utf8");
+  const sizes = readme.match(/\*\*header cut\*\*[^\n]*?\bfor (\d+) to (\d+)px/);
+  assert.ok(
+    sizes,
+    `${MASTERS_DIR}/README.md no longer gives the header cut's sizes as "for N to Mpx". ` +
+      "Read what it says now, set SMALL_UP_TO in BrandMark.tsx to match and bring this pattern up to date.",
+  );
+  const upTo = Number(component.match(/\bconst SMALL_UP_TO = (\d+);/)?.[1]);
+  assert.equal(upTo, Number(sizes[2]), `BrandMark draws the header cut up to ${upTo}px and the README ends it at ${sizes[2]}px`);
+  // One test of the size picks the cut, and each name holds the castle it says it holds.
+  assert.match(component, /\bconst small = size <= SMALL_UP_TO;/, "the cut is no longer picked by `size <= SMALL_UP_TO`");
+  assert.equal(constantIn(component, "CASTLE_SMALL"), HEADER[0], "CASTLE_SMALL is not the header cut's castle");
+  assert.equal(constantIn(component, "CASTLE"), EMBLEM[0], "CASTLE is not the emblem's castle");
 });
 
 test("the shield and the wave fill the same under either rule, so BrandMark may set it on the castle alone", async () => {
-  // The master sets fill-rule="evenodd" on all three outlines. BrandMark
+  // Each master sets fill-rule="evenodd" on all three outlines. BrandMark
   // sets it on the castle alone. That is the same picture only while the
   // shield and the wave have nothing that rule would cut out, so new artwork
   // with a hole in either has to fail here and say so.
-  const viewBox = nightEmblem.match(/viewBox="([^"]+)"/)[1];
-  const drawn = (rules) =>
-    sharp(
-      Buffer.from(
-        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="442" height="541" fill="#fff">` +
-          EMBLEM.map((d, i) => `<path d="${d}" fill-rule="${rules[i]}"/>`).join("") +
-          "</svg>",
-      ),
-    )
-      .raw()
-      .toBuffer();
-  const asMaster = await drawn(["evenodd", "evenodd", "evenodd"]);
-  const asBrandMark = await drawn(["evenodd", "nonzero", "nonzero"]);
-  assert.ok(asMaster.equals(asBrandMark), "the shield or the wave now needs fill-rule evenodd: set it in BrandMark.tsx");
+  for (const [name, cut, master] of [
+    ["the emblem", EMBLEM, nightEmblem],
+    ["the header cut", HEADER, headerEmblem],
+  ]) {
+    const viewBox = master.match(/viewBox="([^"]+)"/)[1];
+    const drawn = (rules) =>
+      sharp(
+        Buffer.from(
+          `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="442" height="541" fill="#fff">` +
+            cut.map((d, i) => `<path d="${d}" fill-rule="${rules[i]}"/>`).join("") +
+            "</svg>",
+        ),
+      )
+        .raw()
+        .toBuffer();
+    const asMaster = await drawn(["evenodd", "evenodd", "evenodd"]);
+    const asBrandMark = await drawn(["evenodd", "nonzero", "nonzero"]);
+    assert.ok(asMaster.equals(asBrandMark), `${name}: the shield or the wave now needs fill-rule evenodd: set it in BrandMark.tsx`);
+  }
+  // Either cut's castle has a window in it, which only the even-odd rule cuts out.
   const component = readFileSync(at("src/components/BrandMark.tsx"), "utf8");
-  assert.match(component, /<path d=\{(?:small \? CASTLE_SMALL : )?CASTLE\} fillRule="evenodd" \/>/, "the castle is drawn even-odd");
+  assert.match(component, /<path d=\{small \? CASTLE_SMALL : CASTLE\} fillRule="evenodd" \/>/, "the castle of whichever cut is drawn even-odd");
 });
 
 // ---------------------------------------------------------------------------
