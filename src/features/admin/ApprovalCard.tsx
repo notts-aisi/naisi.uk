@@ -6,6 +6,7 @@ import Chip from "@/components/ui/Chip";
 import InitialsChip from "@/components/ui/InitialsChip";
 import { Textarea } from "@/components/ui/Input";
 import OptionRow from "@/components/ui/OptionRow";
+import { degreeOf } from "@/features/profile/studyChange";
 import { formatSiteDate } from "@/lib/datetime/siteTime";
 import {
   STATUS_LABELS,
@@ -176,7 +177,7 @@ export default function ApprovalCard({
     profile?.preferredName && user.displayName && !user.displayName.startsWith(profile.preferredName)
       ? profile.preferredName
       : null;
-  const subject = profile?.subject ?? profile?.course;
+  const subject = degreeOf(profile);
   const status = profile?.status
     ? profile.status === "other" && profile.statusOther
       ? `${STATUS_LABELS[profile.status]}: ${profile.statusOther}`

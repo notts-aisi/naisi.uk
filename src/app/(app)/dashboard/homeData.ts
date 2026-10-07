@@ -1,5 +1,6 @@
 import "server-only";
 import { listPublishedEvents } from "@/features/events/fetchEvents";
+import { degreeOf } from "@/features/profile/studyChange";
 import { addDaysToKey, londonDateKey, londonWallClockToInstant } from "@/lib/courses/weekPlan";
 import { publicLocationText } from "@/lib/events/location";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -152,7 +153,7 @@ export async function profileSteps(uid: string): Promise<ProfileSteps | null> {
     const studying = !profile?.status || STATUSES_WITH_GRADUATION.includes(profile.status);
     return {
       name: Boolean(profile?.preferredName?.trim()),
-      study: Boolean(profile?.subject?.trim() || profile?.course?.trim()),
+      study: Boolean(degreeOf(profile).trim()),
       graduation:
         !studying || Boolean(profile?.expectedGraduation?.trim() || profile?.year?.trim()),
       universityEmail: Boolean(profile?.universityEmail?.trim()),

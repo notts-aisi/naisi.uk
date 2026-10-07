@@ -28,6 +28,7 @@ import {
   type UserPermissions,
 } from "@/lib/firestore/users";
 import { startImpersonation } from "@/auth/impersonation";
+import { degreeOf } from "@/features/profile/studyChange";
 import ConductFlagControl from "./ConductFlagControl";
 import MemberApplicationHistory from "./MemberApplicationHistory";
 import MemberEditForm from "./MemberEditForm";
@@ -276,7 +277,7 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
   }
 
   const status = user.profile?.status;
-  const subject = user.profile?.subject ?? user.profile?.course;
+  const subject = degreeOf(user.profile);
   const studies = [subject, status ? STATUS_LABELS[status] : null].filter(Boolean).join(" · ");
   const approver = user.approvedBy ? nameByUid.get(user.approvedBy) : undefined;
   const rejecter = user.rejectedBy ? nameByUid.get(user.rejectedBy) : undefined;

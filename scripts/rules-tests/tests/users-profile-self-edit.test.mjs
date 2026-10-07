@@ -22,6 +22,23 @@
  *  - THE WRITES THAT MUST BE REFUSED are written by hand, because no code in
  *    the site builds them: they are what somebody sends from a console.
  *
+ * ## Two more things the same rule is held to here
+ *
+ *  - THE DEGREE AND THE GRADUATION ARE STORED AS TEXT, OR NOT AT ALL. In what
+ *    an account writes to its own document, `profile.subject`, the older
+ *    `profile.course` and `profile.expectedGraduation` are each text, absent
+ *    or null. Anything else is refused, on a create and on an update. A value
+ *    that is already stored and that the write leaves exactly as it was is
+ *    not the write's, so a document carrying one still saves everything else.
+ *  - THE RULE AND THE PAGES READ THE DEGREE ONE WAY. `degreeOf` in the form's
+ *    module is what every page that shows a degree calls, and the rule has a
+ *    `degreeOf` of its own. `tests/lib/storedDegrees.mjs` is one table of
+ *    stored profiles with the degree each holds. This file runs every row
+ *    through the function, then through the rule: it stores the row, changes
+ *    the degree as a member, and the rule has to accept the change with an
+ *    entry holding exactly the row's answer and with no other, or with no
+ *    entry at all where the row says there was no answer.
+ *
  * It also still holds what it held before the entries existed. The save
  * depends on the rule pinning named FIELDS and keeping `keys().hasOnly()` off
  * `profile` (`users-push-preferences.test.mjs` explains that at length), and
@@ -47,7 +64,7 @@
  * from THIS package's copy of the SDK, since a marker from another copy is
  * not one the client under test recognises.
  *
- * ## Mutation check (each was run against these 30 tests; restore bit-exact afterwards)
+ * ## Mutation check (each was run against these 60 tests; restore bit-exact afterwards)
  *
  *  1. Delete `&& studyChangesHold()` from the users self-update rule -> 14
  *     go red: all six in "a change that skips or bends the record is
@@ -80,6 +97,26 @@
  *     'universityEmail', 'notifications', 'newsletter'])` to the self-update
  *     rule -> 15 go red. Delete `request.resource.data.role ==
  *     resource.data.role` -> the role test.
+ * 10. Delete `&& studyAnswersAreTextOrKept()` from the self-update rule -> 5
+ *     go red: the degree, the older field and the graduation that are not
+ *     text, the stored value swapped for another, and the registration sent
+ *     a second time. Every save stays green.
+ * 11. Delete `&& newStudyAnswersAreText()` from the create rule -> "a new
+ *     account cannot arrive with a degree or a graduation that is not text".
+ * 12. In `isTextOrNothing`, drop `value == null ||` -> 3 go red: "text,
+ *     empty text and nothing are all still stored", and the two creates that
+ *     registration makes with no older field. In `studyAnswerIsTextOrKept`,
+ *     drop the half that compares with what is stored -> 6: the two accounts
+ *     whose stored answers are not text, and the four rows of the table
+ *     whose older field is not text.
+ * 13. In the rule's `degreeOf`, test `subject` for being present where it
+ *     tests for an answer (`'subject' in data.get('profile', {})`) -> 7: the
+ *     six rows of the table whose `subject` is there, holds no answer and
+ *     sits beside an older field that does, and the stored value that is not
+ *     text. Read `course` first -> 12. In
+ *     src/features/profile/studyChange.ts, make `degreeOf` fall back with
+ *     `??` -> 10 here, and the table in the unit file; make it read
+ *     `subject` alone -> 9.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -88,6 +125,7 @@ import assert from "node:assert/strict";
 import { after, afterEach, before, describe, it } from "node:test";
 import firebase from "firebase/compat/app";
 import "firebase/compat/firestore";
+import { STORED_DEGREES } from "../../../tests/lib/storedDegrees.mjs";
 import { createLoader } from "../../../tests/lib/tsLoader.mjs";
 import {
   asUser,
@@ -113,7 +151,7 @@ const FORM = readFileSync(join(REPO_ROOT, "src", "features", "profile", "Profile
 
 // The form's own function and the cap it reads, run from source.
 const { loadTs } = createLoader();
-const { studyWrite, newStudyChangeId } = await loadTs("features/profile/studyChange.ts");
+const { studyWrite, newStudyChangeId, degreeOf } = await loadTs("features/profile/studyChange.ts");
 const { FIELD_LIMITS } = await loadTs("lib/firestore/users.ts");
 
 const UNI_EMAIL = "ada@nottingham.ac.uk";
@@ -792,6 +830,230 @@ describe("the cap, and who is held", () => {
     );
     assert.equal("studyChanges" in (await storedNow("other")), false);
   });
+});
+
+describe("the degree and the graduation are stored as text, or not at all", () => {
+  /** A list, a number, a yes or no and a map: what a console can send and no form does. */
+  const NOT_TEXT = [["Medicine"], 7, true, { name: "Medicine" }];
+
+  it("a degree that is not text is refused, beside an older field left as it was", async () => {
+    // The older field holds the same words as the newer one. Read through
+    // either field the degree looks unchanged, so no entry is owed, and the
+    // field's own type is all that is judged.
+    const both = stored();
+    both.profile.course = "Mathematics";
+    await seedUser("text1", both);
+    const doc = await own("text1");
+    for (const value of NOT_TEXT) {
+      await assertFails(doc.update({ "profile.subject": value }));
+      await assertFails(doc.update({ ...alwaysSent(), "profile.subject": value }));
+    }
+    // The same on an account with no older field, which the save writes too.
+    await seedUser("text2", stored());
+    const plain = await own("text2");
+    for (const value of NOT_TEXT) {
+      await assertFails(plain.update({ "profile.subject": value, "profile.course": "Mathematics" }));
+      // And beside an entry that says truly what the degree was, so that the
+      // entry is not what the write is refused for.
+      await assertFails(
+        plain.update({
+          "profile.subject": value,
+          "studyChanges.true1": { at: serverTime(), subject: "Mathematics" },
+        }),
+      );
+    }
+    for (const uid of ["text1", "text2"]) {
+      const after = await storedNow(uid);
+      assert.equal(after.profile.subject, "Mathematics", uid);
+      assert.equal("studyChanges" in after, false, uid);
+    }
+  });
+
+  it("an older field that is not text is refused", async () => {
+    // The newer field holds the degree, so nothing about the degree moves
+    // and no entry is owed.
+    await seedUser("text3", stored());
+    const doc = await own("text3");
+    for (const value of NOT_TEXT) {
+      await assertFails(doc.update({ "profile.course": value }));
+      await assertFails(doc.update({ ...alwaysSent(), "profile.course": value }));
+    }
+    assert.equal("course" in (await storedNow("text3")).profile, false);
+  });
+
+  it("a graduation that is not text is refused", async () => {
+    // On an account with no graduation yet, where a first answer owes no entry.
+    const none = stored();
+    delete none.profile.expectedGraduation;
+    await seedUser("text4", none);
+    const first = await own("text4");
+    for (const value of [2028, ["2028-06"], true, { month: "2028-06" }, new Date("2028-06-01T00:00:00Z")]) {
+      await assertFails(first.update({ "profile.expectedGraduation": value }));
+      await assertFails(first.update({ ...alwaysSent(), "profile.expectedGraduation": value }));
+    }
+    assert.equal("expectedGraduation" in (await storedNow("text4")).profile, false);
+    // And in place of an answer, beside the entry such a change owes.
+    await seedUser("text5", stored());
+    const changed = await own("text5");
+    for (const value of [2028, ["2028-06"]]) {
+      await assertFails(
+        changed.update({
+          "profile.expectedGraduation": value,
+          "studyChanges.true1": { at: serverTime(), expectedGraduation: "2027-06" },
+        }),
+      );
+    }
+    assert.equal((await storedNow("text5")).profile.expectedGraduation, "2027-06");
+  });
+
+  it("text, empty text and nothing are all still stored", async () => {
+    // What a form sends, and the two ways of holding nothing. Each is tried
+    // on a field whose change owes no entry: the older field of an account
+    // whose newer field holds the degree, and the graduation of an account
+    // that has given none.
+    const both = stored();
+    both.profile.course = "Maths";
+    delete both.profile.expectedGraduation;
+    await seedUser("text6", both);
+    const doc = await own("text6");
+    const gone = firebase.firestore.FieldValue.delete();
+    for (const field of ["profile.course", "profile.expectedGraduation"]) {
+      await assertSucceeds(doc.update({ [field]: "" }));
+      await assertSucceeds(doc.update({ [field]: null }));
+      await assertSucceeds(doc.update({ [field]: gone }));
+    }
+    await assertSucceeds(doc.update({ "profile.course": "Mathematics (BSc)" }));
+    await assertSucceeds(doc.update({ "profile.expectedGraduation": "2028-06" }));
+    const after = await storedNow("text6");
+    assert.deepEqual(
+      [after.profile.subject, after.profile.course, after.profile.expectedGraduation],
+      ["Mathematics", "Mathematics (BSc)", "2028-06"],
+    );
+    assert.equal("studyChanges" in after, false, "none of those was a change away from an answer");
+  });
+
+  it("a stored value that is not text is left where it is, and cannot be swapped for another", async () => {
+    // Only a hand edit could leave one. The account still saves everything
+    // else, and its degree is the older field's, to this rule and to every
+    // page.
+    const odd = stored();
+    odd.profile.subject = ["Medicine"];
+    odd.profile.course = "Maths";
+    odd.profile.expectedGraduation = 2027;
+    await seedUser("kept1", odd);
+    const doc = await own("kept1");
+    await assertSucceeds(doc.update(alwaysSent()));
+    await assertSucceeds(
+      doc.update({
+        "profile.notifications.push": { newsletter: true, events: false, courses: true, tasks: true },
+      }),
+    );
+    // Another value that is not text is a new value.
+    await assertFails(doc.update({ "profile.subject": ["Law"] }));
+    await assertFails(doc.update({ "profile.subject": 7 }));
+    await assertFails(doc.update({ "profile.expectedGraduation": 2028 }));
+    await assertFails(doc.update({ "profile.course": ["Maths"] }));
+    assert.deepEqual((await storedNow("kept1")).profile.subject, ["Medicine"]);
+    // Text takes its place, as the form sends it. The degree was the older
+    // field's, so the change is noted with what that said.
+    const { write, study } = formSave(odd, { subject: "Physics", expectedGraduation: "2028-06" });
+    assert.equal(entriesIn(study).length, 1);
+    await assertSucceeds(doc.update(write));
+    const after = await storedNow("kept1");
+    assert.deepEqual([after.profile.subject, after.profile.expectedGraduation], ["Physics", "2028-06"]);
+    assert.deepEqual(
+      Object.values(after.studyChanges).map((change) => Object.keys(change).sort().join(",") + ":" + change.subject),
+      ["at,subject:Maths"],
+    );
+  });
+
+  /** A whole document as registration writes one, for the account `uid`. */
+  const registration = (uid, profile) => ({
+    email: `${uid}@example.com`,
+    displayName: "N",
+    photoURL: null,
+    role: "pending",
+    showOnMembers: false,
+    profile: { preferredName: "N", ...profile },
+    policyVersion: "v1",
+    policyAgreedAt: serverTime(),
+    createdAt: serverTime(),
+  });
+
+  it("a new account cannot arrive with a degree or a graduation that is not text", async () => {
+    const doc = await own("new2");
+    await assertFails(doc.set(registration("new2", { subject: ["Medicine"], course: "Mathematics" })));
+    await assertFails(doc.set(registration("new2", { subject: { name: "Medicine" } })));
+    await assertFails(doc.set(registration("new2", { subject: "Mathematics", course: 7 })));
+    await assertFails(doc.set(registration("new2", { subject: "Mathematics", expectedGraduation: 2027 })));
+    assert.equal(await storedNow("new2"), undefined, "one of those creates went through");
+    // What registration sends: a degree as text, and a graduation as text or
+    // left out.
+    await assertSucceeds(doc.set(registration("new2", { subject: "Mathematics", expectedGraduation: "2027-06" })));
+    await assertSucceeds((await own("new3")).set(registration("new3", { subject: "Machine learning" })));
+  });
+
+  it("a registration sent a second time is held to text too", async () => {
+    // An account still waiting to be approved is not held to the entry. It
+    // is held to this: what it stores is what an admin reads on its request.
+    await seedUser("retry3", {
+      role: "pending",
+      policyVersion: "v1",
+      policyAgreedAt: new Date("2026-10-01T09:00:00Z"),
+      profile: { preferredName: "N", subject: "Maths", expectedGraduation: "2027-06" },
+    });
+    const doc = await own("retry3");
+    await assertFails(
+      doc.set(registration("retry3", { subject: ["Medicine"], course: "Maths", expectedGraduation: "2027-06" })),
+    );
+    await assertFails(doc.set(registration("retry3", { subject: "Mathematics", expectedGraduation: 2028 })));
+    await assertSucceeds(doc.set(registration("retry3", { subject: "Mathematics", expectedGraduation: "2028-06" })));
+  });
+});
+
+describe("what a degree is, to the rule and to every page", () => {
+  for (const [index, row] of STORED_DEGREES.entries()) {
+    const reads = row.degree === "" ? "no degree" : JSON.stringify(row.degree);
+    it(`${JSON.stringify(row.stored)} holds ${reads}: ${row.why}`, async () => {
+      const uid = `degree${index}`;
+      const document = stored();
+      delete document.profile.subject;
+      Object.assign(document.profile, row.stored);
+      await seedUser(uid, document);
+      const doc = await own(uid);
+
+      // The function every page calls.
+      assert.equal(degreeOf(document.profile), row.degree);
+
+      // The rule. The member types a degree that is certainly another one.
+      const typed = "Something Else Entirely";
+      const bare = { ...alwaysSent(), "profile.subject": typed };
+      const noting = (was) => ({ ...bare, "studyChanges.note1": { at: serverTime(), subject: was } });
+      const { write, study } = formSave(document, { subject: typed });
+      assert.equal(study["profile.subject"], typed);
+
+      if (row.degree === "") {
+        // No answer was there, so nothing changed. An entry is refused,
+        // whatever it says, and the first answer saves without one.
+        await assertFails(doc.update(noting("Mathematics")));
+        await assertFails(doc.update(noting("")));
+        assert.equal(entriesIn(study).length, 0, "the form adds no entry for a first answer");
+        await assertSucceeds(doc.update(write));
+        assert.equal("studyChanges" in (await storedNow(uid)), false);
+      } else {
+        // An answer was there. The change is refused with no entry, and with
+        // an entry that says anything but that answer.
+        await assertFails(doc.update(bare));
+        await assertFails(doc.update(noting(`${row.degree} (not)`)));
+        // The form's own save carries what the function read, and saves.
+        const [key] = entriesIn(study);
+        assert.equal(study[key]?.subject, row.degree, "the form's entry holds what the function read");
+        await assertSucceeds(doc.update(write));
+        const [only] = Object.values((await storedNow(uid)).studyChanges);
+        assert.equal(only.subject, row.degree);
+      }
+    });
+  }
 });
 
 describe("an admin's edit is not the member's change", () => {
