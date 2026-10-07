@@ -549,18 +549,6 @@
   background: var(--color-bg);
 }
 
-.sectionHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-3) var(--space-4);
-}
-
-.sectionHead .field {
-  flex: 1 1 16rem;
-}
-
 .editRows {
   list-style: none;
   margin: 0;
@@ -623,6 +611,123 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
+  /* Each link is a card here (AdminTable's stacking). This table draws its
+     card as a small grid: the address and where it goes across the top, the
+     three numbers side by side with their names over them, then the switch
+     and Copy. The classes are doubled so these win over the shared rules
+     whichever stylesheet loads first. */
+  .row.row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+  .row.row:hover {
+    background: var(--color-surface);
+  }
+  .rowSelected.rowSelected,
+  .rowSelected.rowSelected:hover {
+    border-color: var(--color-accent-line);
+    background: var(--color-accent-soft);
+  }
+  .row.row .addressCell,
+  .row.row .goesCell,
+  .row.row .uncounted {
+    grid-column: 1 / -1;
+    display: block;
+    min-width: 0;
+  }
+  .row.row .goesCell::before {
+    display: block;
+    width: auto;
+    line-height: 1.3;
+    margin-bottom: 0.125rem;
+  }
+  .row.row .number {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.125rem;
+    font-size: var(--text-lg);
+    font-weight: 600;
+  }
+  .row.row .number::before {
+    width: auto;
+    line-height: 1.3;
+  }
+  .row.row .live {
+    grid-column: 1 / span 2;
+    align-items: center;
+  }
+  .row.row .live::before {
+    content: none;
+  }
+  .row.row .copyCell {
+    grid-column: 3;
+    justify-content: flex-end;
+    align-items: center;
+  }
+  .copyCell button {
+    min-height: 2.75rem;
+  }
+  /* The address is the way into the link: give it a finger's height. */
+  .address {
+    min-height: 2.75rem;
+  }
+
+  /* The kind of link is a small heading between cards, not a card. Its own
+     sums are left to the wider table: the line that adds the campaign up
+     follows the cards. */
+  .kindRow.kindRow {
+    margin-bottom: var(--space-2);
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .kindRow.kindRow th {
+    padding: 0;
+    border: 0;
+  }
+  .kindRow.kindRow td {
+    display: none;
+  }
+  .kindBody + .kindBody {
+    margin-top: var(--space-5);
+  }
+
+  /* The campaign added up: one card, its three numbers side by side. */
+  .foot {
+    display: block;
+    margin-top: var(--space-3);
+  }
+  .totalRow.totalRow {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2) var(--space-3);
+    background: var(--color-bg);
+  }
+  .totalRow.totalRow td {
+    border-top: 0;
+  }
+  .totalRow.totalRow .totalLabel {
+    grid-column: 1 / -1;
+  }
+  .totalRow.totalRow .number {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.125rem;
+    font-size: var(--text-lg);
+  }
+  .totalRow.totalRow .number::before {
+    width: auto;
+    line-height: 1.3;
+  }
+
+  .panel {
+    padding: var(--space-4);
+  }
+  .panelActions > * {
+    flex: 1 1 auto;
+  }
+
   .formGrid {
     grid-template-columns: 1fr;
   }

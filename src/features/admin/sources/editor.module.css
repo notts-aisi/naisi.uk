@@ -286,6 +286,11 @@
     width: 100%;
   }
 
+  /* Remove keeps its place at the right of the two arrows. */
+  .rowActions {
+    align-items: center;
+  }
+
   /* Save stays in reach while a long list of sources is being edited. */
   .footer {
     position: sticky;

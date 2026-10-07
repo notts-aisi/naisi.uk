@@ -238,5 +238,26 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  .stats {
+    gap: var(--space-3);
+  }
+  .stat {
+    padding: var(--space-4) var(--space-5);
+  }
+
+  .panel {
+    padding: var(--space-5) var(--space-4);
+  }
+  /* A card's buttons drop under its title and share the line between them. */
+  .panelActions {
+    flex: 1 1 100%;
+  }
+
+  /* An action's button drops under its sentence and takes the card's width. */
+  .actionButtons {
+    flex: 1 1 100%;
+  }
+  .actionButtons > * {
+    flex: 1 1 auto;
+  }
 }

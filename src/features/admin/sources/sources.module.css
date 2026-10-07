@@ -114,4 +114,22 @@
   .createGrid {
     grid-template-columns: 1fr;
   }
+
+  /* Each sheet is a card here (AdminTable's stacking), with its facts
+     labelled under its name. The class is doubled so this wins over the
+     shared rules whichever stylesheet loads first. */
+  .row.row:hover {
+    background: var(--color-surface);
+  }
+  .row.row .titleCell {
+    display: block;
+    min-width: 0;
+  }
+  /* The whole card is the link: the name's own target is stretched over it. */
+  .title::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-lg);
+  }
 }

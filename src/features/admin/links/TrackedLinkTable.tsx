@@ -57,7 +57,7 @@ export function TrackedLinkTable({
 }: Props) {
   const shown = (n: number) => (loadingNumbers ? "…" : n);
   return (
-    <AdminTable caption={caption} minWidth="56rem">
+    <AdminTable caption={caption} minWidth="56rem" stackOnPhone>
       <thead>
         <tr>
           {/* Every column is given its share, so the tables of two campaigns
@@ -113,14 +113,20 @@ export function TrackedLinkTable({
           ))}
         </tbody>
       ))}
-      <tfoot>
+      <tfoot className={styles.foot}>
         <tr className={styles.totalRow}>
           <td colSpan={2} className={styles.totalLabel}>
             {totalLabel}
           </td>
-          <td className={styles.number}>{shown(totals.scans)}</td>
-          <td className={styles.number}>{shown(totals.signupsStarted)}</td>
-          <td className={styles.number}>{shown(totals.signupsConfirmed)}</td>
+          <td data-label="Scans" className={styles.number}>
+            {shown(totals.scans)}
+          </td>
+          <td data-label="Signed up" className={styles.number}>
+            {shown(totals.signupsStarted)}
+          </td>
+          <td data-label="Confirmed" className={styles.number}>
+            {shown(totals.signupsConfirmed)}
+          </td>
           <td colSpan={2} />
         </tr>
       </tfoot>

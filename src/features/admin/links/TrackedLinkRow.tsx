@@ -95,7 +95,7 @@ export function TrackedLinkRow({
         </div>
         {link.label && <span className={styles.what}>{link.label}</span>}
       </td>
-      <td data-label="Goes to">
+      <td data-label="Goes to" className={styles.goesCell}>
         <span
           className={
             link.active ? styles.destination : `${styles.destination} ${styles.destinationOff}`

@@ -181,7 +181,7 @@ export default function SourcesAdminPage() {
       )}
 
       {shown.length > 0 && (
-        <AdminTable caption="Source sheets" minWidth="44rem">
+        <AdminTable caption="Source sheets" minWidth="44rem" stackOnPhone>
           <thead>
             <tr>
               <th scope="col" style={{ width: "46%" }}>
