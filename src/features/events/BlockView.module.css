@@ -1,8 +1,26 @@
+/*
+  BlockView: an organiser's blocks (headings, rich text, pictures, video) as a
+  web page.
+
+  Shared. An event's description, a course page's pitch, a week's guide and a
+  worksheet question's body are all drawn by this. So the size, the line
+  height and the colour of the running text are read from three custom
+  properties, each falling back to what this renderer has always used: a
+  page that wants its own (the event page does) sets them on a wrapper, and
+  the others keep theirs.
+
+  Two things are the same for every page that draws blocks: a link is the
+  accent's text colour, and a long unbroken word wraps.
+*/
+
 .wrap {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  color: var(--color-text);
+  min-width: 0;
+  color: var(--block-text-color, var(--color-text));
+  /* One long word or address wraps. It never pushes the page sideways. */
+  overflow-wrap: anywhere;
 }
 
 .h2 {
@@ -10,6 +28,7 @@
   font-weight: 700;
   margin: var(--space-3) 0 var(--space-1);
   line-height: 1.25;
+  color: var(--color-text);
 }
 
 .h3 {
@@ -17,11 +36,12 @@
   font-weight: 600;
   margin: var(--space-2) 0 var(--space-1);
   line-height: 1.3;
+  color: var(--color-text);
 }
 
 .richText {
-  font-size: var(--text-md, 1rem);
-  line-height: 1.7;
+  font-size: var(--block-text-size, var(--text-md, 1rem));
+  line-height: var(--block-text-leading, 1.7);
 }
 
 .richText :where(p) {
@@ -37,9 +57,16 @@
   margin: var(--space-1) 0;
 }
 
+/* The accent as text: the lighter of the two, which holds its contrast as a
+   link on the page floor and on a card. */
 .richText :where(a) {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.richText :where(a:hover) {
+  color: var(--color-accent-text-hover);
 }
 
 .figure {
@@ -87,4 +114,10 @@
   width: 100%;
   height: 100%;
   border: 0;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* Nothing: the blocks are one column at every width, and their type is
+     the page's to set. */
 }

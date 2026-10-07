@@ -1,0 +1,101 @@
+/*
+  Links that look like buttons, for the public events pages.
+
+  The Button primitive renders a real <button>, and a button inside an anchor
+  is invalid nesting whose tap behaviour is unreliable in iOS Safari, which is
+  most of these pages' traffic. So a link that has to look like a button is
+  an anchor wearing these classes: the recipe of Button's primary and
+  secondary looks, from the same tokens, 44px tall at every width.
+
+  A label may wrap on a narrow screen. A button that will not wrap is the
+  usual way a page ends up scrolling sideways.
+*/
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  padding: 0.5rem 1.125rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--text-ui);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+  text-align: center;
+  text-decoration: none;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* The label is dark on the accent, as on Button. */
+.primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.secondary {
+  background: var(--color-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+.large {
+  min-height: 3.25rem;
+  padding: 0.75rem 1.5rem;
+  font-size: var(--text-base);
+}
+
+/* The quiet way back to the list, above an event. */
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 2.75rem;
+  margin-left: calc(-1 * var(--space-1));
+  padding-right: var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: var(--text-ui);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.back svg {
+  display: block;
+  flex: none;
+}
+
+@media (hover: hover) {
+  .primary:hover {
+    background: var(--color-accent-hover);
+    border-color: var(--color-accent-hover);
+  }
+
+  .secondary:hover {
+    background: var(--color-surface-hover);
+    border-color: var(--color-control-border);
+  }
+
+  .back:hover {
+    color: var(--color-text);
+  }
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* Nothing: every link here is 44px tall at any width and wraps its label. */
+}

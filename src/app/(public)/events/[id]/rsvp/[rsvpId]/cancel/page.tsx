@@ -1,8 +1,8 @@
-import Card from "@/components/ui/Card";
 import SelfCancelForm from "@/features/events/SelfCancelForm";
 import { getEventForPreview } from "@/features/events/fetchEvents";
 import { verifyRsvpToken } from "@/lib/events/rsvpToken";
 import { getAdminDb } from "@/lib/firebase/admin";
+import styles from "@/features/events/RsvpPages.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -25,24 +25,24 @@ export default async function CancelRsvpPage({
   const event = await getEventForPreview(eventId);
 
   const shell = (body: React.ReactNode) => (
-    <section style={{ padding: "var(--space-12) 0" }}>
-      <div className="container" style={{ maxWidth: "34rem" }}>
-        {body}
+    <section className={styles.shell}>
+      <div className="container">
+        <div className={styles.column}>{body}</div>
       </div>
     </section>
   );
 
   if (!event || !rsvpSnap?.exists) {
     return shell(
-      <Card padding="lg">
-        <h2 style={{ fontSize: "var(--text-xl)", margin: "0 0 var(--space-2)" }}>
+      <div className={styles.card}>
+        <h1 className={styles.title}>
           Link no longer valid
-        </h2>
-        <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
+        </h1>
+        <p className={styles.muted}>
           We couldn&apos;t find this RSVP. It may already have been
           cancelled, or the event has been removed.
         </p>
-      </Card>,
+      </div>,
     );
   }
 
@@ -51,28 +51,28 @@ export default async function CancelRsvpPage({
   const ok = token && email && verifyRsvpToken(rsvpId, email, token);
   if (!ok || rsvp.eventId !== eventId) {
     return shell(
-      <Card padding="lg">
-        <h2 style={{ fontSize: "var(--text-xl)", margin: "0 0 var(--space-2)" }}>
+      <div className={styles.card}>
+        <h1 className={styles.title}>
           Link no longer valid
-        </h2>
-        <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
+        </h1>
+        <p className={styles.muted}>
           This cancel link has expired or doesn&apos;t match this event. If you still need to
           cancel, reply to your confirmation email and we&apos;ll sort it out.
         </p>
-      </Card>,
+      </div>,
     );
   }
 
   if (rsvp.status === "cancelled") {
     return shell(
-      <Card padding="lg">
-        <h2 style={{ fontSize: "var(--text-xl)", margin: "0 0 var(--space-2)" }}>
+      <div className={styles.card}>
+        <h1 className={styles.title}>
           Already cancelled
-        </h2>
-        <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
+        </h1>
+        <p className={styles.muted}>
           This RSVP was cancelled already. No action needed.
         </p>
-      </Card>,
+      </div>,
     );
   }
 
