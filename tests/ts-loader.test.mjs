@@ -807,6 +807,13 @@ const USERS = new Map([
       "module rather than by reading its text; nothing is stubbed",
   ],
   [
+    "pwa-display-mode.test.mjs",
+    "it executes `isStandaloneNow` (src/lib/pwa/displayMode.ts) against windows made of plain " +
+      "objects, beside the script StandaloneFlag.tsx puts on every page, because the two are one " +
+      "rule written twice and only running both on the same windows shows they agree; it also " +
+      "runs src/app/manifest.ts for the display mode the rule relies on; nothing is stubbed",
+  ],
+  [
     "slug-id.test.mjs",
     "it executes `slugId`, with the platform's random source replaced, because where the suffix " +
       "comes from and what happens to a byte that would bias it are both about the shipping code; " +

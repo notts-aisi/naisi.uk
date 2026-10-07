@@ -10,7 +10,7 @@ Everything here is progressive enhancement: a browser that ignores every PWA fil
 | --- | --- | --- |
 | Manifest | `src/app/manifest.ts` | Makes the site installable. Served at `/manifest.webmanifest`. This alone is the whole installability feature; nothing else is required by either platform |
 | Icons | `src/app/favicon.ico`, `src/app/icon.svg`, `src/app/apple-icon.png`, `public/icons/` | Made by `npm run brand` from `brand-source/`, never placed by hand; `tests/brand-assets.test.mjs` holds them to the masters. The browser tab (`favicon.ico`, `icon.svg`: a tower cut for 16 pixels) and the home screen (`apple-icon.png`, `icons/icon-192.png`, `icons/icon-512.png`: the whole emblem on its own ground) are different pictures on purpose. Each manifest icon is listed as both plain and maskable, and the test fails if new artwork lets the emblem leave the circle Android crops to |
-| Standalone detection | `src/lib/pwa/displayMode.ts`, `src/hooks/useDisplayMode.ts`, `src/features/pwa/StandaloneFlag.tsx` | Predicates, the React hook, and a pre-paint inline script that stamps `data-standalone` / `data-standalone-ios` on `<html>`. Use the ATTRIBUTES for anything affecting layout (no hydration flash); use the HOOK for behaviour |
+| Standalone detection | `src/lib/pwa/displayMode.ts`, `src/hooks/useDisplayMode.ts`, `src/features/pwa/StandaloneFlag.tsx` | Predicates, the React hook, and a pre-paint inline script that stamps `data-standalone` / `data-standalone-ios` on `<html>`. Use the ATTRIBUTES for anything affecting layout (no hydration flash); use the HOOK for behaviour. What counts as installed is one rule, below |
 | Service worker | `public/sw.js`, registrar in `src/features/pwa/` | Offline fallback page and the `beforeinstallprompt` prerequisite. See below |
 | Session repair | `src/auth/SessionSanityGuard.tsx` | Fixes the cookie-without-client-user state installed apps can land in |
 | Back-gesture dismissal | `src/hooks/useHistoryDismiss.ts` | The system back gesture closes overlays instead of navigating away |
@@ -19,6 +19,21 @@ Everything here is progressive enhancement: a browser that ignores every PWA fil
 | Relaunch restore | `src/features/pwa/lastRoute.ts`, `LastRouteTracker.tsx`, `RelaunchRestore.tsx` | iOS relaunches killed apps at start_url; this returns signed-in members to their last authed route. Android is handled by the manifest's `launch_handler` instead. The tracker's placement in the (app) layout is what scopes recording to signed-in members |
 | Google sign-in | `GoogleSignInButton.tsx`, `/api/auth/google/callback` | Popup in every browser tab, redirect ONLY when installed (the one context that cannot popup). The gate was briefly "all mobile" and real devices argued it back down; the reasoning is in the button |
 | Back gesture | `src/hooks/useHistoryDismiss.ts` | Closes overlays instead of navigating. Dismissals must go THROUGH the returned dismiss(); the hook never unwinds on close, because a close during navigation cannot be told apart and an unwind there cancels the navigation. That bug shipped for a few hours; the docblock has the full story |
+
+## What counts as installed
+
+One rule, on `isStandaloneNow` in `src/lib/pwa/displayMode.ts`, asked in this order:
+
+1. The browser says so outright: the `standalone` display mode, which is what the manifest asks for, or the `navigator.standalone` flag iOS sets on a home-screen web app. Installed.
+2. The window is in full screen. That says nothing by itself. Chrome and the browsers built on it report the `fullscreen` display mode for every window put into full screen, an ordinary browser window as much as an installed app's. So full screen does not change what a window is: it is installed when it was installed the last time it was seen out of full screen, and a window first seen in full screen is a browser's. What it was is kept in the window's own session storage (`naisi.pwa.installed`), which lasts exactly as long as the window does.
+3. Anything else is a browser window.
+
+A browser window is therefore never taken for the app, in full screen or out of it: it gets Google's own sign-in button (pop-up mode), no session repair, no relaunch restore and none of the installed layout.
+
+Two things to keep when changing any of this:
+
+- The rule is written twice: in `isStandaloneNow`, and by hand in the script `StandaloneFlag.tsx` puts on every page, which has to run before any module does. `tests/pwa-display-mode.test.mjs` runs the two over the same windows, one after the other, and fails when they disagree. It also lists every file that asks the question, so a new one has to be written down with what it does with the answer.
+- Step 2 relies on nothing STARTING in full screen. That holds while the manifest's `display` is `standalone` and no app wraps the site (a wrapper may launch in `fullscreen`). The same test fails if either changes, because the rule would have to change with it.
 
 ## The service worker contract
 
@@ -108,3 +123,5 @@ Every link in every email this site sends opens in the default browser, not the 
 ## Device checklist
 
 Run on a real iPhone and a real Android handset against dev.naisi.uk before any dev to main promotion. Install, then: icon and splash correct; launches full-screen with an opaque status bar; sign in (email+password, and Google once redirect mode lands); an event RSVP page reads correctly with no browser chrome; Add to calendar produces the calendar sheet; one admin CSV export saves; a reading-list link, a task attachment and the Google Calendar link all return cleanly to the app; the keyboard does not occlude the focused field on /login, /register and a task comment box; a view-as session can be exited and re-entered; background the app for 1/5/30 minutes and overnight and note where it relaunches; airplane mode then navigate shows the offline page and recovery on reconnect is instant; the back gesture closes an open drawer, modal and bottom sheet on Android.
+
+On a laptop, two more, because full screen is where the installed app and a browser window are easiest to confuse: in a browser window put into full screen, the sign-in page and an application form's "Make your account" view both show Google's own button and sign in through its pop-up; and in the app installed from Chrome, with its own window put into full screen, pressing Google on the sign-in page still leaves for Google's page in the same window, as it does out of full screen.
