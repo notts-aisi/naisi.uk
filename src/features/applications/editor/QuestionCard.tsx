@@ -10,6 +10,7 @@ import {
   type QuestionType,
 } from "@/lib/applications/model";
 import { QUESTION_TYPE_LABEL, questionChips } from "@/lib/applications/editor/sets";
+import { LINKS_HINT } from "@/lib/applications/linkedText";
 import { Chip, MoreMenu, Tick } from "./controls";
 import { CloseIcon, GripIcon, PlusIcon } from "./Icons";
 import { takesOptions, takesWordLimit, type LocalQuestion } from "./questionModel";
@@ -179,8 +180,12 @@ function QuestionFields({
           placeholder="Shown under the question"
           value={question.help}
           maxLength={L.questionHelp}
+          aria-describedby={`${ids}-help-links`}
           onChange={(event) => onChange({ help: event.target.value })}
         />
+        <p id={`${ids}-help-links`} className={shared.hint}>
+          {LINKS_HINT}
+        </p>
       </div>
 
       <div className={styles.questionRow}>

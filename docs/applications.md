@@ -426,6 +426,68 @@ says anything, because a term that was called off promises no decision day.
   programme when it starts as its lead wrote it and the run it places people
   on. Not the form's label, and not a programme's name, places or people.
 
+## What the form asks
+
+### A help line can carry a link
+
+A question's help line is plain text. An author types it, and an applicant
+reads it under the question. Two shapes in it are drawn as a link, and
+nothing else in it is ever markup:
+
+- an address that begins `https://`, written out where it stands;
+- `[words](https://address)`, which shows the words.
+
+**One function and one component.** `linkedParts()` in `linkedText.ts` splits
+a line into the parts that are text and the parts that are links.
+`LinkedText` (`src/features/applications/kit/LinkedText.tsx`) draws them: a
+text part as a text node and a link part as an anchor that opens in a new
+tab with `rel="noopener noreferrer"`. Nothing is set as HTML. What a reader
+sees is the words, or the address itself.
+
+**Only `https:`.** Every other way of writing an address stays text exactly
+as it was typed: `http:`, `javascript:`, `data:`, `mailto:`, an address with
+no scheme, a path on this site. The scheme is read whatever its letter case.
+
+**An address is on a named site, in plain characters.** Letters, digits,
+hyphens and dots, ending in a name, with nothing before it: no name and
+password, no number written as a site, and no character that only looks like
+a letter. An address that fails this is not cut down to the part that
+passes. The whole of it stays text, so no link goes anywhere but the address
+a reader was shown.
+
+**Where a bare address starts and stops.** It starts at the beginning of the
+line, or after white space or an opening bracket or quote mark. It stops at
+white space, a control character, a square bracket, `<`, `>` or `"`. A full
+stop or a comma at its end belongs to the sentence, and so does a closing
+bracket the address did not open.
+
+**The words of a link are words.** `[words](address)` is a link only when
+the words say something, carry no control or hidden direction character, and
+name no site of their own other than the one the link goes to. Words that
+read `example.org` over an address somewhere else are left as text, and each
+address there that can stand by itself is linked to itself.
+
+**The limit counts what was typed.** A help line is at most
+`APPLICATION_LIMITS.questionHelp` characters, brackets and address included.
+
+**Where a help line is drawn.**
+
+| Where | How | Why |
+| --- | --- | --- |
+| The applicant's form, under each question | through `LinkedText` | it is where the line is read and followed |
+| "Preview as an applicant", from the editor | through `LinkedText` | it is the form itself, in a new tab |
+| The editor's own Help text box | as typed, in the box | it is where the line is written. One sentence under the box says what becomes a link (`LINKS_HINT`), and a test runs that sentence's example through the function |
+| The review screen | not drawn | reviewers are shown the question and the answer, not the help line |
+| An applicant's page after sending | not drawn | it lists no questions |
+
+`tests/applications-linked-text.test.mjs` runs the function against a table
+of hostile input, renders the component and the form's own step over the
+same table, and reads every `href` under the form's folders out of the
+source. An address written out in full, or built on a fixed path of this
+site, is what it says. Every other is on a list in that test with what it is
+built from, and one entry there is made from what an author typed: the
+component's.
+
 ## Scores
 
 Scoring is per answer, 1 to 5, and optional per programme (`useScores`). Only a
@@ -901,6 +963,7 @@ All in `src/lib/applications/`.
 | `scoring.ts` | Scored questions, section scores, first-review blindness | anywhere |
 | `decisions.ts` | Placement, outcomes, who is in the term, who holds a place, tallies, readiness, recommendations | anywhere |
 | `words.ts` | Labels, ordinals, the words applicants never see | anywhere |
+| `linkedText.ts` | Which parts of an author's line are links: `linkedParts()`, and the sentence the editor shows about it | anywhere |
 | `access.ts` | Staff predicates | server |
 | `roles.ts` | `setProgrammeRoles`, the one writer of leads and reviewers | server |
 | `repo.ts` | The form, its sets, the caller's own application | server, applicant-safe |
@@ -955,6 +1018,12 @@ All in `src/lib/applications/`.
   `tests/applications-su-membership-answer.test.mjs` only once both of those
   still hold, and the privacy page's own list
   (`tests/privacy-policy.test.mjs`) with it.
+- **Stored text becomes an address in one place.** A line an author wrote is
+  drawn with its links through `LinkedText`, and nothing else under the
+  form's folders makes an `href` out of text an author or an applicant
+  typed. A new `href` that is not written out in full is added to the list
+  in `tests/applications-linked-text.test.mjs` with what it is built from.
+  Nothing there is set as HTML.
 - **No query that sorts or ranges on the server.** Every read here is one or
   two equalities, which need no composite index. A term is a few hundred
   documents: filter and sort in memory.

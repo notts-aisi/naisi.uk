@@ -557,6 +557,13 @@ const USERS = new Map([
       "term page and the route that adds a programme have to stop on the same answer",
   ],
   [
+    "applications-linked-text.test.mjs",
+    "executes the function that says which parts of an author's line are links against a table " +
+      "of hostile input, and renders the component that draws them and the form's own question " +
+      "step over the same table, which are .tsx and need the JSX option this loader sets, " +
+      "because what becomes an address somebody can press is decided by the code that runs",
+  ],
+  [
     "applications-own-keys.test.mjs",
     "executes every exported function of every module under src/lib/applications against " +
       "each name Object.prototype carries, with the real eligibility bar and the real roles " +

@@ -561,6 +561,12 @@ const CONTRACT = {
     isQuestionKey: (name) => assert.equal(keys.isQuestionKey(`${name}.q`), false),
     own: (name) => assert.equal(keys.own({}, name), undefined),
   },
+  "linkedText.ts": {
+    httpsHref:
+      "reads one string it is handed, a character at a time, and asks the platform's parser " +
+      "about it; reads no map by an id",
+    linkedParts: "splits one string it is handed into text and links; reads no map by an id",
+  },
   "model.ts": {
     questionKey: "builds a string from two ids and reads nothing",
     applicationId: "builds a document id from a round id and a uid and reads nothing",
