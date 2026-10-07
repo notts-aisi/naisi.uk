@@ -164,9 +164,11 @@ const { DEFAULT_COURSES_CONFIG, readCoursesConfig } = await loadTs(
 );
 
 const {
+  COURSE_AUDIT_KINDS,
   COURSE_AUDIT_KIND_LABEL,
   UNKNOWN_COURSE_AUDIT_LABEL,
   courseAuditKindLabel,
+  isCourseAuditKind,
   normalizeCourseAudit,
 } = await loadTs("lib/firestore/courseAudit.ts");
 
@@ -638,6 +640,56 @@ test("GUARD §7.1 an unrecognised audit kind is kept verbatim, not degraded", ()
   assert.equal(missing.kind, "");
   assert.equal(missing.kindKnown, false);
   assert.equal(courseAuditKindLabel(missing.kind), UNKNOWN_COURSE_AUDIT_LABEL);
+});
+
+test("GUARD §7.2 the list of kinds and the labels are the same set", () => {
+  // The compiler holds the label record to the union. Nothing holds the LIST
+  // to it, and the list is what `isCourseAuditKind` reads: a kind with a label
+  // and no place in the list would be written by a route, stored correctly,
+  // and then rendered as "Unrecognised action" for ever.
+  assert.deepEqual([...COURSE_AUDIT_KINDS].sort(), Object.keys(COURSE_AUDIT_KIND_LABEL).sort());
+  assert.equal(new Set(COURSE_AUDIT_KINDS).size, COURSE_AUDIT_KINDS.length, "a kind is listed twice");
+  for (const kind of COURSE_AUDIT_KINDS) {
+    assert.ok(COURSE_AUDIT_KIND_LABEL[kind].trim().length > 0, `${kind} has no label`);
+    assert.notEqual(COURSE_AUDIT_KIND_LABEL[kind], UNKNOWN_COURSE_AUDIT_LABEL);
+  }
+});
+
+test("GUARD §7.3 the application form's five actions are known, and keyed to the form", () => {
+  // These are the rows an application form's routes write: a decision on an
+  // application, an acceptance taken back, the outcome picked for a pooled
+  // applicant, a placement exception, and the decision-day send. A route that
+  // writes one under a name this list does not carry gets a row nobody can
+  // label, so the names are pinned where the routes can be held to them.
+  for (const kind of [
+    "application-decision",
+    "application-decision-revoked",
+    "application-pooled-outcome",
+    "application-exception",
+    "application-decisions-sent",
+  ]) {
+    assert.ok(isCourseAuditKind(kind), `${kind} is not a known audit kind`);
+    assert.equal(courseAuditKindLabel(kind), COURSE_AUDIT_KIND_LABEL[kind]);
+  }
+
+  // They are about a form rather than a run, so the row carries the form's id
+  // in `roundId` and an empty `runId`. `roundId` is the field the round
+  // destroy drains on, so a row that left it out would outlive the
+  // applications it describes.
+  const row = normalizeCourseAudit("a4", {
+    kind: "application-decision",
+    runId: "",
+    roundId: "autumn-2026__k3f9a2b1",
+    subjectUid: "applicant",
+    actorUid: "lead",
+  });
+  assert.equal(row.kindKnown, true);
+  assert.equal(row.runId, "");
+  assert.equal(row.roundId, "autumn-2026__k3f9a2b1");
+
+  // And a row about a run says nothing about a round, rather than "".
+  assert.equal(normalizeCourseAudit("a5", { kind: "run-settled", runId: "run1" }).roundId, null);
+  assert.equal(normalizeCourseAudit("a6", { kind: "run-settled", roundId: 7 }).roundId, null);
 });
 
 // ===========================================================================
