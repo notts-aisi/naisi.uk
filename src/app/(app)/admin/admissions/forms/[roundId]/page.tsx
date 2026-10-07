@@ -8,14 +8,16 @@ import shared from "@/features/applications/editor/editor.module.css";
 import styles from "@/features/applications/editor/FormHome.module.css";
 import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
 import kit from "@/features/applications/kit/kit.module.css";
+import { AlsoThisTerm, NeedsYou } from "@/features/applications/lifecycle/TermHome";
 import { TermState } from "@/features/applications/lifecycle/TermState";
-import { loadFormForStaff, loadTermTally } from "@/lib/applications/editor/load";
+import { loadFormForStaff } from "@/lib/applications/editor/load";
 import { applicationFormPath } from "@/lib/applications/editor/olderRounds";
 import { projectFormForStaff, type FormStaffView } from "@/lib/applications/editor/views";
-import type { ProgrammeTally } from "@/lib/applications/decisions";
 import { own } from "@/lib/applications/keys";
 import { loadReadiness } from "@/lib/applications/lifecycle/load";
+import { loadTermNumbers } from "@/lib/applications/lifecycle/loadTermHome";
 import type { TermSteps as TermStepStates } from "@/lib/applications/lifecycle/status";
+import { buildTermHome, type ProgrammeCounts as Counts } from "@/lib/applications/lifecycle/termHome";
 import {
   buildLifecycleView,
   wantsReadiness,
@@ -34,6 +36,13 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * their role: an admin sees every programme's counts, and a lead or a
  * reviewer sees the counts of the programmes they are on and only the name
  * and lead of the others.
+ *
+ * This is also where the other screens are reached from. "Needs you" has a
+ * row for each programme with applications waiting for the person looking,
+ * and for an admin the pooled applicants who need an outcome and the line
+ * about decision day; "Also this term" leads to the pooled applicants. Every
+ * number is the one the screen behind its link works out (`loadTermNumbers`),
+ * so a button that says 23 opens a list of 23.
  *
  * The two things an admin starts from here are the application form and a new
  * programme. Neither is offered to anybody else, and both routes refuse
@@ -57,8 +66,8 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
   const { now } = loaded.context;
   // The list of what is left is only worked out for somebody who can act on
   // it, at a moment the form could be opened.
-  const [tally, readiness] = await Promise.all([
-    loadTermTally(db, loaded.form),
+  const [numbers, readiness] = await Promise.all([
+    loadTermNumbers(db, user, loaded.form),
     wantsReadiness(loaded.form, form.canRunTerm, now) ? loadReadiness(db, loaded.form, now) : null,
   ]);
   const lifecycle = buildLifecycleView({
@@ -68,6 +77,15 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
     sent: form.sent,
     home,
     now,
+  });
+  const termHome = buildTermHome({
+    stage: lifecycle.stage,
+    canRunTerm: form.canRunTerm,
+    home,
+    decisionsDay: form.decisions?.day ?? null,
+    programmes: form.programmes,
+    work: numbers.work,
+    pool: numbers.pool,
   });
   const order = form.programmes.map((programme) => programme.id);
 
@@ -102,6 +120,7 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
 
       <TermSteps form={form} states={lifecycle.steps} />
       <TermState roundId={form.id} lifecycle={lifecycle} />
+      {termHome.needsYou && <NeedsYou needsYou={termHome.needsYou} />}
 
       {form.programmes.length === 0 ? (
         <section className={`${shared.card} ${shared.empty}`}>
@@ -115,7 +134,8 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
       ) : (
         <div className={styles.grid}>
           {form.programmes.map((programme) => {
-            const counts = programme.role ? own(tally.programmes, programme.id) : undefined;
+            // Present only for a programme this person has a role on.
+            const card = programme.role ? own(termHome.cards, programme.id) : undefined;
             const base = `${home}/programmes/${programme.id}`;
             return (
               <section key={programme.id} className={styles.programme} aria-label={programme.name}>
@@ -138,10 +158,10 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
                   )}
                 </div>
                 <hr className={styles.rule} />
-                {counts ? (
+                {card ? (
                   <>
-                    <ProgrammeCounts counts={counts} />
-                    <PlacesBar accepted={counts.accepted} places={programme.places} />
+                    <ProgrammeCounts counts={card.counts} />
+                    <PlacesBar accepted={card.counts.accepted} places={programme.places} />
                   </>
                 ) : (
                   <p className={styles.programmeNote}>
@@ -153,8 +173,8 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
                 )}
                 {programme.role && (
                   <div className={styles.programmeFoot}>
-                    <Link href={`${base}/applications`} className={shared.btn}>
-                      <span>See applications</span>
+                    <Link href={card?.action.href ?? `${base}/applications`} className={shared.btn}>
+                      <span>{card?.action.label ?? "See applications"}</span>
                       <ArrowRightIcon />
                     </Link>
                     {programme.role !== "reviewer" && (
@@ -177,6 +197,8 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
           })}
         </div>
       )}
+
+      {termHome.pooled && <AlsoThisTerm pooled={termHome.pooled} />}
     </ApplicationsRoot>
   );
 }
@@ -232,7 +254,7 @@ function TermSteps({ form, states }: { form: FormStaffView; states: TermStepStat
   );
 }
 
-function ProgrammeCounts({ counts }: { counts: ProgrammeTally }) {
+function ProgrammeCounts({ counts }: { counts: Counts }) {
   const rows: [string, number][] = [
     [PROGRAMME_STANDING_LABEL["to-review"], counts.toReview],
     [PROGRAMME_STANDING_LABEL.accepted, counts.accepted],
@@ -249,7 +271,7 @@ function ProgrammeCounts({ counts }: { counts: ProgrammeTally }) {
       ))}
       <li className={`${styles.count} ${styles.countTotal}`}>
         <span>Applications</span>
-        <strong>{counts.applications}</strong>
+        <strong>{counts.all}</strong>
       </li>
     </ul>
   );
