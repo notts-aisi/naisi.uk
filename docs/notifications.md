@@ -611,6 +611,19 @@ a fifth row cannot appear in the model and be missing from the page.
   un-awaited `POST /api/subscriptions/sync`); the push cells save themselves on
   toggle through a LEAF write at `profile.notifications.push`. Flipping a
   notification must not write somebody's half-typed preferred name.
+- **The Save button carries the member's own details too**, in the same
+  write: the name, the university email, and the degree and the graduation,
+  each of those two only when it changed. A change of either from one answer
+  to another also adds one entry to `studyChanges` on the member's document,
+  holding what the answer was and the server's time, so an admin can read the
+  earlier answer on that person's page (`/admin/members/[uid]`, and nowhere
+  else). The users rule refuses a member's own write that changes either
+  field without its entry, or that removes or rewrites an earlier one, so
+  that part of the write is built in one function,
+  `src/features/profile/studyChange.ts`, which the rules suite runs
+  (`scripts/rules-tests/tests/users-profile-self-edit.test.mjs`). The push
+  leaf write names neither field and is untouched by any of this. An admin's
+  edit of somebody's profile is not the member's change and adds no entry.
 - **The dirty flag** is what makes those two coexist. A push leaf write changes
   `users/{uid}`, the form's own snapshot listener fires with it, and refilling
   every field on each snapshot would throw away an unsaved edit. A one-shot
