@@ -248,6 +248,16 @@ screens could come to say one thing while the person holds another. After
 that, a place changes hands only when its holder gives it back (see
 "Replies").
 
+### Once the term has been sent
+
+A form takes applications when its status is `open` and the clock is inside
+its dates, and nothing moves the status when the close passes. So there are
+two ways to take applications again, and once every decision is out
+(`decisionsSentAt`) both are refused: the status route will not reopen the
+form, and the form's editor will not move when applications open or close
+(`changeForm` in `editor/write.ts`), because on a form still marked `open` a
+later close would take applications again at once.
+
 ### Accepting somebody approves an account that is still waiting
 
 A person can apply before their join request has been looked at. When they

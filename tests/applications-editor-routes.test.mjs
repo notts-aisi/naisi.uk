@@ -940,6 +940,85 @@ describe("the form's own fields", () => {
     assert.equal(ok.body.form.closes.dayAndTime, "Sun 13 Dec, 23:59");
   });
 
+  describe("once decisions have been sent, when applications open and close is fixed", () => {
+    // The form as decision day leaves it: still marked open, its close in the
+    // past, every decision sent. Nothing moves the status when the close
+    // passes, so the dates are all that keeps it from taking applications.
+    const SENT = { status: "open", decisionsSentAt: new Date("2026-10-23T09:00:00Z"), decisionsSentByUid: "zach" };
+    const SENTENCE = "Decisions for this term have been sent, so when applications open and close can no longer change.";
+    const sentForm = () => {
+      db = makeDb(seed({ round: SENT }));
+      globalThis.__editor.db = db;
+    };
+    // A close four days on, and still before the day everybody hears: nothing
+    // about the dates themselves is wrong with it.
+    const later = { date: "2026-10-22", time: "23:59" };
+
+    test("the close cannot be moved, and nothing is written", async () => {
+      sentForm();
+      const before = JSON.stringify(stored());
+      const response = await patch({ closes: later });
+      assert.deepEqual([response.status, response.body.error], [409, SENTENCE]);
+      assert.equal(JSON.stringify(stored()), before);
+      assert.deepEqual(db.stats.writes, []);
+    });
+
+    test("nor the opening, nor either of them cleared", async () => {
+      for (const body of [
+        { opens: { date: "2026-10-01", time: "09:00" } },
+        { opens: null },
+        { closes: null },
+        { opens: { date: "2026-10-06", time: "09:00" }, closes: later },
+      ]) {
+        sentForm();
+        const response = await patch(body);
+        assert.deepEqual([response.status, response.body.error], [409, SENTENCE], JSON.stringify(body));
+        assert.deepEqual(db.stats.writes, [], JSON.stringify(body));
+      }
+    });
+
+    test("a save that sends the same dates back still changes what else it carries", async () => {
+      sentForm();
+      // The dates dialog sends all four every time. The first two are as stored.
+      const response = await patch({
+        opens: { date: "2026-10-06", time: "09:00" },
+        closes: { date: "2026-10-18", time: "23:59" },
+        decisions: "2026-10-23",
+        replyBy: "2026-10-26",
+        label: "Autumn 2026, sent",
+      });
+      assert.equal(response.status, 200);
+      assert.equal(stored().label, "Autumn 2026, sent");
+      assert.equal(stored().invitationReplyBy, "2026-10-26");
+      assert.equal(stored().closesAt.toISOString(), "2026-10-18T22:59:00.000Z");
+    });
+
+    test("a refused change of date takes nothing else in the same save with it", async () => {
+      sentForm();
+      const response = await patch({ closes: later, label: "Changed anyway" });
+      assert.equal(response.status, 409);
+      assert.equal(stored().label, "Autumn 2026");
+    });
+
+    test("until then the close can move, which is how a deadline is extended", async () => {
+      db = makeDb(seed({ round: { status: "open" } }));
+      globalThis.__editor.db = db;
+      const response = await patch({ closes: later });
+      assert.equal(response.status, 200);
+      assert.equal(stored().closesAt.toISOString(), "2026-10-22T22:59:00.000Z");
+    });
+
+    test("the stamp is read inside the transaction, so a send that finishes mid-request wins", async () => {
+      db = makeDb(seed({ round: { status: "open" } }));
+      globalThis.__editor.db = db;
+      // Decision day stamps the form after this request has read it and before it commits.
+      db.beforeCommit = () => db.poke(ROUND_PATH, SENT);
+      const response = await patch({ closes: later });
+      assert.deepEqual([response.status, response.body.error], [409, SENTENCE]);
+      assert.equal(stored().closesAt.toISOString(), "2026-10-18T22:59:00.000Z");
+    });
+  });
+
   test("the name changes, and the slug follows it while the form is a draft", async () => {
     await patch({ label: "Autumn term 2026" });
     assert.deepEqual([stored().label, stored().slug], ["Autumn term 2026", "autumn-term-2026"]);
