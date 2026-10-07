@@ -54,6 +54,15 @@ import styles from "./availability.module.css";
  * screen reader. Each block is also a button: Enter on it opens that list at
  * its entry, and Delete clears it.
  *
+ * ## Nothing moves the week
+ *
+ * The link and its panel sit UNDER the week, because the list in the panel
+ * grows by a row with every time added and whatever sits above the week
+ * pushes it down the page. The rule a change here has to keep: nothing above
+ * the week comes, goes or changes height. The line that says what was just
+ * done (with Undo) is drawn in a box that is always on the page, above the
+ * week or in the panel, whichever the change was made from.
+ *
  * ## Shape
  *
  * State is seven columns of booleans (`DayColumns`, the older form's model).
@@ -68,6 +77,16 @@ type Pending = {
   /** True paints, false clears. */
   paints: boolean;
 };
+
+/** The times as they were before the last change, and whether it was made in the typed panel. */
+type Undo = { columns: DayColumns; typed: boolean };
+
+/**
+ * Where the keyboard goes once the typed panel is on the page: to one time's
+ * Remove button (`run` is that time's key), or with no run to the first field.
+ * A new object for every ask, so asking for the same time twice is two asks.
+ */
+type PanelFocus = { run: string | null };
 
 type Drag = {
   pointerId: number;
@@ -121,8 +140,8 @@ export default function AvailabilityStep({
   const [toText, setToText] = useState("");
   const [typedError, setTypedError] = useState<string | null>(null);
   const [said, setSaid] = useState("");
-  const [undo, setUndo] = useState<DayColumns | null>(null);
-  const [focusRun, setFocusRun] = useState<string | null>(null);
+  const [undo, setUndo] = useState<Undo | null>(null);
+  const [panelFocus, setPanelFocus] = useState<PanelFocus | null>(null);
 
   const panelId = useId();
   const dayId = useId();
@@ -247,20 +266,27 @@ export default function AvailabilityStep({
   function openRun(day: number, run: Run) {
     setTyping(true);
     setTypedDay(day);
-    setFocusRun(runKey(day, run));
+    setPanelFocus({ run: runKey(day, run) });
   }
 
-  // Once the list is on the page, move to the entry that was asked for.
+  // Once the panel is on the page, move the keyboard into it and bring it into
+  // view: to the entry that was asked for, or to the first field. The panel
+  // sits under the week, so it is often off the screen when it opens.
   useEffect(() => {
-    if (!typing || !focusRun) return;
-    const target = panelRef.current?.querySelector<HTMLElement>(`[data-run="${focusRun}"]`);
-    target?.focus();
-    target?.scrollIntoView({ block: "nearest" });
-  }, [typing, focusRun]);
+    const panel = panelRef.current;
+    if (!panelFocus || !panel) return;
+    const entry = panelFocus.run ? panel.querySelector<HTMLElement>(`[data-run="${panelFocus.run}"]`) : null;
+    const target = entry ?? panel.querySelector<HTMLElement>("select, input, button");
+    // The scroll is made here and not by the focus, so that it can glide, and
+    // so that it does not for somebody who has asked for less motion.
+    target?.focus({ preventScroll: true });
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    (entry ?? panel).scrollIntoView({ block: "nearest", behavior: still ? "instant" : "smooth" });
+  }, [panelFocus]);
 
-  function apply(next: DayColumns, message: string, keepUndo = true) {
+  function apply(next: DayColumns, message: string, typed = false) {
     if (next === columns) return;
-    setUndo(keepUndo ? columns : null);
+    setUndo({ columns, typed });
     onChange(next);
     setSaid(message);
   }
@@ -279,16 +305,41 @@ export default function AvailabilityStep({
     const next = paintRun(columns, typedDay, run);
     if (next === columns) {
       setSaid(`${DAY_LONG[typedDay]}, ${runLabel(run, grid)} was already painted.`);
+      // Said beside the fields it was typed in, when a line is showing at all.
+      setUndo((kept) => (kept ? { ...kept, typed: true } : kept));
       return;
     }
-    apply(next, `Added ${DAY_LONG[typedDay]}, ${runLabel(run, grid)}.`);
+    apply(next, `Added ${DAY_LONG[typedDay]}, ${runLabel(run, grid)}.`, true);
   }
 
   const listed = DISPLAY_DAYS.flatMap((day) => runsOf(columns[day]).map((run) => ({ day, run })));
 
+  // What was just done, and the way back. One line, drawn in one of two boxes
+  // that are both always on the page: the panel's while the panel is open and
+  // the change was made in it, otherwise the one above the week.
+  const undoInPanel = undo !== null && undo.typed && typing;
+  const saidLine = undo ? (
+    <>
+      <span aria-hidden="true" className={styles.saidText}>
+        {said}
+      </span>
+      <button
+        type="button"
+        className={`${form.textLink} ${styles.undo}`}
+        onClick={() => {
+          onChange(undo.columns);
+          setUndo(null);
+          setSaid("Put back.");
+        }}
+      >
+        Undo
+      </button>
+    </>
+  ) : null;
+
   return (
     <div className={`${form.body} ${form.bodyWide} ${styles.when}`}>
-      <div className={styles.bar}>
+      <div className={styles.top}>
         <p role="status" className={styles.total}>
           {total ? (
             <>
@@ -298,174 +349,51 @@ export default function AvailabilityStep({
             "No time painted yet"
           )}
         </p>
-        <button
-          type="button"
-          className={`${form.textLink} ${styles.typeLink}`}
-          aria-expanded={typing}
-          aria-controls={panelId}
-          onClick={() => {
-            setTyping((open) => !open);
-            setTypedDay(activeDay);
-            setFocusRun(null);
-          }}
-        >
-          Add times by typing instead
-        </button>
-      </div>
 
-      {typing ? (
-        <div id={panelId} ref={panelRef} className={styles.typed} role="group" aria-label="Add times by typing">
-          <div className={styles.typedRow}>
-            <div className={styles.typedField}>
-              <label htmlFor={dayId} className={form.label}>
-                Day
-              </label>
-              <Select
-                id={dayId}
-                className={form.select}
-                value={String(typedDay)}
-                onChange={(event) => setTypedDay(Number(event.currentTarget.value))}
-              >
-                {DISPLAY_DAYS.map((day) => (
-                  <option key={day} value={day}>
-                    {DAY_LONG[day]}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className={styles.typedField}>
-              <label htmlFor={fromId} className={form.label}>
-                From
-              </label>
-              <input
-                id={fromId}
-                type="text"
-                className={form.input}
-                value={fromText}
-                onChange={(event) => setFromText(event.currentTarget.value)}
-                placeholder="6pm"
-                maxLength={12}
-                autoComplete="off"
-                aria-invalid={typedError ? true : undefined}
-                aria-describedby={typedError ? `${panelId}-e` : undefined}
-              />
-            </div>
-            <div className={styles.typedField}>
-              <label htmlFor={toId} className={form.label}>
-                To
-              </label>
-              <input
-                id={toId}
-                type="text"
-                className={form.input}
-                value={toText}
-                onChange={(event) => setToText(event.currentTarget.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    addTyped();
-                  }
-                }}
-                placeholder="9pm"
-                maxLength={12}
-                autoComplete="off"
-                aria-invalid={typedError ? true : undefined}
-                aria-describedby={typedError ? `${panelId}-e` : undefined}
-              />
-            </div>
-            <button type="button" className={`${form.secondary} ${styles.typedAdd}`} onClick={addTyped}>
-              Add time
+        <div role="group" aria-label="Day" className={styles.days}>
+          {DISPLAY_DAYS.map((day) => (
+            <button
+              key={day}
+              type="button"
+              className={styles.day}
+              aria-pressed={day === activeDay}
+              aria-label={dayChipLabel(columns, day, grid)}
+              onClick={() => {
+                setActiveDay(day);
+                setTypedDay(day);
+              }}
+            >
+              <span>{DAY_SHORT[day]}</span>
+              <span aria-hidden="true" className={styles.dot} data-on={paintedSlots(columns[day]) > 0 ? "true" : "false"} />
             </button>
-          </div>
-          {typedError ? (
-            <p id={`${panelId}-e`} className={form.error} role="alert">
-              {typedError}
-            </p>
-          ) : null}
-          {listed.length > 0 ? (
-            <ul className={styles.typedList} aria-label="Your times">
-              {listed.map(({ day, run }) => (
-                <li key={runKey(day, run)} className={styles.typedItem}>
-                  <span>
-                    {DAY_SHORT[day]} {runLabel(run, grid)}
-                  </span>
-                  <button
-                    type="button"
-                    className={`${form.ghost} ${styles.remove}`}
-                    data-run={runKey(day, run)}
-                    aria-label={`Remove ${DAY_LONG[day]} ${runLabel(run, grid)}`}
-                    onClick={() =>
-                      apply(clearRun(columns, day, run), `Removed ${DAY_LONG[day]}, ${runLabel(run, grid)}.`)
-                    }
-                  >
-                    Remove
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
+          ))}
         </div>
-      ) : null}
 
-      <div role="group" aria-label="Day" className={styles.days}>
-        {DISPLAY_DAYS.map((day) => (
+        <div className={styles.actions}>
           <button
-            key={day}
             type="button"
-            className={styles.day}
-            aria-pressed={day === activeDay}
-            aria-label={dayChipLabel(columns, day, grid)}
-            onClick={() => {
-              setActiveDay(day);
-              setTypedDay(day);
-            }}
+            className={form.secondary}
+            onClick={() =>
+              apply(copyToWeekdays(columns, activeDay), `Copied ${DAY_LONG[activeDay]} to every weekday.`)
+            }
           >
-            <span>{DAY_SHORT[day]}</span>
-            <span aria-hidden="true" className={styles.dot} data-on={paintedSlots(columns[day]) > 0 ? "true" : "false"} />
+            Copy to every weekday
           </button>
-        ))}
-      </div>
+          <button
+            type="button"
+            className={form.ghost}
+            onClick={() => apply(clearDay(columns, activeDay), `Cleared ${DAY_LONG[activeDay]}.`)}
+          >
+            Clear this day
+          </button>
+        </div>
 
-      <div className={styles.actions}>
-        <button
-          type="button"
-          className={form.secondary}
-          onClick={() =>
-            apply(copyToWeekdays(columns, activeDay), `Copied ${DAY_LONG[activeDay]} to every weekday.`)
-          }
-        >
-          Copy to every weekday
-        </button>
-        <button
-          type="button"
-          className={form.ghost}
-          onClick={() => apply(clearDay(columns, activeDay), `Cleared ${DAY_LONG[activeDay]}.`)}
-        >
-          Clear this day
-        </button>
+        <div className={styles.said}>{undoInPanel ? null : saidLine}</div>
       </div>
 
       <p role="status" aria-live="polite" className="visually-hidden">
         {said}
       </p>
-      {undo ? (
-        <div className={styles.said}>
-          <span aria-hidden="true" className={styles.saidText}>
-            {said}
-          </span>
-          <button
-            type="button"
-            className={form.textLink}
-            onClick={() => {
-              onChange(undo);
-              setUndo(null);
-              setSaid("Put back.");
-            }}
-          >
-            Undo
-          </button>
-        </div>
-      ) : null}
 
       <div className={styles.board} style={{ "--slots": slots } as CSSProperties}>
         <div className={styles.corner} aria-hidden="true" />
@@ -547,6 +475,117 @@ export default function AvailabilityStep({
       <p className="visually-hidden">
         Times run from {clockLabel(slotMinute(0, grid))} to {clockLabel(grid.endMinute)}, in quarter hours.
       </p>
+
+      <div className={styles.typing}>
+        <button
+          type="button"
+          className={`${form.textLink} ${styles.typeLink}`}
+          aria-expanded={typing}
+          aria-controls={panelId}
+          onClick={() => {
+            const opening = !typing;
+            setTyping(opening);
+            setTypedDay(activeDay);
+            setPanelFocus(opening ? { run: null } : null);
+          }}
+        >
+          Add times by typing instead
+        </button>
+        {typing ? (
+          <div id={panelId} ref={panelRef} className={styles.typed} role="group" aria-label="Add times by typing">
+            <div className={styles.typedRow}>
+              <div className={styles.typedField}>
+                <label htmlFor={dayId} className={form.label}>
+                  Day
+                </label>
+                <Select
+                  id={dayId}
+                  className={form.select}
+                  value={String(typedDay)}
+                  onChange={(event) => setTypedDay(Number(event.currentTarget.value))}
+                >
+                  {DISPLAY_DAYS.map((day) => (
+                    <option key={day} value={day}>
+                      {DAY_LONG[day]}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className={styles.typedField}>
+                <label htmlFor={fromId} className={form.label}>
+                  From
+                </label>
+                <input
+                  id={fromId}
+                  type="text"
+                  className={form.input}
+                  value={fromText}
+                  onChange={(event) => setFromText(event.currentTarget.value)}
+                  placeholder="6pm"
+                  maxLength={12}
+                  autoComplete="off"
+                  aria-invalid={typedError ? true : undefined}
+                  aria-describedby={typedError ? `${panelId}-e` : undefined}
+                />
+              </div>
+              <div className={styles.typedField}>
+                <label htmlFor={toId} className={form.label}>
+                  To
+                </label>
+                <input
+                  id={toId}
+                  type="text"
+                  className={form.input}
+                  value={toText}
+                  onChange={(event) => setToText(event.currentTarget.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addTyped();
+                    }
+                  }}
+                  placeholder="9pm"
+                  maxLength={12}
+                  autoComplete="off"
+                  aria-invalid={typedError ? true : undefined}
+                  aria-describedby={typedError ? `${panelId}-e` : undefined}
+                />
+              </div>
+              <button type="button" className={`${form.secondary} ${styles.typedAdd}`} onClick={addTyped}>
+                Add time
+              </button>
+            </div>
+            {typedError ? (
+              <p id={`${panelId}-e`} className={form.error} role="alert">
+                {typedError}
+              </p>
+            ) : null}
+            <div className={styles.said}>{undoInPanel ? saidLine : null}</div>
+            {listed.length > 0 ? (
+              <ul className={styles.typedList} aria-label="Your times">
+                {listed.map(({ day, run }) => (
+                  <li key={runKey(day, run)} className={styles.typedItem}>
+                    <span>
+                      {DAY_SHORT[day]} {runLabel(run, grid)}
+                    </span>
+                    <button
+                      type="button"
+                      className={`${form.ghost} ${styles.remove}`}
+                      data-run={runKey(day, run)}
+                      aria-label={`Remove ${DAY_LONG[day]} ${runLabel(run, grid)}`}
+                      onClick={() =>
+                        apply(clearRun(columns, day, run), `Removed ${DAY_LONG[day]}, ${runLabel(run, grid)}.`, true)
+                      }
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
