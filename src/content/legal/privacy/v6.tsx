@@ -653,8 +653,9 @@ export default function PrivacyContentV6({
                   your name, the application you sent, and what it said in the
                   versions you sent before. They also see their
                   own and other reviewers&apos; scores and comments on it, what
-                  has been decided for their programme, and whether a programme
-                  you ranked higher has accepted you. They do not see
+                  has been decided for their programme, whether a programme
+                  you ranked higher has accepted you, and whether your request
+                  to join NAISI is still waiting. They do not see
                   your answer about SU membership, access requirements, the
                   membership tier, or a conduct flag, and unless they are an
                   admin the application does not show them your email
