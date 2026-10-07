@@ -380,6 +380,25 @@ const USERS = new Map([
       "button that says 23 is only right if the list behind it walks 23",
   ],
   [
+    "applications-wave-e2b-closed-on.test.mjs",
+    "executes closedOnLabel in src/features/applications/apply/closedOn.ts, the one rule both of the " +
+      "applicant's pages ask before printing the day a form closed, against a form closed by hand before " +
+      "its time and one closed by the clock, because the sentence was untrue for eleven days of a term " +
+      "and only running the rule shows which day it prints",
+  ],
+  [
+    "applications-wave-e2b-email-text.test.mjs",
+    "renders the three decision-day templates through the real renderer, .tsx graph and all, and holds " +
+      "every address in the plain-text part to be followed by white space, because the join between two " +
+      "buttons is made by the renderer and can only be seen in what it returns",
+  ],
+  [
+    "applications-wave-e2b-review.test.mjs",
+    "executes filterRows in src/features/applications/review/listModel.ts against rows that have " +
+      "withdrawn from every standing, because which tab a withdrawn applicant is listed under is decided " +
+      "by that function and nowhere else",
+  ],
+  [
     "applications-wave-f-replies.test.mjs",
     "executes the standing and reply rules (src/lib/applications/status/standing.ts, replies.ts, " +
       "view.ts) for every state of an application against every reply, and the contract's own " +

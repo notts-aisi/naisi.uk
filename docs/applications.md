@@ -63,19 +63,20 @@ document and then does one of three things.
   aside the same way. The round page shows that sentence and, for an admin,
   keeps the danger zone, and it links to the form's own pages for somebody
   those pages open for: an admin, or a lead or reviewer the form names. The
-  page that reads one application back returns a notice. The appointment
-  queue answers as it does for a round that is not there.
+  appointment queue answers as it does for a round that is not there.
 - **It leaves the form alone.** The two scheduler jobs that walk open rounds
   skip a form and count it, so nothing older emails an applicant on one. The
   lookup behind the course pages drops a form, so one is never offered as a
   single course's own intake.
 - **It serves both**, on purpose: destroying a round, deleting an account, the
-  member record, the list of one person's applications, and the apply page.
-  That page shows a form on the form's own screen, which it asks for first.
-  Everything after that is the older apply flow, whose loader reads a form as
-  a round that is not there, so the older flow is never drawn for one. The
-  page's title keeps the same order, so a form that is still a draft has no
-  title of its own, as it has no page.
+  member record, the list of one person's applications, the apply page and
+  the page that reads one application back. Each of those two pages shows a
+  form on the form's own screen, which it asks for first. Everything after
+  that is the page's older half, and to it a form is a round that is not
+  there: the older apply flow's loader answers nothing for one, and the page
+  that reads an application back answers not found, so neither older screen
+  is ever drawn for a form. The apply page's title keeps the same order, so a
+  form that is still a draft has no title of its own, as it has no page.
 
 The refusal comes after a route's "not found" answers, never before them. A
 form nobody has opened reads to an applicant as a round that is not there, and
