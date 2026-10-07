@@ -387,39 +387,70 @@ describe("next and previous", () => {
 // ---------------------------------------------------------------------------
 
 describe("the sentences written to the audit log", () => {
-  test("a decision says who decided what, and what it replaced", () => {
+  // Neither sentence can name the applicant, because neither is handed a
+  // name: who a line is about is the row's `subjectUid`. The log is kept when
+  // an account is deleted, and a name in the sentence would outlive it.
+  test("a decision says who decided what, and what it replaced, and names no applicant", () => {
     assert.equal(
       audit.decisionSentence({
         actorName: "Claudia",
-        applicantName: "Priya Shah",
         programmeName: "AGI Strategy",
         decision: "accept",
         previous: null,
       }),
-      "Claudia accepted Priya Shah for AGI Strategy.",
+      "Claudia accepted an applicant for AGI Strategy.",
     );
     assert.equal(
       audit.decisionSentence({
         actorName: "Claudia",
-        applicantName: "Priya Shah",
         programmeName: "AGI Strategy",
         decision: "pool",
         previous: "accept",
       }),
-      "Claudia pooled Priya Shah for AGI Strategy. It was accepted before.",
+      "Claudia pooled an applicant for AGI Strategy. It was accepted before.",
     );
   });
 
-  test("a revocation carries the reason the admin gave", () => {
+  test("a revocation carries the reason the admin gave, and names no applicant", () => {
     assert.equal(
       audit.revocationSentence({
         actorName: "Zach",
-        applicantName: "Priya Shah",
         programmeName: "AGI Strategy",
         reason: "She has taken a place on the incubator instead.",
       }),
-      "Zach revoked Priya Shah’s acceptance for AGI Strategy. Reason: She has taken a place on the incubator instead.",
+      "Zach revoked an applicant’s acceptance for AGI Strategy. Reason: She has taken a place on the incubator instead.",
     );
+  });
+
+  test("a name handed to either sentence anyway does not reach it", () => {
+    // The signatures take no name. A caller that passes one all the same (a
+    // spread of a wider object, say) must not find it in the sentence.
+    const decision = audit.decisionSentence({
+      actorName: "Claudia",
+      applicantName: "Priya Shah",
+      programmeName: "AGI Strategy",
+      decision: "decline",
+      previous: null,
+    });
+    const revocation = audit.revocationSentence({
+      actorName: "Zach",
+      applicantName: "Priya Shah",
+      programmeName: "AGI Strategy",
+      reason: "A mistake.",
+    });
+    for (const sentence of [decision, revocation]) {
+      assert.ok(!sentence.includes("Priya") && !sentence.includes("Shah"), `"${sentence}" names the applicant`);
+    }
+  });
+
+  test("whoever draws a line says who it was about from the account as it is now", () => {
+    assert.equal(audit.subjectLabel("Priya Shah"), "Priya Shah");
+    assert.equal(audit.subjectLabel("  Priya Shah  "), "Priya Shah");
+    // No account any more: the id on the line leads nowhere, and the screen says so.
+    for (const gone of [null, undefined, "", "   "]) {
+      assert.equal(audit.subjectLabel(gone), "somebody whose account has been deleted");
+    }
+    assert.equal(audit.DELETED_ACCOUNT_LABEL, "somebody whose account has been deleted");
   });
 
   test("neither sentence uses a word an applicant must never read", async () => {
@@ -427,7 +458,6 @@ describe("the sentences written to the audit log", () => {
     const sentences = ["accept", "pool", "decline"].map((decision) =>
       audit.decisionSentence({
         actorName: "Claudia",
-        applicantName: "Priya",
         programmeName: "AGI Strategy",
         decision,
         previous: "decline",
