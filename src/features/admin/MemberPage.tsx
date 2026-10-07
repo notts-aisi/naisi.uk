@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import Card from "@/components/ui/Card";
+import PageHead from "@/components/ui/PageHead";
 import { useAuth } from "@/auth/AuthProvider";
-import { AdminLoadingBar, AdminPage, AdminPageHead } from "./adminList";
-import MemberItem from "./MemberItem";
+import { AdminLoadingBar, AdminPage } from "./adminList";
+import MemberItem, { PersonCrumb } from "./MemberItem";
 import { accountName } from "./MembersTable";
 import { useMembers } from "./useMembers";
 import styles from "./MemberItem.module.css";
@@ -37,6 +38,7 @@ export default function MemberPage({ uid }: { uid: string }) {
   if (loading || !currentUser) {
     return (
       <AdminPage wide>
+        <PageHead crumb={<PersonCrumb />} title="Account" />
         <Card padding="md">
           <AdminLoadingBar label="Loading this account…" />
         </Card>
@@ -47,6 +49,7 @@ export default function MemberPage({ uid }: { uid: string }) {
   if (error) {
     return (
       <AdminPage wide>
+        <PageHead crumb={<PersonCrumb />} title="Account" />
         <Card padding="md">
           <p className={styles.problem}>Couldn&apos;t load this account: {error.message}</p>
         </Card>
@@ -57,8 +60,8 @@ export default function MemberPage({ uid }: { uid: string }) {
   if (!person) {
     return (
       <AdminPage wide>
-        <AdminPageHead
-          crumb={<Link href="/admin/members">Accounts</Link>}
+        <PageHead
+          crumb={<PersonCrumb />}
           title="No account here"
           description="Nobody on the Accounts list has this address. They may still be waiting in Join requests, or the account may have been deleted."
           meta={

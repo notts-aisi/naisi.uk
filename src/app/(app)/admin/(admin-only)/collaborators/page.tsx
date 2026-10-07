@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import Card from "@/components/ui/Card";
+import PageHead from "@/components/ui/PageHead";
 import CollaboratorCard from "@/features/admin/CollaboratorCard";
 import {
   AdminPage,
-  AdminPageHead,
   AdminLoadingBar,
   AdminListFooter,
   useClientPagination,
@@ -93,7 +93,8 @@ export default function AdminCollaboratorsPage() {
 
   return (
     <AdminPage wide>
-      <AdminPageHead
+      <PageHead
+        crumb="People"
         title="Collaborators"
         description="People from outside the university who have asked to work with us. Approving or saying not now sends them an email."
       />
@@ -125,9 +126,9 @@ export default function AdminCollaboratorsPage() {
 
       {!loading && !error && collaborators.length === 0 && (
         <Card padding="lg">
-          <h3 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-2)" }}>
+          <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-2)" }}>
             Nobody has asked yet
-          </h3>
+          </h2>
           <p style={{ color: "var(--color-text-muted)" }}>
             Somebody from outside the university who picks &ldquo;Collaborate with us&rdquo; when
             they sign up shows here.
@@ -138,7 +139,7 @@ export default function AdminCollaboratorsPage() {
       {!loading && !error && collaborators.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
           <section>
-            <h3 style={sectionTitle}>Waiting · {pending.length}</h3>
+            <h2 style={sectionTitle}>Waiting · {pending.length}</h2>
             {pending.length === 0 ? (
               <p style={{ color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>
                 Nobody is waiting.
@@ -152,7 +153,7 @@ export default function AdminCollaboratorsPage() {
 
           {decided.length > 0 && (
             <section>
-              <h3 style={sectionTitle}>Decided · {decided.length}</h3>
+              <h2 style={sectionTitle}>Decided · {decided.length}</h2>
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
                 {decided.map(card)}
               </div>

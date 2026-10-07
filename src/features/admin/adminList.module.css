@@ -1,7 +1,7 @@
 /*
-  Shared building blocks for the admin pages: the page wrapper, a page head,
-  a table in a card, a search box, a filter pill, the loading bar and the
-  list footer ("showing X of Y", Load more, Refresh).
+  Shared building blocks for the admin pages: the page wrapper, a table in a
+  card, a search box, a filter pill, the "more" button, the loading bar and
+  the list footer ("showing X of Y", Load more, Refresh).
 */
 
 /* === The page ===
@@ -25,111 +25,10 @@
   gap: var(--space-5);
 }
 
-/* === The page head ===
-   The name is an h2: the admin layout owns the h1. Sizes are set on the
-   classes, so the element defaults other pages rely on are not touched. */
-.head {
-  min-width: 0;
-}
-
-.headCrumb {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
-.headCrumb a {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  color: var(--color-accent-text);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.headCrumb a:hover {
-  color: var(--color-accent-text-hover);
-}
-
-.headRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--space-4) var(--space-6);
-}
-
-.headLead {
-  flex: none;
-}
-
-.headMain {
-  flex: 1 1 22rem;
-  min-width: 0;
-}
-
-.headTitleRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.headTitle {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--text-2xl);
-  font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: -0.02em;
-  color: var(--color-text);
-  overflow-wrap: anywhere;
-}
-
-.headBadges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.headDescription {
-  margin: 0.375rem 0 0;
-  max-width: 44rem;
-  font-size: var(--text-base);
-  line-height: var(--leading-normal);
-  color: var(--color-text-muted);
-  text-wrap: pretty;
-}
-
-.headMeta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.375rem var(--space-4);
-  margin-top: var(--space-2);
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
-  color: var(--color-text-muted);
-}
-
-.headMeta a {
-  color: var(--color-accent-text);
-  font-weight: 600;
-}
-
-.headMeta a:hover {
-  color: var(--color-accent-text-hover);
-}
-
-.headActions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.625rem;
-  margin-left: auto;
+/* A page draws its head with the shared PageHead, as the wrapper's first
+   child. The wrapper's own gap already separates it from what follows. */
+.pageWide > header {
+  margin-bottom: 0;
 }
 
 /* === A table in a card ===
@@ -508,22 +407,6 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  .headTitle {
-    font-size: var(--text-xl);
-  }
-  /* Whatever leads the name (a person's initials) stays beside it. */
-  .headMain {
-    flex-basis: 12rem;
-  }
-  .headActions {
-    margin-left: 0;
-  }
-  .headCrumb a {
-    min-height: 2.75rem;
-  }
-  .headCrumb {
-    margin-bottom: 0;
-  }
 
   /* A stacking table: the card goes, and each row is a card of its own. The
      header row is kept for a screen reader and taken out of sight. A cell

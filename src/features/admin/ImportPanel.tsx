@@ -413,7 +413,7 @@ export default function ImportPanel({
       {unfinished.length > 0 && step === 1 && (
         <div className={styles.group}>
           <div className={styles.groupText}>
-            <h4 className={styles.groupTitle}>Imports that were started and not finished</h4>
+            <h3 className={styles.groupTitle}>Imports that were started and not finished</h3>
             <p className={styles.blurb}>
               Pick one up where it stopped, or close it. Abandoning deletes nothing and takes back
               no membership already recorded.
@@ -678,7 +678,7 @@ export default function ImportPanel({
                   <Tick />
                 </span>
                 <div className={styles.groupText}>
-                  <h4 className={styles.groupTitle}>Recorded for {periodLabel}</h4>
+                  <h3 className={styles.groupTitle}>Recorded for {periodLabel}</h3>
                   <p className={styles.blurb}>{progress}</p>
                   {batch && (
                     <p className={styles.blurb}>
@@ -727,10 +727,10 @@ export default function ImportPanel({
             <>
               <div className={styles.group}>
                 <div className={styles.groupText}>
-                  <h4 className={styles.groupTitle}>
+                  <h3 className={styles.groupTitle}>
                     Record {toRecord} {toRecord === 1 ? "membership" : "memberships"} for{" "}
                     {periodLabel}
-                  </h4>
+                  </h3>
                   <ul className={styles.facts}>
                     {!autoRecorded && <li>{receipt.uniEmail} matched by university email</li>}
                     {!autoRecorded && receipt.personalEmail > 0 && (
@@ -833,7 +833,7 @@ function Group({
         {count}
       </span>
       <div className={styles.groupText}>
-        <h4 className={styles.groupTitle}>{title}</h4>
+        <h3 className={styles.groupTitle}>{title}</h3>
         <p className={styles.blurb}>{note}</p>
         {children}
       </div>

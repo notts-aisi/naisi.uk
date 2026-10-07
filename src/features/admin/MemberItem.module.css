@@ -8,6 +8,19 @@
   min-width: 0;
 }
 
+/* The page's own gap already separates the head from what follows it. */
+.page > header {
+  margin-bottom: 0;
+}
+
+/* The initials beside the person's name, inside the page's heading. */
+.nameWithInitials {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
 /* === The head's small facts === */
 .metaEmail {
   display: inline-flex;

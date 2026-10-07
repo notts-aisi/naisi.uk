@@ -54,10 +54,10 @@ export default function MemberApplicationHistory({ uid }: Props) {
 
   return (
     <section className={styles.section}>
-      <h4 className={styles.heading}>
+      <h3 className={styles.heading}>
         Applications
         <span className="meta">Admins only</span>
-      </h4>
+      </h3>
       <p className={styles.note}>
         Entries are written when a round settles, or when a round is destroyed, whichever
         comes first.

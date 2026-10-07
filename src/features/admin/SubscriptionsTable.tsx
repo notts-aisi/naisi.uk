@@ -9,9 +9,10 @@ import Card from "@/components/ui/Card";
 import Chip from "@/components/ui/Chip";
 import InitialsChip from "@/components/ui/InitialsChip";
 import Notice from "@/components/ui/Notice";
+import PageHead from "@/components/ui/PageHead";
 import ResponsiveSelect from "@/components/ui/ResponsiveSelect";
 import { downloadCSV, toCSV } from "@/lib/csv";
-import { AdminLoadingBar, AdminPageHead, AdminSearch } from "./adminList";
+import { AdminLoadingBar, AdminSearch } from "./adminList";
 import {
   useSubscriptions,
   type SubscriptionRow,
@@ -589,7 +590,8 @@ export default function SubscriptionsTable() {
   if (loading) {
     return (
       <>
-        <AdminPageHead
+        <PageHead
+          crumb="People"
           title="Mailing list"
           description="Who gets which emails. People choose for themselves, so only change someone’s when they ask."
         />
@@ -602,7 +604,8 @@ export default function SubscriptionsTable() {
   if (error) {
     return (
       <>
-        <AdminPageHead
+        <PageHead
+          crumb="People"
           title="Mailing list"
           description="Who gets which emails. People choose for themselves, so only change someone’s when they ask."
         />
@@ -625,7 +628,8 @@ export default function SubscriptionsTable() {
 
   return (
     <>
-      <AdminPageHead
+      <PageHead
+        crumb="People"
         title="Mailing list"
         description="Who gets which emails. People choose for themselves, so only change someone’s when they ask."
         meta={
@@ -666,9 +670,9 @@ export default function SubscriptionsTable() {
 
       <section className={styles.find} aria-labelledby="mailing-find">
         <div>
-          <h3 id="mailing-find" className={styles.findTitle}>
+          <h2 id="mailing-find" className={styles.findTitle}>
             Find someone
-          </h3>
+          </h2>
           <p className={styles.findNote}>For when someone asks you to stop emailing them.</p>
         </div>
         <AdminSearch

@@ -79,55 +79,6 @@ export function AdminPage({ children, wide = false }: { children: ReactNode; wid
 }
 
 /**
- * The head of one admin page, under the admin area's own heading: the page's
- * name, a muted line saying what it is, and its actions on the right.
- *
- * The name is an <h2> on purpose. The admin layout renders the <h1> for every
- * page beneath it, and a page has one <h1>.
- */
-export function AdminPageHead({
-  title,
-  description,
-  meta,
-  badges,
-  actions,
-  crumb,
-  lead,
-}: {
-  title: ReactNode;
-  /** One muted line under the name: what this page is. */
-  description?: ReactNode;
-  /** A smaller line under that: a count, a note about who can edit. */
-  meta?: ReactNode;
-  /** Chips beside the name. */
-  badges?: ReactNode;
-  /** Buttons. They sit at the right and wrap under the name on a phone. */
-  actions?: ReactNode;
-  /** The way back, above the name. */
-  crumb?: ReactNode;
-  /** Something drawn before the name, such as a person's initials. */
-  lead?: ReactNode;
-}) {
-  return (
-    <header className={styles.head}>
-      {crumb && <div className={styles.headCrumb}>{crumb}</div>}
-      <div className={styles.headRow}>
-        {lead && <div className={styles.headLead}>{lead}</div>}
-        <div className={styles.headMain}>
-          <div className={styles.headTitleRow}>
-            <h2 className={styles.headTitle}>{title}</h2>
-            {badges && <div className={styles.headBadges}>{badges}</div>}
-          </div>
-          {description && <p className={styles.headDescription}>{description}</p>}
-          {meta && <div className={styles.headMeta}>{meta}</div>}
-        </div>
-        {actions && <div className={styles.headActions}>{actions}</div>}
-      </div>
-    </header>
-  );
-}
-
-/**
  * A table in a card. A wide table scrolls sideways inside the card and never
  * widens the page: the signed-in frame must not scroll sideways.
  *

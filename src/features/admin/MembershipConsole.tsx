@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button";
 import Chip from "@/components/ui/Chip";
 import CountedTextarea from "@/components/ui/CountedTextarea";
 import { Input } from "@/components/ui/Input";
+import PageHead from "@/components/ui/PageHead";
 import {
   ALL_MEMBERSHIP_TIERS,
   MEMBERSHIP_FIELD_LIMITS,
@@ -12,7 +13,7 @@ import {
   type MembershipTier,
 } from "@/lib/firestore/memberships";
 import { currentAcademicYear } from "@/lib/firestore/users";
-import { AdminPage, AdminPageHead } from "./adminList";
+import { AdminPage } from "./adminList";
 import { resetCurrentPeriodCache } from "./currentPeriodCache";
 import ImportPanel from "./ImportPanel";
 import MembershipTable from "./MembershipTable";
@@ -344,7 +345,8 @@ export default function MembershipConsole({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <AdminPage wide>
-      <AdminPageHead
+      <PageHead
+        crumb="People"
         title="SU membership"
         description="Who’s paid the £6 SU membership this year. It doesn’t change what anyone can do on the site."
         meta={<span>Admins can edit this page, and so can anyone an admin has given it to.</span>}
@@ -375,9 +377,9 @@ export default function MembershipConsole({ isAdmin }: { isAdmin: boolean }) {
             <div>
               <p className="meta">Academic year</p>
               <div className={styles.yearTitle}>
-                <h3 id="membership-year" className={styles.year}>
+                <h2 id="membership-year" className={styles.year}>
                   {viewing.year}
-                </h3>
+                </h2>
                 {viewingCurrent ? (
                   <Chip
                     tone="success"
@@ -456,9 +458,9 @@ export default function MembershipConsole({ isAdmin }: { isAdmin: boolean }) {
       {viewing && (
         <section className={styles.card} aria-labelledby="membership-import">
           <div>
-            <h3 id="membership-import" className={styles.cardTitle}>
+            <h2 id="membership-import" className={styles.cardTitle}>
               Import the SU list
-            </h3>
+            </h2>
             <p className={styles.muted}>
               Download the members list from the SU website and upload it here.
             </p>
@@ -478,9 +480,9 @@ export default function MembershipConsole({ isAdmin }: { isAdmin: boolean }) {
 
       {viewing && (
         <section className={styles.card} aria-labelledby="membership-members">
-          <h3 id="membership-members" className={styles.cardTitle}>
+          <h2 id="membership-members" className={styles.cardTitle}>
             Members {viewing.year}
-          </h3>
+          </h2>
           <MembershipTable
             rows={rows}
             periodId={viewingId}
@@ -512,9 +514,9 @@ export default function MembershipConsole({ isAdmin }: { isAdmin: boolean }) {
 
       <section className={styles.card} aria-labelledby="membership-periods">
         <div className={styles.sectionHead}>
-          <h3 id="membership-periods" className={styles.cardTitle}>
+          <h2 id="membership-periods" className={styles.cardTitle}>
             Membership periods
-          </h3>
+          </h2>
           <Button
             size="sm"
             variant="secondary"

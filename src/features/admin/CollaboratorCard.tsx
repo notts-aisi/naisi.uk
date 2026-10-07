@@ -82,7 +82,7 @@ export default function CollaboratorCard({
         <div className={styles.person}>
           <InitialsChip name={name} uid={collaborator.uid} size="lg" />
           <div className={styles.personText}>
-            <h4 className={styles.name}>{name}</h4>
+            <h3 className={styles.name}>{name}</h3>
             <span className={styles.studies}>
               {[app.roleTitle, app.institution].filter(Boolean).join(" · ")}
             </span>

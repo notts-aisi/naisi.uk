@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
 import Notice from "@/components/ui/Notice";
 import OptionRow from "@/components/ui/OptionRow";
+import PageHead from "@/components/ui/PageHead";
 import ResponsiveSelect, {
   type ResponsiveSelectOption,
 } from "@/components/ui/ResponsiveSelect";
@@ -27,7 +28,6 @@ import {
   type UserPermissions,
 } from "@/lib/firestore/users";
 import { startImpersonation } from "@/auth/impersonation";
-import { AdminPageHead } from "./adminList";
 import ConductFlagControl from "./ConductFlagControl";
 import MemberApplicationHistory from "./MemberApplicationHistory";
 import MemberEditForm from "./MemberEditForm";
@@ -280,29 +280,18 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
   const approver = user.approvedBy ? nameByUid.get(user.approvedBy) : undefined;
   const rejecter = user.rejectedBy ? nameByUid.get(user.rejectedBy) : undefined;
 
+  // The person's name is the page's one heading. The section and the way back
+  // to the list are the crumb above it; the initials sit inside the heading,
+  // and say nothing to a screen reader.
   const head = (
-    <AdminPageHead
-      crumb={
-        <Link href="/admin/members">
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-            focusable="false"
-          >
-            <path d="M15 6l-6 6 6 6" />
-          </svg>
-          Accounts
-        </Link>
+    <PageHead
+      crumb={<PersonCrumb />}
+      title={
+        <span className={styles.nameWithInitials}>
+          <InitialsChip name={displayName} uid={user.uid} size="lg" />
+          <span>{displayName}</span>
+        </span>
       }
-      lead={<InitialsChip name={displayName} uid={user.uid} size="lg" />}
-      title={displayName}
       badges={
         <>
           <Chip tone={roleTone(shown.role)}>{ROLE_WORDS[shown.role]}</Chip>
@@ -350,9 +339,9 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
           {displayName} is waiting in Join requests.
         </Notice>
         <section className={styles.card} aria-labelledby={`history-${user.uid}`}>
-          <h3 id={`history-${user.uid}`} className={styles.cardTitle}>
+          <h2 id={`history-${user.uid}`} className={styles.cardTitle}>
             History
-          </h3>
+          </h2>
           <MemberApplicationHistory uid={user.uid} />
         </section>
       </div>
@@ -361,9 +350,9 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
 
   const careful = (
     <section className={`${styles.card} ${styles.careful}`} aria-labelledby={`careful-${user.uid}`}>
-      <h3 id={`careful-${user.uid}`} className={styles.cardTitle}>
+      <h2 id={`careful-${user.uid}`} className={styles.cardTitle}>
         Careful
-      </h3>
+      </h2>
       {!isRejected && (
         <div className={styles.carefulRow}>
           <div className={styles.carefulText}>
@@ -427,7 +416,7 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
           if (typedMatches && !busy) void onDelete();
         }}
       >
-        <h3 className={styles.dialogTitle}>Delete {displayName}’s account?</h3>
+        <h2 className={styles.dialogTitle}>Delete {displayName}’s account?</h2>
         <div className={styles.dialogLists}>
           <div>
             <p className={`meta ${styles.goes}`}>Goes for good</p>
@@ -512,9 +501,9 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
             was told is exactly what an admin wants in front of them before
             they press delete. */}
         <section className={styles.card} aria-labelledby={`history-${user.uid}`}>
-          <h3 id={`history-${user.uid}`} className={styles.cardTitle}>
+          <h2 id={`history-${user.uid}`} className={styles.cardTitle}>
             History
-          </h3>
+          </h2>
           <MemberApplicationHistory uid={user.uid} />
         </section>
 
@@ -573,9 +562,9 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
 
       <section className={styles.card} aria-labelledby={`access-${user.uid}`}>
         <div className={styles.cardHead}>
-          <h3 id={`access-${user.uid}`} className={styles.cardTitle}>
+          <h2 id={`access-${user.uid}`} className={styles.cardTitle}>
             Role and access
-          </h3>
+          </h2>
           <SavedFlash state={saveState} />
         </div>
         {problem && (
@@ -738,9 +727,9 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
       </section>
 
       <section className={styles.card} aria-labelledby={`profile-${user.uid}`}>
-        <h3 id={`profile-${user.uid}`} className={styles.cardTitle}>
+        <h2 id={`profile-${user.uid}`} className={styles.cardTitle}>
           Profile
-        </h3>
+        </h2>
         <p className={styles.cardNote}>
           What {firstName} told us when they joined. Nothing changes until you press Save changes.
         </p>
@@ -748,9 +737,9 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
       </section>
 
       <section className={styles.card} aria-labelledby={`history-${user.uid}`}>
-        <h3 id={`history-${user.uid}`} className={styles.cardTitle}>
+        <h2 id={`history-${user.uid}`} className={styles.cardTitle}>
           History
-        </h3>
+        </h2>
         {/* The committee's record of this person: which rounds they applied
             to, what was decided, and what the reviewers wrote. Admins only,
             which this page is. */}
@@ -771,6 +760,17 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
       {careful}
       {deleteDialog}
     </div>
+  );
+}
+
+/** The section, then the way back to the list: "People / Accounts". */
+export function PersonCrumb() {
+  return (
+    <>
+      <span>People</span>
+      <span aria-hidden="true">/</span>
+      <Link href="/admin/members">Accounts</Link>
+    </>
   );
 }
 

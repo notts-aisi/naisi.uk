@@ -8,9 +8,10 @@
   min-width: 0;
 }
 
-/* An h4, under the History card's own h3, on every branch of the page. Sized
-   here because typography.css gives a heading a page voice, which would
-   out-shout the card's title. The mono tag beside it says who can read this. */
+/* One level under the History card's own heading, on every branch of the
+   page. Sized here because typography.css gives a heading a page voice, which
+   would out-shout the card's title. The mono tag beside it says who can read
+   this. */
 .heading {
   display: flex;
   flex-wrap: wrap;

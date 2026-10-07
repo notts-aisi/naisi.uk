@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Card from "@/components/ui/Card";
+import PageHead from "@/components/ui/PageHead";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   AdminPage,
-  AdminPageHead,
   AdminLoadingBar,
   AdminListFooter,
   useClientPagination,
@@ -162,7 +162,8 @@ export default function MembersAdminPage() {
 
   return (
     <AdminPage wide>
-      <AdminPageHead
+      <PageHead
+        crumb="People"
         title="Accounts"
         description="Everyone with a naisi.uk account."
         meta={

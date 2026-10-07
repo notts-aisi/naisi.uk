@@ -163,10 +163,10 @@ export default function ConductFlagControl({ uid, displayName }: Props) {
 
   return (
     <div className={styles.block}>
-      <h3 className={styles.label}>
+      <h2 className={styles.label}>
         Conduct flag
         <span className={`meta ${styles.hint}`}>Admins only</span>
-      </h3>
+      </h2>
 
       {/* Under the label in every state, not only while an admin is typing:
           somebody reading an existing flag is deciding whether to leave it

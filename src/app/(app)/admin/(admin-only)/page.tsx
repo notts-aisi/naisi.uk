@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import Card from "@/components/ui/Card";
+import PageHead from "@/components/ui/PageHead";
 import ResponsiveSelect from "@/components/ui/ResponsiveSelect";
 import {
   AdminPage,
-  AdminPageHead,
   AdminLoadingBar,
   AdminListFooter,
   useClientPagination,
@@ -47,7 +47,8 @@ export default function ApprovalsPage() {
 
   return (
     <AdminPage wide>
-      <AdminPageHead
+      <PageHead
+        crumb="People"
         title="Join requests"
         description="New accounts wait here until an admin approves them. Approving sends a welcome email."
         meta={<span>Accepting someone onto a programme approves their account too.</span>}
@@ -84,9 +85,9 @@ export default function ApprovalsPage() {
 
       {!loading && !error && users.length === 0 && (
         <Card padding="lg">
-          <h3 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-2)" }}>
+          <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-2)" }}>
             Nobody is waiting
-          </h3>
+          </h2>
           <p style={{ color: "var(--color-text-muted)" }}>
             When someone makes an account, their join request shows up here for an admin to
             approve.

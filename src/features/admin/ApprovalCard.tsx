@@ -197,7 +197,7 @@ export default function ApprovalCard({
         <div className={styles.person}>
           <InitialsChip name={name} uid={user.uid} size="lg" />
           <div className={styles.personText}>
-            <h3 className={styles.name}>{name}</h3>
+            <h2 className={styles.name}>{name}</h2>
             {studies && <span className={styles.studies}>{studies}</span>}
           </div>
         </div>
