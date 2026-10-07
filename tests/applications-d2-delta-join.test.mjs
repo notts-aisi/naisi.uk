@@ -15,8 +15,10 @@
  *     else, never a claim that the university address is verified, and never
  *     a subscription to bulk email nobody was offered.
  *  3. WHAT IS KEPT WHILE THEY SIGN IN. The answers to one step, for a day, in
- *     the tab. Never a password, never the consent tick, never anything that
- *     outlives the tab.
+ *     the tab. Never a password, never the consent tick. One thing outlives
+ *     the tab, and it is held to three limits: a copy for the tab an emailed
+ *     link opens, made only once a link has been emailed, believed for an
+ *     hour, and removed the moment the join request is sent.
  *  4. WHAT HOLDS A SEND. A waiting account whose university address has not
  *     been checked, and an account with no join request at all.
  *  5. WHERE THE EMAILED LINK MAY RETURN TO. This form, and nothing that only
@@ -52,6 +54,7 @@ const authReturn = await loadTs(join("lib", "authReturn.ts"));
 const joinClient = await loadTs(join("features", "applications", "apply", "joinClient.ts"));
 const signInReturn = await loadTs(join("lib", "signInReturn.ts"));
 const publicNav = await loadTs(join("layout", "publicNav.ts"));
+const keptAnswers = await loadTs(join("features", "applications", "apply", "keptAnswers.ts"));
 
 const sourceOf = (file) => readFileSync(join(FORM_DIR, file), "utf8");
 /** Comments out, so a rule written in prose is not a use. */
@@ -328,6 +331,23 @@ describe("what is kept while somebody signs in", () => {
     assert.equal(rules.KEPT_MAX_AGE_MS, 24 * 60 * 60 * 1000);
   });
 
+  test("a caller can hold it to less than a day, and never to more", () => {
+    const text = rules.packKept(answers(), NOW);
+    const HOUR = 60 * 60 * 1000;
+    assert.equal(rules.ACROSS_TABS_MAX_AGE_MS, HOUR, "the copy that crosses tabs is believed for an hour");
+    assert.ok(rules.readKept(text, NOW + HOUR, rules.ACROSS_TABS_MAX_AGE_MS));
+    assert.equal(rules.readKept(text, NOW + HOUR + 1, rules.ACROSS_TABS_MAX_AGE_MS), null);
+    assert.equal(rules.readKept(text, NOW - 1, rules.ACROSS_TABS_MAX_AGE_MS), null, "a time in the future is not believed");
+    // Asking for longer than a day gets a day. Asking for nonsense gets nothing.
+    assert.ok(rules.readKept(text, NOW + rules.KEPT_MAX_AGE_MS, 7 * rules.KEPT_MAX_AGE_MS));
+    assert.equal(rules.readKept(text, NOW + rules.KEPT_MAX_AGE_MS + 1, 7 * rules.KEPT_MAX_AGE_MS), null);
+    assert.equal(rules.readKept(text, NOW + rules.KEPT_MAX_AGE_MS + 1, Infinity), null);
+    for (const nonsense of [NaN, -1, -Infinity]) {
+      assert.equal(rules.readKept(text, NOW, nonsense), null, `believed for ${nonsense}`);
+    }
+    assert.ok(rules.readKept(text, NOW, 0), "a limit of nothing still believes this instant");
+  });
+
   test("text that is not ours is not believed", () => {
     const good = JSON.parse(rules.packKept(answers(), NOW));
     for (const bad of [
@@ -406,6 +426,297 @@ describe("what is kept while somebody signs in", () => {
     assert.equal(rules.hasJoinAnswers(rules.emptyJoinAnswers()), false);
     assert.equal(rules.hasJoinAnswers({ ...rules.emptyJoinAnswers(), interests: "  " }), false);
     assert.equal(rules.hasJoinAnswers({ ...rules.emptyJoinAnswers(), interests: "x" }), true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3b. The copy that crosses tabs, and its three limits
+// ---------------------------------------------------------------------------
+
+/**
+ * The step's own keeper (`keptAnswers.ts`) is run here against two stand-in
+ * stores: `tab` for the tab's session storage and `shared` for the browser's
+ * local storage, which every tab reads. Each remembers what was asked of it,
+ * so a test can say that nothing was written, not only that nothing is there.
+ *
+ * The keeper remembers, in memory, which forms its page has asked for an
+ * emailed link for. So every test uses a form id of its own: a form nobody
+ * has asked about is a page that has not asked.
+ */
+describe("the copy that crosses tabs, and its three limits", () => {
+  const T = Date.UTC(2026, 9, 7, 9, 0, 0);
+  const MINUTE = 60 * 1000;
+  const HOUR = 60 * MINUTE;
+
+  function store(initial = {}) {
+    const items = new Map(Object.entries(initial));
+    const asked = [];
+    return {
+      items,
+      asked,
+      wrote: () => asked.filter(([what]) => what === "set"),
+      getItem(key) {
+        asked.push(["get", key]);
+        return items.has(key) ? items.get(key) : null;
+      },
+      setItem(key, value) {
+        asked.push(["set", key]);
+        items.set(key, String(value));
+      },
+      removeItem(key) {
+        asked.push(["remove", key]);
+        items.delete(key);
+      },
+    };
+  }
+  const refusing = () => ({
+    getItem() {
+      throw new Error("refused");
+    },
+    setItem() {
+      throw new Error("refused");
+    },
+    removeItem() {
+      throw new Error("refused");
+    },
+  });
+  /** One browser tab: its own store, and the store it shares with every other tab. */
+  function browser(t, { tab = store(), shared = store() } = {}) {
+    globalThis.window = { sessionStorage: tab, localStorage: shared };
+    t.after(() => {
+      delete globalThis.window;
+    });
+    return { tab, shared };
+  }
+  /** A second tab of the same browser: nothing of its own, the same shared store. */
+  const anotherTab = (shared) => {
+    globalThis.window = { sessionStorage: store(), localStorage: shared };
+  };
+
+  test("LIMIT 1: nothing is written unless a link has been emailed, whatever else the step does", (t) => {
+    const round = "limit-one__never-asked";
+    const { tab, shared } = browser(t);
+    // Everything the step does for somebody who continues with Google, or who
+    // goes to the sign-in page, or who has not chosen a way yet: it keeps what
+    // they type in the tab, on every change, and reads it back.
+    keptAnswers.keepAnswers(round, answers());
+    keptAnswers.keepAnswers(round, answers({ interests: "Evals" }));
+    assert.equal(keptAnswers.acrossTabs(round, "answers-changed"), null);
+    assert.deepEqual(keptAnswers.loadKept(round), answers({ interests: "Evals" }));
+    assert.ok(tab.items.has(rules.keptKey(round)), "the tab kept nothing, so this test proves nothing");
+    assert.deepEqual(shared.wrote(), [], "something was written to local storage for somebody who never asked for a link");
+    assert.equal(shared.items.size, 0);
+  });
+
+  test("LIMIT 1: the copy is made when a link has been emailed, and is the tab's own text", (t) => {
+    const round = "limit-one__asked";
+    const { tab, shared } = browser(t);
+    tab.items.set(rules.keptKey(round), rules.packKept(answers(), T));
+    assert.equal(keptAnswers.acrossTabs(round, "link-emailed", T + MINUTE), null, "only a read answers with anything");
+    const copy = shared.items.get(rules.keptKey(round));
+    assert.equal(copy, tab.items.get(rules.keptKey(round)), "what crossed is not what the tab holds");
+    // So it is the first step's answers and when they were last changed, and
+    // nothing else: the same object `packKept` makes.
+    assert.deepEqual(Object.keys(JSON.parse(copy)).sort(), ["about", "at", "v"]);
+    assert.equal(JSON.parse(copy).at, T, "the copy carries a time that is not when the answers were last changed");
+    assert.deepEqual([...shared.items.keys()], ["naisi.apply.join:limit-one__asked"]);
+  });
+
+  test("LIMIT 1: a form nobody asked a link for is not touched by a link asked for another", (t) => {
+    const { tab, shared } = browser(t);
+    tab.items.set(rules.keptKey("limit-one__form-a"), rules.packKept(answers(), T));
+    tab.items.set(rules.keptKey("limit-one__form-b"), rules.packKept(answers(), T));
+    keptAnswers.acrossTabs("limit-one__form-a", "link-emailed", T);
+    keptAnswers.acrossTabs("limit-one__form-b", "answers-changed", T);
+    assert.deepEqual([...shared.items.keys()], [rules.keptKey("limit-one__form-a")]);
+  });
+
+  test("LIMIT 1: the step asks for the copy in one place, once the register route has taken the address", () => {
+    const step = codeOf("JoinStep.tsx");
+    assert.equal((step.match(/acrossTabs\(/g) ?? []).length, 1, "the step asks for the copy in more than one place");
+    const onEmail = step.slice(step.indexOf("const onEmail = useCallback("), step.indexOf("const onProblem"));
+    assert.match(
+      onEmail,
+      /if \(!started\.ok\) \{\s*setError\(started\.error\);\s*return;\s*\}\s*acrossTabs\(roundId, "link-emailed"\);/,
+      "the copy is no longer made straight after the register route has said yes, and only then",
+    );
+    // Nowhere a Google credential arrives, a session is read or a join request
+    // is sent, and in no other file of the form's folder.
+    for (const file of readdirSync(FORM_DIR).filter((name) => /\.tsx?$/.test(name))) {
+      const code = codeOf(file);
+      const makes = (code.match(/"link-emailed"/g) ?? []).length;
+      if (file === "JoinStep.tsx") assert.equal(makes, 1);
+      else if (file === "keptAnswers.ts") assert.equal(makes, 2, "the ask is named where it is declared and where it is answered");
+      else assert.equal(makes, 0, `${file} asks for a copy that crosses tabs`);
+    }
+  });
+
+  test("LIMIT 2: the copy is believed for an hour from when the answers were last changed, and no longer", (t) => {
+    const round = "limit-two__an-hour";
+    const { tab, shared } = browser(t);
+    tab.items.set(rules.keptKey(round), rules.packKept(answers(), T));
+    keptAnswers.acrossTabs(round, "link-emailed", T + MINUTE);
+    anotherTab(shared);
+    assert.deepEqual(keptAnswers.acrossTabs(round, "read", T + HOUR), answers(), "the link's tab was not left the answers");
+    assert.ok(shared.items.has(rules.keptKey(round)), "a copy that is still believed was thrown away");
+    assert.equal(keptAnswers.acrossTabs(round, "read", T + HOUR + 1), null, "a copy past its hour was believed");
+    assert.equal(shared.items.has(rules.keptKey(round)), false, "a copy past its hour was left in local storage");
+  });
+
+  test("LIMIT 2: answers last changed more than an hour ago do not cross at all", (t) => {
+    const round = "limit-two__too-old";
+    const { tab, shared } = browser(t);
+    tab.items.set(rules.keptKey(round), rules.packKept(answers(), T));
+    keptAnswers.acrossTabs(round, "link-emailed", T + HOUR + 1);
+    assert.deepEqual(shared.wrote(), []);
+    // The tab still believes its own for the rest of the day.
+    assert.deepEqual(rules.readKept(tab.items.get(rules.keptKey(round)), T + HOUR + 1), answers());
+  });
+
+  test("LIMIT 2: a page that opens reads the copy with the hour, and its own tab's with the day", (t) => {
+    const round = "limit-two__which-clock";
+    const real = Date.now();
+    const { tab, shared } = browser(t, {
+      shared: store({ [rules.keptKey(round)]: rules.packKept(answers({ preferredName: "Shared" }), real - HOUR - MINUTE) }),
+    });
+    assert.equal(keptAnswers.loadKept(round), null, "the page believed a copy more than an hour old");
+    assert.equal(shared.items.size, 0, "and left it there");
+    tab.items.set(rules.keptKey(round), rules.packKept(answers({ preferredName: "Tab" }), real - HOUR - MINUTE));
+    assert.equal(keptAnswers.loadKept(round).preferredName, "Tab", "the tab's own copy is believed for a day");
+  });
+
+  test("LIMIT 3: forgetting removes the copy with the tab's own, in whichever tab the join request went from", (t) => {
+    const round = "limit-three__sent";
+    const { tab, shared } = browser(t);
+    tab.items.set(rules.keptKey(round), rules.packKept(answers(), T));
+    keptAnswers.acrossTabs(round, "link-emailed", T);
+    assert.equal(shared.items.size, 1);
+    // The link's tab is where the join request is sent from.
+    anotherTab(shared);
+    keptAnswers.forgetAnswers(round);
+    assert.equal(shared.items.size, 0, "the join request has gone and the copy is still in local storage");
+    // And the first tab forgets its own when it learns of it.
+    globalThis.window = { sessionStorage: tab, localStorage: shared };
+    keptAnswers.forgetAnswers(round);
+    assert.equal(tab.items.size, 0);
+  });
+
+  test("LIMIT 3: the step forgets the moment the join request has been sent, and before anything else", () => {
+    const step = codeOf("JoinStep.tsx");
+    const finish = step.slice(step.indexOf("const finishJoin = useCallback("), step.indexOf("const check = useCallback("));
+    assert.match(
+      finish,
+      /await completeRegistration\(joinRequestFrom\(answers\)\);\s*\} catch \(err\) \{[^}]*return false;\s*\}\s*forgetAnswers\(roundId\);/,
+      "something now sits between the join request being sent and what was kept being thrown away",
+    );
+    // `forgetAnswers` is the tab's own copy and the one that crosses, together.
+    const keeper = codeOf("keptAnswers.ts");
+    const forget = keeper.slice(keeper.indexOf("export function forgetAnswers("));
+    assert.match(forget, /keptStore\(\)\?\.removeItem\(keptKey\(roundId\)\);/);
+    assert.match(forget, /acrossTabs\(roundId, "forget"\);/);
+  });
+
+  test("once forgotten, a later change on the same page starts no new copy", (t) => {
+    const round = "limit-three__no-restart";
+    const { tab, shared } = browser(t);
+    tab.items.set(rules.keptKey(round), rules.packKept(answers(), T));
+    keptAnswers.acrossTabs(round, "link-emailed", T);
+    keptAnswers.forgetAnswers(round);
+    keptAnswers.keepAnswers(round, answers({ interests: "Typed after" }));
+    assert.ok(tab.items.has(rules.keptKey(round)));
+    assert.equal(shared.items.size, 0);
+  });
+
+  test("on the page that asked, a change to the answers reaches the copy, and emptying them removes it", (t) => {
+    const round = "refresh__asked";
+    const { tab, shared } = browser(t);
+    keptAnswers.keepAnswers(round, answers());
+    keptAnswers.acrossTabs(round, "link-emailed");
+    keptAnswers.keepAnswers(round, answers({ interests: "Changed after the link was asked for" }));
+    assert.equal(shared.items.get(rules.keptKey(round)), tab.items.get(rules.keptKey(round)));
+    assert.equal(keptAnswers.acrossTabs(round, "read").interests, "Changed after the link was asked for");
+    keptAnswers.keepAnswers(round, rules.emptyJoinAnswers());
+    assert.equal(tab.items.size, 0);
+    assert.equal(shared.items.size, 0);
+  });
+
+  test("the link's tab is given the copy, and a tab's own answers come before it", (t) => {
+    const round = "read__the-links-tab";
+    const { shared } = browser(t, {
+      shared: store({ [rules.keptKey(round)]: rules.packKept(answers({ preferredName: "First tab" }), Date.now()) }),
+    });
+    assert.equal(keptAnswers.loadKept(round).preferredName, "First tab");
+    keptAnswers.keepAnswers(round, answers({ preferredName: "This tab" }));
+    assert.equal(keptAnswers.loadKept(round).preferredName, "This tab");
+    // Typing in the link's tab starts no copy of its own: this page asked for no link.
+    assert.equal(JSON.parse(shared.items.get(rules.keptKey(round))).about.preferredName, "First tab");
+    assert.deepEqual(shared.wrote(), []);
+  });
+
+  test("what comes back from the copy is read as carefully as the tab's own", (t) => {
+    const round = "read__forged";
+    browser(t, {
+      shared: store({
+        [rules.keptKey(round)]: JSON.stringify({
+          v: 1,
+          at: T,
+          about: { ...answers(), universityEmailVerified: true, status: "wizard", password: "hunter2" },
+        }),
+      }),
+    });
+    const back = keptAnswers.acrossTabs(round, "read", T);
+    assert.equal(back.universityEmailVerified, false);
+    assert.equal(back.status, "");
+    assert.equal("password" in back, false);
+  });
+
+  test("text in the copy that is not ours is not believed, and is thrown away", (t) => {
+    for (const [at, bad] of ["not json", "[]", JSON.stringify({ v: 2, at: T, about: answers() })].entries()) {
+      const round = `read__not-ours-${at}`;
+      const { shared } = browser(t, { shared: store({ [rules.keptKey(round)]: bad }) });
+      assert.equal(keptAnswers.acrossTabs(round, "read", T), null, `believed: ${bad}`);
+      assert.equal(shared.items.size, 0);
+    }
+  });
+
+  test("a browser whose stores are missing or refuse keeps nothing across tabs, and nothing throws", (t) => {
+    const round = "refused__everything";
+    const asks = ["link-emailed", "answers-changed", "read", "forget"];
+    t.after(() => {
+      delete globalThis.window;
+    });
+    // No browser at all: the page is being drawn on the server.
+    for (const ask of asks) assert.equal(keptAnswers.acrossTabs(round, ask, T), null);
+    assert.equal(keptAnswers.loadKept(round), null);
+    keptAnswers.keepAnswers(round, answers());
+    keptAnswers.forgetAnswers(round);
+    // A browser that refuses both stores, and one whose stores throw on being asked for.
+    for (const fake of [
+      { sessionStorage: refusing(), localStorage: refusing() },
+      {
+        get sessionStorage() {
+          throw new Error("refused");
+        },
+        get localStorage() {
+          throw new Error("refused");
+        },
+      },
+      {},
+    ]) {
+      globalThis.window = fake;
+      for (const ask of asks) assert.equal(keptAnswers.acrossTabs(round, ask, T), null);
+      assert.equal(keptAnswers.loadKept(round), null);
+      keptAnswers.keepAnswers(round, answers());
+      keptAnswers.forgetAnswers(round);
+    }
+    // Local storage alone refuses: the tab still keeps its own.
+    const tab = store();
+    globalThis.window = { sessionStorage: tab, localStorage: refusing() };
+    keptAnswers.keepAnswers(round, answers());
+    keptAnswers.acrossTabs(round, "link-emailed");
+    assert.deepEqual(keptAnswers.loadKept(round), answers());
+    keptAnswers.forgetAnswers(round);
+    assert.equal(tab.items.size, 0);
   });
 });
 
@@ -851,25 +1162,70 @@ describe("the join step keeps to them", () => {
     for (const file of JOIN_FILES) assert.ok(formFiles.includes(file), `${file} is gone`);
   });
 
-  test("answers are kept in the tab's own store, and nowhere that outlives the tab", () => {
+  test("answers are kept in the tab's own store, and one function alone reaches a store that outlives the tab", () => {
     const kept = codeOf("keptAnswers.ts");
     assert.match(kept, /window\.sessionStorage/);
     // Every file in the form's folder: a second place to keep something would
     // be a second thing the privacy page has to list.
     for (const file of formFiles.filter((name) => /\.tsx?$/.test(name))) {
       const code = codeOf(file);
-      assert.equal(/\blocalStorage\b|\bindexedDB\b|document\.cookie/.test(code), false, `${file} keeps something outside the tab`);
+      assert.equal(/\bindexedDB\b|document\.cookie/.test(code), false, `${file} keeps something outside the tab`);
       if (file !== "keptAnswers.ts") {
+        assert.equal(/\blocalStorage\b/.test(code), false, `${file} keeps something outside the tab`);
         assert.equal(/\bsessionStorage\b/.test(code), false, `${file} reaches the tab's store without going through keptAnswers.ts`);
       }
     }
+    // The browser's local storage outlives the tab, and the privacy page says
+    // what is kept there, for whom, for how long and until when. So it is
+    // named once in the whole folder, inside the one function that holds the
+    // copy to those limits, and nowhere else in its own file.
+    assert.equal((kept.match(/\blocalStorage\b/g) ?? []).length, 1, "local storage is reached in more than one place");
+    const from = kept.indexOf("export function acrossTabs(");
+    const to = kept.indexOf("export function loadKept(");
+    assert.ok(from !== -1 && to > from, "the function that holds the copy that crosses tabs has gone, or has moved below its callers");
+    assert.match(kept.slice(from, to), /const shared = window\.localStorage;/);
+    assert.equal(/\bshared\b/.test(kept.slice(0, from) + kept.slice(to)), false, "the shared store is used outside the one function");
+    // And the tab's own store is session storage and nothing else.
+    assert.match(kept, /return typeof window === "undefined" \? null : window\.sessionStorage;/);
   });
 
-  test("what is kept and what is read back are the module's two functions and nothing else", () => {
+  test("what is kept and what is read back are the module's own writes and nothing else", () => {
     const kept = codeOf("keptAnswers.ts");
-    assert.equal((kept.match(/\.setItem\(/g) ?? []).length, 1);
+    // Two writes in the whole module, one to each store: the tab's is the
+    // answers as `packKept` makes them, and the copy that crosses tabs is
+    // the tab's own text and never something packed afresh.
+    assert.equal((kept.match(/\.setItem\(/g) ?? []).length, 2);
     assert.match(kept, /store\.setItem\(keptKey\(roundId\), packKept\(about, Date\.now\(\)\)\)/);
+    assert.match(kept, /const text = keptStore\(\)\?\.getItem\(key\) \?\? null;\s*if \(text !== null && readKept\(text, now, ACROSS_TABS_MAX_AGE_MS\)\) shared\.setItem\(key, text\);/);
+    assert.equal((kept.match(/packKept\(/g) ?? []).length, 1, "something other than the tab's own copy is packed");
     assert.match(kept, /readKept\(keptStore\(\)\?\.getItem\(keptKey\(roundId\)\), Date\.now\(\)\)/);
+    // The copy is read back with the hour, and by nothing but its one function.
+    assert.match(kept, /const kept = readKept\(raw, now, ACROSS_TABS_MAX_AGE_MS\);/);
+    assert.equal((kept.match(/shared\.getItem\(/g) ?? []).length, 1);
+  });
+
+  test("somebody signed out is told that signing in carries on, by the form's own link", () => {
+    // Somebody who has an account, or who started this form on another day,
+    // arrives at "About you" signed out. Without a word they would answer it
+    // all again. The line is drawn for them and for nobody signed in, and its
+    // link is the form's marked address (`signInHrefFor`), which the sign-in
+    // page brings an account back from. The walk below holds where every such
+    // address leads.
+    const step = codeOf("JoinStep.tsx");
+    assert.match(step, /const signInHref = signInHrefFor\(roundId\);/);
+    assert.match(
+      step,
+      /Already have an account, or started an application before\?\{" "\}\s*<Link href=\{signInHref\} className=\{join\.asideLink\}>\s*Sign in\s*<\/Link>\{" "\}\s*to carry on\./,
+      "the first view no longer tells somebody signed out that signing in carries on, or its link is not the form's own",
+    );
+    // It is the other arm of the line that names who is signed in, so it is
+    // never drawn beside "Not you? Sign out".
+    assert.match(
+      step,
+      /\{signedIn \? \([\s\S]*?Not you\? Sign out[\s\S]*?\) : \([\s\S]*?Already have an account, or started an application before\?/,
+      "the line for somebody signed out is no longer the signed-out arm of the account line",
+    );
+    assert.equal((step.match(/Already have an account, or started an application before\?/g) ?? []).length, 1);
   });
 
   test("the step has no password box, and asks for none", () => {

@@ -655,15 +655,18 @@ describe("what an applicant reads", () => {
       joinRules.signInHrefFor(FORM.id),
       `/login?next=${encodeURIComponent(`/apply/${FORM.id}?join=1`)}`,
     );
-    // Every place the step sends anybody: home, the society's address and the
-    // two policies the reCAPTCHA line has to link. Its second half adds one:
-    // the sign-in page, with this form as the place to come back to.
+    // Every place the step sends anybody: home, the society's address, the
+    // two policies the reCAPTCHA line has to link, and the sign-in page with
+    // this form as the place to come back to. The first view offers that last
+    // one to somebody signed out, who may have an account or a started
+    // application already, and the second half offers it again.
     const hrefs = (file) => (codeOf(file).match(/href=(?:"[^"]*"|\{[^}]*\})/g) ?? []).sort();
     assert.deepEqual(hrefs("JoinStep.tsx"), [
       'href="/"',
       'href="https://policies.google.com/privacy"',
       'href="https://policies.google.com/terms"',
       'href="mailto:ai-safety@uonsu.com"',
+      "href={signInHref}",
     ]);
     assert.deepEqual([...new Set(hrefs("JoinAccount.tsx"))], ["href={signInHref}"]);
     assert.match(step, /<JoinAccount\s+signInHref=\{signInHref\}/);

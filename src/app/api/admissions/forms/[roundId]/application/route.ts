@@ -61,9 +61,9 @@ import { formWindowRefusal } from "@/lib/applications/applicant/window";
  *
  * During one the session is a member's, borrowed by an admin, so "the
  * caller's own application" would be somebody else's: the draft they have
- * not sent to anybody, and answers the form promises no reader is shown. The
- * GET refuses first, as the access-requirements route beside it does, and
- * reads nothing.
+ * not sent to anybody, and their answer about SU membership, which no screen
+ * shows to anybody but an admin on the decision-day page. The GET refuses
+ * first, as the access-requirements route beside it does, and reads nothing.
  */
 
 type Ctx = { params: Promise<{ roundId: string }> };

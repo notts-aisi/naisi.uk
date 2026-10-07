@@ -15,8 +15,8 @@
  * Admin "view as" borrows a member's session, so every read addressed by "the
  * caller's own uid" would be the member's. An application is its owner's to
  * read: the people who review it read what was sent and never the draft, and
- * some of what it asks is asked on the promise that no reader is shown the
- * answer. So while a view-as session is live:
+ * its answer about SU membership is shown to nobody but an admin, on the
+ * decision-day page. So while a view-as session is live:
  *
  *  - THE PERSON'S OWN APPLICATION IS NOT SHOWN. The form, the list and the
  *    page for one application each draw a notice in its place.
