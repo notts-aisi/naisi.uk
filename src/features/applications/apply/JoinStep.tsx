@@ -15,6 +15,7 @@ import { useHydrated } from "@/hooks/useHydrated";
 import type { AboutYou } from "@/lib/applications/model";
 import {
   emptyJoinAnswers,
+  hasJoinAnswers,
   joinIssues,
   joinRequestFrom,
   joinReturnFor,
@@ -93,6 +94,12 @@ type Props = {
   signedIn: boolean;
   /** That session's address, when it has one. */
   signedInAs: string | null;
+  /**
+   * The person arrived by the link emailed to a new account. That link opens
+   * in a tab of its own, and what they typed before it is in the tab they
+   * typed it in, so this one says where to find it.
+   */
+  fromLink: boolean;
 };
 
 type View = "questions" | "account";
@@ -138,6 +145,7 @@ export default function JoinStep({
   decisionsLabel,
   signedIn: drawnSignedIn,
   signedInAs,
+  fromLink,
 }: Props) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -579,6 +587,14 @@ export default function JoinStep({
                 ) : null}
               </div>
 
+              {signedIn && fromLink && !hasJoinAnswers(about) ? (
+                <div className={styles.notice}>
+                  <p>
+                    If you started this form in another tab, what you typed is still there. Go back to that tab
+                    and press Continue, or answer here.
+                  </p>
+                </div>
+              ) : null}
               {problems.length > 0 ? (
                 <div ref={noticeRef} tabIndex={-1} className={styles.notice} data-tone="warn" role="alert">
                   <p>A few things to finish before you continue.</p>

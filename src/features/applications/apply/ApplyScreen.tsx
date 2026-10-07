@@ -163,6 +163,7 @@ export async function renderApplicationForm({
   user,
   viewingAs,
   step,
+  fromJoinLink,
 }: {
   roundId: string;
   user: SessionUser | null;
@@ -170,6 +171,8 @@ export async function renderApplicationForm({
   viewingAs: boolean;
   /** `?step=` from the address, when there is one. */
   step: string | null;
+  /** The address carries the mark of a return from the link emailed to a new account. */
+  fromJoinLink: boolean;
 }): Promise<ReactNode | null> {
   const db = getAdminDb();
   if (!db) return null;
@@ -190,6 +193,7 @@ export async function renderApplicationForm({
             decisionsLabel={form.decisionsLabel}
             signedIn={false}
             signedInAs={null}
+            fromLink={false}
           />
         ) : form.windowState === "not-yet" ? (
           <NotYet form={form} signedIn={false} returnTo={returnTo} />
@@ -266,6 +270,7 @@ export async function renderApplicationForm({
           decisionsLabel={view.form.decisionsLabel}
           signedIn
           signedInAs={user.email ?? null}
+          fromLink={fromJoinLink}
         />
       </ApplicationsRoot>
     );

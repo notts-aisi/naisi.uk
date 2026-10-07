@@ -601,7 +601,8 @@ describe("what an applicant reads", () => {
     // application cannot be saved for them yet, so no programme and no
     // question of it is read for them: each branch that draws the step hands
     // it the form's id, its name, the two dates an open form shows and
-    // whether there is a session, and nothing else.
+    // whether there is a session (and, for one, whether the address carries
+    // the mark of a return from an emailed link), and nothing else.
     const screen = codeOf("ApplyScreen.tsx");
     const signedOutBranch = screen.slice(screen.indexOf("if (!user) {"), screen.indexOf('if (user.role === "rejected")'));
     assert.ok(signedOutBranch.includes("<JoinStep"), "the signed-out branch was not found");
@@ -612,20 +613,20 @@ describe("what an applicant reads", () => {
     );
     const drawn = [...screen.matchAll(/<JoinStep\s([\s\S]*?)\/>/g)].map((match) => match[1].replace(/\s+/g, " ").trim());
     assert.deepEqual(drawn, [
-      "roundId={form.id} label={form.label} closesLabel={form.closesLabel} decisionsLabel={form.decisionsLabel} signedIn={false} signedInAs={null}",
-      "roundId={view.form.id} label={view.form.label} closesLabel={view.form.closesLabel} decisionsLabel={view.form.decisionsLabel} signedIn signedInAs={user.email ?? null}",
+      "roundId={form.id} label={form.label} closesLabel={form.closesLabel} decisionsLabel={form.decisionsLabel} signedIn={false} signedInAs={null} fromLink={false}",
+      "roundId={view.form.id} label={view.form.label} closesLabel={view.form.closesLabel} decisionsLabel={view.form.decisionsLabel} signedIn signedInAs={user.email ?? null} fromLink={fromJoinLink}",
     ]);
     // The second is an account with no join request. That is asked of the
     // account's document: a session reads a missing document as an account
     // that is waiting, so the role cannot say.
     assert.match(screen, /if \(!view\.joined && view\.form\.windowState === "open"\) \{/);
-    // The step takes those six things and no others.
+    // The step takes those seven things and no others.
     const step = codeOf("JoinStep.tsx");
     const from = step.indexOf("type Props = {");
     const props = step.slice(from, step.indexOf("\n};", from));
     assert.deepEqual(
       [...props.matchAll(/^\s{2}(\w+)\??:/gm)].map((match) => match[1]),
-      ["roundId", "label", "closesLabel", "decisionsLabel", "signedIn", "signedInAs"],
+      ["roundId", "label", "closesLabel", "decisionsLabel", "signedIn", "signedInAs", "fromLink"],
     );
     assert.equal(formFiles.includes("JoinFirst.tsx"), false, "the panel that sent visitors away to join is back");
     assert.equal(formFiles.includes("SignedOutAbout.tsx"), false);

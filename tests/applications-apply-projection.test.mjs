@@ -626,7 +626,7 @@ describe("the routes and the page answer with the projections", () => {
     const signedOut = screen.slice(screen.indexOf("if (!user) {"), screen.indexOf('if (user.role === "rejected")'));
     assert.match(
       signedOut,
-      /<JoinStep\s+roundId=\{form\.id\}\s+label=\{form\.label\}\s+closesLabel=\{form\.closesLabel\}\s+decisionsLabel=\{form\.decisionsLabel\}\s+signedIn=\{false\}\s+signedInAs=\{null\}\s+\/>/,
+      /<JoinStep\s+roundId=\{form\.id\}\s+label=\{form\.label\}\s+closesLabel=\{form\.closesLabel\}\s+decisionsLabel=\{form\.decisionsLabel\}\s+signedIn=\{false\}\s+signedInAs=\{null\}\s+fromLink=\{false\}\s+\/>/,
     );
     // One step is drawn for a visitor, and that element is the whole of what
     // reaches their browser from the form.
