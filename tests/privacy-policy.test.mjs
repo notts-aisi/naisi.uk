@@ -572,7 +572,7 @@ const MUST_NAME = [
   // promised. It can be asked for and will be considered. A copy of the
   // personal data held about somebody, these scores and comments included,
   // is their right, and "Your rights" is where the page says so: §2d holds
-  // that section to what it said before this sentence pointed at it.
+  // that section to the words this sentence relies on.
   ["feedback on an application is not promised, and can be asked for", /We do not send feedback on applications, and we cannot promise it for every one\. If you would like some, email us and we will consider it\./i],
   ["scores and comments are within the right to a copy of your data", /Your right to a copy of the data we hold about you, which includes these scores and comments, is under(?:\{" "\})? <a href="#your-rights">Your rights<\/a>\./i],
   ["attendance registers", /present, arrived late, left early, absent, or\s*\{?"?\s*excused/i],
@@ -1794,7 +1794,7 @@ describe("the application form passage", () => {
     // The browser's local storage outlives the tab and is read by every tab,
     // so one function alone reaches it, and that function is where the three
     // limits are. Everything else the step keeps is in the tab's own session
-    // storage, as it always has been.
+    // storage.
     const keeper = read("src/features/applications/apply/keptAnswers.ts");
     const keeperCode = keeper.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
     assert.match(keeperCode, /return typeof window === "undefined" \? null : window\.sessionStorage;/);

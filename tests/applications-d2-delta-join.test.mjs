@@ -578,7 +578,7 @@ describe("the copy that crosses tabs, and its three limits", () => {
     assert.equal(keptAnswers.loadKept(round), null, "the page believed a copy more than an hour old");
     assert.equal(shared.items.size, 0, "and left it there");
     tab.items.set(rules.keptKey(round), rules.packKept(answers({ preferredName: "Tab" }), real - HOUR - MINUTE));
-    assert.equal(keptAnswers.loadKept(round).preferredName, "Tab", "the tab's own copy is believed for a day, as before");
+    assert.equal(keptAnswers.loadKept(round).preferredName, "Tab", "the tab's own copy is believed for a day");
   });
 
   test("LIMIT 3: forgetting removes the copy with the tab's own, in whichever tab the join request went from", (t) => {
@@ -705,7 +705,7 @@ describe("the copy that crosses tabs, and its three limits", () => {
       keptAnswers.keepAnswers(round, answers());
       keptAnswers.forgetAnswers(round);
     }
-    // Local storage alone refuses: the tab keeps its own as it always has.
+    // Local storage alone refuses: the tab still keeps its own.
     const tab = store();
     globalThis.window = { sessionStorage: tab, localStorage: refusing() };
     keptAnswers.keepAnswers(round, answers());
