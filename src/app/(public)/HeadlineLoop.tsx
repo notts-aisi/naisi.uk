@@ -16,25 +16,32 @@ const TYPE_MS = 110;
 const BEFORE_UNDERLINE_MS = 350;
 const UNDERLINE_ON_MS = 350;
 
-const UNDERLINES = ["nh-ul-none", "nh-ul-grow", "nh-ul-full", "nh-ul-shrink"] as const;
-
 /**
- * Types the headline's second sentence over and over.
+ * Types the headline's second sentence over and over, while the hero has no
+ * animated scene to do it.
  *
  * It renders nothing of its own. The sentence is already in the page, whole
  * and underlined, from the server: that is what a visitor with no script and
  * a visitor who asked for less motion both read. This finds it inside the
- * element it was rendered in (`[data-accent-text]` and the caret beside it)
- * and rewrites the letters of the one text node that is there.
+ * element it was rendered in (`[data-accent-text]`) and rewrites the letters
+ * of the one text node that is there.
+ *
+ * It says where it has got to the way the scene does, by writing `data-ul`
+ * (none, grow, full, shrink) and `data-caret` (on, off) on the hero's own
+ * box, which the hero's stylesheet reads. So the stylesheet has one set of
+ * rules for the line and the caret, whoever is typing.
  *
  * Rules a maintainer has to keep:
  *
  *  - It starts from the whole sentence and always ends on it. Leaving the
  *    page, or the effect running twice in development, puts the sentence
- *    back.
+ *    back and takes both attributes off.
  *  - It writes the existing text node's value and never replaces the node.
  *  - Nothing runs under `prefers-reduced-motion`, and nothing runs while the
  *    hero is scrolled out of sight.
+ *  - It must never run beside the scene: two typists would fight over the
+ *    same letters. It is rendered by `HeroFrame` and nowhere else, and
+ *    leaves with it.
  */
 export default function HeadlineLoop() {
   const anchor = useRef<HTMLSpanElement>(null);
@@ -43,11 +50,11 @@ export default function HeadlineLoop() {
     const root = anchor.current?.parentElement;
     if (!root) return;
     const accent = root.querySelector<HTMLElement>("[data-accent-text]");
-    const caret = root.querySelector<HTMLElement>(".nh-caret");
     const first = accent?.firstChild;
     if (!accent || !first || first.nodeType !== Node.TEXT_NODE) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
+    const box: HTMLElement = root;
     const letters: ChildNode = first;
     const sentence = letters.nodeValue ?? "";
     if (!sentence) return;
@@ -65,7 +72,7 @@ export default function HeadlineLoop() {
         go();
       }
     });
-    watcher.observe(root);
+    watcher.observe(box);
 
     /** Wait, and then go on waiting for as long as the hero is out of sight. */
     const wait = (ms: number) =>
@@ -76,18 +83,13 @@ export default function HeadlineLoop() {
         }, ms);
       });
     const underline = (state: "none" | "grow" | "full" | "shrink") => {
-      accent.classList.remove(...UNDERLINES);
-      accent.classList.add(`nh-ul-${state}`);
-    };
-    const showCaret = (on: boolean) => {
-      caret?.classList.toggle("nh-caret-on", on);
-      caret?.classList.toggle("nh-caret-off", !on);
+      box.dataset.ul = state;
     };
 
     async function run() {
       await wait(SETTLE_MS);
       while (!stopped) {
-        showCaret(true);
+        box.dataset.caret = "on";
         await wait(HOLD_MS);
         if (stopped) return;
         underline("shrink");
@@ -122,8 +124,8 @@ export default function HeadlineLoop() {
       window.clearTimeout(timer);
       watcher.disconnect();
       letters.nodeValue = sentence;
-      underline("full");
-      showCaret(false);
+      delete box.dataset.ul;
+      delete box.dataset.caret;
     };
   }, []);
 

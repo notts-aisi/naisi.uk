@@ -8,9 +8,9 @@ import styles from "./HeroFrame.module.css";
  *
  * It takes the hero's words as `children` and a class for the box, and that
  * is all, because it is the one piece meant to be swapped: the animated scene
- * is a component with the same two props that draws behind the same
- * children. To change over, replace this component where `HomeHero.tsx`
- * renders it, and nothing else.
+ * (`HeroScene`) is a component with the same two props, rendering the same
+ * element, that draws behind the same children. To change over, replace this
+ * component where `HomeHero.tsx` renders it, and nothing else.
  *
  * Like the scene, it pulls itself up under the site's sticky bar and adds
  * no space for the bar: the words keep clear of it with padding of their
@@ -29,10 +29,10 @@ import styles from "./HeroFrame.module.css";
  */
 export default function HeroFrame({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={className ? `${styles.frame} ${className}` : styles.frame}>
+    <section className={className ? `${styles.frame} ${className}` : styles.frame}>
       <NetField net="card" strength="strong" className={styles.still} />
       {children}
       <HeadlineLoop />
-    </div>
+    </section>
   );
 }

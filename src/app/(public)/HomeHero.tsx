@@ -19,10 +19,13 @@ import styles from "./HomeHero.module.css";
  * What a maintainer has to keep:
  *
  *  - The attributes `data-keepout` (with `data-pad`, `data-feather` and
- *    `data-strength`), `data-mark`, `data-word` and `data-accent-text`, and
- *    the classes that begin `nh-`, are how the animated scene finds the words
- *    and steers round them. They are not styling hooks of this file's own:
- *    leave each where it is.
+ *    `data-strength`), `data-mark`, `data-word` and `data-accent-text` are
+ *    how the animated scene finds the words and steers round them. They are
+ *    not styling hooks: leave each where it is, with its numbers. The typed
+ *    sentence is the ONLY child of the element marked `data-accent-text`.
+ *  - A piece that one form of the hero does not show (the tagline on a
+ *    laptop, the award on a phone) is set aside by the stylesheet, never
+ *    hidden with `display: none`, which the scene would read as a hole.
  *  - `HeroFrame` wraps the whole hero and takes only its children and a
  *    class. It is the one piece swapped for the scene. The frame is what
  *    sits under the site's bar: these words only keep clear of it, with
@@ -69,13 +72,13 @@ export default function HomeHero({
     <HeroFrame className={styles.hero}>
       <div className={`container ${styles.inner}`}>
         <div className={styles.stack}>
-          <HeroMark className={styles.mark} />
+          <HeroMark />
           <p
             data-keepout="tagline"
             data-pad="10"
             data-feather="40"
             data-strength="0.75"
-            className={`nh-tag ${styles.tagline}`}
+            className={styles.tagline}
           >
             Nottingham AI Safety Initiative
           </p>
@@ -91,17 +94,17 @@ export default function HomeHero({
               {FIRST_SENTENCE.map(({ word, delay }, index) => (
                 <Fragment key={word}>
                   {index > 0 ? " " : null}
-                  <span data-word="" className="nh-w" style={{ animationDelay: delay }}>
+                  <span data-word="" className={styles.word} style={{ animationDelay: delay }}>
                     {word}
                   </span>
                 </Fragment>
               ))}
             </span>{" "}
             <span aria-hidden="true" className={styles.accent}>
-              <span data-accent-text="" className="nh-acc-t nh-ul-full">
+              <span data-accent-text="" className={styles.accentText}>
                 From Nottingham.
               </span>
-              <span className="nh-caret nh-caret-off">|</span>
+              <span className={styles.caret}>|</span>
             </span>
           </h1>
           <p
@@ -109,7 +112,7 @@ export default function HomeHero({
             data-pad="12"
             data-feather="48"
             data-strength="0.8"
-            className={`nh-lede ${styles.lede}`}
+            className={styles.lede}
           >
             The AI safety community at the University of Nottingham. Fellowships, a research incubator and
             socials, open to every subject.
@@ -119,7 +122,7 @@ export default function HomeHero({
             data-pad="12"
             data-feather="44"
             data-strength="0.85"
-            className={`nh-cta ${styles.cta}`}
+            className={styles.cta}
           >
             <div className={styles.buttons}>
               <HeroButton action={primary} look="primary" stage={stage} applyPath={applyPath} />
@@ -145,7 +148,7 @@ export default function HomeHero({
               data-pad="12"
               data-feather="40"
               data-strength="0.75"
-              className={`nh-late ${styles.award}`}
+              className={styles.award}
             >
               <span className={styles.awardName}>Newcomer of the Year</span>
               <span aria-hidden="true" className={styles.awardDot} />

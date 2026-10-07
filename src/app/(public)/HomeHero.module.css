@@ -1,11 +1,17 @@
 /*
   The homepage's hero: one screen of navy with the words set on it.
 
-  Three things here are not this file's to rename, because the animated
-  scene finds them by name: the classes that begin `nh-` (written as
-  :global), the variables `--nh-kick` and `--nh-flash`, and the two replay
-  classes `nh-a` and `nh-b`, which the scene puts on the hero's box to run
-  the entrance again.
+  WHAT THE ANIMATED SCENE AND THIS FILE AGREE ON. The scene (and, until it is
+  in, HeadlineLoop) says where the typed sentence has got to by writing on
+  the hero's own box, the element that carries `.hero`:
+
+    data-ul      none | grow | full | shrink    the line under the sentence
+    data-caret   on | off                       the caret after it
+    data-replay  absent | b                     flipped to run the entrance again
+
+  and two numbers, --nh-kick and --nh-flash, that move the emblem's cyan
+  copy. None of them is there until a script has run, so every rule below
+  starts from the page with no script: the line drawn, the caret not.
 
   The values written out by hand are the hero's own and appear nowhere else:
   the navy at the centre of its ground, and the two ends of the gradient on
@@ -22,29 +28,34 @@
   --hero-air: clamp(1rem, 3.95vh, 2rem);
 
   position: relative;
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
-  /* One screen high. Whatever frames the hero pulls this box up under the
-     site's sticky bar, so its ground runs behind the bar: that is the
-     frame's job (HeroFrame, or the scene) and is not done here. */
-  min-height: 100dvh;
   background: radial-gradient(ellipse at center, var(--hero-core) 0%, var(--color-floor) 70%);
   color: var(--color-text);
 }
 
 /* The words' column: the site's `.container` (its width and its gutter),
-   with the words to the right of it. The padding at the top is what keeps
-   the words clear of the bar: the bar's height, and up to 2rem more. Pointer
-   events fall through everything but the words themselves, so the scene
-   behind still follows the pointer across the empty ground. */
+   with the words to the right of it.
+
+   It is one screen high by itself, whatever frames it, and grows when the
+   words need more. The small viewport height is used so that the hero does
+   not change size when a phone's address bar slides away.
+
+   The padding at the top is what keeps the words clear of the site's bar:
+   the bar's height, and up to 2rem more. Whatever frames the hero pulls it
+   up under the bar; that is the frame's job (HeroFrame, or the scene) and
+   is not done here.
+
+   Pointer events fall through everything but the words themselves, so the
+   scene behind still follows the pointer across the empty ground. */
 .inner {
   position: relative;
   z-index: 2;
-  flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  box-sizing: border-box;
+  min-height: 100vh;
+  min-height: 100svh;
   padding-top: calc(var(--hero-bar) + var(--hero-air));
   padding-bottom: var(--hero-air);
   pointer-events: none;
@@ -64,6 +75,7 @@
 .mark {
   align-self: flex-start;
   filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.55));
+  animation: hero-up-a 500ms ease-out 250ms both;
 }
 
 /* 216px tall on a screen 810px high or more, and smaller on a shorter one,
@@ -79,18 +91,22 @@
   max-width: none;
 }
 
-/* Drawn on a tablet and a phone only. Out of sight here it keeps a 1px box
-   under the bar, so the scene does not find a hole to steer round. */
+/* The cyan copy of the emblem slides out from behind the white one. */
+.markOffset {
+  transform: translate(-6px, 6px);
+  animation: hero-offset-a 760ms cubic-bezier(0.22, 0.61, 0.36, 1) 700ms both;
+}
+
+/* A piece that a form of the hero does not show is never `display: none`:
+   the scene would measure it as a hole at the hero's corner. It is set aside
+   instead, out of the layout, out of every reader's way, and far outside the
+   scene. The tagline is set aside on a laptop, the award on a phone. */
 .tagline {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 1px;
-  height: 1px;
+  left: -200vw;
   margin: 0;
-  overflow: hidden;
   visibility: hidden;
-  white-space: nowrap;
+  animation: hero-up-a 500ms ease-out 350ms both;
 }
 
 /* === The headline === */
@@ -109,6 +125,12 @@
   text-shadow: 0 1px 10px rgba(5, 8, 16, 0.35);
 }
 
+/* Each word of the first sentence rises in, a little after the last. */
+.word {
+  display: inline-block;
+  animation: hero-rise-a 700ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
 /* The second sentence keeps its place while it is being typed: the box is
    as wide as the whole sentence whether or not the letters are there. */
 .accent {
@@ -120,7 +142,7 @@
   animation: hero-rise-a 700ms cubic-bezier(0.22, 0.61, 0.36, 1) 980ms both;
 }
 
-.hero :global(.nh-acc-t) {
+.accentText {
   position: relative;
   display: inline-block;
   background: linear-gradient(120deg, var(--hero-accent-from), var(--color-live) 70%, var(--hero-accent-to));
@@ -129,7 +151,8 @@
   color: transparent;
 }
 
-.hero :global(.nh-acc-t)::after {
+/* The line under the sentence. Drawn, unless the box says otherwise. */
+.accentText::after {
   content: "";
   position: absolute;
   left: 0;
@@ -138,26 +161,30 @@
   height: 0.09em;
   border-radius: 2px;
   background: linear-gradient(90deg, var(--hero-accent-from), var(--color-live) 60%, var(--hero-accent-to));
-  transform: scaleX(0);
+  transform: scaleX(1);
   transform-origin: left center;
-  opacity: 0;
+  opacity: 1;
 }
 
-.hero :global(.nh-ul-grow)::after { animation: hero-underline-on 350ms ease-out forwards; }
-.hero :global(.nh-ul-full)::after { transform: scaleX(1); opacity: 1; }
-.hero :global(.nh-ul-shrink)::after { animation: hero-underline-off 250ms ease-in forwards; }
+.hero[data-ul="none"] .accentText::after {
+  transform: scaleX(0);
+  opacity: 0;
+}
+.hero[data-ul="grow"] .accentText::after { animation: hero-underline-on 350ms ease-out both; }
+.hero[data-ul="shrink"] .accentText::after { animation: hero-underline-off 250ms ease-in both; }
 
-.hero :global(.nh-caret) {
+/* The caret. Not drawn, unless the box says it is on. */
+.caret {
   display: inline-block;
   margin-left: 0.04em;
   font-weight: 400;
   color: var(--color-live);
-  animation: hero-blink 1s steps(2) infinite;
+  visibility: hidden;
 }
 
-.hero :global(.nh-caret-off) {
-  visibility: hidden;
-  animation: none;
+.hero[data-caret="on"] .caret {
+  visibility: visible;
+  animation: hero-blink 1s steps(2) infinite;
 }
 
 /* === The lede, the buttons, the status line === */
@@ -169,12 +196,14 @@
   line-height: 1.55;
   color: var(--color-text-soft);
   text-shadow: 0 1px 8px rgba(5, 8, 16, 0.7);
+  animation: hero-up-a 550ms cubic-bezier(0.22, 0.61, 0.36, 1) 900ms both;
 }
 
 .cta {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  animation: hero-up-a 550ms cubic-bezier(0.22, 0.61, 0.36, 1) 1050ms both;
 }
 
 .buttons {
@@ -261,6 +290,7 @@
   text-decoration: none;
   white-space: nowrap;
   transition: border-color var(--transition-fast);
+  animation: hero-up-a 550ms cubic-bezier(0.22, 0.61, 0.36, 1) 2900ms both;
 }
 
 /* The global focus ring is a box-shadow, and this pill has one of its own. */
@@ -297,39 +327,25 @@
   color: var(--color-warning);
 }
 
+/* The giver's name in short, for a tablet. A plain swap of two spans that
+   mark no zone, so `display` is safe here. */
 .awardByShort { display: none; }
 
-/* === The entrance ===
-   Each piece arrives a little after the last. The scene can run the whole
-   entrance again by swapping `nh-a` for `nh-b` on the hero's box: the second
-   set of keyframes is the same motion under another name, which is what
-   makes the browser start it afresh. */
+/* === The entrance, again ===
+   Each piece arrives a little after the last (the animations above). The
+   scene can run the whole entrance again by setting data-replay="b" on the
+   hero's box, and again by taking it off: the second set of keyframes is the
+   same motion under another name, which is what makes a browser start it
+   afresh. */
 
-.hero :global(.nh-w) {
-  display: inline-block;
-  animation: hero-rise-a 700ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
-}
-
-.hero :global(.nh-up) { animation: hero-up-a 500ms ease-out 250ms both; }
-.hero :global(.nh-tag) { animation: hero-up-a 500ms ease-out 350ms both; }
-.hero :global(.nh-lede) { animation: hero-up-a 550ms cubic-bezier(0.22, 0.61, 0.36, 1) 900ms both; }
-.hero :global(.nh-cta) { animation: hero-up-a 550ms cubic-bezier(0.22, 0.61, 0.36, 1) 1050ms both; }
-.hero :global(.nh-late) { animation: hero-up-a 550ms cubic-bezier(0.22, 0.61, 0.36, 1) 2900ms both; }
-
-/* The cyan copy of the emblem slides out from behind the white one. */
-.hero :global(.nh-off) {
-  transform: translate(-6px, 6px);
-  animation: hero-offset-a 760ms cubic-bezier(0.22, 0.61, 0.36, 1) 700ms both;
-}
-
-.hero:global(.nh-b) :global(.nh-w),
-.hero:global(.nh-b) .accent { animation-name: hero-rise-b; }
-.hero:global(.nh-b) :global(.nh-up),
-.hero:global(.nh-b) :global(.nh-tag),
-.hero:global(.nh-b) :global(.nh-lede),
-.hero:global(.nh-b) :global(.nh-cta),
-.hero:global(.nh-b) :global(.nh-late) { animation-name: hero-up-b; }
-.hero:global(.nh-b) :global(.nh-off) { animation-name: hero-offset-b; }
+.hero[data-replay="b"] .word,
+.hero[data-replay="b"] .accent { animation-name: hero-rise-b; }
+.hero[data-replay="b"] .mark,
+.hero[data-replay="b"] .tagline,
+.hero[data-replay="b"] .lede,
+.hero[data-replay="b"] .cta,
+.hero[data-replay="b"] .award { animation-name: hero-up-b; }
+.hero[data-replay="b"] .markOffset { animation-name: hero-offset-b; }
 
 @keyframes hero-rise-a {
   from { opacity: 0; transform: translateY(18px); filter: blur(14px); }
@@ -367,29 +383,34 @@
   50% { opacity: 0; }
 }
 
-/* Less motion: everything is where it ends up, from the first paint, and
-   the caret is not drawn. */
+/* Less motion: everything is where it ends up from the first paint, the
+   line is drawn whatever the box says, and the caret is not. */
 @media (prefers-reduced-motion: reduce) {
+  .mark,
+  .tagline,
+  .word,
   .accent,
-  .hero :global(.nh-w),
-  .hero :global(.nh-up),
-  .hero :global(.nh-tag),
-  .hero :global(.nh-lede),
-  .hero :global(.nh-cta),
-  .hero :global(.nh-late) {
+  .lede,
+  .cta,
+  .award {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
   }
   /* Only the words blur as they rise. The mark's shadow is a filter too, and
      stays. */
-  .accent,
-  .hero :global(.nh-w) { filter: none !important; }
-  .hero :global(.nh-off) {
+  .word,
+  .accent { filter: none !important; }
+  .markOffset {
     animation: none !important;
     transform: translate(-6px, 6px) !important;
   }
-  .hero :global(.nh-caret) { display: none; }
+  .hero .accentText::after {
+    animation: none !important;
+    transform: scaleX(1) !important;
+    opacity: 1 !important;
+  }
+  .hero .caret { display: none; }
 }
 
 /* === Tablet ===
@@ -422,13 +443,10 @@
   }
   .mark svg { height: clamp(7.5rem, 16.75vh, 12.5rem); }
 
+  /* Shown here, and the line the network stops above. */
   .tagline {
     position: static;
-    width: auto;
-    height: auto;
-    overflow: visible;
     visibility: visible;
-    white-space: normal;
     font-family: var(--font-display);
     font-size: var(--text-base);
     font-weight: 700;
@@ -484,21 +502,11 @@
   .buttons { flex-direction: column; }
   .button { width: 100%; }
 
-  /* Out of sight it keeps a 1px box under the bar, as the tagline does on a
-     laptop, so the scene does not find a hole to steer round. */
+  /* Set aside, as the tagline is on a laptop. */
   .awardRow {
     position: absolute;
-    top: 0;
-    left: 0;
+    left: -200vw;
     margin: 0;
     visibility: hidden;
-  }
-  .award {
-    width: 1px;
-    height: 1px;
-    min-height: 0;
-    padding: 0;
-    border: 0;
-    overflow: hidden;
   }
 }

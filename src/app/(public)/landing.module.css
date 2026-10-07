@@ -148,6 +148,10 @@
   list-style: none;
 }
 
+/* With no date to show the strip is not drawn, and the cards follow the head
+   directly: the head's own margin is the room between them. */
+.head + .cards { margin-top: 0; }
+
 .card {
   display: flex;
   flex-direction: column;

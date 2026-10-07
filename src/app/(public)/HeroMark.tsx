@@ -4,6 +4,7 @@ import {
   HERO_MARK_VIEW_BOX,
   HERO_MARK_WAVE,
 } from "./heroMarkPaths";
+import styles from "./HomeHero.module.css";
 
 /** The emblem's three shapes, once. The mark below draws them three times. */
 function Emblem() {
@@ -29,7 +30,7 @@ function Emblem() {
  *    and the flash stays dark.
  *  - The colours are the emblem's own and are never changed.
  */
-export default function HeroMark({ className }: { className?: string }) {
+export default function HeroMark() {
   return (
     <div
       data-mark=""
@@ -37,10 +38,10 @@ export default function HeroMark({ className }: { className?: string }) {
       data-pad="14"
       data-feather="56"
       data-strength="0.6"
-      className={className ? `nh-up ${className}` : "nh-up"}
+      className={styles.mark}
     >
       <svg viewBox={HERO_MARK_VIEW_BOX} role="img" aria-label="Nottingham AI Safety Initiative">
-        <g className="nh-off">
+        <g className={styles.markOffset}>
           <g style={{ transform: "translate(calc(var(--nh-kick, 0) * -5px), calc(var(--nh-kick, 0) * 5px))" }}>
             <g fill="#00d4ff">
               <Emblem />
