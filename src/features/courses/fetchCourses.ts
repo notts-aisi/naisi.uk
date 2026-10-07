@@ -125,6 +125,21 @@ export type CourseCatalogueEntry = {
    * notices.
    */
   visual: { seed: string; coverImageUrl: string | null; coverAlt: string };
+  /**
+   * What the course's own page stores that its card repeats: who it is for,
+   * the format, the time it takes and the titles of its weeks. Empty strings
+   * and an empty list for a course whose page nobody has written.
+   *
+   * From the same batch read as `visual`, so it costs no read of its own, and
+   * named field by field: a card is handed these and nothing else of the
+   * page.
+   */
+  about: {
+    whoItIsFor: string;
+    formatText: string;
+    weeklyHoursText: string;
+    themes: { weekNumber: number; title: string }[];
+  };
 };
 
 /** A published course with the curriculum its showcase run puts on display. */
@@ -297,9 +312,10 @@ export async function listPublishedCourses(): Promise<CourseCatalogueEntry[]> {
     // to. One read for the whole catalogue, and an empty map when no form is
     // one a visitor may be told about.
     fetchFormRoundsByCourse(now),
-    // ONE batch read for every card's artwork. The page id IS the course id,
-    // so this needs no query and no index; a course with no authored page
-    // comes back missing and falls through to the id-seeded default.
+    // ONE batch read for every card's artwork and for the few lines of its
+    // page a card repeats. The page id IS the course id, so this needs no
+    // query and no index; a course with no authored page comes back missing
+    // and falls through to the id-seeded default and to empty lines.
     courses.length > 0
       ? db.getAll(
           ...courses.map((c) => db.collection(COURSE_PAGES_COLLECTION).doc(c.id)),
@@ -329,6 +345,15 @@ export async function listPublishedCourses(): Promise<CourseCatalogueEntry[]> {
           seed: page?.visualSeed || course.id,
           coverImageUrl: page?.coverImageUrl ?? null,
           coverAlt: page?.coverAlt ?? "",
+        },
+        about: {
+          whoItIsFor: page?.whoItIsFor ?? "",
+          formatText: page?.formatText ?? "",
+          weeklyHoursText: page?.weeklyHoursText ?? "",
+          themes: (page?.weeklyThemes ?? []).map((theme) => ({
+            weekNumber: theme.weekNumber,
+            title: theme.title,
+          })),
         },
       };
     })
