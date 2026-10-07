@@ -28,6 +28,7 @@ import {
   type WorksheetItem,
   type WorksheetQuestion,
 } from "@/lib/firestore/worksheets";
+import { own } from "@/lib/applications/keys";
 import QuestionBody from "./QuestionBody";
 import SaveButton from "./SaveButton";
 import WorksheetQuestionField from "./WorksheetQuestionField";
@@ -365,7 +366,7 @@ export default function RespondPage({ circulationId }: { circulationId: string }
     (question: WorksheetQuestion): string | undefined => {
       const problem = problems.find((p) => p.questionId === question.id);
       if (problem) return problem.message;
-      const answer = answers[question.id];
+      const answer = own(answers, question.id);
       if (!answer) return undefined;
       // Live, so an over-long answer says so while it is being written rather
       // than at the end of a long worksheet.
@@ -536,7 +537,7 @@ export default function RespondPage({ circulationId }: { circulationId: string }
               <QuestionBody body={item.body} />
               <WorksheetQuestionField
                 question={item}
-                answer={answers[item.id]}
+                answer={own(answers, item.id)}
                 onChange={(next) => onAnswerChange(item.id, next)}
                 disabled={!canEdit}
                 error={errorFor(item)}

@@ -17,6 +17,7 @@ import {
   type WorksheetItem,
   type WorksheetQuestion,
 } from "@/lib/firestore/worksheets";
+import { own } from "@/lib/applications/keys";
 import WorksheetEditor from "../editor/WorksheetEditor";
 import { useCirculationResponses } from "../hooks/useCirculationResponses";
 import styles from "./CopyEditor.module.css";
@@ -159,7 +160,7 @@ export default function CopyEditor({ circulation }: Props) {
   const answerCountOf = useCallback(
     (questionId: string) =>
       responses.filter((response) => {
-        const answer = response.answers[questionId];
+        const answer = own(response.answers, questionId);
         return answer !== undefined && !answerIsEmpty(answer);
       }).length,
     [responses],

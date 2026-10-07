@@ -12,6 +12,7 @@ import { questionsOf, ratingScaleOf, answerIsEmpty } from "@/lib/firestore/works
 import { answersFor, countOptions } from "@/features/worksheets/aggregate";
 import { isAddressableId, isCirculationStaff, loadCirculation } from "@/lib/worksheets/access";
 import { scanResponses } from "@/lib/worksheets/responseScan";
+import { own as ownKey } from "@/lib/applications/keys";
 
 /**
  * COUNTS FOR ONE QUESTION.
@@ -173,7 +174,7 @@ export async function GET(
     // only meant to answer.
     const visibility = question.poll?.resultsVisibility;
     const frozen = isTerminalResponseState(own.state);
-    const ownAnswer = own.answers[questionId];
+    const ownAnswer = ownKey(own.answers, questionId);
     const answered = ownAnswer !== undefined && !answerIsEmpty(ownAnswer);
     const allowed =
       question.type === "poll" &&
