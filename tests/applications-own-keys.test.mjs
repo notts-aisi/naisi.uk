@@ -618,6 +618,15 @@ const CONTRACT = {
       assert.equal(scoring.reviewerScore(review({ "agi.event": 4 }), [name, "agi.event"]), 4);
     },
     hasScored: (name) => assert.equal(scoring.hasScored(review({}), [name]), false),
+    otherReviewsShownTo: (name) =>
+      // Somebody who is not an admin and has scored nothing. Read as scored
+      // under a name every object carries, they would be shown what the other
+      // reviewer gave before giving their own.
+      assert.equal(
+        scoring.otherReviewsShownTo(false, review({}), [name], { revealOtherReviews: false }),
+        false,
+        `a reviewer who had scored nothing was read as having scored ${name}`,
+      ),
     sectionScore: (name) =>
       assert.deepEqual(scoring.sectionScore([review({})], [name]), { score: null, reviewers: [] }),
     reviewsVisibleTo: (name) => {

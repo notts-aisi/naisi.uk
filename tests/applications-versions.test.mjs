@@ -976,6 +976,36 @@ describe("a score stays on the question, and the screen says when the answer has
     assert.ok(!JSON.stringify(review).includes("Claudia scored"), "the line named a review he is not shown");
   });
 
+  test("the line names whoever the reader is shown: both reviewers to an admin who has scored nothing, nobody to a lead who has not scored", async () => {
+    // An admin is shown every review without scoring first, so an admin is
+    // told who scored the words that have since changed.
+    const { review: asAdmin } = await reviewAs(dbWith(), "zach", "amara");
+    assert.deepEqual(asAdmin.review.scores, {}, "the admin has given no score");
+    assert.deepEqual(
+      [asAdmin.review.others.hidden, asAdmin.review.others.visible.map((other) => other.name)],
+      [0, ["Claudia", "Lloyd"]],
+    );
+    assert.equal(
+      answerOf(asAdmin, AGI, "event").changedSinceScored,
+      "This answer changed on Sat 17 Oct, after Claudia and Lloyd scored it.",
+    );
+    assert.equal(answerOf(asAdmin, AGI, "plan").changedSinceScored, null, "that answer never changed");
+
+    // A lead scores blind first. Before she has scored, the reviewer's review
+    // is held back from her, so nothing on her screen may say anybody scored.
+    const docs = seed();
+    delete docs[`admissionReviews/${ROUND}__amara__claudia`];
+    const { review: asLead } = await reviewAs(makeDb(docs, { now: NOW }), "claudia", "amara");
+    assert.deepEqual(asLead.review.scores, {}, "the lead has given no score");
+    assert.deepEqual([asLead.review.others.hidden, asLead.review.others.visible], [1, []]);
+    for (const section of asLead.sections) {
+      for (const answer of section.answers) assert.equal(answer.changedSinceScored, null, answer.key);
+    }
+    assert.ok(!stringsIn(asLead).some((text) => text.includes("scored it")), "the line named a review she is not shown");
+    // What the answer said before is the applicant's history, not a reviewer's: she is still shown it.
+    assert.equal(answerOf(asLead, AGI, "event").earlier.length, 2);
+  });
+
   test("somebody who has saved their review since the change is not told", async () => {
     const db = dbWith();
     db.poke(`admissionReviews/${ROUND}__amara__claudia`, { updatedAt: NOW });

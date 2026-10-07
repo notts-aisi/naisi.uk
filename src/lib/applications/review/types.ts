@@ -1,5 +1,6 @@
 import type { ProgrammeRole } from "../access";
 import type { PoolReason, ProgrammeDecisionKind, QuestionSetRole, QuestionType } from "../model";
+import type { GaveBack } from "../status/reasons";
 import type { ProgrammeStanding } from "../words";
 
 /**
@@ -13,8 +14,8 @@ import type { ProgrammeStanding } from "../words";
  *  - an applicant's email addresses are present only on the payload an admin
  *    is sent, so the fields are optional rather than nullable;
  *  - what another reviewer scored or wrote is present only once
- *    `reviewsVisibleTo` says this caller may see it, and a review that is held
- *    back is a count and never a body;
+ *    `reviewsVisibleTo` says this caller may see it, which for an admin is
+ *    always, and a review that is held back is a count and never a body;
  *  - every status, score and tally is derived when the payload is built.
  *
  * Types only, with no server import, so a client component can read them.
@@ -37,6 +38,13 @@ export type ApplicationRow = {
    * listed and is in none of the board's numbers.
    */
   withdrawn: boolean;
+  /**
+   * When they left by giving a place or an invitation back: the button they
+   * pressed and the reason they gave, as the committee reads it. Null for a
+   * row that is not withdrawn, and for one withdrawn any other way. The
+   * reason is null for a reply made before the question was asked.
+   */
+  gaveBack: GaveBack | null;
   /**
    * They are on this list because they accepted an invitation to this
    * programme, which they did not rank. `choice` is 0, `standing` is
@@ -320,10 +328,11 @@ export type SectionScoreLine = {
   shortName: string;
   /** The section score, as it is shown, or null. */
   score: string | null;
-  /** "Claudia 4 · Lloyd 3", or null when nobody has scored. */
+  /**
+   * "Claudia 4 · Lloyd 3", or null when nobody has scored. Nothing is ever
+   * held back from an admin, so there is no count of hidden reviews here.
+   */
   line: string | null;
-  /** How many reviews are being held back from this admin. */
-  hidden: number;
 };
 
 export type ReviewPayload = {
@@ -358,6 +367,8 @@ export type ReviewPayload = {
     appliedOn: string | null;
     accountWaiting: boolean;
     withdrawn: boolean;
+    /** As on the list: what they said when they gave a place or an invitation back, and why. */
+    gaveBack: GaveBack | null;
     ranked: { programmeId: string; shortName: string; choice: number; focus: boolean }[];
     /**
      * The programme they joined by accepting an invitation, when this screen

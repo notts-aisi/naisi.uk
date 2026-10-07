@@ -552,6 +552,27 @@
   font-size: 13px;
   color: var(--color-text-muted);
 }
+/* Why a withdrawn row left. Its own class: `.sub` never wraps on a wide card,
+   and a reason somebody typed has to. */
+.gaveBack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 16rem;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+.gaveBackWhy {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--color-text);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
 
 @container (min-width: 60rem) { /* --bp-lg, of the card */
   .table th.wrapHead,

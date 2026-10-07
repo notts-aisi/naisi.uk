@@ -104,6 +104,7 @@ export const APPLICATION_LIMITS = {
   poolNote: 300,
   exceptionReason: 500,
   revokeReason: 500,
+  releaseReasonOther: 300,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -253,6 +254,25 @@ export type QuestionSetDoc = {
   updatedAt: Date | null;
 };
 
+/**
+ * The last test of the decision-day emails an admin sent to their own
+ * address.
+ *
+ * Decision day cannot be sent until one has gone, and a test stops counting
+ * the moment any decision email's wording changes. `wording` is a fingerprint
+ * of all of that wording as it stood when the test went, and the send compares
+ * it with the form as it stands now (`decisionDay/tested.ts`). Nothing stamps
+ * a "wording changed" time: the comparison is made where it is used, so no
+ * writer of wording has to remember to.
+ */
+export type DecisionEmailTest = {
+  /** The admin who sent it. */
+  byUid: string;
+  at: Date | null;
+  /** `wordingFingerprint(form)` at the moment the test went. */
+  wording: string;
+};
+
 /** The fields an admission round carries when it is an application form. */
 export type ApplicationFormFields = {
   formVersion: typeof FORM_VERSION;
@@ -269,6 +289,8 @@ export type ApplicationFormFields = {
   revealOtherReviews: boolean;
   /** The "No offer this time" email, the same for every programme. */
   noOfferWording: EmailWording | null;
+  /** The last test of the decision-day emails. Null until an admin sends one. */
+  decisionEmailTest: DecisionEmailTest | null;
   /** Stamped once, by the send. Null until decision day. */
   decisionsSentAt: Date | null;
   decisionsSentByUid: string | null;
@@ -437,6 +459,26 @@ export type Attendance = {
   answeredAt: Date | null;
 };
 
+/**
+ * Why somebody did not take a place. Asked when they say "I can't make it"
+ * (to a place) or "No thanks" (to an invitation), and shown to the committee,
+ * who may be able to offer something that works.
+ */
+export type ReleaseReasonKind = "times" | "too-much-on" | "something-else" | "other";
+
+export const RELEASE_REASON_KINDS: readonly ReleaseReasonKind[] = [
+  "times",
+  "too-much-on",
+  "something-else",
+  "other",
+];
+
+export type ReleaseReason = {
+  kind: ReleaseReasonKind;
+  /** Their own words. Never empty for `other`, and always empty otherwise. */
+  other: string;
+};
+
 /** The fields an application carries on a form of this version. */
 export type ApplicationFields = {
   formVersion: typeof FORM_VERSION;
@@ -459,6 +501,12 @@ export type ApplicationFields = {
   result: ApplicationResult | null;
   invitation: Invitation | null;
   attendance: Attendance | null;
+  /**
+   * The reason given with the reply that gave a place or an invitation back,
+   * written by that reply and by nothing else. Null until then, and for a
+   * reply made before the question was asked.
+   */
+  releaseReason: ReleaseReason | null;
 };
 
 /** An application as the rest of this system reads it. */

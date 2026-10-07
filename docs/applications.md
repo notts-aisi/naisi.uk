@@ -158,10 +158,9 @@ the person. Once the person accepts (`joinedByInvitation()` in
 if it had ranked the programme (`canReadApplication()` takes the joined
 programme beside the ranking), and it has a row in the programme's list,
 marked `byInvitation`, standing as accepted, with no decision to make and
-nothing of that programme's to score. The invitation card tells the person
-so before they press Accept. If they later cannot make it, the row stays,
-marked withdrawn, like anybody else's who left after applying. Somebody who
-says no thanks is never read by the programme they turned down.
+nothing of that programme's to score. If they later cannot make it, the row
+stays, marked withdrawn, like anybody else's who left after applying.
+Somebody who says no thanks is never read by the programme they turned down.
 `tests/applications-wave-h-joined.test.mjs` runs every kind of account
 against every way an invitation can stand.
 
@@ -264,12 +263,22 @@ else.
 
 - A reviewer's score for a programme is the mean of what they gave its answers.
 - The section score is the mean of the reviewers' scores, one voice each.
-- **A first review is blind to other reviewers.** Until you have scored every
-  answer there is to score for a programme, you are not shown what anybody else
-  gave or wrote for it (`reviewsVisibleTo`). An admin can switch that off for
-  the form (`revealOtherReviews`).
-- **Names are shown.** Reviewers see who they are reading, and the form has to
-  tell applicants so.
+- **A first review is blind to other reviewers.** A lead or a reviewer who has
+  not yet scored every answer there is to score for a programme is not shown
+  what anybody else gave or wrote for it (`reviewsVisibleTo`). An admin can
+  switch that off for the form (`revealOtherReviews`), which changes what
+  leads and reviewers are shown.
+- **An admin is never blind.** An admin is shown every score and comment, on
+  every programme, whether or not they have scored and whatever the switch
+  says: on a programme's list, on the single application and in the
+  recommendations made from the scores. "Admin" is the role on the site,
+  never a role on a programme, so a lead who is not an admin still scores
+  blind first. `otherReviewsShownTo` in `scoring.ts` is the whole rule. Every
+  caller hands it the caller's own standing, and nothing else reads the
+  switch as a condition: `tests/applications-review-routes.test.mjs` walks
+  the tree for both.
+- **Names are shown.** Reviewers see who they are reading. The form says who
+  reads an application and does not mention names.
 
 ## What an application said before
 
@@ -403,6 +412,30 @@ publishes each outcome onto the applicant's own document (`result`, and
 `invitation` where there is one) and sends the emails. Until it runs, every
 applicant's status stays "sent".
 
+### A test before the send
+
+No press of Send is taken until an admin has sent themselves a test of the
+emails as they are worded now. The test is the page's "Send a test to me":
+the first person's real email in a group, to the admin's own address. Each
+one that is handed to the mail provider is recorded on the form as
+`decisionEmailTest`: who sent it, when, and a fingerprint of every decision
+email's wording at that moment (each programme's own `emailWording`, and the
+form's `noOfferWording`). A test this copy of the site held, or one to an
+address on the do-not-email list, reached nobody and is not recorded. A
+programme's own test, sent from its settings page, is not this test and
+leaves no record.
+
+`testStanding()` in `decisionDay/tested.ts` compares the record's fingerprint
+with the form as it stands: `fresh`, `stale` (a decision email's wording has
+changed since), or `none`. Nothing stamps a "wording changed" time, so no
+writer of wording has to remember to, and wording put back to exactly what
+was tested is tested wording again. `sendBlockers()` and `owedBlockers()`
+(`decisionDay/plan.ts`) hold both kinds of press on anything but `fresh`,
+with a sentence that says which, and a caller that hands over no answer is
+held too. A press composes its emails from the same reading of the form it
+judged the test against. The decision-day page's last readiness row says who
+tested and when, or that a test is owed.
+
 ### What became of the email
 
 A result is published first and its email follows, so the two can come apart:
@@ -518,6 +551,28 @@ the status `accepted`, and approves the account if it was still waiting (see
 above). `result` is what decision day said and no reply changes it. A place given back cannot be taken again from the page. `standingOf()` in
 `status/standing.ts` reads all of that off the document, and `decideReply()`
 in `status/replies.ts` is the whole table.
+
+### Why somebody did not take a place
+
+The two replies that give something back are asked why: one of a short list
+("The times don't work for me", "I have too much on this term", "I'm doing
+something else instead") or "Other" with a few words of the person's own, at
+most `APPLICATION_LIMITS.releaseReasonOther` characters. A reason is
+required. The route refuses the reply without one before it reads a document
+(`parseReplyRequest()`), and the transaction that writes the reply refuses
+it too. It is stored on the person's own application as `releaseReason`, in
+the same write as the reply, and by no other write: a reply that gives
+nothing back carries none, and the first reason given stands.
+
+The committee reads it wherever the person's row is, because the answer is
+often something that can be put right. `gaveBackOf()` in `status/reasons.ts`
+is the one reading: the button the person pressed and their reason, off
+their own document. It is on the withdrawn row of each programme they ranked,
+on the application itself, and on the pooled applicants page, which keeps
+pooled people who left after they were told in a list of their own (`left`),
+counted nowhere. So nobody disappears from a screen by replying. The reason
+is not sent back to the applicant, and the programme whose invitation
+somebody turned down still never reads them.
 
 ### One set of words for an outcome
 
@@ -641,7 +696,7 @@ All in `src/lib/applications/`.
 | `roles.ts` | `setProgrammeRoles`, the one writer of leads and reviewers | server |
 | `repo.ts` | The form, its sets, the caller's own application | server, applicant-safe |
 | `staffRepo.ts` | Everybody's applications, reviews, decisions | server, staff only |
-| `status/standing.ts`, `status/replies.ts`, `status/view.ts`, `status/words.ts` | Where one person stands after sending, what each reply does, what their page says, the chip and title of an outcome | anywhere |
+| `status/standing.ts`, `status/replies.ts`, `status/reasons.ts`, `status/view.ts`, `status/words.ts` | Where one person stands after sending, what each reply does, why somebody gave a place back and how the committee reads it, what their page says, the chip and title of an outcome | anywhere |
 | `status/load.ts`, `status/record.ts` | The page's read, and the one transaction a reply writes | server, applicant-safe |
 | `accounts/approve.ts`, `accounts/afterReply.ts` | Approving a waiting account on an acceptance, and the call an accepted invitation makes | server, applicant-safe |
 | `lifecycle/openForm.ts` | Which form is open, and which form speaks for each course, for a page that offers Apply | server, safe for a page any visitor can load |

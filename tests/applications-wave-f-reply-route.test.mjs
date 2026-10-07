@@ -77,6 +77,8 @@ const { loadTs } = createLoader({ stubs: STUBS });
 const ROUTE = join("app", "api", "admissions", "forms", "[roundId]", "application", "reply", "route.ts");
 const route = await loadTs(ROUTE);
 const replies = await loadTs(join("lib", "applications", "status", "replies.ts"));
+const reasons = await loadTs(join("lib", "applications", "status", "reasons.ts"));
+const normalise = await loadTs(join("lib", "applications", "normalise.ts"));
 const record = await loadTs(join("lib", "applications", "status", "record.ts"));
 const afterReply = await loadTs(join("lib", "applications", "accounts", "afterReply.ts"));
 const store = await loadTs(join("lib", "applications", "applicant", "store.ts"));
@@ -382,7 +384,17 @@ function request(body, { ip } = {}) {
     body: body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body),
   });
 }
-const REPLY = (reply, roundId, options) => route.POST(request(reply === undefined ? undefined : { reply }, options), ctx(roundId));
+/**
+ * The two replies that give something back are asked why, so every request
+ * for one here carries a reason unless the test is about the reason itself.
+ */
+const WHY = { kind: "times", other: "" };
+const GIVES_BACK = ["cant-make-it", "decline-invitation"];
+const bodyFor = (reply) => (GIVES_BACK.includes(reply) ? { reply, reason: WHY } : { reply });
+const REPLY = (reply, roundId, options) =>
+  route.POST(request(reply === undefined ? undefined : bodyFor(reply), options), ctx(roundId));
+/** A reply with exactly the body given: for the cases about what a body may carry. */
+const SEND = (body, roundId) => route.POST(request(body), ctx(roundId));
 const counts = () => db.data(ROUND_PATH).applicationCounts;
 const snapshot = () => JSON.stringify([...db.docs.entries()]);
 
@@ -687,10 +699,12 @@ describe("what is written, field by field", () => {
     assert.deepEqual(counts(), COUNTS);
   });
 
-  test("I can’t make it writes the reply, the status and when it was withdrawn, with the counters", async () => {
+  // The reason is one more field, in the same write as the reply it explains.
+  test("I can’t make it writes the reply, why, the status and when it was withdrawn, with the counters", async () => {
     await REPLY("cant-make-it");
-    assert.deepEqual(fieldsOf(appPath(me)), ["attendance", "status", "updatedAt", "withdrawnAt"]);
+    assert.deepEqual(fieldsOf(appPath(me)), ["attendance", "releaseReason", "status", "updatedAt", "withdrawnAt"]);
     assert.deepEqual(fieldsOf(ROUND_PATH), ["applicationCounts.accepted", "applicationCounts.withdrawn", "updatedAt"]);
+    assert.equal(db.commits, 1, "one transaction: the reply and its reason cannot come apart");
   });
 
   test("accepting an invitation writes two fields of the invitation by path, never the map", async () => {
@@ -700,11 +714,19 @@ describe("what is written, field by field", () => {
     assert.deepEqual(fieldsOf(ROUND_PATH), ["applicationCounts.accepted", "applicationCounts.invited", "updatedAt"]);
   });
 
-  test("no thanks writes the same two fields, and takes the application out of the term", async () => {
+  test("no thanks writes the same two fields and why, and takes the application out of the term", async () => {
     world({ state: STATES["invited, not answered"] });
     await REPLY("decline-invitation");
-    assert.deepEqual(fieldsOf(appPath(me)), ["invitation.respondedAt", "invitation.response", "status", "updatedAt", "withdrawnAt"]);
+    assert.deepEqual(fieldsOf(appPath(me)), [
+      "invitation.respondedAt",
+      "invitation.response",
+      "releaseReason",
+      "status",
+      "updatedAt",
+      "withdrawnAt",
+    ]);
     assert.deepEqual(fieldsOf(ROUND_PATH), ["applicationCounts.invited", "applicationCounts.withdrawn", "updatedAt"]);
+    assert.equal(db.commits, 1);
   });
 
   test("no reply ever writes the result, the sent copy, the email or the name", async () => {
@@ -761,6 +783,192 @@ describe("what is written, field by field", () => {
     world({ roundOverrides: { applicationCounts: { accepted: 1 } } });
     await REPLY("cant-make-it");
     assert.deepEqual(counts(), { accepted: 0, withdrawn: 1 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Why: the reason that goes with a place or an invitation given back
+// ---------------------------------------------------------------------------
+
+/**
+ * The owner's decision of 7 October 2026: somebody who says "I can’t make it"
+ * or "No thanks" is asked why, from a short list with "Other" and a text box,
+ * and the committee sees the reason, because they may be able to offer
+ * something that works.
+ */
+describe("a reply that gives something back says why", () => {
+  const stored = () => db.data(appPath(me)).releaseReason;
+  const GIVE_BACKS = [
+    ["cant-make-it", "placed, nothing said"],
+    ["decline-invitation", "invited, not answered"],
+    ["cant-make-it", "invited, accepted"],
+  ];
+
+  test("the four reasons are the owner's words, in his order, and Other is last", () => {
+    assert.deepEqual(reasons.RELEASE_REASON_OPTIONS, [
+      { kind: "times", label: "The times don\u2019t work for me" },
+      { kind: "too-much-on", label: "I have too much on this term" },
+      { kind: "something-else", label: "I\u2019m doing something else instead" },
+      { kind: "other", label: "Other" },
+    ]);
+    assert.equal(reasons.RELEASE_REASON_OTHER_MAX, 300);
+  });
+
+  for (const [reply, state] of GIVE_BACKS) {
+    test(`${reply} from "${state}": with no reason it is a 400 before any document is read`, async () => {
+      for (const body of [
+        { reply },
+        { reply, reason: null },
+        { reply, reason: "times" },
+        { reply, reason: {} },
+        { reply, reason: { kind: "because" } },
+        { reply, reason: { kind: "constructor" } },
+        { reply, reason: { other: "The times do not work." } },
+        { reply, reason: ["times"] },
+      ]) {
+        world({ state: STATES[state] });
+        const response = await SEND(body);
+        assert.deepEqual(
+          [response.status, response.body],
+          [400, { error: "Choose a reason from the list before you send this." }],
+          JSON.stringify(body),
+        );
+        assert.deepEqual(db.reads, [], JSON.stringify(body));
+        assert.deepEqual(db.writes, [], JSON.stringify(body));
+      }
+    });
+
+    test(`${reply} from "${state}": each listed reason is stored as chosen, with no words of its own`, async () => {
+      for (const kind of ["times", "too-much-on", "something-else"]) {
+        world({ state: STATES[state] });
+        // Words typed and then left behind when another reason was chosen are dropped.
+        const response = await SEND({ reply, reason: { kind, other: "typed, then changed my mind" } });
+        assert.equal(response.status, 200, kind);
+        assert.deepEqual(stored(), { kind, other: "" }, kind);
+        assert.equal(db.data(appPath(me)).status, "withdrawn", kind);
+      }
+    });
+
+    test(`${reply} from "${state}": Other needs words, keeps them trimmed, and is refused past the limit`, async () => {
+      for (const [other, error] of [
+        [undefined, "Say why in a few words, or choose another reason."],
+        ["", "Say why in a few words, or choose another reason."],
+        ["   \n ", "Say why in a few words, or choose another reason."],
+        [42, "Say why in a few words, or choose another reason."],
+        ["x".repeat(301), "Keep your reason to 300 characters or fewer."],
+      ]) {
+        world({ state: STATES[state] });
+        const response = await SEND({ reply, reason: { kind: "other", other } });
+        assert.deepEqual([response.status, response.body], [400, { error }], JSON.stringify(other));
+        assert.deepEqual(db.reads, []);
+        assert.deepEqual(db.writes, []);
+      }
+      world({ state: STATES[state] });
+      const exact = "x".repeat(300);
+      assert.equal((await SEND({ reply, reason: { kind: "other", other: `  ${exact}  ` } })).status, 200);
+      assert.deepEqual(stored(), { kind: "other", other: exact }, "300 characters is allowed, and the spaces round it are not counted");
+      world({ state: STATES[state] });
+      await SEND({ reply, reason: { kind: "other", other: "  I\u2019m moving to Leeds in November.  " } });
+      assert.deepEqual(stored(), { kind: "other", other: "I\u2019m moving to Leeds in November." });
+    });
+  }
+
+  test("a reply that gives nothing back carries no reason: one sent with it is dropped, not stored", async () => {
+    world();
+    const coming = await SEND({ reply: "coming", reason: { kind: "other", other: "should not be kept" } });
+    assert.equal(coming.status, 200);
+    assert.equal(stored(), undefined);
+    assert.equal(db.writes.flatMap((write) => write.fields).includes("releaseReason"), false);
+    world({ state: STATES["invited, not answered"] });
+    const accepted = await SEND({ reply: "accept-invitation", reason: { kind: "times", other: "" } });
+    assert.equal(accepted.status, 200);
+    assert.equal(stored(), undefined);
+    assert.equal(db.writes.flatMap((write) => write.fields).includes("releaseReason"), false);
+  });
+
+  test("the first reason given stands: saying the same thing again writes nothing", async () => {
+    world();
+    await SEND({ reply: "cant-make-it", reason: { kind: "times", other: "" } });
+    const commits = db.commits;
+    const again = await SEND({ reply: "cant-make-it", reason: { kind: "other", other: "a different story" } });
+    assert.deepEqual([again.status, again.body.changed], [200, false]);
+    assert.deepEqual(stored(), { kind: "times", other: "" });
+    assert.equal(db.commits, commits);
+  });
+
+  test("a reply that is refused stores no reason", async () => {
+    // Nothing has been published, so there is nothing to give back.
+    world({ state: STATES["nothing published"] });
+    const response = await SEND({ reply: "cant-make-it", reason: { kind: "times", other: "" } });
+    assert.equal(response.status, 409);
+    assert.equal(stored(), undefined);
+    assert.deepEqual(db.writes, []);
+  });
+
+  test("the writer refuses a reply that gives something back with no reason, whoever calls it", async () => {
+    // The route never gets this far without one. The writer holds the rule too.
+    world();
+    const form = await (await loadTs(join("lib", "applications", "repo.ts"))).loadForm(db, ROUND);
+    await assert.rejects(
+      () => record.recordReply(db, form, me, { reply: "cant-make-it", reason: null }, new Date()),
+      (err) => err.status === 400 && err.message === "Choose a reason from the list before you send this.",
+    );
+    assert.equal(db.data(appPath(me)).status, "accepted", "nothing was given back");
+    assert.equal(stored(), undefined);
+    assert.deepEqual(db.writes, []);
+  });
+
+  test("the applicant is not sent their reason back, or anybody's", async () => {
+    world();
+    const response = await SEND({ reply: "cant-make-it", reason: { kind: "other", other: "A MARKER NOBODY SHOULD ECHO" } });
+    assert.equal(response.status, 200);
+    assert.equal(JSON.stringify(response.body).includes("A MARKER NOBODY SHOULD ECHO"), false);
+  });
+
+  test("a stored reason is read back as it was written, and half a reason is none", () => {
+    const read = (releaseReason) =>
+      normalise.normaliseApplication(`${ROUND}__x`, { formVersion: 2, roundId: ROUND, uid: "x", releaseReason }).releaseReason;
+    assert.deepEqual(read({ kind: "times", other: "" }), { kind: "times", other: "" });
+    assert.deepEqual(read({ kind: "too-much-on" }), { kind: "too-much-on", other: "" });
+    assert.deepEqual(read({ kind: "something-else", other: "words its option never asked for" }), { kind: "something-else", other: "" });
+    assert.deepEqual(read({ kind: "other", other: "  Moving away.  " }), { kind: "other", other: "Moving away." });
+    assert.equal(read({ kind: "other", other: "x".repeat(400) }).other.length, 300);
+    for (const none of [undefined, null, "times", {}, { kind: "other" }, { kind: "other", other: "  " }, { kind: "because" }, { kind: "constructor" }, ["times"]]) {
+      assert.equal(read(none), null, JSON.stringify(none));
+    }
+  });
+
+  test("the committee reads the option's own words, or what the person wrote", () => {
+    assert.equal(reasons.reasonInWords({ kind: "times", other: "" }), "The times don\u2019t work for me");
+    assert.equal(reasons.reasonInWords({ kind: "too-much-on", other: "" }), "I have too much on this term");
+    assert.equal(reasons.reasonInWords({ kind: "something-else", other: "" }), "I\u2019m doing something else instead");
+    assert.equal(reasons.reasonInWords({ kind: "other", other: "Moving away." }), "Moving away.");
+    assert.equal(reasons.reasonInWords(null), null);
+    assert.equal(reasons.reasonInWords(undefined), null);
+    assert.equal(reasons.reasonInWords({ kind: "other", other: " " }), null);
+  });
+
+  test("what somebody gave back is read off their own application: the button, and the reason", async () => {
+    world();
+    await SEND({ reply: "cant-make-it", reason: { kind: "times", other: "" } });
+    assert.deepEqual(reasons.gaveBackOf(normalise.normaliseApplication(appPath(me).split("/")[1], db.data(appPath(me)))), {
+      said: "I can\u2019t make it",
+      reason: "The times don\u2019t work for me",
+    });
+    world({ state: STATES["invited, not answered"] });
+    await SEND({ reply: "decline-invitation", reason: { kind: "other", other: "I start a job that week." } });
+    assert.deepEqual(reasons.gaveBackOf(normalise.normaliseApplication(appPath(me).split("/")[1], db.data(appPath(me)))), {
+      said: "No thanks",
+      reason: "I start a job that week.",
+    });
+    // Nothing given back: nothing to show, whatever the document carries.
+    for (const state of ["placed, nothing said", "invited, not answered", "invited, accepted", "no offer", "nothing published"]) {
+      const application = { ...STATES[state], releaseReason: { kind: "times", other: "" } };
+      assert.equal(reasons.gaveBackOf(application), null, state);
+    }
+    // A place given back before the question was asked: the button, and no reason.
+    assert.deepEqual(reasons.gaveBackOf(STATES["placed, gave it back"]), { said: "I can\u2019t make it", reason: null });
+    assert.deepEqual(reasons.gaveBackOf(STATES["invited, said no thanks"]), { said: "No thanks", reason: null });
   });
 });
 
@@ -1084,11 +1292,19 @@ describe("the handler is written the way the guards read it", () => {
   test("the gate comes before the body, and the body before any read", () => {
     const gate = code.indexOf("await requireApplicant()");
     const body = code.indexOf("await readJsonBody(req)");
-    const refusal = code.indexOf("if (!isReply(reply))");
+    // The whole body, the word and the reason that goes with it, is refused in one place.
+    const refusal = code.indexOf("if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });");
     const firstRead = code.indexOf("await loadForm(");
     assert.ok(gate !== -1 && body !== -1 && refusal !== -1 && firstRead !== -1);
     assert.ok(gate < body && body < refusal && refusal < firstRead);
     assert.ok(code.indexOf("await recordReply(") > firstRead);
+    assert.match(code, /const parsed = parseReplyRequest\(await readJsonBody\(req\)\);/);
+    // And the parser reads no document: it is a pure function of the body.
+    const parser = readFileSync(join(REPO_ROOT, "src", "lib", "applications", "status", "replies.ts"), "utf8");
+    const reasonsSource = readFileSync(join(REPO_ROOT, "src", "lib", "applications", "status", "reasons.ts"), "utf8");
+    for (const source of [parser, reasonsSource]) {
+      assert.equal(/server-only|firebase-admin|firestore"|\.collection\(|\.doc\(|await /.test(source.replace(/\/\*[\s\S]*?\*\//g, " ")), false);
+    }
   });
 
   test("it reads through the applicant-safe half of the data layer and nothing of the committee's", () => {

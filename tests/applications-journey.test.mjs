@@ -23,7 +23,9 @@
  *  1. An admin makes a form from nothing, and it will not open until ready.
  *  2. People apply. Nobody reaches anybody else's data.
  *  3. The form closes. Reviewers score, leads decide, an admin picks what
- *     pooled applicants hear.
+ *     pooled applicants hear. The send stays locked until an admin has sent
+ *     themselves a test of the emails, and locks again when a lead rewords
+ *     one afterwards.
  *  4. NOBODY HEARS EARLY: until the send, everything an applicant's own
  *     routes say about their application is what it said when they sent it.
  *  5. The send. It stops part way, and what the one person told was told is
@@ -888,6 +890,9 @@ async function theCommitteeDecides() {
   });
   seen.lloydBeforeScoring = await reviewOf("lloyd", "amara", "agi");
   seen.lloydListBeforeScoring = await call("lloyd", routes.board.GET, { roundId: ROUND, programmeId: P.agi });
+  // The same moment, for an admin who has scored nothing and never will.
+  seen.adminBeforeScoring = await reviewOf("zach", "amara", "agi");
+  seen.adminListBeforeScoring = await call("zach", routes.board.GET, { roundId: ROUND, programmeId: P.agi });
   // One of the two answers is not a finished first review.
   seen.lloydHalfScored = await score("lloyd", "amara", "agi", { [key("agi", "event")]: 3 });
   seen.lloydScored = await score("lloyd", "amara", "agi", { [key("agi", "law")]: 3 }, "Fine.");
@@ -940,11 +945,37 @@ async function theCommitteeDecides() {
   await earshot("the pooled outcomes are picked");
   await census("ready to send");
 
+  // Every decision is made and every outcome picked. The send is still
+  // locked: no admin has sent themselves a test of the emails.
+  seen.pressBeforeAnyTest = await press(await onTheButton());
+  seen.toldBeforeAnyTest = told();
+
   // A test email goes to the admin who asked for it, and to nobody who applied.
   seen.mailBeforeTheTest = world.mail.calls.length;
   seen.testEmail = await call("zach", routes.sendTest.POST, params(), { body: { kind: "accepted" } });
   seen.testMail = world.mail.calls.slice(seen.mailBeforeTheTest).map((mail) => ({ to: mail.to, subject: mail.subject, kind: mail.kind }));
+  seen.testRecord = structuredClone(roundDoc().decisionEmailTest ?? null);
   await earshot("a test email has been sent");
+  await census("tested, and ready to send");
+
+  // A lead rewords one of her programme's emails after the test. Nobody in
+  // this term is sent that email, and it still counts: the test was of the
+  // emails as they were worded, and they are worded differently now.
+  await step("the Technical AI Safety lead rewords her You’re in after the test", 200, "tess", routes.programme.PATCH, { roundId: ROUND, programmeId: P.tais }, {
+    body: { emailWording: { accepted: { subject: "Welcome to Technical AI Safety", body: "" } } },
+  });
+  await earshot("a lead has reworded an email");
+  await census("reworded since the test");
+  seen.pressAfterRewording = await press(await onTheButton());
+  seen.toldAfterRewording = told();
+
+  // The admin tests again, as the emails are worded now.
+  seen.mailBeforeTheSecondTest = world.mail.calls.length;
+  seen.secondTest = await call("zach", routes.sendTest.POST, params(), { body: { kind: "invitation" } });
+  seen.secondTestMail = world.mail.calls.slice(seen.mailBeforeTheSecondTest).map((mail) => ({ to: mail.to, subject: mail.subject, kind: mail.kind }));
+  seen.secondTestRecord = structuredClone(roundDoc().decisionEmailTest ?? null);
+  await earshot("the emails have been tested again");
+  await census("tested again, and ready to send");
 }
 
 const address = (uid) => `${uid}@example.com`;
@@ -1073,7 +1104,14 @@ async function decisionDay() {
   };
 }
 
-const replyAs = (who, reply) => call(who, routes.reply.POST, params(), { body: { reply } });
+/**
+ * The two replies that give something back are asked why. A step that is not
+ * about the reason sends this one; a step that is says its own.
+ */
+const WHY = { kind: "too-much-on", other: "" };
+const replyBody = (reply, reason = WHY) =>
+  ["cant-make-it", "decline-invitation"].includes(reply) ? { reply, reason } : { reply };
+const replyAs = (who, reply, reason) => call(who, routes.reply.POST, params(), { body: replyBody(reply, reason) });
 
 /** Who the daily reminder for an unanswered invitation would write to today. */
 async function dueAReminder() {
@@ -1115,15 +1153,29 @@ async function peopleReply() {
     wroteNothing: everything() === before,
   };
 
-  for (const [who, reply, label] of [
+  // Somebody giving a place or an invitation back is asked why. With no
+  // reason, or with "Other" and no words, nothing is recorded.
+  const beforeTheReasons = everything();
+  seen.noReason = {
+    place: await call("jasmine", routes.reply.POST, params(), { body: { reply: "cant-make-it" } }),
+    invitation: await call("abel", routes.reply.POST, params(), { body: { reply: "decline-invitation" } }),
+    otherWithNoWords: await call("abel", routes.reply.POST, params(), {
+      body: { reply: "decline-invitation", reason: { kind: "other", other: "   " } },
+    }),
+    wroteNothing: everything() === beforeTheReasons,
+  };
+
+  for (const [who, reply, label, reason] of [
     ["amara", "coming", "Amara is coming"],
-    ["jasmine", "cant-make-it", "Jasmine gave her place back"],
+    // The times do not work for her: the case the committee may be able to put right.
+    ["jasmine", "cant-make-it", "Jasmine gave her place back", { kind: "times", other: "" }],
     ["oliver", "accept-invitation", "Oliver accepted his invitation"],
-    ["abel", "decline-invitation", "Abel said no thanks"],
+    // In his own words.
+    ["abel", "decline-invitation", "Abel said no thanks", { kind: "other", other: "  I\u2019m starting a placement that week.  " }],
   ]) {
     later();
     const account = structuredClone(accountDoc(who));
-    const response = await step(`${who} replies ${reply}`, 200, who, routes.reply.POST, params(), { body: { reply } });
+    const response = await step(`${who} replies ${reply}`, 200, who, routes.reply.POST, params(), { body: replyBody(reply, reason) });
     seen.replies[who] = {
       response,
       stored: structuredClone(applicationDoc(who)),
@@ -1156,6 +1208,26 @@ async function peopleReply() {
     abelToAgiLead: await reviewOf("claudia", "abel", "agi"),
     abelToAgiReviewer: await reviewOf("lloyd", "abel", "agi"),
     abelToAgiLeadWrites: await score("claudia", "abel", "agi", {}, "A pity."),
+  };
+
+  // The reason each gave, where the committee reads it: on the withdrawn row
+  // of a programme they ranked, on the application itself, and for a pooled
+  // person on the pooled applicants page.
+  const rowOn = async (who, programme, uid) =>
+    ((await call(who, routes.board.GET, { roundId: ROUND, programmeId: P[programme] })).body?.board?.rows ?? []).find((row) => row.uid === uid) ?? null;
+  seen.reasons = {
+    // Jasmine ranked AGI Strategy and gave back her place on it.
+    jasmineOnAgiList: await rowOn("claudia", "agi", "jasmine"),
+    jasmineToAgiReviewer: (await reviewOf("lloyd", "jasmine", "agi")).body?.review?.applicant ?? null,
+    // Abel ranked Technical AI Safety and the incubator, and turned down AGI Strategy.
+    abelOnTaisList: await rowOn("tess", "tais", "abel"),
+    abelToTaisLead: (await reviewOf("tess", "abel", "tais")).body?.review?.applicant ?? null,
+    pool: (await call("zach", routes.pool.GET, params())).body?.board ?? null,
+    // Nobody is removed: both are still on a list, and neither is counted.
+    agiCounts: (await call("claudia", routes.board.GET, { roundId: ROUND, programmeId: P.agi })).body?.board?.counts ?? null,
+    // What each is sent about their own application.
+    ownJasmine: (await mine("jasmine")).body ?? null,
+    ownAbel: (await mine("abel")).body ?? null,
   };
 
   // A place given back cannot be taken again from the page.
@@ -1629,6 +1701,28 @@ describe("one term, from nothing to settled", () => {
       assert.equal(rowAfter.scoreValue, 3.75);
     });
 
+    // The owner's decision of 7 October 2026. The form's switch is off for
+    // the whole of this term, so nothing here is the switch's doing.
+    test("an admin is never blind: the lead's score and comment are there before the admin has scored anything", () => {
+      assert.equal(seen.roundWhenOpened.revealOtherReviews, false);
+      const early = seen.adminBeforeScoring.body.review;
+      assert.deepEqual(early.review.scores, {}, "the admin has scored nothing");
+      assert.equal(early.review.others.hidden, 0);
+      assert.deepEqual(
+        early.review.others.visible.map((other) => [other.name, other.score, other.overallComment]),
+        [["Claudia", "4.5", "Strong on the law."]],
+      );
+      assert.deepEqual(early.admin.sections.find((section) => section.programmeId === P.agi), {
+        programmeId: P.agi,
+        shortName: "AGI Strategy",
+        score: "4.5",
+        line: "Claudia scored 4 and 5",
+      });
+      const row = seen.adminListBeforeScoring.body.board.rows.find((entry) => entry.uid === "amara");
+      assert.equal(row.score, "4.5", "and the list's score column, at the moment the reviewer's reads nothing");
+      assert.equal(seen.lloydListBeforeScoring.body.board.rows.find((entry) => entry.uid === "amara").score, null);
+    });
+
     test("a reviewer cannot decide, a lead cannot decide or read another lead's programme, and only an admin picks", () => {
       assert.equal(seen.reviewerDecides.status, 403);
       assert.ok(REFUSED.includes(seen.leadDecidesElsewhere.status));
@@ -1719,9 +1813,78 @@ describe("one term, from nothing to settled", () => {
       assert.deepEqual(ready.send.noOffer, ["hannah"]);
       assert.equal(ready.send.declined, 1);
       assert.deepEqual(ready.send.pending, { people: 6, emails: 5 });
-      assert.equal(ready.send.ready, true);
+      // Every decision is made and every outcome picked, so every row but the
+      // last is ticked. The send itself waits for a test of the emails, which
+      // has a test of its own below.
+      assert.deepEqual(
+        Object.entries(ready.send.readiness).filter(([, row]) => row[0] === false).map(([key]) => key),
+        ["#test"],
+      );
+      assert.equal(ready.send.ready, false);
+      // Once tested, the page is ready, and nothing else on it has moved.
+      const tested = censusAt("tested again, and ready to send").send;
+      assert.equal(tested.ready, true);
+      assert.deepEqual(
+        { ...tested, ready: false, readiness: { ...tested.readiness, "#test": ready.send.readiness["#test"] } },
+        ready.send,
+      );
       // Jasmine is accepted and her join request has not been looked at.
       assert.equal(ready.send.accountsWaiting, 1);
+    });
+
+    // The owner's decision of 7 October 2026: "I wouldn't let this happen
+    // without a test." The story presses Send three times before decision
+    // day: with no test, with a test, and after a lead reworded an email.
+    test("the send is locked until an admin has sent themselves a test, and locks again when wording changes after it", () => {
+      const NO_TEST = "Nobody has sent themselves a test of these emails yet. Send yourself one before you send.";
+      const STALE_TEST =
+        "A decision email’s wording has changed since the last test. Send yourself a test again before you send.";
+      const when = (date) =>
+        new Intl.DateTimeFormat("en-GB", {
+          timeZone: "Europe/London",
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        }).format(date);
+
+      // No test: refused, in a sentence, and nobody is told.
+      assert.deepEqual(censusAt("ready to send").send.readiness["#test"], [false, "No test sent yet", "Send one below before you send"]);
+      assert.deepEqual(short(seen.pressBeforeAnyTest), [409, NO_TEST]);
+      assert.deepEqual(seen.toldBeforeAnyTest, []);
+
+      // The test is recorded on the form: who sent it, when, and the wording it was made from.
+      assert.deepEqual([seen.testEmail.status, seen.testEmail.body.recorded], [200, true]);
+      assert.equal(seen.testRecord.byUid, "zach");
+      assert.ok(seen.testRecord.at instanceof Date);
+      assert.match(seen.testRecord.wording, /^[0-9a-f]{64}$/);
+      const tested = censusAt("tested, and ready to send").send;
+      assert.equal(tested.ready, true);
+      assert.deepEqual(tested.readiness["#test"], [true, `Sent ${when(seen.testRecord.at)}`, ""]);
+
+      // A lead rewords an email: the same test no longer counts.
+      const reworded = censusAt("reworded since the test").send;
+      assert.equal(reworded.ready, false);
+      assert.deepEqual(reworded.readiness["#test"], [
+        false,
+        `Sent ${when(seen.testRecord.at)}, and the wording has changed since`,
+        "Send it again below before you send",
+      ]);
+      assert.deepEqual(short(seen.pressAfterRewording), [409, STALE_TEST]);
+      assert.deepEqual(seen.toldAfterRewording, []);
+
+      // Tested again, as the emails are worded now. Any one of the three emails is a test.
+      assert.deepEqual([seen.secondTest.status, seen.secondTest.body.recorded], [200, true]);
+      assert.equal(seen.secondTestRecord.byUid, "zach");
+      assert.notEqual(seen.secondTestRecord.wording, seen.testRecord.wording);
+      assert.ok(seen.secondTestRecord.at > seen.testRecord.at);
+      assert.deepEqual(censusAt("tested again, and ready to send").send.readiness["#test"], [
+        true,
+        `Sent ${when(seen.secondTestRecord.at)}`,
+        "",
+      ]);
     });
   });
 
@@ -1734,6 +1897,8 @@ describe("one term, from nothing to settled", () => {
       "every lead has decided",
       "the pooled outcomes are picked",
       "a test email has been sent",
+      "a lead has reworded an email",
+      "the emails have been tested again",
     ];
 
     test("the story listened after every thing the committee did", () => {
@@ -1777,6 +1942,12 @@ describe("one term, from nothing to settled", () => {
       assert.equal(seen.testMail[0].kind, "admin-test");
       assert.match(seen.testMail[0].subject, /^\[TEST\] /);
       assert.equal(seen.mailBeforeTheTest, 0);
+      // The second test, after a lead reworded an email, went the same way.
+      assert.equal(seen.mailBeforeTheSecondTest, 1, "the two refused presses in between sent nothing");
+      assert.deepEqual(
+        seen.secondTestMail.map((mail) => [mail.to, mail.kind, /^\[TEST\] /.test(mail.subject)]),
+        [[address("zach"), "admin-test", true]],
+      );
       assert.deepEqual(seen.beforeAnyPress.mail, []);
       assert.deepEqual(seen.beforeAnyPress.told, []);
     });
@@ -2101,6 +2272,7 @@ describe("one term, from nothing to settled", () => {
       const { stored, accountBefore, accountAfter } = seen.replies.jasmine;
       assert.equal(stored.status, "withdrawn");
       assert.equal(stored.attendance.answer, "cant-make-it");
+      assert.deepEqual(stored.releaseReason, { kind: "times", other: "" }, "why, with the reply");
       assert.ok(stored.withdrawnAt instanceof Date);
       assert.deepEqual([stored.result.kind, stored.result.programmeId], ["accepted", P.agi]);
       // The send made her a member, and giving the place back does not undo that.
@@ -2125,7 +2297,52 @@ describe("one term, from nothing to settled", () => {
       const { stored, accountBefore, accountAfter } = seen.replies.abel;
       assert.equal(stored.status, "withdrawn");
       assert.equal(stored.invitation.response, "declined");
+      assert.deepEqual(stored.releaseReason, { kind: "other", other: "I\u2019m starting a placement that week." }, "his own words, trimmed");
       assert.deepEqual(accountAfter, accountBefore);
+    });
+
+    // The owner's decision of 7 October 2026: "people might withdraw because
+    // the timing doesn't work and we might be able to reallocate them".
+    test("somebody giving a place back is asked why, and with no reason nothing is recorded", () => {
+      assert.deepEqual(short(seen.noReason.place), [400, "Choose a reason from the list before you send this."]);
+      assert.deepEqual(short(seen.noReason.invitation), [400, "Choose a reason from the list before you send this."]);
+      assert.deepEqual(short(seen.noReason.otherWithNoWords), [400, "Say why in a few words, or choose another reason."]);
+      assert.equal(seen.noReason.wroteNothing, true);
+      // Saying yes is never asked why.
+      assert.equal(seen.replies.amara.stored.releaseReason ?? null, null);
+      assert.equal(seen.replies.oliver.stored.releaseReason ?? null, null);
+    });
+
+    test("the committee reads the reason where the person's row is, and nobody is removed", () => {
+      const TIMES = { said: "I can\u2019t make it", reason: "The times don\u2019t work for me" };
+      const PLACEMENT = { said: "No thanks", reason: "I\u2019m starting a placement that week." };
+      const found = seen.reasons;
+      // The withdrawn row of a programme they ranked, for its lead.
+      assert.deepEqual([found.jasmineOnAgiList.withdrawn, found.jasmineOnAgiList.gaveBack], [true, TIMES]);
+      assert.deepEqual([found.abelOnTaisList.withdrawn, found.abelOnTaisList.gaveBack], [true, PLACEMENT]);
+      // The application itself, for a reviewer and for a lead.
+      assert.deepEqual([found.jasmineToAgiReviewer.withdrawn, found.jasmineToAgiReviewer.gaveBack], [true, TIMES]);
+      assert.deepEqual([found.abelToTaisLead.withdrawn, found.abelToTaisLead.gaveBack], [true, PLACEMENT]);
+      // The pooled applicants page, for an admin: Abel was pooled, Jasmine never was.
+      assert.deepEqual(
+        found.pool.left.map((row) => [row.uid, row.said, row.programme, row.reason]),
+        [["abel", "No thanks", "AGI Strategy", "I\u2019m starting a placement that week."]],
+      );
+      assert.equal(found.pool.rows.some((row) => row.uid === "abel"), false, "listed apart, and in no count");
+      assert.equal(found.pool.counts.pooled, found.pool.rows.length);
+      // Listed, not counted: Jasmine's row is there and AGI Strategy's accepted count is Amara alone.
+      assert.equal(found.agiCounts.accepted, 1);
+      // The programme whose invitation Abel turned down still never reads him.
+      assert.deepEqual(
+        [seen.joinedByInvitation.abelToAgiLead.status, seen.joinedByInvitation.abelToAgiReviewer.status],
+        [404, 404],
+      );
+      // And neither is sent their own reason back.
+      for (const own of [found.ownJasmine, found.ownAbel]) {
+        assert.equal(own.application.status, "withdrawn");
+        assert.equal(JSON.stringify(own).includes("placement that week"), false);
+        assert.equal("releaseReason" in own.application, false);
+      }
     });
 
     const AFTER_EACH_REPLY = [
@@ -2349,7 +2566,12 @@ describe("one term, from nothing to settled", () => {
         tais: [true, "Every application has a decision", "0 of 2 places, and 1 invitation"],
         inc: [true, "Every application has a decision", "0 of 1 places"],
         pooled: [true, "Every pooled person has an outcome", "2 invitations, 1 no offer"],
+        // Who tested the emails and when: the record of the last test, which
+        // no reply moves either.
+        "#test": sent.readiness["#test"],
       });
+      assert.match(sent.readiness["#test"][1], /^Sent \w{3} \d{1,2} \w{3}, \d{2}:\d{2}$/);
+      assert.deepEqual([sent.readiness["#test"][0], sent.readiness["#test"][2]], [true, ""]);
       assert.ok(sent.sentOn, "the term is marked as sent");
       for (const label of [...AFTER_EACH_REPLY, "settled"]) {
         assert.deepEqual(censusAt(label).send, sent, label);

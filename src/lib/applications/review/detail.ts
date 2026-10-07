@@ -11,14 +11,15 @@ import {
 import type { ApplicationForm } from "../normalise";
 import {
   formatScore,
-  hasScored,
   hiddenReviewCount,
+  otherReviewsShownTo,
   reviewerScore,
   reviewsVisibleTo,
   scorableKeysFor,
   sectionScore,
 } from "../scoring";
 import { applicableSets } from "../sections";
+import { gaveBackOf } from "../status/reasons";
 import { changeCount } from "../versions/kept";
 import { availabilityViewFor } from "./availabilityView";
 import {
@@ -70,6 +71,10 @@ import type {
  *    somebody else left on this application, with one more condition: a
  *    comment on ANOTHER stream's answer waits for the caller's first review
  *    of that stream too, when they review it.
+ *  - AN ADMIN IS NEVER BLIND. Every one of those answers is
+ *    `otherReviewsShownTo`'s, and for an admin it is always yes: every score,
+ *    every comment and every overall comment is on an admin's payload whether
+ *    or not they have scored, on every programme the person ranked.
  *  - ADDRESSES ARE FOR ADMINS. The two email fields are added for an admin
  *    and are otherwise not on the object at all.
  *  - EVERYTHING IS DERIVED: the standing, what is owed, the places left and
@@ -195,11 +200,13 @@ export function buildReview(input: {
   const others = reviews.filter((review) => review.reviewerUid !== viewer.uid);
   const keys = scorableKeysFor(form, sets, programmeId, sent);
 
-  // Is the caller's first review of a programme over? A programme with
-  // nothing to score has no first review to protect.
+  // Is the caller shown what others gave and wrote for a programme? Always,
+  // for an admin. For anybody else, once their first review of it is over; a
+  // programme with nothing to score has no first review to protect.
   const keysOf = new Map<string, string[]>();
   for (const id of ranked) keysOf.set(id, scorableKeysFor(form, sets, id, sent));
-  const lifted = (id: string) => form.revealOtherReviews || hasScored(mine, keysOf.get(id) ?? []);
+  const lifted = (id: string) =>
+    otherReviewsShownTo(viewer.isAdmin, mine, keysOf.get(id) ?? [], form);
   const liftedHere = lifted(programmeId);
 
   // -------------------------------------------------------------------------
@@ -340,7 +347,7 @@ export function buildReview(input: {
         (review.comments.length > 0 || review.overallComment.trim() !== "")),
   );
   const forProgramme = mine ? [mine, ...relevant] : relevant;
-  const visible = reviewsVisibleTo(viewer.uid, forProgramme, keys, form).filter(
+  const visible = reviewsVisibleTo(viewer.uid, forProgramme, keys, form, viewer.isAdmin).filter(
     (review) => review.reviewerUid !== viewer.uid,
   );
   const visibleOthers: OtherReview[] = visible.map((review) => {
@@ -399,8 +406,8 @@ export function buildReview(input: {
       const other = programmeOn(form, id);
       if (!other?.useScores) continue;
       const otherKeys = keysOf.get(id) ?? [];
-      const scoredBy = reviews.filter((review) => reviewerScore(review, otherKeys) !== null);
-      const seen = reviewsVisibleTo(viewer.uid, reviews, otherKeys, form);
+      // Every review there is: nothing is held back from an admin.
+      const seen = reviewsVisibleTo(viewer.uid, reviews, otherKeys, form, viewer.isAdmin);
       const section = sectionScore(seen, otherKeys);
       let line: string | null = null;
       if (section.reviewers.length === 1) {
@@ -423,7 +430,6 @@ export function buildReview(input: {
         shortName: other.shortName,
         score: section.score === null ? null : formatScore(section.score),
         line,
-        hidden: hiddenReviewCount(viewer.uid, scoredBy, otherKeys, form),
       });
     }
     admin = { revealOtherReviews: form.revealOtherReviews, sections: lines };
@@ -439,6 +445,7 @@ export function buildReview(input: {
     appliedOn: appliedAt ? formatRoundDate(appliedAt) : null,
     accountWaiting: input.accountWaiting,
     withdrawn: application.status === "withdrawn",
+    gaveBack: gaveBackOf(application),
     ranked: ranked.map((id, at) => ({
       programmeId: id,
       shortName: programmeOn(form, id)?.shortName ?? "",
@@ -512,7 +519,7 @@ export function buildReview(input: {
       comments,
       others: {
         count: relevant.length,
-        hidden: hiddenReviewCount(viewer.uid, forProgramme, keys, form),
+        hidden: hiddenReviewCount(viewer.uid, forProgramme, keys, form, viewer.isAdmin),
         visible: visibleOthers,
       },
     },

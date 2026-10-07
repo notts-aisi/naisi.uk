@@ -799,6 +799,19 @@ describe("the stylesheet keeps the house mobile rules", () => {
   });
 });
 
+/**
+ * The modules under `src/lib` a client file here may import BY VALUE, and why
+ * each is safe to run in a browser. A type-only import is erased and needs no
+ * entry.
+ */
+const SAFE_IN_A_BROWSER = {
+  "@/lib/applications/status/view":
+    "pure: what the page says, worked out from the form and one application, with no server import",
+  "@/lib/applications/status/reasons":
+    "pure: the reasons for giving a place back, their words and what a request may carry, with no server import; " +
+    "the reply buttons ask it so the page refuses exactly what the route would",
+};
+
 describe("the components keep to the house rules", () => {
   const components = screenFiles.filter((file) => file.endsWith(".tsx"));
 
@@ -819,9 +832,25 @@ describe("the components keep to the house rules", () => {
       for (const found of code.matchAll(/import\s+(type\s+)?[^;]*?from\s+"(@\/lib\/[^"]+)"/g)) {
         if (found[1]) continue;
         assert.ok(
-          ["@/lib/applications/status/view"].includes(found[2]),
+          Object.keys(SAFE_IN_A_BROWSER).includes(found[2]),
           `${file} imports ${found[2]} by value: say here why that module is safe in a browser`,
         );
+      }
+    }
+  });
+
+  test("each module a client file imports by value is pure, as its entry says", () => {
+    for (const [module, why] of Object.entries(SAFE_IN_A_BROWSER)) {
+      assert.ok(why.length > 40, `${module} has no reason`);
+      const path = join(REPO_ROOT, "src", ...module.replace("@/", "").split("/")) + ".ts";
+      const source = readFileSync(path, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^[ \t]*\/\/.*$/gm, " ");
+      assert.equal(/server-only|firebase-admin|@\/lib\/firebase\/|node:/.test(source), false, `${module} reaches the server`);
+      // Whatever it imports by value from beside it has to be as clean.
+      for (const found of source.matchAll(/import\s+(type\s+)?[^;]*?from\s+"(\.[^"]+)"/g)) {
+        if (found[1]) continue;
+        const beside = join(dirname(path), found[2]) + ".ts";
+        const inner = readFileSync(beside, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ");
+        assert.equal(/server-only|firebase-admin|@\/lib\/firebase\/|node:/.test(inner), false, `${module} imports ${found[2]}, which reaches the server`);
       }
     }
   });

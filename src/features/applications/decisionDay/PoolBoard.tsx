@@ -37,6 +37,14 @@ import styles from "./PoolBoard.module.css";
  *
  * This page only records what each person will hear. They hear it on decision
  * day, from the send.
+ *
+ * ## Nobody disappears
+ *
+ * Somebody pooled who gives a place or an invitation back after decision day
+ * leaves the list above and every number on the page. They are kept in a
+ * second list underneath, marked Withdrawn, with the button they pressed and
+ * the reason they gave, because the reason is often something that can be put
+ * right.
  */
 
 type Saving = "saved" | "saving" | "failed";
@@ -377,6 +385,52 @@ export default function PoolBoard({ initial }: { initial: Board }) {
           </div>
         </div>
       </div>
+
+      {board.left.length > 0 ? (
+        <section className={styles.leftSection} aria-labelledby="pool-left-title">
+          <h2
+            id="pool-left-title"
+            className={`${kit.mono} ${shared.eyebrow} ${styles.sectionLabel} ${styles.leftTitle}`}
+          >
+            Withdrawn since decision day
+          </h2>
+          <div className={`${shared.card} ${styles.left}`}>
+            <p className={styles.leftNote}>
+              {board.left.length === 1 ? "This person was" : "These people were"} told on decision day and
+              {board.left.length === 1 ? " has" : " have"} since given a place or an invitation back. They
+              are in none of the numbers above.
+            </p>
+            <ul className={styles.leftList}>
+              {board.left.map((row) => (
+                <li key={row.uid} className={styles.leftRow}>
+                  <div className={styles.person}>
+                    <span className={styles.personDisc}>
+                      <InitialsChip name={row.name} uid={row.uid} />
+                    </span>
+                    <div className={styles.personText}>
+                      <div className={styles.personName}>{row.name}</div>
+                      <div className={styles.leftSub}>
+                        {[row.degree, row.detail].filter(Boolean).join(" · ")}
+                      </div>
+                    </div>
+                  </div>
+                  <div className={styles.leftWhy}>
+                    <div className={styles.leftSaid}>
+                      <Pill tone="warn" dot>
+                        Withdrawn
+                      </Pill>
+                      <span>
+                        Said “{row.said}”{row.programme ? ` to ${row.programme}` : ""}
+                      </span>
+                    </div>
+                    <p className={styles.leftReason}>{row.reason ?? "No reason given"}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      ) : null}
     </Page>
   );
 }
