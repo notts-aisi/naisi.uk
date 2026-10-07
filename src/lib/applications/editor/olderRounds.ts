@@ -1,17 +1,16 @@
 /**
- * What the older round console says about an application form.
+ * Where the older round console sends somebody who meets an application form.
  *
- * An application form is stored on an admission round, so the older console's
- * routes can address one by id. They must never edit it: they know nothing of
- * its programmes or its question sets, they would reopen a round by a status
- * table the form does not use, and a reviewer list saved there would overwrite
- * the union the form keeps of every programme's lead and reviewers.
+ * An application form is stored on an admission round, so the older console
+ * can address one by id. It never edits one: every older route refuses a form
+ * through the fence (`refuseApplicationForm` in
+ * `src/lib/admissions/formFence.ts`), and the one sentence that refusal is
+ * made in is declared there and nowhere else.
  *
- * So each of the older mutating round routes asks `isApplicationForm` once it
- * has loaded the round, and answers with this sentence.
+ * That module runs on the server only, and the round list is drawn in the
+ * browser. So what both sides need is kept here, in a module with no server
+ * import: the address of the form's own editor.
  */
-export const EDITED_IN_THE_APPLICATION_FORM =
-  "This round is an application form, so it is edited in the application form and not here. Open it from Admissions.";
 
 /** Where the editor for one application form lives. */
 export function applicationFormPath(roundId: string): string {

@@ -1262,7 +1262,19 @@ describe("no route in this tree writes a form's status", () => {
 
 describe("the older round console refuses to edit an application form", () => {
   const OLDER = "src/app/api/admissions/rounds/[roundId]";
-  /** Each older mutating handler that could edit a round, and how many it holds. */
+  /**
+   * Each older mutating handler that could edit a round, and how many it holds.
+   *
+   * The refusal is the fence's: `refuseApplicationForm` in
+   * `src/lib/admissions/formFence.ts` asks the contract's own question of the
+   * stored document and answers 409 with the one sentence. These handlers used
+   * to spell that out themselves, so this block read the spelling. They make
+   * the fence's call now, and the same three things are held of the call: it
+   * comes once the round is loaded, before the round is read as one of the
+   * older kind, and what it answers is returned. What it answers is executed
+   * below. `tests/admissions-form-fence.test.mjs` holds every older handler in
+   * the tree to the same and calls each one with a stored form.
+   */
   const REFUSING = {
     [`${OLDER}/route.ts`]: ["PATCH"],
     [`${OLDER}/roles/route.ts`]: ["PUT"],
@@ -1274,30 +1286,51 @@ describe("the older round console refuses to edit an application form", () => {
   for (const [path, methods] of Object.entries(REFUSING)) {
     test(`${path} refuses in ${methods.join(" and ")}, once the round is loaded and before it is read as a round`, () => {
       const source = code(join(REPO_ROOT, ...path.split("/")));
-      assert.match(source, /from "@\/lib\/applications\/normalise"/);
+      assert.match(source, /import \{ refuseApplicationForm \} from "@\/lib\/admissions\/formFence";/);
       for (const method of methods) {
         const start = source.search(new RegExp(`export async function ${method}\\(`));
         assert.ok(start > -1, `${path} has no ${method}`);
         const next = source.slice(start + 1).search(/\nexport async function /);
         const body = next === -1 ? source.slice(start) : source.slice(start, start + 1 + next);
         const loaded = body.search(/[Ss]nap\.exists/);
-        const refusal = body.indexOf("isApplicationForm(");
+        const refusal = body.indexOf("refuseApplicationForm(");
         const normalised = body.indexOf("normalizeAdmissionRound(");
         assert.ok(loaded > -1 && refusal > loaded, `${method} asks before the round is loaded, or not at all`);
         assert.ok(normalised === -1 || refusal < normalised, `${method} reads the form as a round before it refuses`);
+        // The stored document is what is asked, never the round the older
+        // normaliser made of it, which has lost the field that says what it is.
+        // And the answer is returned: a refusal worked out and dropped refuses
+        // nothing.
         assert.match(
-          body.slice(refusal, refusal + 220),
-          /EDITED_IN_THE_APPLICATION_FORM[\s\S]*status: 409/,
-          `${method} does not answer with the sentence that says where a form is edited`,
+          body.slice(body.lastIndexOf("\n", refusal), refusal + 220),
+          /\n\s*const (\w+) = refuseApplicationForm\(\w*[Ss]nap\.data\(\)\);\s*if \(\1\) return \1;/,
+          `${method} does not return what the fence answers for the stored document`,
         );
+        assert.equal(body.split("refuseApplicationForm(").length - 1, 1, `${method} asks more than once`);
       }
     });
   }
 
-  test("the sentence says where a form is edited instead", async () => {
+  test("what the fence answers is the sentence that says where a form is edited instead", async () => {
+    const fence = await loadTs(join("lib", "admissions", "formFence.ts"));
+    assert.match(fence.EDITED_IN_THE_APPLICATION_FORM, /application form/);
+    const refusal = fence.refuseApplicationForm({ formVersion: 2, label: "Autumn 2026" });
+    assert.deepEqual([refusal.status, refusal.body], [409, { error: fence.EDITED_IN_THE_APPLICATION_FORM }]);
+    // A round of the older kind is not refused, so the older console still edits it.
+    assert.equal(fence.refuseApplicationForm({ kind: "enrolment", label: "Facilitators" }), null);
+  });
+
+  test("the sentence is declared once, in the fence, and the editor keeps only the address", async () => {
     const older = await loadTs(join("lib", "applications", "editor", "olderRounds.ts"));
-    assert.match(older.EDITED_IN_THE_APPLICATION_FORM, /application form/);
+    assert.deepEqual(Object.keys(older), ["applicationFormPath"]);
     assert.equal(older.applicationFormPath(ROUND), `/admin/admissions/forms/${ROUND}`);
+    // One spelling in the tree: a second declaration is a second sentence
+    // waiting to drift from the first.
+    const declares = [];
+    for (const file of walk(join(REPO_ROOT, "src"))) {
+      if (/\bEDITED_IN_THE_APPLICATION_FORM\s*=/.test(code(file))) declares.push(rel(file));
+    }
+    assert.deepEqual(declares, ["src/lib/admissions/formFence.ts"]);
   });
 
   test("the round list sends an application form to its own editor", () => {
