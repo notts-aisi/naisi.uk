@@ -1,21 +1,28 @@
+/* Test sign-ups: an admin's tool on the attendee list. */
+
 .title {
-  font-size: var(--text-lg);
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
   font-weight: 600;
-  margin: 0 0 var(--space-2);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
   color: var(--color-text);
 }
 
 .hint {
+  margin: var(--space-1) 0 var(--space-5);
+  max-width: 44rem;
+  font-size: var(--text-ui);
+  line-height: var(--leading-normal);
   color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  line-height: 1.5;
-  margin: 0 0 var(--space-4);
 }
 
 .note {
-  color: var(--color-text-muted);
+  margin: 0 0 var(--space-4);
   font-size: var(--text-sm);
-  margin: 0 0 var(--space-3);
+  line-height: 1.5;
+  color: var(--color-text-muted);
 }
 
 .row {
@@ -25,37 +32,24 @@
   gap: var(--space-3);
 }
 
+/* A count of at most 60 needs a short box. */
 .countField {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  font-size: var(--text-sm);
-  color: var(--color-text);
-}
-
-.countInput {
-  width: 6rem;
-  padding: 0.55rem 0.7rem;
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  color: var(--color-text);
-  font-size: var(--text-md, 1rem);
-}
-
-.countInput:focus {
-  outline: none;
-  border-color: var(--color-accent);
+  width: 7rem;
 }
 
 .error {
-  color: var(--color-danger);
-  font-size: var(--text-sm);
   margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger-text);
 }
 
 .done {
-  color: var(--color-success);
-  font-size: var(--text-sm);
   margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-ok);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* Nothing: the row already wraps, and its controls are 44px tall. */
 }

@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import InitialsChip from "@/components/ui/InitialsChip";
+import { Input } from "@/components/ui/Input";
+import MemberName from "@/components/ui/MemberName";
+import OptionRow from "@/components/ui/OptionRow";
+import styles from "./CollaboratorPicker.module.css";
 
 type Candidate = { uid: string; displayName: string; role: string };
 
@@ -103,131 +108,96 @@ export default function CollaboratorPicker({ eventId }: Props) {
   }, [candidates, search]);
 
   if (loading) {
-    return <p style={hintStyle}>Loading committee members…</p>;
+    return <p className={styles.quiet}>Loading committee members…</p>;
   }
   if (loadError) {
-    return <p style={errorStyle}>{loadError}</p>;
+    return (
+      <p className={styles.problem} role="alert">
+        {loadError}
+      </p>
+    );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+    <div className={styles.picker}>
       {selectedCandidates.length > 0 ? (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
+        <div className={styles.chosen}>
           {selectedCandidates.map((c) => (
             <button
               key={c.uid}
               type="button"
+              className={styles.person}
               onClick={() => toggle(c.uid)}
               disabled={busy}
-              style={chipStyle}
+              aria-label={`Take ${c.displayName} off this event`}
             >
-              <span>{c.displayName}</span>
-              <span aria-hidden>✕</span>
+              <InitialsChip name={c.displayName} uid={c.uid} />
+              <span>
+                <MemberName name={c.displayName} />
+              </span>
+              <CloseIcon />
             </button>
           ))}
         </div>
       ) : (
-        <p style={hintStyle}>
-          No collaborators yet. Only you and approvers can edit this event.
+        <p className={styles.quiet}>
+          Nobody has been added yet. Only the person running this event and approvers can change it.
         </p>
       )}
 
       {candidates.length === 0 ? (
-        <p style={hintStyle}>
-          There are no other committee members to add yet.
-        </p>
+        <p className={styles.quiet}>There are no other committee members to add yet.</p>
       ) : (
         <>
-          <input
-            type="text"
+          <Input
+            type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search committee members…"
-            style={inputStyle}
+            aria-label="Search committee members"
           />
-          <div style={listStyle}>
-            {matches.length === 0 && <p style={hintStyle}>No matches.</p>}
-            {matches.map((c) => {
-              const isSelected = selected.includes(c.uid);
-              return (
-                <label key={c.uid} style={rowStyle(isSelected)}>
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => toggle(c.uid)}
-                    disabled={busy}
-                  />
-                  <span>{c.displayName}</span>
-                  <span style={roleStyle}>{c.role}</span>
-                </label>
-              );
-            })}
+          <div className={styles.list}>
+            {matches.length === 0 && <p className={styles.quiet}>Nobody matches that.</p>}
+            {matches.map((c) => (
+              <div key={c.uid} className={styles.row}>
+                <OptionRow
+                  plain
+                  checked={selected.includes(c.uid)}
+                  onChange={() => toggle(c.uid)}
+                  disabled={busy}
+                  description={<span className={styles.role}>{c.role}</span>}
+                >
+                  <MemberName name={c.displayName} />
+                </OptionRow>
+              </div>
+            ))}
           </div>
         </>
       )}
 
-      {saveError && <p style={errorStyle}>{saveError}</p>}
+      {saveError && (
+        <p className={styles.problem} role="alert">
+          {saveError}
+        </p>
+      )}
     </div>
   );
 }
 
-const hintStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "var(--text-sm)",
-  color: "var(--color-text-muted)",
-};
-
-const errorStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "var(--text-sm)",
-  color: "var(--color-danger)",
-};
-
-const chipStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "var(--space-1)",
-  padding: "0.25rem 0.6rem",
-  borderRadius: "var(--radius-pill)",
-  background: "var(--color-accent-soft)",
-  color: "var(--color-accent)",
-  fontSize: "var(--text-xs)",
-  border: "none",
-  cursor: "pointer",
-};
-
-const inputStyle: React.CSSProperties = {
-  padding: "0.55rem 0.75rem",
-  background: "var(--color-bg-elevated)",
-  border: "1px solid var(--color-border)",
-  borderRadius: "var(--radius-md)",
-  color: "var(--color-text)",
-  fontSize: "var(--text-sm)",
-};
-
-const listStyle: React.CSSProperties = {
-  border: "1px solid var(--color-border)",
-  borderRadius: "var(--radius-md)",
-  background: "var(--color-bg-elevated)",
-  maxHeight: "12rem",
-  overflowY: "auto",
-};
-
-function rowStyle(isSelected: boolean): React.CSSProperties {
-  return {
-    display: "flex",
-    alignItems: "center",
-    gap: "var(--space-2)",
-    padding: "0.45rem 0.75rem",
-    fontSize: "var(--text-sm)",
-    cursor: "pointer",
-    background: isSelected ? "var(--color-surface-hover)" : "transparent",
-  };
+function CloseIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
 }
-
-const roleStyle: React.CSSProperties = {
-  marginLeft: "auto",
-  fontSize: "var(--text-xs)",
-  color: "var(--color-text-subtle)",
-  textTransform: "capitalize",
-};
