@@ -783,6 +783,14 @@ const USERS = new Map([
       "comes from and what happens to a byte that would bias it are both about the shipping code; " +
       "nothing is stubbed",
   ],
+  [
+    "hero-scene.test.mjs",
+    "it executes `mountHero` and `startScene` against a page made of plain objects, because what " +
+      "the homepage's scene gives back when it stops, whether it asks for a frame under reduced " +
+      "motion and when a drag is held are only real when the modules run. `./engine.js` is stubbed " +
+      "with the engine's own source, which is plain script this loader does not compile; nothing " +
+      "else is stubbed",
+  ],
 ]);
 
 /**
