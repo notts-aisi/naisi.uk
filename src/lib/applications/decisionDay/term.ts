@@ -19,6 +19,12 @@ export type LoadedTerm = {
   term: Term;
   /** The applications behind `term.people`, by uid. */
   applications: Map<string, ApplicationDoc>;
+  /**
+   * The applications behind `term.left`, by uid: people decision day told
+   * who have since given a place or an invitation back. For reading what
+   * they said and why. Nothing is planned or counted from these.
+   */
+  leftApplications: Map<string, ApplicationDoc>;
 };
 
 export async function loadTerm(db: Firestore, form: ApplicationForm): Promise<LoadedTerm> {
@@ -27,8 +33,15 @@ export async function loadTerm(db: Firestore, form: ApplicationForm): Promise<Lo
     listDecisions(db, form.round.id),
   ]);
   const applications = new Map<string, ApplicationDoc>();
+  const outside = new Map<string, ApplicationDoc>();
   for (const application of sent) {
-    if (isInTerm(application)) applications.set(application.uid, application);
+    (isInTerm(application) ? applications : outside).set(application.uid, application);
   }
-  return { term: planTerm(form, sent, decisions), applications };
+  const term = planTerm(form, sent, decisions);
+  const leftApplications = new Map<string, ApplicationDoc>();
+  for (const person of term.left) {
+    const application = outside.get(person.uid);
+    if (application) leftApplications.set(person.uid, application);
+  }
+  return { term, applications, leftApplications };
 }

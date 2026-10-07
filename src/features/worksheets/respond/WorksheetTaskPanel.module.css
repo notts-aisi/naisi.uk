@@ -51,7 +51,7 @@
   border: 1px solid var(--color-accent);
   border-radius: var(--radius-md);
   /* No token for "text on the accent fill"; Button does the same. */
-  color: white;
+  color: var(--color-on-accent);
   font-size: var(--text-sm);
   font-weight: 500;
   text-decoration: none;

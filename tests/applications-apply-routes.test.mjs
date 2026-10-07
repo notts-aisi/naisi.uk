@@ -24,6 +24,10 @@
  *    a save changes the draft and leaves the sent copy alone.
  *  - COUNTERS MOVE WITH THE STATUS, in the same transaction, and only when
  *    the status moves.
+ *  - A SEND WAITS. An account with no join request cannot send, and an
+ *    account still waiting to be approved cannot send until its university
+ *    address has been checked. Both are read off the account, and neither
+ *    stops a save.
  *
  * ## What is real and what is faked
  *
@@ -77,6 +81,7 @@ const { loadTs } = createLoader({ stubs: STUBS });
 const route = await loadTs(join("app", "api", "admissions", "forms", "[roundId]", "application", "route.ts"));
 const sendRoute = await loadTs(join("app", "api", "admissions", "forms", "[roundId]", "application", "send", "route.ts"));
 const store = await loadTs(join("lib", "applications", "applicant", "store.ts"));
+const joinRules = await loadTs(join("lib", "applications", "applicant", "join.ts"));
 const requests = await loadTs(join("lib", "applications", "applicant", "requests.ts"));
 const siteNotice = await loadTs(join("lib", "siteNotice.ts"));
 const validate = await loadTs(join("lib", "applications", "validate.ts"));
@@ -415,7 +420,10 @@ describe("the applicant's gate", () => {
   });
 
   test("an account still waiting to be approved can read the form, save and send", async () => {
+    // Her university address is checked (`userDoc` stamps it). What a waiting
+    // account with an unchecked address can and cannot do is the next section.
     world({ uid: "jasmine", role: "pending" });
+    assert.ok(db.data("users/jasmine").profile.uniEmailVerifiedAt, "the fixture's address is no longer a checked one");
     assert.equal((await GET()).status, 200);
     assert.equal((await PUT({ draft: fullDraft() })).status, 200);
     const sent = await SEND();
@@ -431,6 +439,151 @@ describe("the applicant's gate", () => {
     assert.deepEqual(db.writes, []);
     // Reading what the member sees is what view-as is for.
     assert.equal((await GET()).status, 200);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A send waits for a join request, and for the university address
+// ---------------------------------------------------------------------------
+
+/** An account whose university address is on its profile and has not been checked. */
+function unchecked(uid) {
+  const { uniEmailVerifiedAt: _stamp, ...profile } = userDoc(uid).profile;
+  return { profile };
+}
+
+describe("a send waits for the university address", () => {
+  const HELD = { step: "check", questionId: null, message: joinRules.VERIFY_FIRST };
+
+  test("a waiting account whose address is not checked can read and save, and cannot send", async () => {
+    const uid = freshUid();
+    world({ uid, role: "pending", user: unchecked(uid) });
+
+    const read = await GET();
+    assert.equal(read.status, 200);
+    assert.equal(read.body.joined, true);
+    assert.equal(read.body.account.universityEmail, "ada@nottingham.ac.uk");
+    assert.equal(read.body.account.universityEmailVerified, false);
+
+    const saved = await PUT({ draft: fullDraft() });
+    assert.equal(saved.status, 200, "an application cannot be saved before the address is checked");
+    assert.equal(saved.body.created, true);
+    assert.equal(counts().draft, 1);
+    const afterSave = db.writes.length;
+
+    const refused = await SEND();
+    assert.equal(refused.status, 400);
+    assert.equal(refused.body.error, joinRules.VERIFY_FIRST);
+    assert.deepEqual(refused.body.issues, [HELD]);
+    assert.equal(db.writes.length, afterSave, "a held send wrote something");
+    const stored = db.data(appPath(uid));
+    assert.equal(stored.status, "draft");
+    assert.equal(stored.sent, null);
+    assert.equal(stored.sentAt, null);
+    assert.deepEqual([counts().draft, counts().submitted], [1, 0], "a held send moved a counter");
+  });
+
+  test("the moment the address is checked, the same application sends", async () => {
+    const uid = freshUid();
+    world({ uid, role: "pending", user: unchecked(uid) });
+    await PUT({ draft: fullDraft() });
+    assert.equal((await SEND()).status, 400);
+
+    // What following the emailed link does: the server stamps the profile.
+    db.seed(`users/${uid}`, userDoc(uid));
+    const sent = await SEND();
+    assert.equal(sent.status, 200);
+    assert.equal(sent.body.first, true);
+    const stored = db.data(appPath(uid));
+    assert.equal(stored.status, "submitted");
+    assert.equal(stored.sent.aboutYou.universityEmailVerified, true, "the application of record does not say the address was checked");
+    assert.deepEqual([counts().draft, counts().submitted], [0, 1]);
+  });
+
+  test("it is read off the account: a draft or a request that says the address is checked changes nothing", async () => {
+    const uid = freshUid();
+    world({ uid, role: "pending", user: unchecked(uid) });
+    const claimed = fullDraft();
+    claimed.aboutYou.universityEmailVerified = true;
+    await PUT({ draft: claimed });
+    assert.equal(db.data(appPath(uid)).draft.aboutYou.universityEmailVerified, false, "a save stored a typed verified flag");
+    for (const body of [{ verified: true }, { universityEmailVerified: true, account: { universityEmailVerified: true } }]) {
+      const refused = await SEND(body);
+      assert.equal(refused.status, 400);
+      assert.deepEqual(refused.body.issues, [HELD]);
+    }
+    assert.equal(db.data(appPath(uid)).status, "draft");
+  });
+
+  test("an approved account is not held, whether or not its address was ever checked", async () => {
+    for (const role of ["member", "committee", "admin"]) {
+      const uid = freshUid();
+      world({ uid, role, user: unchecked(uid) });
+      await PUT({ draft: fullDraft() });
+      const sent = await SEND();
+      assert.equal(sent.status, 200, `${role} was held`);
+      assert.equal(db.data(appPath(uid)).status, "submitted");
+      // And nothing claims the address was checked when it was not.
+      assert.equal(db.data(appPath(uid)).sent.aboutYou.universityEmailVerified, false);
+    }
+  });
+
+  test("a waiting account with no address is told to add one, which is the About you rule and not this one", async () => {
+    const uid = freshUid();
+    const { universityEmail: _address, ...profile } = unchecked(uid).profile;
+    world({ uid, role: "pending", user: { profile } });
+    await PUT({ draft: fullDraft() });
+    const refused = await SEND();
+    assert.equal(refused.status, 400);
+    assert.deepEqual(
+      refused.body.issues.map((issue) => [issue.step, issue.message]),
+      [["about", "Add your university email."]],
+    );
+  });
+
+  test("the hold answers after the form and its window, so it says nothing about a form nobody may see", async () => {
+    const uid = freshUid();
+    world({ uid, role: "pending", user: unchecked(uid), roundOverrides: { status: "draft" } });
+    assert.equal((await SEND()).status, 404);
+    world({ uid: freshUid(), role: "pending", user: unchecked(uid), roundOverrides: { closesAt: new Date("2026-10-01T00:00:00Z") } });
+    assert.equal((await SEND()).status, 403);
+  });
+});
+
+describe("an account with no join request", () => {
+  /** Signed in, and no `users` document: the session reads that as an account that is waiting. */
+  function halfMade() {
+    const uid = freshUid();
+    world({ uid, role: "pending" });
+    db.docs.delete(`users/${uid}`);
+    return uid;
+  }
+
+  test("the read says so, and hands back a blank About you", async () => {
+    const uid = halfMade();
+    const read = await GET();
+    assert.equal(read.status, 200);
+    assert.equal(read.body.joined, false);
+    assert.deepEqual(read.body.account, joinRules.emptyJoinAnswers());
+    assert.equal(db.data(`users/${uid}`), null, "reading the form made a join request");
+    assert.deepEqual(db.writes, []);
+  });
+
+  test("it cannot send, is told which step to go to, and nothing is written", async () => {
+    const uid = halfMade();
+    await PUT({ draft: fullDraft() });
+    const before = db.writes.length;
+    const refused = await SEND();
+    assert.equal(refused.status, 400);
+    assert.equal(refused.body.error, joinRules.JOIN_FIRST);
+    assert.deepEqual(refused.body.issues, [{ step: "about", questionId: null, message: joinRules.JOIN_FIRST }]);
+    assert.equal(db.writes.length, before);
+    assert.equal(db.data(appPath(uid)).status, "draft");
+    assert.equal(db.data(`users/${uid}`), null, "the send route made a join request");
+  });
+
+  test("every other account the suite uses has one", async () => {
+    assert.equal((await GET()).body.joined, true);
   });
 });
 
@@ -548,7 +701,8 @@ describe("GET", () => {
   test("answers with the form, its sets, the caller's application and their account, and writes nothing", async () => {
     const response = await GET();
     assert.equal(response.status, 200);
-    assert.deepEqual(Object.keys(response.body).sort(), ["account", "application", "form", "sets"]);
+    assert.deepEqual(Object.keys(response.body).sort(), ["account", "application", "form", "joined", "sets"]);
+    assert.equal(response.body.joined, true);
     assert.equal(response.body.application, null);
     assert.deepEqual(response.body.sets.map((set) => set.id), ["fellowships", AGI]);
     assert.equal(response.body.account.preferredName, "Amara");
@@ -958,6 +1112,366 @@ describe("POST, the send", () => {
     for (let i = 0; i <= limit; i += 1) last = await SEND();
     assert.equal(last.status, 429);
     assert.ok(Number(last.headers["Retry-After"]) >= 1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// What a send replaces is kept
+// ---------------------------------------------------------------------------
+
+/**
+ * Sending again replaces the application of record. When the new one is
+ * different, the one it replaces is kept on the same document, with when it
+ * was sent, for the people reviewing the application. The rule is in
+ * `src/lib/applications/versions/kept.ts`; these run it through the route.
+ */
+describe("POST, the send: what it replaces is kept", () => {
+  const HISTORY_FIELDS = ["sentChangedAt", "sentHistory", "sentHistoryDropped"];
+  const FIRST_WHY = "The first thing I wrote, before I thought again.";
+  const draftSaying = (why, more = {}) =>
+    fullDraft({ answers: { fellowships: { why }, [AGI]: { event: "Open weights." } }, ...more });
+  const stored = () => db.data(appPath(me));
+  /** Save a draft and send it, expecting both to work. */
+  async function sendDraft(draft) {
+    assert.equal((await PUT({ draft })).status, 200);
+    const response = await SEND();
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    return response;
+  }
+
+  test("the first send keeps nothing, and says when the application of record began", async () => {
+    await sendDraft(draftSaying(FIRST_WHY));
+    const first = stored();
+    assert.equal(first.sentHistory, undefined, "there is nothing earlier to keep");
+    assert.equal(first.sentHistoryDropped, undefined);
+    assert.equal(first.sentChangedAt.getTime(), first.sentAt.getTime());
+    assert.equal(first.sentChangedAt.getTime(), first.submittedAt.getTime());
+  });
+
+  test("a save alone keeps nothing: only a send replaces the application of record", async () => {
+    await sendDraft(draftSaying(FIRST_WHY));
+    const first = stored();
+    await PUT({ draft: draftSaying("A better answer.") });
+    const saved = stored();
+    assert.equal(saved.sentHistory, undefined);
+    assert.equal(saved.sentChangedAt.getTime(), first.sentChangedAt.getTime());
+  });
+
+  test("sending again after a change keeps the version it replaces, whole, with when it was sent", async () => {
+    await sendDraft(draftSaying(FIRST_WHY));
+    const first = stored();
+    db.writes.length = 0;
+    await sendDraft(draftSaying("A better answer."));
+    const second = stored();
+
+    assert.equal(second.sent.answers.fellowships.why, "A better answer.");
+    assert.equal(second.sentHistory.length, 1);
+    assert.deepEqual(second.sentHistory[0].content, first.sent, "the kept version is what was the application of record");
+    assert.equal(
+      second.sentHistory[0].sentAt.getTime(),
+      first.sentChangedAt.getTime(),
+      "kept with the time IT became the application of record, not the time of this send",
+    );
+    assert.equal(second.sentHistoryDropped, 0);
+    assert.equal(second.sentChangedAt.getTime(), second.sentAt.getTime());
+    assert.ok(second.sentChangedAt.getTime() > first.sentChangedAt.getTime());
+    // One transaction: the history lands with the send that replaces `sent`, or not at all.
+    assert.deepEqual(db.writes.at(-1), {
+      kind: "update",
+      path: appPath(me),
+      fields: ["draft", "sent", "sentAt", "sentChangedAt", "sentHistory", "sentHistoryDropped", "updatedAt"],
+    });
+
+    // And again: oldest first, each with its own time.
+    await sendDraft(draftSaying("A third answer."));
+    const third = stored();
+    assert.deepEqual(
+      third.sentHistory.map((version) => version.content.answers.fellowships.why),
+      [FIRST_WHY, "A better answer."],
+    );
+    assert.equal(third.sentHistory[1].sentAt.getTime(), second.sentChangedAt.getTime());
+    // The list is written whole each time, and what was already in it comes through unchanged.
+    assert.deepEqual(third.sentHistory[0], second.sentHistory[0]);
+    assert.deepEqual(third.sentHistory[1].content, second.sent);
+    assert.equal(third.sent.answers.fellowships.why, "A third answer.");
+    assert.equal(third.submittedAt.getTime(), first.submittedAt.getTime());
+  });
+
+  test("a send that changes nothing keeps nothing, and the current version keeps its date", async () => {
+    await sendDraft(draftSaying(FIRST_WHY));
+    await sendDraft(draftSaying("A better answer."));
+    const before = stored();
+    db.writes.length = 0;
+
+    // Pressed again as it is, and again after a save of the very same draft.
+    assert.equal((await SEND()).status, 200);
+    await sendDraft(draftSaying("A better answer."));
+    const after = stored();
+    assert.deepEqual(after.sentHistory, before.sentHistory);
+    assert.equal(after.sentHistoryDropped, before.sentHistoryDropped);
+    assert.equal(after.sentChangedAt.getTime(), before.sentChangedAt.getTime());
+    assert.ok(after.sentAt.getTime() > before.sentAt.getTime(), "the last press of Send is still recorded");
+    for (const write of db.writes.filter((entry) => entry.fields.includes("sent"))) {
+      assert.deepEqual(write.fields, ["draft", "sent", "sentAt", "updatedAt"], "a send with no change writes no history");
+    }
+  });
+
+  test("a draft that changed in a way the send does not carry is not a change", async () => {
+    // An answer to a programme they have unticked stays in the draft and is never sent.
+    const unticked = (event) =>
+      fullDraft({ rankedProgrammeIds: [TAIS], answers: { fellowships: { why: FIRST_WHY }, [AGI]: { event } } });
+    await sendDraft(unticked("One thing."));
+    const first = stored();
+    await sendDraft(unticked("Another thing."));
+    const second = stored();
+    assert.equal(second.draft.answers[AGI].event, "Another thing.", "the draft did change");
+    assert.deepEqual(second.sent, first.sent);
+    assert.equal(second.sentHistory, undefined);
+    assert.equal(second.sentChangedAt.getTime(), first.sentChangedAt.getTime());
+  });
+
+  test("a change to any part of the application is a change", async () => {
+    const changes = {
+      "an answer": draftSaying("Something else."),
+      "About you": fullDraft({ aboutYou: { ...fullDraft().aboutYou, subject: "BSc Mathematics" }, answers: draftSaying(FIRST_WHY).answers }),
+      "the ranking": draftSaying(FIRST_WHY, { rankedProgrammeIds: [TAIS, AGI] }),
+      facilitating: draftSaying(FIRST_WHY, { wantsToFacilitate: true }),
+      availability: draftSaying(FIRST_WHY, { availability: { days: ["000000000000", "00000000ffff"] } }),
+      "the SU membership answer": draftSaying(FIRST_WHY, { suMembership: "yes" }),
+    };
+    for (const [part, changed] of Object.entries(changes)) {
+      world();
+      await sendDraft(draftSaying(FIRST_WHY));
+      await sendDraft(changed);
+      assert.equal(stored().sentHistory?.length, 1, `changing ${part} kept no earlier version`);
+      assert.equal(stored().sentHistory[0].content.answers.fellowships.why, FIRST_WHY, part);
+    }
+  });
+
+  test("nothing an applicant is answered with carries an earlier version, even their own", async () => {
+    await sendDraft(draftSaying(FIRST_WHY));
+    const again = await sendDraft(draftSaying("A better answer."));
+    const look = await GET();
+    const save = await PUT({ draft: draftSaying("A third answer, not sent.") });
+    assert.equal(stored().sentHistory.length, 1, "the version is kept");
+    for (const [name, response] of Object.entries({ "the send": again, "the read": look, "the save": save })) {
+      const said = JSON.stringify(response.body);
+      assert.ok(!said.includes(FIRST_WHY), `${name} answered with what the earlier version said`);
+      for (const field of HISTORY_FIELDS) assert.ok(!said.includes(field), `${name} answered with ${field}`);
+    }
+    assert.deepEqual(Object.keys(look.body.application).sort(), [
+      "attendance",
+      "createdAt",
+      "draft",
+      "id",
+      "invitation",
+      "result",
+      "roundId",
+      "sent",
+      "sentAt",
+      "sentLabel",
+      "status",
+      "submittedAt",
+      "updatedAt",
+    ]);
+  });
+
+  test("at the cap the first version stays, the oldest after it goes, and it is counted", async () => {
+    await sendDraft(draftSaying("Version 11, the one on record."));
+    const cap = (await loadTs(join("lib", "applications", "model.ts"))).SENT_HISTORY_LIMITS.maxVersions;
+    assert.equal(cap, 10);
+    const record = db.docs.get(appPath(me));
+    const at = (n) => new Date(Date.UTC(2026, 9, 1, 12, n));
+    // Ten versions already kept: the cap, exactly.
+    record.sentHistory = Array.from({ length: cap }, (_, i) => ({
+      content: { ...clone(record.sent), answers: { ...clone(record.sent.answers), fellowships: { why: `Version ${i + 1}.` } } },
+      sentAt: at(i + 1),
+    }));
+    record.sentHistoryDropped = 0;
+    record.sentChangedAt = at(cap + 1);
+
+    await sendDraft(draftSaying("Version 12."));
+    const after = stored();
+    assert.deepEqual(
+      after.sentHistory.map((version) => version.content.answers.fellowships.why),
+      ["Version 1.", "Version 3.", "Version 4.", "Version 5.", "Version 6.", "Version 7.", "Version 8.", "Version 9.", "Version 10.", "Version 11, the one on record."],
+      "the first is kept, the second went, and the one just replaced is on the end",
+    );
+    assert.equal(after.sentHistory[0].sentAt.getTime(), at(1).getTime());
+    assert.equal(after.sentHistory.at(-1).sentAt.getTime(), at(cap + 1).getTime());
+    assert.equal(after.sentHistoryDropped, 1);
+
+    await sendDraft(draftSaying("Version 13."));
+    assert.equal(stored().sentHistory.length, cap);
+    assert.equal(stored().sentHistory[0].content.answers.fellowships.why, "Version 1.");
+    assert.equal(stored().sentHistoryDropped, 2);
+  });
+
+  test("a stored history that is not one reads as none, and the next send writes a clean one", async () => {
+    await sendDraft(draftSaying(FIRST_WHY));
+    const record = db.docs.get(appPath(me));
+    record.sentHistory = { 0: "not a list" };
+    record.sentHistoryDropped = "many";
+    await sendDraft(draftSaying("A better answer."));
+    assert.equal(stored().sentHistory.length, 1);
+    assert.equal(stored().sentHistory[0].content.answers.fellowships.why, FIRST_WHY);
+    assert.equal(stored().sentHistoryDropped, 0);
+
+    record.sentHistory = [null, "x", { sentAt: new Date() }, { content: [] }, ...clone(record.sentHistory)];
+    await sendDraft(draftSaying("A third answer."));
+    assert.deepEqual(
+      stored().sentHistory.map((version) => version.content.answers.fellowships.why),
+      [FIRST_WHY, "A better answer."],
+      "entries with no content of their own are not versions",
+    );
+  });
+
+  test("a refused send keeps nothing", async () => {
+    await sendDraft(draftSaying(FIRST_WHY));
+    const before = stored();
+    await PUT({ draft: fullDraft({ answers: {} }) });
+    assert.equal((await SEND()).status, 400);
+    assert.deepEqual(stored().sent, before.sent);
+    assert.equal(stored().sentHistory, undefined);
+    assert.equal(stored().sentChangedAt.getTime(), before.sentChangedAt.getTime());
+  });
+
+  // Three rules meet on a press of Send, and each was written without sight
+  // of the other two. A send that changes the application keeps the version
+  // it replaces. Before it sends, the form waits for the access-requirements
+  // box to be saved, so that answer is already stored, apart from the
+  // application, when the request arrives. And a send is held for an account
+  // with no join request, and for a waiting account whose university address
+  // is not checked. A held send is no send at all, so nothing of the other
+  // two may move. The two tests below hold all three together.
+  const accessPath = (uid) => `admissionApplicationPrivate/${ROUND}__${uid}`;
+  const WROTE = { accessRequirements: "I use a wheelchair, so a step-free room please." };
+  /** Every stored document, as text, so "nothing changed" is one comparison. */
+  const everything = () => JSON.stringify([...db.docs.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+  const readsOfTheAnswer = (since) => db.reads.slice(since).filter((path) => path.startsWith("admissionApplicationPrivate/"));
+
+  test("a held send keeps nothing, writes nothing and leaves the access-requirements answer as it was", async () => {
+    const VERIFY = { step: "check", questionId: null, message: joinRules.VERIFY_FIRST };
+    const JOIN = { step: "about", questionId: null, message: joinRules.JOIN_FIRST };
+    const cases = [
+      {
+        name: "a waiting account that has never sent, whose address is not checked",
+        issue: VERIFY,
+        draftWhy: FIRST_WHY,
+        sentWhy: null,
+        async arrange(uid) {
+          world({ uid, role: "pending", user: unchecked(uid) });
+          assert.equal((await PUT({ draft: draftSaying(FIRST_WHY) })).status, 200);
+        },
+      },
+      {
+        // The one case in which a send that went through WOULD keep a version:
+        // there is an application of record and the draft differs from it.
+        // What the account says at the moment of the press decides, and here
+        // the check has gone since the first send (a changed address clears it).
+        name: "a waiting account that sent once, changed its answers, and whose address is no longer checked",
+        issue: VERIFY,
+        draftWhy: "A better answer.",
+        sentWhy: FIRST_WHY,
+        async arrange(uid) {
+          world({ uid, role: "pending" });
+          await sendDraft(draftSaying(FIRST_WHY));
+          assert.equal((await PUT({ draft: draftSaying("A better answer.") })).status, 200);
+          db.seed(`users/${uid}`, userDoc(uid, unchecked(uid)));
+        },
+      },
+      {
+        name: "an account with no join request",
+        issue: JOIN,
+        draftWhy: FIRST_WHY,
+        sentWhy: null,
+        async arrange(uid) {
+          world({ uid, role: "pending" });
+          db.docs.delete(`users/${uid}`);
+          assert.equal((await PUT({ draft: draftSaying(FIRST_WHY) })).status, 200);
+        },
+      },
+    ];
+    for (const each of cases) {
+      const uid = freshUid();
+      await each.arrange(uid);
+      // What the box saved beside the application before the press.
+      db.seed(accessPath(uid), WROTE);
+      const before = everything();
+      const writes = db.writes.length;
+      const reads = db.reads.length;
+      const countsBefore = counts();
+
+      const refused = await SEND();
+      assert.equal(refused.status, 400, each.name);
+      assert.deepEqual(refused.body.issues, [each.issue], each.name);
+      assert.equal(db.writes.length, writes, `${each.name}: a held send wrote something`);
+      assert.equal(everything(), before, `${each.name}: a held send changed a stored document`);
+
+      // Said again one by one, so that a failure names what moved.
+      const held = stored();
+      assert.equal(held.sentHistory, undefined, `${each.name}: a held send kept a version`);
+      assert.equal(held.sentHistoryDropped, undefined, each.name);
+      assert.equal(held.draft.answers.fellowships.why, each.draftWhy, each.name);
+      assert.equal(held.sent ? held.sent.answers.fellowships.why : null, each.sentWhy, each.name);
+      assert.equal(held.status, each.sentWhy ? "submitted" : "draft", each.name);
+      assert.deepEqual(counts(), countsBefore, `${each.name}: a held send moved a counter`);
+      assert.deepEqual(db.data(accessPath(uid)), WROTE, `${each.name}: a held send touched the access-requirements answer`);
+      // The send route does not so much as read where that answer is kept.
+      assert.deepEqual(readsOfTheAnswer(reads), [], each.name);
+      // And the applicant is told nothing but why: no application comes back.
+      assert.deepEqual(Object.keys(refused.body).sort(), ["error", "issues"], each.name);
+    }
+  });
+
+  test("once the address is checked the same press sends, keeps the version it replaces, and still leaves that answer and the account alone", async () => {
+    const uid = freshUid();
+    world({ uid, role: "pending" });
+    await sendDraft(draftSaying(FIRST_WHY));
+    const first = stored();
+    assert.equal((await PUT({ draft: draftSaying("A better answer.") })).status, 200);
+    db.seed(accessPath(uid), WROTE);
+    db.seed(`users/${uid}`, userDoc(uid, unchecked(uid)));
+    assert.equal((await SEND()).status, 400);
+
+    // What following the emailed link does: the server stamps the profile.
+    // The account also carries the record made when it joined, which a send
+    // has no business reading, restating or moving.
+    const joinedOn = new Date("2026-09-25T08:01:00Z");
+    db.seed(`users/${uid}`, userDoc(uid, { policyVersion: "terms.1+privacy.5", policyAgreedAt: joinedOn }));
+    const account = JSON.stringify(db.data(`users/${uid}`));
+    db.writes.length = 0;
+    const reads = db.reads.length;
+
+    const sent = await SEND();
+    assert.equal(sent.status, 200, JSON.stringify(sent.body));
+    assert.equal(sent.body.first, false);
+    const second = stored();
+    assert.equal(second.sent.answers.fellowships.why, "A better answer.");
+    // One version kept, by the press that went. The held one kept none.
+    assert.equal(second.sentHistory.length, 1);
+    assert.deepEqual(second.sentHistory[0].content, first.sent);
+    assert.equal(second.sentHistory[0].sentAt.getTime(), first.sentChangedAt.getTime());
+
+    // The send wrote the application and nothing else.
+    assert.deepEqual(db.writes.map((write) => write.path), [appPath(uid)]);
+    assert.equal(JSON.stringify(db.data(`users/${uid}`)), account, "a send changed the account");
+    assert.deepEqual(db.data(accessPath(uid)), WROTE, "a send touched the access-requirements answer");
+    assert.deepEqual(readsOfTheAnswer(reads), []);
+    // Nothing of that answer is on the application, in the version that was
+    // kept, or in what the applicant is answered with.
+    for (const [where, text] of [
+      ["the application", JSON.stringify(second)],
+      ["the reply", JSON.stringify(sent.body)],
+    ]) {
+      assert.ok(!text.includes("wheelchair") && !text.includes("accessRequirements"), `${where} carries the access-requirements answer`);
+    }
+    // And sending records no agreement of its own: the line on the last step
+    // states one, and the record made at joining stays the only record.
+    const speaksOfAgreeing = (value) => Object.keys(value).filter((key) => /polic|agree|consent/i.test(key));
+    assert.deepEqual(speaksOfAgreeing(second), []);
+    assert.deepEqual(Object.keys(sent.body).sort(), ["application", "first", "ok"]);
+    assert.deepEqual(speaksOfAgreeing(sent.body.application), []);
   });
 });
 

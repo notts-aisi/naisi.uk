@@ -15,18 +15,20 @@
   opacity: 0.55;
 }
 
+/* 40 by 24, with an 18px knob 3px in from the edge (2px of it inside the
+   track's own 1px line). */
 .track {
   position: relative;
   flex: 0 0 auto;
   width: 2.5rem;
-  height: 1.4rem;
+  height: 1.5rem;
   border-radius: var(--radius-pill);
   background: var(--color-surface-hover);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   transition:
     background var(--transition-fast),
     border-color var(--transition-fast);
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .size_lg .track {
@@ -44,16 +46,19 @@
   cursor: inherit;
 }
 
-.input:focus-visible + .knob {
-  box-shadow: var(--focus-ring);
+/* The ring goes round the whole track, clear of its edge: the knob alone
+   is too small a thing to find. The input that takes focus is invisible. */
+.track:has(.input:focus-visible) {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
 }
 
 .knob {
   position: absolute;
-  top: 1px;
-  left: 1px;
-  width: calc(1.4rem - 4px);
-  height: calc(1.4rem - 4px);
+  top: 2px;
+  left: 2px;
+  width: 1.125rem;
+  height: 1.125rem;
   border-radius: var(--radius-pill);
   background: var(--color-text-muted);
   transition:
@@ -63,6 +68,8 @@
 }
 
 .size_lg .knob {
+  top: 1px;
+  left: 1px;
   width: calc(1.6rem - 4px);
   height: calc(1.6rem - 4px);
 }
@@ -71,13 +78,11 @@
   background: var(--color-accent);
   border-color: var(--color-accent);
 }
+/* The knob is not a label, so it stays white on the fill: it only has to
+   be told apart from the track, and it is, at 3.4:1. */
 .on_accent .knob {
   background: white;
-  transform: translateX(calc(2.5rem - 1.4rem));
-}
-.size_lg.row .on_accent .knob,
-.on_accent ~ .text .knob {
-  /* ignored — transform applied via track class below */
+  transform: translateX(1rem);
 }
 .size_lg .on_accent .knob {
   transform: translateX(calc(2.85rem - 1.6rem));
@@ -89,7 +94,7 @@
 }
 .on_success .knob {
   background: white;
-  transform: translateX(calc(2.5rem - 1.4rem));
+  transform: translateX(1rem);
 }
 .size_lg .on_success .knob {
   transform: translateX(calc(2.85rem - 1.6rem));

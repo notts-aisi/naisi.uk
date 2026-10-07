@@ -1,0 +1,91 @@
+/*
+  DateTile: weekday, day of the month, month.
+
+  Two shapes. `sm` is a small bordered box for a list row. `md`, `lg` and
+  `hero` are the stub at the left of an event card: no box of their own, a
+  dashed rule on the right where the card's words begin.
+*/
+
+.tile {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.weekday,
+.month {
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.weekday { color: var(--color-text-muted); }
+.month { color: var(--color-live); }
+
+.day {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* === The boxed tile === */
+
+.sm {
+  width: 2.875rem;
+  padding: var(--space-2) 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+}
+
+.sm .weekday,
+.sm .month {
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+}
+
+.sm .day {
+  font-size: var(--text-xl);
+  line-height: 1.05;
+}
+
+/* === The stub === */
+
+.md,
+.lg,
+.hero {
+  border-right: 2px dashed var(--color-border-strong);
+}
+
+.md {
+  gap: var(--space-1);
+  width: 5.25rem;
+  padding: 0.875rem 0;
+}
+.md .day { font-size: 2.125rem; }
+
+.lg {
+  gap: 2px;
+  width: 6rem;
+  padding: 1.125rem 0;
+}
+.lg .day { font-size: 2.5rem; }
+
+.hero {
+  gap: var(--space-1);
+  width: clamp(4.5rem, 9vw, 8.25rem);
+  padding: var(--space-5) 0;
+}
+.hero .day { font-size: clamp(2.125rem, 3.8vw, 3.5rem); }
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* Nothing: the boards draw every size the same on a phone. */
+}

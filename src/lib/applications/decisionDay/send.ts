@@ -1,6 +1,6 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
-import { formatRoundDate } from "@/lib/admissions/window";
+import { formatRoundDate, formatRoundDeadline } from "@/lib/admissions/window";
 import { resolveEmailAudience } from "@/lib/email/audience";
 import { dispatchSends } from "@/lib/email/dispatch";
 import { COURSE_AUDIT_COLLECTION, COURSE_AUDIT_LIMITS } from "@/lib/firestore/courseAudit";
@@ -52,6 +52,7 @@ import {
 } from "./plan";
 import { DECISIONS_SENT_AUDIT_KIND, programmeOf } from "./programmes";
 import { loadTerm } from "./term";
+import { testStanding, wordingFingerprint, type TestStanding } from "./tested";
 import type { EmailPreview, ReadinessRow, SendBoard, SendGroup, SendReport } from "./views";
 
 /**
@@ -124,6 +125,18 @@ import type { EmailPreview, ReadinessRow, SendBoard, SendGroup, SendReport } fro
  * member, an admin and a refused account are left exactly as they are, and a
  * refused one is named on the page. No welcome email is sent from here: the
  * decision email is the one they get.
+ *
+ * ## No press is taken until an admin has tested these emails
+ *
+ * The test is the page's "Send a test to me": the first person's real email,
+ * to the admin's own address. Each test that is handed to the mail provider
+ * is recorded on the form with who sent it, when, and a fingerprint of every
+ * decision email's wording at that moment (`./tested`). A press, of either
+ * kind, is refused until the form carries a test whose fingerprint is still
+ * the form's: no test, or wording changed since the last one, holds the send
+ * with a sentence that says which. A press composes its emails from the same
+ * reading of the form it judged the test against, so what goes is the wording
+ * that was tested.
  *
  * ## What marks the term as sent
  *
@@ -289,12 +302,55 @@ function readinessRows(
   return rows;
 }
 
+/**
+ * The key of the readiness row for the test. Not a programme's id, and it
+ * cannot be mistaken for one: an id has no "#" in it (`isId`).
+ */
+export const TEST_ROW_KEY = "#test";
+
+/**
+ * The row that says who tested these emails and when, or that a test is owed.
+ *
+ * Until the term is sent it is a thing to do like the rows above it: ticked
+ * only while the last test still counts. Once the term is sent it is the
+ * record of the last test and waits on nobody; an email still owed has the
+ * test said beside its own button.
+ */
+function testRow(
+  test: TestStanding,
+  names: ReadonlyMap<string, string>,
+  termSent: boolean,
+): ReadinessRow {
+  const title = "Test email";
+  if (test.state === "none") {
+    return {
+      key: TEST_ROW_KEY,
+      title,
+      owner: "An admin",
+      ready: termSent,
+      status: termSent ? "No test was recorded" : "No test sent yet",
+      detail: termSent ? "" : "Send one below before you send",
+    };
+  }
+  const sentWhen = test.at ? `Sent ${formatRoundDeadline(test.at)}` : "Sent";
+  const stale = test.state === "stale" && !termSent;
+  return {
+    key: TEST_ROW_KEY,
+    title,
+    owner: names.get(test.byUid) || "An admin",
+    ready: !stale,
+    status: stale ? `${sentWhen}, and the wording has changed since` : sentWhen,
+    detail: stale ? "Send it again below before you send" : "",
+  };
+}
+
 export async function buildSendBoard(
   db: Firestore,
   form: ApplicationForm,
   now: Date,
 ): Promise<SendBoard> {
   const [{ term }, context] = await Promise.all([loadTerm(db, form), emailContext(db, form)]);
+  const tested = testStanding(form);
   // WHAT THE PAGE REPORTS IS THE SEND: everybody it has told or has still to
   // tell, each read through what they were told. Somebody who has since given
   // a place back is still somebody the send told, so they stay in every
@@ -305,12 +361,16 @@ export async function buildSendBoard(
   const accepted = groupOf(context, everybody, "accepted");
   // An account is waiting on the send only while its owner still holds the place.
   const holding = inGroup(term.people, "accepted").map((person) => ({ uid: person.uid, name: person.name }));
+  // The two admins the page names: whoever sent the term, and whoever tested it.
+  const named = [form.decisionsSentByUid, tested.state === "none" ? null : tested.byUid].filter(
+    (uid): uid is string => Boolean(uid),
+  );
   const [accountRoles, sender, remindsDaily] = await Promise.all([
     loadAccountRoles(
       db,
       holding.map((person) => person.uid),
     ),
-    loadFirstNames(db, form.decisionsSentByUid ? [form.decisionsSentByUid] : []),
+    loadFirstNames(db, named),
     invitationRemindersArmed(db, now),
   ]);
   const withRole = (role: string) => holding.filter((person) => accountRoles.get(person.uid) === role);
@@ -325,8 +385,12 @@ export async function buildSendBoard(
     termLabel: form.round.label,
     today: formatRoundDate(now),
     applied: everybody.length,
-    readiness: readinessRows(context, term, form.decisionsSentAt ? everybody : null),
-    blockers: sendBlockers({ form, term, now, appUrl: appUrl() }),
+    readiness: [
+      ...readinessRows(context, term, form.decisionsSentAt ? everybody : null),
+      testRow(tested, sender, form.decisionsSentAt !== null),
+    ],
+    test: tested.state,
+    blockers: sendBlockers({ form, term, now, appUrl: appUrl(), test: tested.state }),
     sentOn: form.decisionsSentAt ? formatRoundDate(form.decisionsSentAt) : null,
     sentBy: form.decisionsSentByUid ? (sender.get(form.decisionsSentByUid) ?? null) : null,
     published: everybody.filter((person) => person.result !== null).length,
@@ -352,7 +416,7 @@ export async function buildSendBoard(
       noAddress: listed(owed.filter((person) => !retryable.includes(person))),
       unconfirmed: listed(toldWithEmail(term, "unconfirmed", now)),
       inFlight: toldWithEmail(term, "in-flight", now).length,
-      blockers: owedBlockers({ form, appUrl: appUrl() }),
+      blockers: owedBlockers({ form, appUrl: appUrl(), test: tested.state }),
     },
   };
 }
@@ -362,13 +426,28 @@ export async function buildSendBoard(
 // ---------------------------------------------------------------------------
 
 export type TestSend =
-  | { ok: true; delivery: Delivery; subject: string }
+  | {
+      ok: true;
+      delivery: Delivery;
+      subject: string;
+      /**
+       * True when this test is now the form's record of one, which is what a
+       * press of Send asks for. Only a test handed to the mail provider is
+       * recorded, and only one sent from the decision-day page.
+       */
+      recorded: boolean;
+    }
   | { ok: false; status: 404 | 409 | 502; error: string };
 
 /**
  * Send one of the three emails to the admin who asked, exactly as the first
- * person in that group would get it. It tells no applicant anything and writes
- * nothing.
+ * person in that group would get it, and record on the form that they did.
+ *
+ * It tells no applicant anything and writes nothing to any application. The
+ * one thing it writes is the form's `decisionEmailTest`: who, when, and the
+ * fingerprint of the wording THIS test was composed from, which is the
+ * reading of the form made here and not a later one. A test that was held or
+ * suppressed reached nobody, so it is reported and not recorded.
  */
 export async function sendTestEmail(
   db: Firestore,
@@ -390,7 +469,27 @@ export async function sendTestEmail(
       error: "Nobody is in that group yet, so there is no email to test.",
     };
   }
-  return rehearse(actor, roundId, email);
+  const tested = await rehearse(actor, roundId, email);
+  if (!tested.ok || tested.delivery !== "sent") return tested;
+  // The fingerprint is of the form as it was read above, which is what the
+  // email just sent was worded from. Wording changed in the meantime makes
+  // this record stale at once, which is the right answer.
+  const wording = wordingFingerprint(form);
+  try {
+    // One field of the form the loader above answered for. An update of a
+    // form that has gone in the meantime fails, and is reported below.
+    await formRef(db, roundId).update({
+      decisionEmailTest: { byUid: actor.uid, at: FieldValue.serverTimestamp(), wording },
+    });
+  } catch (err) {
+    console.error("[decision day] could not record a test", roundId, err);
+    return {
+      ok: false,
+      status: 502,
+      error: "The test was sent to you, but it could not be recorded. Send it again in a minute.",
+    };
+  }
+  return { ok: true, delivery: tested.delivery, subject: tested.subject, recorded: true };
 }
 
 /**
@@ -411,7 +510,7 @@ async function rehearse(
       actorUid: actor.uid,
       test: true,
     });
-    return { ok: true, delivery, subject: email.subject };
+    return { ok: true, delivery, subject: email.subject, recorded: false };
   } catch (err) {
     console.error("[decision day] test send failed", roundId, err);
     return { ok: false, status: 502, error: "That test could not be sent. Try again in a minute." };
@@ -424,8 +523,11 @@ async function rehearse(
  * name, because the page is used long before anybody is in a group: there may
  * be no applicant to borrow yet, and nobody's name is needed to read wording.
  *
- * It tells no applicant anything and writes nothing. Who may ask is the
- * route's to decide: this function sends to the address it is handed.
+ * It tells no applicant anything and writes nothing. It is NOT the test a
+ * press of Send asks for, and leaves no record of one: that is the first
+ * person's real email, sent from the decision-day page (`sendTestEmail`).
+ * Who may ask is the route's to decide: this function sends to the address
+ * it is handed.
  */
 export async function sendProgrammeTestEmail(
   db: Firestore,
@@ -546,9 +648,12 @@ export async function runDecisionDay(
   const owedOnly = request.owedOnly === true;
   const startedAt = now();
   const { term, applications } = await loadTerm(db, form);
+  // Judged against the reading of the form this press composes its emails
+  // from, so the wording that goes is the wording that was tested.
+  const test = testStanding(form).state;
   const blockers = owedOnly
-    ? owedBlockers({ form, appUrl: appUrl() })
-    : sendBlockers({ form, term, now: startedAt, appUrl: appUrl() });
+    ? owedBlockers({ form, appUrl: appUrl(), test })
+    : sendBlockers({ form, term, now: startedAt, appUrl: appUrl(), test });
   if (blockers.length > 0) return { ok: false, status: 409, error: blockers.join(" ") };
 
   // With no blocker, everybody not yet told has an outcome that can be

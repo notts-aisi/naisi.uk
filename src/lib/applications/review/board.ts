@@ -11,13 +11,17 @@ import {
 } from "../decisions";
 import type { ApplicationDoc, QuestionSetDoc, ReviewDoc } from "../model";
 import type { ApplicationForm } from "../normalise";
+import { gaveBackOf } from "../status/reasons";
 import {
   formatScore,
   hasScored,
+  otherReviewsShownTo,
   reviewsVisibleTo,
   scorableKeysFor,
   sectionScore,
 } from "../scoring";
+import { changeCount, versionsOf } from "../versions/kept";
+import { dayOf } from "./earlier";
 import { emptyMap, own, programmeOn } from "./own";
 import { applicantDetail, applicantName } from "./people";
 import { newestFirst, placesLeftOn, type TermPicture, type Viewer } from "./term";
@@ -35,21 +39,30 @@ import type {
  * and nowhere else on the list:
  *
  *  - THE SCORE COLUMN IS BLIND TOO. A row's section score is worked out from
- *    the reviews `reviewsVisibleTo` hands this caller, so somebody who has not
- *    scored an applicant reads "Not scored yet" whatever anybody else gave.
- *    The recommendations are made from the same numbers, so they cannot say
- *    what the column will not.
+ *    the reviews `reviewsVisibleTo` hands this caller, so a lead or a
+ *    reviewer who has not scored an applicant reads "Not scored yet" whatever
+ *    anybody else gave. The recommendations are made from the same numbers,
+ *    so they cannot say what the column will not.
  *  - A SCORE FROM ANOTHER PROGRAMME is shown to a caller only for an
  *    applicant whose first review they have finished, so it cannot lean on a
  *    score they have yet to give.
+ *  - AN ADMIN IS NEVER BLIND. Both of those are `otherReviewsShownTo`'s
+ *    answer, and for an admin it is always yes: an admin's list carries every
+ *    section score, and the recommendations made from them, without the
+ *    admin scoring anybody first.
  *  - NO ADDRESS. A row carries a name and a degree and never an email.
+ *  - A ROW SAYS WHEN ITS APPLICATION CHANGED after it was first sent, and
+ *    carries nothing of what it said before. The earlier versions are for
+ *    the screen that reads one application (`detail.ts`).
  *
  * EVERY NUMBER HERE IS OF THE PEOPLE IN THE TERM (`isInTerm`). Somebody who
  * withdrew, or gave a place or an invitation back, keeps their row, marked
  * `withdrawn`, with the standing the decision documents still record. They
  * are in no count, they are not in the queue "Review next" walks, they are
  * not among the people the scores recommend for a place, and their row names
- * no programme they are placed on, because they hold no place.
+ * no programme they are placed on, because they hold no place. A row that
+ * left by a reply says which button was pressed and the reason given with it
+ * (`gaveBack`): the committee may be able to offer something that works.
  *
  * SOMEBODY WHO JOINED BY INVITATION HAS A ROW, marked `byInvitation`. They
  * did not rank the programme, so nothing about their row is a choice, a score
@@ -102,11 +115,15 @@ function buildRow(input: {
   const keys = scorableKeysFor(form, sets, programmeId, sent);
   const mine = reviews.find((review) => review.reviewerUid === viewer.uid) ?? null;
   const viewerHasScored = hasScored(mine, keys);
-  const score = sectionScore(reviewsVisibleTo(viewer.uid, reviews, keys, form), keys).score;
+  const score = sectionScore(
+    reviewsVisibleTo(viewer.uid, reviews, keys, form, viewer.isAdmin),
+    keys,
+  ).score;
 
   // Another programme's section score, for "scored higher on its questions".
-  // Held back while this caller's own first review of the applicant is open.
-  const firstReviewDone = form.revealOtherReviews || viewerHasScored;
+  // Held back while this caller's own first review of the applicant is open,
+  // which an admin's never is.
+  const firstReviewDone = otherReviewsShownTo(viewer.isAdmin, mine, keys, form);
   const elsewhere = emptyMap<number | null>();
   for (const otherId of ranked) {
     if (otherId === programmeId || !programmeOn(form, otherId)?.useScores) continue;
@@ -116,7 +133,7 @@ function buildRow(input: {
     }
     const otherKeys = scorableKeysFor(form, sets, otherId, sent);
     const seen = own(viewer.roles, otherId)
-      ? reviewsVisibleTo(viewer.uid, reviews, otherKeys, form)
+      ? reviewsVisibleTo(viewer.uid, reviews, otherKeys, form, viewer.isAdmin)
       : reviews;
     elsewhere[otherId] = sectionScore(seen, otherKeys).score;
   }
@@ -131,6 +148,10 @@ function buildRow(input: {
   const detail = applicantDetail(sent.aboutYou);
   const rankedNames = ranked.map((id) => programmeOn(form, id)?.shortName ?? "");
   const appliedAt = application.submittedAt ?? application.sentAt;
+  // Sent again with something different, at least once. The day is the day
+  // the application of record became what it is now.
+  const changed = changeCount(application) > 0;
+  const versions = versionsOf(application);
 
   return {
     viewerHasScored,
@@ -144,6 +165,7 @@ function buildRow(input: {
       detail,
       accountWaiting: pendingUids.has(application.uid),
       withdrawn: application.status === "withdrawn",
+      gaveBack: gaveBackOf(application),
       byInvitation,
       choice: at + 1,
       firstChoiceName: at === 0 ? null : (programmeOn(form, ranked[0])?.shortName ?? null),
@@ -159,6 +181,8 @@ function buildRow(input: {
           ? (programmeOn(form, placement)?.shortName ?? null)
           : null,
       appliedAt: appliedAt ? appliedAt.toISOString() : null,
+      changed,
+      changedOn: changed ? dayOf(versions[versions.length - 1]?.sentAt) : null,
       searchText: [name, detail, ...rankedNames].join(" ").toLowerCase(),
     },
   };

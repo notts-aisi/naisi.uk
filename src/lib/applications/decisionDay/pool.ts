@@ -14,6 +14,8 @@ import {
 } from "../normalise";
 import { applicationRef, formRef, loadForm } from "../repo";
 import { decisionRef, listReviews, listSentApplications } from "../staffRepo";
+import { gaveBackOf } from "../status/reasons";
+import { standingOf } from "../status/standing";
 import { POOL_REASON_LABEL } from "../words";
 import { studyLine } from "./boardWords";
 import { loadFirstNames } from "./people";
@@ -30,7 +32,7 @@ import {
 } from "./plan";
 import { POOLED_OUTCOME_AUDIT_KIND, programmeOf, shortNameOf } from "./programmes";
 import { loadTerm } from "./term";
-import type { PoolBoard, PoolComment, PoolProgramme, PoolRow } from "./views";
+import type { PoolBoard, PoolComment, PoolLeftRow, PoolProgramme, PoolRow } from "./views";
 
 /**
  * POOLED APPLICANTS: the people no programme they ranked could take, and what
@@ -39,6 +41,12 @@ import type { PoolBoard, PoolComment, PoolProgramme, PoolRow } from "./views";
  * Two things live here. {@link buildPoolBoard} is everything the page shows,
  * built field by field. {@link setPooledOutcome} is the one writer of a
  * pooled applicant's outcome.
+ *
+ * NOBODY DISAPPEARS FROM THE PAGE. Somebody pooled who gives a place or an
+ * invitation back after they were told leaves the term, and so leaves every
+ * count and the list of people to pick for. They are kept in a list of their
+ * own (`left`) with what they said and the reason they gave, because the
+ * reason is often something the committee can put right.
  *
  * ## What the writer keeps true
  *
@@ -114,12 +122,43 @@ function rowFor(
   };
 }
 
+/**
+ * Somebody pooled who gave a place or an invitation back after they were
+ * told: what they said and why, read off their own application. Null for
+ * anybody who left some other way, who has nothing of the kind to show.
+ */
+function leftRowFor(
+  form: ApplicationForm,
+  person: TermPerson,
+  application: ApplicationDoc | undefined,
+): PoolLeftRow | null {
+  if (!application) return null;
+  const gaveBack = gaveBackOf(application);
+  const standing = standingOf(application);
+  if (!gaveBack || standing.kind !== "released") return null;
+  const about = application.sent?.aboutYou;
+  return {
+    uid: person.uid,
+    name: person.name,
+    degree: about?.subject.trim() ?? "",
+    detail: about ? studyLine(about) : "",
+    ranked: person.ranked.map((programmeId, at) => ({
+      rank: at + 1,
+      programmeId,
+      shortName: shortNameOf(form, programmeId),
+    })),
+    programme: programmeOf(form, standing.programmeId)?.shortName ?? null,
+    said: gaveBack.said,
+    reason: gaveBack.reason,
+  };
+}
+
 export async function buildPoolBoard(
   db: Firestore,
   form: ApplicationForm,
   now: Date,
 ): Promise<PoolBoard> {
-  const [{ term, applications }, reviews] = await Promise.all([
+  const [{ term, applications, leftApplications }, reviews] = await Promise.all([
     loadTerm(db, form),
     listReviews(db, form.round.id),
   ]);
@@ -180,6 +219,11 @@ export async function buildPoolBoard(
     rows: pooled.map((person) =>
       rowFor(form, term, person, applications.get(person.uid), commentsOf(person.uid)),
     ),
+    // Listed, and not counted: they left the term when they replied.
+    left: term.left
+      .filter((person) => isPooled(person.outcome))
+      .map((person) => leftRowFor(form, person, leftApplications.get(person.uid)))
+      .filter((row): row is PoolLeftRow => row !== null),
   };
 }
 

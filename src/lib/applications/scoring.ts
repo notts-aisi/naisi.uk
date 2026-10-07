@@ -26,12 +26,22 @@ import { isAnswered } from "./validate";
  *    so a reviewer who scored two answers does not count twice against one
  *    who scored one.
  *
- * ## A first review is blind to other reviewers
+ * ## A first review is blind to other reviewers, and an admin is never blind
  *
- * Until you have scored every scored answer of a programme for an applicant,
- * you are not shown what anybody else gave or wrote for it. An admin can
- * switch that off for the whole form (`revealOtherReviews`). Names are not
- * part of this: reviewers see who they are reading.
+ * A lead or a reviewer who has not yet scored every scored answer of a
+ * programme for an applicant is not shown what anybody else gave or wrote for
+ * it. An admin can switch that off for the whole form (`revealOtherReviews`),
+ * which changes what leads and reviewers are shown.
+ *
+ * AN ADMIN IS SHOWN EVERY REVIEW, on every programme, whether or not they
+ * have scored and whatever the switch says. An admin runs the term and picks
+ * what pooled applicants hear, so the scores are theirs to read from the
+ * start. "Admin" is the caller's role on the site, never a role on a
+ * programme: a programme's lead who is not an admin still scores blind first.
+ * `otherReviewsShownTo` is the whole rule, and every place that hands one
+ * person another's score or comment asks it.
+ *
+ * Names are not part of this: reviewers see who they are reading.
  */
 
 type Form = Pick<
@@ -122,29 +132,53 @@ export function sectionScore(reviews: readonly ReviewDoc[], keys: readonly strin
 }
 
 /**
+ * Is this person shown what other reviewers gave and wrote for these answers?
+ *
+ * An admin always is. Anybody else is once they have scored every answer
+ * there is to score (`mine` is their own review row, or null when they have
+ * none), or when an admin has switched first-review blindness off for the
+ * form.
+ *
+ * `viewerIsAdmin` is asked for by every caller, so nobody answers this
+ * without deciding who is looking. Only a strict `true` counts: a caller that
+ * hands over anything else hides the other reviews rather than showing them.
+ */
+export function otherReviewsShownTo(
+  viewerIsAdmin: boolean,
+  mine: Pick<ReviewDoc, "scores"> | null,
+  keys: readonly string[],
+  form: Pick<ApplicationFormFields, "revealOtherReviews">,
+): boolean {
+  return viewerIsAdmin === true || form.revealOtherReviews || hasScored(mine, keys);
+}
+
+/**
  * The reviews one person may be shown for one programme: always their own,
- * and everybody else's once they have scored, or when an admin has switched
- * first-review blindness off.
+ * and everybody else's when `otherReviewsShownTo` says so. That is always,
+ * for an admin; for a lead or a reviewer, once they have scored or when an
+ * admin has switched first-review blindness off.
  */
 export function reviewsVisibleTo(
   viewerUid: string,
   reviews: readonly ReviewDoc[],
   keys: readonly string[],
   form: Pick<ApplicationFormFields, "revealOtherReviews">,
+  viewerIsAdmin: boolean,
 ): ReviewDoc[] {
-  const own = reviews.find((review) => review.reviewerUid === viewerUid) ?? null;
-  if (form.revealOtherReviews || hasScored(own, keys)) return [...reviews];
-  return own ? [own] : [];
+  const mine = reviews.find((review) => review.reviewerUid === viewerUid) ?? null;
+  if (otherReviewsShownTo(viewerIsAdmin, mine, keys, form)) return [...reviews];
+  return mine ? [mine] : [];
 }
 
-/** How many other people's reviews are being held back from this viewer. */
+/** How many other people's reviews are being held back from this viewer. Never any, for an admin. */
 export function hiddenReviewCount(
   viewerUid: string,
   reviews: readonly ReviewDoc[],
   keys: readonly string[],
   form: Pick<ApplicationFormFields, "revealOtherReviews">,
+  viewerIsAdmin: boolean,
 ): number {
-  return reviews.length - reviewsVisibleTo(viewerUid, reviews, keys, form).length;
+  return reviews.length - reviewsVisibleTo(viewerUid, reviews, keys, form, viewerIsAdmin).length;
 }
 
 /** A score as it is shown: one decimal place, "4.0". */

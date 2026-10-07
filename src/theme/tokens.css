@@ -52,8 +52,9 @@
   --color-accent-text-hover: #c2cbff;
   --color-accent-soft: rgba(106, 130, 255, 0.14);
   --color-accent-line: rgba(106, 130, 255, 0.35);
-  /* No longer the focus ring (see --focus-ring). Kept for the few accent
-     outlines that are not focus states and still read it. */
+  /* No longer the focus ring (see --focus-ring), and nothing should read it:
+     an accent outline that is not a focus state is --color-accent-line. It
+     stays defined so a rule written before the change still resolves. */
   --color-accent-ring: rgba(106, 130, 255, 0.4);
 
   /* live: small live marks, date rules and focus. Never a large fill. */

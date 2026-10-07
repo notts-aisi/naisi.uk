@@ -1,10 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import kit from "@/features/applications/kit/kit.module.css";
 import { TickIcon } from "@/features/applications/apply/icons";
 import { useHydrated } from "@/hooks/useHydrated";
+import type { ReleaseReason, ReleaseReasonKind } from "@/lib/applications/model";
+import {
+  RELEASE_REASON_OPTIONS,
+  RELEASE_REASON_OTHER_MAX,
+  parseReleaseReason,
+} from "@/lib/applications/status/reasons";
 import type { Reply } from "@/lib/applications/status/replies";
 import styles from "./status.module.css";
 
@@ -20,6 +26,14 @@ import styles from "./status.module.css";
  * a place for somebody else and cannot be taken back from this page, so the
  * first press only opens the question and the second one sends. Saying yes
  * (coming, or accepting an invitation) is one press.
+ *
+ * THE SECOND STEP ASKS WHY. It carries a short list of reasons, with "Other"
+ * and a box for a few words, and will not send until one is chosen (and, for
+ * "Other", something is written). The reason goes with the reply and the
+ * committee reads it: a time that does not work is something they may be able
+ * to put right. What may be sent is decided by `parseReleaseReason`, the
+ * same function the route asks, so the page refuses exactly what the server
+ * would.
  *
  * Nothing here works before the page's scripts have loaded, so every button
  * is disabled until they have, and when an admin is looking at the page as
@@ -77,7 +91,8 @@ function useReply(roundId: string) {
   const inFlight = useRef(false);
 
   const send = useCallback(
-    async (reply: Reply) => {
+    // `reason` goes with the two replies that give something back, and with no other.
+    async (reply: Reply, reason?: ReleaseReason) => {
       if (inFlight.current) return;
       inFlight.current = true;
       setSending(reply);
@@ -88,7 +103,7 @@ function useReply(roundId: string) {
           {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ reply }),
+            body: JSON.stringify(reason ? { reply, reason } : { reply }),
           },
         );
         const answer = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -123,8 +138,14 @@ function ViewingAs() {
 }
 
 /**
- * The second press of giving a place back: the question, the button that
- * sends, and the way out.
+ * The second press of giving a place back: the question, why, the button
+ * that sends, and the way out.
+ *
+ * The reasons are native radios in a fieldset, and "Other" opens a labelled
+ * box with its limit said under it. The first reason takes the focus when
+ * the step opens, because choosing one is the first thing to do. Pressing the
+ * button with no reason, or with "Other" and nothing written, says what is
+ * missing and moves the focus to it; nothing is sent.
  */
 function GiveBack({
   question,
@@ -138,17 +159,94 @@ function GiveBack({
   confirmLabel: string;
   keepLabel: string;
   busy: boolean;
-  onConfirm: () => void;
+  onConfirm: (reason: ReleaseReason) => void;
   onKeep: () => void;
 }) {
-  const confirm = useRef<HTMLButtonElement | null>(null);
+  const id = useId();
+  const firstReason = useRef<HTMLInputElement | null>(null);
+  const otherBox = useRef<HTMLTextAreaElement | null>(null);
+  const [chosen, setChosen] = useState<ReleaseReasonKind | null>(null);
+  const [left, setLeft] = useState<number>(RELEASE_REASON_OTHER_MAX);
+  const [missing, setMissing] = useState<string | null>(null);
   useEffect(() => {
-    confirm.current?.focus();
+    firstReason.current?.focus();
   }, []);
+
+  const confirm = () => {
+    const parsed = parseReleaseReason({ kind: chosen, other: otherBox.current?.value ?? "" });
+    if (!parsed.ok) {
+      setMissing(parsed.error);
+      (chosen === "other" ? otherBox.current : firstReason.current)?.focus();
+      return;
+    }
+    setMissing(null);
+    onConfirm(parsed.reason);
+  };
+
   return (
-    <div className={styles.actions} role="group" aria-label={question}>
+    <div className={styles.actions} role="group" aria-label={question} data-asks="why">
       <p className={styles.note}>{question}</p>
-      <button ref={confirm} type="button" className={styles.outlineSmall} onClick={onConfirm} disabled={busy}>
+      <fieldset
+        className={styles.reasons}
+        aria-describedby={missing ? `${id}-why ${id}-missing` : `${id}-why`}
+      >
+        <legend className={styles.reasonsLegend}>What’s the main reason?</legend>
+        <p id={`${id}-why`} className={styles.reasonsHelp}>
+          We ask in case we can offer you something that works.
+        </p>
+        <div className={styles.reasonRows}>
+          {RELEASE_REASON_OPTIONS.map((option, at) => {
+            const on = option.kind === chosen;
+            return (
+              <label key={option.kind} className={styles.reasonRow} data-on={on ? "true" : "false"}>
+                <input
+                  ref={at === 0 ? firstReason : undefined}
+                  type="radio"
+                  name={`${id}-reason`}
+                  className={styles.reasonNative}
+                  checked={on}
+                  disabled={busy}
+                  onChange={() => {
+                    setChosen(option.kind);
+                    setMissing(null);
+                  }}
+                />
+                <span aria-hidden="true" className={styles.reasonRadio} data-on={on ? "true" : "false"} />
+                <span>{option.label}</span>
+              </label>
+            );
+          })}
+        </div>
+        {chosen === "other" ? (
+          <div className={styles.reasonOther}>
+            <label htmlFor={`${id}-other`} className={styles.reasonsLegend}>
+              Tell us a bit more
+            </label>
+            <textarea
+              ref={otherBox}
+              id={`${id}-other`}
+              className={styles.reasonBox}
+              rows={3}
+              maxLength={RELEASE_REASON_OTHER_MAX}
+              disabled={busy}
+              aria-describedby={`${id}-left`}
+              onChange={(event) => {
+                setLeft(RELEASE_REASON_OTHER_MAX - event.currentTarget.value.length);
+                setMissing(null);
+              }}
+            />
+            <p id={`${id}-left`} className={styles.reasonsHelp}>
+              {left} {left === 1 ? "character" : "characters"} left
+            </p>
+          </div>
+        ) : null}
+        {missing ? (
+          <p id={`${id}-missing`} className={styles.problem} role="alert">
+            {missing}
+          </p>
+        ) : null}
+      </fieldset>
+      <button type="button" className={styles.outlineSmall} onClick={confirm} disabled={busy}>
         {busy ? "Saving…" : confirmLabel}
       </button>
       <button type="button" className={styles.quiet} onClick={onKeep} disabled={busy}>
@@ -184,7 +282,7 @@ export function PlaceReply({
           confirmLabel="Yes, I can’t make it"
           keepLabel="Keep my place"
           busy={busy}
-          onConfirm={() => send("cant-make-it")}
+          onConfirm={(reason) => send("cant-make-it", reason)}
           onKeep={() => setAsking(false)}
         />
       </>
@@ -249,7 +347,7 @@ export function InvitationReply({
           confirmLabel="Yes, no thanks"
           keepLabel="Go back"
           busy={busy}
-          onConfirm={() => send("decline-invitation")}
+          onConfirm={(reason) => send("decline-invitation", reason)}
           onKeep={() => setAsking(false)}
         />
       </>

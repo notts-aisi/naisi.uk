@@ -23,7 +23,9 @@
  *  1. An admin makes a form from nothing, and it will not open until ready.
  *  2. People apply. Nobody reaches anybody else's data.
  *  3. The form closes. Reviewers score, leads decide, an admin picks what
- *     pooled applicants hear.
+ *     pooled applicants hear. The send stays locked until an admin has sent
+ *     themselves a test of the emails, and locks again when a lead rewords
+ *     one afterwards.
  *  4. NOBODY HEARS EARLY: until the send, everything an applicant's own
  *     routes say about their application is what it said when they sent it.
  *  5. The send. It stops part way, and what the one person told was told is
@@ -34,6 +36,11 @@
  *     staff screen shows the same numbers, and they are the numbers a
  *     recount of the documents gives.
  *  7. The term settles and the member records are written.
+ *
+ * And beside all of it, at each turn of the form's life, what a course's
+ * public page is told: the editor ties a programme to its course, and the
+ * lookup those pages call is asked what it would offer, from the draft to the
+ * settled term.
  *
  * ## How it is laid out
  *
@@ -152,6 +159,8 @@ const routes = {
 
 const reminders = await lib("decisionDay", "reminders.ts");
 const termHome = await lib("lifecycle", "loadTermHome.ts");
+/** What a course's public page asks before it offers Apply. */
+const openForm = await lib("lifecycle", "openForm.ts");
 const statusLoad = await lib("status", "load.ts");
 const repo = await lib("repo.ts");
 
@@ -211,6 +220,14 @@ const CAST = [
   ["rex", "Rex Dunn", "rejected", false],
 ];
 
+/**
+ * Oliver's account is still waiting AND, when the form opens, he has not yet
+ * followed the link that checks his university address. Everybody else's
+ * address is checked. He can write and save; his send is held until he has
+ * followed it, which he does part way through the applying stage.
+ */
+const UNCHECKED_AT_FIRST = "oliver";
+
 function userDoc([uid, name, role, suRecognised]) {
   return {
     uid,
@@ -222,7 +239,7 @@ function userDoc([uid, name, role, suRecognised]) {
     profile: {
       preferredName: name.split(" ")[0],
       universityEmail: "someone@nottingham.ac.uk",
-      uniEmailVerifiedAt: new Date("2026-09-20T09:00:00Z"),
+      ...(uid === UNCHECKED_AT_FIRST ? {} : { uniEmailVerifiedAt: new Date("2026-09-20T09:00:00Z") }),
       status: "undergraduate",
       subject: "BA Philosophy",
       expectedGraduation: "2028-07",
@@ -284,7 +301,7 @@ async function call(who, handler, params, { body, query } = {}) {
  * Everything the story writes down. `steps` is every request it made with
  * the status it expected, so one test can say which did not go as told.
  */
-const seen = { crashed: null, steps: [], outsiders: {}, earshot: [], census: {}, outcomes: {}, logged: [] };
+const seen = { crashed: null, steps: [], outsiders: {}, earshot: [], census: {}, outcomes: {}, logged: [], coursePages: {} };
 
 /**
  * One request the story depends on. `expected` is the status the story
@@ -308,6 +325,37 @@ const P = { agi: "", tais: "", inc: "" };
 const SET = { fellowships: "", agi: "", tais: "", incubator: "", incStream: "", facilitator: "" };
 /** Question ids by set, under the story's own short names for them. */
 const Q = {};
+
+/**
+ * The site's courses. Two fellowships with a public page each, and one that
+ * is still a draft. The incubator is tied to nothing, on purpose.
+ */
+const COURSE = {
+  agi: "agi-strategy-fellowship__c0urse01",
+  tais: "technical-ai-safety__c0urse02",
+  draft: "spring-reading-group__c0urse03",
+};
+
+/**
+ * What each course's public page is told about the form at this moment, by
+ * the lookup those pages call (`findFormsByCourse`). The editor's route wrote
+ * the tie and the lifecycle's route moves the form; this is the other end of
+ * both, read off the same database.
+ */
+async function coursePages(label) {
+  const found = await openForm.findFormsByCourse(world.db, new Date());
+  const told = (courseId) => {
+    const view = found.get(courseId);
+    if (!view) return null;
+    return {
+      state: view.state,
+      applyPath: view.applyPath,
+      closes: view.closesAt ? view.closesAt.toISOString() : null,
+      starts: view.starts,
+    };
+  };
+  seen.coursePages[label] = { agi: told(COURSE.agi), tais: told(COURSE.tais), courses: [...found.keys()].sort() };
+}
 
 const roundDoc = () => world.db.read(`admissionRounds/${ROUND}`);
 const applicationDoc = (uid) => world.db.read(`admissionApplications/${ROUND}__${uid}`);
@@ -575,6 +623,19 @@ async function theFormIsMade() {
     await step(`lead and reviewers for ${name}`, 200, "zach", routes.roles.PUT, { roundId: ROUND, programmeId: P[name] }, { body });
   }
 
+  // Each fellowship is tied to its course, so that course's Apply button can
+  // find the form. A lead ties their own programme and an admin ties any. The
+  // incubator is left with no course page.
+  world.db.seed(`courses/${COURSE.agi}`, { title: "AGI Strategy Fellowship", status: "published" });
+  world.db.seed(`courses/${COURSE.tais}`, { title: "Technical AI Safety Fellowship", status: "published" });
+  world.db.seed(`courses/${COURSE.draft}`, { title: "Spring Reading Group", status: "draft" });
+  seen.leadTiesToADraft = await call("claudia", routes.programme.PATCH, { roundId: ROUND, programmeId: P.agi }, { body: { courseId: COURSE.draft } });
+  seen.leadTiesAnothersProgramme = await call("claudia", routes.programme.PATCH, { roundId: ROUND, programmeId: P.tais }, { body: { courseId: COURSE.tais } });
+  seen.tied = await step("the lead ties agi to its course", 200, "claudia", routes.programme.PATCH, { roundId: ROUND, programmeId: P.agi }, { body: { courseId: COURSE.agi } });
+  await step("an admin ties tais to its course", 200, "zach", routes.programme.PATCH, { roundId: ROUND, programmeId: P.tais }, { body: { courseId: COURSE.tais } });
+  // Tied, and still a draft: no course's page is told anything.
+  await coursePages("a draft");
+
   // Everything but the dates.
   seen.openWithoutDates = await step("open with no dates", 409, "zach", routes.status.POST, { roundId: ROUND }, open);
   seen.strangerBeforeOpen = await call("amara", routes.application.GET, { roundId: ROUND });
@@ -593,6 +654,7 @@ async function theFormIsMade() {
     ["claudia", "tess", "lloyd", "zach", "yusuf"].map((uid) => [uid, accountDoc(uid).admissionsReviewer === true]),
   );
   // Open, and the opening hour has not come yet.
+  await coursePages("before the opening hour");
   seen.beforeTheOpening = await call("amara", routes.application.GET, { roundId: ROUND });
   seen.saveBeforeTheOpening = await call("amara", routes.application.PUT, { roundId: ROUND }, { body: { draft: {} } });
 }
@@ -632,9 +694,19 @@ const mine = (who) => call(who, routes.application.GET, params());
 const save = (who, draft) => call(who, routes.application.PUT, params(), { body: { draft } });
 const sendIt = (who) => call(who, routes.applicationSend.POST, params(), { body: {} });
 
+/**
+ * What Amara first says about why. She changes it and sends again, so these
+ * are the words of a version she has replaced: nobody else's answer, and no
+ * later one of hers, contains them.
+ */
+const AMARA_FIRST_WHY = "A first reason, which she goes on to change.";
+const AMARA_SECOND_WHY = "I have changed my mind about why.";
+/** The fields an application carries its earlier versions in. No applicant's route may answer with one. */
+const HISTORY_FIELDS = ["sentHistory", "sentHistoryDropped", "sentChangedAt"];
+
 /** Who applies, with what they rank. */
 const plans = () => ({
-  amara: { ranked: [P.agi, P.tais] },
+  amara: { ranked: [P.agi, P.tais], why: AMARA_FIRST_WHY },
   jasmine: { ranked: [P.agi] },
   oliver: { ranked: [P.inc], facilitate: true },
   hannah: { ranked: [P.agi] },
@@ -692,6 +764,7 @@ async function outsidersTryEverything(label) {
 /** 2. People apply. */
 async function peopleApply() {
   at("applying");
+  await coursePages("applying");
   const people = plans();
 
   // Hannah presses Send with one required answer left empty, and is told.
@@ -701,6 +774,26 @@ async function peopleApply() {
   await save("hannah", unfinished);
   seen.unfinishedSend = await sendIt("hannah");
   seen.afterUnfinishedSend = { status: applicationDoc("hannah").status, counters: structuredClone(roundDoc().applicationCounts) };
+
+  // Oliver's account is still waiting, and he has not followed the link that
+  // checks his university address. He writes the whole thing and saves it.
+  // He cannot send it.
+  const oliverFirst = await mine(UNCHECKED_AT_FIRST);
+  const oliverSaved = await save(UNCHECKED_AT_FIRST, draftFor(oliverFirst.body, people[UNCHECKED_AT_FIRST]));
+  const held = await sendIt(UNCHECKED_AT_FIRST);
+  seen.steps.push({ name: "oliver saves before his university address is checked", expected: 200, status: oliverSaved.status, error: oliverSaved.body?.error ?? null });
+  seen.steps.push({ name: "oliver sends before his university address is checked", expected: 400, status: held.status, error: null });
+  seen.heldSend = {
+    look: oliverFirst,
+    saved: oliverSaved,
+    refused: held,
+    stored: structuredClone(applicationDoc(UNCHECKED_AT_FIRST)),
+    counters: structuredClone(roundDoc().applicationCounts),
+    account: structuredClone(accountDoc(UNCHECKED_AT_FIRST)),
+  };
+  // He follows the link. The page that confirms it stamps his account, which
+  // is no request of the application system's.
+  world.db.poke(`users/${UNCHECKED_AT_FIRST}`, { "profile.uniEmailVerifiedAt": new Date() });
 
   seen.applied = {};
   for (const who of APPLICANTS) {
@@ -712,13 +805,33 @@ async function peopleApply() {
     seen.applied[who] = { look, saved, sent, stored: structuredClone(applicationDoc(who)) };
   }
 
+  // Amara presses Send again with nothing changed. There is nothing different to keep.
+  later(60);
+  seen.amaraSentUnchanged = { response: await sendIt("amara"), stored: structuredClone(applicationDoc("amara")) };
+
   // Amara changes an answer. Saved is not sent: the committee still has the first one.
   later(60);
-  const changed = draftFor(seen.applied.amara.look.body, { ...people.amara, why: "I have changed my mind about why." });
+  const changed = draftFor(seen.applied.amara.look.body, { ...people.amara, why: AMARA_SECOND_WHY });
   const savedAgain = await save("amara", changed);
   seen.amaraSavedAgain = { response: savedAgain, stored: structuredClone(applicationDoc("amara")) };
   const sentAgain = await sendIt("amara");
   seen.amaraSentAgain = { response: sentAgain, stored: structuredClone(applicationDoc("amara")) };
+
+  // The version that send replaced is kept. Who can be shown it, straight away:
+  // her own routes, another applicant's, and everybody with no role asking as staff would.
+  seen.firstVersion = {
+    own: await mine("amara"),
+    page: await statusLoad.loadStatus(world.db, ROUND, "amara", new Date()),
+    listed: [...(await statusLoad.loadListWords(world.db, "amara", [ROUND], new Date())).values()],
+    anotherApplicant: await mine("jasmine"),
+    asStaff: {},
+  };
+  for (const who of [null, "jasmine", "nell", "yusuf", "amara"]) {
+    seen.firstVersion.asStaff[who ?? "nobody signed in"] = {
+      review: await call(who, routes.review.GET, { roundId: ROUND, uid: "amara" }, { query: { programme: P.agi } }),
+      list: await call(who, routes.board.GET, { roundId: ROUND, programmeId: P.agi }),
+    };
+  }
 
   // Dev starts and never sends.
   const devLook = await mine("dev");
@@ -753,6 +866,7 @@ async function peopleApply() {
   // An admin closes early, then opens again. The applicant's routes follow.
   at("closedEarly");
   seen.closedEarly = await step("close early", 200, "zach", routes.status.POST, params(), { body: { status: "closed" } });
+  await coursePages("closed early");
   seen.whileClosedEarly = {
     staff: (await call("zach", routes.form.GET, params())).body?.form?.state ?? null,
     look: (await mine("dev")).body?.form?.windowState ?? null,
@@ -762,6 +876,7 @@ async function peopleApply() {
   at("reopened");
   seen.reopenUnasked = await call("zach", routes.status.POST, params(), { body: { status: "open" } });
   seen.reopened = await step("open again", 200, "zach", routes.status.POST, params(), { body: { status: "open", confirm: true } });
+  await coursePages("reopened");
   seen.afterReopening = {
     staff: (await call("zach", routes.form.GET, params())).body?.form?.state ?? null,
     look: (await mine("dev")).body?.form?.windowState ?? null,
@@ -781,6 +896,7 @@ const pick = (uid, outcome) => call("zach", routes.pool.PUT, params(), { body: {
 /** 3 and 4. The form closes, reviewers score, leads decide, an admin picks. Nobody hears. */
 async function theCommitteeDecides() {
   at("afterTheClose");
+  await coursePages("after the close");
   seen.afterTheClose = {
     staff: (await call("zach", routes.form.GET, params())).body?.form?.state ?? null,
     look: (await mine("dev")).body?.form?.windowState ?? null,
@@ -793,12 +909,18 @@ async function theCommitteeDecides() {
   await census("nothing decided");
 
   at("reviewing");
+  // The lead opens Amara's application, and the list it is on, before anybody has scored.
+  seen.leadReadsAmara = await reviewOf("claudia", "amara", "agi");
+  seen.leadsList = await call("claudia", routes.board.GET, { roundId: ROUND, programmeId: P.agi });
   // Claudia, the lead, scores Amara first. Lloyd, the reviewer, has not yet.
   seen.claudiaScores = await step("the lead scores Amara", 200, "claudia", routes.saveReview.PUT, { roundId: ROUND, uid: "amara" }, {
     body: { programmeId: P.agi, scores: { [key("agi", "event")]: 4, [key("agi", "law")]: 5 }, overallComment: "Strong on the law." },
   });
   seen.lloydBeforeScoring = await reviewOf("lloyd", "amara", "agi");
   seen.lloydListBeforeScoring = await call("lloyd", routes.board.GET, { roundId: ROUND, programmeId: P.agi });
+  // The same moment, for an admin who has scored nothing and never will.
+  seen.adminBeforeScoring = await reviewOf("zach", "amara", "agi");
+  seen.adminListBeforeScoring = await call("zach", routes.board.GET, { roundId: ROUND, programmeId: P.agi });
   // One of the two answers is not a finished first review.
   seen.lloydHalfScored = await score("lloyd", "amara", "agi", { [key("agi", "event")]: 3 });
   seen.lloydScored = await score("lloyd", "amara", "agi", { [key("agi", "law")]: 3 }, "Fine.");
@@ -851,11 +973,37 @@ async function theCommitteeDecides() {
   await earshot("the pooled outcomes are picked");
   await census("ready to send");
 
+  // Every decision is made and every outcome picked. The send is still
+  // locked: no admin has sent themselves a test of the emails.
+  seen.pressBeforeAnyTest = await press(await onTheButton());
+  seen.toldBeforeAnyTest = told();
+
   // A test email goes to the admin who asked for it, and to nobody who applied.
   seen.mailBeforeTheTest = world.mail.calls.length;
   seen.testEmail = await call("zach", routes.sendTest.POST, params(), { body: { kind: "accepted" } });
   seen.testMail = world.mail.calls.slice(seen.mailBeforeTheTest).map((mail) => ({ to: mail.to, subject: mail.subject, kind: mail.kind }));
+  seen.testRecord = structuredClone(roundDoc().decisionEmailTest ?? null);
   await earshot("a test email has been sent");
+  await census("tested, and ready to send");
+
+  // A lead rewords one of her programme's emails after the test. Nobody in
+  // this term is sent that email, and it still counts: the test was of the
+  // emails as they were worded, and they are worded differently now.
+  await step("the Technical AI Safety lead rewords her You’re in after the test", 200, "tess", routes.programme.PATCH, { roundId: ROUND, programmeId: P.tais }, {
+    body: { emailWording: { accepted: { subject: "Welcome to Technical AI Safety", body: "" } } },
+  });
+  await earshot("a lead has reworded an email");
+  await census("reworded since the test");
+  seen.pressAfterRewording = await press(await onTheButton());
+  seen.toldAfterRewording = told();
+
+  // The admin tests again, as the emails are worded now.
+  seen.mailBeforeTheSecondTest = world.mail.calls.length;
+  seen.secondTest = await call("zach", routes.sendTest.POST, params(), { body: { kind: "invitation" } });
+  seen.secondTestMail = world.mail.calls.slice(seen.mailBeforeTheSecondTest).map((mail) => ({ to: mail.to, subject: mail.subject, kind: mail.kind }));
+  seen.secondTestRecord = structuredClone(roundDoc().decisionEmailTest ?? null);
+  await earshot("the emails have been tested again");
+  await census("tested again, and ready to send");
 }
 
 const address = (uid) => `${uid}@example.com`;
@@ -984,7 +1132,14 @@ async function decisionDay() {
   };
 }
 
-const replyAs = (who, reply) => call(who, routes.reply.POST, params(), { body: { reply } });
+/**
+ * The two replies that give something back are asked why. A step that is not
+ * about the reason sends this one; a step that is says its own.
+ */
+const WHY = { kind: "too-much-on", other: "" };
+const replyBody = (reply, reason = WHY) =>
+  ["cant-make-it", "decline-invitation"].includes(reply) ? { reply, reason } : { reply };
+const replyAs = (who, reply, reason) => call(who, routes.reply.POST, params(), { body: replyBody(reply, reason) });
 
 /** Who the daily reminder for an unanswered invitation would write to today. */
 async function dueAReminder() {
@@ -1026,15 +1181,29 @@ async function peopleReply() {
     wroteNothing: everything() === before,
   };
 
-  for (const [who, reply, label] of [
+  // Somebody giving a place or an invitation back is asked why. With no
+  // reason, or with "Other" and no words, nothing is recorded.
+  const beforeTheReasons = everything();
+  seen.noReason = {
+    place: await call("jasmine", routes.reply.POST, params(), { body: { reply: "cant-make-it" } }),
+    invitation: await call("abel", routes.reply.POST, params(), { body: { reply: "decline-invitation" } }),
+    otherWithNoWords: await call("abel", routes.reply.POST, params(), {
+      body: { reply: "decline-invitation", reason: { kind: "other", other: "   " } },
+    }),
+    wroteNothing: everything() === beforeTheReasons,
+  };
+
+  for (const [who, reply, label, reason] of [
     ["amara", "coming", "Amara is coming"],
-    ["jasmine", "cant-make-it", "Jasmine gave her place back"],
+    // The times do not work for her: the case the committee may be able to put right.
+    ["jasmine", "cant-make-it", "Jasmine gave her place back", { kind: "times", other: "" }],
     ["oliver", "accept-invitation", "Oliver accepted his invitation"],
-    ["abel", "decline-invitation", "Abel said no thanks"],
+    // In his own words.
+    ["abel", "decline-invitation", "Abel said no thanks", { kind: "other", other: "  I\u2019m starting a placement that week.  " }],
   ]) {
     later();
     const account = structuredClone(accountDoc(who));
-    const response = await step(`${who} replies ${reply}`, 200, who, routes.reply.POST, params(), { body: { reply } });
+    const response = await step(`${who} replies ${reply}`, 200, who, routes.reply.POST, params(), { body: replyBody(reply, reason) });
     seen.replies[who] = {
       response,
       stored: structuredClone(applicationDoc(who)),
@@ -1069,6 +1238,26 @@ async function peopleReply() {
     abelToAgiLeadWrites: await score("claudia", "abel", "agi", {}, "A pity."),
   };
 
+  // The reason each gave, where the committee reads it: on the withdrawn row
+  // of a programme they ranked, on the application itself, and for a pooled
+  // person on the pooled applicants page.
+  const rowOn = async (who, programme, uid) =>
+    ((await call(who, routes.board.GET, { roundId: ROUND, programmeId: P[programme] })).body?.board?.rows ?? []).find((row) => row.uid === uid) ?? null;
+  seen.reasons = {
+    // Jasmine ranked AGI Strategy and gave back her place on it.
+    jasmineOnAgiList: await rowOn("claudia", "agi", "jasmine"),
+    jasmineToAgiReviewer: (await reviewOf("lloyd", "jasmine", "agi")).body?.review?.applicant ?? null,
+    // Abel ranked Technical AI Safety and the incubator, and turned down AGI Strategy.
+    abelOnTaisList: await rowOn("tess", "tais", "abel"),
+    abelToTaisLead: (await reviewOf("tess", "abel", "tais")).body?.review?.applicant ?? null,
+    pool: (await call("zach", routes.pool.GET, params())).body?.board ?? null,
+    // Nobody is removed: both are still on a list, and neither is counted.
+    agiCounts: (await call("claudia", routes.board.GET, { roundId: ROUND, programmeId: P.agi })).body?.board?.counts ?? null,
+    // What each is sent about their own application.
+    ownJasmine: (await mine("jasmine")).body ?? null,
+    ownAbel: (await mine("abel")).body ?? null,
+  };
+
   // A place given back cannot be taken again from the page.
   later();
   seen.takesItBack = await replyAs("jasmine", "coming");
@@ -1082,6 +1271,7 @@ async function theTermSettles() {
   at("settling");
   seen.leadSettles = await call("claudia", routes.status.POST, params(), { body: { status: "settled" } });
   seen.settled = await step("settle the term", 200, "zach", routes.status.POST, params(), { body: { status: "settled" } });
+  await coursePages("settled");
   seen.roundWhenSettled = structuredClone(roundDoc());
   seen.addAProgrammeOnceSettled = await call("zach", routes.form.PATCH, params(), {
     body: { addProgramme: { name: "Governance Fellowship", shortName: "Governance", kind: "fellowship" } },
@@ -1214,6 +1404,82 @@ describe("one term, from nothing to settled", () => {
   });
 
   // -------------------------------------------------------------------------
+  describe("a course's page is told where the form is, all the way through the term", () => {
+    const pageAt = (label) => {
+      const told = seen.coursePages[label];
+      assert.ok(told, `the story asked for no course page at "${label}"`);
+      return told;
+    };
+
+    test("a lead ties their own programme to a published course, and to nothing else", () => {
+      assert.deepEqual(short(seen.leadTiesToADraft), [
+        400,
+        "That is not a course this programme can be tied to. Pick one from the list, or No course page.",
+      ]);
+      // Another lead's programme is not theirs: the answer for a programme they have no role on.
+      assert.equal(seen.leadTiesAnothersProgramme.status, 404);
+      assert.equal(seen.tied.body.programme.courseId, COURSE.agi);
+      // The picker a lead is shown: the two published courses, and not the draft or its title.
+      assert.deepEqual(
+        seen.tied.body.programme.courses.map((course) => [course.id, course.label, course.selectable]),
+        [
+          [COURSE.agi, "AGI Strategy Fellowship", true],
+          [COURSE.tais, "Technical AI Safety Fellowship", true],
+        ],
+      );
+      assert.ok(!JSON.stringify(seen.tied.body).includes("Spring Reading Group"));
+    });
+
+    test("the tie is stored on the programme, where the lookup reads it, and nowhere else", () => {
+      const round = seen.roundWhenOpened;
+      assert.equal(round.programmes[P.agi].courseId, COURSE.agi);
+      assert.equal(round.programmes[P.tais].courseId, COURSE.tais);
+      assert.equal(round.programmes[P.inc].courseId, null, "a programme starts with no course page");
+      // It is not the run people are placed on, and it writes nothing the older lookup reads.
+      assert.equal(round.programmes[P.agi].runId, null);
+      assert.deepEqual(round.outcomeRunIds, []);
+    });
+
+    test("while the form is a draft, no course's page is told anything", () => {
+      assert.deepEqual(pageAt("a draft"), { agi: null, tais: null, courses: [] });
+    });
+
+    test("opened, and before the opening hour: the page says when, and the form's own page agrees", () => {
+      const told = pageAt("before the opening hour");
+      assert.equal(told.agi.state, "not-yet");
+      assert.equal(told.tais.state, "not-yet");
+      assert.equal(seen.beforeTheOpening.body.form.windowState, "not-yet");
+    });
+
+    test("while applications are open: each tied course leads to the one form, and the untied one to nothing", () => {
+      const told = pageAt("applying");
+      assert.deepEqual(told.courses, [COURSE.agi, COURSE.tais].sort());
+      assert.equal(told.agi.state, "open");
+      assert.equal(told.agi.applyPath, `/apply/${ROUND}`);
+      assert.equal(told.tais.applyPath, told.agi.applyPath, "it is one form whichever course's button is pressed");
+      // Each course carries its own programme's start, as its lead wrote it.
+      assert.deepEqual([told.agi.starts, told.tais.starts], ["w/c 26 Oct", "w/c 2 Nov"]);
+      assert.equal(told.agi.closes, "2026-10-18T22:59:00.000Z");
+    });
+
+    test("closed early by an admin: closed, with no day, because the day written on the form has not come", () => {
+      const told = pageAt("closed early");
+      assert.deepEqual([told.agi.state, told.agi.closes], ["closed", null]);
+      assert.equal(seen.whileClosedEarly.look, "closed", "the form's own page says the same");
+      assert.equal(pageAt("reopened").agi.state, "open");
+    });
+
+    test("after the close, and once the term has settled: closed, on the day it closed", () => {
+      for (const label of ["after the close", "settled"]) {
+        const told = pageAt(label);
+        assert.deepEqual([told.agi.state, told.agi.closes], ["closed", "2026-10-18T22:59:00.000Z"], label);
+        assert.deepEqual(told.courses, [COURSE.agi, COURSE.tais].sort(), label);
+      }
+      assert.equal(seen.afterTheClose.look, "closed");
+    });
+  });
+
+  // -------------------------------------------------------------------------
   describe("2. people apply", () => {
     test("a send with a required answer missing is refused, says where, and counts nobody", () => {
       assert.equal(seen.unfinishedSend.status, 400);
@@ -1223,6 +1489,37 @@ describe("one term, from nothing to settled", () => {
       assert.equal(seen.afterUnfinishedSend.status, "draft");
       assert.equal(seen.afterUnfinishedSend.counters.submitted, 0);
       assert.equal(seen.afterUnfinishedSend.counters.draft, 1);
+    });
+
+    test("a waiting account whose university address is not checked saves, is held at Send, and sends once it is", () => {
+      const { look, saved, refused, stored, counters, account } = seen.heldSend;
+      assert.equal(account.role, "pending");
+      assert.equal(account.profile.uniEmailVerifiedAt, undefined, "the story's unchecked account started out checked");
+      // The form tells him where he stands before he presses anything.
+      assert.equal(look.body.joined, true);
+      assert.equal(look.body.account.universityEmailVerified, false);
+      assert.equal(saved.status, 200);
+      assert.equal(refused.status, 400);
+      assert.deepEqual(refused.body.issues, [
+        {
+          step: "check",
+          questionId: null,
+          message: "Check your university email before you send. Open the link we emailed to that address, then send.",
+        },
+      ]);
+      // Saved, and not sent: the committee has nothing of his to read yet.
+      assert.equal(stored.status, "draft");
+      assert.equal(stored.sent, null);
+      assert.equal(counters.submitted, 0);
+      assert.equal(counters.draft, 2, "Hannah's unfinished draft and his");
+      // Once the link is followed the very same application goes, as a first send.
+      const after = seen.applied[UNCHECKED_AT_FIRST];
+      assert.equal(after.look.body.account.universityEmailVerified, true);
+      assert.equal(after.sent.status, 200);
+      assert.equal(after.sent.body.first, true);
+      assert.equal(after.stored.sent.aboutYou.universityEmailVerified, true);
+      // Jasmine's account is waiting too, and her address was checked all along.
+      assert.equal(seen.applied.jasmine.look.body.account.universityEmailVerified, true);
     });
 
     test("a member, two accounts still waiting, somebody who ranks two and somebody who would facilitate all send", () => {
@@ -1252,15 +1549,80 @@ describe("one term, from nothing to settled", () => {
       const first = seen.applied.amara.stored;
       const saved = seen.amaraSavedAgain.stored;
       assert.equal(saved.status, "submitted");
-      assert.equal(saved.draft.answers[SET.fellowships][Q.fellowships.why], "I have changed my mind about why.");
-      assert.equal(saved.sent.answers[SET.fellowships][Q.fellowships.why], "I want to understand it.");
+      assert.equal(saved.draft.answers[SET.fellowships][Q.fellowships.why], AMARA_SECOND_WHY);
+      assert.equal(saved.sent.answers[SET.fellowships][Q.fellowships.why], AMARA_FIRST_WHY);
       assert.deepEqual(saved.sent, first.sent, "the copy of record is untouched by a save");
 
       const again = seen.amaraSentAgain;
       assert.equal(again.response.body.first, false);
-      assert.equal(again.stored.sent.answers[SET.fellowships][Q.fellowships.why], "I have changed my mind about why.");
+      assert.equal(again.stored.sent.answers[SET.fellowships][Q.fellowships.why], AMARA_SECOND_WHY);
       assert.equal(again.stored.submittedAt.getTime(), first.submittedAt.getTime(), "the first send is when they applied");
       assert.ok(again.stored.sentAt.getTime() > first.sentAt.getTime());
+    });
+
+    test("a send that changes nothing keeps nothing", () => {
+      const first = seen.applied.amara.stored;
+      const unchanged = seen.amaraSentUnchanged;
+      assert.deepEqual([unchanged.response.status, unchanged.response.body.first], [200, false]);
+      assert.deepEqual(unchanged.stored.sent, first.sent);
+      assert.equal(unchanged.stored.sentHistory, undefined, "pressing Send again with nothing changed kept a version");
+      assert.ok(unchanged.stored.sentAt.getTime() > first.sentAt.getTime(), "the press itself is still recorded");
+      assert.equal(unchanged.stored.sentChangedAt.getTime(), first.sentAt.getTime(), "and the application of record is as old as it was");
+    });
+
+    test("the send that changed an answer keeps the version it replaced, whole, with when it was first sent", () => {
+      const first = seen.applied.amara.stored;
+      const again = seen.amaraSentAgain.stored;
+      assert.equal(first.sentHistory, undefined, "a first send has nothing earlier to keep");
+      assert.equal(again.sentHistory.length, 1);
+      assert.deepEqual(again.sentHistory[0].content, first.sent, "the kept version is the application the committee had");
+      assert.equal(again.sentHistory[0].content.answers[SET.fellowships][Q.fellowships.why], AMARA_FIRST_WHY);
+      // The day she first sent those words, not the day she pressed Send again without changing them.
+      assert.equal(again.sentHistory[0].sentAt.getTime(), first.sentAt.getTime());
+      assert.equal(again.sentHistoryDropped, 0);
+      assert.equal(again.sentChangedAt.getTime(), again.sentAt.getTime());
+      // Everybody else sent once, and to the end of the term nobody's history grows.
+      for (const who of APPLICANTS) {
+        assert.equal(applicationDoc(who).sentHistory?.length ?? 0, who === "amara" ? 1 : 0, who);
+      }
+      assert.deepEqual(applicationDoc("amara").sentHistory, again.sentHistory, "nothing after the send touched it");
+    });
+
+    test("nobody else is shown the version she replaced: not a stranger, not another applicant, not Amara herself", () => {
+      const { own, page, listed, anotherApplicant, asStaff } = seen.firstVersion;
+      // Asking as the committee would: nobody signed in, another applicant, a member with no
+      // application, SU-recognised committee named on nothing, and Amara of her own application.
+      assert.deepEqual(Object.keys(asStaff), ["nobody signed in", "jasmine", "nell", "yusuf", "amara"]);
+      for (const [who, answers] of Object.entries(asStaff)) {
+        for (const [name, response] of Object.entries(answers)) {
+          const refused = who === "nobody signed in" ? response.status === 401 : REFUSED.includes(response.status);
+          assert.ok(refused, `${who} asked for the ${name} and was answered ${response.status}`);
+          assert.ok(!JSON.stringify(response.body).includes(AMARA_FIRST_WHY), `${who}, the ${name}`);
+        }
+      }
+      // Her own routes show her what she sent last, and nothing she sent before it.
+      assert.equal(own.status, 200);
+      assert.equal(own.body.application.sent.answers[SET.fellowships][Q.fellowships.why], AMARA_SECOND_WHY);
+      assert.equal(anotherApplicant.status, 200);
+      for (const [name, said] of Object.entries({ "her own route": own.body, "her own page": page, "her line on the list": listed, "another applicant's route": anotherApplicant.body })) {
+        const text = JSON.stringify(said);
+        assert.ok(!text.includes(AMARA_FIRST_WHY), `${name} carries the words of the version she replaced`);
+        for (const field of HISTORY_FIELDS) assert.ok(!text.includes(field), `${name} carries ${field}`);
+      }
+    });
+
+    test("and not at any later moment of the term, on any applicant's own route or page", () => {
+      // Every time the story listened before the send, and every outcome read after it.
+      const heard = [
+        ...seen.earshot.map((entry) => Object.values(entry.heard).map((one) => [one.application, one.page, one.reply])),
+        seen.outcomes,
+        seen.outsiders,
+      ];
+      assert.ok(seen.earshot.length >= 6 && Object.keys(seen.outcomes).length >= 3, "the story stopped listening");
+      const text = JSON.stringify(heard);
+      assert.ok(text.includes(AMARA_SECOND_WHY), "the scan is not reading what her own route returns");
+      assert.ok(!text.includes(AMARA_FIRST_WHY));
+      for (const field of HISTORY_FIELDS) assert.ok(!text.includes(field), field);
     });
 
     test("the form's counters are the applications, counted", () => {
@@ -1342,6 +1704,43 @@ describe("one term, from nothing to settled", () => {
       }
     });
 
+    test("the lead and the reviewer are shown what the application said before, and the list marks it", () => {
+      for (const [who, response] of [["the lead", seen.leadReadsAmara], ["the reviewer", seen.lloydBeforeScoring]]) {
+        assert.equal(response.status, 200, who);
+        const review = response.body.review;
+        // She sent on the Saturday, and changed it later the same day.
+        assert.deepEqual(review.changes, { count: 1, lastOn: "Sat 10 Oct", dropped: 0, where: [SET.fellowships] }, who);
+        const fellowships = review.sections.find((section) => section.id === SET.fellowships);
+        const why = fellowships.answers.find((answer) => answer.key === key("fellowships", "why"));
+        assert.equal(why.text, AMARA_SECOND_WHY, who);
+        assert.deepEqual(
+          why.earlier.map((entry) => [entry.sentOn, entry.text]),
+          [["Sat 10 Oct", AMARA_FIRST_WHY]],
+          who,
+        );
+        assert.ok(fellowships.chips.some((chip) => chip.text === "Changed"), who);
+        // Nothing else changed, so nothing else has anything before it.
+        const others = review.sections.flatMap((section) => section.answers).filter((answer) => answer !== why);
+        assert.deepEqual(others.map((answer) => [answer.key, answer.earlier.length]), [
+          [key("agi", "event"), 0],
+          [key("agi", "law"), 0],
+          [key("tais", "built"), 0],
+        ], who);
+        assert.deepEqual(
+          [review.applicant.earlierRankings, review.applicant.earlierFacilitating, review.earlierAvailability, review.applicant.about.earlierFacts],
+          [[], [], [], []],
+          who,
+        );
+      }
+      // The list: a mark on her row, and on nobody else's.
+      const rows = seen.leadsList.body.board.rows;
+      assert.deepEqual(
+        Object.fromEntries(rows.map((row) => [row.uid, [row.changed, row.changedOn]])),
+        { amara: [true, "Sat 10 Oct"], hannah: [false, null], jasmine: [false, null] },
+      );
+      assert.ok(!JSON.stringify(seen.leadsList.body).includes(AMARA_FIRST_WHY), "the list carries no answer, earlier or not");
+    });
+
     test("a first review is blind to the others until it is complete", () => {
       const before = seen.lloydBeforeScoring.body.review;
       assert.deepEqual(before.review.others, { count: 1, hidden: 1, visible: [] });
@@ -1359,6 +1758,28 @@ describe("one term, from nothing to settled", () => {
       const rowAfter = seen.lloydListAfterScoring.body.board.rows.find((row) => row.uid === "amara");
       // The lead gave 4 and 5, the reviewer 3 and 3: one voice each.
       assert.equal(rowAfter.scoreValue, 3.75);
+    });
+
+    // The owner's decision of 7 October 2026. The form's switch is off for
+    // the whole of this term, so nothing here is the switch's doing.
+    test("an admin is never blind: the lead's score and comment are there before the admin has scored anything", () => {
+      assert.equal(seen.roundWhenOpened.revealOtherReviews, false);
+      const early = seen.adminBeforeScoring.body.review;
+      assert.deepEqual(early.review.scores, {}, "the admin has scored nothing");
+      assert.equal(early.review.others.hidden, 0);
+      assert.deepEqual(
+        early.review.others.visible.map((other) => [other.name, other.score, other.overallComment]),
+        [["Claudia", "4.5", "Strong on the law."]],
+      );
+      assert.deepEqual(early.admin.sections.find((section) => section.programmeId === P.agi), {
+        programmeId: P.agi,
+        shortName: "AGI Strategy",
+        score: "4.5",
+        line: "Claudia scored 4 and 5",
+      });
+      const row = seen.adminListBeforeScoring.body.board.rows.find((entry) => entry.uid === "amara");
+      assert.equal(row.score, "4.5", "and the list's score column, at the moment the reviewer's reads nothing");
+      assert.equal(seen.lloydListBeforeScoring.body.board.rows.find((entry) => entry.uid === "amara").score, null);
     });
 
     test("a reviewer cannot decide, a lead cannot decide or read another lead's programme, and only an admin picks", () => {
@@ -1451,9 +1872,78 @@ describe("one term, from nothing to settled", () => {
       assert.deepEqual(ready.send.noOffer, ["hannah"]);
       assert.equal(ready.send.declined, 1);
       assert.deepEqual(ready.send.pending, { people: 6, emails: 5 });
-      assert.equal(ready.send.ready, true);
+      // Every decision is made and every outcome picked, so every row but the
+      // last is ticked. The send itself waits for a test of the emails, which
+      // has a test of its own below.
+      assert.deepEqual(
+        Object.entries(ready.send.readiness).filter(([, row]) => row[0] === false).map(([key]) => key),
+        ["#test"],
+      );
+      assert.equal(ready.send.ready, false);
+      // Once tested, the page is ready, and nothing else on it has moved.
+      const tested = censusAt("tested again, and ready to send").send;
+      assert.equal(tested.ready, true);
+      assert.deepEqual(
+        { ...tested, ready: false, readiness: { ...tested.readiness, "#test": ready.send.readiness["#test"] } },
+        ready.send,
+      );
       // Jasmine is accepted and her join request has not been looked at.
       assert.equal(ready.send.accountsWaiting, 1);
+    });
+
+    // The owner's decision of 7 October 2026: "I wouldn't let this happen
+    // without a test." The story presses Send three times before decision
+    // day: with no test, with a test, and after a lead reworded an email.
+    test("the send is locked until an admin has sent themselves a test, and locks again when wording changes after it", () => {
+      const NO_TEST = "Nobody has sent themselves a test of these emails yet. Send yourself one before you send.";
+      const STALE_TEST =
+        "A decision email’s wording has changed since the last test. Send yourself a test again before you send.";
+      const when = (date) =>
+        new Intl.DateTimeFormat("en-GB", {
+          timeZone: "Europe/London",
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        }).format(date);
+
+      // No test: refused, in a sentence, and nobody is told.
+      assert.deepEqual(censusAt("ready to send").send.readiness["#test"], [false, "No test sent yet", "Send one below before you send"]);
+      assert.deepEqual(short(seen.pressBeforeAnyTest), [409, NO_TEST]);
+      assert.deepEqual(seen.toldBeforeAnyTest, []);
+
+      // The test is recorded on the form: who sent it, when, and the wording it was made from.
+      assert.deepEqual([seen.testEmail.status, seen.testEmail.body.recorded], [200, true]);
+      assert.equal(seen.testRecord.byUid, "zach");
+      assert.ok(seen.testRecord.at instanceof Date);
+      assert.match(seen.testRecord.wording, /^[0-9a-f]{64}$/);
+      const tested = censusAt("tested, and ready to send").send;
+      assert.equal(tested.ready, true);
+      assert.deepEqual(tested.readiness["#test"], [true, `Sent ${when(seen.testRecord.at)}`, ""]);
+
+      // A lead rewords an email: the same test no longer counts.
+      const reworded = censusAt("reworded since the test").send;
+      assert.equal(reworded.ready, false);
+      assert.deepEqual(reworded.readiness["#test"], [
+        false,
+        `Sent ${when(seen.testRecord.at)}, and the wording has changed since`,
+        "Send it again below before you send",
+      ]);
+      assert.deepEqual(short(seen.pressAfterRewording), [409, STALE_TEST]);
+      assert.deepEqual(seen.toldAfterRewording, []);
+
+      // Tested again, as the emails are worded now. Any one of the three emails is a test.
+      assert.deepEqual([seen.secondTest.status, seen.secondTest.body.recorded], [200, true]);
+      assert.equal(seen.secondTestRecord.byUid, "zach");
+      assert.notEqual(seen.secondTestRecord.wording, seen.testRecord.wording);
+      assert.ok(seen.secondTestRecord.at > seen.testRecord.at);
+      assert.deepEqual(censusAt("tested again, and ready to send").send.readiness["#test"], [
+        true,
+        `Sent ${when(seen.secondTestRecord.at)}`,
+        "",
+      ]);
     });
   });
 
@@ -1466,6 +1956,8 @@ describe("one term, from nothing to settled", () => {
       "every lead has decided",
       "the pooled outcomes are picked",
       "a test email has been sent",
+      "a lead has reworded an email",
+      "the emails have been tested again",
     ];
 
     test("the story listened after every thing the committee did", () => {
@@ -1509,6 +2001,12 @@ describe("one term, from nothing to settled", () => {
       assert.equal(seen.testMail[0].kind, "admin-test");
       assert.match(seen.testMail[0].subject, /^\[TEST\] /);
       assert.equal(seen.mailBeforeTheTest, 0);
+      // The second test, after a lead reworded an email, went the same way.
+      assert.equal(seen.mailBeforeTheSecondTest, 1, "the two refused presses in between sent nothing");
+      assert.deepEqual(
+        seen.secondTestMail.map((mail) => [mail.to, mail.kind, /^\[TEST\] /.test(mail.subject)]),
+        [[address("zach"), "admin-test", true]],
+      );
       assert.deepEqual(seen.beforeAnyPress.mail, []);
       assert.deepEqual(seen.beforeAnyPress.told, []);
     });
@@ -1833,6 +2331,7 @@ describe("one term, from nothing to settled", () => {
       const { stored, accountBefore, accountAfter } = seen.replies.jasmine;
       assert.equal(stored.status, "withdrawn");
       assert.equal(stored.attendance.answer, "cant-make-it");
+      assert.deepEqual(stored.releaseReason, { kind: "times", other: "" }, "why, with the reply");
       assert.ok(stored.withdrawnAt instanceof Date);
       assert.deepEqual([stored.result.kind, stored.result.programmeId], ["accepted", P.agi]);
       // The send made her a member, and giving the place back does not undo that.
@@ -1857,7 +2356,52 @@ describe("one term, from nothing to settled", () => {
       const { stored, accountBefore, accountAfter } = seen.replies.abel;
       assert.equal(stored.status, "withdrawn");
       assert.equal(stored.invitation.response, "declined");
+      assert.deepEqual(stored.releaseReason, { kind: "other", other: "I\u2019m starting a placement that week." }, "his own words, trimmed");
       assert.deepEqual(accountAfter, accountBefore);
+    });
+
+    // The owner's decision of 7 October 2026: "people might withdraw because
+    // the timing doesn't work and we might be able to reallocate them".
+    test("somebody giving a place back is asked why, and with no reason nothing is recorded", () => {
+      assert.deepEqual(short(seen.noReason.place), [400, "Choose a reason from the list before you send this."]);
+      assert.deepEqual(short(seen.noReason.invitation), [400, "Choose a reason from the list before you send this."]);
+      assert.deepEqual(short(seen.noReason.otherWithNoWords), [400, "Say why in a few words, or choose another reason."]);
+      assert.equal(seen.noReason.wroteNothing, true);
+      // Saying yes is never asked why.
+      assert.equal(seen.replies.amara.stored.releaseReason ?? null, null);
+      assert.equal(seen.replies.oliver.stored.releaseReason ?? null, null);
+    });
+
+    test("the committee reads the reason where the person's row is, and nobody is removed", () => {
+      const TIMES = { said: "I can\u2019t make it", reason: "The times don\u2019t work for me" };
+      const PLACEMENT = { said: "No thanks", reason: "I\u2019m starting a placement that week." };
+      const found = seen.reasons;
+      // The withdrawn row of a programme they ranked, for its lead.
+      assert.deepEqual([found.jasmineOnAgiList.withdrawn, found.jasmineOnAgiList.gaveBack], [true, TIMES]);
+      assert.deepEqual([found.abelOnTaisList.withdrawn, found.abelOnTaisList.gaveBack], [true, PLACEMENT]);
+      // The application itself, for a reviewer and for a lead.
+      assert.deepEqual([found.jasmineToAgiReviewer.withdrawn, found.jasmineToAgiReviewer.gaveBack], [true, TIMES]);
+      assert.deepEqual([found.abelToTaisLead.withdrawn, found.abelToTaisLead.gaveBack], [true, PLACEMENT]);
+      // The pooled applicants page, for an admin: Abel was pooled, Jasmine never was.
+      assert.deepEqual(
+        found.pool.left.map((row) => [row.uid, row.said, row.programme, row.reason]),
+        [["abel", "No thanks", "AGI Strategy", "I\u2019m starting a placement that week."]],
+      );
+      assert.equal(found.pool.rows.some((row) => row.uid === "abel"), false, "listed apart, and in no count");
+      assert.equal(found.pool.counts.pooled, found.pool.rows.length);
+      // Listed, not counted: Jasmine's row is there and AGI Strategy's accepted count is Amara alone.
+      assert.equal(found.agiCounts.accepted, 1);
+      // The programme whose invitation Abel turned down still never reads him.
+      assert.deepEqual(
+        [seen.joinedByInvitation.abelToAgiLead.status, seen.joinedByInvitation.abelToAgiReviewer.status],
+        [404, 404],
+      );
+      // And neither is sent their own reason back.
+      for (const own of [found.ownJasmine, found.ownAbel]) {
+        assert.equal(own.application.status, "withdrawn");
+        assert.equal(JSON.stringify(own).includes("placement that week"), false);
+        assert.equal("releaseReason" in own.application, false);
+      }
     });
 
     const AFTER_EACH_REPLY = [
@@ -2081,7 +2625,12 @@ describe("one term, from nothing to settled", () => {
         tais: [true, "Every application has a decision", "0 of 2 places, and 1 invitation"],
         inc: [true, "Every application has a decision", "0 of 1 places"],
         pooled: [true, "Every pooled person has an outcome", "2 invitations, 1 no offer"],
+        // Who tested the emails and when: the record of the last test, which
+        // no reply moves either.
+        "#test": sent.readiness["#test"],
       });
+      assert.match(sent.readiness["#test"][1], /^Sent \w{3} \d{1,2} \w{3}, \d{2}:\d{2}$/);
+      assert.deepEqual([sent.readiness["#test"][0], sent.readiness["#test"][2]], [true, ""]);
       assert.ok(sent.sentOn, "the term is marked as sent");
       for (const label of [...AFTER_EACH_REPLY, "settled"]) {
         assert.deepEqual(censusAt(label).send, sent, label);
@@ -2185,6 +2734,17 @@ describe("one term, from nothing to settled", () => {
       // The scores the reviewers gave ride along: one voice each.
       assert.equal(entry("amara").scoreSummary.reviewerCount, 2);
       assert.equal(entry("amara").scoreSummary.mean, 3.75);
+    });
+
+    test("the records hold none of what an applicant wrote, in the version on record or one before it", () => {
+      const kept = JSON.stringify(seen.records);
+      assert.ok(kept.includes("Strong on the law."), "the scan is not reading the records: a reviewer's note is missing");
+      for (const words of [AMARA_FIRST_WHY, AMARA_SECOND_WHY, "A new law came into force.", "A small classifier."]) {
+        assert.ok(!kept.includes(words), `a member record carries an answer: ${words}`);
+      }
+      for (const field of HISTORY_FIELDS) assert.ok(!kept.includes(field), field);
+      // The application itself still holds the version it replaced, for as long as it is kept.
+      assert.equal(applicationDoc("amara").sentHistory.length, 1);
     });
 
     test("both accounts that were waiting and were accepted are members, and nobody else's account moved", () => {

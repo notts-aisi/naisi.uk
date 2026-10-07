@@ -122,9 +122,10 @@ import type { AdmissionRoundDoc } from "./admissionRounds";
  * (`memberRecords/{uid}/participation/{...}`) rather than as fields on an
  * application entry, because they are not about one round and they accrue on
  * their own schedule. `memberConductFlags` is the precedent for admin-authored
- * notes about a member, and the read tier here (admin and SU-recognised
- * committee) is deliberately WIDER than that one, which is admin-only: a
- * conduct flag carries an allegation and this carries a decision.
+ * notes about a member, and the read tier here is the same as that one,
+ * admin-only: an entry carries reviewers' comments about a named applicant,
+ * which were shown where they were written only to admins and to that
+ * programme's own lead and reviewers.
  *
  * ## Why a client MAY import this file, and what that costs
  *
@@ -132,11 +133,10 @@ import type { AdmissionRoundDoc } from "./admissionRounds";
  * `firebase-admin/firestore` is TYPE-ONLY, so the pure half of this module
  * (the two collection names, the limits, `buildApplicationRecord` and
  * `normalizeApplicationRecord`) can be imported from a `"use client"` module.
- * That is deliberate, and the rules are what make it necessary: admins and
- * SU-recognised committee read this collection CLIENT-DIRECT, so a browser
- * surface has to turn stored documents into the shape above, and by the
- * one-derivation argument three paragraphs up there is exactly one correct way
- * to do that.
+ * That is deliberate, and the rules are what make it necessary: admins read
+ * this collection CLIENT-DIRECT, so a browser surface has to turn stored
+ * documents into the shape above, and by the one-derivation argument three
+ * paragraphs up there is exactly one correct way to do that.
  *
  * THE CLIENT THAT IMPORTS IT is `src/features/admin/useMemberApplications.ts`,
  * the listener behind the application history on the admin Members page. It
@@ -424,9 +424,8 @@ function round2(value: number): number {
  * An address is refused as hard as a missing name. `reviewerNames` is normally
  * built from `users.displayName`, and a display name can itself be an email
  * address, so "fall back when the name is missing" is not enough on its own:
- * the record is read by every SU-recognised committee member and outlives the
- * round, and it has no reason to carry a contact address for the person who
- * wrote the notes.
+ * the record is read by admins and outlives the round, and it has no reason
+ * to carry a contact address for the person who wrote the notes.
  */
 function reviewerDisplayName(
   reviewerUid: string,

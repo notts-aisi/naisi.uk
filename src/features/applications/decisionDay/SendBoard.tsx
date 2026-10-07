@@ -52,6 +52,16 @@ import styles from "./SendBoard.module.css";
  * the number, not an "are you sure". The line beside the button says it cannot
  * be unsent.
  *
+ * ## The test comes first
+ *
+ * The server refuses a press until an admin has sent themselves a test of
+ * these emails as they are worded now, and says so in the list of things
+ * still to do. The last readiness row says who tested and when, or that a
+ * test is owed. After "Send a test to me" the page is read again from the
+ * server, because whether the test counted is the server's to say: one this
+ * copy of the site held, or one to an address on the do-not-email list,
+ * reached nobody and does not.
+ *
  * ## What happened is said in full
  *
  * After a press the page says what the server did, in counts that add up:
@@ -302,10 +312,28 @@ export default function SendBoard({ initial }: { initial: Board }) {
     }
   }
 
+  /**
+   * Read the page again from the server. Whether a test counted, and so
+   * whether Send can be pressed, is the server's to say.
+   */
+  async function reload() {
+    try {
+      const response = await fetch(base);
+      const answer = (await response.json().catch(() => null)) as { board?: Board } | null;
+      if (response.ok && answer?.board) setBoard(answer.board);
+    } catch {
+      // The page keeps what it had. The next press is checked by the server either way.
+    }
+  }
+
   async function sendTest() {
+    // A test reports beside the button that was pressed: once the term is
+    // sent, that is the one in the card of emails still owed.
+    const fail = sent ? setOwedProblem : setProblem;
     setTesting(true);
     setTestNote(null);
     setProblem(null);
+    setOwedProblem(null);
     let sentCount = 0;
     let held = 0;
     let suppressed = 0;
@@ -321,7 +349,7 @@ export default function SendBoard({ initial }: { initial: Board }) {
           | { delivery?: "sent" | "held" | "suppressed"; error?: string }
           | null;
         if (!response.ok || !answer?.delivery) {
-          setProblem(answer?.error ?? "That test could not be sent. Try again in a minute.");
+          fail(answer?.error ?? "That test could not be sent. Try again in a minute.");
           return;
         }
         if (answer.delivery === "sent") sentCount += 1;
@@ -331,18 +359,23 @@ export default function SendBoard({ initial }: { initial: Board }) {
       const at = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
       if (held > 0) {
         setTestNote(
-          "The test was held, not sent. This copy of the site doesn’t email your address, which is how a rehearsal works.",
+          "The test was held, not sent: this copy of the site doesn’t email your address. A held test doesn’t count, so decisions can’t be sent from here until one reaches you.",
         );
       } else if (suppressed > 0) {
-        setTestNote("Your address is on the do-not-email list, so the test was not sent.");
+        setTestNote(
+          "Your address is on the do-not-email list, so the test was not sent. It doesn’t count as a test.",
+        );
       } else {
         setTestNote(
           sentCount === 1 ? `Test sent to you at ${at}.` : `${sentCount} tests sent to you at ${at}, one for each email.`,
         );
       }
     } catch {
-      setProblem("Could not reach the site to send that test. Check your connection and try again.");
+      fail("Could not reach the site to send that test. Check your connection and try again.");
     } finally {
+      // A test that went has been recorded, even when a later one in the same
+      // press did not go, so the page is read again whatever happened.
+      await reload();
       setTesting(false);
     }
   }
@@ -357,6 +390,9 @@ export default function SendBoard({ initial }: { initial: Board }) {
     report?.owedOnly === true ||
     owedProblem !== null;
   const owedHeld = board.owed.blockers;
+  // Once the term is sent the card at the foot of the page has no buttons, so
+  // a test still wanted for an owed email is sent from the owed card itself.
+  const owedOffersTest = sent && owed > 0 && board.test !== "fresh";
 
   return (
     <Page
@@ -462,6 +498,11 @@ export default function SendBoard({ initial }: { initial: Board }) {
                 <span>{inFlightLine(board.owed.inFlight)}</span>
               </p>
             ) : null}
+            {sent && testNote ? (
+              <p className={styles.sendLine} role="status">
+                {testNote}
+              </p>
+            ) : null}
             {owedProblem ? (
               <p className={shared.problem} role="alert">
                 {owedProblem}
@@ -470,6 +511,17 @@ export default function SendBoard({ initial }: { initial: Board }) {
           </div>
           {owed > 0 && !mainSends ? (
             <div className={styles.sendActions}>
+              {owedOffersTest ? (
+                <button
+                  type="button"
+                  className={shared.secondary}
+                  disabled={!hydrated || sending || testing || !hasEmail}
+                  onClick={() => void sendTest()}
+                >
+                  <Icon name="mail" />
+                  <span>{testing ? "Sending the test…" : "Send a test to me"}</span>
+                </button>
+              ) : null}
               <button
                 type="button"
                 className={kit.primary}
@@ -590,7 +642,7 @@ export default function SendBoard({ initial }: { initial: Board }) {
               </span>
             </p>
           ) : null}
-          {testNote ? (
+          {testNote && !sent ? (
             <p className={styles.sendLine} role="status">
               {testNote}
             </p>

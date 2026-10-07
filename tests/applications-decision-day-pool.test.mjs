@@ -32,8 +32,12 @@
  */
 import { beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createLoader } from "./lib/tsLoader.mjs";
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const NOW = new Date("2026-10-21T15:00:00Z");
 
@@ -370,6 +374,148 @@ const row = (view, uid) => view.rows.find((r) => r.uid === uid);
 const decisionOf = (db, uid) => db.read(`admissionDecisions/${ROUND}__${uid}`);
 const applicationOf = (db, uid) => db.read(`admissionApplications/${ROUND}__${uid}`);
 const auditRows = (db) => db.paths("courseAudit/").map((path) => db.read(path));
+
+// ---------------------------------------------------------------------------
+// 1b. Nobody disappears: people who gave a place or an invitation back
+// ---------------------------------------------------------------------------
+
+/**
+ * The owner's decision of 7 October 2026: somebody who says "I can’t make it"
+ * or "No thanks" is asked why, and the committee sees the reason, because they
+ * may be able to offer something that works. Nobody is removed: on this page a
+ * pooled person who left after being told used to vanish with their place, and
+ * is now kept in a list of their own, marked as withdrawn, with the reason.
+ */
+describe("pooled people who gave a place or an invitation back stay on the page, with why", () => {
+  const told = (kind, programmeId) => ({ kind, programmeId, publishedAt: DECIDED, email: "sent", emailedAt: DECIDED, emailClaimedAt: null });
+  const invitation = (programmeId, response) => ({ programmeId, replyBy: "2026-10-25", response, respondedAt: response ? DECIDED : null, lastReminderOn: null });
+  const A = (uid, name, ranked, subject, over) => ({ [`admissionApplications/${ROUND}__${uid}`]: applicationDoc(uid, name, ranked, subject, over) });
+
+  /** The term after decision day, with every kind of reply made. */
+  const afterReplies = () =>
+    seed({
+      [`admissionRounds/${ROUND}`]: roundDoc({ decisionsSentAt: DECIDED, decisionsSentByUid: "zach" }),
+      // Oliver was pooled and invited to Technical AI Safety. He said no thanks, and why.
+      ...A("oliver", "Oliver Grant", [INC], "MEng Electrical Engineering", {
+        status: "withdrawn",
+        withdrawnAt: DECIDED,
+        result: told("invited", TAIS),
+        invitation: invitation(TAIS, "declined"),
+        releaseReason: { kind: "times", other: "" },
+      }),
+      // Rosa was pooled, invited to Technical AI Safety, accepted, and then could not make it.
+      [`admissionDecisions/${ROUND}__rosa`]: decisionDoc(
+        "rosa",
+        { [INC]: verdict("pool", "zach"), [AGI]: verdict("pool", "claudia") },
+        { kind: "invite", programmeId: TAIS },
+      ),
+      ...A("rosa", "Rosa García", [INC, AGI], "BSc Physics", {
+        status: "withdrawn",
+        withdrawnAt: DECIDED,
+        result: told("invited", TAIS),
+        invitation: invitation(TAIS, "accepted"),
+        attendance: { answer: "cant-make-it", answeredAt: DECIDED },
+        releaseReason: { kind: "other", other: "I start a placement in Leeds that week." },
+      }),
+      // Nina was pooled and got no offer. She is still in the term.
+      ...A("nina", "Nina Petrova", [AGI], "BA Modern Languages", { status: "no-offer", result: told("no-offer", null) }),
+      // Ben was pooled with no offer too.
+      [`admissionDecisions/${ROUND}__ben`]: decisionDoc("ben", { [AGI]: verdict("pool", "claudia") }, { kind: "no-offer" }),
+      ...A("ben", "Ben Hartley", [AGI], "BSc Economics", { status: "no-offer", result: told("no-offer", null) }),
+      // Amara was accepted by her own ranking and gave the place back. She was never pooled.
+      ...A("amara", "Amara Okafor", [AGI, TAIS], "BA Philosophy", {
+        status: "withdrawn",
+        withdrawnAt: DECIDED,
+        result: told("accepted", AGI),
+        attendance: { answer: "cant-make-it", answeredAt: DECIDED },
+        releaseReason: { kind: "too-much-on", other: "" },
+      }),
+    });
+
+  test("each is listed with the button they pressed, the programme it was about, and their reason", async () => {
+    const view = await board(makeDb(afterReplies()));
+    assert.deepEqual(view.left, [
+      {
+        uid: "oliver",
+        name: "Oliver Grant",
+        degree: "MEng Electrical Engineering",
+        detail: "Graduating July 2027",
+        ranked: [{ rank: 1, programmeId: INC, shortName: "Research incubator" }],
+        programme: "Technical AI Safety",
+        said: "No thanks",
+        reason: "The times don’t work for me",
+      },
+      {
+        uid: "rosa",
+        name: "Rosa García",
+        degree: "BSc Physics",
+        detail: "Graduating July 2027",
+        ranked: [
+          { rank: 1, programmeId: INC, shortName: "Research incubator" },
+          { rank: 2, programmeId: AGI, shortName: "AGI Strategy" },
+        ],
+        programme: "Technical AI Safety",
+        said: "I can’t make it",
+        reason: "I start a placement in Leeds that week.",
+      },
+    ]);
+  });
+
+  test("they are in no count and not among the people to pick for: the list above is still the people in the term", async () => {
+    const view = await board(makeDb(afterReplies()));
+    assert.deepEqual(view.rows.map((r) => r.name), ["Ben Hartley", "Nina Petrova"]);
+    assert.equal(view.counts.pooled, view.rows.length);
+    assert.deepEqual(view.counts, { pooled: 2, invitations: 0, noOffer: 2, needsOutcome: 0 });
+    // The two places kept for invitations are free again.
+    const tais = view.programmes.find((programme) => programme.id === TAIS);
+    assert.deepEqual([tais.invited, tais.firstChoice], [0, 0]);
+    // Nobody is on both lists.
+    const listed = new Set(view.rows.map((r) => r.uid));
+    for (const gone of view.left) assert.equal(listed.has(gone.uid), false, gone.uid);
+  });
+
+  test("somebody who gave back a place their own ranking gave them was never pooled, and is not listed here", async () => {
+    const view = await board(makeDb(afterReplies()));
+    assert.equal(view.left.some((gone) => gone.uid === "amara"), false);
+    assert.equal(view.rows.some((r) => r.uid === "amara"), false);
+  });
+
+  test("a reply made before the question was asked has no reason, and says so by carrying none", async () => {
+    const docs = afterReplies();
+    delete docs[`admissionApplications/${ROUND}__oliver`].releaseReason;
+    const view = await board(makeDb(docs));
+    assert.deepEqual(
+      view.left.map((gone) => [gone.uid, gone.said, gone.reason]),
+      [
+        ["oliver", "No thanks", null],
+        ["rosa", "I can’t make it", "I start a placement in Leeds that week."],
+      ],
+    );
+  });
+
+  test("before decision day nobody has replied, so the list is empty", async () => {
+    assert.deepEqual((await board(makeDb(seed()))).left, []);
+  });
+
+  test("the list carries no address, and nothing of the person's but who they are and what they said", async () => {
+    const view = await board(makeDb(afterReplies()));
+    for (const gone of view.left) {
+      assert.deepEqual(Object.keys(gone).sort(), ["degree", "detail", "name", "programme", "ranked", "reason", "said", "uid"]);
+    }
+    assert.equal(/@/.test(JSON.stringify(view.left)), false);
+  });
+
+  test("the page draws them under their own heading, marked as withdrawn, with the reason as text", () => {
+    const page = readFileSync(join(REPO_ROOT, "src", "features", "applications", "decisionDay", "PoolBoard.tsx"), "utf8").replace(/\s+/g, " ");
+    assert.ok(page.includes("{board.left.length > 0 ? ("));
+    assert.ok(page.includes("Withdrawn since decision day"));
+    assert.ok(page.includes("Said “{row.said}”{row.programme ? ` to ${row.programme}` : \"\"}"));
+    assert.ok(page.includes("<p className={styles.leftReason}>{row.reason ?? \"No reason given\"}</p>"));
+    assert.ok(page.includes("They are in none of the numbers above."));
+    // What somebody typed is drawn as text, never as markup.
+    assert.equal(/dangerouslySetInnerHTML/.test(page), false);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // 1. The page

@@ -2,11 +2,14 @@ import { STATUSES_WITH_GRADUATION, STATUS_LABELS } from "@/lib/firestore/users";
 import type { AboutYou, AnswerValue, ApplicationContent, QuestionSetDoc } from "@/lib/applications/model";
 import { isAnswered } from "@/lib/applications/validate";
 import { own } from "@/lib/applications/applicant/keys";
+import { POLICIES, currentPolicy } from "@/lib/legal/policies";
 
 /**
  * The short lines the last step shows for each section, written from what the
  * person entered: "Amara · BA Philosophy", "Undergraduate, graduating July
- * 2028", and one line of their own words under each set of questions.
+ * 2028", and one line of their own words under each set of questions. And
+ * the one line at the foot that is not about the person: sending is agreeing
+ * to the privacy policy, as it was last updated.
  *
  * Pure, so the lines are tested without a browser.
  */
@@ -25,6 +28,64 @@ const MONTHS = [
   "November",
   "December",
 ] as const;
+
+/**
+ * The short month names, as the site's own date formatter writes them
+ * ("Sun 18 Oct", "Tue 15 Sept"). Kept as a list rather than asked of the
+ * runtime, because this step is drawn on the server and again in the
+ * browser, and the two have to write the same word. A test holds the list to
+ * the formatter.
+ */
+const SHORT_MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sept",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+/**
+ * "7 Oct" from a policy's own date, which the policy list writes out in full
+ * ("7 October 2026"). Null for anything not written that way: a date nobody
+ * can read is left out, never guessed.
+ */
+export function policyDateLabel(lastUpdated: string): string | null {
+  const match = /^(\d{1,2}) ([A-Za-z]+) \d{4}$/.exec(lastUpdated.trim());
+  if (!match) return null;
+  const day = Number(match[1]);
+  const month = MONTHS.findIndex((name) => name.toLowerCase() === match[2].toLowerCase());
+  if (month === -1 || day < 1 || day > 31) return null;
+  return `${day} ${SHORT_MONTHS[month]}`;
+}
+
+/**
+ * "By sending, you agree to our privacy policy, updated 7 Oct.", in the three
+ * parts the step draws it from, so the middle one can be a link.
+ *
+ * THE DATE IS THE POLICY'S OWN. It is read from the list the privacy page
+ * itself is drawn from (`currentPolicy("privacy")` in
+ * `src/lib/legal/policies.ts`) and is typed nowhere, so the day a new version
+ * is added there this line says so. Somebody who already has an account is
+ * asked to accept a new policy only inside the member area, which an
+ * applicant may never open before they apply: this line is where they are
+ * told.
+ */
+export function privacyAgreement(): { before: string; link: string; href: string; after: string } {
+  const updated = policyDateLabel(currentPolicy("privacy").lastUpdated);
+  return {
+    before: "By sending, you agree to our ",
+    link: "privacy policy",
+    href: POLICIES.privacy.href,
+    after: updated ? `, updated ${updated}.` : ".",
+  };
+}
 
 /** "July 2028" from "2028-07", or "" when it is not a month. */
 export function monthYearLabel(value: string): string {

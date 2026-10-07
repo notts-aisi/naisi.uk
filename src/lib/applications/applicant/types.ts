@@ -128,4 +128,6 @@ export type ApplicantView = {
   application: ApplicantApplication | null;
   /** The caller's own About you answers, as their account holds them. */
   account: AboutYou;
+  /** Whether the caller's account has sent a join request. See `Account` in `./store.ts`. */
+  joined: boolean;
 };
