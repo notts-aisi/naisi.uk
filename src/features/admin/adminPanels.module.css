@@ -1,0 +1,242 @@
+/*
+  Pieces the Publicity and Site settings pages share: a row of count cards, a
+  card with a title, and the text styles that go inside one. The list pieces
+  (a table in a card, search, the filter pill, the list footer) are in
+  adminList.module.css.
+*/
+
+/* === Count cards === */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(13.75rem, 100%), 1fr));
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.statValue {
+  margin-bottom: var(--space-2);
+  font-family: var(--font-display);
+  font-size: var(--text-4xl);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.statLabel {
+  font-size: var(--text-ui);
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--color-text);
+}
+
+.statNote {
+  font-size: var(--text-caption);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+/* === A card with a title === */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+/* What cannot be taken back sits in a card edged in the careful colour. The
+   colour is a line, never a fill. */
+.panelCareful {
+  border-color: var(--color-danger-line);
+}
+
+.panelHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+}
+
+.panelHeadMain {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.panelTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.panelTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.panelDescription {
+  margin: 0.375rem 0 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+
+.panelActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* === One action on a line of its own ===
+   What it is, what it does, and its button at the right. Lines after the
+   first sit under a hairline. */
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+  min-width: 0;
+}
+
+.actionRow + .actionRow {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.actionText {
+  display: flex;
+  flex: 1 1 18rem;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.actionName {
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.actionNote {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+}
+
+.actionButtons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* === Text inside a card === */
+.muted {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+}
+
+.caption {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.problem {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-danger-line);
+  border-radius: var(--radius-row);
+  background: var(--color-danger-soft);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-danger-text);
+  overflow-wrap: anywhere;
+}
+
+/* A line that says something worked. Colour is not the only signal: the
+   words say what happened. */
+.done {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-ok);
+}
+
+/* A plain error line under a field. */
+.fieldError {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-danger-text);
+  overflow-wrap: anywhere;
+}
+
+/* An address or an id, set in the metadata face without its capitals. */
+.code {
+  font-family: var(--font-meta);
+  font-size: var(--text-caption);
+  letter-spacing: 0;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* A text link in the accent, for a page of this section or a public page. */
+.link {
+  color: var(--color-accent-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.link:hover {
+  color: var(--color-accent-text-hover);
+  text-decoration: underline;
+}
+
+/* A label over a field, and the muted line under it. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* TODO: mobile pass */
+}
