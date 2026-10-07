@@ -47,7 +47,7 @@ import { stripSource } from "./lib/stripSource.mjs";
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const HOME = join(REPO_ROOT, "src", "app", "(public)");
 
-const { loadTs } = createLoader({ stubs: new Map([["server-only", "export {};"]]) });
+const { loadTs } = createLoader({ stubs: new Map() });
 const words = await loadTs(join("app", "(public)", "homeWords.ts"));
 
 const STAGES = ["none", "before", "open", "closed", "running"];
@@ -267,6 +267,26 @@ describe("the hero", () => {
     const frame = codeOf("HeroFrame.tsx");
     assert.match(frame, /export default function HeroFrame\(\{ children, className \}: \{ children: ReactNode; className\?: string \}\)/);
     assert.doesNotMatch(read("HeroFrame.tsx"), /^\s*["']use client["']/m, "the frame is a Server Component");
+  });
+
+  test("the words leave the bar's room, the screen's height and the ground to their frame", () => {
+    // The scene's box already has a strip as tall as the site's bar at its
+    // top, is a screen high and pulls itself under the bar. Words that did
+    // any of that again would sit a bar's height too low once the frame is
+    // swapped for the scene.
+    const css = readFileSync(join(HOME, "HomeHero.module.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    assert.doesNotMatch(css, /--header-height|safe-area-inset-top/, "the words add room for the bar");
+    assert.doesNotMatch(css, /100(svh|dvh|vh)\b/, "the words set the hero's height");
+    const hero = css.match(/\.hero\s*\{([^}]*)\}/)[1];
+    assert.doesNotMatch(hero, /\b(position|display|overflow|background|min-height|margin(-top)?)\s*:/, "the class handed to the frame styles the frame's box");
+    // Every rule for the words' column, in every form: none moves or sizes it against the bar.
+    const columns = [...css.matchAll(/\.inner\s*\{([^}]*)\}/g)].map((m) => m[1]);
+    assert.ok(columns.length >= 3, "the column's rules were not found");
+    for (const body of columns) assert.doesNotMatch(body, /\b(margin(-top)?|min-height|height)\s*:/, "the words' column sizes or moves itself");
+    const frame = readFileSync(join(HOME, "HeroFrame.module.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    assert.match(frame, /\.frame\s*\{[^}]*min-height:\s*100svh;[^}]*margin-top:\s*calc\(-1 \* var\(--frame-bar\)\)/);
+    assert.match(frame, /\.bar\s*\{[^}]*flex:\s*none;[^}]*height:\s*var\(--frame-bar\)/);
+    assert.match(codeOf("HeroFrame.tsx"), /<div className=\{styles\.bar\} aria-hidden="true" \/>\s*\{children\}/);
   });
 
   test("the typist is the frame's and nobody else's, so it leaves when the frame is swapped", () => {

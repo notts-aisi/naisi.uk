@@ -12,9 +12,11 @@ import styles from "./HeroFrame.module.css";
  * element, that draws behind the same children. To change over, replace this
  * component where `HomeHero.tsx` renders it, and nothing else.
  *
- * Like the scene, it pulls itself up under the site's sticky bar and adds
- * no space for the bar: the words keep clear of it with padding of their
- * own.
+ * It is the same box the scene is: one screen high, pulled up under the
+ * site's sticky bar, with a strip as tall as that bar as its first piece.
+ * The words are the next piece and never add the bar's height themselves,
+ * which is why they are laid out the same under this frame and under the
+ * scene.
  *
  * Everything that only makes sense without the scene therefore lives in
  * here, so that it leaves with the swap:
@@ -31,6 +33,8 @@ export default function HeroFrame({ children, className }: { children: ReactNode
   return (
     <section className={className ? `${styles.frame} ${className}` : styles.frame}>
       <NetField net="card" strength="strong" className={styles.still} />
+      {/* The room the site's bar takes at the top of the hero. */}
+      <div className={styles.bar} aria-hidden="true" />
       {children}
       <HeadlineLoop />
     </section>

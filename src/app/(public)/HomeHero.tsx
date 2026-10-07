@@ -27,10 +27,9 @@ import styles from "./HomeHero.module.css";
  *    laptop, the award on a phone) is set aside by the stylesheet, never
  *    hidden with `display: none`, which the scene would read as a hole.
  *  - `HeroFrame` wraps the whole hero and takes only its children and a
- *    class. It is the one piece swapped for the scene. The frame is what
- *    sits under the site's bar: these words only keep clear of it, with
- *    their own padding at the top (the bar's height and 2rem more). They do
- *    not mark the bar for the scene, which knows where it put itself.
+ *    class. It is the one piece swapped for the scene. The frame, like the
+ *    scene, is what sits under the site's bar and leaves the bar's room at
+ *    its top: these words add no room for the bar and do not mark it.
  *  - The stage comes from the term (`fetchPublicTerm`), handed in as fields.
  *    No date is written in this file.
  */

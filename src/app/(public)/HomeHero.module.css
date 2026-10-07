@@ -13,51 +13,45 @@
   copy. None of them is there until a script has run, so every rule below
   starts from the page with no script: the line drawn, the caret not.
 
-  The values written out by hand are the hero's own and appear nowhere else:
-  the navy at the centre of its ground, and the two ends of the gradient on
-  the headline's second sentence. Everything else is a theme token.
+  The two values written out by hand are the hero's own and appear nowhere
+  else: the two ends of the gradient on the headline's second sentence.
+  Everything else is a theme token.
 */
 
+/* `.hero` is the class handed to whatever frames the hero. It sets nothing
+   about the box: the frame owns its own size, ground and place under the
+   site's bar (HeroFrame.module.css, or the scene's stylesheet). It only
+   carries the words' own numbers, and is what the rules for the typed
+   sentence hang from. */
 .hero {
-  --hero-core: #14193a;
   --hero-accent-from: #4d8eff;
   --hero-accent-to: #5cf3ff;
-  --hero-bar: calc(var(--header-height) + env(safe-area-inset-top, 0px));
   --hero-gap: var(--space-6);
   /* The room over and under the words: 2rem, and less on a short screen. */
   --hero-air: clamp(1rem, 3.95vh, 2rem);
-
-  position: relative;
-  overflow: hidden;
-  background: radial-gradient(ellipse at center, var(--hero-core) 0%, var(--color-floor) 70%);
-  color: var(--color-text);
 }
 
 /* The words' column: the site's `.container` (its width and its gutter),
    with the words to the right of it.
 
-   It is one screen high by itself, whatever frames it, and grows when the
-   words need more. The small viewport height is used so that the hero does
-   not change size when a phone's address bar slides away.
-
-   The padding at the top is what keeps the words clear of the site's bar:
-   the bar's height, and up to 2rem more. Whatever frames the hero pulls it
-   up under the bar; that is the frame's job (HeroFrame, or the scene) and
-   is not done here.
+   WHAT IT ASSUMES OF ITS FRAME. The frame is a column (a flex container,
+   top to bottom) one screen high, pulled up under the site's sticky bar,
+   whose first piece is a strip as tall as that bar. This column is the
+   next piece and takes the height that is left. So the words never add the
+   bar's height themselves: their own padding, top and bottom, is the 2rem
+   or less in --hero-air on a laptop, and the fixed values in the two blocks
+   at the foot of this file on a tablet and a phone.
 
    Pointer events fall through everything but the words themselves, so the
    scene behind still follows the pointer across the empty ground. */
 .inner {
   position: relative;
-  z-index: 2;
+  z-index: 1;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  box-sizing: border-box;
-  min-height: 100vh;
-  min-height: 100svh;
-  padding-top: calc(var(--hero-bar) + var(--hero-air));
-  padding-bottom: var(--hero-air);
+  padding-block: var(--hero-air);
   pointer-events: none;
 }
 
@@ -427,7 +421,7 @@
 
   .inner {
     justify-content: flex-end;
-    padding-top: calc(var(--hero-bar) + var(--space-6));
+    padding-top: var(--space-6);
     padding-bottom: clamp(1.5rem, 4.7vh, 3.5rem);
   }
 
@@ -483,10 +477,7 @@
    On a phone the buttons are the width of the page, one over the other, and
    the award is not drawn. */
 @media (max-width: 48rem) { /* --bp-md */
-  .inner {
-    padding-top: calc(var(--hero-bar) + var(--space-5));
-    padding-bottom: var(--space-5);
-  }
+  .inner { padding-block: var(--space-5); }
 
   /* The mark is a fifth of the screen's height: 170px on a tall phone, less
      on a short one, so the buttons stay on the first screen. */
