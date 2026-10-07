@@ -95,5 +95,6 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* The dialog is `min(44rem, 100%)` wide and its choices wrap. No overrides
+     needed. */
 }

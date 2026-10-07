@@ -282,5 +282,29 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* The card keeps the page's own 16px gutter and no more. */
+  .card {
+    gap: var(--space-4);
+    padding: var(--space-5) var(--space-4);
+  }
+
+  /* One button to a line, each the width of the card, with the pipeline's
+     own button last: under the thumb, and never beside the delete. */
+  .actions,
+  .actionsGroup,
+  .sendBack,
+  .formActions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .actionsGroup + .actionsGroup {
+    margin-left: 0;
+  }
+  .sendBackField {
+    flex: none;
+  }
+  .careful {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }

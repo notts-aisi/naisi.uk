@@ -154,5 +154,6 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* The drop zone and its fields are already the width of whatever holds
+     them. No overrides needed. */
 }

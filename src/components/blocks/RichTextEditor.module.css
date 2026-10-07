@@ -188,5 +188,12 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* The link field and its buttons take a line of their own under the
+     toolbar, so the field is wide enough to read an address in. */
+  .linkRow {
+    flex: 1 1 100%;
+    margin-left: 0;
+    padding-left: 0;
+    border-left: 0;
+  }
 }

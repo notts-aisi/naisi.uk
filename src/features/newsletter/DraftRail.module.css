@@ -164,5 +164,9 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* A row is already taller than 44px. The card gives up a little of its
+     side padding so a subject has a few more characters before it wraps. */
+  .rail {
+    padding-inline: var(--space-1);
+  }
 }

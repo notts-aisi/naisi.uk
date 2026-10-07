@@ -43,5 +43,5 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* The preview is a frame the width of its holder. No overrides needed. */
 }
