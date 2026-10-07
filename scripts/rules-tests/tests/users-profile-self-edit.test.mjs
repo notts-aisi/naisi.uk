@@ -655,6 +655,32 @@ describe("the record cannot be removed, rewritten or padded", () => {
     );
   });
 
+  it("a new account cannot arrive with a record already written", async () => {
+    // The first write of a document is judged by the create rule, which is
+    // where the record would otherwise be made up whole.
+    const fresh = () => ({
+      email: "new1@example.com",
+      displayName: "N",
+      photoURL: null,
+      role: "pending",
+      showOnMembers: false,
+      profile: { preferredName: "N", subject: "Mathematics" },
+      policyVersion: "v1",
+      policyAgreedAt: serverTime(),
+      createdAt: serverTime(),
+    });
+    const doc = await own("new1");
+    await assertFails(
+      doc.set({
+        ...fresh(),
+        studyChanges: { made1: { at: new Date("2020-01-01T00:00:00Z"), subject: "Medicine" } },
+      }),
+    );
+    await assertFails(doc.set({ ...fresh(), studyChanges: {} }));
+    // The same create without it is the registration form's own, and saves.
+    await assertSucceeds(doc.set(fresh()));
+  });
+
   it("an account waiting to be approved cannot add an entry at all", async () => {
     // It is not held to the entry, and so has no write that may bring one.
     await seedUser("wait1", { ...stored(), role: "pending" });

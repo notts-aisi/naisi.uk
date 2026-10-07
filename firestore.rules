@@ -118,6 +118,13 @@ service cloud.firestore {
         // same class of forgery as tracks/permissions above, guarded the
         // same way in both create and self-update.
         && !('paidMembershipYears' in request.resource.data)
+        // `studyChanges` is the record of a member's own changes to their
+        // degree and graduation (the helpers further down say how it grows).
+        // A new account has made none, so it may not arrive with any: the
+        // entries are shown to admins as what the member's details said
+        // before, and one written at create would be a history that never
+        // happened. No client create sends the field.
+        && !('studyChanges' in request.resource.data)
         // `email` is the address the rest of the system treats as PROVEN: the
         // subscription sync marks rows `confirmed` from it without a click, the
         // newsletter sender resolves recipients from it, and the application
