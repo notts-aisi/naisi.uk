@@ -1,4 +1,12 @@
 import type { FieldValue, Firestore } from "firebase-admin/firestore";
+import type {
+  ApplicationDoc,
+  ApplicationFormFields,
+  ProgrammeSettings,
+  QuestionSetDoc,
+  ReviewDoc,
+} from "@/lib/applications/model";
+import { scoredKeysFor, sectionScore } from "@/lib/applications/scoring";
 import type { AdmissionApplicationDoc } from "./admissionApplications";
 import {
   ADMISSION_REVIEW_FIELD_LIMITS,
@@ -82,6 +90,22 @@ import type { AdmissionRoundDoc } from "./admissionRounds";
  * knowingly rather than discovered later. If it ever is reversed, the entry is
  * the whole unit: delete `memberRecords/{uid}` and its subcollection, and take
  * the count out of the summary in the same change.
+ *
+ * ## Two kinds of round, one entry
+ *
+ * An application made on an APPLICATION FORM (`src/lib/applications/`) is a
+ * different document from one made on an older round: it ranks programmes
+ * rather than picking a stream, its outcome is what decision day published
+ * rather than what one decider pressed, and its reviews score answers from 1
+ * to 5 rather than criteria. `buildFormApplicationRecord` is the derivation
+ * for those, and it writes the SAME entry shape, so one reader and one panel
+ * serve both and a person's history reads as one list.
+ *
+ * Two fields mean something slightly different on such an entry, and each
+ * says so where it is declared: the scores are means on the 1 to 5 scale
+ * rather than sums over criteria, and `scoreSummary.byCriterion` is keyed by
+ * programme. Nothing about an entry written from an older round changed when
+ * this arrived.
  *
  * ## Plain text, always
  *
@@ -182,9 +206,22 @@ export const MEMBER_RECORD_LIMITS = {
   uid: 128,
   runId: 200,
   notes: ADMISSION_REVIEW_FIELD_LIMITS.notes,
+  /**
+   * How many keys `scoreSummary.byCriterion` keeps on read. An entry from an
+   * application form puts one key per ranked programme there, so this has to
+   * stay at or above `APPLICATION_LIMITS.maxProgrammes` or a read would drop a
+   * programme's score without saying so. `tests/member-records.test.mjs` holds
+   * the two together.
+   */
   maxCriteria: ADMISSION_REVIEW_FIELD_LIMITS.maxCriteria,
   status: 40,
-  decision: 40,
+  /**
+   * Wide enough for the longest thing a decision can say: the outcome and the
+   * programme it names ("accepted (AGI Strategy)"), where a programme's short
+   * name runs to 40 characters and the sentence for one that has left the form
+   * is longer still.
+   */
+  decision: 80,
 } as const;
 
 /**
@@ -205,6 +242,13 @@ export const REMOVED_PROGRAMME_LABEL = "A programme no longer listed on the roun
 
 /** What `appliedFor` says for the "I would take a fellowship place" tick. */
 export const OPEN_TO_FELLOWSHIP_LABEL = "Open to a fellowship place";
+
+/**
+ * What `appliedFor` says for a programme the form lists with no name at all.
+ * A sentence, for the reason `REMOVED_PROGRAMME_LABEL` is one: dropping the
+ * entry would make the record say they ranked one programme fewer than they did.
+ */
+export const UNNAMED_PROGRAMME_LABEL = "A programme with no name";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -229,9 +273,19 @@ export type ApplicationRecordReviewerNote = {
   reviewerUid: string;
   /** Display name, or `UNNAMED_REVIEWER`. Never an email address. */
   reviewerName: string;
-  /** `advance` / `hold` / `decline`, or null when they did not say. */
+  /**
+   * `advance` / `hold` / `decline`, or null when they did not say. Always null
+   * on an entry from an application form, where a reviewer scores and comments
+   * and the decision is the lead's.
+   */
   recommendation: string | null;
-  /** Their summed score, or null when they wrote notes without scoring. */
+  /**
+   * Their score, or null when they wrote notes without scoring. On an older
+   * round it is the SUM of their criterion scores. On an application form it
+   * is the MEAN of the 1 to 5 scores they gave, because the number of answers
+   * there is to score differs from one application to the next and a sum
+   * would not compare.
+   */
   total: number | null;
   /** Copied verbatim from the review. Render as a text node. */
   notes: string;
@@ -247,14 +301,29 @@ export type ApplicationRecordReviewerNote = {
 export type ApplicationRecordScoreSummary = {
   /** How many people assessed them, whether or not they scored. */
   reviewerCount: number;
-  /** Sum of the SCORING reviewers' totals. Null when nobody scored. */
+  /**
+   * Sum of the SCORING reviewers' totals. Null when nobody scored, and always
+   * null on an entry from an application form: see `mean`.
+   */
   total: number | null;
-  /** `total` over the number of scoring reviewers. Null when nobody scored. */
+  /**
+   * `total` over the number of scoring reviewers. Null when nobody scored.
+   *
+   * On an entry from an application form it is the mean of the scoring
+   * reviewers' own scores, one voice each, on the 1 to 5 scale, and there is
+   * no `total` beside it: a sum of per-answer scores says nothing when two
+   * applications were asked a different number of scored questions.
+   */
   mean: number | null;
   /**
    * Mean per criterion id, over the reviewers who scored that criterion.
    * A criterion nobody scored is present with a null rather than absent, so a
    * reader can tell "nobody scored this" from "this criterion did not exist".
+   *
+   * On an entry from an application form the keys are PROGRAMME ids: one per
+   * programme the person ranked that scores its answers, holding that
+   * programme's section score, or null when nobody scored it. A programme that
+   * does not use scores is absent.
    */
   byCriterion: Record<string, number | null>;
 };
@@ -282,12 +351,20 @@ export type ApplicationRecordDoc = {
    * fallback tick if they set it. Empty when the round asked nothing about
    * programme choice (an appointment round, or a round with the section off),
    * in which case `roundTitle` is what says what they applied for.
+   *
+   * On an entry from an application form: the programmes they ranked, by
+   * short name, 1st choice first.
    */
   appliedFor: string[];
   /** The application's `createdAt`: when they started it. */
   appliedAt: Date | null;
   submittedAt: Date | null;
   outcome: {
+    /**
+     * What the final decider pressed. On an entry from an application form,
+     * what decision day told them and the programme it named, as
+     * "accepted (AGI Strategy)", or null when nothing had been published.
+     */
     decision: string | null;
     status: string;
     targetRunId: string | null;
@@ -396,9 +473,18 @@ function deriveAppliedFor(
   }
   if (answer.openToFellowship) labels.push(OPEN_TO_FELLOWSHIP_LABEL);
 
-  // De-duplicated on the LABEL rather than on the id: two ids can carry one
-  // label (a round edited so that a removed option and a live one read the
-  // same), and the record is read as a list of names.
+  return distinctLabels(labels);
+}
+
+/**
+ * The labels as the entry stores them: trimmed, cut to length, in the order
+ * given, and capped.
+ *
+ * De-duplicated on the LABEL rather than on the id: two ids can carry one
+ * label (a round edited so that a removed option and a live one read the
+ * same), and the record is read as a list of names.
+ */
+function distinctLabels(labels: readonly string[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const label of labels) {
@@ -431,15 +517,13 @@ function deriveAppliedFor(
  * `byCriterion` would quietly describe the first twenty reviewers in uid order,
  * which is an arithmetic nobody asked for and no reader could detect.
  */
-function reviewsForApplication(
-  round: AdmissionRoundDoc,
-  application: AdmissionApplicationDoc,
-  reviews: AdmissionReviewDoc[],
-): AdmissionReviewDoc[] {
+function reviewsForApplication<
+  R extends { roundId: string; applicantUid: string; reviewerUid: string },
+>(roundId: string, applicantUid: string, reviews: readonly R[]): R[] {
   return reviews
     .filter((review) => {
-      if (review.roundId && review.roundId !== round.id) return false;
-      if (review.applicantUid && review.applicantUid !== application.uid) return false;
+      if (review.roundId && review.roundId !== roundId) return false;
+      if (review.applicantUid && review.applicantUid !== applicantUid) return false;
       return true;
     })
     .slice()
@@ -512,7 +596,7 @@ export function buildApplicationRecord(input: {
   writtenByUid: string;
 }): ApplicationRecordInput {
   const { round, application, reviewerNames, writtenBy, writtenByUid } = input;
-  const reviews = reviewsForApplication(round, application, input.reviews);
+  const reviews = reviewsForApplication(round.id, application.uid, input.reviews);
 
   return {
     roundId: round.id,
@@ -544,6 +628,208 @@ export function buildApplicationRecord(input: {
         total: hasScored(review) ? review.total : null,
         notes: str(review.notes, MEMBER_RECORD_LIMITS.notes),
       })),
+    writtenBy,
+    writtenByUid,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Derivation: an application made on an application form
+// ---------------------------------------------------------------------------
+
+/** What the builder reads off the form: its programmes and how they are scored. */
+type FormForRecord = Pick<
+  ApplicationFormFields,
+  "programmeIds" | "programmes" | "questionSetIds" | "asksFacilitating" | "revealOtherReviews"
+>;
+
+/**
+ * A programme the form carries, or null.
+ *
+ * AN OWN KEY AND NOTHING ELSE. A ranking is something an applicant typed, and
+ * a draft is saved as it is given, so the id being looked up here is not one
+ * the form chose. "constructor" and "toString" are well-formed ids that name
+ * something on every object without being a programme on any form, and a
+ * plain lookup would hand back whatever that was. One such id must not be
+ * able to break the record of the application it sits on, because a record
+ * that cannot be built is what makes a destroy refuse.
+ */
+function programmeOn(form: FormForRecord, programmeId: string): ProgrammeSettings | null {
+  return Object.prototype.hasOwnProperty.call(form.programmes, programmeId)
+    ? form.programmes[programmeId]
+    : null;
+}
+
+/**
+ * The name the record uses for a programme: its short name, the one rankings
+ * and emails use. A ranked id the form no longer carries gets the same
+ * sentence an older round gives a removed option, and never the bare id.
+ */
+function programmeLabel(form: FormForRecord, programmeId: string): string {
+  const programme = programmeOn(form, programmeId);
+  if (!programme) return REMOVED_PROGRAMME_LABEL;
+  return (programme.shortName || programme.name || "").trim() || UNNAMED_PROGRAMME_LABEL;
+}
+
+/**
+ * What decision day told them, as one plain string: the outcome, and the
+ * programme it named when it named one.
+ *
+ * It reads `result` and nothing else. Each lead's decision, the outcome picked
+ * for a pooled applicant and an admin's exception are the committee's working
+ * state until decision day publishes; what was published onto the application
+ * is what happened to the person, so that is what the record keeps. An
+ * application nothing was published on says null here, and its status says the
+ * rest.
+ */
+function deriveFormOutcome(
+  form: FormForRecord,
+  application: ApplicationDoc,
+): ApplicationRecordDoc["outcome"] {
+  const result = application.result;
+  if (result === null) {
+    return { decision: null, status: application.status, targetRunId: null };
+  }
+  // Only a place and an invitation name a programme. The other two outcomes
+  // name none, whatever a stored row carries beside them.
+  const programmeId =
+    result.kind === "accepted" || result.kind === "invited" ? result.programmeId : null;
+  const decision = programmeId
+    ? `${result.kind} (${programmeLabel(form, programmeId)})`
+    : result.kind;
+  return {
+    decision: decision.slice(0, MEMBER_RECORD_LIMITS.decision),
+    status: application.status,
+    // The run that programme places people on, once it has one.
+    targetRunId: programmeId ? (programmeOn(form, programmeId)?.runId ?? null) : null,
+  };
+}
+
+/**
+ * One reviewer's score on an application form: the mean of every score they
+ * gave this application, or null when they gave none.
+ *
+ * EVERY score in the row counts, whichever programme's answer it was given
+ * to. A row is the reviewer's whole assessment of the person, and reading it
+ * through today's question sets would drop a score whose question has since
+ * left the form, which is a number no reader could tell was missing.
+ */
+function formReviewerScore(review: Pick<ReviewDoc, "scores">): number | null {
+  const given: number[] = [];
+  for (const score of Object.values(review.scores)) {
+    if (typeof score === "number" && Number.isFinite(score)) given.push(score);
+  }
+  if (given.length === 0) return null;
+  return given.reduce((sum, n) => sum + n, 0) / given.length;
+}
+
+/**
+ * The score summary for an application made on an application form.
+ *
+ * The arithmetic is that system's own (`src/lib/applications/scoring.ts`), so
+ * the entry agrees with what the leads were shown: a reviewer's score is the
+ * mean of the 1 to 5 scores they gave, and a programme's section score is the
+ * mean of its reviewers' scores, one voice each.
+ *
+ *  - `byCriterion` holds one section score per programme the person ranked
+ *    that scores its answers. At most `APPLICATION_LIMITS.maxProgrammes` keys,
+ *    which is inside what a read keeps, so no programme's score is cut.
+ *  - `mean` is over the reviewers who scored at all, one voice each, and takes
+ *    every score in each row (see `formReviewerScore`).
+ *  - `total` is null. See the type.
+ */
+function deriveFormScoreSummary(
+  form: FormForRecord,
+  sets: readonly QuestionSetDoc[],
+  rankedProgrammeIds: readonly string[],
+  reviews: readonly ReviewDoc[],
+): ApplicationRecordScoreSummary {
+  const byCriterion: Record<string, number | null> = {};
+  for (const programmeId of rankedProgrammeIds) {
+    if (!programmeOn(form, programmeId)) continue;
+    const keys = scoredKeysFor(form, sets, programmeId);
+    if (keys.length === 0) continue;
+    const { score } = sectionScore(reviews, keys);
+    byCriterion[programmeId] = score === null ? null : round2(score);
+  }
+
+  const voices: number[] = [];
+  for (const review of reviews) {
+    const score = formReviewerScore(review);
+    if (score !== null) voices.push(score);
+  }
+  return {
+    reviewerCount: reviews.length,
+    total: null,
+    mean:
+      voices.length > 0
+        ? round2(voices.reduce((sum, n) => sum + n, 0) / voices.length)
+        : null,
+    byCriterion,
+  };
+}
+
+/**
+ * Everything the committee keeps about one application made on an application
+ * form. The sibling of `buildApplicationRecord`, with the same contract: PURE,
+ * the same entry shape, and the caller stamps `writtenAt` and addresses the
+ * document.
+ *
+ * WHICH COPY IT READS. `sent` is the application of record, so it is what the
+ * entry describes. Somebody who never pressed Send has only a draft, and the
+ * programmes they had ranked in it are recorded as they stood, beside a status
+ * that says it was never sent, the way an older round records a draft.
+ *
+ * WHAT IT LEAVES OUT. A reviewer's comments on single answers are not copied:
+ * each is a note on a piece of the applicant's own writing, which the entry
+ * deliberately does not hold, so it goes with the answer it is about. The
+ * reviewer's overall comment is the note the entry keeps, verbatim.
+ *
+ * `sets` are the form's question sets as they stand. They decide which scored
+ * answers belong to which programme and nothing else.
+ */
+export function buildFormApplicationRecord(input: {
+  round: Pick<AdmissionRoundDoc, "id" | "label" | "kind">;
+  form: FormForRecord;
+  sets: readonly QuestionSetDoc[];
+  application: ApplicationDoc;
+  reviews: ReviewDoc[];
+  reviewerNames: Record<string, string>;
+  writtenBy: MemberRecordWriter;
+  writtenByUid: string;
+}): ApplicationRecordInput {
+  const { round, form, sets, application, reviewerNames, writtenBy, writtenByUid } = input;
+  const reviews = reviewsForApplication(round.id, application.uid, input.reviews);
+  const content = application.sent ?? application.draft;
+
+  return {
+    roundId: round.id,
+    roundTitle: str(round.label, MEMBER_RECORD_LIMITS.roundTitle),
+    roundKind: str(round.kind, MEMBER_RECORD_LIMITS.roundKind),
+    // Position in this list is their preference: 1st choice first.
+    appliedFor: distinctLabels(
+      content.rankedProgrammeIds.map((programmeId) => programmeLabel(form, programmeId)),
+    ),
+    appliedAt: application.createdAt ?? null,
+    // The first time they pressed Send. Null for an application never sent.
+    submittedAt: application.submittedAt,
+    outcome: deriveFormOutcome(form, application),
+    // Scored over EVERY review that belongs to this application, then the notes
+    // list alone is capped, exactly as on an older round.
+    scoreSummary: deriveFormScoreSummary(form, sets, content.rankedProgrammeIds, reviews),
+    reviewerNotes: reviews
+      .slice(0, MEMBER_RECORD_LIMITS.maxReviewerNotes)
+      .map((review) => {
+        const score = formReviewerScore(review);
+        return {
+          reviewerUid: review.reviewerUid,
+          reviewerName: reviewerDisplayName(review.reviewerUid, reviewerNames),
+          recommendation: null,
+          // Null rather than 0 for a reviewer who commented without scoring.
+          total: score === null ? null : round2(score),
+          notes: str(review.overallComment, MEMBER_RECORD_LIMITS.notes),
+        };
+      }),
     writtenBy,
     writtenByUid,
   };
