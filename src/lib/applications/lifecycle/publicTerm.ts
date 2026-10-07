@@ -66,12 +66,15 @@ import { termStageFor } from "./status";
  * settling says nothing about those.
  *
  * Nothing stored says when a term's programmes finish (a programme's
- * `starts` is a label that is only ever shown), so no clock ends `running`
- * either, and no date is written here to do it. It ends when one of these
- * happens:
+ * `starts` is a label that is only ever shown), so no clock of this term's
+ * own ends `running`, and no date is written here to do it. A term that is
+ * `closed` or `running` stops being the term a visitor is told about when
+ * one of these happens:
  *
- *  - another form becomes this term: the next term's form is opened, with
- *    its opening still ahead or not (`byStanding` below);
+ *  - the next term's form starts taking applications. Until that moment a
+ *    form that opens later does not take over: it is told as `next`, so a
+ *    page can say "running now" and when the next intake is (`byStanding`
+ *    below);
  *  - the form is archived, which takes it out of sight everywhere;
  *  - an admin closes the last programme on it, which takes each one off the
  *    site.
@@ -110,7 +113,7 @@ export type PublicTermProgramme = {
   runId: string | null;
 };
 
-/** The form that opens after this one: what it is called, and when it opens. */
+/** The next intake: what the form that opens next is called, and when it opens. */
 export type PublicTermNext = { label: string; opensAt: Date };
 
 /** The round's three dates, under the round's own names. */
@@ -121,9 +124,10 @@ type ToldTerm = TermDates & {
   /** The term, as applicants read it at the top of the form: "Autumn 2026". */
   label: string;
   /**
-   * A form that opens after this one, when a visitor may be told about one.
-   * Null while the stage is `closed` or `running`: a form whose opening is
-   * ahead is this term itself by then (`byStanding`).
+   * The form that opens next, when a visitor may be told about one: the
+   * soonest whose opening is still ahead. Set beside `open`, `closed` and
+   * `running`. Always null beside `before`, where the term a visitor is told
+   * about is itself the one that opens next.
    */
   next: PublicTermNext | null;
   /** The programmes on the site, in the form's order. Closed ones are left out. */
@@ -197,13 +201,6 @@ function toldStageOf(form: ApplicationForm, now: Date): ToldStage | null {
   }
 }
 
-/** Taking applications, then opening later, then closed whether or not decisions have gone. */
-function standingOf(stage: ToldStage): number {
-  if (stage === "open") return 0;
-  if (stage === "before") return 1;
-  return 2;
-}
-
 function compare(a: number, b: number): number {
   if (a === b) return 0;
   return a < b ? -1 : 1;
@@ -214,6 +211,30 @@ function timeOf(at: Date | null, missing: number): number {
   return at === null ? missing : at.getTime();
 }
 
+/** A time that has come, or null for one still ahead. */
+function passed(at: Date | null, now: Date): Date | null {
+  return at !== null && at.getTime() <= now.getTime() ? at : null;
+}
+
+/**
+ * How recently a form whose applications have closed was taking them: its
+ * close, once that has come. A form an admin closed ahead of the close
+ * written on it has no close that has come, so it is placed by its opening.
+ * Null for a form that was closed before it ever opened: it never took an
+ * application.
+ */
+function lastTaking(form: ApplicationForm, now: Date): Date | null {
+  const { opensAt, closesAt } = form.round;
+  return passed(closesAt, now) ?? passed(opensAt, now);
+}
+
+/** Where a form stands among the others. The lower, the sooner it is this term. */
+function standingOf(told: Told, now: Date): number {
+  if (told.stage === "open") return 0;
+  if (told.stage === "before") return 2;
+  return lastTaking(told.form, now) === null ? 3 : 1;
+}
+
 /**
  * WHICH FORM IS THIS TERM. There is one form a term, but last term's is still
  * stored when next term's is made, so a visitor could be told about more
@@ -222,54 +243,64 @@ function timeOf(at: Date | null, missing: number): number {
  *
  *  1. A form that is taking applications. With two, the one that closes
  *     first, because that is the one somebody could miss.
- *  2. Otherwise the form that opens next: the soonest opening, and between
+ *  2. Otherwise a term that is under way: the form whose applications closed
+ *     most recently, whether its decisions are still awaited or have gone
+ *     out (`lastTaking`).
+ *  3. Otherwise the form that opens next: the soonest opening, and between
  *     two that open together the one that closes first.
- *  3. Otherwise the form whose applications closed most recently, whether
- *     its decisions are still awaited or have gone out. A form with no close
- *     written on it says nothing about how recent it is, so it comes last.
+ *  4. Otherwise a form an admin closed before it ever opened. It never took
+ *     an application, so it is no term under way, and it is told only when
+ *     it is all there is.
  *
  * The id settles whatever is left, so two reads give the same answer
  * whichever order the database returns the forms in.
  *
- * Taking applications, then opening later, then closed is the order
- * `pickLiveRound` gives a course's page, so the homepage and the programme
- * pages change over to the next term at the same moment: when an admin opens
- * its form. A draft for next term changes nothing, because a draft is never
- * in this list.
+ * A FORM THAT OPENS LATER DOES NOT TAKE OVER FROM A TERM THAT IS UNDER WAY.
+ * While last term's form is still told, next term's is the `next` beside it,
+ * from the day an admin opens it until the moment it takes applications,
+ * and only then becomes this term. So a page can say that a term is running
+ * and when the next intake is. A draft for next term changes nothing,
+ * because a draft is never in this list.
+ *
+ * This is not the order a course's own page goes by. `pickLiveRound` puts a
+ * form that opens later ahead of one that has closed, so a course's page
+ * says "Applications open on" a day from the moment next term's form is
+ * opened. The two agree about the day, and say it from different sides.
  */
-function byStanding(a: Told, b: Told): number {
-  const standing = compare(standingOf(a.stage), standingOf(b.stage));
-  if (standing !== 0) return standing;
-  const first = a.form.round;
-  const second = b.form.round;
+function byStanding(now: Date): (a: Told, b: Told) => number {
   const later = Number.POSITIVE_INFINITY;
   const earlier = Number.NEGATIVE_INFINITY;
-  let order: number;
-  if (a.stage === "open") {
-    order = compare(timeOf(first.closesAt, later), timeOf(second.closesAt, later));
-  } else if (a.stage === "before") {
-    order =
-      compare(timeOf(first.opensAt, later), timeOf(second.opensAt, later)) ||
-      compare(timeOf(first.closesAt, later), timeOf(second.closesAt, later));
-  } else {
-    order = compare(timeOf(second.closesAt, earlier), timeOf(first.closesAt, earlier));
-  }
-  return order || first.id.localeCompare(second.id);
+  return (a, b) => {
+    const standing = compare(standingOf(a, now), standingOf(b, now));
+    if (standing !== 0) return standing;
+    const first = a.form.round;
+    const second = b.form.round;
+    let order: number;
+    if (a.stage === "open") {
+      order = compare(timeOf(first.closesAt, later), timeOf(second.closesAt, later));
+    } else if (a.stage === "before") {
+      order =
+        compare(timeOf(first.opensAt, later), timeOf(second.opensAt, later)) ||
+        compare(timeOf(first.closesAt, later), timeOf(second.closesAt, later));
+    } else {
+      order = compare(timeOf(lastTaking(b.form, now), earlier), timeOf(lastTaking(a.form, now), earlier));
+    }
+    return order || first.id.localeCompare(second.id);
+  };
 }
 
 /**
- * The form that opens after this term's, or null. Only a form whose opening
- * is still ahead can be next, and when this term's own opening is ahead too,
- * only one that opens later than it does. `others` is in `byStanding` order,
- * so the first that fits is the soonest.
+ * The next intake beside this term, or null: the soonest form whose opening
+ * is still ahead. `told` is in `byStanding` order, so the first such form is
+ * the soonest. Beside `before` there is none to name, because the term a
+ * visitor is told about is then itself the one that opens next.
  */
-function nextAfter(chosen: Told, others: readonly Told[]): PublicTermNext | null {
-  const after = chosen.stage === "before" ? timeOf(chosen.form.round.opensAt, Number.NEGATIVE_INFINITY) : null;
-  for (const other of others) {
-    if (other === chosen || other.stage !== "before") continue;
+function nextAfter(chosen: Told, told: readonly Told[]): PublicTermNext | null {
+  if (chosen.stage === "before") return null;
+  for (const other of told) {
+    if (other.stage !== "before") continue;
     const opensAt = other.form.round.opensAt;
     if (opensAt === null) continue;
-    if (after !== null && opensAt.getTime() <= after) continue;
     return { label: other.form.round.label, opensAt };
   }
   return null;
@@ -278,11 +309,6 @@ function nextAfter(chosen: Told, others: readonly Told[]): PublicTermNext | null
 // ---------------------------------------------------------------------------
 // The projection
 // ---------------------------------------------------------------------------
-
-/** A time that has come, or null for one still ahead. */
-function passed(at: Date | null, now: Date): Date | null {
-  return at !== null && at.getTime() <= now.getTime() ? at : null;
-}
 
 /** One programme, field by field. Its lead, reviewers, places and group size stay behind. */
 function programmeOf(programme: ProgrammeSettings): PublicTermProgramme {
@@ -328,7 +354,7 @@ export async function findPublicTerm(db: Firestore, now: Date = new Date()): Pro
     if (stage !== null) told.push({ form, stage });
   }
   if (told.length === 0) return noPublicTerm();
-  told.sort(byStanding);
+  told.sort(byStanding(now));
   const [chosen] = told;
   return termOf(chosen, nextAfter(chosen, told), now);
 }

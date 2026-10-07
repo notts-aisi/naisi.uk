@@ -18,11 +18,13 @@
  *     visitor. `open` is never said of a form the apply routes would refuse.
  *  2. A DRAFT IS NOBODY'S BUSINESS. A draft, an archived form, a cancelled
  *     one and a form with nothing left on the site read exactly as no form.
- *  3. ONE RULE CHOOSES BETWEEN FORMS. Taking applications, then opening
- *     later, then the latest to close, and the same answer whichever order
- *     the database returns them in.
- *  4. `running` ENDS WHEN THE NEXT FORM IS OPENED, and not when the term is
- *     settled, and not by the clock.
+ *  3. ONE RULE CHOOSES BETWEEN FORMS. Taking applications, then the latest
+ *     to close, then opening later, and the same answer whichever order the
+ *     database returns them in.
+ *  4. A FORM THAT OPENS LATER DOES NOT TAKE OVER. While a term is under way
+ *     it is told as the next intake, and it becomes this term the moment it
+ *     takes applications. `running` does not end when the term is settled,
+ *     and no clock of its own ends it.
  *  5. WHAT LEAVES IS LISTED FIELD BY FIELD. The keys are compared with a
  *     list in every stage, and a form stuffed with things no visitor may
  *     know is searched for in what comes back.
@@ -395,14 +397,23 @@ describe("which form is this term, when a visitor could be told about more than 
   const waiting = ["waiting__00000003", awaited("Closed in October", LAST_OCT)];
   const ran = ["ran__00000004", decided("Decided last year", LAST_YEAR)];
 
-  test("a form taking applications beats one that opens later, which beats one that has closed", async () => {
+  test("a form taking applications, then a term whose applications have closed, then a form that opens later", async () => {
     assert.equal((await thisTerm(open, soon, waiting, ran)).label, "Taking applications");
-    assert.equal((await thisTerm(soon, waiting, ran)).label, "Opens in January");
+    // A form that opens later does not take over from a term that is under way.
+    assert.equal((await thisTerm(soon, waiting, ran)).label, "Closed in October");
+    assert.equal((await thisTerm(soon, ran)).label, "Decided last year");
     assert.equal((await thisTerm(waiting, ran)).label, "Closed in October");
     assert.equal((await thisTerm(ran)).label, "Decided last year");
+    // With no term under way, the form that opens later is this term.
+    assert.equal((await thisTerm(soon)).label, "Opens in January");
     assert.deepEqual(
-      [(await thisTerm(open, ran)).stage, (await thisTerm(soon, ran)).stage, (await thisTerm(waiting, ran)).stage],
-      ["open", "before", "closed"],
+      [
+        (await thisTerm(open, soon, ran)).stage,
+        (await thisTerm(soon, waiting)).stage,
+        (await thisTerm(soon, ran)).stage,
+        (await thisTerm(soon)).stage,
+      ],
+      ["open", "closed", "running", "before"],
     );
   });
 
@@ -415,10 +426,44 @@ describe("which form is this term, when a visitor could be told about more than 
     const stillWaiting = ["waiting__00000007", awaited("Waiting, closed last year", LAST_YEAR)];
     assert.equal((await thisTerm(stillWaiting, newer)).label, "Decided this autumn");
     assert.equal((await thisTerm(waiting, older)).label, "Closed in October");
-    // A form with no close written on it says nothing about how recent it is.
-    const undated = ["undated__00000008", awaited("Closed by hand, no date", null, { status: "closed" })];
-    assert.equal((await thisTerm(undated, older)).label, "Decided the year before");
-    assert.equal((await thisTerm(undated)).label, "Closed by hand, no date");
+  });
+
+  test("a form an admin closed ahead of its written close is placed by a time that has come", async () => {
+    const lastTerm = ["last__00000009", decided("Decided this autumn", LAST_OCT)];
+    // Closed by hand in the middle of its window. The close written on it is
+    // still ahead, so it is placed by its opening: it is this term, and last
+    // term's form does not take its place.
+    const early = ["early__00000008", form({ label: "Closed early this term", status: "closed" })];
+    assert.equal((await thisTerm(early, lastTerm)).label, "Closed early this term");
+    // Closed by hand before it ever opened. It never took an application, so
+    // it does not take over from a term that did, and it is not an intake.
+    const neverOpened = ["never__00000010", opening("Closed before it opened", JAN, JAN_CLOSE, { status: "closed" })];
+    const beside = await thisTerm(neverOpened, lastTerm);
+    assert.deepEqual([beside.label, beside.stage, beside.next], ["Decided this autumn", "running", null]);
+    // Alone, it is still the only form there is to tell of.
+    const alone = await thisTerm(neverOpened);
+    assert.deepEqual(
+      [alone.label, alone.stage, alone.opensAt, alone.closesAt],
+      ["Closed before it opened", "closed", null, null],
+    );
+    // A form with no close written on it at all is placed by its opening too.
+    const undated = ["undated__00000011", awaited("Closed by hand, no date", null, { status: "closed" })];
+    const yearBefore = ["older__00000005", decided("Decided the year before", LAST_YEAR)];
+    assert.equal((await thisTerm(undated, yearBefore)).label, "Closed by hand, no date");
+    assert.equal((await thisTerm(undated, lastTerm)).label, "Decided this autumn");
+  });
+
+  test("a form that was closed before it ever opened is no term under way: one that opens later comes before it", async () => {
+    const neverOpened = ["never__00000010", opening("Closed before it opened", JAN, JAN_CLOSE, { status: "closed" })];
+    const spring = ["spring__00000001", opening("Opens in April", APR, APR_CLOSE)];
+    const term = await thisTerm(neverOpened, spring);
+    assert.deepEqual([term.label, term.stage, term.next], ["Opens in April", "before", null]);
+    // Whichever of the two would have opened first.
+    const lateNever = ["never__00000011", opening("Closed before it opened, in April", APR, APR_CLOSE, { status: "closed" })];
+    assert.equal((await thisTerm(lateNever, soon)).label, "Opens in January");
+    // And a term that did take applications comes before both.
+    const under = await thisTerm(neverOpened, spring, ran);
+    assert.deepEqual([under.label, under.stage, under.next], ["Decided last year", "running", { label: "Opens in April", opensAt: APR }]);
   });
 
   test("with two taking applications, the one that closes first", async () => {
@@ -429,7 +474,7 @@ describe("which form is this term, when a visitor could be told about more than 
     assert.equal((await thisTerm(later, never)).label, "Closes later");
   });
 
-  test("with two that open later, the one that opens next, then the one that closes first", async () => {
+  test("with two that open later and no term under way, the one that opens next, then the one that closes first", async () => {
     const spring = ["spring__00000001", opening("Opens in April", APR, APR_CLOSE)];
     assert.equal((await thisTerm(spring, soon)).label, "Opens in January");
     const together = ["together__00000002", opening("Opens in January, closes sooner", JAN, new Date("2027-01-17T23:59:00Z"))];
@@ -442,6 +487,7 @@ describe("which form is this term, when a visitor could be told about more than 
       (label) => opening(label, JAN, JAN_CLOSE),
       (label) => awaited(label, LAST_OCT),
       (label) => decided(label, LAST_OCT),
+      (label) => opening(label, JAN, JAN_CLOSE, { status: "closed" }),
     ]) {
       assert.equal((await thisTerm(["b__00000002", make("Second by id")], ["a__00000001", make("First by id")])).label, "First by id");
     }
@@ -464,36 +510,68 @@ describe("which form is this term, when a visitor could be told about more than 
   });
 });
 
-describe("the form that opens after this one", () => {
+describe("the next intake, beside this term", () => {
   const open = ["now__00000001", taking("Taking applications")];
   const january = ["january__00000002", opening("Spring 2027", JAN, JAN_CLOSE)];
   const april = ["april__00000003", opening("Summer 2027", APR, APR_CLOSE)];
+  const running = ["autumn__00000004", decided("Autumn 2026", LAST_OCT)];
+  const waiting = ["autumn__00000005", awaited("Autumn 2026", LAST_OCT)];
+  const SPRING = { label: "Spring 2027", opensAt: JAN };
 
-  test("while this term is open, the next is the soonest form that opens later", async () => {
-    assert.deepEqual((await thisTerm(open, january)).next, { label: "Spring 2027", opensAt: JAN });
-    assert.deepEqual((await thisTerm(open, april, january)).next, { label: "Spring 2027", opensAt: JAN });
+  test("beside a term that is running, the form that opens later", async () => {
+    const term = await thisTerm(running, january);
+    assert.deepEqual([term.label, term.stage, term.next], ["Autumn 2026", "running", SPRING]);
+    assert.equal((await thisTerm(running)).next, null);
+  });
+
+  test("beside a term whose decisions are still awaited, the form that opens later", async () => {
+    const term = await thisTerm(waiting, january);
+    assert.deepEqual([term.label, term.stage, term.next], ["Autumn 2026", "closed", SPRING]);
+    assert.equal((await thisTerm(waiting)).next, null);
+  });
+
+  test("beside a term that is taking applications, the same", async () => {
+    const term = await thisTerm(open, january);
+    assert.deepEqual([term.label, term.stage, term.next], ["Taking applications", "open", SPRING]);
     assert.equal((await thisTerm(open)).next, null);
   });
 
-  test("while this term's own opening is ahead, only a form that opens later than it does", async () => {
-    const term = await thisTerm(january, april);
-    assert.deepEqual([term.label, term.stage, term.next], ["Spring 2027", "before", { label: "Summer 2027", opensAt: APR }]);
-    const together = ["together__00000004", opening("Opens the same morning", JAN, APR_CLOSE)];
-    assert.equal((await thisTerm(january, together)).next, null, "a form that opens with this one is not after it");
-    assert.deepEqual((await thisTerm(january, together, april)).next, { label: "Summer 2027", opensAt: APR });
+  test("with more than one form that opens later, the soonest to open", async () => {
+    for (const earlier of [running, waiting, open]) {
+      assert.deepEqual((await thisTerm(earlier, april, january)).next, SPRING, earlier[1].label);
+    }
+    const together = ["together__00000006", opening("Opens the same morning, closes sooner", JAN, new Date("2027-01-17T23:59:00Z"))];
+    assert.equal((await thisTerm(running, january, together)).next.label, "Opens the same morning, closes sooner");
   });
 
-  test("it is a label and a date, and never a form a visitor is told nothing about", async () => {
-    const term = await thisTerm(open, january);
-    assert.deepEqual(Object.keys(term.next).sort(), ["label", "opensAt"]);
-    const hidden = [
-      ["draft__00000010", opening("A draft for next term", JAN, JAN_CLOSE, { status: "draft" })],
-      ["archived__00000012", opening("Archived before it opened", JAN, JAN_CLOSE, { archived: true })],
-      ["cancelled__00000013", opening("Cancelled before it opened", JAN, JAN_CLOSE, { status: "cancelled" })],
-      ["empty__00000014", opening("Nothing on it", JAN, JAN_CLOSE, { programmeIds: ["old-stream"] })],
-      ["closed__00000015", opening("Closed before it opened", JAN, JAN_CLOSE, { status: "closed" })],
-    ];
-    assert.equal((await find(Object.fromEntries([open, ...hidden]))).next, null);
+  test("beside a term whose own opening is ahead there is none: it is the next intake itself", async () => {
+    const term = await thisTerm(january, april);
+    assert.deepEqual([term.label, term.stage, term.next], ["Spring 2027", "before", null]);
+  });
+
+  test("a later form that is a draft is not the next intake, and neither is any form a visitor is told nothing about", async () => {
+    const hidden = {
+      "a draft": { status: "draft" },
+      archived: { archived: true },
+      cancelled: { status: "cancelled" },
+      "with nothing on it": { programmeIds: ["old-stream"] },
+      "closed before it opened": { status: "closed" },
+    };
+    for (const earlier of [running, waiting, open]) {
+      const alone = await find(Object.fromEntries([earlier]));
+      for (const [name, over] of Object.entries(hidden)) {
+        const later = ["spring__00000010", opening("Spring 2027", JAN, JAN_CLOSE, over)];
+        const term = await thisTerm(earlier, later);
+        assert.equal(term.next, null, `${name}, beside ${earlier[1].label}`);
+        assert.deepEqual(term, alone, `${name} changed what is told beside ${earlier[1].label}`);
+      }
+    }
+  });
+
+  test("it is a label and a date and nothing else", async () => {
+    for (const earlier of [running, waiting, open]) {
+      assert.deepEqual(Object.keys((await thisTerm(earlier, january)).next).sort(), ["label", "opensAt"]);
+    }
   });
 });
 
@@ -501,7 +579,7 @@ describe("the form that opens after this one", () => {
 // 4. When `running` ends
 // ---------------------------------------------------------------------------
 
-describe("when a term stops being the one that is running", () => {
+describe("when a term stops being this term", () => {
   const autumn = (over = {}) => decided("Autumn 2026", LAST_OCT, { status: "deciding", ...over });
   const spring = (over = {}) => opening("Spring 2027", JAN, JAN_CLOSE, over);
   const at = async (rounds, now) => {
@@ -509,36 +587,43 @@ describe("when a term stops being the one that is running", () => {
     return [term.label, term.stage, term.next];
   };
   const NOVEMBER = new Date("2026-11-10T12:00:00Z");
+  const SPRING = { label: "Spring 2027", opensAt: JAN };
 
   test("it does not end when the term is settled", async () => {
     assert.deepEqual(await at({ "autumn__00000001": autumn() }, NOVEMBER), ["Autumn 2026", "running", null]);
     assert.deepEqual(await at({ "autumn__00000001": autumn({ status: "settled" }) }, NOVEMBER), ["Autumn 2026", "running", null]);
   });
 
-  test("no clock ends it: with nothing else stored it is still running years on", async () => {
+  test("no clock of its own ends it: with nothing else stored it is still running years on", async () => {
     const rounds = { "autumn__00000001": autumn({ status: "settled" }) };
     assert.deepEqual(await at(rounds, new Date("2030-06-01T12:00:00Z")), ["Autumn 2026", "running", null]);
   });
 
-  test("a draft for next term changes nothing, and opening that form ends it", async () => {
-    const settled = autumn({ status: "settled" });
-    const drafted = { "autumn__00000001": settled, "spring__00000002": spring({ status: "draft" }) };
+  test("a draft for next term changes nothing", async () => {
+    const drafted = { "autumn__00000001": autumn({ status: "settled" }), "spring__00000002": spring({ status: "draft" }) };
     assert.deepEqual(await at(drafted, NOVEMBER), ["Autumn 2026", "running", null]);
-    // Opened by an admin, its opening still two months ahead: it is this term.
-    const opened = { "autumn__00000001": settled, "spring__00000002": spring() };
-    assert.deepEqual(await at(opened, NOVEMBER), ["Spring 2027", "before", null]);
-    assert.deepEqual(await at(opened, JAN), ["Spring 2027", "open", null]);
-    assert.deepEqual(await at(opened, new Date(JAN_CLOSE.getTime() + 1)), ["Spring 2027", "closed", null]);
+    assert.deepEqual(await at(drafted, JAN), ["Autumn 2026", "running", null], "a draft inside its dates takes no applications");
   });
 
-  test("so `next` is never set beside `closed` or `running`: a form that opens later is this term itself", async () => {
-    for (const earlier of [autumn(), autumn({ status: "settled" }), awaited("Autumn 2026", LAST_OCT)]) {
-      const term = await find({ "autumn__00000001": earlier, "spring__00000002": spring() }, NOVEMBER);
-      assert.deepEqual([term.stage, term.label], ["before", "Spring 2027"]);
-      const alone = await find({ "autumn__00000001": earlier }, NOVEMBER);
-      assert.ok(["closed", "running"].includes(alone.stage));
-      assert.equal(alone.next, null);
-    }
+  test("next term's form, once an admin opens it, is the next intake and does not take over", async () => {
+    const opened = { "autumn__00000001": autumn({ status: "settled" }), "spring__00000002": spring() };
+    assert.deepEqual(await at(opened, NOVEMBER), ["Autumn 2026", "running", SPRING]);
+    // The same while this term's decisions are still awaited.
+    const awaiting = { "autumn__00000001": awaited("Autumn 2026", LAST_OCT), "spring__00000002": spring() };
+    assert.deepEqual(await at(awaiting, NOVEMBER), ["Autumn 2026", "closed", SPRING]);
+  });
+
+  test("the moment that form takes applications, it is this term", async () => {
+    const opened = { "autumn__00000001": autumn({ status: "settled" }), "spring__00000002": spring() };
+    assert.deepEqual(await at(opened, new Date(JAN.getTime() - 1)), ["Autumn 2026", "running", SPRING]);
+    assert.deepEqual(await at(opened, JAN), ["Spring 2027", "open", null]);
+    assert.deepEqual(await at(opened, JAN_CLOSE), ["Spring 2027", "open", null]);
+    // Once it has closed in its turn it is the latest to close, so it stays.
+    assert.deepEqual(await at(opened, new Date(JAN_CLOSE.getTime() + 1)), ["Spring 2027", "closed", null]);
+    // A term still waiting for its decisions gives way at the same moment.
+    const awaiting = { "autumn__00000001": awaited("Autumn 2026", LAST_OCT), "spring__00000002": spring() };
+    assert.deepEqual(await at(awaiting, new Date(JAN.getTime() - 1)), ["Autumn 2026", "closed", SPRING]);
+    assert.deepEqual(await at(awaiting, JAN), ["Spring 2027", "open", null]);
   });
 
   test("archiving the form ends it, and so does closing the last programme on it", async () => {
@@ -549,6 +634,12 @@ describe("when a term stops being the one that is running", () => {
     const noneLeft = structuredClone(oneLeft);
     noneLeft.programmes["agi-strategy"].closed = true;
     assert.deepEqual(await find({ "autumn__00000001": noneLeft }, NOVEMBER), NO_TERM);
+    // With next term's form already opened, that form is then this term,
+    // and there is no intake after it to name.
+    for (const gone of [{ ...settled, archived: true }, noneLeft]) {
+      const rounds = { "autumn__00000001": gone, "spring__00000002": spring() };
+      assert.deepEqual(await at(rounds, NOVEMBER), ["Spring 2027", "before", null]);
+    }
   });
 });
 
@@ -1182,6 +1273,20 @@ describe("from a stored form to the words on the page", () => {
     assert.equal(page.line, "Running now");
     assert.deepEqual(page.dates, ["Applications closed Sun 18 Oct", "Decisions by Fri 23 Oct", "Programmes start w/c 18 Jan"]);
     assert.equal(page.link, "");
+  });
+
+  test("while the term runs and next term's form has been opened", async () => {
+    const running = structuredClone({ ...stored, status: "settled", decisionsSentAt: new Date("2026-10-23T09:00:00Z") });
+    const spring = form({ label: "Spring 2027", opensAt: WINTER_OPEN, closesAt: new Date("2027-01-24T23:59:00Z") });
+    const rounds = { [FORM_ID]: running, "spring-2027__b2c3d4e5": spring };
+    const page = await drawn(rounds, new Date("2026-11-10T12:00:00Z"));
+    assert.equal(page.line, "Running now · Spring intake Mon 11 Jan");
+    assert.equal(page.dates[0], "Applications closed Sun 18 Oct", "the strip is still this term's");
+    assert.equal(page.link, "");
+    // And the morning that form opens, the page is about it.
+    const opened = await drawn(rounds, WINTER_OPEN);
+    assert.equal(opened.line, "Applications open now · Close Sun 24 Jan, 23:59");
+    assert.equal(opened.link, '<a href="/apply/spring-2027__b2c3d4e5" class="link">Apply</a>');
   });
 
   test("with no form, nothing is drawn", async () => {
