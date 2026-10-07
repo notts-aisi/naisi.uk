@@ -35,9 +35,13 @@
  */
 import { beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { render } from "@react-email/render";
 import { createLoader } from "./lib/tsLoader.mjs";
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const APP_URL = "https://staging.example.com";
 process.env.NEXT_PUBLIC_APP_URL = APP_URL;
@@ -45,6 +49,12 @@ process.env.NEXT_PUBLIC_APP_URL = APP_URL;
 const { loadTs } = createLoader({
   stubs: new Map([
     ["server-only", "export {};"],
+    [
+      // Reached only through the reply route's writer, whose refusal carries a
+      // response. The job itself answers no request.
+      "next/server",
+      "export const NextResponse = { json(body, init) { return { status: (init && init.status) || 200, body }; } };",
+    ],
     [
       "firebase-admin/firestore",
       "export const FieldValue = {\n" +
@@ -100,6 +110,9 @@ const { applicationInvitationRemindersJob: job } = await loadTs(
   join("lib", "scheduler", "jobs", "applicationInvitationReminders.ts"),
 );
 const { default: InvitationEmail } = await loadTs(join("emails", "ApplicationInvitationEmail.tsx"));
+/** The reply route's own writer and loader, for the cases that make a real reply. */
+const record = await loadTs(join("lib", "applications", "status", "record.ts"));
+const repo = await loadTs(join("lib", "applications", "repo.ts"));
 
 // ---------------------------------------------------------------------------
 // The term: decisions went out on Fri 23 Oct, invitations are due Sun 25 Oct
@@ -262,10 +275,24 @@ function makeDb(initial) {
       const parts = field.split(".");
       let node = next;
       for (const part of parts.slice(0, -1)) node = node[part] ??= {};
-      node[parts[parts.length - 1]] = value;
+      const last = parts[parts.length - 1];
+      node[last] = resolved(node[last], value);
     }
     docs.set(op.path, next);
   };
+  /**
+   * The two things a real write leaves for the server to fill in: the time,
+   * and a counter moved by an amount. The job writes neither. The reply
+   * route's own writer does, and it is run against this store below.
+   */
+  function resolved(current, value) {
+    if (value && typeof value === "object" && value.__op === "serverTimestamp") return new Date(SERVER_TIME);
+    if (value && typeof value === "object" && value.__op === "increment") return (current ?? 0) + value.by;
+    if (value && typeof value === "object" && !Array.isArray(value) && !(value instanceof Date)) {
+      return Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, resolved(undefined, inner)]));
+    }
+    return value;
+  }
   const ref = (path) => ({
     id: path.split("/").pop(),
     path,
@@ -338,6 +365,9 @@ function makeDb(initial) {
     },
   };
 }
+
+/** What the store writes for "now": Sat 24 Oct, mid-afternoon in London. */
+const SERVER_TIME = new Date("2026-10-24T14:00:00Z");
 
 const mailTo = (address) => globalThis.__rmMail.calls.filter((call) => call.to === address);
 const lastReminder = (db, uid = "oliver") => db.read(`admissionApplications/${ROUND}__${uid}`).invitation.lastReminderOn;
@@ -710,6 +740,129 @@ describe("a run sends nothing", () => {
       maxLateHours: 8,
     });
     assert.deepEqual(result, { processed: 0, hasMore: false, note: "admin sdk unavailable" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reminders stop when somebody has replied: the real reply, then the real job
+// ---------------------------------------------------------------------------
+
+/**
+ * The owner asked for this on 7 October 2026, and it was already true. What
+ * was not yet shown is the SEAM: the cases above hand the job a document with
+ * a reply typed onto it, and the reply route does not write that document. An
+ * accepted invitation also becomes `accepted`, and a no thanks also becomes
+ * `withdrawn`. So each case here makes the reply with the route's own writer
+ * (`recordReply`), against the same store, and then runs the job on what that
+ * writer left.
+ */
+describe("reminders stop when somebody has replied: the real reply, then the real job", () => {
+  /** Sat 24 Oct, mid-afternoon: after the morning's reminders, before Sunday's. */
+  const SAT_AFTERNOON = new Date("2026-10-24T14:00:00Z");
+  const say = async (db, request, when = SAT_AFTERNOON) =>
+    record.recordReply(db, await repo.loadForm(db, ROUND), "oliver", request, when);
+  const asRead = (db) => normalise.normaliseApplication(OLIVER.split("/")[1], db.read(OLIVER));
+  /** A run that must do nothing at all: no email, and no write. */
+  const silent = async (db, now) => {
+    const writes = db.counters.writes;
+    const result = await run(db, now);
+    assert.equal(result.processed, 0);
+    assert.deepEqual(globalThis.__rmMail.calls, []);
+    assert.equal(db.counters.writes, writes, "and writes nothing");
+  };
+
+  const ACCEPTS = { reply: "accept-invitation", reason: null };
+  const NO_THANKS = { reply: "decline-invitation", reason: { kind: "times", other: "" } };
+  const CANT_MAKE_IT = { reply: "cant-make-it", reason: { kind: "too-much-on", other: "" } };
+
+  test("the control: with no reply he is reminded on Saturday and again on Sunday, his last day", async () => {
+    const db = makeDb(seed());
+    assert.equal((await run(db, SAT)).processed, 1);
+    assert.equal((await run(db, SUN)).processed, 1);
+    assert.equal(mailTo("oliver@example.com").length, 2);
+  });
+
+  for (const [name, request, status, response, why] of [
+    ["ACCEPTED", ACCEPTS, "accepted", "accepted", "not-invited"],
+    ["NO THANKS", NO_THANKS, "withdrawn", "declined", "not-in-term"],
+  ]) {
+    test(`${name} before any reminder: nothing is ever sent, that day or the next`, async () => {
+      const db = makeDb(seed());
+      // He replies on Saturday morning, before the day's reminders go.
+      const recorded = await say(db, request, SAT_EARLY);
+      assert.equal(recorded.changed, true);
+      const stored = db.read(OLIVER);
+      assert.deepEqual([stored.status, stored.invitation.response], [status, response], "what the route's writer left");
+      assert.deepEqual(rule.invitationReminderDue(asRead(db), SAT), { due: false, why });
+      await silent(db, SAT);
+      await silent(db, SUN);
+      assert.equal(lastReminder(db), null, "no day was ever taken for him");
+    });
+
+    test(`${name} after Saturday's reminder: Sunday's, which would have been his last, is not sent`, async () => {
+      const db = makeDb(seed());
+      assert.equal((await run(db, SAT)).processed, 1);
+      assert.equal(mailTo("oliver@example.com").length, 1);
+      assert.equal(lastReminder(db), "2026-10-24");
+      globalThis.__rmMail.calls.length = 0;
+
+      await say(db, request);
+      // The reply leaves the invitation's other fields exactly as they were.
+      assert.equal(lastReminder(db), "2026-10-24");
+      assert.deepEqual(rule.invitationReminderDue(asRead(db), SUN), { due: false, why });
+      await silent(db, SUN);
+      await silent(db, MON);
+    });
+  }
+
+  test("ACCEPTED, and later cannot make it: still nothing, for either reply", async () => {
+    const db = makeDb(seed());
+    await say(db, ACCEPTS, SAT_EARLY);
+    await silent(db, SAT);
+    await say(db, CANT_MAKE_IT);
+    const stored = db.read(OLIVER);
+    assert.deepEqual([stored.status, stored.invitation.response, stored.attendance.answer], ["withdrawn", "accepted", "cant-make-it"]);
+    assert.deepEqual(rule.invitationReminderDue(asRead(db), SUN), { due: false, why: "not-in-term" });
+    await silent(db, SUN);
+  });
+
+  test("A WITHDRAWN APPLICATION: taken out of the term with no reply at all, and reminded no more", async () => {
+    const db = makeDb(seed());
+    assert.equal((await run(db, SAT)).processed, 1);
+    globalThis.__rmMail.calls.length = 0;
+    // Withdrawn by something other than his own reply: the invitation still says unanswered.
+    db.patch(OLIVER, { status: "withdrawn", withdrawnAt: SAT_AFTERNOON });
+    assert.equal(db.read(OLIVER).invitation.response, null);
+    assert.deepEqual(rule.invitationReminderDue(asRead(db), SUN), { due: false, why: "not-in-term" });
+    await silent(db, SUN);
+  });
+
+  test("somebody else's reply stops nobody else's reminders", async () => {
+    const second = `admissionApplications/${ROUND}__rosa`;
+    const db = makeDb(
+      seed({
+        [second]: applicationDoc("rosa", "Rosa García", [INC, AGI], "invited", TAIS),
+        "users/rosa": userDoc("Rosa García", "member"),
+      }),
+    );
+    await say(db, NO_THANKS, SAT_EARLY);
+    const result = await run(db, SAT);
+    assert.equal(result.processed, 1);
+    assert.deepEqual(globalThis.__rmMail.calls.map((call) => call.to), ["rosa@example.com"]);
+  });
+
+  test("the rule is asked of the document as it is, three ways: in the term, still invited, and unanswered", () => {
+    // Any one of these is enough to stop a reminder, so a reply is caught by
+    // more than one of them. They are read out of the rule so that none can
+    // be dropped without this failing.
+    const source = readFileSync(join(REPO_ROOT, "src", "lib", "applications", "decisionDay", "reminders.ts"), "utf8");
+    assert.match(source, /if \(!isInTerm\(application\)\) return skip\("not-in-term"\);/);
+    assert.match(source, /if \(application\.status !== "invited" \|\| result\?\.kind !== "invited" \|\| !invitation\) \{\s+return skip\("not-invited"\);/);
+    assert.match(source, /if \(invitation\.response !== null\) return skip\("replied"\);/);
+    // And the job asks the rule again on a fresh read, in the transaction that takes the day.
+    const jobSource = readFileSync(join(REPO_ROOT, "src", "lib", "scheduler", "jobs", "applicationInvitationReminders.ts"), "utf8");
+    const inTransaction = jobSource.slice(jobSource.indexOf("runTransaction"));
+    assert.match(inTransaction, /invitationReminderDue\(/, "the day is taken only for somebody still due one");
   });
 });
 
