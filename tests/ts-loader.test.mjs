@@ -744,6 +744,13 @@ const USERS = new Map([
       "helper, both stubbed, and the shared loader is what compiles the TypeScript in-process",
   ],
   [
+    "profile-study-changes.test.mjs",
+    "it executes the function that builds the profile's save of a member's degree and graduation " +
+      "(src/features/profile/studyChange.ts), the users normaliser and the words the admin's page " +
+      "uses for the entries, because what is written in each case and what an admin then reads " +
+      "are decided by the code that runs; nothing is stubbed, the graph is four pure modules",
+  ],
+  [
     "server-date-formatting.test.mjs",
     "it executes `siteTime.ts` and `formatEventWhen` under a process zone that is not London, " +
       "because the promise is what the shipping formatter prints on a UTC container and a copy " +
