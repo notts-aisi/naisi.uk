@@ -42,7 +42,7 @@ export default async function PooledApplicantsPage({
 
   if (!canRunTerm(user)) {
     return (
-      <AdminsOnly what="An admin picks what each pooled applicant hears, once every programme has decided. You can still read and decide your own programme’s applications." />
+      <AdminsOnly roundId={roundId} what="An admin picks what each pooled applicant hears, once every programme has decided. You can still read and decide your own programme’s applications." />
     );
   }
 

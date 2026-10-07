@@ -137,6 +137,7 @@ export default function PoolBoard({ initial }: { initial: Board }) {
 
   return (
     <Page
+      roundId={board.roundId}
       title="Pooled applicants"
       chips={
         <>
