@@ -29,6 +29,11 @@
  *     is walked for callers of the arithmetic, so a new one has to be named
  *     here and held to the same thing.
  *
+ *  4. WHAT WAS SENT IS A RECORD. The decision-day plan keeps the people told
+ *     who have since left beside the term (`left`), and the page that reports
+ *     the send reads everybody it addressed (`everybodyAddressed`), so a
+ *     reply cannot shrink what was sent.
+ *
  * ## What is real and what is stubbed
  *
  * Real: `decisions.ts`, `status/standing.ts`, `review/term.ts`,
@@ -558,6 +563,72 @@ describe("after the replies, every screen counts the same places", () => {
     );
     // Dev is in the incubator, and without his application he is a place still kept.
     assert.deepEqual([blind.programmes[INC].placed, blind.programmes[INC].invited], [0, 2]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// What was sent is a record
+// ---------------------------------------------------------------------------
+
+describe("what was sent is a record, whoever has left since", () => {
+  const term = plan.planTerm(SENT_FORM, REPLIED, DECISIONS);
+  const uids = (people) => people.map((person) => person.uid);
+
+  test("the term is the people still in it, and the people told who have left are kept beside it", () => {
+    assert.deepEqual(uids(term.people), ["amara", "cleo", "dev", "eve", "hana"]);
+    // Ben gave his place back, Finn said no thanks, Gita accepted and then could not make it.
+    assert.deepEqual(uids(term.left), ["ben", "finn", "gita"]);
+    assert.equal(term.tally.applicants, 5, "nobody who left is in a count of the term");
+  });
+
+  test("everybody the send addressed is both, by name, each under what they were told", () => {
+    const everybody = plan.everybodyAddressed(term);
+    assert.deepEqual(uids(everybody), ["amara", "ben", "cleo", "dev", "eve", "finn", "gita", "hana"]);
+    assert.deepEqual(
+      Object.fromEntries(everybody.map((person) => [person.uid, [plan.toldTo(person).kind, plan.toldTo(person).programmeId]])),
+      {
+        amara: ["accepted", AGI],
+        ben: ["accepted", AGI],
+        cleo: ["accepted", AGI],
+        dev: ["invited", INC],
+        eve: ["invited", INC],
+        finn: ["invited", TAIS],
+        gita: ["invited", TAIS],
+        hana: ["no-offer", null],
+      },
+    );
+  });
+
+  test("it is the same list whether or not anybody has replied", () => {
+    const before = plan.everybodyAddressed(plan.planTerm(SENT_FORM, termAt("told"), DECISIONS));
+    const after = plan.everybodyAddressed(term);
+    const told = (people) => people.map((person) => [person.uid, plan.toldTo(person)]);
+    assert.deepEqual(told(after), told(before));
+  });
+
+  test("somebody who left before they were told was never addressed", () => {
+    const early = termAt("decided").map((entry) => (entry.uid === "ben" ? { ...entry, status: "withdrawn" } : entry));
+    const planned = plan.planTerm(formWith(), early, DECISIONS);
+    assert.ok(!uids(planned.people).includes("ben"));
+    assert.deepEqual(planned.left, []);
+    assert.ok(!uids(plan.everybodyAddressed(planned)).includes("ben"));
+  });
+
+  test("before anybody is told there is nobody beside the term", () => {
+    const planned = plan.planTerm(formWith(), termAt("decided"), DECISIONS);
+    assert.deepEqual(planned.left, []);
+    assert.deepEqual(uids(plan.everybodyAddressed(planned)), uids(planned.people));
+  });
+
+  test("nothing that plans reads the people who left", () => {
+    // Who is still to be told, and whose email a press can take up, are of the term.
+    const owedToBen = REPLIED.map((entry) =>
+      entry.uid === "ben" ? { ...entry, result: { ...entry.result, email: "owed", emailedAt: null } } : entry,
+    );
+    const planned = plan.planTerm(SENT_FORM, owedToBen, DECISIONS);
+    assert.deepEqual(uids(plan.unpublished(planned)), []);
+    assert.deepEqual(uids(plan.owedEmails(planned, NOW)), []);
+    assert.equal(planned.left.find((person) => person.uid === "ben").result.email, "owed");
   });
 });
 

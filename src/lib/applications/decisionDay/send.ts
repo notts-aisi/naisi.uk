@@ -36,6 +36,7 @@ import {
   countOf,
   emailCount,
   emailOutcomeFor,
+  everybodyAddressed,
   isInTerm,
   owedBlockers,
   owedEmails,
@@ -177,9 +178,9 @@ function emailFor(
   });
 }
 
-/** The people in one decision-day group, by name: published or about to be. */
-function inGroup(term: Term, kind: Publication["kind"]): TermPerson[] {
-  return term.people.filter((person) => toldTo(person)?.kind === kind);
+/** The people in one decision-day group, in the order given: published or about to be. */
+function inGroup(people: readonly TermPerson[], kind: Publication["kind"]): TermPerson[] {
+  return people.filter((person) => toldTo(person)?.kind === kind);
 }
 
 const GROUP_OF: Record<DecisionEmailKind, Publication["kind"]> = {
@@ -204,8 +205,12 @@ function previewOf(person: TermPerson, email: DecisionEmail): EmailPreview {
   };
 }
 
-function groupOf(context: EmailContext, term: Term, kind: Publication["kind"]): SendGroup {
-  const members = inGroup(term, kind);
+function groupOf(
+  context: EmailContext,
+  people: readonly TermPerson[],
+  kind: Publication["kind"],
+): SendGroup {
+  const members = inGroup(people, kind);
   const first = members[0];
   const told = first ? toldTo(first) : null;
   const email = first && told ? emailFor(context, first, told, false) : null;
@@ -218,13 +223,41 @@ function groupOf(context: EmailContext, term: Term, kind: Publication["kind"]): 
   };
 }
 
-function readinessRows(context: EmailContext, term: Term): ReadinessRow[] {
+/**
+ * How many people were told one thing: "you are in this programme", "you are
+ * invited to it", or (with no programme) "no offer this time". Counted from
+ * the results themselves, which no reply changes.
+ */
+function toldCount(
+  sentTo: readonly TermPerson[],
+  kind: Publication["kind"],
+  programmeId: string | null,
+): number {
+  return sentTo.filter(
+    (person) => person.result?.kind === kind && person.result.programmeId === programmeId,
+  ).length;
+}
+
+/**
+ * The readiness rows. `sentTo` is null until the term is marked as sent, and
+ * each row's detail is then the plan: who holds a place and what is kept for
+ * invitations, as pooled applicants reads them. Once the term is sent it is
+ * everybody the send addressed, and the detail is THE RECORD of what they
+ * were told, which does not move when somebody gives a place back.
+ */
+function readinessRows(
+  context: EmailContext,
+  term: Term,
+  sentTo: readonly TermPerson[] | null,
+): ReadinessRow[] {
   const { form } = context;
   const { tally, readiness } = term;
   const rows: ReadinessRow[] = form.programmeIds.map((programmeId) => {
     const settings = programmeOf(form, programmeId);
     const counted = own(tally.programmes, programmeId);
     const owed = own(readiness.toReview, programmeId) ?? 0;
+    const placed = sentTo ? toldCount(sentTo, "accepted", programmeId) : (counted?.placed ?? 0);
+    const invited = sentTo ? toldCount(sentTo, "invited", programmeId) : (counted?.invited ?? 0);
     return {
       key: programmeId,
       title: settings?.shortName ?? programmeId,
@@ -234,10 +267,14 @@ function readinessRows(context: EmailContext, term: Term): ReadinessRow[] {
         owed === 0
           ? "Every application has a decision"
           : `${countOf(owed, "application still needs", "applications still need")} a decision`,
-      detail: placesDetail(settings?.places ?? null, counted?.placed ?? 0, counted?.invited ?? 0),
+      detail: placesDetail(settings?.places ?? null, placed, invited),
     };
   });
   const waiting = readiness.needsOutcome;
+  const invitations = sentTo
+    ? sentTo.filter((person) => person.result?.kind === "invited").length
+    : tally.outcomes.invited;
+  const noOffers = sentTo ? toldCount(sentTo, "no-offer", null) : tally.outcomes.noOffer;
   rows.push({
     key: "pooled",
     title: "Pooled applicants",
@@ -247,7 +284,7 @@ function readinessRows(context: EmailContext, term: Term): ReadinessRow[] {
       waiting === 0
         ? "Every pooled person has an outcome"
         : `${countOf(waiting, "pooled person still needs", "pooled people still need")} an outcome`,
-    detail: pooledDetail(tally.outcomes.invited, tally.outcomes.noOffer),
+    detail: pooledDetail(invitations, noOffers),
   });
   return rows;
 }
@@ -258,16 +295,25 @@ export async function buildSendBoard(
   now: Date,
 ): Promise<SendBoard> {
   const [{ term }, context] = await Promise.all([loadTerm(db, form), emailContext(db, form)]);
-  const accepted = groupOf(context, term, "accepted");
+  // WHAT THE PAGE REPORTS IS THE SEND: everybody it has told or has still to
+  // tell, each read through what they were told. Somebody who has since given
+  // a place back is still somebody the send told, so they stay in every
+  // number and every list below. What a press can still DO (who is left to
+  // tell, which emails are owed, whose account is waiting) is of the people
+  // in the term, as it always was.
+  const everybody = everybodyAddressed(term);
+  const accepted = groupOf(context, everybody, "accepted");
+  // An account is waiting on the send only while its owner still holds the place.
+  const holding = inGroup(term.people, "accepted").map((person) => ({ uid: person.uid, name: person.name }));
   const [accountRoles, sender, remindsDaily] = await Promise.all([
     loadAccountRoles(
       db,
-      accepted.people.map((person) => person.uid),
+      holding.map((person) => person.uid),
     ),
     loadFirstNames(db, form.decisionsSentByUid ? [form.decisionsSentByUid] : []),
     invitationRemindersArmed(db, now),
   ]);
-  const withRole = (role: string) => accepted.people.filter((person) => accountRoles.get(person.uid) === role);
+  const withRole = (role: string) => holding.filter((person) => accountRoles.get(person.uid) === role);
   const todo = unpublished(term).filter((person) => publicationFor(person.outcome) !== null);
   const listed = (people: readonly TermPerson[]) =>
     people.map((person) => ({ uid: person.uid, name: person.name }));
@@ -278,16 +324,16 @@ export async function buildSendBoard(
     roundId: form.round.id,
     termLabel: form.round.label,
     today: formatRoundDate(now),
-    applied: term.tally.applicants,
-    readiness: readinessRows(context, term),
+    applied: everybody.length,
+    readiness: readinessRows(context, term, form.decisionsSentAt ? everybody : null),
     blockers: sendBlockers({ form, term, now, appUrl: appUrl() }),
     sentOn: form.decisionsSentAt ? formatRoundDate(form.decisionsSentAt) : null,
     sentBy: form.decisionsSentByUid ? (sender.get(form.decisionsSentByUid) ?? null) : null,
-    published: term.people.filter((person) => person.result !== null).length,
+    published: everybody.filter((person) => person.result !== null).length,
     accepted,
-    invited: groupOf(context, term, "invited"),
-    noOffer: groupOf(context, term, "no-offer"),
-    declined: { count: inGroup(term, "declined").length },
+    invited: groupOf(context, everybody, "invited"),
+    noOffer: groupOf(context, everybody, "no-offer"),
+    declined: { count: inGroup(everybody, "declined").length },
     replyBy: context.replyBy,
     remindsDaily,
     accountsWaiting: withRole("pending").length,
@@ -333,7 +379,8 @@ export async function sendTestEmail(
   const form = await loadForm(db, roundId);
   if (!form) return { ok: false, status: 404, error: "There is no application form here." };
   const [{ term }, context] = await Promise.all([loadTerm(db, form), emailContext(db, form)]);
-  const first = inGroup(term, GROUP_OF[kind])[0];
+  // The same first person the page previews: the group as the send addressed it.
+  const first = inGroup(everybodyAddressed(term), GROUP_OF[kind])[0];
   const told = first ? toldTo(first) : null;
   const email = first && told ? emailFor(context, first, told, false) : null;
   if (!email) {

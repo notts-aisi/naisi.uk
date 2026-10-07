@@ -434,6 +434,14 @@ async function census(label) {
         invited: sendBoard.invited.people.map((person) => person.uid).sort(),
         noOffer: sendBoard.noOffer.people.map((person) => person.uid).sort(),
         declined: sendBoard.declined.count,
+        // The readiness rows, by programme: [ready, what it says, its detail].
+        readiness: Object.fromEntries(
+          sendBoard.readiness.map((row) => [
+            PROGRAMMES.find((name) => P[name] === row.key) ?? row.key,
+            [row.ready, row.status, row.detail],
+          ]),
+        ),
+        sentOn: sendBoard.sentOn,
         pending: { people: sendBoard.pending.people, emails: sendBoard.pending.emails },
         owed: sendBoard.owed.people.map((person) => person.uid).sort(),
         accountsWaiting: sendBoard.accountsWaiting,
@@ -446,13 +454,21 @@ async function census(label) {
   // the decision documents the screens above are worked out from.
   const inTerm = applicationDocs().filter((application) => application.sent && application.status !== "withdrawn");
   const places = roundDoc().programmes;
+  // WHAT WAS SENT, from the results themselves: everybody decision day told,
+  // under what it told them, whether or not they have since left the term.
+  const toldSoFar = applicationDocs().filter((application) => application.result);
+  const toldWas = (kind) => toldSoFar.filter((a) => a.result.kind === kind).map((a) => a.uid).sort();
   numbers.recount = {
     inTerm: inTerm.length,
-    accepted: inTerm.filter((a) => a.result?.kind === "accepted").map((a) => a.uid).sort(),
-    invited: inTerm.filter((a) => a.result?.kind === "invited").map((a) => a.uid).sort(),
-    noOffer: inTerm.filter((a) => a.result?.kind === "no-offer").map((a) => a.uid).sort(),
-    declined: inTerm.filter((a) => a.result?.kind === "declined").length,
-    told: inTerm.filter((a) => a.result).length,
+    sent: {
+      // Everybody the send addresses: in the term, or told and since left.
+      addressed: new Set([...inTerm, ...toldSoFar].map((a) => a.uid)).size,
+      told: toldSoFar.length,
+      accepted: toldWas("accepted"),
+      invited: toldWas("invited"),
+      noOffer: toldWas("no-offer"),
+      declined: toldWas("declined").length,
+    },
     // Who is on each programme's list: the people who ranked it, and anybody
     // who joined it by accepting an invitation.
     ranking: Object.fromEntries(
@@ -1676,10 +1692,10 @@ describe("one term, from nothing to settled", () => {
         numbers.send.accepted.length + numbers.send.invited.length + numbers.send.noOffer.length + numbers.send.declined,
         numbers.send.applied,
       );
-      assert.deepEqual(numbers.send.accepted, numbers.recount.accepted);
-      assert.deepEqual(numbers.send.invited, numbers.recount.invited);
-      assert.deepEqual(numbers.send.noOffer, numbers.recount.noOffer);
-      assert.equal(numbers.send.declined, numbers.recount.declined);
+      assert.deepEqual(numbers.send.accepted, numbers.recount.sent.accepted);
+      assert.deepEqual(numbers.send.invited, numbers.recount.sent.invited);
+      assert.deepEqual(numbers.send.noOffer, numbers.recount.sent.noOffer);
+      assert.equal(numbers.send.declined, numbers.recount.sent.declined);
     });
 
     test("once the term is sent no decision changes, and the dates cannot be used to take applications again", () => {
@@ -1868,12 +1884,14 @@ describe("one term, from nothing to settled", () => {
         assert.deepEqual(Object.keys(numbers.term.claudia.work), ["agi"]);
         assert.equal(numbers.term.claudia.pool, null);
         // Decision day.
-        assert.equal(numbers.send.applied, numbers.recount.inTerm);
-        assert.equal(numbers.send.published, numbers.recount.told);
-        assert.deepEqual(numbers.send.accepted, numbers.recount.accepted);
-        assert.deepEqual(numbers.send.invited, numbers.recount.invited);
-        assert.deepEqual(numbers.send.noOffer, numbers.recount.noOffer);
-        assert.equal(numbers.send.declined, numbers.recount.declined);
+        // Decision day reports what was sent, from the results themselves.
+        // Somebody who has left since is still somebody it told.
+        assert.equal(numbers.send.applied, numbers.recount.sent.addressed);
+        assert.equal(numbers.send.published, numbers.recount.sent.told);
+        assert.deepEqual(numbers.send.accepted, numbers.recount.sent.accepted);
+        assert.deepEqual(numbers.send.invited, numbers.recount.sent.invited);
+        assert.deepEqual(numbers.send.noOffer, numbers.recount.sent.noOffer);
+        assert.equal(numbers.send.declined, numbers.recount.sent.declined);
         assert.equal(numbers.term.zach.pool.pooled, numbers.pool.counts.pooled);
         assert.equal(numbers.pool.counts.pooled, numbers.pool.rows.length);
       });
@@ -1999,8 +2017,10 @@ describe("one term, from nothing to settled", () => {
         withdrawn: ["jasmine"],
         byInvitation: [],
       });
-      assert.equal(gaveBack.send.applied, 5);
-      assert.deepEqual(gaveBack.send.accepted, ["amara"]);
+      // The send is a record: six people applied and two were told they are
+      // in, and Jasmine giving her place back changes neither.
+      assert.equal(gaveBack.send.applied, 6);
+      assert.deepEqual(gaveBack.send.accepted, ["amara", "jasmine"]);
 
       const accepted = censusAt("Oliver accepted his invitation");
       assert.deepEqual(accepted.counters, { draft: 1, accepted: 2, invited: 1, "no-offer": 1, declined: 1, withdrawn: 1 });
@@ -2018,8 +2038,30 @@ describe("one term, from nothing to settled", () => {
       assert.deepEqual(noThanks.list.tais.withdrawn, ["abel"]);
       assert.deepEqual(noThanks.list.inc.counts, { all: 1, toReview: 0, accepted: 0, pooled: 1, declined: 0 });
       assert.deepEqual(noThanks.pool.counts, { pooled: 2, invitations: 1, noOffer: 1, needsOutcome: 0 });
-      assert.deepEqual(noThanks.send.invited, ["oliver"]);
-      assert.equal(noThanks.send.applied, 4);
+      assert.deepEqual(noThanks.send.invited, ["abel", "oliver"]);
+      assert.equal(noThanks.send.applied, 6);
+    });
+
+    test("what was sent is a record: the send page says the same thing after every reply, and once the term settles", () => {
+      const sent = censusAt("sent, nothing owed").send;
+      // Six applied. Two were told they are in, two were invited, one got no
+      // offer, and one was declined and not emailed.
+      assert.deepEqual(
+        [sent.applied, sent.published, sent.accepted, sent.invited, sent.noOffer, sent.declined],
+        [6, 6, ["amara", "jasmine"], ["abel", "oliver"], ["hannah"], 1],
+      );
+      assert.deepEqual(sent.readiness, {
+        agi: [true, "Every application has a decision", "2 of 3 places, and 1 invitation"],
+        tais: [true, "Every application has a decision", "0 of 2 places, and 1 invitation"],
+        inc: [true, "Every application has a decision", "0 of 1 places"],
+        pooled: [true, "Every pooled person has an outcome", "2 invitations, 1 no offer"],
+      });
+      assert.ok(sent.sentOn, "the term is marked as sent");
+      for (const label of [...AFTER_EACH_REPLY, "settled"]) {
+        assert.deepEqual(censusAt(label).send, sent, label);
+      }
+      // While the place numbers, which are of today, did move.
+      assert.notDeepEqual(censusAt("Abel said no thanks").pool.programmes, censusAt("sent, nothing owed").pool.programmes);
     });
 
     test("the daily reminder is for an invitation nobody has answered, and stops with the reply", () => {

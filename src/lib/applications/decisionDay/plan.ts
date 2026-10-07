@@ -4,6 +4,7 @@ import { formatRunStartShort } from "@/lib/courses/window";
 import type { AdmissionApplicationStatus } from "@/lib/firestore/admissionApplications";
 import {
   freePlaces,
+  hasBeenTold,
   isInTerm,
   isPooled,
   outcomeFor,
@@ -64,12 +65,23 @@ export type Term = {
   people: TermPerson[];
   tally: TermTally;
   readiness: Readiness;
+  /**
+   * People decision day told who have since left the term: they gave a place
+   * back, or said no thanks to an invitation. By name. They are in no count
+   * of the term and nothing is planned for them. They are kept for one
+   * reader, the record of what was sent ({@link everybodyAddressed}), which
+   * a reply must not be able to change.
+   */
+  left: TermPerson[];
 };
 
 // Who is in the term is the contract's rule, in one place. It is handed on
 // from here because the decision-day modules beside this one ask it of this
 // file.
 export { isInTerm };
+
+const byName = (a: TermPerson, b: TermPerson) =>
+  a.name.localeCompare(b.name, "en") || a.uid.localeCompare(b.uid);
 
 function firstWord(text: string): string {
   return text.trim().split(/\s+/)[0] ?? "";
@@ -88,16 +100,21 @@ export function planTerm(
 ): Term {
   const invitable = new Set(form.programmeIds);
   const people: TermPerson[] = [];
+  const left: TermPerson[] = [];
   /** Each person's own application, for what they were told and have answered. */
   const documents = new Map<string, Sent>();
   for (const application of applications) {
-    if (!isInTerm(application) || !application.sent) continue;
-    documents.set(application.uid, application);
+    if (!application.sent) continue;
+    const inTerm = isInTerm(application);
+    // Out of the term and never told: nothing was planned for them and
+    // nothing was sent to them, so they are in neither list.
+    if (!inTerm && !hasBeenTold(application)) continue;
+    if (inTerm) documents.set(application.uid, application);
     const ranked = rankedProgrammes(form, application.sent).map((programme) => programme.id);
     const decision = decisions.get(application.uid) ?? null;
     const preferred = application.sent.aboutYou.preferredName.trim();
     const name = application.displayName.trim() || preferred || "Unnamed applicant";
-    people.push({
+    (inTerm ? people : left).push({
       uid: application.uid,
       name,
       firstName: firstNameOf(application),
@@ -110,7 +127,8 @@ export function planTerm(
     });
   }
   // By name, then by uid, so two reads of the same term list people the same way.
-  people.sort((a, b) => a.name.localeCompare(b.name, "en") || a.uid.localeCompare(b.uid));
+  people.sort(byName);
+  left.sort(byName);
   const tally = tallyTerm(
     form,
     people.map((person) => ({
@@ -121,7 +139,26 @@ export function planTerm(
       application: documents.get(person.uid),
     })),
   );
-  return { people, tally, readiness: readinessFor(tally) };
+  return { people, tally, readiness: readinessFor(tally), left };
+}
+
+/**
+ * EVERYBODY DECISION DAY HAS TOLD OR HAS STILL TO TELL, by name: the people
+ * in the term, and anybody already told who has since left it.
+ *
+ * WHAT WAS SENT IS A RECORD. A person's `result`, and what became of its
+ * email, are written once by the send and no reply changes them. A reply
+ * does take its owner out of the term, so anything that reports the send
+ * from `term.people` alone shrinks each time somebody gives a place back:
+ * "7 people applied" becomes 5. The page that reports the send therefore
+ * lists and counts from here, and reads each person through {@link toldTo},
+ * where a published result wins.
+ *
+ * Nothing that PLANS reads this: places, readiness, who is still to be told
+ * and which emails a press can take up are all of the people in the term.
+ */
+export function everybodyAddressed(term: Term): TermPerson[] {
+  return [...term.people, ...term.left].sort(byName);
 }
 
 // ---------------------------------------------------------------------------

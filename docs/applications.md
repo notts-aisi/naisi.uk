@@ -250,6 +250,20 @@ The term is marked as sent (`decisionsSentAt`) once everybody has a result. An
 email still owed does not hold that back, and stays listed on the decision-day
 page until it goes.
 
+### What was sent is a record
+
+A person's `result`, and what became of its email, are written once by the
+send and no reply changes them. A reply does take its owner out of the term.
+So the decision-day page reports the send from everybody it addressed
+(`everybodyAddressed()` in `decisionDay/plan.ts`): the people in the term,
+and anybody already told who has since left it (`left` on the plan), each
+read through what they were told (`toldTo()`). "6 people applied" and each
+group's list stay as they were when somebody gives a place back, and once
+the term is marked as sent each readiness row's detail is counted from the
+results too. What a press can still do (who is left to tell, which emails
+are owed, whose account is waiting) is of the people in the term, as is
+every count of places.
+
 ### Once somebody has been told
 
 The send publishes one person at a time and can stop part way: a mail server
