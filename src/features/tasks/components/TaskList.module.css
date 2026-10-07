@@ -1,0 +1,38 @@
+/* TaskList: a column of task cards, each with an optional one-press
+   "Mark done" laid over its top right corner. */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.item {
+  position: relative;
+}
+
+/* A card that carries the button keeps its title row clear of it. TaskCard
+   reads this property; a card with no button gets the whole row. */
+.item:has(.quickComplete) {
+  --task-card-title-inset: 7.25rem;
+}
+
+.quickComplete {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+}
+
+.empty {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* My work is a member's page, so the button a thumb presses is 44px tall
+     here (docs/touch-targets.md). It keeps the dense size on a laptop. */
+  .quickComplete > button {
+    min-height: 2.75rem;
+  }
+}
