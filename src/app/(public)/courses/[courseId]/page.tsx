@@ -128,7 +128,7 @@ export const dynamic = "force-dynamic";
  * difference lives in the TITLE and the DESCRIPTION, which is the part a
  * reader actually reads.
  */
-const OG_IMAGE = "/brand/naisi-lockup.png";
+const OG_IMAGE = "/opengraph-image.png";
 
 /** The one-line pitch under the title, per track, when nothing is authored. */
 const TRACK_BLURB: Record<CourseTrack, string> = {
