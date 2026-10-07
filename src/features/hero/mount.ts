@@ -23,9 +23,9 @@
  *    the hero out on. Change them in both places or the scene and the layout
  *    disagree about the form.
  *  - A drag is held only on the phone and tablet forms, never under reduced
- *    motion, never while the page is zoomed in, never when the hero is taller
- *    than the screen (the words would be out of reach), and never again once
- *    a link or button inside the hero has been pressed.
+ *    motion, never while the page is zoomed in, never when the hero does not
+ *    end on the first screen (the words would be out of reach), and never
+ *    again once a link or button inside the hero has been pressed.
  */
 import { maxWidth } from "@/theme/breakpoints";
 import { startScene, type HeroForm, type SceneHeadline } from "./scene";
@@ -139,11 +139,25 @@ export function mountHero(root: HTMLElement, canvas: HTMLCanvasElement): () => v
 
   // ------------------------------------------------------------- the hold
 
+  /**
+   * Where the hero ends on the page with nothing scrolled. Read from the
+   * layout, so an entrance that is still sliding the page into place does
+   * not count, and a notice above the header (which pushes the hero's foot
+   * off the first screen) does.
+   */
+  function footOnPage(): number {
+    let top = 0;
+    for (let el: HTMLElement | null = root; el; el = el.offsetParent as HTMLElement | null) {
+      top += el.offsetTop || 0;
+    }
+    return top + root.offsetHeight;
+  }
+
   function fitsOneScreen(): boolean {
     // Zoomed in, one finger has to be able to move the page.
     if (zoom && zoom.scale > 1.01) return false;
     const screen = Math.max(win.innerHeight, doc.documentElement.clientHeight);
-    return root.offsetHeight <= screen + 1;
+    return footOnPage() <= screen + 2;
   }
 
   function syncHold() {
@@ -262,8 +276,13 @@ export function mountHero(root: HTMLElement, canvas: HTMLCanvasElement): () => v
   reduced.addEventListener("change", onReducedChange);
   win.addEventListener("resize", syncHold);
   if (zoom) zoom.addEventListener("resize", syncHold);
+  // The hero's own size, and the page's: a notice arriving above the header
+  // moves the hero without resizing it.
   const sizes = typeof win.ResizeObserver === "function" ? new win.ResizeObserver(syncHold) : null;
-  if (sizes) sizes.observe(root);
+  if (sizes) {
+    sizes.observe(root);
+    if (doc.body) sizes.observe(doc.body);
+  }
 
   start();
 
