@@ -1,13 +1,15 @@
 .main {
   flex: 1;
-  /* An identity transform, on purpose. The entrance below ends on exactly
-     this, and until this rule existed every page was left holding it for
-     good. Two things on the pages inside came to lean on that: <main> is its
-     own stacking context, so nothing in a page can paint over the sticky
-     header, and it is the box a fixed-position descendant is placed in.
-     Written down here so a page that arrives in its own HTML, which no
-     longer plays the entrance, behaves like one that did. */
-  transform: translateY(0);
+  /* Its own stacking context, so nothing in a page can paint over the sticky
+     header. By `isolation`, and NEVER by a transform: a transformed element
+     becomes the box its fixed-position descendants are placed in, and then
+     "fixed" means fixed to the page. The spam-check badge on a form is fixed
+     with most of itself past the right edge of the window by design, so
+     inside a transformed <main> its hidden part widens the document and the
+     page scrolls sideways on a phone. The entrance below used to leave an
+     identity transform behind for good, which did exactly that; it ends on
+     `transform: none` now. */
+  isolation: isolate;
 }
 
 /* Animated entrance, for a page reached by a navigation inside the browser
@@ -28,7 +30,9 @@
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    /* Not translateY(0): held by the fill, that would leave <main> a
+       transformed element for good. See .main above. */
+    transform: none;
   }
 }
 
@@ -60,7 +64,7 @@
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: none;
   }
 }
 
