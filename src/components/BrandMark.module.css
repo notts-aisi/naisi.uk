@@ -1,17 +1,50 @@
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--brand-gap, var(--space-3));
   color: var(--color-text);
 }
 
+/* The emblem's own two colours. They belong to the mark, not to the theme:
+   the cyan is the emblem's and is not the live colour. */
 .emblem {
+  --emblem-face: #ffffff;
+  --emblem-echo: #00d4ff;
+
   display: block;
+  flex: none;
+  /* The cyan copy sits just outside the box the emblem is measured by. */
+  overflow: visible;
+  /* img, svg { max-width: 100% } in globals.css must not squeeze the mark. */
+  max-width: none;
 }
+
+.face { fill: var(--emblem-face); }
+.echo { fill: var(--emblem-echo); }
 
 .wordmark {
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: 0.02em;
-  font-size: var(--text-lg);
+  font-size: var(--brand-wordmark-size, var(--text-lg));
+}
+
+/* === The lockup: the full name on three lines === */
+
+.lockup {
+  /* A fifth of the emblem's height, worked out by the component. */
+  gap: var(--brand-gap, var(--brand-lockup-gap, var(--space-3)));
+}
+
+.name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.04;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* Nothing: the mark is sized by its caller at every width. */
 }
