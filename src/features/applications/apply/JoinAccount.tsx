@@ -94,7 +94,7 @@ export default function JoinAccount({
   signInHref: string;
   /** The address a link has just been sent to, when one has. */
   inboxFor: string | null;
-  busy: "google" | "email" | "join" | null;
+  busy: "google" | "session" | "email" | "join" | null;
   error: string | null;
   /** Running as the installed app. See the note at the top. */
   standalone: boolean;

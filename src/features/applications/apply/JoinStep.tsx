@@ -103,7 +103,8 @@ type Props = {
 };
 
 type View = "questions" | "account";
-type Busy = "google" | "email" | "join" | null;
+/** What the step is in the middle of: a sign-in, a check of the session, the email request, or the join request itself. */
+type Busy = "google" | "session" | "email" | "join" | null;
 
 const ACCOUNT_HASH = "#account";
 
@@ -116,7 +117,7 @@ const ASK_AGAIN_MS = 3000;
  */
 const SETTLE_MS = 1500;
 
-const SIGN_IN_AGAIN = "We couldn’t find your sign-in in this browser. Sign in again and you’ll come straight back here.";
+const SIGN_IN_AGAIN = "We couldn’t find your sign-in in this browser. Sign out, then press Continue again.";
 const JOIN_FAILED = "We couldn’t send your join request. What you’ve typed is still here. Try again in a moment.";
 const COLLABORATOR =
   "That account belongs to an external collaborator, and these programmes are for University of Nottingham students and staff. Sign in with a different account to apply.";
@@ -296,7 +297,7 @@ export default function JoinStep({
   // --- sending the join request ----------------------------------------------------
   /**
    * What happens once the server has said what kind of account this is.
-   * Resolves true when the page is on its way somewhere else.
+   * Resolves true when a join request has gone and the page is moving on.
    */
   const finishJoin = useCallback(
     async (kind: AccountKind): Promise<boolean> => {
@@ -306,12 +307,14 @@ export default function JoinStep({
       }
       if (kind === "member") {
         // This account has a join request already, so nothing is sent. The
-        // form opens from their profile.
+        // page is asked for again, and what comes back is the form itself,
+        // opened from their profile.
         forgetAnswers(roundId);
         router.refresh();
-        return true;
+        return false;
       }
       const answers = aboutRef.current;
+      setBusy("join");
       try {
         await completeRegistration(joinRequestFrom(answers));
       } catch (err) {
@@ -403,7 +406,7 @@ export default function JoinStep({
       return;
     }
     joining.current = true;
-    setBusy("join");
+    setBusy("session");
     const kind = await sessionKind();
     const done = typeof kind === "string" ? await finishJoin(kind) : false;
     if (typeof kind !== "string") setError(kind.error);
@@ -455,7 +458,8 @@ export default function JoinStep({
 
   async function leave() {
     if (busy) return;
-    setBusy("join");
+    setError(null);
+    setBusy("session");
     try {
       await signOut();
     } catch (err) {
@@ -467,7 +471,6 @@ export default function JoinStep({
     router.refresh();
   }
 
-  const working = busy === "join" || busy === "google";
   const continueButton = (className: string) => (
     <button
       type="button"
@@ -475,8 +478,10 @@ export default function JoinStep({
       onClick={onContinue}
       disabled={!hydrated || busy !== null || paused}
     >
-      {working ? (
+      {busy === "join" ? (
         <span>Sending your join request…</span>
+      ) : busy === "google" || busy === "session" ? (
+        <span>One moment…</span>
       ) : (
         <>
           <span className={styles.onPhone}>Continue</span>
@@ -610,9 +615,9 @@ export default function JoinStep({
                   <p>{error}</p>
                   {error === SIGN_IN_AGAIN ? (
                     <p>
-                      <Link href={signInHref} className={styles.inlineLink}>
-                        Sign in again
-                      </Link>
+                      <button type="button" className={join.leave} onClick={leave} disabled={busy !== null}>
+                        Sign out
+                      </button>
                     </p>
                   ) : null}
                 </div>

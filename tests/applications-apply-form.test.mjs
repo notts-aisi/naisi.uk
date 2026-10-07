@@ -636,18 +636,18 @@ describe("what an applicant reads", () => {
     const step = codeOf("JoinStep.tsx");
     assert.match(step, /const formUrl = `\/apply\/\$\{encodeURIComponent\(roundId\)\}`;/);
     assert.match(step, /const signInHref = `\/login\?next=\$\{encodeURIComponent\(formUrl\)\}`;/);
-    // Every place the step sends anybody: home, the society's address, the
-    // sign-in page with this form as the place to come back to, and the two
-    // policies the reCAPTCHA line has to link.
+    // Every place the step sends anybody: home, the society's address and the
+    // two policies the reCAPTCHA line has to link. Its second half adds one:
+    // the sign-in page, with this form as the place to come back to.
     const hrefs = (file) => (codeOf(file).match(/href=(?:"[^"]*"|\{[^}]*\})/g) ?? []).sort();
     assert.deepEqual(hrefs("JoinStep.tsx"), [
       'href="/"',
       'href="https://policies.google.com/privacy"',
       'href="https://policies.google.com/terms"',
       'href="mailto:ai-safety@uonsu.com"',
-      "href={signInHref}",
     ]);
     assert.deepEqual([...new Set(hrefs("JoinAccount.tsx"))], ["href={signInHref}"]);
+    assert.match(step, /<JoinAccount\s+signInHref=\{signInHref\}/);
     // Nothing on the step leads to the register page: the step is where
     // somebody joins.
     for (const file of ["JoinStep.tsx", "JoinAccount.tsx"]) {
