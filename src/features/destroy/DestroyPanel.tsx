@@ -117,10 +117,11 @@ const KIND_COPY: Record<DestroyKind, { noun: string; auditPath: string; body: Re
     auditPath: "destroyAudits",
     body: (
       <>
-        Destroying removes the round, its stages, the applications made to it
-        and the reviews of them. It cannot be undone. What the committee keeps
-        about each applicant is written to their member record first, so the
-        record of who applied, for what, and how it went survives this.
+        Destroying removes the round, its stages and question sets, the
+        applications made to it, and the reviews and decisions written about
+        them. It cannot be undone. What the committee keeps about each
+        applicant is written to their member record first, so the record of
+        who applied, for what, and how it went survives this.
       </>
     ),
   },
@@ -179,6 +180,13 @@ const EXTRA_COUNT_COPY: Record<string, { label: string; note?: string }> = {
   round: {
     label: "The round itself",
     note: "The document that held the dates, the stages, the reviewer list and the counters.",
+  },
+  // Reworded off the courses map, whose sentence is about a run's registers.
+  // On this panel the only log lines a destroy reports are the ones an
+  // application form's routes wrote about its decisions.
+  auditRows: {
+    label: "Decision log lines",
+    note: "The log of who decided what on this form: each decision, an acceptance taken back, the outcome picked for a pooled applicant, an exception, and the decision-day send. These lines describe applications this destroy is deleting, so they go with them.",
   },
   // The two retained logs, reworded off the courses map for the reason in the
   // header: their shared notes name a run and a cohort, and neither word means

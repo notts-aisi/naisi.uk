@@ -72,6 +72,18 @@ const NAMES_THE_DECISIONS = new Map([
     "declares the collection's name, once, and holds the committee's reads: one decision " +
       "document by id, and every decision on a form",
   ],
+  [
+    "src/lib/admissions/destroy.ts",
+    "the round destroy, which counts and deletes every decision document on the round it " +
+      "removes: by the round each names, and at each application's id in that application's " +
+      "batch. It reads none of them and returns only counts",
+  ],
+  [
+    "src/lib/firestore/accountDeletion.ts",
+    "the account cascade, which deletes the decision document at each of the deleted " +
+      "account's application ids in the same batch as the application. It writes the name as " +
+      "a literal, as it does every collection it sweeps, and returns only a count",
+  ],
 ]);
 
 const DECISIONS_NAME = /admissionDecisions|DECISIONS_COLLECTION/;
