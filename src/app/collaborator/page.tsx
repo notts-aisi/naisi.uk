@@ -15,6 +15,7 @@ import {
   type CollaboratorDoc,
   type CollaboratorInput,
 } from "@/lib/firestore/collaborators";
+import styles from "./collaborator.module.css";
 
 const STATUS_BADGE: Record<
   CollaboratorDoc["status"],
@@ -126,7 +127,7 @@ export default function CollaboratorAreaPage() {
   if (authLoading || loading) {
     return (
       <Card padding="lg" style={{ width: "100%" }}>
-        <p style={{ color: "var(--color-text-muted)" }}>Loading…</p>
+        <p className={`${styles.para} ${styles.plain}`}>Loading…</p>
       </Card>
     );
   }
@@ -135,21 +136,13 @@ export default function CollaboratorAreaPage() {
   const badge = STATUS_BADGE[status];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
+    <div className={styles.cards}>
       <Card padding="lg" style={{ width: "100%" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "var(--space-3)",
-            flexWrap: "wrap",
-          }}
-        >
-          <h1 style={{ fontSize: "var(--text-2xl)", margin: 0 }}>Your application</h1>
+        <div className={styles.headRow}>
+          <h1 className={styles.title}>Your application</h1>
           <Badge tone={badge.tone}>{badge.label}</Badge>
         </div>
-        <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-3)", marginBottom: 0 }}>
+        <p className={styles.para}>
           {status === "pending" &&
             "Thanks for applying to collaborate with NAISI. The team is reviewing your application, and we'll email you when there's an update. You can refine it below any time."}
           {status === "approved" &&
@@ -158,59 +151,27 @@ export default function CollaboratorAreaPage() {
             "We weren't able to move forward with your application this time. You're welcome to update it below."}
         </p>
         {status === "rejected" && doc?.rejectionReason && (
-          <p
-            style={{
-              marginTop: "var(--space-3)",
-              padding: "var(--space-3)",
-              borderRadius: "var(--radius-md)",
-              background: "var(--color-bg-elevated)",
-              color: "var(--color-text)",
-              fontSize: "var(--text-sm)",
-            }}
-          >
-            {doc.rejectionReason}
-          </p>
+          <p className={styles.reason}>{doc.rejectionReason}</p>
         )}
       </Card>
 
       {verified === false && (
         <Card padding="md" style={{ width: "100%" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "var(--space-3)",
-              flexWrap: "wrap",
-            }}
-          >
-            <span style={{ color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>
+          <div className={styles.noteRow}>
+            <span className={styles.note}>
               Your email isn&apos;t verified yet. Check your inbox for the link we sent.
             </span>
-            <Button variant="secondary" size="sm" onClick={resendVerification}>
+            <Button variant="secondary" onClick={resendVerification}>
               Resend verification
             </Button>
           </div>
-          {verifyNote && (
-            <p style={{ color: "var(--color-text-muted)", fontSize: "var(--text-xs)", marginTop: "var(--space-2)", marginBottom: 0 }}>
-              {verifyNote}
-            </p>
-          )}
+          {verifyNote && <p className={styles.small}>{verifyNote}</p>}
         </Card>
       )}
 
       {verified === true && (
         <Card padding="md" style={{ width: "100%" }}>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "var(--space-2)",
-              color: "var(--color-success)",
-              fontSize: "var(--text-sm)",
-              fontWeight: 500,
-            }}
-          >
+          <span className={styles.verified}>
             <span aria-hidden="true">✓</span> Your email address is verified.
           </span>
         </Card>
@@ -226,7 +187,7 @@ export default function CollaboratorAreaPage() {
             onSubmit={handleSave}
           />
         ) : (
-          <p style={{ color: "var(--color-text-muted)" }}>
+          <p className={`${styles.para} ${styles.plain}`}>
             We couldn&apos;t find your application. If you just signed up, please
             re-open the apply link.
           </p>

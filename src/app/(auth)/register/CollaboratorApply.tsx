@@ -10,6 +10,7 @@ import { Field, Input } from "@/components/ui/Input";
 import SigningIn from "@/components/SigningIn";
 import CollaboratorApplicationForm from "@/components/CollaboratorApplicationForm";
 import VerifyEmailStep from "./VerifyEmailStep";
+import styles from "./registerSignIn.module.css";
 import { signUpWithEmailPassword, startOver } from "@/auth/signInWithEmailPassword";
 import DeleteAccountButton from "@/components/DeleteAccountButton";
 import { signOut } from "@/auth/signInWithGoogle";
@@ -164,9 +165,11 @@ export default function CollaboratorApply() {
   // Resolving the session, or already a collaborator (redirecting) → hold.
   if (authLoading || (user !== null && hasCollabDoc === null) || (user && hasCollabDoc)) {
     return (
-      <Card padding="lg" style={{ width: "100%", maxWidth: "30rem" }}>
-        <p style={{ color: "var(--color-text-muted)" }}>Loading…</p>
-      </Card>
+      <div className={styles.frame}>
+        <Card padding="lg" className={styles.card} style={{ width: "100%" }}>
+          <p className={styles.para}>Loading…</p>
+        </Card>
+      </div>
     );
   }
 
@@ -174,30 +177,30 @@ export default function CollaboratorApply() {
   // account; offer a sign-out (NOT a delete — it's a real account).
   if (user && role) {
     return (
-      <Card padding="lg" style={{ width: "100%", maxWidth: "30rem" }}>
-        <h1 style={{ fontSize: "var(--text-2xl)", marginBottom: "var(--space-2)" }}>
-          You&apos;re signed in as a member
-        </h1>
-        <p style={{ color: "var(--color-text-muted)", marginBottom: "var(--space-5)" }}>
-          You&apos;re signed in as a University of Nottingham member ({user.email}).
-          To apply as an external collaborator, sign out and start again.
-        </p>
-        <Button variant="secondary" onClick={() => void signOut()}>
-          Sign out
-        </Button>
-      </Card>
+      <div className={styles.frame}>
+        <Card padding="lg" className={styles.card} style={{ width: "100%" }}>
+          <h1 className={styles.heading}>You&apos;re signed in as a member</h1>
+          <p className={styles.lede}>
+            You&apos;re signed in as a University of Nottingham member ({user.email}).
+            To apply as an external collaborator, sign out and start again.
+          </p>
+          <Button variant="secondary" onClick={() => void signOut()}>
+            Sign out
+          </Button>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <div style={{ width: "100%", maxWidth: effectiveStep === "application" ? "40rem" : "30rem" }}>
-      <Card padding="lg" style={{ width: "100%" }}>
-        <h1 style={{ fontSize: "var(--text-2xl)", marginBottom: "var(--space-2)" }}>
-          Collaborate with NAISI
-        </h1>
-        <p style={{ color: "var(--color-text-muted)", marginBottom: "var(--space-6)" }}>
+    <div
+      className={`${styles.frame}${effectiveStep === "application" ? ` ${styles.frameWide}` : ""}`}
+    >
+      <Card padding="lg" className={styles.card} style={{ width: "100%" }}>
+        <h1 className={styles.heading}>Collaborate with NAISI</h1>
+        <p className={styles.lede}>
           {effectiveStep === "account"
-            ? "Create an account to apply as an external collaborator — no University of Nottingham email needed."
+            ? "Create an account to apply as an external collaborator. No University of Nottingham email is needed."
             : effectiveStep === "verify-email"
               ? "Verify your email address to continue your application."
               : "Tell us about you and the project you'd like to work on. This should take no more than 30 minutes."}
@@ -205,14 +208,11 @@ export default function CollaboratorApply() {
 
         {effectiveStep === "account" ? (
           <>
-            <form
-              onSubmit={handleCreateAccount}
-              style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}
-            >
+            <form onSubmit={handleCreateAccount} className={styles.authForm}>
               <Field
                 id="collab-email"
                 label="Email"
-                hint="Use a personal email you'll keep — not a university address."
+                hint="Use a personal email you'll keep, not a university address."
               >
                 <Input
                   id="collab-email"
@@ -253,26 +253,15 @@ export default function CollaboratorApply() {
                   required
                 />
               </Field>
-              {accountError && (
-                <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>
-                  {accountError}
-                </p>
-              )}
+              {accountError && <p className={styles.formError}>{accountError}</p>}
               <Button type="submit" fullWidth size="lg" disabled={accountBusy}>
                 {accountBusy ? "Creating account…" : "Create account & continue"}
               </Button>
             </form>
             <SigningIn active={surge} />
-            <p
-              style={{
-                color: "var(--color-text-muted)",
-                fontSize: "var(--text-sm)",
-                marginTop: "var(--space-6)",
-                textAlign: "center",
-              }}
-            >
+            <p className={`${styles.formNote} ${styles.boxNote}`}>
               Already applied?{" "}
-              <Link href="/login" style={{ color: "var(--color-accent)" }}>
+              <Link href="/login" className={styles.inlineLink}>
                 Sign in
               </Link>
             </p>
@@ -287,27 +276,13 @@ export default function CollaboratorApply() {
         ) : (
           <>
             {user && (
-              <p
-                style={{
-                  color: "var(--color-text-subtle)",
-                  fontSize: "var(--text-sm)",
-                  marginBottom: "var(--space-4)",
-                }}
-              >
+              <p className={styles.accountLine}>
                 Signed up as {user.email}. Not you?{" "}
                 <button
                   type="button"
                   onClick={() => void handleStartOver()}
                   disabled={resetBusy}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    padding: 0,
-                    font: "inherit",
-                    color: "var(--color-accent)",
-                    textDecoration: "underline",
-                    cursor: "pointer",
-                  }}
+                  className={styles.inlineAction}
                 >
                   {resetBusy ? "Starting over…" : "Start over with a different email"}
                 </button>
@@ -316,7 +291,7 @@ export default function CollaboratorApply() {
               </p>
             )}
             {applicationsPaused && (
-              <div style={{ marginBottom: "var(--space-4)" }}>
+              <div className={styles.noticeGap}>
                 <SurfacePausedNotice
                   notice={siteNotice}
                   surface="collaboratorApplications"
@@ -332,13 +307,7 @@ export default function CollaboratorApply() {
               externalError={submitError}
               onSubmit={handleSubmitApplication}
               intro={
-                <p
-                  style={{
-                    color: "var(--color-text-subtle)",
-                    fontSize: "var(--text-sm)",
-                    margin: 0,
-                  }}
-                >
+                <p className={styles.formNote}>
                   You can edit this later from your collaborator space.
                 </p>
               }

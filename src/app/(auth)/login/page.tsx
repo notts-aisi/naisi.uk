@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Card from "@/components/ui/Card";
 import AuthEntry from "../AuthEntry";
+import styles from "../register/registerSignIn.module.css";
 
 export default function LoginPage() {
   // useSearchParams (inside AuthEntry) must sit under a Suspense boundary in
@@ -14,8 +15,10 @@ export default function LoginPage() {
 
 function LoginSkeleton() {
   return (
-    <Card padding="lg" style={{ width: "100%", maxWidth: "26rem", minHeight: "14rem" }}>
-      <p style={{ color: "var(--color-text-muted)" }}>Loading…</p>
-    </Card>
+    <div className={styles.frame}>
+      <Card padding="lg" className={styles.card} style={{ width: "100%", minHeight: "14rem" }}>
+        <p className={styles.para}>Loading…</p>
+      </Card>
+    </div>
   );
 }

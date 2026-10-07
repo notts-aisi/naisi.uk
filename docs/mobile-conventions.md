@@ -119,7 +119,7 @@ Viewport-pinned and edge-anchored surfaces own their own insets:
 
 - Root chrome: `PublicHeader` (top, sides), `PublicFooter` (bottom, sides), the `(auth)` shell (top, sides, at every width) and its legal links (bottom), `globals.css` `.container` (sides)
 - `AppShell`: the phone's top bar (top, sides), its bottom bar (bottom, sides), the fixed sidebar (left, bottom), the floating collapse pill (top, right), the main content area (sides; its bottom padding is the bottom bar's height, which already counts the home indicator), the impersonation banner (offset by the top bar's full height)
-- Overlays: `Drawer`, `Dropdown`, `PersonSelector`, `TaskDetailModal`, `SubtaskDetailModal`, `SiteNoticeBanner`, the register sticky action bar
+- Overlays: `Drawer`, `Dropdown`, `PersonSelector`, `TaskDetailModal`, `SubtaskDetailModal`, `SiteNoticeBanner`
 
 ### Things stuck to the bottom of the window
 

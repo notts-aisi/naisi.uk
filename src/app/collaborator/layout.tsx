@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentCollaborator } from "@/lib/firebase/session";
 import { CURRENT_POLICY_VERSION } from "@/lib/legal/policies";
 import CollaboratorTopBar from "./CollaboratorTopBar";
+import styles from "./collaborator.module.css";
 
 /**
  * Limited authed shell for external collaborators. NOT the member `AppShell`
@@ -29,17 +30,10 @@ export default async function CollaboratorLayout({
   }
 
   return (
-    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column" }}>
+    <div className={styles.shell}>
       <CollaboratorTopBar name={collaborator.fullName || collaborator.email || ""} />
-      <main
-        style={{
-          flex: 1,
-          display: "flex",
-          justifyContent: "center",
-          padding: "var(--space-6) var(--space-4)",
-        }}
-      >
-        <div style={{ width: "100%", maxWidth: "44rem" }}>{children}</div>
+      <main className={styles.main}>
+        <div className={styles.column}>{children}</div>
       </main>
     </div>
   );

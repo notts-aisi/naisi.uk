@@ -1,17 +1,19 @@
 /* Desktop-first: the card is a PHONE invitation, so its desktop state is
    simply hidden and the mobile block below turns it on. The platform check
    in InstallCard.tsx already returns null on desktop; this covers tablets
-   and window-resizes in between without a JS viewport check. */
+   and window-resizes in between without a JS viewport check.
+
+   Drawn as a notice: the soft accent ground and its line, with the 10px
+   corner every notice has. The page it sits on spaces it. */
 .card {
   display: none;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  margin-bottom: var(--space-6);
   padding: var(--space-4);
   background: var(--color-accent-soft);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-accent-line);
+  border-radius: var(--radius-row);
 }
 
 .copy {
@@ -19,12 +21,16 @@
 }
 
 .title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-ui);
   font-weight: 600;
-  margin-bottom: var(--space-1);
+  line-height: 1.35;
+  color: var(--color-text);
 }
 
 .detail {
-  color: var(--color-text-muted);
+  margin: 0;
+  color: var(--color-text-body);
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
 }
