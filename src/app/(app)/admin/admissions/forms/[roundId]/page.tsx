@@ -113,7 +113,15 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
               <PencilIcon />
               <span>Application form</span>
             </Link>
-            <NewProgrammeButton roundId={form.id} />
+            {/*
+              Offered until decision day has gone out. After that a new
+              programme could take no applications and would never be
+              decided, so the term's page stops offering one.
+            */}
+            {(lifecycle.stage === "draft" ||
+              lifecycle.stage === "opens-later" ||
+              lifecycle.stage === "open" ||
+              lifecycle.stage === "deciding") && <NewProgrammeButton roundId={form.id} />}
           </div>
         )}
       </header>
