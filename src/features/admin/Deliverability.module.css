@@ -41,6 +41,15 @@
   color: var(--color-text-muted);
 }
 
+.file {
+  overflow-wrap: anywhere;
+}
+
+/* A chip is never broken in the middle of a word by a narrow column. */
+.chip {
+  white-space: nowrap;
+}
+
 .action {
   text-align: right;
   white-space: nowrap;
@@ -66,5 +75,16 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* Each row of the three tables is a card here (AdminTable's stacking),
+     with its facts labelled under its first line. That first line is the
+     address or the kind of file, and has the card's whole width. */
+  .address {
+    font-size: var(--text-ui);
+  }
+  .when {
+    white-space: normal;
+  }
+  .action button {
+    min-height: 2.75rem;
+  }
 }

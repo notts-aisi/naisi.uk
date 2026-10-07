@@ -68,6 +68,17 @@
   color: var(--color-text-body);
 }
 
+/* A chip is never broken in the middle of a word by a narrow column. */
+.chipCell {
+  white-space: nowrap;
+}
+
+/* Named here, outside the media block, so it exists at every width; what it
+   does is in that block. */
+.row {
+  vertical-align: middle;
+}
+
 .actionCell {
   text-align: right;
   white-space: nowrap;
@@ -126,5 +137,40 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* Each sign-up is a card here (AdminTable's stacking), drawn more tightly
+     than labelled rows: the address, when it was made, then its two chips
+     with Delete at their right. The class is doubled so these win over the
+     shared rules whichever stylesheet loads first. */
+  .row.row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .row.row .whoCell {
+    display: block;
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .row.row .dateCell {
+    order: 1;
+    flex: 1 1 100%;
+    white-space: normal;
+  }
+  .row.row .chipCell {
+    order: 2;
+  }
+  .row.row .chipCell::before {
+    content: none;
+  }
+  .row.row .actionCell {
+    order: 3;
+    margin-left: auto;
+  }
+  .actionCell button {
+    min-height: 2.75rem;
+  }
+  .confirm {
+    justify-content: flex-start;
+  }
 }

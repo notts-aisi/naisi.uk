@@ -258,5 +258,27 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* A job's switch and Run now drop under its description and take the
+     card's width: the switch at the left, the button at the right. */
+  .jobActions {
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+  .jobActions button {
+    min-height: 2.75rem;
+  }
+
+  /* The question takes the box's width and its two buttons share a line. */
+  .askActions {
+    flex: 1 1 100%;
+  }
+  .askActions > * {
+    flex: 1 1 auto;
+    min-height: 2.75rem;
+  }
+
+  .markerRow button {
+    flex: 1 1 100%;
+    min-height: 2.75rem;
+  }
 }

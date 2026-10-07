@@ -38,7 +38,7 @@ export default function RegistrationRow({
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <tr>
+    <tr className={styles.row}>
       <td className={styles.whoCell}>
         <span className={styles.email}>{reg.email || "(no email)"}</span>
         <span className={styles.sub}>
@@ -46,10 +46,10 @@ export default function RegistrationRow({
           {reg.sendCount > 1 ? ` · ${reg.sendCount} link sends` : ""}
         </span>
       </td>
-      <td data-label="Route">
+      <td data-label="Route" className={styles.chipCell}>
         <Chip tone={methodMeta.tone}>{methodMeta.label}</Chip>
       </td>
-      <td data-label="Got as far as">
+      <td data-label="Got as far as" className={styles.chipCell}>
         <Chip tone={meta.tone}>{meta.label}</Chip>
       </td>
       <td data-label="Created" className={styles.dateCell}>

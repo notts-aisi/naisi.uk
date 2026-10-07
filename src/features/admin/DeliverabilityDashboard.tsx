@@ -239,7 +239,7 @@ export default function DeliverabilityDashboard({ audience }: { audience?: React
             </p>
           </Card>
         ) : (
-          <AdminTable caption="Recent sends" minWidth="52rem">
+          <AdminTable caption="Recent sends" minWidth="52rem" stackOnPhone>
             <thead>
               <tr>
                 <th scope="col" style={{ width: "22%" }}>
@@ -263,10 +263,12 @@ export default function DeliverabilityDashboard({ audience }: { audience?: React
               {sends.map((s) => (
                 <tr key={s.id}>
                   <td className={styles.address}>{s.to}</td>
-                  <td>{kindBadge(s.kind, s.surface)}</td>
-                  <td>{s.subject}</td>
-                  <td className={styles.when}>{formatDate(s.sentAt)}</td>
-                  <td>{statusBadge(s.status, s.statusReason)}</td>
+                  <td data-label="Kind">{kindBadge(s.kind, s.surface)}</td>
+                  <td data-label="Subject">{s.subject}</td>
+                  <td data-label="Sent" className={styles.when}>
+                    {formatDate(s.sentAt)}
+                  </td>
+                  <td data-label="Status">{statusBadge(s.status, s.statusReason)}</td>
                 </tr>
               ))}
             </tbody>
@@ -287,7 +289,7 @@ export default function DeliverabilityDashboard({ audience }: { audience?: React
             <p className={styles.muted}>No addresses suppressed. The list is healthy.</p>
           </Card>
         ) : (
-          <AdminTable caption="Suppressed addresses" minWidth="44rem">
+          <AdminTable caption="Suppressed addresses" minWidth="44rem" stackOnPhone>
             <thead>
               <tr>
                 <th scope="col" style={{ width: "34%" }}>
@@ -305,15 +307,19 @@ export default function DeliverabilityDashboard({ audience }: { audience?: React
               {suppressions.map((s) => (
                 <tr key={s.id}>
                   <td className={styles.address}>{s.email}</td>
-                  <td>
+                  <td data-label="Reason" className={styles.chip}>
                     {s.reason === "complaint" ? (
                       <Badge tone="warning">Complaint</Badge>
                     ) : (
                       <Badge tone="danger">Bounce</Badge>
                     )}
                   </td>
-                  <td className={styles.detail}>{s.subReason ?? "None given"}</td>
-                  <td className={styles.when}>{formatDate(s.addedAt)}</td>
+                  <td data-label="Detail" className={styles.detail}>
+                    {s.subReason ?? "None given"}
+                  </td>
+                  <td data-label="Added" className={styles.when}>
+                    {formatDate(s.addedAt)}
+                  </td>
                   <td className={styles.action}>
                     <Button
                       size="sm"

@@ -111,5 +111,11 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  .switchGroup {
+    padding: var(--space-3);
+  }
+  /* Save takes the card's width, where a thumb finds it. */
+  .actionsRow > * {
+    flex: 1 1 auto;
+  }
 }

@@ -145,7 +145,7 @@ export default function DeliverabilityExports({
           </Card>
         )
       ) : (
-        <AdminTable caption="Exports" minWidth="52rem">
+        <AdminTable caption="Exports" minWidth="52rem" stackOnPhone>
           <thead>
             <tr>
               <th scope="col">What</th>
@@ -159,13 +159,13 @@ export default function DeliverabilityExports({
           <tbody>
             {rows.map((row) => (
               <tr key={row.id}>
-                <td>
+                <td className={styles.chip}>
                   <Badge tone="neutral">{row.kindLabel}</Badge>
                   {!row.kindKnown && row.kind !== "" && (
                     <span className={styles.unknownKind}>{row.kind}</span>
                   )}
                 </td>
-                <td>
+                <td data-label="Who">
                   {row.actorName || row.actorUid || NOT_RECORDED}
                   {row.viaImpersonation && (
                     <>
@@ -174,10 +174,18 @@ export default function DeliverabilityExports({
                     </>
                   )}
                 </td>
-                <td className={styles.detail}>{formatScope(row.scope)}</td>
-                <td className={styles.when}>{row.rowCount}</td>
-                <td className={styles.address}>{row.filename || NOT_RECORDED}</td>
-                <td className={styles.when}>{formatDate(row.at)}</td>
+                <td data-label="Scope" className={styles.detail}>
+                  {formatScope(row.scope)}
+                </td>
+                <td data-label="People" className={styles.when}>
+                  {row.rowCount}
+                </td>
+                <td data-label="File" className={styles.file}>
+                  {row.filename || NOT_RECORDED}
+                </td>
+                <td data-label="When" className={styles.when}>
+                  {formatDate(row.at)}
+                </td>
               </tr>
             ))}
           </tbody>
