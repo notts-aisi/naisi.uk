@@ -302,7 +302,7 @@ function userDoc(uid, overrides = {}) {
     displayName: `${uid[0].toUpperCase()}${uid.slice(1)} Example`,
     role: "member",
     profile: {
-      preferredName: `${uid[0].toUpperCase()}${uid.slice(1)}`,
+      preferredName: "Amara",
       universityEmail: "ada@nottingham.ac.uk",
       uniEmailVerifiedAt: new Date("2026-09-25T08:00:00Z"),
       status: "undergraduate",
@@ -339,8 +339,22 @@ function fullDraft(overrides = {}) {
 }
 
 let db;
+/** The uid the current test is signed in as. */
+let me = "amara";
+let people = 0;
+/**
+ * A new person for every test. The rate limiter is the real one and counts
+ * per account for as long as this file runs, so a shared uid would have one
+ * test spending another's allowance.
+ */
+function freshUid() {
+  people += 1;
+  return `amara${people}`;
+}
+const nameOf = (uid) => `${uid[0].toUpperCase()}${uid.slice(1)}`;
 
-function world({ uid = "amara", role = "member", roundOverrides = {}, user = {} } = {}) {
+function world({ uid = freshUid(), role = "member", roundOverrides = {}, user = {} } = {}) {
+  me = uid;
   db = new FakeDb();
   db.seed(ROUND_PATH, round(roundOverrides));
   for (const [id, set] of Object.entries(SET_DOCS)) db.seed(`${ROUND_PATH}/questionSets/${id}`, set);
@@ -393,7 +407,7 @@ describe("the applicant's gate", () => {
   });
 
   test("a refused account is a 403 on all three", async () => {
-    signIn("amara", "rejected");
+    signIn(me, "rejected");
     for (const call of [GET, () => PUT({ draft: fullDraft() }), SEND]) {
       const response = await call();
       assert.equal(response.status, 403);
@@ -463,7 +477,7 @@ describe("a form an applicant must not learn exists", () => {
     for (const overrides of [{ status: "draft" }, { archived: true }, { formVersion: 1 }]) {
       world({ roundOverrides: overrides });
       assert.equal(await store.loadVisibleForm(db, ROUND, now), null);
-      assert.equal(await store.loadApplicantView(db, ROUND, "amara", now), null);
+      assert.equal(await store.loadApplicantView(db, ROUND, me, now), null);
     }
   });
 });
@@ -488,10 +502,10 @@ describe("nothing is saved or sent outside the window", () => {
   test("after it closes, by the clock or by an admin moving the round on", async () => {
     for (const overrides of [{ closesAt: new Date("2021-01-01T00:00:00Z") }, { status: "deciding" }, { status: "settled" }]) {
       world({ roundOverrides: overrides });
-      db.seed(appPath("amara"), {
+      db.seed(appPath(me), {
         formVersion: 2,
         roundId: ROUND,
-        uid: "amara",
+        uid: me,
         draft: normalise.normaliseContent(fullDraft(), GRID),
         sent: null,
         status: "draft",
@@ -522,7 +536,7 @@ describe("GET", () => {
     assert.equal(response.body.account.preferredName, "Amara");
     assert.equal(response.body.account.universityEmail, "ada@nottingham.ac.uk");
     assert.deepEqual(db.writes, [], "a read never writes, and opening the form does not start an application");
-    assert.equal(db.data(appPath("amara")), null);
+    assert.equal(db.data(appPath(me)), null);
   });
 
   test("carries nothing about who leads, reviews or scores", async () => {
@@ -537,8 +551,8 @@ describe("GET", () => {
     db.seed("users/ben", userDoc("ben"));
     signIn("ben");
     assert.equal((await GET()).body.application, null);
-    signIn("amara");
-    assert.equal((await GET()).body.application.id, `${ROUND}__amara`);
+    signIn(me);
+    assert.equal((await GET()).body.application.id, `${ROUND}__${me}`);
   });
 });
 
@@ -568,7 +582,7 @@ describe("PUT, the draft save", () => {
     const response = await PUT({ draft: fullDraft() });
     assert.equal(response.status, 200);
     assert.equal(response.body.created, true);
-    const stored = db.data(appPath("amara"));
+    const stored = db.data(appPath(me));
     assert.deepEqual(Object.keys(stored).sort(), [
       "attendance",
       "createdAt",
@@ -590,14 +604,14 @@ describe("PUT, the draft save", () => {
     assert.equal(stored.formVersion, 2);
     assert.equal(stored.status, "draft");
     assert.equal(stored.roundId, ROUND);
-    assert.equal(stored.uid, "amara");
+    assert.equal(stored.uid, me);
     assert.equal(stored.sent, null);
     assert.equal(stored.submittedAt, null);
     assert.ok(stored.createdAt instanceof Date);
     assert.deepEqual(counts(), { draft: 1, submitted: 0 });
     assert.deepEqual(
       db.writes.map((write) => `${write.kind} ${write.path}`),
-      [`create ${appPath("amara")}`, `update ${ROUND_PATH}`],
+      [`create ${appPath(me)}`, `update ${ROUND_PATH}`],
     );
   });
 
@@ -611,10 +625,10 @@ describe("PUT, the draft save", () => {
       sent: fullDraft(),
       result: { kind: "accepted", programmeId: AGI },
     });
-    const stored = db.data(appPath("amara"));
-    assert.equal(stored.email, "amara@example.com");
-    assert.equal(stored.displayName, "Amara Example");
-    assert.equal(stored.uid, "amara");
+    const stored = db.data(appPath(me));
+    assert.equal(stored.email, `${me}@example.com`);
+    assert.equal(stored.displayName, `${nameOf(me)} Example`);
+    assert.equal(stored.uid, me);
     assert.equal(stored.status, "draft");
     assert.equal(stored.sent, null);
     assert.equal(stored.result, null);
@@ -625,7 +639,7 @@ describe("PUT, the draft save", () => {
 
   test("the university email on the draft is the account's", async () => {
     await PUT({ draft: fullDraft() });
-    const about = db.data(appPath("amara")).draft.aboutYou;
+    const about = db.data(appPath(me)).draft.aboutYou;
     assert.equal(about.universityEmail, "ada@nottingham.ac.uk");
     assert.equal(about.universityEmailVerified, true);
   });
@@ -636,20 +650,20 @@ describe("PUT, the draft save", () => {
     const response = await PUT({ draft: fullDraft({ rankedProgrammeIds: [TAIS, AGI], suMembership: "yes" }) });
     assert.equal(response.status, 200);
     assert.equal(response.body.created, false);
-    assert.deepEqual(db.writes, [{ kind: "update", path: appPath("amara"), fields: ["draft", "updatedAt"] }]);
-    assert.deepEqual(db.data(appPath("amara")).draft.rankedProgrammeIds, [TAIS, AGI]);
+    assert.deepEqual(db.writes, [{ kind: "update", path: appPath(me), fields: ["draft", "updatedAt"] }]);
+    assert.deepEqual(db.data(appPath(me)).draft.rankedProgrammeIds, [TAIS, AGI]);
     assert.deepEqual(counts(), { draft: 1, submitted: 0 });
   });
 
   test("a half-written form saves", async () => {
     const response = await PUT({ draft: { rankedProgrammeIds: [AGI] } });
     assert.equal(response.status, 200);
-    assert.deepEqual(db.data(appPath("amara")).draft.answers, {});
+    assert.deepEqual(db.data(appPath(me)).draft.answers, {});
   });
 
   test("a ranking keeps only programmes this form is taking applications for", async () => {
     await PUT({ draft: fullDraft({ rankedProgrammeIds: ["constructor", CLOSED, AGI, "__proto__", "nope", AGI] }) });
-    assert.deepEqual(db.data(appPath("amara")).draft.rankedProgrammeIds, [AGI]);
+    assert.deepEqual(db.data(appPath(me)).draft.rankedProgrammeIds, [AGI]);
   });
 
   test("the answer is the caller's own application, projected", async () => {
@@ -690,7 +704,7 @@ describe("PUT, the draft save", () => {
   test("an application that has been decided cannot be written over", async () => {
     await PUT({ draft: fullDraft() });
     for (const status of ["accepted", "invited", "no-offer", "declined", "withdrawn"]) {
-      db.docs.get(appPath("amara")).status = status;
+      db.docs.get(appPath(me)).status = status;
       db.writes.length = 0;
       const response = await PUT({ draft: fullDraft({ suMembership: "yes" }) });
       assert.equal(response.status, 409, status);
@@ -699,11 +713,11 @@ describe("PUT, the draft save", () => {
   });
 
   test("a document from an older form at the same address is left alone", async () => {
-    db.seed(appPath("amara"), { roundId: ROUND, uid: "amara", status: "draft", stageAnswers: { s1: {} } });
+    db.seed(appPath(me), { roundId: ROUND, uid: me, status: "draft", stageAnswers: { s1: {} } });
     const response = await PUT({ draft: fullDraft() });
     assert.equal(response.status, 409);
     assert.deepEqual(db.writes, []);
-    assert.deepEqual(db.data(appPath("amara")).stageAnswers, { s1: {} });
+    assert.deepEqual(db.data(appPath(me)).stageAnswers, { s1: {} });
   });
 
   test("one account can only save so often", async () => {
@@ -752,7 +766,7 @@ describe("POST, the send", () => {
       assert.ok(issue.message.length > 5);
     }
     assert.deepEqual(db.writes, []);
-    assert.equal(db.data(appPath("amara")).status, "draft");
+    assert.equal(db.data(appPath(me)).status, "draft");
     assert.deepEqual(counts(), { draft: 1, submitted: 0 });
   });
 
@@ -762,7 +776,7 @@ describe("POST, the send", () => {
     const response = await SEND();
     assert.equal(response.status, 200);
     assert.equal(response.body.first, true);
-    const stored = db.data(appPath("amara"));
+    const stored = db.data(appPath(me));
     assert.equal(stored.status, "submitted");
     assert.ok(stored.submittedAt instanceof Date);
     assert.equal(stored.sentAt.getTime(), stored.submittedAt.getTime());
@@ -771,7 +785,7 @@ describe("POST, the send", () => {
     assert.deepEqual(counts(), { draft: 0, submitted: 1 });
     assert.deepEqual(
       db.writes.map((write) => `${write.kind} ${write.path}`),
-      [`update ${appPath("amara")}`, `update ${ROUND_PATH}`],
+      [`update ${appPath(me)}`, `update ${ROUND_PATH}`],
       "the status and its counter land in one transaction",
     );
     assert.equal(response.body.application.status, "submitted");
@@ -781,7 +795,7 @@ describe("POST, the send", () => {
   test("what is sent is the stored draft, held to the form by the same rule the form shows", async () => {
     await PUT({ draft: fullDraft() });
     await SEND();
-    const stored = db.data(appPath("amara"));
+    const stored = db.data(appPath(me));
     const form = normalise.normaliseForm(ROUND, db.data(ROUND_PATH));
     const sets = Object.entries(SET_DOCS).map(([id, set]) => normalise.normaliseQuestionSet(id, set));
     assert.deepEqual(validate.issuesFor(form, sets, normalise.normaliseContent(stored.draft, GRID)), []);
@@ -800,17 +814,17 @@ describe("POST, the send", () => {
       status: "accepted",
       email: "victim@nottingham.ac.uk",
     });
-    const stored = db.data(appPath("amara"));
+    const stored = db.data(appPath(me));
     assert.deepEqual(stored.sent.rankedProgrammeIds, [AGI]);
     assert.equal(stored.status, "submitted");
-    assert.equal(stored.email, "amara@example.com");
+    assert.equal(stored.email, `${me}@example.com`);
   });
 
   test("answers to a programme that was unticked are not sent", async () => {
     await PUT({ draft: fullDraft({ rankedProgrammeIds: [AGI, TAIS] }) });
     await PUT({ draft: fullDraft({ rankedProgrammeIds: [TAIS], answers: { fellowships: { why: "Still this." }, [AGI]: { event: "Left behind." } } }) });
     await SEND();
-    const stored = db.data(appPath("amara"));
+    const stored = db.data(appPath(me));
     assert.deepEqual(Object.keys(stored.sent.answers), ["fellowships"]);
     assert.equal(stored.draft.answers[AGI].event, "Left behind.", "the draft keeps it, in case the programme is ticked again");
   });
@@ -818,54 +832,54 @@ describe("POST, the send", () => {
   test("after a send, a save changes the draft and leaves the sent copy alone", async () => {
     await PUT({ draft: fullDraft() });
     await SEND();
-    const before = db.data(appPath("amara"));
+    const before = db.data(appPath(me));
     db.writes.length = 0;
     const response = await PUT({ draft: fullDraft({ answers: { fellowships: { why: "A better answer." }, [AGI]: { event: "Open weights." } } }) });
     assert.equal(response.status, 200);
-    const after = db.data(appPath("amara"));
+    const after = db.data(appPath(me));
     assert.equal(after.draft.answers.fellowships.why, "A better answer.");
     assert.deepEqual(after.sent, before.sent);
     assert.equal(after.status, "submitted");
     assert.equal(after.sentAt.getTime(), before.sentAt.getTime());
-    assert.deepEqual(db.writes, [{ kind: "update", path: appPath("amara"), fields: ["draft", "updatedAt"] }]);
+    assert.deepEqual(db.writes, [{ kind: "update", path: appPath(me), fields: ["draft", "updatedAt"] }]);
     assert.deepEqual(counts(), { draft: 0, submitted: 1 });
   });
 
   test("sending again replaces the sent copy whole and moves no counter", async () => {
     await PUT({ draft: fullDraft() });
     await SEND();
-    const first = db.data(appPath("amara"));
+    const first = db.data(appPath(me));
     await PUT({ draft: fullDraft({ answers: { fellowships: { why: "A better answer." }, [AGI]: { event: "Open weights." } }, suMembership: "yes" }) });
     db.writes.length = 0;
     const response = await SEND();
     assert.equal(response.status, 200);
     assert.equal(response.body.first, false);
-    const second = db.data(appPath("amara"));
+    const second = db.data(appPath(me));
     assert.equal(second.sent.answers.fellowships.why, "A better answer.");
     assert.equal(second.sent.suMembership, "yes");
     assert.equal(second.status, "submitted");
     assert.equal(second.submittedAt.getTime(), first.submittedAt.getTime(), "the first time they pressed Send is kept");
     assert.ok(second.sentAt.getTime() > first.sentAt.getTime());
-    assert.deepEqual(db.writes.map((write) => write.path), [appPath("amara")], "no counter moves when no status does");
+    assert.deepEqual(db.writes.map((write) => write.path), [appPath(me)], "no counter moves when no status does");
     assert.deepEqual(counts(), { draft: 0, submitted: 1 });
   });
 
   test("a change that breaks the draft cannot unseat the application already sent", async () => {
     await PUT({ draft: fullDraft() });
     await SEND();
-    const good = db.data(appPath("amara")).sent;
+    const good = db.data(appPath(me)).sent;
     await PUT({ draft: fullDraft({ answers: {} }) });
     const response = await SEND();
     assert.equal(response.status, 400);
-    assert.deepEqual(db.data(appPath("amara")).sent, good);
-    assert.equal(db.data(appPath("amara")).status, "submitted");
+    assert.deepEqual(db.data(appPath(me)).sent, good);
+    assert.equal(db.data(appPath(me)).status, "submitted");
   });
 
   test("the university email sent is the account's at the moment of sending", async () => {
     await PUT({ draft: fullDraft() });
-    db.docs.get("users/amara").profile.universityEmail = "someone@nottingham.ac.uk";
+    db.docs.get(`users/${me}`).profile.universityEmail = "someone@nottingham.ac.uk";
     await SEND();
-    assert.equal(db.data(appPath("amara")).sent.aboutYou.universityEmail, "someone@nottingham.ac.uk");
+    assert.equal(db.data(appPath(me)).sent.aboutYou.universityEmail, "someone@nottingham.ac.uk");
     // And an account with no university email cannot send at all.
     world({ uid: "nomail", user: { profile: { preferredName: "No", status: "undergraduate", subject: "x", expectedGraduation: "2028-07", motivation: "y" } } });
     await PUT({ draft: fullDraft() });
@@ -884,12 +898,12 @@ describe("POST, the send", () => {
         (issue) => issue.step === "choose" && issue.message === "Technical AI Safety is not taking applications. Untick it to carry on.",
       ),
     );
-    assert.equal(db.data(appPath("amara")).status, "draft");
+    assert.equal(db.data(appPath(me)).status, "draft");
   });
 
   test("a stored draft is cleaned before it is held to the form, whoever wrote it", async () => {
     await PUT({ draft: fullDraft() });
-    const stored = db.docs.get(appPath("amara"));
+    const stored = db.docs.get(appPath(me));
     stored.draft.rankedProgrammeIds = ["constructor", AGI, "nope"];
     stored.draft.aboutYou.status = "constructor";
     stored.draft.answers.invented = { why: "x" };
@@ -898,7 +912,7 @@ describe("POST, the send", () => {
     assert.ok(refused.body.issues.some((issue) => issue.message === "Tell us what you do at UoN."));
     stored.draft.aboutYou.status = "undergraduate";
     assert.equal((await SEND()).status, 200);
-    const sent = db.data(appPath("amara")).sent;
+    const sent = db.data(appPath(me)).sent;
     assert.deepEqual(sent.rankedProgrammeIds, [AGI]);
     assert.deepEqual(Object.keys(sent.answers).sort(), [AGI, "fellowships"].sort());
   });
@@ -911,9 +925,9 @@ describe("POST, the send", () => {
     assert.equal(paused.status, 503);
     assert.equal(paused.body.error, siteNotice.DEFAULT_PAUSED_MESSAGE);
     db.docs.delete(NOTICE_PATH);
-    db.docs.get(appPath("amara")).status = "accepted";
+    db.docs.get(appPath(me)).status = "accepted";
     assert.equal((await SEND()).status, 409);
-    db.seed(appPath("amara"), { roundId: ROUND, uid: "amara", status: "draft" });
+    db.seed(appPath(me), { roundId: ROUND, uid: me, status: "draft" });
     assert.equal((await SEND()).status, 409);
     assert.deepEqual(db.writes, []);
   });
