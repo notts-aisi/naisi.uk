@@ -143,6 +143,11 @@ const WIDE_ROUTES: ((pathname: string) => boolean)[] = [
   (pathname) => pathname === "/committee/tasks",
   (pathname) =>
     /^\/admin\/courses\/[^/]+\/runs\/[^/]+\/allocation$/.test(pathname),
+  // The application form's own pages: the list of forms, a term's
+  // programmes, the form editor and each programme's pages. They are drawn
+  // for a wider page than the default cap gives, and each stays inside
+  // whatever width it is handed, so nothing under here scrolls sideways.
+  (pathname) => pathname.startsWith("/admin/admissions/forms"),
 ];
 
 function isWideRoute(pathname: string): boolean {

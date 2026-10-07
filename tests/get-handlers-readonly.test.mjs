@@ -53,6 +53,17 @@ const MUTATION_HELPERS = {
   // trigger: a GET that mails a NAISI-signed message from the sending domain on
   // a machine's fetch is the same hazard class as a GET that writes.
   sendEmail: "sends email from the NAISI domain, a side effect a prefetch must not fire",
+  // The application form's editor. Four of its route files hold a GET beside
+  // the handler that writes, and every write is made by a helper in
+  // `src/lib/applications/editor/write.ts` or by the roles writer, so the scan
+  // of a GET's own body would see nothing if one of them were called there.
+  createForm: "makes an application form and its first question set",
+  changeForm: "changes an application form's name, dates and programme order, and adds a programme",
+  createSet: "adds a question set to an application form",
+  changeSet: "rewrites the questions in one question set",
+  deleteSet: "deletes a question set and takes it out of the form's order",
+  changeProgramme: "changes one programme's settings and the wording of its emails",
+  setProgrammeRoles: "names a programme's lead and reviewers, which grants access to applications",
 };
 
 /**

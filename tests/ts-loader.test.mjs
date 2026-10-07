@@ -266,6 +266,20 @@ const USERS = new Map([
       "by the code that runs and not by its comments",
   ],
   [
+    "applications-editor-routes.test.mjs",
+    "executes the six route files under src/app/api/admissions/forms against an in-memory " +
+      "Firestore as every kind of caller, with the real access predicates, the real roles " +
+      "writer and the real eligibility bar underneath, because who may edit a form and when " +
+      "its questions lock are decided by the code that runs",
+  ],
+  [
+    "applications-editor-rules.test.mjs",
+    "executes the pure modules under src/lib/applications/editor (the lock, id minting, who " +
+      "sees a set, every request body, the three projections) against the autumn form the " +
+      "design was drawn for, because the sentences and the field lists are only right if " +
+      "running them says so",
+  ],
+  [
     "applications-own-keys.test.mjs",
     "executes every exported function of every module under src/lib/applications against " +
       "each name Object.prototype carries, with the real eligibility bar and the real roles " +

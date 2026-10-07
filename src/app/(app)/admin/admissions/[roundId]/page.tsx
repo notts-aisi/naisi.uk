@@ -1,7 +1,8 @@
 import ApplicationFormStaffNotice from "@/features/admissions/ApplicationFormStaffNotice";
 import RoundEditor from "@/features/admissions/RoundEditor";
 import { ROUNDS_COLLECTION, canSeeRound } from "@/lib/admissions/roundRoutes";
-import { isApplicationForm } from "@/lib/applications/normalise";
+import { canSeeForm } from "@/lib/applications/access";
+import { isApplicationForm, normaliseFormFields } from "@/lib/applications/normalise";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -32,6 +33,11 @@ import { normalizeAdmissionRound } from "@/lib/firestore/admissionRounds";
  * place: the form's name, where a form is edited, and the danger zone for an
  * admin, because destroying is the one thing the two kinds share. Nothing else
  * of the older editor renders. See `src/lib/admissions/formFence.ts`.
+ *
+ * The notice also links to the form's own pages, for the people those pages
+ * admit: an admin, and anybody the form names as a lead or a reviewer.
+ * Somebody who sees this round for another reason is not offered a link to a
+ * page that would tell them there is no form there.
  */
 export default async function RoundPage({
   params,
@@ -49,6 +55,7 @@ export default async function RoundPage({
         label={form.label}
         academicYear={form.academicYear}
         isAdmin={isAdmin}
+        canOpen={form.canOpen}
       />
     );
   }
@@ -74,7 +81,7 @@ export default async function RoundPage({
 async function applicationFormHere(
   user: SessionUser,
   roundId: string,
-): Promise<{ label: string; academicYear: string } | null> {
+): Promise<{ label: string; academicYear: string; canOpen: boolean } | null> {
   const db = getAdminDb();
   if (!db) return null;
   try {
@@ -82,7 +89,13 @@ async function applicationFormHere(
     if (!snap.exists || !isApplicationForm(snap.data())) return null;
     const round = normalizeAdmissionRound(snap.id, snap.data() ?? {});
     if (!canSeeRound(user, round)) return null;
-    return { label: round.label, academicYear: round.academicYear };
+    return {
+      label: round.label,
+      academicYear: round.academicYear,
+      // The same question the form's own pages ask before they draw anything,
+      // asked of the stored document.
+      canOpen: canSeeForm(user, normaliseFormFields(snap.data())),
+    };
   } catch (err) {
     console.error("[admissions round page] could not read the round", roundId, err);
     return null;

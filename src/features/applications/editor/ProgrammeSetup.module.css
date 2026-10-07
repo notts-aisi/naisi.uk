@@ -1,0 +1,361 @@
+/*
+  One programme's Settings tab: what applicants are shown, then what stays
+  with the committee (its questions, who reads its applications, its emails),
+  and the one careful action at the foot.
+*/
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: calc(-1 * var(--space-2));
+}
+.introText {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text);
+}
+
+.cardBody {
+  margin-top: 18px;
+}
+
+/* --- basics ------------------------------------------------------------- */
+
+.basics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+.basicsName {
+  flex: 1 1 17.5rem;
+  min-width: 0;
+}
+.basicsPitch {
+  flex: 2.2 1 20rem;
+  min-width: 0;
+}
+/* The two names applicants see that are not the full name. */
+.basicsSecond {
+  margin-top: var(--space-3);
+}
+.basicsMore {
+  flex: 1 1 15rem;
+  min-width: 0;
+}
+
+/* --- dates and places --------------------------------------------------- */
+
+.datesLine {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text);
+}
+.datesLine strong {
+  font-weight: 600;
+}
+.datesLine a,
+.link {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.datesLine a:hover,
+.link:hover {
+  color: var(--color-text);
+}
+.datesIcon {
+  flex: none;
+  margin-top: 1px;
+}
+.trio {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(13.75rem, 100%), 1fr));
+  gap: var(--space-4);
+}
+/* "Across 4 groups": a sentence with one number in it that can be typed. */
+.across {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+.acrossInput {
+  width: 3.25rem;
+  min-height: 28px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-bottom-color: var(--color-border-strong);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 13px;
+  text-align: center;
+}
+.acrossInput:hover,
+.acrossInput:focus {
+  border-color: var(--color-border-strong);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+.acrossInput:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--focus-ring);
+}
+
+.divider {
+  margin-top: var(--space-3);
+}
+
+/* --- questions ---------------------------------------------------------- */
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  list-style: none;
+}
+.summaryRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  min-height: 52px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+.summaryName {
+  flex: 1 1 16.25rem;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.summarySide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+.openForm {
+  margin-top: var(--space-3);
+}
+
+/* --- reviewing ---------------------------------------------------------- */
+
+.people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 48px;
+}
+.peopleGroup {
+  min-width: 0;
+}
+.peopleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.person {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 0 14px 0 6px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg);
+}
+.personRemovable {
+  padding-right: 6px;
+}
+.personName {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+.personYou {
+  color: var(--color-text-muted);
+}
+.personNobody {
+  padding-left: 14px;
+  color: var(--color-text-muted);
+  font-size: 15px;
+}
+.personRemove {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.personRemove:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+.personRemove:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.peopleNote {
+  margin-top: var(--space-2);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.scores {
+  max-width: 35rem;
+  margin-top: 14px;
+}
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr));
+  gap: var(--space-3);
+  margin-top: 14px;
+}
+.fact {
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+.factTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.factWho {
+  margin-top: 2px;
+  font-size: 14px;
+  color: var(--color-accent-text);
+  overflow-wrap: anywhere;
+}
+.factText {
+  margin-top: var(--space-2);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* --- emails ------------------------------------------------------------- */
+
+.emails {
+  margin-top: 18px;
+  list-style: none;
+}
+.email {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  padding: 14px 0;
+  border-top: 1px solid var(--color-border);
+}
+.emailMain {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+.emailTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.emailLine {
+  margin-top: 2px;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+.emailActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.emailsNote {
+  margin-top: var(--space-3);
+}
+
+/* --- careful ------------------------------------------------------------ */
+
+.careful {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+  padding: 22px 24px;
+  border-color: color-mix(in srgb, var(--ed-ink-careful) 35%, transparent);
+}
+.carefulMain {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+
+.wordingBody {
+  min-height: 12rem;
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .stack {
+    gap: var(--space-4);
+  }
+  .people {
+    gap: var(--space-4);
+  }
+  /* The number in "Across 4 groups" becomes a control a thumb can hit. */
+  .acrossInput {
+    min-height: 44px;
+    border-color: var(--color-border-strong);
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+  .personRemove {
+    width: 40px;
+    height: 40px;
+  }
+  .person {
+    min-height: 44px;
+  }
+  .careful {
+    padding: var(--space-4);
+  }
+  .emailActions {
+    width: 100%;
+  }
+  .emailActions > * {
+    flex: 1 1 auto;
+  }
+}

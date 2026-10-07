@@ -15,6 +15,8 @@ import {
   type AdmissionRoundStatus,
 } from "@/lib/firestore/admissionRounds";
 import { formatRoundDeadline } from "@/lib/admissions/window";
+import { applicationFormPath } from "@/lib/applications/editor/olderRounds";
+import { fetchApplicationFormIds } from "@/features/applications/editor/editorClient";
 import { createRound, fetchRounds, type Round } from "./roundClient";
 import styles from "./RoundList.module.css";
 
@@ -40,6 +42,9 @@ const STATUS_TONE: Record<AdmissionRoundStatus, "neutral" | "accent" | "success"
  */
 export default function RoundList() {
   const [rounds, setRounds] = useState<Round[]>([]);
+  // Rounds that are application forms. Those are edited in the application
+  // form's own screens, never in this console, so their rows link there.
+  const [formIds, setFormIds] = useState<Set<string>>(new Set());
   const [canAuthor, setCanAuthor] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,10 +67,11 @@ export default function RoundList() {
    */
   const load = useCallback(
     (isCancelled: () => boolean = () => false) =>
-      fetchRounds()
-        .then((data) => {
+      Promise.all([fetchRounds(), fetchApplicationFormIds()])
+        .then(([data, forms]) => {
           if (isCancelled()) return;
           setRounds(data.rounds);
+          setFormIds(forms);
           setCanAuthor(data.canAuthor);
           setError(null);
         })
@@ -111,6 +117,13 @@ export default function RoundList() {
         answer in, the criteria they are scored against and the runs they can be
         placed on. One round can feed several courses, so an incubator applicant
         can be offered a fellowship place without applying twice.
+      </p>
+
+      {/* The term's application form has screens of its own. Everybody this
+          page admits is admitted there too, and is listed the forms they work
+          on, so the link never leads to a page that turns them away. */}
+      <p className={styles.intro}>
+        <Link href="/admin/admissions/forms">Application forms</Link>
       </p>
 
       {canAuthor && (
@@ -185,13 +198,18 @@ export default function RoundList() {
         {rounds.map((round) => (
           <li key={round.id}>
             <Link
-              href={`/admin/admissions/${round.id}`}
+              href={
+                formIds.has(round.id)
+                  ? applicationFormPath(round.id)
+                  : `/admin/admissions/${round.id}`
+              }
               className={styles.row}
               data-testid="rounds-row"
             >
               <span className={styles.rowMain}>
                 <span className={styles.rowTitle}>
                   <span className={styles.name}>{round.label}</span>
+                  {formIds.has(round.id) && <Badge tone="accent">Application form</Badge>}
                   <Badge tone={STATUS_TONE[round.status]}>
                     {ADMISSION_ROUND_STATUS_LABEL[round.status]}
                   </Badge>

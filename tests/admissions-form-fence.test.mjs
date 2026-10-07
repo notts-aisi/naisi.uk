@@ -265,6 +265,33 @@ const ROUND_SURFACES = {
         "and the queue's join of every applicant's details is never read for one",
     },
   },
+  "/(app)/admin/admissions/forms/[roundId]": {
+    kind: "form",
+    why:
+      "one term's programmes, for anybody with a role on the form. It reaches the round only " +
+      "through loadFormForStaff, which starts from the form's own loader and answers null for " +
+      "a round that is not a form, and the page then says there is no application form here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/form": {
+    kind: "form",
+    why:
+      "the application form's editor, an admin's. The round comes from loadFormForStaff and " +
+      "the question sets from the form's own repository, so a round of the older kind renders " +
+      "the same 'no application form here' as one that does not exist",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/layout.tsx": {
+    kind: "form",
+    why:
+      "the header and tab strip over one programme's pages. It loads the programme through " +
+      "loadProgrammeForStaff, which starts from the form's own loader, so a round of the " +
+      "older kind has no programme here to draw",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/setup": {
+    kind: "form",
+    why:
+      "one programme's settings, for its lead and for admins. It loads through loadSetup, " +
+      "which starts from the form's own loader and finds nothing for a round that is not a form",
+  },
   "/(public)/applications/[roundId]": {
     kind: "older",
     page: {
@@ -288,6 +315,39 @@ const ROUND_SURFACES = {
         "returns the applicant notice. The form itself is to be served at this address, and " +
         "this entry becomes `both` when it is",
     },
+  },
+  "/api/admissions/forms/[roundId]": {
+    kind: "form",
+    why:
+      "reads and changes the form itself: its name, its dates, the order of its programmes, a " +
+      "new programme. The GET loads through loadFormForStaff and the PATCH writes through " +
+      "changeForm, whose transaction reads the round and stops unless it is a form",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
+    kind: "form",
+    why:
+      "reads and changes one programme's settings. It loads through loadSetup and writes " +
+      "through changeProgramme, and both stop at a round that is not a form before anything " +
+      "is read as a programme",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/roles": {
+    kind: "form",
+    why:
+      "names a programme's lead and reviewers through setProgrammeRoles, the one writer, " +
+      "which asks whether the round is a form before its transaction and again inside it",
+  },
+  "/api/admissions/forms/[roundId]/sets": {
+    kind: "form",
+    why:
+      "lists the form's question sets for the editor and adds one. It loads through loadEditor " +
+      "and writes through createSet, whose transaction stops unless the round is a form",
+  },
+  "/api/admissions/forms/[roundId]/sets/[setId]": {
+    kind: "form",
+    why:
+      "edits and deletes one question set through changeSet and deleteSet. Each reads the " +
+      "round inside its transaction and stops unless it is a form, so a question set is never " +
+      "written under a round of the older kind",
   },
   "/api/admissions/rounds/[roundId]": {
     kind: "older",
@@ -482,6 +542,23 @@ function importsFrom(scope, name, from) {
   return scope.imports.get(name) === from;
 }
 
+/** The contract module that defines the question, as a path in the repository. */
+const NORMALISE_FILE = "src/lib/applications/normalise";
+
+/**
+ * Does the file at `path` import the contract's own `isApplicationForm`? By
+ * the alias, or by a relative path that RESOLVES to the contract's module
+ * from where the file sits: `./normalise` beside it, `../normalise` from a
+ * folder under it. A relative path is resolved and not matched by its
+ * spelling, so a `./normalise` in some other folder is not the contract's.
+ */
+function importsTheQuestion(path, scope) {
+  const from = scope.imports.get("isApplicationForm");
+  if (from === NORMALISE_MODULE) return true;
+  if (typeof from !== "string" || !from.startsWith(".")) return false;
+  return rel(join(dirname(path), from)) === NORMALISE_FILE;
+}
+
 /**
  * What is wrong with one `older` route handler, as sentences. Empty means the
  * handler is fenced the way its entry says. Pure, so section 5 can hand it
@@ -606,7 +683,7 @@ describe("every route, page and layout with a round id in its address", () => {
 
   test("the walk finds them", () => {
     assert.ok(
-      surfaces.length >= 17,
+      surfaces.length >= 26,
       `only ${surfaces.length} files with a [roundId] segment were found: the trees have moved`,
     );
   });
@@ -841,6 +918,30 @@ const ROUND_READERS = new Map([
     },
   ],
   [
+    "src/lib/applications/editor/load.ts",
+    {
+      kind: "form",
+      asks: 1,
+      proof: ['.where("formVersion", "==", FORM_VERSION)', "loadForm(db, roundId)"],
+      why:
+        "the editor's loaders. One form is loaded through the form's own loader, which answers " +
+        "null for a round that is not a form. The list of forms asks the database for forms " +
+        "only, and asks each stored document the question again before it reads it as one",
+    },
+  ],
+  [
+    "src/lib/applications/editor/write.ts",
+    {
+      kind: "form",
+      asks: 1,
+      proof: ["formVersion: FORM_VERSION", "await readForm(tx, db, roundId)"],
+      why:
+        "every write the editor makes. A new form is created as a form. Every other write is a " +
+        "transaction that reads the round through one reader, which asks, and stops before it " +
+        "writes anything when the round is not a form",
+    },
+  ],
+  [
     "src/lib/applications/normalise.ts",
     {
       kind: "form",
@@ -970,8 +1071,7 @@ describe("everything else that can address a round", () => {
         );
         if (entry.asks > 0 && definitions === 0) {
           assert.ok(
-            importsFrom(scope, "isApplicationForm", NORMALISE_MODULE) ||
-              importsFrom(scope, "isApplicationForm", "./normalise"),
+            importsTheQuestion(path, scope),
             "it asks a question of its own instead of the contract's isApplicationForm",
           );
         }
@@ -1025,6 +1125,13 @@ const CLONE_MENTIONS = new Map([
     {
       proof: "clonedFromRoundId: null",
       why: "the one writer, and it writes null: a new round is made from a name, with no source",
+    },
+  ],
+  [
+    "src/lib/applications/editor/write.ts",
+    {
+      proof: "clonedFromRoundId: null",
+      why: "makes a new application form from a name and writes null: a form has no source either, and the create reads no round",
     },
   ],
   [
@@ -1185,6 +1292,16 @@ describe("the loaders an older surface may reach a round through", () => {
       "the editor is drawn before the notice",
     );
     assert.ok(at(bare, "requireAdmissionsPage(") < at(bare, "applicationFormHere("), "the gate has to run before the round is read");
+    // The link to the form's own pages is decided here, with the question
+    // those pages ask of a caller, of the stored document, and only once the
+    // caller is known to be somebody who may see the round.
+    assert.ok(importsFrom(reading.scope, "canSeeForm", "@/lib/applications/access"));
+    assert.match(body, /canOpen:\s*canSeeForm\s*\(\s*user\s*,\s*normaliseFormFields\s*\(\s*snap\.data\s*\(\s*\)\s*\)\s*\)/);
+    assert.ok(
+      at(body, /!canSeeRound\s*\(/) < at(body, /\bcanSeeForm\s*\(/),
+      "the page works out who may open the form before it knows the caller may see the round",
+    );
+    assert.match(bare, /<ApplicationFormStaffNotice\b[^>]*\bcanOpen=\{form\.canOpen\}/);
   });
 
   test("the staff notice keeps the danger zone, for an admin, and nothing else of the editor", () => {
@@ -1195,6 +1312,11 @@ describe("the loaders an older surface may reach a round through", () => {
     for (const older of ["RoundEditor", "StagesSection", "patchRound", "setRoundStatus", "setRoundRoles"]) {
       assert.ok(!new RegExp(String.raw`\b${older}\b`).test(notice.bare), `the notice reaches for ${older}`);
     }
+    // The one way on from the notice is the form's own pages, and it is drawn
+    // only when the page says this caller is somebody they open for.
+    assert.ok(importsFrom(notice.scope, "applicationFormPath", "@/lib/applications/editor/olderRounds"));
+    assert.match(notice.bare, /\{\s*canOpen\s*&&\s*\(\s*<p\b[^>]*>\s*<Link href=\{applicationFormPath\(roundId\)\}>/);
+    assert.equal(countOf(notice.bare, /<Link\b/), 2, "the notice has grown a link this test does not know about");
     const zone = read(join(SRC, "features", "admissions", "ApplicationFormDangerZone.tsx"));
     assert.match(zone.kept, /kind="admission-round"/);
     assert.ok(importsFrom(zone.scope, "DestroyPanel", "@/features/destroy/DestroyPanel"));
@@ -1349,6 +1471,22 @@ describe("the checks catch what they are for", () => {
       formProblems(reading(`import { NextResponse } from "next/server";`)).join(" "),
       /imports nothing from the application form's own code/,
     );
+  });
+
+  test("the contract's question is told from one of the same name, wherever the file sits", () => {
+    const asking = (from) => ({ imports: new Map([["isApplicationForm", from]]), locals: new Map() });
+    const inRepo = (file) => join(REPO_ROOT, ...file.split("/"));
+    // The contract's own module, reached by the alias, from beside it and
+    // from a folder under it.
+    assert.ok(importsTheQuestion(inRepo("src/lib/scheduler/jobs/x.ts"), asking(NORMALISE_MODULE)));
+    assert.ok(importsTheQuestion(inRepo("src/lib/applications/repo.ts"), asking("./normalise")));
+    assert.ok(importsTheQuestion(inRepo("src/lib/applications/editor/write.ts"), asking("../normalise")));
+    // The same spelling from somewhere it does not lead to the contract.
+    assert.ok(!importsTheQuestion(inRepo("src/lib/admissions/x.ts"), asking("./normalise")));
+    assert.ok(!importsTheQuestion(inRepo("src/lib/applications/repo.ts"), asking("../normalise")));
+    assert.ok(!importsTheQuestion(inRepo("src/lib/applications/editor/write.ts"), asking("./normalise")));
+    assert.ok(!importsTheQuestion(inRepo("src/lib/applications/editor/write.ts"), asking("@/lib/mine/normalise")));
+    assert.ok(!importsTheQuestion(inRepo("src/lib/applications/editor/write.ts"), { imports: new Map(), locals: new Map() }));
   });
 
   test("the scan for what addresses a round reads code and not prose", () => {
@@ -2069,21 +2207,36 @@ describe("what the older pages return for an application form", () => {
     const { default: ApplicationFormStaffNotice } = await notices.loadTs("features/admissions/ApplicationFormStaffNotice.tsx");
     const props = { roundId: FORM_ID, label: "Autumn 2026", academicYear: "2026/27" };
 
-    const admin = render(ApplicationFormStaffNotice, { ...props, isAdmin: true });
+    const hrefs = (html) => [...html.matchAll(/href="([^"]*)"/g)].map((match) => match[1]);
+    const OWN_PAGES = `/admin/admissions/forms/${FORM_ID}`;
+
+    const admin = render(ApplicationFormStaffNotice, { ...props, isAdmin: true, canOpen: true });
     assert.match(admin, /<h1[^>]*>Autumn 2026<\/h1>/);
     assert.ok(admin.includes(`<p style="margin:0">${fence.EDITED_IN_THE_APPLICATION_FORM}</p>`), admin);
     assert.match(admin, /<a href="\/admin\/admissions">/);
+    assert.ok(admin.includes(`<a href="${OWN_PAGES}">Open the application form</a>`), admin);
     assert.ok(
       admin.includes(`<div data-danger-zone="${FORM_ID}" data-label="Autumn 2026" data-subtitle="Application form · 2026/27"></div>`),
       admin,
     );
 
-    const reviewer = render(ApplicationFormStaffNotice, { ...props, isAdmin: false });
+    const reviewer = render(ApplicationFormStaffNotice, { ...props, isAdmin: false, canOpen: true });
     assert.ok(reviewer.includes(fence.EDITED_IN_THE_APPLICATION_FORM));
     assert.ok(!reviewer.includes("data-danger-zone"), "somebody who is not an admin was drawn the danger zone");
-    // One link, and it goes back to the list. The form's own editor is where
-    // the next link belongs once it has an address.
-    assert.deepEqual([...reviewer.matchAll(/href="([^"]*)"/g)].map((match) => match[1]), ["/admin/admissions"]);
+    // Two links and no more: back to the list, and on to the form's own
+    // pages. This was one link, back to the list, while the form's pages had
+    // no address. They have one now, so the notice leads to it, for somebody
+    // those pages open for.
+    assert.deepEqual(hrefs(reviewer), ["/admin/admissions", OWN_PAGES]);
+
+    // Somebody who may see the round and is named on no programme (a course
+    // author on no form) is not offered the way on: the form's own pages
+    // would tell them there is no form there. For them it is still one link,
+    // and it goes back to the list.
+    const author = render(ApplicationFormStaffNotice, { ...props, isAdmin: false, canOpen: false });
+    assert.ok(author.includes(fence.EDITED_IN_THE_APPLICATION_FORM));
+    assert.deepEqual(hrefs(author), ["/admin/admissions"]);
+    assert.ok(!author.includes("Open the application form"), author);
   });
 
   test("a form with no year says so in fewer words, and its name is text, never markup", async () => {

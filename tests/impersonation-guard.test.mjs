@@ -139,6 +139,12 @@ const MUST_GUARD = [
   ["src/app/api/admissions/rounds/[roundId]/roles/route.ts", "appoints reviewers and the final decider, which grants access to applications"],
   ["src/app/api/admissions/rounds/[roundId]/reminders/send-now/route.ts", "emails every applicant holding a draft on the round, which cannot be recalled"],
   ["src/app/api/admissions/rounds/[roundId]/decide/route.ts", "decides somebody's application, writes them onto a run's facilitator list and emails them the answer"],
+  ["src/app/api/admissions/forms/route.ts", "makes an application form, the thing a whole term applies to"],
+  ["src/app/api/admissions/forms/[roundId]/route.ts", "changes a form's dates and order and adds a programme to it"],
+  ["src/app/api/admissions/forms/[roundId]/sets/route.ts", "adds a question set to the form applicants answer"],
+  ["src/app/api/admissions/forms/[roundId]/sets/[setId]/route.ts", "writes and deletes the questions applicants are asked"],
+  ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/route.ts", "changes what applicants are shown about a programme, the wording of its emails, and closes it"],
+  ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/roles/route.ts", "names a programme's lead and reviewers, which grants access to applications"],
   // Admissions: the applicant's own lane. Every write here is recorded by
   // Firestore as the MEMBER performing it, and each one is a fact about their
   // intake: an application starting, an answer changing, a submission going in
