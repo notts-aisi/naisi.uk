@@ -1,196 +1,455 @@
 /*
-  /links: one narrow column of large rows.
+  /links: the page a printed QR code lands on.
 
   Opened on a phone from a scanned code, so the phone layout IS the layout: a
   single column capped at a comfortable reading width, every row at least
-  3.5rem tall (well over the 44px touch floor), and nothing that depends on
-  hover. A desktop visitor gets the same column, centred. The adapt block at
-  the foot only tightens the outer padding.
+  4rem tall (well over the 44px touch floor), and nothing that depends on
+  hover. A desktop visitor gets the same column, centred, under a header band
+  that runs the width of the window.
+
+  Nothing here is animated in and nothing waits for a script: the page has to
+  read from the first HTML that arrives.
 */
 
 .page {
-  width: 100%;
-  max-width: 34rem;
-  margin-inline: auto;
   min-height: 100dvh;
-  padding-top: max(var(--space-10), env(safe-area-inset-top, 0px));
-  padding-bottom: max(var(--space-16), env(safe-area-inset-bottom, 0px));
-  padding-left: max(var(--space-6), env(safe-area-inset-left, 0px));
-  padding-right: max(var(--space-6), env(safe-area-inset-right, 0px));
   display: flex;
   flex-direction: column;
-  gap: var(--space-10);
 }
+
+/* The one column, for the header's words and for everything under it. The
+   gutter is the page gutter; the inset only ever widens it. */
+.column {
+  width: 100%;
+  max-width: 32rem;
+  margin-inline: auto;
+  padding-left: max(var(--page-gutter, clamp(1.25rem, 3.4vw, 3rem)), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--page-gutter, clamp(1.25rem, 3.4vw, 3rem)), env(safe-area-inset-right, 0px));
+}
+
+/* === Header === */
 
 .header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
 }
 
-.brand {
+.headerInner {
+  padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+  padding-bottom: 1.25rem;
+}
+
+.headerTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+/* The emblem beside the name on three lines. It is the page's title. */
+.lockup {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+/*
+  The emblem with its second copy behind it, down and to the left. The copy
+  is a shadow of the image's own shape with no blur, so the file is never
+  redrawn. Its colour is the emblem's own cyan, which is not the theme's
+  live colour, so it lives here.
+*/
+.emblem {
+  --emblem-cyan: #00d4ff;
+
+  flex: none;
+  width: 3.6875rem;
+  height: auto;
+  margin-left: 0.125rem;
+  filter: drop-shadow(-0.1rem 0.1rem 0 var(--emblem-cyan));
+}
+
+.name {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.04;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+.home {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 0.375rem;
   min-height: 2.75rem;
-  min-width: 2.75rem;
-  border-radius: var(--radius-md);
-  color: var(--color-text);
-  text-decoration: none;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  transition: color var(--transition-fast);
 }
 
-.title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--text-2xl);
-  line-height: var(--leading-tight);
+.home:hover {
   color: var(--color-text);
 }
 
 .lede {
-  margin: 0;
-  max-width: 28rem;
+  margin: 0.75rem 0 0;
   font-size: var(--text-base);
   line-height: var(--leading-normal);
-  color: var(--color-text-muted);
+  color: var(--color-text-soft);
+  text-wrap: pretty;
 }
 
-.section {
+/* === The column under the header === */
+
+.main {
+  flex: 1;
+  padding-top: 1rem;
+  padding-bottom: max(2.5rem, env(safe-area-inset-bottom, 0px));
+}
+
+/* A card: the applications that are open, and the mailing list form. */
+.card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  /* The application buttons jump here; keep the heading clear of the top edge. */
-  scroll-margin-top: var(--space-6);
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  /* The rows lower down jump here; keep the card clear of the top edge. */
+  scroll-margin-top: 1rem;
+}
+
+.card + .card {
+  margin-top: 1rem;
+}
+
+/* What is open now is the first thing on the page and the one with an
+   accent edge. */
+.openCard {
+  border-color: var(--color-accent-line);
+}
+
+.openState {
+  letter-spacing: 0.08em;
+  color: var(--color-live);
+}
+
+.cardHeading {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.cardNote {
+  margin: -0.25rem 0 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+
+/* A link drawn as the large primary button: it goes to the application. */
+.apply {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0.75rem 1.5rem;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.005em;
+  color: var(--color-on-accent);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.apply:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.apply:focus-visible,
+.allOf:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* === Sections === */
+
+.section {
+  margin-top: 2.5rem;
 }
 
 .sectionHeading {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  line-height: var(--leading-snug);
-  color: var(--color-text);
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+/* Under a label ("Coming up"), the heading sits closer to it. */
+.section > :global(.meta) + .sectionHeading {
+  margin-top: 0.5rem;
 }
 
 .sectionNote {
-  margin: 0;
+  margin: 0.5rem 0 0;
   font-size: var(--text-sm);
-  line-height: var(--leading-relaxed);
+  line-height: var(--leading-normal);
   color: var(--color-text-muted);
 }
 
-.form {
-  padding: var(--space-5);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
+/* A text action with an arrow, 44px tall. */
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  margin-top: 0.5rem;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-accent-text);
+  white-space: nowrap;
+  transition: color var(--transition-fast);
 }
 
-.rows {
+.textLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+/* === Events === */
+
+.events {
   list-style: none;
-  margin: 0;
-  padding: 0;
+  margin-top: 1rem;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 0.625rem;
 }
 
-.row {
+/* One card per event: the date stub, the words, a chevron. */
+.event {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: var(--space-1);
-  min-height: 3.5rem;
-  padding: var(--space-4) var(--space-5);
+  align-items: stretch;
+  min-height: 5.5rem;
+  overflow: hidden;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  background: var(--color-surface);
   color: var(--color-text);
-  text-decoration: none;
-  transition:
-    background var(--transition-fast),
-    border-color var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
 }
 
-.row:hover {
+.event:hover {
   background: var(--color-surface-hover);
   border-color: var(--color-border-strong);
 }
 
-.row:focus-visible,
-.brand:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
+.eventText {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.875rem 1rem;
 }
 
+.eventTitle {
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.eventFacts {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* === Rows === */
+
+/* One card, a row each, a hairline between rows. */
+.rows {
+  list-style: none;
+  margin-top: 1rem;
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.rowItem + .rowItem {
+  border-top: 1px solid var(--color-border);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 4rem;
+  padding: 0.75rem 1rem;
+  color: var(--color-text);
+  transition: background var(--transition-fast);
+}
+
+a.row:hover {
+  background: var(--color-surface-hover);
+}
+
+/* The ring sits inside the row: the card clips anything drawn outside it. */
+.row:focus-visible,
+.event:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: -2px;
+  box-shadow: none;
+}
+
+.row:focus-visible {
+  border-radius: 0;
+}
+
+/* The application somebody picked: an accent ground, and the words say so. */
 .row[data-selected="true"] {
-  border-color: var(--color-accent);
   background: var(--color-accent-soft);
 }
 
+.rowText {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .rowLabel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
   font-size: var(--text-base);
   font-weight: 600;
-  line-height: var(--leading-snug);
-  /* A long event title wraps rather than pushing the column wider. */
+  color: var(--color-text);
   overflow-wrap: anywhere;
-}
-
-/* "Opens soon": says plainly that the thing is not available yet. */
-.soon {
-  display: inline-block;
-  margin-left: var(--space-2);
-  padding: 0 var(--space-2);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-pill);
-  font-size: var(--text-xs);
-  font-weight: 500;
-  line-height: 1.6;
-  color: var(--color-text-muted);
-  vertical-align: middle;
-  white-space: nowrap;
-}
-
-/* A row that is announced but not open is text, not a control. */
-.row[data-soon="true"] {
-  background: transparent;
-  border-style: dashed;
-  color: var(--color-text-muted);
-}
-
-.row[data-soon="true"]:hover {
-  background: transparent;
-  border-color: var(--color-border);
 }
 
 .rowSub {
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
+  display: block;
+  margin-top: 0.125rem;
+  font-size: var(--text-caption);
+  line-height: 1.45;
   color: var(--color-text-muted);
   overflow-wrap: anywhere;
 }
 
+.rowGlyph {
+  flex: none;
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted);
+}
+
+.event .rowGlyph {
+  padding-right: 0.75rem;
+}
+
+/* "Opens soon": a small pill beside the label. The word carries it. */
+.soon {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-hover);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--color-text-body);
+  white-space: nowrap;
+}
+
+/* The society's address: one row in a card of its own, under the rest. */
+.contact {
+  margin-top: 0.625rem;
+}
+
+/* === Foot === */
+
+/* A link drawn as the large outlined button: the way to the whole site. */
+.allOf {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 3.25rem;
+  margin-top: 2.5rem;
+  padding: 0.75rem 1.5rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.005em;
+  color: var(--color-text);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.allOf:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-control-border);
+}
+
+.foot {
+  margin: 1rem 0 0;
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* Underlined, and padded to a 44px target without moving the line. */
+.footLink {
+  display: inline-block;
+  padding-block: 0.75rem;
+  margin-block: -0.75rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.footLink:hover {
+  color: var(--color-text);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .row {
+  .row,
+  .event,
+  .apply,
+  .allOf {
     transition: none;
   }
 }
 
 /* === Mobile === */
 @media (max-width: 36rem) { /* --bp-sm */
-  .page {
-    padding-top: max(var(--space-8), env(safe-area-inset-top, 0px));
-    padding-left: max(var(--space-4), env(safe-area-inset-left, 0px));
-    padding-right: max(var(--space-4), env(safe-area-inset-right, 0px));
-    gap: var(--space-8);
-  }
-
-  .title {
-    font-size: var(--text-xl);
-  }
-
-  .form {
-    padding: var(--space-4);
-  }
+  /* Nothing: the phone layout is the layout. */
 }
