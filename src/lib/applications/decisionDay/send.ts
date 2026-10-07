@@ -1,7 +1,6 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { formatRoundDate } from "@/lib/admissions/window";
-import { admissionApplicationUrl } from "@/lib/email/admissionEmails";
 import { resolveEmailAudience } from "@/lib/email/audience";
 import { dispatchSends } from "@/lib/email/dispatch";
 import { COURSE_AUDIT_COLLECTION, COURSE_AUDIT_LIMITS } from "@/lib/firestore/courseAudit";
@@ -18,6 +17,7 @@ import {
 import { applicationRef, formRef, loadForm } from "../repo";
 import { rankedProgrammes } from "../sections";
 import { decisionRef } from "../staffRepo";
+import { invitationRemindersArmed } from "./armed";
 import { emailsLabel, placesDetail, pooledDetail } from "./boardWords";
 import { sendDecisionEmail, type Delivery } from "./deliver";
 import {
@@ -27,9 +27,9 @@ import {
   type DecisionEmailKind,
 } from "./emailCopy";
 import { emailStanding, handoverAfter } from "./emailState";
+import { appUrl, emailContext, type EmailContext } from "./letters";
 import { countWaitingAccounts, loadFirstNames } from "./people";
 import {
-  civilDateLabel,
   countOf,
   emailCount,
   emailOutcomeFor,
@@ -143,40 +143,6 @@ const SETTLE_ATTEMPTS = 3;
 // The emails, for a preview, a test and the send alike
 // ---------------------------------------------------------------------------
 
-type EmailContext = {
-  form: ApplicationForm;
-  leadNames: Record<string, string>;
-  replyBy: string | null;
-  links: { application: string; events: string };
-};
-
-/** This site's own address, with no trailing slash. Empty when it is not set. */
-function appUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/+$/, "");
-}
-
-async function emailContext(db: Firestore, form: ApplicationForm): Promise<EmailContext> {
-  const leads = form.programmeIds.map((programmeId) => programmeOf(form, programmeId)?.leadUid ?? "");
-  const names = await loadFirstNames(db, leads);
-  // Built from entries, so every programme id is the object's own key
-  // whatever the id happens to be called.
-  const leadNames: Record<string, string> = Object.fromEntries(
-    form.programmeIds.map((programmeId) => {
-      const leadUid = programmeOf(form, programmeId)?.leadUid;
-      return [programmeId, leadUid ? (names.get(leadUid) ?? "") : ""];
-    }),
-  );
-  return {
-    form,
-    leadNames,
-    replyBy: civilDateLabel(form.invitationReplyBy),
-    links: {
-      application: admissionApplicationUrl(form.round.id, "status"),
-      events: `${appUrl()}/events`,
-    },
-  };
-}
-
 function emailFor(
   context: EmailContext,
   person: TermPerson,
@@ -275,12 +241,13 @@ export async function buildSendBoard(
 ): Promise<SendBoard> {
   const [{ term }, context] = await Promise.all([loadTerm(db, form), emailContext(db, form)]);
   const accepted = groupOf(context, term, "accepted");
-  const [accountsWaiting, sender] = await Promise.all([
+  const [accountsWaiting, sender, remindsDaily] = await Promise.all([
     countWaitingAccounts(
       db,
       accepted.people.map((person) => person.uid),
     ),
     loadFirstNames(db, form.decisionsSentByUid ? [form.decisionsSentByUid] : []),
+    invitationRemindersArmed(db, now),
   ]);
   const todo = unpublished(term).filter((person) => publicationFor(person.outcome) !== null);
   const listed = (people: readonly TermPerson[]) =>
@@ -303,6 +270,7 @@ export async function buildSendBoard(
     noOffer: groupOf(context, term, "no-offer"),
     declined: { count: inGroup(term, "declined").length },
     replyBy: context.replyBy,
+    remindsDaily,
     accountsWaiting,
     fromName: process.env.SMTP_FROM_NAME ?? "NAISI",
     replyTo: DECISION_REPLY_TO,

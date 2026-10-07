@@ -1381,6 +1381,25 @@ describe("the decision-day page", () => {
     assert.equal((await board(makeDb(seed()))).accountsWaiting, 1);
   });
 
+  // "They get a reminder each day until they reply" is a promise about a
+  // scheduled job, so the page makes it only while a scheduled run has
+  // actually run that job (`decisionDay/armed.ts`). NOW is 11:00 UTC on Fri
+  // 23 Oct, so the run the scheduler started in this quarter of an hour left
+  // its receipt under the id below.
+  test("it promises a daily reminder only while the scheduler has run the reminder job", async () => {
+    const receipt = (skipped) => ({
+      "schedulerRuns/tick__20261023T1100Z__d0": {
+        jobs: [
+          { id: "heartbeat", processed: 1, hasMore: false, durationMs: 1, error: null, skipped: null },
+          { id: "application-invitation-reminders", processed: 0, hasMore: false, durationMs: 3, error: null, skipped },
+        ],
+      },
+    });
+    assert.equal((await board(makeDb(seed()))).remindsDaily, false, "no scheduled run on this copy of the site");
+    assert.equal((await board(makeDb(seed(receipt("disabled"))))).remindsDaily, false, "the job is switched off");
+    assert.equal((await board(makeDb(seed(receipt(null))))).remindsDaily, true);
+  });
+
   test("it says when this copy of the site only emails its own list", async () => {
     assert.equal((await board(makeDb(seed()))).emailsEveryone, false);
   });

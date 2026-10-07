@@ -19,10 +19,7 @@ import {
   sendTotalsLine,
   unconfirmedLine,
 } from "@/lib/applications/decisionDay/boardWords";
-import {
-  INVITATIONS_ARE_REMINDED_DAILY,
-  SEND_APPROVES_WAITING_ACCOUNTS,
-} from "@/lib/applications/decisionDay/built";
+import { SEND_APPROVES_WAITING_ACCOUNTS } from "@/lib/applications/decisionDay/built";
 import type { DecisionEmailKind } from "@/lib/applications/decisionDay/emailCopy";
 import type {
   EmailPreview,
@@ -488,7 +485,7 @@ export default function SendBoard({ initial }: { initial: Board }) {
         <p className={styles.groupText}>
           Pooled, and invited to something they didn’t pick.{" "}
           {board.replyBy
-            ? INVITATIONS_ARE_REMINDED_DAILY
+            ? board.remindsDaily
               ? `They accept by ${board.replyBy}, and get a reminder each day until they reply.`
               : `They accept by ${board.replyBy}.`
             : "No reply-by date is set yet."}

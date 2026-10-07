@@ -133,6 +133,11 @@ export type SendBoard = {
   declined: { count: number };
   /** The reply-by day for invitations: "Sun 25 Oct". */
   replyBy: string | null;
+  /**
+   * True while the daily reminder for an unanswered invitation is running on
+   * this copy of the site. The page promises a reminder only then.
+   */
+  remindsDaily: boolean;
   /** Accepted people whose account is still waiting to be approved. */
   accountsWaiting: number;
   /** The name emails are sent under. */

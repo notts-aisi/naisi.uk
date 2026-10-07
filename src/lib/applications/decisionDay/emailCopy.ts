@@ -250,6 +250,37 @@ export function composeDecisionEmail(input: ComposeInput): DecisionEmail | null 
   return noOfferEmail(input, form.noOfferWording);
 }
 
+/**
+ * The daily reminder for an invitation nobody has answered yet.
+ *
+ * It is the invitation email again, word for word, under one line that says
+ * it is a reminder and when the reply is due. So it reads the same as what
+ * the person was first sent, a programme's own wording included, and somebody
+ * whose first email went astray learns everything from the reminder alone.
+ * Null when the programme has left the form: there is nothing true to say.
+ */
+export function composeInvitationReminder(
+  input: ComposeInput & { outcome: { kind: "invited"; programmeId: string } },
+  due: {
+    /** The reply-by day, already formatted: "Sun 25 Oct". */
+    replyBy: string;
+    /** True on the reply-by day itself. */
+    lastDay: boolean;
+  },
+): DecisionEmail | null {
+  const invitation = composeDecisionEmail({ ...input, replyBy: due.replyBy });
+  if (!invitation || invitation.kind !== "invitation") return null;
+  const when = due.lastDay ? `it’s due today, ${due.replyBy}` : `it’s due by ${due.replyBy}`;
+  return {
+    ...invitation,
+    subject: `Reminder: ${invitation.subject}`,
+    paragraphs: [
+      `This is a reminder. We haven’t had your reply yet, and ${when}.`,
+      ...invitation.paragraphs,
+    ],
+  };
+}
+
 /** The subject a test send carries, so it cannot be mistaken for the real one. */
 export function testSubject(subject: string): string {
   return `[TEST] ${subject}`;

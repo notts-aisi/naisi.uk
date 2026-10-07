@@ -77,6 +77,12 @@ function firstWord(text: string): string {
   return text.trim().split(/\s+/)[0] ?? "";
 }
 
+/** What an email calls somebody: the name they go by, or the first word of their name. */
+export function firstNameOf(application: Pick<ApplicationDoc, "displayName" | "sent">): string {
+  const preferred = application.sent?.aboutYou.preferredName.trim() ?? "";
+  return preferred || firstWord(application.displayName);
+}
+
 export function planTerm(
   form: ApplicationForm,
   applications: readonly Sent[],
@@ -93,7 +99,7 @@ export function planTerm(
     people.push({
       uid: application.uid,
       name,
-      firstName: preferred || firstWord(application.displayName),
+      firstName: firstNameOf(application),
       email: application.email,
       ranked,
       decision,
