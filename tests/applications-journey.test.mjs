@@ -1104,7 +1104,14 @@ async function decisionDay() {
   };
 }
 
-const replyAs = (who, reply) => call(who, routes.reply.POST, params(), { body: { reply } });
+/**
+ * The two replies that give something back are asked why. A step that is not
+ * about the reason sends this one; a step that is says its own.
+ */
+const WHY = { kind: "too-much-on", other: "" };
+const replyBody = (reply, reason = WHY) =>
+  ["cant-make-it", "decline-invitation"].includes(reply) ? { reply, reason } : { reply };
+const replyAs = (who, reply, reason) => call(who, routes.reply.POST, params(), { body: replyBody(reply, reason) });
 
 /** Who the daily reminder for an unanswered invitation would write to today. */
 async function dueAReminder() {
@@ -1146,15 +1153,29 @@ async function peopleReply() {
     wroteNothing: everything() === before,
   };
 
-  for (const [who, reply, label] of [
+  // Somebody giving a place or an invitation back is asked why. With no
+  // reason, or with "Other" and no words, nothing is recorded.
+  const beforeTheReasons = everything();
+  seen.noReason = {
+    place: await call("jasmine", routes.reply.POST, params(), { body: { reply: "cant-make-it" } }),
+    invitation: await call("abel", routes.reply.POST, params(), { body: { reply: "decline-invitation" } }),
+    otherWithNoWords: await call("abel", routes.reply.POST, params(), {
+      body: { reply: "decline-invitation", reason: { kind: "other", other: "   " } },
+    }),
+    wroteNothing: everything() === beforeTheReasons,
+  };
+
+  for (const [who, reply, label, reason] of [
     ["amara", "coming", "Amara is coming"],
-    ["jasmine", "cant-make-it", "Jasmine gave her place back"],
+    // The times do not work for her: the case the committee may be able to put right.
+    ["jasmine", "cant-make-it", "Jasmine gave her place back", { kind: "times", other: "" }],
     ["oliver", "accept-invitation", "Oliver accepted his invitation"],
-    ["abel", "decline-invitation", "Abel said no thanks"],
+    // In his own words.
+    ["abel", "decline-invitation", "Abel said no thanks", { kind: "other", other: "  I\u2019m starting a placement that week.  " }],
   ]) {
     later();
     const account = structuredClone(accountDoc(who));
-    const response = await step(`${who} replies ${reply}`, 200, who, routes.reply.POST, params(), { body: { reply } });
+    const response = await step(`${who} replies ${reply}`, 200, who, routes.reply.POST, params(), { body: replyBody(reply, reason) });
     seen.replies[who] = {
       response,
       stored: structuredClone(applicationDoc(who)),
@@ -1187,6 +1208,26 @@ async function peopleReply() {
     abelToAgiLead: await reviewOf("claudia", "abel", "agi"),
     abelToAgiReviewer: await reviewOf("lloyd", "abel", "agi"),
     abelToAgiLeadWrites: await score("claudia", "abel", "agi", {}, "A pity."),
+  };
+
+  // The reason each gave, where the committee reads it: on the withdrawn row
+  // of a programme they ranked, on the application itself, and for a pooled
+  // person on the pooled applicants page.
+  const rowOn = async (who, programme, uid) =>
+    ((await call(who, routes.board.GET, { roundId: ROUND, programmeId: P[programme] })).body?.board?.rows ?? []).find((row) => row.uid === uid) ?? null;
+  seen.reasons = {
+    // Jasmine ranked AGI Strategy and gave back her place on it.
+    jasmineOnAgiList: await rowOn("claudia", "agi", "jasmine"),
+    jasmineToAgiReviewer: (await reviewOf("lloyd", "jasmine", "agi")).body?.review?.applicant ?? null,
+    // Abel ranked Technical AI Safety and the incubator, and turned down AGI Strategy.
+    abelOnTaisList: await rowOn("tess", "tais", "abel"),
+    abelToTaisLead: (await reviewOf("tess", "abel", "tais")).body?.review?.applicant ?? null,
+    pool: (await call("zach", routes.pool.GET, params())).body?.board ?? null,
+    // Nobody is removed: both are still on a list, and neither is counted.
+    agiCounts: (await call("claudia", routes.board.GET, { roundId: ROUND, programmeId: P.agi })).body?.board?.counts ?? null,
+    // What each is sent about their own application.
+    ownJasmine: (await mine("jasmine")).body ?? null,
+    ownAbel: (await mine("abel")).body ?? null,
   };
 
   // A place given back cannot be taken again from the page.
@@ -2231,6 +2272,7 @@ describe("one term, from nothing to settled", () => {
       const { stored, accountBefore, accountAfter } = seen.replies.jasmine;
       assert.equal(stored.status, "withdrawn");
       assert.equal(stored.attendance.answer, "cant-make-it");
+      assert.deepEqual(stored.releaseReason, { kind: "times", other: "" }, "why, with the reply");
       assert.ok(stored.withdrawnAt instanceof Date);
       assert.deepEqual([stored.result.kind, stored.result.programmeId], ["accepted", P.agi]);
       // The send made her a member, and giving the place back does not undo that.
@@ -2255,7 +2297,52 @@ describe("one term, from nothing to settled", () => {
       const { stored, accountBefore, accountAfter } = seen.replies.abel;
       assert.equal(stored.status, "withdrawn");
       assert.equal(stored.invitation.response, "declined");
+      assert.deepEqual(stored.releaseReason, { kind: "other", other: "I\u2019m starting a placement that week." }, "his own words, trimmed");
       assert.deepEqual(accountAfter, accountBefore);
+    });
+
+    // The owner's decision of 7 October 2026: "people might withdraw because
+    // the timing doesn't work and we might be able to reallocate them".
+    test("somebody giving a place back is asked why, and with no reason nothing is recorded", () => {
+      assert.deepEqual(short(seen.noReason.place), [400, "Choose a reason from the list before you send this."]);
+      assert.deepEqual(short(seen.noReason.invitation), [400, "Choose a reason from the list before you send this."]);
+      assert.deepEqual(short(seen.noReason.otherWithNoWords), [400, "Say why in a few words, or choose another reason."]);
+      assert.equal(seen.noReason.wroteNothing, true);
+      // Saying yes is never asked why.
+      assert.equal(seen.replies.amara.stored.releaseReason ?? null, null);
+      assert.equal(seen.replies.oliver.stored.releaseReason ?? null, null);
+    });
+
+    test("the committee reads the reason where the person's row is, and nobody is removed", () => {
+      const TIMES = { said: "I can\u2019t make it", reason: "The times don\u2019t work for me" };
+      const PLACEMENT = { said: "No thanks", reason: "I\u2019m starting a placement that week." };
+      const found = seen.reasons;
+      // The withdrawn row of a programme they ranked, for its lead.
+      assert.deepEqual([found.jasmineOnAgiList.withdrawn, found.jasmineOnAgiList.gaveBack], [true, TIMES]);
+      assert.deepEqual([found.abelOnTaisList.withdrawn, found.abelOnTaisList.gaveBack], [true, PLACEMENT]);
+      // The application itself, for a reviewer and for a lead.
+      assert.deepEqual([found.jasmineToAgiReviewer.withdrawn, found.jasmineToAgiReviewer.gaveBack], [true, TIMES]);
+      assert.deepEqual([found.abelToTaisLead.withdrawn, found.abelToTaisLead.gaveBack], [true, PLACEMENT]);
+      // The pooled applicants page, for an admin: Abel was pooled, Jasmine never was.
+      assert.deepEqual(
+        found.pool.left.map((row) => [row.uid, row.said, row.programme, row.reason]),
+        [["abel", "No thanks", "AGI Strategy", "I\u2019m starting a placement that week."]],
+      );
+      assert.equal(found.pool.rows.some((row) => row.uid === "abel"), false, "listed apart, and in no count");
+      assert.equal(found.pool.counts.pooled, found.pool.rows.length);
+      // Listed, not counted: Jasmine's row is there and AGI Strategy's accepted count is Amara alone.
+      assert.equal(found.agiCounts.accepted, 1);
+      // The programme whose invitation Abel turned down still never reads him.
+      assert.deepEqual(
+        [seen.joinedByInvitation.abelToAgiLead.status, seen.joinedByInvitation.abelToAgiReviewer.status],
+        [404, 404],
+      );
+      // And neither is sent their own reason back.
+      for (const own of [found.ownJasmine, found.ownAbel]) {
+        assert.equal(own.application.status, "withdrawn");
+        assert.equal(JSON.stringify(own).includes("placement that week"), false);
+        assert.equal("releaseReason" in own.application, false);
+      }
     });
 
     const AFTER_EACH_REPLY = [

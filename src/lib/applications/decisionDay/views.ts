@@ -61,6 +61,25 @@ export type PoolRow = {
   told: boolean;
 };
 
+/**
+ * Somebody who was pooled, was told on decision day, and has since given
+ * their place or their invitation back. Listed so that nobody disappears from
+ * the page, and in none of its numbers.
+ */
+export type PoolLeftRow = {
+  uid: string;
+  name: string;
+  degree: string;
+  detail: string;
+  ranked: { rank: number; programmeId: string; shortName: string }[];
+  /** The programme whose invitation or place they gave back. Null when it has left the form. */
+  programme: string | null;
+  /** The button they pressed: "I can’t make it" or "No thanks". */
+  said: string;
+  /** Their reason, as the committee reads it. Null when none is on record. */
+  reason: string | null;
+};
+
 export type PoolBoard = {
   roundId: string;
   termLabel: string;
@@ -73,6 +92,12 @@ export type PoolBoard = {
   counts: { pooled: number; invitations: number; noOffer: number; needsOutcome: number };
   programmes: PoolProgramme[];
   rows: PoolRow[];
+  /**
+   * Pooled people who gave a place or an invitation back after they were
+   * told, with what they said and why. In no count above: `counts.pooled` is
+   * `rows.length`, and stays so.
+   */
+  left: PoolLeftRow[];
 };
 
 // ---------------------------------------------------------------------------

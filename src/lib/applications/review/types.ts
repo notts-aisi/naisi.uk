@@ -1,5 +1,6 @@
 import type { ProgrammeRole } from "../access";
 import type { PoolReason, ProgrammeDecisionKind, QuestionSetRole, QuestionType } from "../model";
+import type { GaveBack } from "../status/reasons";
 import type { ProgrammeStanding } from "../words";
 
 /**
@@ -37,6 +38,13 @@ export type ApplicationRow = {
    * listed and is in none of the board's numbers.
    */
   withdrawn: boolean;
+  /**
+   * When they left by giving a place or an invitation back: the button they
+   * pressed and the reason they gave, as the committee reads it. Null for a
+   * row that is not withdrawn, and for one withdrawn any other way. The
+   * reason is null for a reply made before the question was asked.
+   */
+  gaveBack: GaveBack | null;
   /**
    * They are on this list because they accepted an invitation to this
    * programme, which they did not rank. `choice` is 0, `standing` is
@@ -359,6 +367,8 @@ export type ReviewPayload = {
     appliedOn: string | null;
     accountWaiting: boolean;
     withdrawn: boolean;
+    /** As on the list: what they said when they gave a place or an invitation back, and why. */
+    gaveBack: GaveBack | null;
     ranked: { programmeId: string; shortName: string; choice: number; focus: boolean }[];
     /**
      * The programme they joined by accepting an invitation, when this screen

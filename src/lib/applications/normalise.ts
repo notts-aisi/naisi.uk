@@ -23,6 +23,7 @@ import {
   PROGRAMME_KINDS,
   QUESTION_SET_ROLES,
   QUESTION_TYPES,
+  RELEASE_REASON_KINDS,
   RESULT_EMAIL_STATES,
   type AboutYou,
   type AnswerValue,
@@ -50,6 +51,8 @@ import {
   type QuestionSetRole,
   type QuestionSetScope,
   type QuestionType,
+  type ReleaseReason,
+  type ReleaseReasonKind,
   type ResultEmailState,
   type ReviewComment,
   type ReviewDoc,
@@ -495,6 +498,20 @@ function asAttendance(v: unknown): Attendance | null {
 }
 
 /**
+ * Why somebody gave a place or an invitation back. A reason this build does
+ * not know reads as none. `other` is the person's own words: kept only for
+ * the kind that asks for them, and that kind with no words is no reason.
+ */
+function asReleaseReason(v: unknown): ReleaseReason | null {
+  const raw = asRecord(v);
+  const kind = raw.kind as ReleaseReasonKind;
+  if (!RELEASE_REASON_KINDS.includes(kind)) return null;
+  if (kind !== "other") return { kind, other: "" };
+  const other = str(raw.other, APPLICATION_LIMITS.releaseReasonOther).trim();
+  return other ? { kind, other } : null;
+}
+
+/**
  * An application on a form of this version. Returns null for a document that
  * is not one (an application to an older round shares the collection), so a
  * caller cannot read the wrong kind of row as an empty application.
@@ -528,6 +545,7 @@ export function normaliseApplication(
     result: asResult(raw.result),
     invitation: asInvitation(raw.invitation),
     attendance: asAttendance(raw.attendance),
+    releaseReason: asReleaseReason(raw.releaseReason),
     createdAt: tsToDate(raw.createdAt),
     updatedAt: tsToDate(raw.updatedAt),
   };

@@ -104,6 +104,7 @@ export const APPLICATION_LIMITS = {
   poolNote: 300,
   exceptionReason: 500,
   revokeReason: 500,
+  releaseReasonOther: 300,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -458,6 +459,26 @@ export type Attendance = {
   answeredAt: Date | null;
 };
 
+/**
+ * Why somebody did not take a place. Asked when they say "I can't make it"
+ * (to a place) or "No thanks" (to an invitation), and shown to the committee,
+ * who may be able to offer something that works.
+ */
+export type ReleaseReasonKind = "times" | "too-much-on" | "something-else" | "other";
+
+export const RELEASE_REASON_KINDS: readonly ReleaseReasonKind[] = [
+  "times",
+  "too-much-on",
+  "something-else",
+  "other",
+];
+
+export type ReleaseReason = {
+  kind: ReleaseReasonKind;
+  /** Their own words. Never empty for `other`, and always empty otherwise. */
+  other: string;
+};
+
 /** The fields an application carries on a form of this version. */
 export type ApplicationFields = {
   formVersion: typeof FORM_VERSION;
@@ -480,6 +501,12 @@ export type ApplicationFields = {
   result: ApplicationResult | null;
   invitation: Invitation | null;
   attendance: Attendance | null;
+  /**
+   * The reason given with the reply that gave a place or an invitation back,
+   * written by that reply and by nothing else. Null until then, and for a
+   * reply made before the question was asked.
+   */
+  releaseReason: ReleaseReason | null;
 };
 
 /** An application as the rest of this system reads it. */

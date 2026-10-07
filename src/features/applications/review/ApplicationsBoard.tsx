@@ -781,6 +781,18 @@ function Row({
             ) : row.standing === "to-review" ? null : (
               <div className={styles.sub}>Was {PROGRAMME_STANDING_LABEL[row.standing].toLowerCase()}</div>
             )}
+            {/*
+              Why they left, when they left by a reply: the button they
+              pressed and the reason they chose or wrote. The row stays so
+              that somebody can act on it. A long reason is cut here and read
+              in full on the application itself.
+            */}
+            {row.gaveBack ? (
+              <div className={styles.gaveBack} title={row.gaveBack.reason ?? undefined}>
+                <span>Said “{row.gaveBack.said}”</span>
+                <span className={styles.gaveBackWhy}>{row.gaveBack.reason ?? "No reason given"}</span>
+              </div>
+            ) : null}
           </div>
         ) : row.byInvitation ? (
           // In the programme by an invitation they accepted. Nothing to decide.

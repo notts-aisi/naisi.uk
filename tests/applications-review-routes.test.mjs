@@ -1766,6 +1766,120 @@ describe("showing other reviewers' scores on a first review", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Why somebody left: the reason on a withdrawn row
+// ---------------------------------------------------------------------------
+
+/**
+ * The owner's decision of 7 October 2026: somebody who says "I can’t make it"
+ * or "No thanks" is asked why, and the committee sees the reason, on the
+ * withdrawn row of the list and on the application itself. Nobody is removed:
+ * the row stays, marked as withdrawn, with the reason.
+ */
+describe("a withdrawn row says what the person said and why", () => {
+  const told = (kind, programmeId) => ({ kind, programmeId, publishedAt: NOW, email: "sent", emailedAt: NOW, emailClaimedAt: null });
+  const app = (uid) => applicationDoc(APPLICANTS.find((entry) => entry[0] === uid));
+  const gone = (uid, over) => ({ [`admissionApplications/${ROUND}__${uid}`]: { ...app(uid), status: "withdrawn", withdrawnAt: NOW, ...over } });
+
+  /**
+   * After decision day. Ben was accepted by AGI Strategy and cannot make it.
+   * Sam ranked Technical AI Safety, was pooled, was invited to AGI Strategy
+   * and said no thanks, in his own words. Dev was withdrawn some other way.
+   */
+  const afterReplies = () =>
+    seed({
+      [`admissionDecisions/${ROUND}__ben`]: { roundId: ROUND, uid: "ben", programmes: { [AGI]: decided("accept", "claudia") }, pooledOutcome: null, exception: null },
+      ...gone("ben", {
+        result: told("accepted", AGI),
+        attendance: { answer: "cant-make-it", answeredAt: NOW },
+        releaseReason: { kind: "times", other: "" },
+      }),
+      [`admissionDecisions/${ROUND}__sam`]: {
+        roundId: ROUND,
+        uid: "sam",
+        programmes: { [TAIS]: decided("pool", "tess") },
+        pooledOutcome: { kind: "invite", programmeId: AGI, setByUid: "zach", setAt: NOW },
+        exception: null,
+      },
+      ...gone("sam", {
+        result: told("invited", AGI),
+        invitation: { programmeId: AGI, replyBy: "2026-10-25", response: "declined", respondedAt: NOW, lastReminderOn: null },
+        releaseReason: { kind: "other", other: "I start a placement in Leeds that week." },
+      }),
+      ...gone("dev", {}),
+    });
+
+  test("on the list: the row stays, marked as withdrawn, with the button pressed and the reason", async () => {
+    const result = await board(makeDb(afterReplies()), "claudia");
+    const ben = rowOf(result, "ben");
+    assert.equal(ben.withdrawn, true);
+    assert.deepEqual(ben.gaveBack, { said: "I can’t make it", reason: "The times don’t work for me" });
+    assert.equal(ben.standing, "accepted", "what the programme decided is kept, as a line under it");
+    // He is listed and not counted.
+    assert.ok(result.board.rows.some((row) => row.uid === "ben"));
+    assert.equal(result.board.counts.accepted, 0);
+  });
+
+  test("on the list of a programme they ranked: somebody who said no thanks elsewhere, in their own words", async () => {
+    const result = await board(makeDb(afterReplies()), "tess", TAIS);
+    const sam = rowOf(result, "sam");
+    assert.equal(sam.withdrawn, true);
+    assert.deepEqual(sam.gaveBack, { said: "No thanks", reason: "I start a placement in Leeds that week." });
+    // The programme whose invitation he turned down never reads him at all.
+    assert.equal(rowOf(await board(makeDb(afterReplies()), "claudia"), "sam"), undefined);
+    assert.deepEqual(await review(makeDb(afterReplies()), "claudia", "sam", AGI), { ok: false, status: 404, error: "Not found" });
+  });
+
+  test("on the application itself, for a lead, a reviewer and an admin alike", async () => {
+    for (const who of ["claudia", "lloyd", "zach"]) {
+      const { review: seen } = await review(makeDb(afterReplies()), who, "ben");
+      assert.equal(seen.applicant.withdrawn, true, who);
+      assert.deepEqual(seen.applicant.gaveBack, { said: "I can’t make it", reason: "The times don’t work for me" }, who);
+    }
+    const { review: sam } = await review(makeDb(afterReplies()), "tess", "sam", TAIS);
+    assert.deepEqual(sam.applicant.gaveBack, { said: "No thanks", reason: "I start a placement in Leeds that week." });
+  });
+
+  test("somebody withdrawn some other way, and somebody who has not left, have nothing of the kind", async () => {
+    const result = await board(makeDb(afterReplies()), "claudia");
+    assert.deepEqual([rowOf(result, "dev").withdrawn, rowOf(result, "dev").gaveBack], [true, null]);
+    assert.deepEqual([rowOf(result, "amara").withdrawn, rowOf(result, "amara").gaveBack], [false, null]);
+    const { review: amara } = await review(makeDb(afterReplies()), "claudia", "amara");
+    assert.equal(amara.applicant.gaveBack, null);
+    // A reason on a document whose owner gave nothing back is not shown as one.
+    const stray = seed({ [`admissionApplications/${ROUND}__amara`]: { ...app("amara"), releaseReason: { kind: "times", other: "" } } });
+    assert.equal(rowOf(await board(makeDb(stray), "claudia"), "amara").gaveBack, null);
+  });
+
+  test("a reply made before the question was asked: the button, and no reason", async () => {
+    const docs = afterReplies();
+    delete docs[`admissionApplications/${ROUND}__ben`].releaseReason;
+    const result = await board(makeDb(docs), "claudia");
+    assert.deepEqual(rowOf(result, "ben").gaveBack, { said: "I can’t make it", reason: null });
+  });
+
+  test("the reason is the only thing the reply adds to what a lead is sent: still no address", async () => {
+    const db = makeDb(afterReplies());
+    for (const who of ["claudia", "lloyd"]) {
+      assert.equal(mentionsAnAddress((await board(db, who)).board), false, who);
+      assert.equal(mentionsAnAddress((await review(db, who, "ben")).review), false, who);
+    }
+  });
+
+  test("the two screens draw it as text, under the word Withdrawn", () => {
+    const flatten = (...parts) => readFileSync(join(REPO_ROOT, "src", "features", "applications", "review", ...parts), "utf8").replace(/\s+/g, " ");
+    const list = flatten("ApplicationsBoard.tsx");
+    assert.ok(list.includes("<Chip dot>Withdrawn</Chip>"));
+    assert.ok(list.includes("<span>Said “{row.gaveBack.said}”</span>"));
+    assert.ok(list.includes('<span className={styles.gaveBackWhy}>{row.gaveBack.reason ?? "No reason given"}</span>'));
+    const screen = flatten("ReviewScreen.tsx");
+    assert.ok(screen.includes("{applicant.firstName} said “{applicant.gaveBack.said}”."));
+    assert.ok(screen.includes("Their reason: <span className={styles.gaveBackWhy}>{applicant.gaveBack.reason}</span>"));
+    assert.ok(screen.includes('"They gave no reason."'));
+    for (const source of [list, screen]) assert.equal(/dangerouslySetInnerHTML/.test(source), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Who is shown other reviewers' scores: one rule, asked everywhere
 // ---------------------------------------------------------------------------
 

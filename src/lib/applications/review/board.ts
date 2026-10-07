@@ -11,6 +11,7 @@ import {
 } from "../decisions";
 import type { ApplicationDoc, QuestionSetDoc, ReviewDoc } from "../model";
 import type { ApplicationForm } from "../normalise";
+import { gaveBackOf } from "../status/reasons";
 import {
   formatScore,
   hasScored,
@@ -59,7 +60,9 @@ import type {
  * `withdrawn`, with the standing the decision documents still record. They
  * are in no count, they are not in the queue "Review next" walks, they are
  * not among the people the scores recommend for a place, and their row names
- * no programme they are placed on, because they hold no place.
+ * no programme they are placed on, because they hold no place. A row that
+ * left by a reply says which button was pressed and the reason given with it
+ * (`gaveBack`): the committee may be able to offer something that works.
  *
  * SOMEBODY WHO JOINED BY INVITATION HAS A ROW, marked `byInvitation`. They
  * did not rank the programme, so nothing about their row is a choice, a score
@@ -162,6 +165,7 @@ function buildRow(input: {
       detail,
       accountWaiting: pendingUids.has(application.uid),
       withdrawn: application.status === "withdrawn",
+      gaveBack: gaveBackOf(application),
       byInvitation,
       choice: at + 1,
       firstChoiceName: at === 0 ? null : (programmeOn(form, ranked[0])?.shortName ?? null),

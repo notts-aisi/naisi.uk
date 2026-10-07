@@ -553,6 +553,28 @@ above). `result` is what decision day said and no reply changes it. A place give
 `status/standing.ts` reads all of that off the document, and `decideReply()`
 in `status/replies.ts` is the whole table.
 
+### Why somebody did not take a place
+
+The two replies that give something back are asked why: one of a short list
+("The times don't work for me", "I have too much on this term", "I'm doing
+something else instead") or "Other" with a few words of the person's own, at
+most `APPLICATION_LIMITS.releaseReasonOther` characters. A reason is
+required. The route refuses the reply without one before it reads a document
+(`parseReplyRequest()`), and the transaction that writes the reply refuses
+it too. It is stored on the person's own application as `releaseReason`, in
+the same write as the reply, and by no other write: a reply that gives
+nothing back carries none, and the first reason given stands.
+
+The committee reads it wherever the person's row is, because the answer is
+often something that can be put right. `gaveBackOf()` in `status/reasons.ts`
+is the one reading: the button the person pressed and their reason, off
+their own document. It is on the withdrawn row of each programme they ranked,
+on the application itself, and on the pooled applicants page, which keeps
+pooled people who left after they were told in a list of their own (`left`),
+counted nowhere. So nobody disappears from a screen by replying. The reason
+is not sent back to the applicant, and the programme whose invitation
+somebody turned down still never reads them.
+
 ### One set of words for an outcome
 
 Somebody reads where they stand on their own page and, one line each, on the
@@ -675,7 +697,7 @@ All in `src/lib/applications/`.
 | `roles.ts` | `setProgrammeRoles`, the one writer of leads and reviewers | server |
 | `repo.ts` | The form, its sets, the caller's own application | server, applicant-safe |
 | `staffRepo.ts` | Everybody's applications, reviews, decisions | server, staff only |
-| `status/standing.ts`, `status/replies.ts`, `status/view.ts`, `status/words.ts` | Where one person stands after sending, what each reply does, what their page says, the chip and title of an outcome | anywhere |
+| `status/standing.ts`, `status/replies.ts`, `status/reasons.ts`, `status/view.ts`, `status/words.ts` | Where one person stands after sending, what each reply does, why somebody gave a place back and how the committee reads it, what their page says, the chip and title of an outcome | anywhere |
 | `status/load.ts`, `status/record.ts` | The page's read, and the one transaction a reply writes | server, applicant-safe |
 | `accounts/approve.ts`, `accounts/afterReply.ts` | Approving a waiting account on an acceptance, and the call an accepted invitation makes | server, applicant-safe |
 | `lifecycle/openForm.ts` | Which form is open, and which form speaks for each course, for a page that offers Apply | server, safe for a page any visitor can load |

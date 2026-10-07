@@ -500,6 +500,120 @@
   font-size: 14px;
 }
 
+/* --- Why somebody is giving a place or an invitation back -------------- */
+
+.reasons {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 4px 0 2px;
+  padding: 0;
+  border: 0;
+}
+.reasonsLegend {
+  display: block;
+  margin: 0;
+  padding: 0;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.reasonsHelp {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.reasonRows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.reasonRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 3rem;
+  padding: 6px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.reasonRow[data-on="true"] {
+  border-color: var(--color-accent);
+  background: var(--st-accent-wash);
+  font-weight: 600;
+}
+.reasonRow:focus-within {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+/* The radio itself: there for the keyboard and a screen reader, drawn by the row. */
+.reasonNative {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.reasonRadio {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--st-quiet);
+  border-radius: 50%;
+  background: var(--color-bg);
+}
+.reasonRadio[data-on="true"] {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+.reasonRadio[data-on="true"]::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-floor);
+}
+.reasonOther {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+.reasonBox {
+  display: block;
+  width: 100%;
+  min-height: 5.5rem;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.45;
+  resize: vertical;
+}
+.reasonBox:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 1px;
+  border-color: var(--color-accent);
+  box-shadow: none;
+}
+
 .link {
   color: var(--color-accent-text);
   text-decoration: underline;
@@ -672,6 +786,11 @@
 
   .actions .note {
     text-align: center;
+  }
+
+  /* The reasons are a form, read from the left like any other. */
+  .reasons {
+    margin-top: 8px;
   }
 
   .quiet {

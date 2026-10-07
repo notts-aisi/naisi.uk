@@ -516,6 +516,26 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
               {applicant.accountWaiting ? <span className={styles.flag}>Account waiting</span> : null}
               {applicant.withdrawn ? <span className={styles.flag}>Withdrawn</span> : null}
             </div>
+            {/*
+              Why they left, when they left by a reply, in full: the button
+              they pressed and the reason they chose or wrote. A reason
+              somebody typed is their own words, drawn as text and nothing
+              else.
+            */}
+            {applicant.gaveBack ? (
+              <p className={styles.gaveBack}>
+                <span className={styles.gaveBackSaid}>
+                  {applicant.firstName} said “{applicant.gaveBack.said}”.
+                </span>{" "}
+                {applicant.gaveBack.reason ? (
+                  <>
+                    Their reason: <span className={styles.gaveBackWhy}>{applicant.gaveBack.reason}</span>
+                  </>
+                ) : (
+                  "They gave no reason."
+                )}
+              </p>
+            ) : null}
             {changes ? (
               <div className={styles.changes}>
                 <p className={styles.changesLine}>

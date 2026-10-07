@@ -19,6 +19,7 @@ import {
   sectionScore,
 } from "../scoring";
 import { applicableSets } from "../sections";
+import { gaveBackOf } from "../status/reasons";
 import { changeCount } from "../versions/kept";
 import { availabilityViewFor } from "./availabilityView";
 import {
@@ -444,6 +445,7 @@ export function buildReview(input: {
     appliedOn: appliedAt ? formatRoundDate(appliedAt) : null,
     accountWaiting: input.accountWaiting,
     withdrawn: application.status === "withdrawn",
+    gaveBack: gaveBackOf(application),
     ranked: ranked.map((id, at) => ({
       programmeId: id,
       shortName: programmeOn(form, id)?.shortName ?? "",

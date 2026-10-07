@@ -140,6 +140,21 @@
   font-size: 13px;
   color: var(--color-warning);
 }
+/* What somebody said when they gave a place or an invitation back, and why. */
+.gaveBack {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+.gaveBackSaid {
+  color: var(--color-warning);
+}
+.gaveBackWhy {
+  color: var(--color-text);
+  white-space: pre-wrap;
+}
 
 /* Section tabs are a phone's way through the page. */
 .tabs {
