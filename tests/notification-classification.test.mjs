@@ -508,6 +508,13 @@ const REGISTRY = {
   "src/lib/email/admissionEmails.ts#sendEmail": T(
     "The admissions template's send door, shared by five callers. It consults nothing itself; the two scheduled callers consult the courses row before they reach it and carry their own grid entries.",
   ),
+  "src/lib/applications/decisionDay/deliver.ts#sendEmail": T(
+    "The decision-day template's send door: You're in, Invitation and No offer this time. Each is the answer to an application the person sent, so no notification row is read.",
+  ),
+  "src/lib/applications/decisionDay/send.ts#sendDecisionEmail": T(
+    "Decision day itself, one message per applicant after their result is published, and the admin's own rehearsal of one of the three emails, sent to the admin who pressed for it. One call each, on one lane.",
+    2,
+  ),
   "src/app/api/admissions/rounds/[roundId]/apply/route.ts#sendAdmissionEmail": T(
     "The receipt for starting an admissions application.",
   ),

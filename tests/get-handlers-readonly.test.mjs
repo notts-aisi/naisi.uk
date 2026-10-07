@@ -77,6 +77,13 @@ const MUTATION_HELPERS = {
   revokeAcceptance: "takes an acceptance back, with the reason, and logs it",
   saveReview: "writes a reviewer's scores and internal comments about an applicant",
   setRevealOtherReviews: "switches what every reviewer on a form is shown on a first review",
+  // Pooled applicants and decision day. The pool route and the send route each
+  // hold a GET beside the handler that writes, and the writes and the mail are
+  // made in `src/lib/applications/decisionDay/`.
+  setPooledOutcome: "picks what a pooled applicant hears on decision day, and logs it",
+  runDecisionDay: "publishes every applicant's outcome onto their own application and emails them",
+  sendTestEmail: "mails one decision-day email to the admin who asked for it",
+  sendDecisionEmail: "sends a decision-day email, a side effect a prefetch must not fire",
 };
 
 /**

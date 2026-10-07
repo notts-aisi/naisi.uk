@@ -591,6 +591,10 @@ const DEADLINE_PREDICATES = new Map([
           },
         ],
         [
+          "src/lib/applications/decisionDay/plan.ts",
+          { role: "enforces", why: "`sendBlockers`: decision day is refused while the form is still taking applications, in the sentence the send route answers with" },
+        ],
+        [
           "src/lib/applications/editor/views.ts",
           {
             role: "tells",

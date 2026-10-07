@@ -1,3 +1,4 @@
+import type { CourseAuditKind } from "@/lib/firestore/courseAudit";
 import { own } from "../keys";
 import type { ApplicationFormFields, ProgrammeSettings } from "../model";
 
@@ -29,6 +30,8 @@ export function shortNameOf(
 }
 
 /** Audit kinds for the two things an admin does here. A form is not a run, so
- *  each row carries `runId: ""` and the form's own `roundId`. */
-export const POOLED_OUTCOME_AUDIT_KIND = "application-pooled-outcome";
-export const DECISIONS_SENT_AUDIT_KIND = "application-decisions-sent";
+ *  each row carries `runId: ""` and the form's own `roundId`. Each name is
+ *  held to the log's own list of kinds by its type: a name the log does not
+ *  carry does not compile. */
+export const POOLED_OUTCOME_AUDIT_KIND = "application-pooled-outcome" satisfies CourseAuditKind;
+export const DECISIONS_SENT_AUDIT_KIND = "application-decisions-sent" satisfies CourseAuditKind;

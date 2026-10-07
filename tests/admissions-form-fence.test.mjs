@@ -279,6 +279,13 @@ const ROUND_SURFACES = {
       "the question sets from the form's own repository, so a round of the older kind renders " +
       "the same 'no application form here' as one that does not exist",
   },
+  "/(app)/admin/admissions/forms/[roundId]/pool": {
+    kind: "form",
+    why:
+      "the pooled applicants, an admin's page. It loads the round with the form's own loader, " +
+      "which answers null for a round that is not a form, and the page then answers as it " +
+      "does for a form that is not there",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications": {
     kind: "form",
     why:
@@ -327,6 +334,12 @@ const ROUND_SURFACES = {
       "stops at a form before it reads stages or anybody's application, so to the older half a " +
       "form is a round that is not there and the older flow is never drawn for one",
   },
+  "/(app)/admin/admissions/forms/[roundId]/send": {
+    kind: "form",
+    why:
+      "the decision day send, an admin's page. It loads the round with the form's own loader, " +
+      "so a round of the older kind has no decision day to draw and is answered as not found",
+  },
   "/api/admissions/forms/[roundId]": {
     kind: "form",
     why:
@@ -367,6 +380,13 @@ const ROUND_SURFACES = {
       "saves the caller's own scores and comments through saveReview, and reads the " +
       "application back through loadReview. Both start from the form's own loader",
   },
+  "/api/admissions/forms/[roundId]/pool": {
+    kind: "form",
+    why:
+      "reads the pooled applicants and picks what each will hear. The round comes from the " +
+      "form's own loader, and setPooledOutcome reads it again inside its transaction and stops " +
+      "unless it is a form",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
     kind: "form",
     why:
@@ -393,6 +413,20 @@ const ROUND_SURFACES = {
       "switches whether a first review shows other reviewers' scores, through " +
       "setRevealOtherReviews, which loads the round with the form's own loader before it " +
       "writes the one field, so the switch is never set on a round of the older kind",
+  },
+  "/api/admissions/forms/[roundId]/send": {
+    kind: "form",
+    why:
+      "reads the decision day line-up and runs the send through runDecisionDay, which loads " +
+      "the round with the form's own loader before it publishes anything and refuses a round " +
+      "that is not a form as one that is not there",
+  },
+  "/api/admissions/forms/[roundId]/send/test": {
+    kind: "form",
+    why:
+      "mails the admin one of the form's three decision emails through sendTestEmail, which " +
+      "loads the round with the form's own loader first, so no test is made from a round of " +
+      "the older kind",
   },
   "/api/admissions/forms/[roundId]/sets": {
     kind: "form",
@@ -741,7 +775,7 @@ describe("every route, page and layout with a round id in its address", () => {
 
   test("the walk finds them", () => {
     assert.ok(
-      surfaces.length >= 35,
+      surfaces.length >= 40,
       `only ${surfaces.length} files with a [roundId] segment were found: the trees have moved`,
     );
   });
@@ -986,6 +1020,30 @@ const ROUND_READERS = new Map([
         "round itself. Its one way to what a round holds is the form's own loader, which asks " +
         "and answers null for a round that is not a form, and its two writers are handed the " +
         "form that loader returned and touch the round only to move its counters",
+    },
+  ],
+  [
+    "src/lib/applications/decisionDay/pool.ts",
+    {
+      kind: "form",
+      asks: 1,
+      proof: ["const form = await loadForm(db, roundId);"],
+      why:
+        "the pooled applicants' board and the one writer of a pooled outcome. The writer loads " +
+        "the round with the form's own loader, then reads it again inside its transaction and " +
+        "asks before it writes a decision document",
+    },
+  ],
+  [
+    "src/lib/applications/decisionDay/send.ts",
+    {
+      kind: "form",
+      asks: 1,
+      proof: ["const form = await loadForm(db, roundId);"],
+      why:
+        "the decision day send and its rehearsal. Both start from the form's own loader, which " +
+        "answers null for a round that is not a form. The transaction that stamps the form as " +
+        "sent reads the round again and asks before it writes",
     },
   ],
   [
