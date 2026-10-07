@@ -93,6 +93,7 @@ export default function CheckStep({
   sent,
   sendError,
   noticeRef,
+  hold,
 }: {
   content: ApplicationContent;
   /** The ticked programmes, in the person's order. */
@@ -114,6 +115,11 @@ export default function CheckStep({
   sent: SentState;
   sendError: string | null;
   noticeRef: React.Ref<HTMLDivElement>;
+  /**
+   * Drawn first on the step while a send is held for a university address
+   * that has not been checked. Null for everybody else.
+   */
+  hold: ReactNode;
 }) {
   const go = (stepId: string) => (event: MouseEvent<HTMLAnchorElement>) => {
     // A plain click moves within the page. Anything else (a new tab, say) is
@@ -125,9 +131,15 @@ export default function CheckStep({
   const orderStep = ranked.length >= 2 ? "rank" : "choose";
   const elsewhere = issues.filter((issue) => issue.stepId !== "check");
   const agreement = privacyAgreement();
+  // What the server found on this step that the page had not: said in the
+  // same list, so a refusal is never a notice with nothing under it.
+  const here = [...new Set(issues.filter((issue) => issue.stepId === "check").map((issue) => issue.message))].filter(
+    (message) => message !== suProblem,
+  );
 
   return (
     <div className={form.body}>
+      {hold}
       {issues.length > 0 ? (
         <div ref={noticeRef} tabIndex={-1} className={form.notice} data-tone="warn" role="alert">
           <p>A few things to finish before you send.</p>
@@ -141,6 +153,9 @@ export default function CheckStep({
               </li>
             ))}
             {suProblem ? <li>{suProblem}</li> : null}
+            {here.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
           </ul>
         </div>
       ) : sendError ? (

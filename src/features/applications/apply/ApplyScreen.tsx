@@ -3,14 +3,14 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
 import { getAdminDb } from "@/lib/firebase/admin";
-import type { SessionUser } from "@/lib/firebase/session";
+import { getCurrentCollaborator, type SessionUser } from "@/lib/firebase/session";
 import { projectFormForApplicant } from "@/lib/applications/applicant/project";
 import { loadApplicantView, loadVisibleForm } from "@/lib/applications/applicant/store";
 import type { ApplicantApplication, ApplicantForm } from "@/lib/applications/applicant/types";
 import { loadForm } from "@/lib/applications/repo";
 import ApplicationForm from "./ApplicationForm";
 import { closedOnLabel } from "./closedOn";
-import JoinFirst from "./JoinFirst";
+import JoinStep from "./JoinStep";
 import { isStepId } from "./steps";
 import styles from "./form.module.css";
 
@@ -25,11 +25,22 @@ import styles from "./form.module.css";
  * same code.
  *
  * Everything is read here, on the server, through the applicant-safe loader,
- * and the form is handed its opening state: the same four projections the
- * GET route answers with. A signed-out visitor is asked nothing: they get a
- * short panel (`JoinFirst`) that is handed the form's id and label and
- * nothing else, and that sends them to make an account or sign in and come
- * back. No part of the form is drawn for somebody it could not be saved for.
+ * and the form is handed its opening state: the same projections the GET
+ * route answers with.
+ *
+ * ## Somebody with no join request is drawn the first step, and only that
+ *
+ * A visitor who is not signed in, and an account that has signed in and never
+ * sent a join request, both get `JoinStep`: the form's first step, About you,
+ * which for them is the join request. It is handed the form's id, its name
+ * and the two dates the open form shows, and NOTHING ELSE of the form: not a
+ * programme, not a question. Those are read only for somebody who has a join
+ * request, because that is the first moment an application can be saved for
+ * them.
+ *
+ * A session does not say whether there is a join request (the session reads
+ * a missing account document as an account that is waiting), so that is
+ * asked of the document itself: `view.joined`.
  */
 
 function StateCard({
@@ -152,6 +163,7 @@ export async function renderApplicationForm({
   user,
   viewingAs,
   step,
+  fromJoinLink,
 }: {
   roundId: string;
   user: SessionUser | null;
@@ -159,6 +171,8 @@ export async function renderApplicationForm({
   viewingAs: boolean;
   /** `?step=` from the address, when there is one. */
   step: string | null;
+  /** The address carries the mark of a return from the link emailed to a new account. */
+  fromJoinLink: boolean;
 }): Promise<ReactNode | null> {
   const db = getAdminDb();
   if (!db) return null;
@@ -172,7 +186,15 @@ export async function renderApplicationForm({
     return (
       <ApplicationsRoot className={`${styles.tokens} ${styles.root}`}>
         {form.windowState === "open" ? (
-          <JoinFirst roundId={form.id} label={form.label} />
+          <JoinStep
+            roundId={form.id}
+            label={form.label}
+            closesLabel={form.closesLabel}
+            decisionsLabel={form.decisionsLabel}
+            signedIn={false}
+            signedInAs={null}
+            fromLink={false}
+          />
         ) : form.windowState === "not-yet" ? (
           <NotYet form={form} signedIn={false} returnTo={returnTo} />
         ) : (
@@ -209,6 +231,51 @@ export async function renderApplicationForm({
 
   const view = await loadApplicantView(db, roundId, user.uid, now);
   if (!view) return null;
+
+  if (!view.joined && view.form.windowState === "open") {
+    // Signed in, and no join request. An external collaborator is one such
+    // account and is not somebody this form is for: making a join request on
+    // their account would leave one person holding two kinds of membership.
+    if (await getCurrentCollaborator()) {
+      return (
+        <ApplicationsRoot className={`${styles.tokens} ${styles.root}`}>
+          <StateCard
+            title="You’re signed in as a collaborator"
+            actions={
+              <Link href="/collaborator" className={styles.ghost}>
+                Go to your collaborator space
+              </Link>
+            }
+          >
+            <p className={styles.stateBody}>
+              These programmes are for University of Nottingham students and staff. To apply, sign out and use
+              a student or staff account. If that’s not right, email{" "}
+              <a href="mailto:ai-safety@uonsu.com" className={styles.inlineLink}>
+                ai-safety@uonsu.com
+              </a>
+              .
+            </p>
+          </StateCard>
+        </ApplicationsRoot>
+      );
+    }
+    // The same place in the tree as the signed-out step above, so a visitor
+    // who signs in part way through keeps the page they were typing on.
+    return (
+      <ApplicationsRoot className={`${styles.tokens} ${styles.root}`}>
+        <JoinStep
+          roundId={view.form.id}
+          label={view.form.label}
+          closesLabel={view.form.closesLabel}
+          decisionsLabel={view.form.decisionsLabel}
+          signedIn
+          signedInAs={user.email ?? null}
+          fromLink={fromJoinLink}
+        />
+      </ApplicationsRoot>
+    );
+  }
+
   // Only a closed form asks when it closed, so only a closed form reads its time.
   const stored = view.form.windowState === "closed" ? await loadForm(db, roundId) : null;
   const closedOn = closedOnLabel(stored?.round.closesAt ?? null, view.form.closesLabel, now);

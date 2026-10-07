@@ -587,6 +587,10 @@ describe("what an applicant reads", () => {
       "Get it on the SU site",
       "Finish later",
       "Send application",
+      // ap-1-about-new, the first step for somebody with no account.
+      "You don’t have an account yet, so this step is your join request too. You can keep applying while the committee checks it. If you get a place, that approves your account.",
+      "We’ll email you a link to check it’s yours.",
+      "This site is protected by reCAPTCHA. Google’s",
     ]) {
       assert.ok(all.includes(sentence), `missing: ${sentence}`);
     }
@@ -594,67 +598,293 @@ describe("what an applicant reads", () => {
     assert.match(all, /We’ll ask you \{moreQuestions\} more \{moreQuestions === 1 \? "question" : "questions"\}\./);
   });
 
-  test("signed out, a visitor is shown no field", () => {
-    // An application is saved against an account, so a box drawn for somebody
-    // with no account is a box whose contents are thrown away. The panel has
-    // no control to type into, no state to hold an answer and nothing that
-    // posts one, and it is not a client component, so it cannot grow any of
-    // them without this failing.
-    const source = sourceOf("JoinFirst.tsx");
-    const panel = codeOf("JoinFirst.tsx");
-    assert.equal(source.trimStart().startsWith('"use client"'), false, "the panel holds no state, so it is rendered on the server");
-    assert.equal(/<(input|textarea|select|form|button)\b/.test(panel), false, "the panel draws a control");
-    assert.equal(/<Select\b|\bTextField\b|\bLongText\b|\bAboutStep\b|\bChoiceRows\b/.test(panel), false, "the panel draws one of the form's fields");
-    assert.equal(/\buseState\b|\buseReducer\b|\bonChange\b|\bfetch\(/.test(panel), false, "the panel keeps or sends something");
-    // And no step of the form is drawn beside it for a visitor.
+  test("somebody with no join request is drawn the first step, and nothing else of the form", () => {
+    // The first step asks the join request's questions, and for somebody with
+    // no join request it IS their join request (`JoinStep.tsx`). An
+    // application cannot be saved for them yet, so no programme and no
+    // question of it is read for them: each branch that draws the step hands
+    // it the form's id, its name, the two dates an open form shows and
+    // whether there is a session (and, for one, whether the address carries
+    // the mark of a return from an emailed link), and nothing else.
     const screen = codeOf("ApplyScreen.tsx");
     const signedOutBranch = screen.slice(screen.indexOf("if (!user) {"), screen.indexOf('if (user.role === "rejected")'));
-    assert.ok(signedOutBranch.includes("<JoinFirst "), "the signed-out branch was not found");
-    assert.equal(/<ApplicationForm\b|<AboutStep\b/.test(signedOutBranch), false, "a signed-out visitor is drawn part of the form");
-    assert.equal(formFiles.includes("SignedOutAbout.tsx"), false, "the step drawn for a visitor with no account is back");
+    assert.ok(signedOutBranch.includes("<JoinStep"), "the signed-out branch was not found");
+    assert.equal(
+      /<ApplicationForm\b|<AboutStep\b|loadApplicantView|\bsets\b|\.programmes\b/.test(signedOutBranch),
+      false,
+      "a signed-out visitor is drawn, or handed, part of the form",
+    );
+    const drawn = [...screen.matchAll(/<JoinStep\s([\s\S]*?)\/>/g)].map((match) => match[1].replace(/\s+/g, " ").trim());
+    assert.deepEqual(drawn, [
+      "roundId={form.id} label={form.label} closesLabel={form.closesLabel} decisionsLabel={form.decisionsLabel} signedIn={false} signedInAs={null} fromLink={false}",
+      "roundId={view.form.id} label={view.form.label} closesLabel={view.form.closesLabel} decisionsLabel={view.form.decisionsLabel} signedIn signedInAs={user.email ?? null} fromLink={fromJoinLink}",
+    ]);
+    // The second is an account with no join request. That is asked of the
+    // account's document: a session reads a missing document as an account
+    // that is waiting, so the role cannot say.
+    assert.match(screen, /if \(!view\.joined && view\.form\.windowState === "open"\) \{/);
+    // The step takes those seven things and no others.
+    const step = codeOf("JoinStep.tsx");
+    const from = step.indexOf("type Props = {");
+    const props = step.slice(from, step.indexOf("\n};", from));
+    assert.deepEqual(
+      [...props.matchAll(/^\s{2}(\w+)\??:/gm)].map((match) => match[1]),
+      ["roundId", "label", "closesLabel", "decisionsLabel", "signedIn", "signedInAs", "fromLink"],
+    );
+    assert.equal(formFiles.includes("JoinFirst.tsx"), false, "the panel that sent visitors away to join is back");
+    assert.equal(formFiles.includes("SignedOutAbout.tsx"), false);
   });
 
-  test("signed out, both ways on carry this form's address and nothing else", async () => {
-    const panel = codeOf("JoinFirst.tsx");
-    assert.match(panel, /const returnTo = encodeURIComponent\(`\/apply\/\$\{roundId\}`\);/);
-    assert.equal((panel.match(/href=\{`\/register\?next=\$\{returnTo\}`\}/g) ?? []).length, 1, "one way to an account");
-    assert.equal((panel.match(/href=\{`\/login\?next=\$\{returnTo\}`\}/g) ?? []).length, 1, "one way back in");
-    // Those two and Close are every place the panel sends anybody.
-    assert.deepEqual(
-      (panel.match(/href=(?:"[^"]*"|\{[^}]*\}`\}|\{[^}]*\})/g) ?? []).sort(),
-      ['href="/"', "href={`/login?next=${returnTo}`}", "href={`/register?next=${returnTo}`}"],
-    );
+  test("the ways out of the join step carry this form's address and nothing else", async () => {
+    const step = codeOf("JoinStep.tsx");
+    assert.match(step, /const formUrl = `\/apply\/\$\{encodeURIComponent\(roundId\)\}`;/);
+    assert.match(step, /const signInHref = `\/login\?next=\$\{encodeURIComponent\(formUrl\)\}`;/);
+    // Every place the step sends anybody: home, the society's address and the
+    // two policies the reCAPTCHA line has to link. Its second half adds one:
+    // the sign-in page, with this form as the place to come back to.
+    const hrefs = (file) => (codeOf(file).match(/href=(?:"[^"]*"|\{[^}]*\})/g) ?? []).sort();
+    assert.deepEqual(hrefs("JoinStep.tsx"), [
+      'href="/"',
+      'href="https://policies.google.com/privacy"',
+      'href="https://policies.google.com/terms"',
+      'href="mailto:ai-safety@uonsu.com"',
+    ]);
+    assert.deepEqual([...new Set(hrefs("JoinAccount.tsx"))], ["href={signInHref}"]);
+    assert.match(step, /<JoinAccount\s+signInHref=\{signInHref\}/);
+    // Nothing on the step leads to the register page: the step is where
+    // somebody joins.
+    for (const file of ["JoinStep.tsx", "JoinAccount.tsx"]) {
+      assert.equal(/\/register\b(?!\/resend)/.test(codeOf(file)), false, `${file} sends somebody to the register page`);
+    }
     // The address is one the registration flow hands people back to. If the
     // form ever moves, or that list is narrowed, a visitor would finish
-    // joining and be left somewhere else.
+    // signing in and be left somewhere else.
     const { safeFunnelReturn } = await loadTs(join("lib", "authReturn.ts"));
     assert.equal(safeFunnelReturn(`/apply/${FORM.id}`), `/apply/${FORM.id}`);
   });
 
-  test("signed out, the panel says what is true and never promises a join request", () => {
-    const panel = sourceOf("JoinFirst.tsx").replace(/\s+/g, " ");
+  test("the step says it is a join request, and that is true of the file that says it", () => {
+    const step = sourceOf("JoinStep.tsx").replace(/\s+/g, " ");
     for (const sentence of [
-      "Join NAISI to apply",
-      "You need a NAISI account to apply. Joining takes a couple of minutes, and we bring you straight back to this form afterwards.",
-      "Join NAISI",
-      "Already have an account?",
-      "Sign in",
+      "Step 1 · About you",
+      "About you",
+      "You don’t have an account yet, so this step is your join request too. You can keep applying while the committee checks it. If you get a place, that approves your account.",
+      "This site is protected by reCAPTCHA. Google’s",
+      "Privacy Policy",
+      "Terms of Service",
+      "Continue",
     ]) {
-      assert.ok(panel.includes(sentence), `missing: ${sentence}`);
+      assert.ok(step.includes(sentence), `missing: ${sentence}`);
     }
-    // What is left of the markup once the tags and the expressions are gone
-    // is what a visitor reads.
-    const code = codeOf("JoinFirst.tsx");
-    const read = code.slice(code.indexOf("return (")).replace(/<[^>]*>/g, " ").replace(/\{[^}]*\}/g, " ");
-    assert.ok(read.includes("Join NAISI to apply"), "the panel's words were not found");
-    assert.equal(read.includes("!"), false, "the panel has an exclamation mark");
-    // Nothing on this page makes a join request, so nothing in the form may
-    // say that a step of it is one.
+    assert.ok(sourceOf("AboutStep.tsx").includes("We’ll email you a link to check it’s yours."));
+    assert.ok(sourceOf("JoinAccount.tsx").replace(/\s+/g, " ").includes("Already have an account?"));
+
+    // A file may say a step is a join request only if it sends one, and may
+    // say the page is protected by reCAPTCHA only if the check is on it.
     for (const file of formFiles.filter((name) => /\.tsx?$/.test(name))) {
-      const all = sourceOf(file).replace(/\s+/g, " ").toLowerCase();
-      assert.equal(/this step is your join request|is your join request too/.test(all), false, `${file} says a step is a join request`);
-      assert.equal(/protected by recaptcha/.test(all), false, `${file} says the page runs a check it does not load`);
+      const said = codeOf(file).replace(/\s+/g, " ").toLowerCase();
+      if (/this step is your join request/.test(said)) {
+        assert.equal(file, "JoinStep.tsx", `${file} says a step is a join request`);
+        assert.match(codeOf(file), /await completeRegistration\(joinRequestFrom\(answers\)\)/);
+      }
+      if (/protected by recaptcha/.test(said)) {
+        assert.equal(file, "JoinStep.tsx", `${file} says the page runs a check`);
+        assert.match(codeOf(file), /RECAPTCHA_ENABLED && !signedIn \? /);
+      }
     }
+    assert.match(codeOf("JoinAccount.tsx"), /\{RECAPTCHA_ENABLED \? <RecaptchaInvisible ref=\{recaptcha\} \/> : null\}/);
+
+    // Nothing here says Saved: until the join request has gone there is no
+    // application to save into.
+    for (const file of ["JoinStep.tsx", "JoinAccount.tsx"]) {
+      assert.equal(/\bSaved\b|SaveStatus/.test(codeOf(file)), false, `${file} says something is saved`);
+    }
+    // And no exclamation marks in what a visitor reads.
+    for (const file of ["JoinStep.tsx", "JoinAccount.tsx", "UniversityCheck.tsx"]) {
+      assert.equal(/[A-Za-z.’]!(?!=)/.test(codeOf(file)), false, `${file} has an exclamation mark`);
+    }
+  });
+
+  test("a university address that is not checked is said on About you and on the last step, with the link again", () => {
+    const form = codeOf("ApplicationForm.tsx");
+    // The form asks the same rule the send route applies.
+    assert.match(form, /required: mustVerifyBeforeSending\(pending \? "pending" : "member"\) && !viewingAs,/);
+    assert.match(form, /check: check\.held \? <UniversityCheckNote check=\{check\} \/> : null,/);
+    assert.match(form, /hold=\{check\.held \? <UniversityCheckHold check=\{check\} noticeRef=\{holdRef\} \/> : null\}/);
+    // A press of Send asks the server again before it gives up, and never
+    // sends while the hold stands.
+    const send = form.slice(form.indexOf("async function send()"), form.indexOf("const back = index > 0"));
+    assert.ok(send.indexOf("if (check.held) {") !== -1);
+    assert.ok(send.indexOf("await check.refresh()") < send.indexOf("await sendApplication(form.id)"));
+    assert.match(send, /if \(!verified\) \{[\s\S]*?return;\s*\}/);
+    const notices = sourceOf("UniversityCheck.tsx").replace(/\s+/g, " ");
+    for (const sentence of [
+      "Check your university email before you send.",
+      "Open it, then come back to this page and send.",
+      "Not checked yet. We emailed a link to this address: open it to check it’s yours.",
+      "Send the link again",
+    ]) {
+      assert.ok(notices.includes(sentence), `missing: ${sentence}`);
+    }
+    // The last step draws the hold first, above everything else on it.
+    const checkStep = codeOf("CheckStep.tsx");
+    assert.match(checkStep, /<div className=\{form\.body\}>\s*\{hold\}/);
+  });
+
+  // Three changes meet on the last step, and each was written without sight
+  // of the other two: the notice that a send is held for a university address
+  // nobody has checked, the access-requirements box, and the two sentences
+  // that say who reads an application and what sending agrees to. Each has a
+  // test of its own beside its own code. The three tests below hold them
+  // TOGETHER, so a change to one cannot quietly move or remove another.
+  test("the last step carries the hold, the access-requirements box, who reads the application and the agreement, in that order", () => {
+    const step = codeOf("CheckStep.tsx");
+    /** Where `needle` is on the step, which has to be exactly once. */
+    const once = (needle) => {
+      const first = step.indexOf(needle);
+      assert.ok(first !== -1, `the last step no longer has ${needle}`);
+      assert.equal(step.indexOf(needle, first + 1), -1, `the last step has ${needle} twice`);
+      return first;
+    };
+    // The order a person reads it in: what is stopping a send, first. Then
+    // what they entered, the two things asked on this step (the second is the
+    // box, which says it is kept apart, so it comes BEFORE the sentence about
+    // who reads the application), then who reads it, what sending agrees to,
+    // and the link to how it is used.
+    const order = [
+      ["the step's own frame", once("<div className={form.body}>")],
+      ["the hold", once("{hold}")],
+      ["what the person entered", once("<div className={styles.summary}>")],
+      ["the SU membership question", once('legend="Do you have SU membership?"')],
+      ["the access-requirements box", once("{accessRequirements}")],
+      ["the block about how the application is used", once("<div className={styles.use}>")],
+      ["who reads the application", once("and by NAISI’s admins.")],
+      ["the agreement", once("{agreement.before}")],
+      ["the link to how it is used", once("How we use your application")],
+    ];
+    for (let i = 1; i < order.length; i += 1) {
+      assert.ok(order[i - 1][1] < order[i][1], `${order[i][0]} has moved above ${order[i - 1][0]}`);
+    }
+
+    // None stands in for another. From the box down nothing is drawn only
+    // some of the time: no condition of any kind, so the box, the two
+    // sentences and the link are there whatever else the step is showing
+    // (a held send, a list of things to finish, a notice that it was sent).
+    const fromTheBoxDown = step.slice(order[4][1]);
+    assert.doesNotMatch(fromTheBoxDown, /\?|&&|\|\|/, "something from the access-requirements box down is conditional");
+    // And the form hands the step the box whether or not the send is held:
+    // the hold is the only one of the three that depends on the account.
+    const form = codeOf("ApplicationForm.tsx");
+    assert.match(form, /accessRequirements=\{<AccessRequirementsBox access=\{access\} \/>\}/);
+    assert.match(form, /hold=\{check\.held \? <UniversityCheckHold check=\{check\} noticeRef=\{holdRef\} \/> : null\}/);
+  });
+
+  test("a press of Send that is held saves nothing and sends nothing, and leaving never waits for the address", () => {
+    // Send saves the draft, then waits for the access-requirements box to be
+    // saved, then sends. A send held for an unchecked address has to stop
+    // BEFORE all three: a refused send is no send, so it must not be the
+    // thing that writes what is in the box. Asked in this order, it is not.
+    const form = codeOf("ApplicationForm.tsx");
+    const send = form.slice(form.indexOf("async function send()"), form.indexOf("const back = index > 0"));
+    const once = (needle) => {
+      const first = send.indexOf(needle);
+      assert.ok(first !== -1, `send() no longer has ${needle}`);
+      assert.equal(send.indexOf(needle, first + 1), -1, `send() has ${needle} twice`);
+      return first;
+    };
+    const asksAboutTheHold = once("if (check.held) {");
+    const stillHeld = once("if (!verified) {");
+    const givesUp = send.indexOf("return;", stillHeld);
+    const savesTheDraft = once("await flush(false, true, true)");
+    const savesTheBox = once("await access.settle()");
+    const sends = once("await sendApplication(form.id)");
+    assert.ok(givesUp !== -1, "a press that is still held no longer stops");
+    assert.ok(
+      asksAboutTheHold < stillHeld && stillHeld < givesUp && givesUp < savesTheDraft,
+      "a held press no longer stops before the draft is saved",
+    );
+    assert.ok(savesTheDraft < savesTheBox && savesTheBox < sends, "the draft, then the box, then the send");
+    assert.doesNotMatch(
+      send.slice(0, asksAboutTheHold),
+      /flush\(|access\.settle\(|sendApplication\(/,
+      "something is saved or sent before the hold is asked about",
+    );
+
+    // Saving waits for neither a join request nor the address, and that goes
+    // for the box's own save too: Finish later saves the draft and the box,
+    // and never asks about the university address.
+    const leave = form.slice(form.indexOf("async function finishLater()"), form.indexOf("async function send()"));
+    const leavesWithTheDraft = leave.indexOf("await flush()");
+    assert.ok(leavesWithTheDraft !== -1 && leavesWithTheDraft < leave.indexOf("await access.settle()"));
+    assert.doesNotMatch(leave, /\bcheck\./, "leaving the form now waits for the university address");
+  });
+
+  test("agreeing when joining and agreeing when sending are two acts, and neither is recorded as the other", () => {
+    const tsFiles = formFiles.filter((name) => /\.tsx?$/.test(name));
+    const flat = (file) => codeOf(file).replace(/\s+/g, " ");
+
+    // JOINING asks. The first step draws the register page's own tick box and
+    // holds Continue on it, because sending a join request records the
+    // agreement on the account (`completeRegistration`). It is the only file
+    // in the form that asks anybody to agree to anything.
+    assert.deepEqual(tsFiles.filter((file) => /\bPolicyConsent\b/.test(codeOf(file))), ["JoinStep.tsx"]);
+    assert.match(codeOf("JoinStep.tsx"), /const issues = joinIssues\(aboutRef\.current, agreed\);/);
+    assert.deepEqual(
+      tsFiles.filter((file) => /\bcompleteRegistration\(/.test(codeOf(file))),
+      ["JoinStep.tsx"],
+      "a second file in the form records a join request's agreement",
+    );
+
+    // SENDING states. The last step says that sending is agreeing, with no
+    // box to tick, and it is the only file that says so.
+    assert.deepEqual(tsFiles.filter((file) => /By sending, you agree/.test(flat(file))), ["checkText.ts"]);
+    for (const file of ["CheckStep.tsx", "checkText.ts"]) {
+      assert.doesNotMatch(codeOf(file), /type="checkbox"|\bagreed\b/, `${file} asks for a tick, or says one was given`);
+    }
+    // And the two steps that make an account say nothing about sending an
+    // application being an agreement: the tick is for joining.
+    for (const file of ["JoinStep.tsx", "JoinAccount.tsx"]) {
+      assert.doesNotMatch(flat(file), /by sending|privacyAgreement/i, `${file} speaks for the last step`);
+    }
+
+    // NEITHER CLAIMS THE OTHER'S RECORD. The record made at joining is two
+    // fields on the account. Nothing in the application system names them:
+    // not the form, not the applicant's own server modules, not the routes a
+    // draft is saved and sent through. So a send neither reads that record
+    // to decide anything nor restates it, and the line on the last step
+    // stays a statement. A record of agreement AT SENDING, if one is ever
+    // kept, is a decision of its own with a field of its own.
+    const JOIN_RECORD = /\bpolicyVersion\b|\bpolicyAgreedAt\b|\bCURRENT_POLICY_VERSION\b/;
+    const walk = (dir, found = []) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) walk(path, found);
+        else if (/\.tsx?$/.test(entry.name)) found.push(path);
+      }
+      return found;
+    };
+    const system = [
+      ...walk(join(REPO_ROOT, "src", "features", "applications")),
+      ...walk(join(REPO_ROOT, "src", "lib", "applications")),
+      ...walk(join(REPO_ROOT, "src", "app", "api", "admissions", "forms")),
+    ];
+    assert.ok(system.length > 100, `only ${system.length} files of the application system were found: the walk is broken`);
+    const strip = (source) => source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+    assert.deepEqual(
+      system.filter((path) => JOIN_RECORD.test(strip(readFileSync(path, "utf8")))).map((path) => path.slice(REPO_ROOT.length + 1)),
+      [],
+      "a file of the application system names the join request's record of agreement",
+    );
+    // The record itself is still made, by the one function the join step calls.
+    const joining = readFileSync(join(REPO_ROOT, "src", "auth", "signInWithGoogle.ts"), "utf8");
+    assert.match(joining, /policyVersion: CURRENT_POLICY_VERSION,\s*policyAgreedAt: serverTimestamp\(\),/);
+
+    // THEY CANNOT DISAGREE about which policy. The version recorded at
+    // joining and the date stated at sending are both read from the one list
+    // the privacy page is drawn from.
+    const current = policies.currentPolicy("privacy");
+    assert.ok(policies.CURRENT_POLICY_VERSION.endsWith(`+privacy.${current.version}`));
+    assert.equal(check.privacyAgreement().after, `, updated ${check.policyDateLabel(current.lastUpdated)}.`);
   });
 });
 
@@ -744,6 +974,7 @@ describe("the form's stylesheets keep the house mobile rules", () => {
       "rank.module.css": ["handle", "move"],
       "check.module.css": ["change"],
       "availability.module.css": ["typedAdd", "remove"],
+      "join.module.css": ["leave", "asideLink", "resendLink", "resend", "google"],
     };
     for (const [file, classes] of Object.entries(expected)) {
       const css = sourceOf(file).replace(/\/\*[\s\S]*?\*\//g, "");
