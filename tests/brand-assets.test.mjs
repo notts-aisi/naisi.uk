@@ -15,7 +15,12 @@
  *     nothing);
  *   - a finished picture that no longer shows what its SVG shows;
  *   - an address in the manifest, the service worker or a page that names a
- *     picture which is not served, or declares a size the file does not have.
+ *     picture which is not served, or declares a size the file does not have;
+ *   - an outline of the emblem written into the code (the header draws the
+ *     mark in place) that is not the master's outline;
+ *   - an email logo or a link-preview card wired in a way that cannot work:
+ *     an SVG in an email, a logo on the wrong ground, a root layout that
+ *     overrides the generated card.
  *
  * Each of those reaches a real device silently. None of them fails a build.
  */
@@ -502,17 +507,17 @@ test("BrandMark draws the emblem in the master's own box, offset and inks", () =
   assert.equal(ink("face"), body.match(/fill="(#[0-9a-fA-F]{6})"/)[1].toLowerCase(), "the body's ink");
 });
 
-test("the emblem's outlines fill the same under either rule, apart from the castle's window", async () => {
+test("the shield and the wave fill the same under either rule, so BrandMark may set it on the castle alone", async () => {
   // The master sets fill-rule="evenodd" on all three outlines. BrandMark
   // sets it on the castle alone. That is the same picture only while the
   // shield and the wave have nothing that rule would cut out, so new artwork
   // with a hole in either has to fail here and say so.
-  const [castle, shield, wave] = EMBLEM;
+  const viewBox = nightEmblem.match(/viewBox="([^"]+)"/)[1];
   const drawn = (rules) =>
     sharp(
       Buffer.from(
-        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="6 6 221.07 270.4" width="442" height="541" fill="#fff">` +
-          [castle, shield, wave].map((d, i) => `<path d="${d}" fill-rule="${rules[i]}"/>`).join("") +
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="442" height="541" fill="#fff">` +
+          EMBLEM.map((d, i) => `<path d="${d}" fill-rule="${rules[i]}"/>`).join("") +
           "</svg>",
       ),
     )
@@ -523,4 +528,102 @@ test("the emblem's outlines fill the same under either rule, apart from the cast
   assert.ok(asMaster.equals(asBrandMark), "the shield or the wave now needs fill-rule evenodd: set it in BrandMark.tsx");
   const component = readFileSync(at("src/components/BrandMark.tsx"), "utf8");
   assert.match(component, /<path d=\{(?:small \? CASTLE_SMALL : )?CASTLE\} fillRule="evenodd" \/>/, "the castle is drawn even-odd");
+});
+
+// ---------------------------------------------------------------------------
+// Email
+// ---------------------------------------------------------------------------
+
+/** Relative luminance of "#rrggbb" (WCAG), and the contrast between two colours. */
+function luminance(hex) {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+const contrast = (a, b) => (Math.max(luminance(a), luminance(b)) + 0.05) / (Math.min(luminance(a), luminance(b)) + 0.05);
+
+/** What src/emails/EmailChrome.tsx says about its logo and the card it sits on. */
+function emailChrome() {
+  const source = strip(readFileSync(at("src/emails/EmailChrome.tsx"), "utf8"));
+  const logoPath = source.match(/const LOGO_PATH = "([^"]+)";/)?.[1];
+  const logoWidth = Number(source.match(/const LOGO_WIDTH = (\d+);/)?.[1]);
+  const card = source.match(/const container: React\.CSSProperties = \{[^}]*?backgroundColor: "(#[0-9a-fA-F]{6})"/)?.[1];
+  assert.ok(logoPath && logoWidth && card, "could not read the logo's address, its width and the card's colour in EmailChrome.tsx");
+  return { logoPath, logoWidth, card };
+}
+
+test("the email logo is the picture made for email: a PNG, sharp at the width it is shown", async () => {
+  const { logoPath, logoWidth } = emailChrome();
+  const output = OUTPUTS.find((o) => `public${logoPath}` === o.to);
+  assert.ok(output, `EmailChrome shows ${logoPath}, which \`npm run brand\` does not make`);
+  // Gmail and Outlook do not show SVG. And the file is the one finished for
+  // email, copied, not a redraw at some other size.
+  assert.match(logoPath, /\.png$/, "mail clients do not show SVG: the email logo is a PNG");
+  assert.ok(output.copy, "the email logo is the finished picture from the masters, copied");
+  const meta = await sharp(read(output.to)).metadata();
+  assert.ok(
+    meta.width >= 2 * logoWidth,
+    `the logo is ${meta.width}px wide and shown at ${logoWidth}px: it needs two pixels for each one shown to stay sharp`,
+  );
+  // 600px is the card's widest; its padding is 32px a side.
+  assert.ok(logoWidth <= 600 - 2 * 32, "the logo is wider than the card's content");
+});
+
+test("the email logo is the lockup made for the ground the card gives it", async () => {
+  const { logoPath, card } = emailChrome();
+  // The picture's own ink: the commonest fully opaque colour in it.
+  const { data } = await pixels(read(`public${logoPath}`));
+  const counts = new Map();
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] !== 255) continue;
+    const key = "#" + [data[i], data[i + 1], data[i + 2]].map((v) => v.toString(16).padStart(2, "0")).join("");
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const [ink] = [...counts].sort((a, b) => b[1] - a[1])[0];
+  // The colour lockup on a white card measures 8.0. The Night lockup on the
+  // same card would be white on white, 1.0, and nothing would say so.
+  const ratio = contrast(ink, card.toLowerCase());
+  assert.ok(
+    ratio >= 4.5,
+    `the logo's ink ${ink} on the email card ${card} is ${ratio.toFixed(1)}:1. ` +
+      "A light card takes the colour lockup and a dark one the Night lockup.",
+  );
+});
+
+test("the chrome shows the logo by absolute address, at its declared width, with the society's name", () => {
+  const source = strip(readFileSync(at("src/emails/EmailChrome.tsx"), "utf8"));
+  const pictures = [...source.matchAll(/<Img\b([\s\S]*?)\/>/g)].map((m) => m[1]);
+  assert.equal(pictures.length, 1, "the chrome shows one picture, the logo");
+  const [logo] = pictures;
+  // A mail client cannot resolve a relative address, so the site's own
+  // origin goes in front, and it is the live site unless a deployment says
+  // otherwise.
+  assert.match(logo, /src=\{`\$\{APP_URL\}\$\{LOGO_PATH\}`\}/, "the logo's address is APP_URL followed by LOGO_PATH");
+  assert.match(source, /const APP_URL = process\.env\.NEXT_PUBLIC_APP_URL \?\? "https:\/\/naisi\.uk";/);
+  assert.match(logo, /width=\{LOGO_WIDTH\}/, "the width a mail client is told is the one the picture is checked against above");
+  assert.match(logo, /alt="Nottingham AI Safety Initiative"/, "with pictures off, the name is what a reader sees");
+  // The picture is 600 by 261: at 300 wide its height is 130.5, and either
+  // whole number squeezes it. Left out, a mail client works it out.
+  assert.doesNotMatch(logo, /\bheight=/, "a height attribute on the logo squeezes it");
+});
+
+// ---------------------------------------------------------------------------
+// Link previews
+// ---------------------------------------------------------------------------
+
+test("the link-preview card is the size a preview takes, and the root layout leaves Next to declare it", async () => {
+  const meta = await sharp(read("src/app/opengraph-image.png")).metadata();
+  assert.equal(`${meta.width}x${meta.height}`, "1200x630", "a link-preview card is 1200 by 630");
+  assert.equal(meta.hasAlpha, false, "a card with transparency is shown on whatever colour the app behind it picks");
+  assert.equal(readFileSync(at("src/app/opengraph-image.alt.txt"), "utf8"), "Nottingham AI Safety Initiative");
+
+  const layout = strip(readFileSync(at("src/app/layout.tsx"), "utf8"));
+  // Next writes og:image and twitter:image from the file only while the root
+  // layout sets no `images` of its own, and static discovery of the icons
+  // and the manifest loses nothing to an explicit value only while none is
+  // written. Either key, added here, quietly takes the generated file's place.
+  assert.doesNotMatch(layout, /\bimages\s*:/, "the root layout sets `images`: the generated card is no longer what a shared link shows");
+  assert.doesNotMatch(layout, /\bicons\s*:/, "the root layout sets `icons`: Next already reads favicon.ico, icon.svg and apple-icon.png");
+  assert.doesNotMatch(layout, /\bmanifest\s*:/, "the root layout sets `manifest`: Next already reads src/app/manifest.ts");
+  // A 1200 by 630 card is the large format.
+  assert.match(layout, /twitter:\s*\{\s*card:\s*"summary_large_image"\s*\}/);
 });
