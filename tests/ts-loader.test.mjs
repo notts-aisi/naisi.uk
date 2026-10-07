@@ -243,6 +243,14 @@ describe("the shared loader reads JSX", () => {
  */
 const USERS = new Map([
   [
+    "admissions-form-fence.test.mjs",
+    "executes every older round route against a stored application form and against a round " +
+      "of the older kind, with the session, the Admin SDK handle and every sending door faked, " +
+      "because whether a form is refused before anything is written is decided by the handler " +
+      "that runs; it also renders the two notices the older pages return for a form, which " +
+      "are .tsx components and need the JSX option this loader sets",
+  ],
+  [
     "application-decision-lifetime.test.mjs",
     "executes the whole account cascade against a store that records each committed batch as " +
       "a unit, to prove a decision document leaves in the same batch as the application it is " +
