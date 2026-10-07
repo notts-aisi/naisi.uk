@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
+import ProfileSection from "@/features/profile/ProfileSection";
 import { PUSH_DEVICE_CARD_ID, usePushDevice } from "./pushDevice";
 import { mark, warn } from "@/lib/devMonitor";
 import styles from "./PushSettings.module.css";
@@ -136,8 +136,12 @@ export function PushSettings() {
   if (!cardShown) return null;
 
   return (
-    <Card padding="lg" className={styles.card} id={PUSH_DEVICE_CARD_ID}>
-      <h2 className={styles.heading}>Notifications on this device</h2>
+    <ProfileSection
+      headingId="profile-this-device"
+      title="Notifications on this device"
+      description="For this browser on this phone or laptop, and nowhere else."
+      cardId={PUSH_DEVICE_CARD_ID}
+    >
       {state === "needs-install" && (
         <p className={styles.copy}>
           iOS only delivers notifications to the installed app. Add NAISI to
@@ -181,6 +185,6 @@ export function PushSettings() {
         </>
       )}
       {note && <p className={styles.note}>{note}</p>}
-    </Card>
+    </ProfileSection>
   );
 }

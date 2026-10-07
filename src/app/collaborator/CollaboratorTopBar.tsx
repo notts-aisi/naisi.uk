@@ -5,6 +5,7 @@ import BrandMark from "@/components/BrandMark";
 import Button from "@/components/ui/Button";
 import { signOut } from "@/auth/signInWithGoogle";
 import { hardNavigate } from "@/lib/navigation/hardNavigate";
+import styles from "./collaborator.module.css";
 
 /** Minimal top bar for the collaborator area: brand link home + sign out. */
 export default function CollaboratorTopBar({ name }: { name: string }) {
@@ -16,37 +17,13 @@ export default function CollaboratorTopBar({ name }: { name: string }) {
   }
 
   return (
-    <header
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: "var(--space-3)",
-        padding: "var(--space-4) var(--space-5)",
-        borderBottom: "1px solid var(--color-border)",
-      }}
-    >
-      <Link
-        href="/"
-        aria-label="NAISI home"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "var(--space-3)",
-          color: "var(--color-text)",
-          textDecoration: "none",
-        }}
-      >
-        <BrandMark size={28} />
-        <span style={{ fontWeight: 600 }}>NAISI</span>
+    <header className={styles.bar}>
+      <Link href="/" aria-label="NAISI home" className={styles.brand}>
+        <BrandMark size={32} />
       </Link>
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-        {name && (
-          <span style={{ color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>
-            {name}
-          </span>
-        )}
-        <Button onClick={handleSignOut} variant="ghost" size="sm">
+      <div className={styles.account}>
+        {name && <span className={styles.name}>{name}</span>}
+        <Button onClick={handleSignOut} variant="ghost">
           Sign out
         </Button>
       </div>

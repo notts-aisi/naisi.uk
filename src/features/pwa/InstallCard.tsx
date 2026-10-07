@@ -68,7 +68,6 @@ export function InstallCard() {
       <div className={styles.actions}>
         {platform === "android" && promptReady && (
           <Button
-            size="sm"
             onClick={() => {
               void triggerInstall().then((accepted) => {
                 if (accepted) close();
@@ -78,7 +77,7 @@ export function InstallCard() {
             Install
           </Button>
         )}
-        <Button size="sm" variant="ghost" onClick={close}>
+        <Button variant="ghost" onClick={close}>
           Dismiss
         </Button>
       </div>

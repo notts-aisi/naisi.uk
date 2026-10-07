@@ -160,6 +160,22 @@ export type AdminPage = {
   visible: (access: AdminTabAccess) => boolean;
   /** The count drawn beside the label. The strip owns the numbers. */
   count?: "joinRequests" | "collaborators" | "courseApplications";
+  /**
+   * This page, and every page under its address, draws its own head: its own
+   * name as the page's one <h1>, with the section's name as a small crumb
+   * above it. The shared head (`AdminTabs`) then draws the strip and no
+   * heading at all.
+   *
+   * Left off, the shared head draws that same shape itself, from this entry:
+   * the section as the crumb and `label` as the <h1>. So every admin page
+   * reads the same way whoever draws its head.
+   *
+   * It is a statement about EVERY page file under the address, and
+   * `tests/app-frame.test.mjs` walks them both ways: a flagged page that
+   * draws no head would have no <h1>, and an unflagged one that draws a head
+   * would have two.
+   */
+  ownHead?: boolean;
 };
 
 export type AdminSection = {
@@ -202,18 +218,18 @@ export const ADMIN_SECTIONS: AdminSection[] = [
       // This address or one beneath it, never a plain prefix:
       // "/admin/membership" starts with "/admin/members", so a prefix test
       // would light Accounts up on the membership console.
-      { label: "Accounts", href: "/admin/members", match: under("/admin/members"), visible: ADMIN_ONLY },
-      { label: "Join requests", href: "/admin", match: (p) => p === "/admin", visible: ADMIN_ONLY, count: "joinRequests" },
-      { label: "Collaborators", href: "/admin/collaborators", match: under("/admin/collaborators"), visible: ADMIN_ONLY, count: "collaborators" },
-      { label: "SU membership", href: "/admin/membership", match: under("/admin/membership"), visible: (a) => a.isAdmin || a.canManageMembership },
-      { label: "Mailing list", href: "/admin/subscriptions", match: under("/admin/subscriptions"), visible: ADMIN_ONLY },
+      { label: "Accounts", href: "/admin/members", match: under("/admin/members"), visible: ADMIN_ONLY, ownHead: true },
+      { label: "Join requests", href: "/admin", match: (p) => p === "/admin", visible: ADMIN_ONLY, count: "joinRequests", ownHead: true },
+      { label: "Collaborators", href: "/admin/collaborators", match: under("/admin/collaborators"), visible: ADMIN_ONLY, count: "collaborators", ownHead: true },
+      { label: "SU membership", href: "/admin/membership", match: under("/admin/membership"), visible: (a) => a.isAdmin || a.canManageMembership, ownHead: true },
+      { label: "Mailing list", href: "/admin/subscriptions", match: under("/admin/subscriptions"), visible: ADMIN_ONLY, ownHead: true },
     ],
   },
   {
     id: "programmes",
     label: "Programmes",
     pages: [
-      { label: "Application forms", href: "/admin/admissions/forms", match: under("/admin/admissions/forms"), visible: ADMISSIONS },
+      { label: "Application forms", href: "/admin/admissions/forms", match: under("/admin/admissions/forms"), visible: ADMISSIONS, ownHead: true },
       { label: "Older rounds", href: "/admin/admissions", match: underBut("/admin/admissions", "/admin/admissions/forms"), visible: ADMISSIONS },
       { label: "Courses", href: "/admin/courses", match: under("/admin/courses"), visible: (a) => a.isAdmin || a.canAuthorCourses, count: "courseApplications" },
     ],

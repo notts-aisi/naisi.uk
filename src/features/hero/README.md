@@ -12,7 +12,7 @@ never needs to read the engine.
 | `keepOut.ts` | The zones the scene dims itself behind, and their numbers. |
 | `markArt.ts` | The emblem's shapes, as the hero draws them. |
 | `HeroScene.module.css` | The layout of all of the above, in three forms. |
-| `mount.ts` | Runs the scene on a page: the form, the typed headline, the hold on drags. |
+| `mount.ts` | Runs the scene on a page: the form, the typed headline, a finger on a link. |
 | `scene.ts` | Starts and stops the engine. The only file that imports it. |
 | `engine.js`, `engine.d.ts` | The design's script, kept exactly as shipped, and its types. |
 
@@ -320,7 +320,6 @@ must look right without them.
 | --- | --- | --- |
 | `data-form` | `desktop`, `tablet`, `phone` | The form the scene is running in. For checks. Lay out with the media conditions, never with this. |
 | `data-scene` | `running`, `still` | `still` under reduced motion. |
-| `data-hold` | present or absent | A drag on the hero is being held. |
 | `data-typing` | present or absent | The scene has taken over the accent's words. |
 | `data-ul` | `none`, `grow`, `full`, `shrink` | The accent's underline. |
 | `data-caret` | `on`, `off` | The caret after the accent. |
@@ -343,8 +342,8 @@ must look right without them.
   the whole accent. Words a visitor has read are never taken away to be typed
   again.
 - **Reduced motion.** One still frame of the finished network. No animation
-  frame is asked for, nothing follows the pointer, the words do not animate
-  and no drag is held.
+  frame is asked for, nothing follows the pointer and the words do not
+  animate.
 - **Off screen.** The engine stops drawing while no part of the hero is on
   screen and picks up when it returns.
 - **A hidden tab.** The engine asks for one frame at a time, and a browser
@@ -355,15 +354,14 @@ must look right without them.
 - **A double click on the open scene** replays the entrance, the words' with
   it. That is the engine's own behaviour. A double click on the words does
   not: it is how a visitor selects one.
-- **A drag, on the phone and tablet forms.** It moves the network and not the
-  page (`touch-action: pinch-zoom`, so two fingers still zoom). The hold is
-  on only while all of these are true: the scene is running; motion is not
-  reduced; the page is not zoomed in; the hero ends on the first screen (it
-  is no taller than the screen, and nothing above the header has pushed it
-  down); and no link or button inside the hero has been pressed since the
-  script loaded. Pressing one lets go for the rest of the visit. A drag that starts
-  on the site's header, above the hero, always moves the page, and so do the
-  keyboard and a wheel.
+- **A finger scrolls the page, on every form.** The hero is one screen high,
+  so on a phone every swipe starts on it. Nothing in the hero sets
+  `touch-action` or keeps a touch for itself: a swipe moves the page, and two
+  fingers zoom it. The design holds a drag on the phone and tablet forms so
+  that it moves the network; that was built, tried on a phone and taken out,
+  because a first screen that does not scroll reads as a broken page. The
+  engine still hears a finger until the browser takes the gesture for a
+  scroll, so a tap on the open scene and a sideways drag still reach it.
 - **A link, by touch.** The engine captures a finger on the hero. When the
   finger went down on a link or button the capture is handed straight back,
   so the link is followed as any other link is.

@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import Button from "@/components/ui/Button";
+import PageHead from "@/components/ui/PageHead";
 import AttendeeDashboard from "@/features/events/AttendeeDashboard";
 import { getEventForPreview } from "@/features/events/fetchEvents";
+import { whenWords } from "@/features/events/manageWords";
 import { getCurrentUser } from "@/lib/firebase/session";
+import styles from "../../events.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -26,36 +29,32 @@ export default async function AttendeesPage({
   const event = await getEventForPreview(id);
   if (!event) notFound();
 
+  const name = event.title || "Untitled event";
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: "var(--space-3)",
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <div
-            style={{
-              color: "var(--color-text-muted)",
-              fontSize: "var(--text-sm)",
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-            }}
-          >
-            {event.title || "Untitled event"}
-          </div>
-          <h2 style={{ fontSize: "var(--text-2xl)", margin: "var(--space-1) 0 0" }}>
-            Attendees
-          </h2>
-        </div>
-        <Link href={`/events/manage/${event.id}`}>
-          <Button variant="ghost">Back to editor</Button>
-        </Link>
-      </div>
+    <div className={styles.page}>
+      <PageHead
+        crumb={
+          <>
+            <Link href="/events/manage" className={styles.crumbLink}>
+              Manage events
+            </Link>
+            <span aria-hidden="true">/</span>
+            <Link href={`/events/manage/${event.id}`} className={styles.crumbLink}>
+              {name}
+            </Link>
+          </>
+        }
+        title="Attendees"
+        description={`${name} · ${whenWords(event.startAt)}`}
+        actions={
+          <Link href={`/events/manage/${event.id}`} className={styles.buttonLink}>
+            <Button variant="secondary" tabIndex={-1}>
+              Back to the event
+            </Button>
+          </Link>
+        }
+      />
 
       <AttendeeDashboard event={event} />
     </div>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Drawer from "@/components/ui/Drawer";
+import PageHead from "@/components/ui/PageHead";
 import SectionTabs from "@/components/ui/SectionTabs";
 import { usePendingCount } from "@/features/admin/usePendingCount";
 import { useCollaboratorCount } from "@/features/admin/useCollaboratorCount";
@@ -21,8 +22,15 @@ import styles from "./AdminTabs.module.css";
 export type { AdminTabAccess } from "@/layout/appNav";
 
 /**
- * The head of every admin page: the name of the section somebody is in, and a
- * strip of that section's pages.
+ * The top of every admin page: a strip of the pages of the section somebody is
+ * in, and, for a page that does not draw one itself, the page's head.
+ *
+ * Every admin page is headed the same way: its OWN name as the page's one
+ * <h1>, with the section's name as a small crumb above it. A page marked
+ * `ownHead` in `src/layout/appNav.ts` draws that head itself (it has a line
+ * about itself to add, buttons, a person's name), so for it this component
+ * draws the strip and no heading. For every other page the head is drawn here,
+ * in the same shape and with the same component, from the page's entry.
  *
  * The admin area used to be one strip of seventeen tabs. It is now four
  * sections (People, Programmes, Publicity, Site settings), each reached from
@@ -39,10 +47,20 @@ export type { AdminTabAccess } from "@/layout/appNav";
  * only for the callers its own gate would let in.
  *
  * Somebody who can open one page of a section and no other (a course drafter,
- * whoever looks after SU membership) gets that page's name as the heading and
- * no strip: a strip of one is a promise of more.
+ * whoever looks after SU membership) gets no strip: a strip of one is a promise
+ * of more. The head is the same as anybody's.
+ *
+ * `closed` is for the one time the page beneath is not drawn at all (the admin
+ * area during a view-as session): the head is then drawn here whatever the
+ * page says about itself, so the screen that is shown still has its heading.
  */
-export default function AdminTabs({ access }: { access: AdminTabAccess }) {
+export default function AdminTabs({
+  access,
+  closed = false,
+}: {
+  access: AdminTabAccess;
+  closed?: boolean;
+}) {
   const pathname = usePathname();
   const pendingCount = usePendingCount();
   const collaboratorCount = useCollaboratorCount();
@@ -99,12 +117,17 @@ export default function AdminTabs({ access }: { access: AdminTabAccess }) {
 
   const single = pages.length === 1 ? pages[0] : null;
   const activeCount = activePage ? countFor(activePage) : 0;
+  const showStrip = !single && pages.length > 0;
+  // The page draws its own head, so none is drawn here. Not when the page is
+  // not being drawn: then this is the only head there is.
+  const pageDrawsHead = !closed && activePage?.ownHead === true;
+
+  // Nothing to draw: the page has its own head and there is no strip to offer.
+  if (pageDrawsHead && !showStrip) return null;
 
   return (
     <div className={styles.head}>
-      <h1 className={styles.title}>{single ? single.label : section.label}</h1>
-
-      {!single && pages.length > 0 && (
+      {showStrip && (
         <>
           {/* Desktop and tablet: the strip, which scrolls inside itself. The
               wrapper is what hides it on a phone, and what the effect above
@@ -203,6 +226,17 @@ export default function AdminTabs({ access }: { access: AdminTabAccess }) {
             </div>
           </Drawer>
         </>
+      )}
+
+      {/* The head, for a page that does not draw its own: the section as the
+          crumb and the page's own name as the <h1>. The same component and the
+          same shape a page uses when it draws the head itself. */}
+      {!pageDrawsHead && (
+        <PageHead
+          className={styles.sharedHead}
+          crumb={section.label}
+          title={activePage?.label ?? single?.label ?? section.label}
+        />
       )}
     </div>
   );

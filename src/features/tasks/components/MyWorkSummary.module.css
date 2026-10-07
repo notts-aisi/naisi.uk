@@ -1,0 +1,114 @@
+/* ============================================================
+   MyWorkSummary: the member's own open tasks, on Home.
+
+   Drawn like the other cards on Home: the surface colour, a
+   hairline and a 12px corner, with rows a thumb can press.
+   ============================================================ */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+/* Pushed to the far end of the row, and tall enough to press: the padding
+   gives the height and the negative margin takes it back out of the row. */
+.viewAll {
+  margin: calc(-1 * var(--space-3)) 0 calc(-1 * var(--space-3)) auto;
+  padding: var(--space-3) 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-accent-text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.viewAll:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.viewAll:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  appearance: none;
+  -webkit-appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-quick) var(--ease-naisi);
+}
+
+/* Hover-capable pointers only: on touch a :hover rule fires on tap and sticks
+   until the next tap elsewhere, which reads as a stuck selection. */
+@media (hover: hover) {
+  .row:hover {
+    border-color: var(--color-border-strong);
+  }
+}
+
+.row:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* The title gives way and the date beside it does not. */
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-ui);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .card {
+    padding: var(--space-4);
+  }
+}
