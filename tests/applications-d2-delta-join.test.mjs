@@ -631,6 +631,22 @@ describe("the join step keeps to them", () => {
     assert.equal((step.match(/mintSession\(/g) ?? []).length, 1, "a session is made in more than one place");
   });
 
+  test("a page that is behind the browser asks the server again a few times, and never for ever", () => {
+    // Somebody signs in after the page was drawn for a visitor. The step asks
+    // for the page again so the server can say what the account is, and the
+    // first ask can beat the session it is asking about. So it asks a few
+    // more times on a timer, and then only when the tab is looked at: a
+    // session that is never coming must not be polled for.
+    const step = codeOf("JoinStep.tsx");
+    assert.match(step, /const TIMED_ASKS = 3;/);
+    assert.match(step, /if \(timedAsks\.current >= TIMED_ASKS\) \{\s*window\.clearInterval\(timer\);\s*return;\s*\}/);
+    assert.match(step, /return \(\) => \{\s*window\.clearInterval\(timer\);/);
+    assert.match(step, /if \(Date\.now\(\) - lastAsked\.current < ASK_AGAIN_MS\) return;/);
+    // Never while a join request is on its way: that ends by moving the page on.
+    assert.match(step, /if \(busy !== null \|\| !uid\) return;/);
+    assert.equal((step.match(/setInterval\(/g) ?? []).length, 1);
+  });
+
   test("the consent tick is never restored: agreeing is a fresh act", () => {
     const step = codeOf("JoinStep.tsx");
     assert.match(step, /const \[agreed, setAgreed\] = useState\(false\);/);

@@ -108,8 +108,10 @@ type Busy = "google" | "session" | "email" | "join" | null;
 
 const ACCOUNT_HASH = "#account";
 
-/** The least time between two asks of the server from coming back to the tab. */
+/** The least time between two asks of the server for the page again. */
 const ASK_AGAIN_MS = 3000;
+/** How many of those asks are made on a timer before the step waits to be looked at. */
+const TIMED_ASKS = 3;
 /**
  * How long a sign-in made by an emailed link is given to be replaced by the
  * one that follows it. Longer than the browser takes to carry a sign-in from
@@ -219,11 +221,13 @@ export default function JoinStep({
   //    itself, never this step. Asked once for each account.
   //  - Somebody signed in after the page was drawn (in this tab, or in
   //    another after an emailed link). The page was drawn for a visitor and
-  //    the server has not yet said what this account is. Asked again each
-  //    time the tab is looked at, until the page has caught up, because the
-  //    first ask can arrive before the session it is asking about.
+  //    the server has not yet said what this account is. The first ask can
+  //    arrive before the session it is asking about, so it is asked again a
+  //    few times over the next seconds, and after that each time the tab is
+  //    looked at, until the page has caught up.
   const toldJoined = useRef<string | null>(null);
   const lastAsked = useRef(0);
+  const timedAsks = useRef(0);
   const behind = !authLoading && Boolean(user) && !drawnSignedIn && role === null;
   const hasJoined = !authLoading && Boolean(user) && role !== null;
   const uid = user?.uid ?? null;
@@ -246,9 +250,20 @@ export default function JoinStep({
       router.refresh();
     };
     ask();
+    // A session that is not coming (it lapsed long ago) is not asked for
+    // for ever: a few timed asks, then only when the tab is looked at.
+    const timer = window.setInterval(() => {
+      if (timedAsks.current >= TIMED_ASKS) {
+        window.clearInterval(timer);
+        return;
+      }
+      timedAsks.current += 1;
+      ask();
+    }, ASK_AGAIN_MS + 100);
     document.addEventListener("visibilitychange", ask);
     window.addEventListener("focus", ask);
     return () => {
+      window.clearInterval(timer);
       document.removeEventListener("visibilitychange", ask);
       window.removeEventListener("focus", ask);
     };
@@ -467,6 +482,7 @@ export default function JoinStep({
     }
     toldJoined.current = null;
     lastAsked.current = 0;
+    timedAsks.current = 0;
     setBusy(null);
     router.refresh();
   }
