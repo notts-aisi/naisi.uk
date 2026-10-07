@@ -64,14 +64,17 @@
   text-wrap: pretty;
 }
 
-/* As many columns as fit at 10rem each: three on a laptop, two on a wide
-   phone, one on a narrow one. */
+/* As many columns as fit at 12rem each, which is the width the longest label
+   needs: three on a laptop and a tablet, two on a wide phone, one on a
+   narrow one. The min-width is three columns and their two gaps, so the
+   block only ever shares a row with the brand when all three fit beside it;
+   narrower than that it takes a row of its own. */
 .columns {
   display: grid;
   flex: 2 1 32.5rem;
-  grid-template-columns: repeat(auto-fit, minmax(min(10rem, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
   gap: var(--space-8);
-  min-width: 0;
+  min-width: min(40rem, 100%);
 }
 
 .column {
@@ -135,9 +138,12 @@
     min-height: 2.75rem;
     padding: 0;
   }
+  /* Wide as well as tall: "Terms" alone is 41px across. */
   .legal a {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
+    min-width: 2.75rem;
     min-height: 2.75rem;
   }
 }

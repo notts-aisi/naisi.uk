@@ -82,18 +82,27 @@
   color: var(--color-text);
 }
 
-/* Everything to the right of the brand at laptop widths. */
+/* Everything to the right of the brand at laptop widths. One gap serves the
+   pages, the hairline and the account pair. */
 .desk {
+  --bar-gap: var(--space-6);
   display: flex;
   align-items: center;
-  gap: var(--space-6);
+  gap: var(--bar-gap);
   min-width: 0;
+}
+
+/* The two account states with long words (waiting, not approved). Their gap
+   eases from 24px down to 16px in the narrow band just above the phone
+   layout, where they would not otherwise fit beside four pages. */
+.deskLong {
+  --bar-gap: clamp(1rem, 2.2vw, 1.5rem);
 }
 
 .nav {
   display: flex;
   align-items: center;
-  gap: var(--space-6);
+  gap: var(--bar-gap);
 }
 
 .navLink {
@@ -139,7 +148,8 @@
 .account {
   display: flex;
   align-items: center;
-  gap: var(--space-6);
+  gap: var(--bar-gap);
+  min-width: 0;
 }
 
 /* The two account controls. Each is a link in one state and a <button> in
@@ -199,10 +209,15 @@
   border-color: var(--color-control-border);
 }
 
-/* An account that was not approved: words, in the status colour for text. */
+/* An account that was not approved: words, in the status colour for text.
+   The one piece of the bar allowed to shorten, so the bar never pushes the
+   page sideways; its title carries the full sentence. */
 .note {
+  min-width: 0;
+  overflow: hidden;
   color: var(--color-danger-text);
   font-size: var(--text-sm);
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

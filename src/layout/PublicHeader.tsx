@@ -37,6 +37,8 @@ type AccountView = {
   outlined: NavEntry | "sign-out";
   /** Whether the outlined button also sits beside the menu button on a phone. */
   inPhoneBar: boolean;
+  /** Long words: the bar closes its gaps a little just above the phone layout. */
+  long: boolean;
 };
 
 const SIGNED_OUT: AccountView = {
@@ -44,6 +46,7 @@ const SIGNED_OUT: AccountView = {
   quiet: ACCOUNT_ENTRIES.signIn,
   outlined: ACCOUNT_ENTRIES.join,
   inPhoneBar: true,
+  long: false,
 };
 
 const APPROVED: AccountView = {
@@ -51,6 +54,7 @@ const APPROVED: AccountView = {
   quiet: "sign-out",
   outlined: ACCOUNT_ENTRIES.dashboard,
   inPhoneBar: true,
+  long: false,
 };
 
 // Its label is too long to share a phone's bar with the brand and the menu
@@ -60,6 +64,7 @@ const WAITING: AccountView = {
   quiet: "sign-out",
   outlined: ACCOUNT_ENTRIES.waiting,
   inPhoneBar: false,
+  long: true,
 };
 
 const NOT_APPROVED: AccountView = {
@@ -67,6 +72,7 @@ const NOT_APPROVED: AccountView = {
   quiet: null,
   outlined: "sign-out",
   inPhoneBar: false,
+  long: true,
 };
 
 function MenuIcon() {
@@ -190,7 +196,7 @@ export default function PublicHeader() {
             <BrandMark size={32} />
           </Link>
 
-          <div className={styles.desk}>
+          <div className={account.long ? `${styles.desk} ${styles.deskLong}` : styles.desk}>
             <nav className={styles.nav} aria-label="Primary">
               {pages.map((entry) => (
                 <Link

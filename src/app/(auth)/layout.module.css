@@ -152,9 +152,12 @@
     calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
   font-size: var(--text-sm);
 }
+/* 44px each way: "Terms" alone is 41px across. */
 .legal a {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
   min-height: 2.75rem;
   color: var(--color-text-muted);
   text-decoration: underline;
