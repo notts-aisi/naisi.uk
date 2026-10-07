@@ -1,17 +1,21 @@
 /**
  * The signed-in menu, as data.
  *
- * Two things read this file, and they have to agree:
+ * Three things read this file, and they have to agree:
  *
- *   - the shell (`AppShell.tsx`): the sidebar and the phone's drawer;
+ *   - the shell (`AppShell.tsx`): the sidebar, the phone's Menu drawer, the
+ *     phone's bottom bar and the title in its top bar;
  *   - the admin area's strip (`AdminTabs.tsx`), which shows the pages of the
- *     section somebody is in.
+ *     section somebody is in;
+ *   - `tests/app-frame.test.mjs`, which holds every address here to a page
+ *     file and every admin page file to a place in a section.
  *
  * Nothing in here decides who may see a page. A page's own layout and its
  * routes do that. This file only decides which links are drawn, and each
  * link's rule mirrors the gate of the page it leads to.
  *
- * To add an entry: one line in `APP_NAV` naming an address and a rule.
+ * To add an entry: one line in `APP_NAV` naming an address and a rule. To put
+ * it in the phone's bottom bar as well: one more line in `BOTTOM_BAR`.
  */
 
 // ---------------------------------------------------------------------------
@@ -102,6 +106,24 @@ export const APP_NAV: NavGroup[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// The phone's bottom bar
+// ---------------------------------------------------------------------------
+
+/**
+ * The words in the phone's bottom bar, left to right. Each is a short name for
+ * a menu entry, found by its address, so the bar can never offer a page the
+ * person's menu does not. The shell adds Menu after them, which opens the
+ * whole menu, so nothing the bar leaves out is out of reach.
+ */
+export const BOTTOM_BAR: { label: string; href: string }[] = [
+  { label: "Home", href: HOME_HREF },
+  { label: "Programme", href: "/learn" },
+  { label: "Profile", href: "/profile" },
+];
+
+export const BOTTOM_BAR_MENU_LABEL = "Menu";
+
+// ---------------------------------------------------------------------------
 // The admin area
 // ---------------------------------------------------------------------------
 
@@ -169,8 +191,8 @@ const underBut = (href: string, not: string) => (p: string) => under(href)(p) &&
  * pages are drawn in.
  *
  * Every page file under `src/app/(app)/admin/` has to be matched by a page
- * here: a page left out of every section could only be reached by typing its
- * address.
+ * here, and `tests/app-frame.test.mjs` fails one that is not: a page left out
+ * of every section could only be reached by typing its address.
  */
 export const ADMIN_SECTIONS: AdminSection[] = [
   {
@@ -263,6 +285,15 @@ export function currentEntry(entries: NavEntry[], pathname: string): NavEntry | 
   const section = adminSectionFor(pathname);
   if (!section) return null;
   return entries.find((entry) => entry.section === section.id) ?? null;
+}
+
+/**
+ * The words in the middle of the phone's top bar: the current entry's name.
+ * Home has none, because the brand beside it already says where you are.
+ */
+export function barTitleFor(entry: NavEntry | null): string | null {
+  if (!entry || entry.href === HOME_HREF) return null;
+  return entry.label;
 }
 
 /** The role under somebody's name at the foot of the menu, in words. */

@@ -184,7 +184,7 @@
    floats clear of the home indicator rather than under it. */
 .bar {
   position: sticky;
-  bottom: env(safe-area-inset-bottom, 0px);
+  bottom: max(env(safe-area-inset-bottom, 0px), var(--app-bottom-inset, 0px));
   z-index: 5;
   display: flex;
   align-items: center;

@@ -262,7 +262,7 @@
 /* Stays in reach while a long page is being edited. */
 .saveBar {
   position: sticky;
-  bottom: 0;
+  bottom: var(--app-bottom-inset, 0px);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);

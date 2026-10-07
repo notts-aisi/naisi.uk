@@ -16,7 +16,15 @@ import { mark, warn } from "@/lib/devMonitor";
 import { hardNavigate } from "@/lib/navigation/hardNavigate";
 import { clearSelfHealAttempt } from "@/lib/navigation/selfHealGuard";
 import { InstallLink } from "@/features/pwa/InstallLink";
-import { APP_NAV, currentEntry, roleInWords, type NavRule } from "./appNav";
+import {
+  APP_NAV,
+  BOTTOM_BAR,
+  BOTTOM_BAR_MENU_LABEL,
+  barTitleFor,
+  currentEntry,
+  roleInWords,
+  type NavRule,
+} from "./appNav";
 import styles from "./AppShell.module.css";
 
 /** Banner state supplied by (app)/layout.tsx when a view-as session is live.
@@ -268,10 +276,16 @@ export default function AppShell({
         })).filter((g) => g.entries.length > 0)
       : [];
   const visibleEntries = visibleGroups.flatMap((g) => g.entries);
-  // The one entry marked as the current page, in the sidebar and the drawer
-  // alike. See `currentEntry` for how an admin page finds the entry that is
-  // the way into its section.
+  // The one entry marked as the current page, in the sidebar, the drawer and
+  // the bottom bar alike. See `currentEntry` for how an admin page finds the
+  // entry that is the way into its section.
   const current = currentEntry(visibleEntries, pathname);
+  // The phone's bottom bar: its words, for the entries this person has.
+  const barEntries = BOTTOM_BAR.filter((b) => visibleEntries.some((e) => e.href === b.href));
+  // Menu carries the line when the page somebody is on is one the bar has no
+  // word for, so the bar always says where they are.
+  const menuHoldsPage = current !== null && !barEntries.some((b) => b.href === current.href);
+  const barTitle = barTitleFor(current);
 
   const displayName = user?.displayName ?? user?.email ?? "Signed in";
   const roleWords = roleInWords(role, suRecognised);
@@ -315,10 +329,14 @@ export default function AppShell({
   }
 
   // Shared nav body: rendered both inside the desktop sidebar and inside
-  // the phone's drawer so the role-conditional rules and the count stay
-  // single-sourced.
-  const renderNav = (onLinkClick?: () => void): ReactNode => (
-    <nav className={styles.nav} aria-label="Main">
+  // the phone's Menu drawer so the role-conditional rules and the count
+  // stay single-sourced.
+  //
+  // `label` names the landmark. The sidebar's is "Main". The drawer's has
+  // none: it sits inside a dialog that is already named, beside the bottom
+  // bar, which is the "Main" navigation on a narrow screen.
+  const renderNav = (opts: { label?: string; onLinkClick?: () => void }): ReactNode => (
+    <nav className={styles.nav} aria-label={opts.label}>
       {visibleGroups.map((group, gi) => (
         <div key={group.label ?? `group-${gi}`} className={styles.navGroup}>
           {group.label && (
@@ -333,7 +351,7 @@ export default function AppShell({
                 href={entry.href}
                 className={`${styles.navLink} ${active ? styles.active : ""}`}
                 aria-current={active ? "page" : undefined}
-                onClick={onLinkClick}
+                onClick={opts.onLinkClick}
               >
                 <span>{entry.label}</span>
                 {count > 0 && (
@@ -408,70 +426,64 @@ export default function AppShell({
             </div>
           </main>
         </div>
+        {/* The bar's ground with no words on it yet, so the page does not
+            jump when they arrive. Who is shown which word is not known until
+            the sign-in has loaded. */}
+        <div className={styles.bottomBar} aria-hidden />
       </div>
     );
   }
 
   return (
     <div className={styles.frame}>
-      {/* The part that slides away on sign-out. */}
+      {/*
+        The part that slides away on sign-out. The bottom bar is deliberately
+        NOT inside it: a transform on an ancestor turns `position: fixed` into
+        "fixed to that ancestor", so the bar would jump to the foot of the page
+        for the length of the slide. It sits beside this wrapper and leaves
+        with a class of its own.
+      */}
       <div className={signoutExiting ? styles.shellExitingRight : undefined}>
         <div className={styles.topStrip}>
           <Link href="/" className={styles.topStripBrand} aria-label="NAISI home">
             <BrandMark size={26} />
           </Link>
-          {/*
-            Reload, shown ONLY in an installed app. A standalone window has no
-            URL bar and no reload button, so when a page half-renders or goes
-            stale the user's only option is force-quitting. Android keeps
-            pull-to-refresh (which is why no overscroll-behavior rule was
-            added), but iOS standalone has no refresh gesture at all.
+          {/* The current menu entry's name. Home has none: the brand beside it
+              already says where you are. */}
+          {barTitle && <div className={styles.topStripTitle}>{barTitle}</div>}
+          <div className={styles.topStripEnd}>
+            {/*
+              Reload, shown ONLY in an installed app. A standalone window has no
+              URL bar and no reload button, so when a page half-renders or goes
+              stale the user's only option is force-quitting. Android keeps
+              pull-to-refresh (which is why no overscroll-behavior rule was
+              added), but iOS standalone has no refresh gesture at all.
 
-            Always in the DOM and hidden by CSS keyed on the attribute
-            StandaloneFlag stamps before first paint, rather than rendered
-            behind useIsStandalone: the hook is false on the first client
-            render, so a JS-gated button would pop into the strip after
-            hydration and shove the hamburger sideways.
-          */}
-          <button
-            type="button"
-            className={styles.standaloneReload}
-            aria-label="Reload this page"
-            onClick={() => window.location.reload()}
-          >
-            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden focusable="false">
-              <path
-                d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            className={styles.hamburger}
-            aria-label={drawerOpen ? "Close menu" : "Open menu"}
-            aria-expanded={drawerOpen}
-            aria-controls={NAV_DRAWER_ID}
-            onClick={() => setDrawerOpen(true)}
-          >
-            <span className={styles.menuIcon} aria-hidden>
-              <span />
-              <span />
-              <span />
-            </span>
-            {pendingCount > 0 && (
-              <span
-                className={styles.hamburgerBadge}
-                aria-label={`${pendingCount} waiting to join`}
-              >
-                {pendingCount}
-              </span>
-            )}
-          </button>
+              Always in the DOM and hidden by CSS keyed on the attribute
+              StandaloneFlag stamps before first paint, rather than rendered
+              behind useIsStandalone: the hook is false on the first client
+              render, so a JS-gated button would pop into the strip after
+              hydration and shove the initials sideways.
+            */}
+            <button
+              type="button"
+              className={styles.standaloneReload}
+              aria-label="Reload this page"
+              onClick={() => window.location.reload()}
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden focusable="false">
+                <path
+                  d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+            {initials}
+          </div>
         </div>
         <div
           className={styles.shell}
@@ -503,7 +515,7 @@ export default function AppShell({
                 </span>
               </button>
             </div>
-            {renderNav()}
+            {renderNav({ label: "Main" })}
             {renderFoot()}
           </aside>
           <main
@@ -580,7 +592,7 @@ export default function AppShell({
             <div className={styles.drawerBrand}>
               <BrandMark size={28} />
             </div>
-            {renderNav(() => setDrawerOpen(false))}
+            {renderNav({ onLinkClick: () => setDrawerOpen(false) })}
             {/* Quiet, permanent install route. Renders nothing when installed,
                 on desktop, or on Android before Chrome offers its prompt. */}
             <InstallLink />
@@ -588,6 +600,53 @@ export default function AppShell({
           </div>
         </Drawer>
       </div>
+      {/*
+        The phone's bottom bar, shown wherever the sidebar is hidden. A few of
+        the person's own entries by a short name, then Menu, which opens the
+        drawer above with every entry they have. Written from a list
+        (`BOTTOM_BAR` in appNav.ts), so another word is one line there.
+      */}
+      <nav
+        className={`${styles.bottomBar} ${signoutExiting ? styles.bottomBarExiting : ""}`}
+        aria-label="Main"
+      >
+        {barEntries.map((entry) => {
+          const active = current?.href === entry.href;
+          return (
+            <Link
+              key={entry.href}
+              href={entry.href}
+              className={`${styles.barItem} ${active ? styles.barItemCurrent : ""}`}
+              aria-current={active ? "page" : undefined}
+            >
+              <span className={styles.barLine} aria-hidden />
+              <span>{entry.label}</span>
+            </Link>
+          );
+        })}
+        <button
+          type="button"
+          className={`${styles.barItem} ${menuHoldsPage ? styles.barItemCurrent : ""}`}
+          aria-haspopup="dialog"
+          aria-expanded={drawerOpen}
+          aria-controls={NAV_DRAWER_ID}
+          onClick={() => setDrawerOpen(true)}
+        >
+          <span className={styles.barLine} aria-hidden />
+          <span>{BOTTOM_BAR_MENU_LABEL}</span>
+          {/* The count of people waiting to join rides on Menu while the
+              drawer is closed, so an admin still sees there is something to
+              attend to without opening it. */}
+          {pendingCount > 0 && (
+            <span
+              className={styles.barBadge}
+              aria-label={`${pendingCount} waiting to join`}
+            >
+              {pendingCount}
+            </span>
+          )}
+        </button>
+      </nav>
     </div>
   );
 }

@@ -1360,7 +1360,7 @@
   /* The decision, in reach of a thumb for as long as the page is. */
   .bar {
     position: sticky;
-    bottom: 0;
+    bottom: var(--app-bottom-inset, 0px);
     z-index: 5;
     display: flex;
     align-items: center;
