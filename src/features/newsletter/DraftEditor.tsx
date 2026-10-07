@@ -415,7 +415,7 @@ export default function DraftEditor({ draftId }: Props) {
         {canDelete && (
           <div className={styles.careful}>
             <Button variant="danger" onClick={onDelete} disabled={busy}>
-              {busy ? "Deleting…" : "Delete edition…"}
+              {busy ? "Deleting…" : "Delete edition"}
             </Button>
           </div>
         )}
@@ -427,14 +427,14 @@ export default function DraftEditor({ draftId }: Props) {
     <div className={styles.card}>
       <header className={styles.cardHead}>
         <div className={styles.cardHeadMain}>
-          <p className="meta">Draft by {author}</p>
+          <p className="meta">
+            Draft by {author}
+            {draft.approvedBy && status !== "draft" && status !== "pending" && " · approved"}
+          </p>
           <h2 className={styles.cardTitle}>{title}</h2>
         </div>
         <div className={styles.cardHeadSide}>
           {dirty && editable && <span className={styles.saveHint}>Unsaved changes</span>}
-          {draft.approvedBy && status !== "draft" && status !== "pending" && (
-            <span className={styles.saveHint}>approved</span>
-          )}
           <Badge tone={statusTone(status)}>{DRAFT_STATUS_LABEL[status]}</Badge>
         </div>
       </header>
@@ -480,7 +480,7 @@ export default function DraftEditor({ draftId }: Props) {
 
       {tab === "compose" ? (
         <>
-          <Field id="subject" label="Subject" hint="Shown in the recipient's inbox preview.">
+          <Field id="subject" label="Subject line" hint="Shown in the recipient's inbox preview.">
             <Input
               id="subject"
               value={subject}
@@ -580,7 +580,7 @@ export default function DraftEditor({ draftId }: Props) {
           <div className={styles.sendBackField}>
             <Input
               id="rejectNote"
-              aria-label="Reason to send back for revisions"
+              aria-label="Reason to send back for revisions…"
               placeholder="Reason to send back for revisions…"
               value={rejectNote}
               onChange={(e) => setRejectNote(e.target.value)}
@@ -618,7 +618,7 @@ export default function DraftEditor({ draftId }: Props) {
       {(isAuthor || role === "admin") && (
         <div className={styles.careful}>
           <Button variant="danger" onClick={onDelete} disabled={busy}>
-            Delete draft…
+            Delete draft
           </Button>
         </div>
       )}

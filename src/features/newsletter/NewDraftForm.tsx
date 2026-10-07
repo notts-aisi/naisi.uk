@@ -43,7 +43,7 @@ export default function NewDraftForm() {
         <h2 className={styles.cardTitle}>New draft</h2>
         <Field
           id="new-subject"
-          label="Subject"
+          label="Subject line"
           hint="You'll write the body (headings, text, images) after this."
         >
           <Input
