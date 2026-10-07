@@ -243,6 +243,20 @@ describe("the shared loader reads JSX", () => {
  */
 const USERS = new Map([
   [
+    "applications-access.test.mjs",
+    "executes src/lib/applications/access.ts and roles.ts with the real eligibility bar " +
+      "underneath, against a cast that includes a lead who lost their standing, and the roles " +
+      "writer against an in-memory Firestore, because who may read applications is decided " +
+      "by the code that runs and not by its comments",
+  ],
+  [
+    "applications-model.test.mjs",
+    "executes every pure module under src/lib/applications (reading, steps, send validation, " +
+      "scoring, placement, the decision-day tallies) against a small term and against the " +
+      "full one the design was drawn for, because each rule there is arithmetic and only " +
+      "running it shows the counts add up",
+  ],
+  [
     "authority-at-use.test.mjs",
     "executes the real bar registry from src/lib/firebase/eligibility.ts against every persona, " +
       "plus `isEligibleAdmissionsReviewer` and `canCirculateWorksheet` from the users module and " +
