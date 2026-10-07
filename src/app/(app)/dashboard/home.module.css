@@ -676,6 +676,9 @@
   padding-bottom: 0;
 }
 
+/* Whether a reading is done is something Home reports and does not take:
+   a green tick for done and an empty ring for not yet, the marks "Finish
+   your profile" uses, and neither drawn as a box to press. */
 .tick,
 .tickDone {
   display: inline-flex;
@@ -684,16 +687,16 @@
   justify-content: center;
   width: 1.375rem;
   height: 1.375rem;
-  margin: 0 0.6875rem;
-  border: 1.5px solid var(--color-control-border);
-  border-radius: 6px;
-  background: var(--color-bg);
-  color: var(--color-on-accent);
+  margin: 0 var(--space-2);
+  color: var(--color-ok);
 }
 
-.tickDone {
-  border-color: var(--color-accent);
-  background: var(--color-accent);
+.tick::before {
+  content: "";
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 1.5px solid var(--color-control-border);
+  border-radius: 50%;
 }
 
 .readingBody {
@@ -1071,7 +1074,7 @@
 
   .tick,
   .tickDone {
-    margin: 0 var(--space-2) 0 0;
+    margin: 0 var(--space-1) 0 0;
   }
 
   /* A row's one action goes under its words, the full width of the card. */

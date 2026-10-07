@@ -248,7 +248,7 @@ export default function HomeProgramme({
                         className={done ? styles.tickDone : styles.tick}
                         aria-hidden="true"
                       >
-                        {done && <Check size={14} />}
+                        {done && <Check size={18} />}
                       </span>
                       <div className={styles.readingBody}>
                         <p className={done ? styles.readingTitleDone : styles.readingTitle}>
