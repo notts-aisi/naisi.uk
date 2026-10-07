@@ -1409,6 +1409,53 @@ describe("the application form passage", () => {
     );
   });
 
+  test("a conduct flag and the membership tier reach no screen where applications are read", () => {
+    assert.match(
+      PAGE_FLAT,
+      /The flag and the reason are visible to admins alone: neither is shown on the screens where applications are read and scored/i,
+    );
+    assert.match(
+      PAGE_FLAT,
+      /They do not see your answer about SU membership, access requirements, the membership tier, or a conduct flag/i,
+    );
+    // Every file that names a conduct flag, and why it may. None builds
+    // anything a lead or a reviewer is shown.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/memberConductFlags|[cC]onductFlag|conduct-flag/),
+      new Map([
+        ["src/lib/firestore/memberConductFlags.ts", "the collection's own shape and the one function that reads a flag"],
+        ["src/app/api/admin/members/[uid]/conduct-flag/route.ts", "the admin's route that reads, sets and clears a flag"],
+        ["src/features/admin/ConductFlagControl.tsx", "the control for it on the admin Members page"],
+        ["src/features/admin/MemberItem.tsx", "the row of the admin Members page that draws that control"],
+        ["src/lib/firestore/accountDeletion.ts", "removes the flag when the account is deleted"],
+        ["src/lib/firestore/memberRecords.ts", "a comment comparing the two collections' readers. It reads no flag"],
+      ]),
+      "naming a conduct flag",
+      "The policy says a flag and its reason are shown to admins alone, and on " +
+        "no screen where applications are read and scored. If this file shows " +
+        "one there, the sentence is wrong and a new version has to say so.",
+    );
+    // The membership record is a collection of its own with its own readers.
+    // Nothing in the application system's folders names it.
+    const applicationSystem = [
+      "src/lib/applications/",
+      "src/features/applications/",
+      "src/app/api/admissions/forms/",
+      "src/app/(app)/admin/admissions/forms/",
+      "src/app/(public)/apply/",
+      "src/app/(public)/applications/",
+    ];
+    assert.deepEqual(
+      sourceFilesNaming(/firestore\/memberships|firestore\/membershipImports|[mM]embershipTier|["'`]memberships["'`]/).filter(
+        (file) => applicationSystem.some((folder) => file.startsWith(folder)),
+      ),
+      [],
+      "these files of the application system now read the membership record. " +
+        "The policy says the people who read an application are not shown the " +
+        "membership tier.",
+    );
+  });
+
   test("somebody with no account joins on the form, and what is kept in the browser is what the page says", () => {
     assert.match(PAGE_FLAT, /You can start the form without an account/i);
     assert.match(
