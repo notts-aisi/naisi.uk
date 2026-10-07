@@ -1,0 +1,182 @@
+import type { DecisionEmailButtonLook, DecisionEmailKind, DecisionEmailSignOff } from "./emailCopy";
+import type { PoolChoice } from "./plan";
+
+/**
+ * WHAT THE TWO SCREENS ARE SENT.
+ *
+ * The pooled applicants page and the decision-day page are each drawn from one
+ * object, built on the server, field by field, by `pool.ts` and `send.ts`.
+ * These are those objects' shapes: types only, so a browser component can
+ * import them without reaching anything that runs on the server.
+ *
+ * NO EMAIL ADDRESS IS IN EITHER. A preview says who an email is to by name,
+ * and the address it goes to never leaves the server.
+ */
+
+// ---------------------------------------------------------------------------
+// Pooled applicants
+// ---------------------------------------------------------------------------
+
+export type PoolProgramme = {
+  id: string;
+  shortName: string;
+  /** How many people it can take. Null until its lead has said. */
+  places: number | null;
+  /** People whose place is here. */
+  placed: number;
+  /** Pooled applicants invited here. */
+  invited: number;
+  /** Places not yet taken by an acceptance: what the card's number shows. */
+  open: number | null;
+  /** Places still free to invite somebody to, once invitations are counted. */
+  left: number | null;
+  /** Pooled applicants who ranked it first: the filter's count. */
+  firstChoice: number;
+};
+
+export type PoolComment = {
+  text: string;
+  /** The first name of who wrote it. */
+  by: string;
+};
+
+export type PoolRow = {
+  uid: string;
+  name: string;
+  /** Their degree, or area of work. */
+  degree: string;
+  /** "Graduating July 2027", or what they do at UoN. */
+  detail: string;
+  ranked: { rank: number; programmeId: string; shortName: string }[];
+  /** "Capacity", "Better fit": why each programme pooled them, without repeats. */
+  reasons: string[];
+  /** What their reviewers thought could suit them instead. */
+  couldSuit: string[];
+  comments: PoolComment[];
+  /** What has been picked for them. Null while nothing has. */
+  outcome: PoolChoice | null;
+  /** The programmes they could be invited to right now. */
+  inviteOptions: { programmeId: string; shortName: string }[];
+  /** True once decision day has told them: their outcome no longer changes. */
+  told: boolean;
+};
+
+export type PoolBoard = {
+  roundId: string;
+  termLabel: string;
+  /** Today in London: "Wed 21 Oct". */
+  today: string;
+  /** The day everybody hears: "Fri 23 Oct". Null when the form names none. */
+  hearOn: string | null;
+  /** The day decisions went out, once they all have. */
+  sentOn: string | null;
+  counts: { pooled: number; invitations: number; noOffer: number; needsOutcome: number };
+  programmes: PoolProgramme[];
+  rows: PoolRow[];
+};
+
+// ---------------------------------------------------------------------------
+// Decision day
+// ---------------------------------------------------------------------------
+
+export type SendPerson = { uid: string; name: string };
+
+/** One email as the page previews it. The addresses stay on the server. */
+export type EmailPreview = {
+  kind: DecisionEmailKind;
+  /** Who it is to, by name. */
+  to: string;
+  subject: string;
+  greeting: string;
+  paragraphs: string[];
+  buttons: { label: string; look: DecisionEmailButtonLook }[];
+  signOff: DecisionEmailSignOff;
+};
+
+export type SendGroup = {
+  people: SendPerson[];
+  /** The first person's email, as it will read. Null when the group is empty. */
+  preview: EmailPreview | null;
+};
+
+export type ReadinessRow = {
+  /** A programme's id, or a fixed key for a row that is not a programme. */
+  key: string;
+  title: string;
+  /** Who it is waiting on: the lead's first name, or "Committee". */
+  owner: string;
+  ready: boolean;
+  /** "Every application has a decision". */
+  status: string;
+  /** "22 of 24 places, and 2 invitations". */
+  detail: string;
+};
+
+export type SendBoard = {
+  roundId: string;
+  termLabel: string;
+  /** Today in London: "Fri 23 Oct". */
+  today: string;
+  /** How many people applied. */
+  applied: number;
+  readiness: ReadinessRow[];
+  /** Why the send cannot go, a sentence each. Empty when it can. */
+  blockers: string[];
+  /** The day decisions went out, and who sent them, once they all have. */
+  sentOn: string | null;
+  sentBy: string | null;
+  /** People who already have their result, out of everybody in the term. */
+  published: number;
+  accepted: SendGroup;
+  invited: SendGroup;
+  noOffer: SendGroup;
+  declined: { count: number };
+  /** The reply-by day for invitations: "Sun 25 Oct". */
+  replyBy: string | null;
+  /** Accepted people whose account is still waiting to be approved. */
+  accountsWaiting: number;
+  /** The name emails are sent under. */
+  fromName: string;
+  replyTo: string;
+  /** False on a copy of the site that only writes to the addresses it lists. */
+  emailsEveryone: boolean;
+  /** What a press of Send would do now. */
+  pending: {
+    /** People still to be told. */
+    people: number;
+    /** Emails for them, with declined applications left out. */
+    emails: number;
+    /** Declined applications among them. */
+    declined: number;
+    /** The most people one press reaches. */
+    perPress: number;
+  };
+};
+
+/** What one press of Send did. Every person it looked at is in exactly one count. */
+export type SendReport = {
+  /** Results written by this press. */
+  published: number;
+  /** Of those: an email went out. */
+  emailed: number;
+  /** Of those: this copy of the site may not write to them, so nothing went. */
+  held: number;
+  /** Of those: the address is on the do-not-email list, so nothing went. */
+  suppressed: number;
+  /** Of those: the email could not be sent. Their result is still published. */
+  failed: number;
+  /** Of those: declined, and not emailed. */
+  notEmailed: number;
+  /** Already had a result, so nothing was written or sent. */
+  skipped: number;
+  /** Their decision changed after the press began, so nothing was written. */
+  changed: number;
+  /** Left for the next press. */
+  notReached: number;
+  /** The names of the people whose email could not be sent. */
+  failedNames: string[];
+  /** Why the press stopped early, when it did. */
+  stopped: "emails-failing" | "out-of-time" | null;
+  /** True when everybody in the term now has their result. */
+  complete: boolean;
+};

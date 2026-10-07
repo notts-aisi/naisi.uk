@@ -1,0 +1,552 @@
+"use client";
+
+import Link from "next/link";
+import { useState, type ReactNode } from "react";
+import InitialsChip from "@/components/ui/InitialsChip";
+import Switch from "@/components/ui/Switch";
+import kit from "@/features/applications/kit/kit.module.css";
+import { useHydrated } from "@/hooks/useHydrated";
+import {
+  applicationsLabel,
+  declinedLine,
+  emailsLabel,
+  sendButtonLabel,
+  sendTotalsLine,
+} from "@/lib/applications/decisionDay/boardWords";
+import {
+  INVITATIONS_ARE_REMINDED_DAILY,
+  SEND_APPROVES_WAITING_ACCOUNTS,
+} from "@/lib/applications/decisionDay/built";
+import type { DecisionEmailKind } from "@/lib/applications/decisionDay/emailCopy";
+import type {
+  EmailPreview,
+  SendBoard as Board,
+  SendGroup,
+  SendReport,
+} from "@/lib/applications/decisionDay/views";
+import shared from "./decisionDay.module.css";
+import Icon from "./Icon";
+import { Page, Pill, type PillTone } from "./parts";
+import styles from "./SendBoard.module.css";
+
+/**
+ * Decision day: whether the term is ready, who is in each of the four groups,
+ * each email as it will read, a test to yourself, and the one button that
+ * sends.
+ *
+ * ## The button's number is a promise
+ *
+ * It says how many emails a press sends, and it sends that number back with
+ * the press. If a lead changed a decision in between, the server refuses and
+ * says so, and the page is reloaded before anything goes.
+ *
+ * ## No pop-up
+ *
+ * Sending is the careful action on this page, and its care is the test and
+ * the number, not an "are you sure". The line beside the button says it cannot
+ * be unsent.
+ *
+ * ## What happened is said in full
+ *
+ * After a press the page says what the server did, in counts that add up:
+ * who was told, who was emailed, whose email was held because this copy of
+ * the site may not write to them, and whose email failed, by name.
+ */
+
+/** How many people a group lists before the rest fold behind "+N more". */
+const NAMES_SHOWN = 6;
+
+const BUTTON_LOOK = {
+  primary: styles.letterButtonPrimary,
+  quiet: styles.letterButtonQuiet,
+  outline: styles.letterButtonOutline,
+} as const;
+
+function Letter({ board, preview }: { board: Board; preview: EmailPreview | null }) {
+  if (!preview) {
+    return (
+      <div className={styles.letter}>
+        <p className={styles.letterNone}>Nobody is in this group, so no email goes out for it.</p>
+      </div>
+    );
+  }
+  const rows: [string, ReactNode][] = [
+    ["From", board.fromName],
+    ["Reply to", board.replyTo],
+    ["To", preview.to],
+    ["Subject", <span key="subject" className={styles.letterSubject}>{preview.subject}</span>],
+  ];
+  return (
+    <div className={styles.letter}>
+      <dl className={styles.letterMeta}>
+        {rows.map(([label, value]) => (
+          <div key={label} className={styles.letterRow}>
+            <dt className={`${kit.mono} ${styles.letterLabel}`}>{label}</dt>
+            <dd className={styles.letterValue}>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className={styles.letterBody}>
+        <p className={styles.letterText}>{preview.greeting}</p>
+        {preview.paragraphs.map((paragraph, at) => (
+          <p key={at} className={styles.letterText}>
+            {paragraph}
+          </p>
+        ))}
+        {preview.buttons.length > 0 ? (
+          <div className={styles.letterButtons}>
+            {preview.buttons.map((button) => (
+              <span key={button.label} className={`${styles.letterButton} ${BUTTON_LOOK[button.look]}`}>
+                {button.label}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        <p className={styles.letterSign}>
+          {preview.signOff.name}
+          {preview.signOff.role ? (
+            <>
+              <br />
+              <span className={styles.letterSignRole}>{preview.signOff.role}</span>
+            </>
+          ) : null}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function Group({
+  board,
+  group,
+  title,
+  tone,
+  first,
+  editable,
+  children,
+}: {
+  board: Board;
+  group: SendGroup;
+  title: string;
+  tone: PillTone;
+  first?: boolean;
+  /** Whether the wording can still be changed: not once the term is sent. */
+  editable: boolean;
+  /** The line or lines that say what this group is. */
+  children: ReactNode;
+}) {
+  const [all, setAll] = useState(false);
+  const hidden = Math.max(0, group.people.length - NAMES_SHOWN);
+  const listed = all ? group.people : group.people.slice(0, NAMES_SHOWN);
+  return (
+    <section className={`${shared.card} ${styles.group} ${first ? styles.groupFirst : ""}`}>
+      <div className={styles.groupCols}>
+        <div className={styles.groupWho}>
+          <div className={styles.groupHead}>
+            <h2 className={styles.groupTitle}>{title}</h2>
+            <Pill tone={tone} dot>
+              {emailsLabel(group.people.length)}
+            </Pill>
+          </div>
+          {children}
+          {listed.length > 0 ? (
+            <ul className={styles.names}>
+              {listed.map((person) => (
+                <li key={person.uid} className={styles.name}>
+                  <InitialsChip name={person.name} uid={person.uid} size="sm" />
+                  <span className={styles.nameText}>{person.name}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {hidden > 0 ? (
+            <button
+              type="button"
+              className={`${shared.quiet} ${styles.more}`}
+              aria-expanded={all}
+              onClick={() => setAll((showing) => !showing)}
+            >
+              {all ? "Show fewer" : `+${hidden} more`}
+              {all ? null : <Icon name="chevron-right" size={16} />}
+            </button>
+          ) : null}
+        </div>
+        <div className={styles.groupLetter}>
+          <div className={styles.letterHead}>
+            <div className={`${kit.mono} ${shared.eyebrow}`}>The email</div>
+            {editable && group.preview ? (
+              // Wording is edited with the programme's own settings. Until
+              // this page is given that address the control is shown and off.
+              <button
+                type="button"
+                className={styles.wording}
+                disabled
+                title="Wording is edited in the programme’s settings."
+              >
+                <Icon name="pencil" />
+                <span>Edit wording</span>
+              </button>
+            ) : null}
+          </div>
+          <Letter board={board} preview={group.preview} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** What one press did, in sentences whose numbers add up to the people it looked at. */
+function reportLines(report: SendReport): string[] {
+  const lines: string[] = [];
+  const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
+  if (report.published > 0) {
+    const parts = [`${report.emailed} emailed`];
+    if (report.held > 0) parts.push(`${report.held} held`);
+    if (report.suppressed > 0) parts.push(`${report.suppressed} on the do-not-email list`);
+    if (report.failed > 0) parts.push(`${report.failed} failed`);
+    if (report.notEmailed > 0) parts.push(`${report.notEmailed} declined and not emailed`);
+    lines.push(`${people(report.published)} told: ${parts.join(", ")}.`);
+  } else {
+    lines.push("Nobody new was told.");
+  }
+  if (report.held > 0) {
+    lines.push(
+      "Held means this copy of the site may not write to that address, so nothing was sent to it. That is how a rehearsal works.",
+    );
+  }
+  if (report.failed > 0) {
+    lines.push(
+      `The email could not be sent to ${report.failedNames.join(", ")}. Their result is on their application page, so write to them yourself.`,
+    );
+  }
+  if (report.skipped > 0) {
+    lines.push(`${people(report.skipped)} already had their result, so nothing went to them again.`);
+  }
+  if (report.changed > 0) {
+    lines.push(
+      `${people(report.changed)} ${report.changed === 1 ? "was" : "were"} left out because their decision changed after you pressed Send. Check the page and send again.`,
+    );
+  }
+  if (report.stopped === "emails-failing") {
+    lines.push("The send stopped because emails were failing. Nobody else was told. Press Send again once the mail is working.");
+  } else if (report.notReached > 0) {
+    lines.push(`${people(report.notReached)} still to be told. Press Send again for the rest.`);
+  }
+  if (report.complete) lines.push("Everybody in the term now has their result.");
+  return lines;
+}
+
+const TEST_KINDS: { kind: DecisionEmailKind; group: "accepted" | "invited" | "noOffer" }[] = [
+  { kind: "accepted", group: "accepted" },
+  { kind: "invitation", group: "invited" },
+  { kind: "no-offer", group: "noOffer" },
+];
+
+export default function SendBoard({ initial }: { initial: Board }) {
+  const [board, setBoard] = useState(initial);
+  const [emailDeclined, setEmailDeclined] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testNote, setTestNote] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [report, setReport] = useState<SendReport | null>(null);
+  const hydrated = useHydrated();
+
+  const sent = board.sentOn !== null;
+  const ready = board.blockers.length === 0;
+  const emails = board.pending.emails + (emailDeclined ? board.pending.declined : 0);
+  const left = board.pending.people;
+  const canSend =
+    hydrated && ready && !sent && !sending && !testing && (left > 0 || board.published > 0);
+  const hasEmail = TEST_KINDS.some(({ group }) => board[group].preview !== null);
+  const base = `/api/admissions/forms/${encodeURIComponent(board.roundId)}/send`;
+
+  async function send() {
+    setSending(true);
+    setProblem(null);
+    setReport(null);
+    try {
+      const response = await fetch(base, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ emails, emailDeclined }),
+      });
+      const answer = (await response.json().catch(() => null)) as
+        | { board?: Board; report?: SendReport; error?: string }
+        | null;
+      if (!response.ok || !answer?.board || !answer.report) {
+        setProblem(answer?.error ?? "The send did not go through. Reload the page before trying again.");
+        return;
+      }
+      setBoard(answer.board);
+      setReport(answer.report);
+    } catch {
+      setProblem(
+        "Could not reach the site. Reload the page to see who has been told before pressing Send again.",
+      );
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function sendTest() {
+    setTesting(true);
+    setTestNote(null);
+    setProblem(null);
+    let sentCount = 0;
+    let held = 0;
+    let suppressed = 0;
+    try {
+      for (const { kind, group } of TEST_KINDS) {
+        if (!board[group].preview) continue;
+        const response = await fetch(`${base}/test`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ kind }),
+        });
+        const answer = (await response.json().catch(() => null)) as
+          | { delivery?: "sent" | "held" | "suppressed"; error?: string }
+          | null;
+        if (!response.ok || !answer?.delivery) {
+          setProblem(answer?.error ?? "That test could not be sent. Try again in a minute.");
+          return;
+        }
+        if (answer.delivery === "sent") sentCount += 1;
+        else if (answer.delivery === "held") held += 1;
+        else suppressed += 1;
+      }
+      const at = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+      if (held > 0) {
+        setTestNote(
+          "The test was held, not sent. This copy of the site doesn’t email your address, which is how a rehearsal works.",
+        );
+      } else if (suppressed > 0) {
+        setTestNote("Your address is on the do-not-email list, so the test was not sent.");
+      } else {
+        setTestNote(
+          sentCount === 1 ? `Test sent to you at ${at}.` : `${sentCount} tests sent to you at ${at}, one for each email.`,
+        );
+      }
+    } catch {
+      setProblem("Could not reach the site to send that test. Check your connection and try again.");
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  const waiting = board.accountsWaiting;
+  const pool = `/admin/admissions/forms/${encodeURIComponent(board.roundId)}/pool`;
+
+  return (
+    <Page
+      title={`Send decisions · ${board.termLabel}`}
+      chips={<Pill tone="live">{board.today}</Pill>}
+      lede={`Every decision for the term goes out together. ${board.applied} ${board.applied === 1 ? "person" : "people"} applied.`}
+    >
+      <section className={`${shared.card} ${styles.ready}`}>
+        <div className={styles.readyHead}>
+          <h2 className={styles.readyTitle}>{sent ? "Sent" : "Ready to send"}</h2>
+          {sent ? (
+            <Pill tone="ok" dot>
+              Sent {board.sentOn}
+            </Pill>
+          ) : ready ? (
+            <Pill tone="ok" dot>
+              All ready
+            </Pill>
+          ) : (
+            <Pill tone="warn" dot>
+              Not ready
+            </Pill>
+          )}
+        </div>
+        <ul className={styles.checks}>
+          {board.readiness.map((row) => (
+            <li key={row.key} className={styles.check}>
+              <span
+                className={row.ready ? styles.checkMark : `${styles.checkMark} ${styles.checkMarkWaiting}`}
+              >
+                <Icon name={row.ready ? "check" : "warning"} size={15} weight={row.ready ? 2.6 : 1.8} />
+              </span>
+              <div className={styles.checkWho}>
+                <div className={styles.checkTitle}>{row.title}</div>
+                <div className={styles.checkOwner}>{row.owner}</div>
+              </div>
+              <div className={styles.checkStatus}>
+                {row.status}
+                {row.key === "pooled" && !row.ready ? (
+                  <>
+                    {". "}
+                    <Link className={styles.checkLink} href={pool}>
+                      Pick them
+                    </Link>
+                  </>
+                ) : null}
+              </div>
+              <div className={styles.checkDetail}>{row.detail}</div>
+            </li>
+          ))}
+        </ul>
+        <div className={styles.readyNote}>
+          <div className={shared.note}>
+            <Icon name="info" size={16} className={shared.noteIcon} />
+            <span>
+              {sent
+                ? `${board.sentBy ?? "An admin"} sent these on ${board.sentOn}. They can’t be changed from here now.`
+                : "Leads can change a decision until you press Send."}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <Group board={board} group={board.accepted} title="You’re in" tone="ok" first editable={!sent}>
+        <p className={styles.groupText}>A presumed yes. They don’t have to reply.</p>
+        {SEND_APPROVES_WAITING_ACCOUNTS ? (
+          <div className={shared.note}>
+            <Icon name="check" size={16} className={shared.noteIcon} />
+            <span>This also approves their account if it was waiting.</span>
+          </div>
+        ) : waiting > 0 ? (
+          <div className={shared.note}>
+            <Icon name="info" size={16} className={shared.noteIcon} />
+            <span>
+              {waiting} of them {waiting === 1 ? "has" : "have"} an account that’s still waiting.
+              Sending doesn’t approve it, so approve {waiting === 1 ? "it" : "them"} in Approvals.
+            </span>
+          </div>
+        ) : null}
+      </Group>
+
+      <Group board={board} group={board.invited} title="Invitation" tone="accent" editable={!sent}>
+        <p className={styles.groupText}>
+          Pooled, and invited to something they didn’t pick.{" "}
+          {board.replyBy
+            ? INVITATIONS_ARE_REMINDED_DAILY
+              ? `They accept by ${board.replyBy}, and get a reminder each day until they reply.`
+              : `They accept by ${board.replyBy}.`
+            : "No reply-by date is set yet."}
+        </p>
+      </Group>
+
+      <Group board={board} group={board.noOffer} title="No offer this time" tone="neutral" editable={!sent}>
+        <p className={styles.groupText}>Pooled, with nothing else this term. A kind no.</p>
+      </Group>
+
+      <section className={`${shared.card} ${styles.declined}`}>
+        <div className={styles.declinedWho}>
+          <div className={styles.groupHead}>
+            <h2 className={styles.groupTitle}>Declined</h2>
+            <Pill tone="danger" dot>
+              {applicationsLabel(board.declined.count)}
+            </Pill>
+          </div>
+          <p className={styles.declinedText}>Spam or not eligible.</p>
+        </div>
+        {/* Once the term is sent the switch has nothing left to decide. */}
+        {sent ? null : (
+          <div className={styles.declinedSwitch}>
+            <Switch
+              label="Email them"
+              checked={emailDeclined}
+              disabled={!hydrated || sending || board.pending.declined === 0}
+              onChange={setEmailDeclined}
+            />
+          </div>
+        )}
+      </section>
+
+      <section className={`${shared.card} ${styles.send}`}>
+        <div className={styles.sendWords}>
+          <div className={styles.sendTotals}>
+            {sendTotalsLine(
+              board.accepted.people.length,
+              board.invited.people.length,
+              board.noOffer.people.length,
+            )}
+          </div>
+          {board.declined.count > 0 && !sent ? (
+            <p className={styles.sendLine}>{declinedLine(board.declined.count, emailDeclined)}</p>
+          ) : null}
+          {sent ? (
+            <p className={styles.sendLine}>
+              Sent on {board.sentOn}. It can’t be sent again.
+            </p>
+          ) : ready ? (
+            <p className={styles.sendWarning}>
+              <Icon name="warning" size={16} className={styles.sendWarningIcon} />
+              <span>
+                {board.published === 0
+                  ? "This sends now and can’t be unsent."
+                  : left === 0
+                    ? "Everybody has been told already. This marks the term as sent."
+                    : `${board.published} ${board.published === 1 ? "person has" : "people have"} been told already. This sends the rest now and can’t be unsent.`}
+              </span>
+            </p>
+          ) : (
+            board.blockers.map((blocker) => (
+              <p key={blocker} className={styles.sendWarning}>
+                <Icon name="warning" size={16} className={styles.sendWarningIcon} />
+                <span>{blocker}</span>
+              </p>
+            ))
+          )}
+          {!sent && !board.emailsEveryone ? (
+            <p className={styles.sendWarning}>
+              <Icon name="info" size={16} className={shared.noteIcon} />
+              <span>
+                This copy of the site only emails the addresses on its own list. Everybody else’s
+                email is held, not sent, which is how a rehearsal works.
+              </span>
+            </p>
+          ) : null}
+          {testNote ? (
+            <p className={styles.sendLine} role="status">
+              {testNote}
+            </p>
+          ) : null}
+          {problem ? (
+            <p className={shared.problem} role="alert">
+              {problem}
+            </p>
+          ) : null}
+        </div>
+        {sent ? null : (
+          <div className={styles.sendActions}>
+            <button
+              type="button"
+              className={shared.secondary}
+              disabled={!hydrated || sending || testing || !hasEmail}
+              onClick={() => void sendTest()}
+            >
+              <Icon name="mail" />
+              <span>{testing ? "Sending the test…" : "Send a test to me"}</span>
+            </button>
+            <button
+              type="button"
+              className={`${kit.primary} ${styles.sendButton}`}
+              disabled={!canSend}
+              onClick={() => void send()}
+            >
+              <Icon name="send" />
+              <span>
+                {sending
+                  ? "Sending…"
+                  : sendButtonLabel(emails, left, board.pending.perPress, board.published)}
+              </span>
+            </button>
+          </div>
+        )}
+        {report ? (
+          <div className={styles.report} role="status">
+            <h2 className={styles.reportTitle}>What that send did</h2>
+            <ul className={styles.reportLines}>
+              {reportLines(report).map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </section>
+    </Page>
+  );
+}
