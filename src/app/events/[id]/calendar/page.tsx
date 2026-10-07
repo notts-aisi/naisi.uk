@@ -43,13 +43,12 @@ import styles from "./calendar.module.css";
  * ## Why it is outside the (public) route group
  *
  * The URL is `/events/<id>/calendar` either way, because a route group adds
- * nothing to a path. What the group adds is its layout, and that layout's
- * `<main>` is rendered at opacity 0 until JavaScript has hydrated (see
- * `PublicMain`). That is right for the marketing pages and wrong here: on a
- * hall network the script can take many seconds, and the reader would be
- * looking at a blank screen with the date already downloaded. So this page
- * sits under the root layout alone, like `/links`, reads from the first HTML
- * that arrives, and carries its own small brand link home in place of the
+ * nothing to a path. What the group adds is its layout, and that layout
+ * carries the site header, which is a client component. That is right for
+ * the pages people browse and wrong here: this page has to read from the
+ * first HTML that arrives, with no script at all, because on a hall network
+ * a script can take many seconds. So it sits under the root layout alone,
+ * like `/links`, and carries its own small brand link home in place of the
  * site header.
  *
  * ## Which events it serves
