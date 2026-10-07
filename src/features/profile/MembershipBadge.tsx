@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Badge from "@/components/ui/Badge";
-import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
 import { SU_PAGE_URL } from "@/content/socials";
+import { formatSiteDate } from "@/lib/datetime/siteTime";
 import {
   MEMBERSHIP_TIER_LABELS,
   type MembershipMePayload,
 } from "@/lib/firestore/memberships";
+import ProfileSection from "./ProfileSection";
 import styles from "./MembershipBadge.module.css";
 
 /**
@@ -23,7 +24,39 @@ import styles from "./MembershipBadge.module.css";
  * Website membership and SU membership are separate words, and the card says
  * so: an account on this site is not a society membership, and the link to buy
  * one is the SU's page rather than anything we can sell.
+ *
+ * It draws a whole section of the profile page, heading included, or nothing:
+ * a section with a heading and no card would promise something and show none.
  */
+
+/** "Fri 2 Oct", from the instant the membership was recorded. */
+function recordedOn(since: string | null): string | null {
+  if (!since) return null;
+  const at = new Date(since);
+  if (Number.isNaN(at.getTime())) return null;
+  return formatSiteDate(at, { weekday: "short", day: "numeric", month: "short" });
+}
+
+/** The glyph for a link that leaves the site. */
+function Leaves() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M8 16L17 7M9 7h8v8" />
+    </svg>
+  );
+}
+
 export default function MembershipBadge() {
   const [data, setData] = useState<MembershipMePayload | null>(null);
   const [failed, setFailed] = useState(false);
@@ -52,51 +85,54 @@ export default function MembershipBadge() {
 
   const { currentPeriod, membership, history } = data;
   const past = history.filter((row) => row.year !== currentPeriod?.year);
+  const day = membership ? recordedOn(membership.since) : null;
 
   return (
-    <Card padding="lg">
-      <div className={styles.head}>
-        <h2 className={styles.heading}>Society membership</h2>
-        {membership ? (
-          <Badge tone="success">{MEMBERSHIP_TIER_LABELS[membership.tier]}</Badge>
-        ) : (
-          <Badge tone="neutral">Not recorded</Badge>
-        )}
-      </div>
+    <ProfileSection
+      headingId="profile-membership"
+      title="SU membership"
+      description="£6 a year, paid on the SU website. It’s separate from your account here."
+    >
+      {currentPeriod && (
+        <div className={styles.chips}>
+          {membership ? (
+            <Chip tone="success" dot>
+              {MEMBERSHIP_TIER_LABELS[membership.tier]} · {currentPeriod.year}
+            </Chip>
+          ) : (
+            <Chip tone="neutral" dot>
+              Not on our list yet · {currentPeriod.year}
+            </Chip>
+          )}
+        </div>
+      )}
 
       {!currentPeriod ? (
-        <p className={styles.body}>
-          We are not tracking a membership year at the moment.
-        </p>
+        <p className={styles.body}>We’re not keeping a membership list at the moment.</p>
       ) : membership ? (
         <p className={styles.body}>
-          You are recorded as a member for {currentPeriod.year}. Membership is a
-          record we keep from the Students&apos; Union list; it does not change
-          what you can do on this site.
+          {membership.tier === "paid"
+            ? `We matched you to the SU’s list${day ? ` on ${day}` : ""}. Thanks for joining.`
+            : `You’re on our list for ${currentPeriod.year}${day ? `, since ${day}` : ""}.`}
         </p>
       ) : (
         <p className={styles.body}>
-          We have no membership recorded for you for {currentPeriod.year}. An
-          account here is not the same thing as society membership, which is
-          bought through the Students&apos; Union:{" "}
-          <a
-            href={SU_PAGE_URL}
-            target="_blank"
-            rel="noreferrer noopener"
-            className={styles.link}
-          >
-            join the society
-          </a>
-          . It can take us a week or two after you join to record it.
+          We haven’t matched you to the SU’s list for {currentPeriod.year}. If you’ve just joined,
+          it can take us a week or two.
         </p>
       )}
 
+      <a href={SU_PAGE_URL} target="_blank" rel="noreferrer noopener" className={styles.link}>
+        SU membership on the SU website
+        <Leaves />
+      </a>
+
       {past.length > 0 && (
         <p className={styles.history}>
-          Previous years:{" "}
+          Earlier years:{" "}
           {past.map((row) => `${row.year} (${MEMBERSHIP_TIER_LABELS[row.tier]})`).join(", ")}
         </p>
       )}
-    </Card>
+    </ProfileSection>
   );
 }

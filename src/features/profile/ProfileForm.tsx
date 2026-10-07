@@ -13,13 +13,16 @@ import {
 } from "firebase/firestore";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
+import GraduationSelect from "@/components/ui/GraduationSelect";
 import { Field, Input } from "@/components/ui/Input";
 import { useAuth } from "@/auth/AuthProvider";
 import { getClientDb } from "@/lib/firebase/client";
 import {
   FIELD_LIMITS,
   normalizeUser,
+  STATUSES_WITH_GRADUATION,
+  subjectLabel,
   validateUniversityEmail,
   type UserDoc,
 } from "@/lib/firestore/users";
@@ -52,17 +55,14 @@ import {
   type Matrix,
 } from "./notificationGrid";
 import MembershipBadge from "./MembershipBadge";
+import ProfileSection from "./ProfileSection";
+import WhatYouCanDo from "./WhatYouCanDo";
 import styles from "./ProfileForm.module.css";
 
 const UNI_EMAIL_LOCK_MS = 24 * 60 * 60 * 1000;
 
 const LOCK_MESSAGE =
   "To prevent abuse, we've temporarily locked email changes on this account. If you need to update your university email before it unlocks, email ai-safety@uonsu.com from the address you'd like us to use and we'll verify and make the change manually.";
-
-const KIND_LABEL: Record<VerifiedEmail["kind"], string> = {
-  google: "Google",
-  uni: "Uni",
-};
 
 /**
  * Read the stored `courses` opt-out RAW, off the untouched document data.
@@ -171,6 +171,13 @@ export default function ProfileForm() {
 
   const [preferredName, setPreferredName] = useState("");
   const [universityEmail, setUniversityEmail] = useState("");
+  // What they study and when they finish: asked when the account was made,
+  // and theirs to correct here.
+  const [subject, setSubject] = useState("");
+  const [graduation, setGraduation] = useState("");
+  // The year as this page was opened, read once so a render is the same
+  // however many times it runs.
+  const [thisYear] = useState(() => new Date().getFullYear());
   const [matrix, setMatrix] = useState<Matrix>({});
   // Account-level, not per-address. Starts ON: absent = "hasn't answered",
   // and cohort mail is an opt-out. See readCourseAnnouncements.
@@ -253,6 +260,8 @@ export default function ProfileForm() {
       if (!dirty.current) {
         setPreferredName(normalized.profile?.preferredName ?? "");
         setUniversityEmail(normalized.profile?.universityEmail ?? "");
+        setSubject(normalized.profile?.subject ?? "");
+        setGraduation(normalized.profile?.expectedGraduation ?? "");
         // Raw data, not the normalized doc: `UserProfile.notifications` is
         // typed as the full shape, so a missing `courses` reads as `false`
         // through it.
@@ -349,6 +358,26 @@ export default function ProfileForm() {
   );
   const pushAllOn = columnIsOn(pushColumnCells(pushPrefs));
 
+  // Graduation is asked of somebody on a degree and of nobody else, the rule
+  // the registration form applies. An account with no stated status is
+  // treated as a student's, which is what almost every one is.
+  const status = me?.profile?.status;
+  const studying = !status || STATUSES_WITH_GRADUATION.includes(status);
+  // A graduation that has already passed still has to be one of the choices,
+  // or the control would show a blank and save one.
+  const storedYear = Number((me?.profile?.expectedGraduation ?? "").slice(0, 4));
+  const firstYear = storedYear > 0 && storedYear < thisYear ? storedYear : thisYear;
+
+  // How this account signs in, as the browser's own session reports it.
+  const providers = Array.isArray(user?.providerData)
+    ? user.providerData.map((provider) => provider.providerId)
+    : [];
+  const signInLine = providers.includes("google.com")
+    ? "You sign in with Google."
+    : providers.includes("password")
+      ? "You sign in with your email and a password."
+      : null;
+
   const hasUniEmail = universityEmail.trim().length > 0;
   const uniEmailVerified = Boolean(
     (me?.profile as { uniEmailVerifiedAt?: unknown } | undefined)?.uniEmailVerifiedAt,
@@ -418,6 +447,20 @@ export default function ProfileForm() {
       }
     }
 
+    // Two fields this form may correct and may not empty: an answer that is
+    // there stays there unless another is given in its place.
+    const subjectTrimmed = subject.trim();
+    const previousSubject = me?.profile?.subject ?? "";
+    if (!subjectTrimmed && previousSubject) {
+      setError("Tell us what you study before you save.");
+      return;
+    }
+    const previousGraduation = me?.profile?.expectedGraduation ?? "";
+    if (studying && !graduation && previousGraduation) {
+      setError("Choose the month and the year you expect to finish.");
+      return;
+    }
+
     const previousUniEmail = me?.profile?.universityEmail ?? "";
     const uniEmailChanging = uniEmailTrimmed !== previousUniEmail;
     if (uniEmailChanging) {
@@ -461,6 +504,12 @@ export default function ProfileForm() {
           deliverToUniEmail: legacy.channels.uniEmail,
         },
       };
+      // Written only when changed, so a save that is about something else
+      // leaves both exactly as they were stored.
+      if (subjectTrimmed !== previousSubject) patch["profile.subject"] = subjectTrimmed;
+      if (studying && graduation !== previousGraduation) {
+        patch["profile.expectedGraduation"] = graduation;
+      }
       const wasSuppressed = Boolean(
         (me?.profile as { universityEmailWasSuppressed?: boolean } | undefined)
           ?.universityEmailWasSuppressed,
@@ -544,33 +593,31 @@ export default function ProfileForm() {
   }
 
   if (loading) {
-    return (
-      <Card padding="md">
-        <p style={{ color: "var(--color-text-muted)" }}>Loading your profile…</p>
-      </Card>
-    );
+    return <p className={styles.standIn}>Loading your profile…</p>;
   }
   if (!me) {
     return (
-      <Card padding="md">
-        <p style={{ color: "var(--color-text-muted)" }}>
-          We couldn&apos;t find your profile record. Try signing out and back in.
-        </p>
-      </Card>
+      <p className={styles.standIn}>
+        We couldn&apos;t find your profile record. Try signing out and back in.
+      </p>
     );
   }
 
+  const verifiedShown = uniEmailVerified && !uniEmailChanged;
+
   return (
-    <form onSubmit={onSave} style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-      <Card padding="lg">
-        <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-1)" }}>
-          Your details
-        </h2>
-        <p style={{ color: "var(--color-text-muted)", fontSize: "var(--text-sm)", marginBottom: "var(--space-5)" }}>
-          Shown to the committee. Your Google account email stays linked automatically.
-        </p>
+    <form onSubmit={onSave} className={styles.form}>
+      <ProfileSection
+        headingId="profile-details"
+        title="Your details"
+        description="People in your group see your name. Admins and the committee members the Students’ Union recognises can see the rest."
+      >
         <div className={styles.grid}>
-          <Field id="pref-name" label="Preferred name">
+          <Field
+            id="pref-name"
+            label="Name"
+            hint="What we call you on the site and in emails."
+          >
             <Input
               id="pref-name"
               value={preferredName}
@@ -581,93 +628,110 @@ export default function ProfileForm() {
               maxLength={FIELD_LIMITS.preferredName}
             />
           </Field>
+          <Field id="profile-subject" label={studying ? "Course" : subjectLabel(status)}>
+            <Input
+              id="profile-subject"
+              value={subject}
+              onChange={(e) => {
+                markDirty();
+                setSubject(e.target.value);
+              }}
+              maxLength={FIELD_LIMITS.subject}
+            />
+          </Field>
+          {studying && (
+            <Field
+              id="profile-graduation"
+              label="Expected graduation"
+              hint="Month and year you expect to finish."
+            >
+              <div className={styles.graduation}>
+                <GraduationSelect
+                  id="profile-graduation"
+                  value={graduation}
+                  onChange={(next) => {
+                    markDirty();
+                    setGraduation(next);
+                  }}
+                  fromYear={firstYear}
+                  yearsAhead={thisYear - firstYear + 8}
+                />
+              </div>
+            </Field>
+          )}
           <Field
             id="uni-email"
             label="University email"
             hint={
-              uniEmailVerified && !uniEmailChanged
-                ? "Verified. If you change it, you'll need to verify the new address."
+              verifiedShown
+                ? "We use it to match you to the SU’s membership list. If you change it, you’ll need to verify the new address."
                 : "Any @nottingham.ac.uk address (subdomains like exmail.nottingham.ac.uk included). Verify it to deliver email there."
             }
           >
-            <Input
-              id="uni-email"
-              type="email"
-              value={universityEmail}
-              onChange={(e) => {
-                markDirty();
-                setUniversityEmail(e.target.value);
-              }}
-              placeholder="you@nottingham.ac.uk"
-              maxLength={FIELD_LIMITS.universityEmail}
-            />
-            <div className={styles.verifyRow}>
-              {uniEmailVerified && !uniEmailChanged ? (
-                <Badge tone="success">Verified</Badge>
-              ) : hasUniEmail ? (
-                <>
-                  <Badge tone="neutral">Not verified</Badge>
-                  <button
-                    type="button"
-                    onClick={onRequestVerification}
-                    disabled={busy}
-                    className={styles.verifyButton}
-                  >
-                    Send verification email
-                  </button>
-                </>
-              ) : null}
+            <div className={styles.emailBox}>
+              <Input
+                id="uni-email"
+                type="email"
+                value={universityEmail}
+                onChange={(e) => {
+                  markDirty();
+                  setUniversityEmail(e.target.value);
+                }}
+                placeholder="you@nottingham.ac.uk"
+                maxLength={FIELD_LIMITS.universityEmail}
+                className={verifiedShown ? styles.emailWithChip : undefined}
+              />
+              {verifiedShown && (
+                <span className={styles.emailChip}>
+                  <Chip tone="success" dot>
+                    Verified
+                  </Chip>
+                </span>
+              )}
             </div>
+            {!verifiedShown && hasUniEmail && (
+              <div className={styles.verifyRow}>
+                <Badge tone="neutral">Not verified</Badge>
+                <button
+                  type="button"
+                  onClick={onRequestVerification}
+                  disabled={busy}
+                  className={styles.verifyButton}
+                >
+                  Send verification email
+                </button>
+              </div>
+            )}
           </Field>
         </div>
-      </Card>
+        {signInLine && <p className={styles.signIn}>{signInLine}</p>}
+      </ProfileSection>
 
-      <MembershipBadge />
+      <WhatYouCanDo />
 
-      <Card padding="lg">
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-1)" }}>
-          <h2 style={{ fontSize: "var(--text-xl)" }}>Email and notifications</h2>
-          {/* Addressed by the browser end-to-end suite: the badge is how a
-              member is told, in one word, whether they are on any of our
-              lists at all. It counts the two subscription rows only. */}
+      <ProfileSection
+        headingId="profile-emails"
+        title="Emails and notifications"
+        description="Email goes to your inbox. Push is a notification on a phone or laptop, turned on separately on each one."
+        badge={
+          // Addressed by the browser end-to-end suite: the badge is how a
+          // member is told, in one word, whether they are on any of our
+          // lists at all. It counts the two subscription rows only.
           <Badge
             tone={anyChecked ? "success" : "neutral"}
             data-testid="profile-subscriptions-badge"
           >
             {anyChecked ? "Subscribed" : "No subscriptions"}
           </Badge>
-        </div>
-        <p style={{ color: "var(--color-text-muted)", fontSize: "var(--text-sm)", marginBottom: "var(--space-5)" }}>
-          One row per kind of message, one column per way of reaching you. The
-          newsletter and event announcements carry a one-click unsubscribe link
-          and can go to whichever inbox you like. Email about something you are
-          already part of (your reading group&apos;s session moving, an RSVP
-          confirmation) is not a subscription and reaches you either way.
-        </p>
-
+        }
+      >
         {verifiedEmails.length === 0 ? (
           <div className={styles.matrixEmpty}>
             We don&apos;t have a verified email address on file for you yet. Sign in
-            should always provide one — try signing out and back in.
+            should always provide one, so try signing out and back in.
           </div>
         ) : (
           <>
-            <p className={styles.addressLine}>
-              {verifiedEmails.length === 1 ? "Delivering to " : "Delivering to your "}
-              {verifiedEmails.map((ve, i) => (
-                <span key={ve.email} className={styles.addressChip}>
-                  {i > 0 && <span aria-hidden> and </span>}
-                  <span className={styles.addressText}>{ve.email}</span>
-                  <span className={styles.addressMeta}>
-                    {KIND_LABEL[ve.kind]}
-                    <span className={styles.addressVerified} aria-label="Verified">
-                      <span aria-hidden>✓</span> Verified
-                    </span>
-                  </span>
-                </span>
-              ))}
-            </p>
-
             {/* ONE GRID, rows against two columns, and the same element the
                 browser suite has always driven (`profile-subscriptions-grid`).
                 It is a real CSS grid on a wide screen and a stack of per-row
@@ -857,20 +921,46 @@ export default function ProfileForm() {
               signed in on. The Email column saves with the button below.
             </p>
             {pushError && <p className={styles.notifError}>{pushError}</p>}
+
+            <p className={styles.addressLine}>
+              Emails go to{" "}
+              {verifiedEmails.map((ve, i) => (
+                <span key={ve.email}>
+                  {i > 0 && " and "}
+                  <span className={styles.addressText}>{ve.email}</span>
+                </span>
+              ))}
+              .{" "}
+              <a href="#uni-email" className={styles.addressChange}>
+                Change your university email
+              </a>
+            </p>
+            <p className={styles.always}>
+              We’ll always email you about your applications and event places.
+            </p>
           </>
         )}
-      </Card>
+      </ProfileSection>
 
-      {error && <p style={{ color: "var(--color-danger)" }}>{error}</p>}
-      {saved && !error && (
-        <p style={{ color: "var(--color-success)" }}>Saved.</p>
-      )}
-
-      <div style={{ display: "flex", gap: "var(--space-3)" }}>
-        <Button type="submit" disabled={busy}>
-          {busy ? "Saving…" : "Save changes"}
-        </Button>
+      <div className={styles.saveRow}>
+        <div className={styles.saveActions}>
+          <Button type="submit" disabled={busy}>
+            {busy ? "Saving…" : "Save changes"}
+          </Button>
+          {error && (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          )}
+          {saved && !error && (
+            <p className={styles.saved} role="status">
+              Saved.
+            </p>
+          )}
+        </div>
       </div>
+
+      <MembershipBadge />
     </form>
   );
 }
