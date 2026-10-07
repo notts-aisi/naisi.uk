@@ -120,7 +120,7 @@ export default function manifest(): MetadataRoute.Manifest {
 
     /*
      * Android's long-press menu, and macOS Safari 17.4+. iOS ignores these.
-     * Labels match the AppShell sidebar verbatim so the menu and the app agree.
+     * Labels match the signed-in menu (APP_NAV in src/layout/appNav.ts) verbatim so the menu and the app agree.
      * All three are role-gated, so a signed-out tap lands on /login?next=...,
      * which is a reasonable outcome rather than a broken one.
      */
@@ -133,9 +133,9 @@ export default function manifest(): MetadataRoute.Manifest {
     launch_handler: { client_mode: "focus-existing" },
 
     shortcuts: [
-      { name: "Dashboard", url: "/dashboard" },
+      { name: "Home", url: "/dashboard" },
       { name: "My work", url: "/tasks" },
-      { name: "Courses", url: "/learn" },
+      { name: "My programmes", url: "/learn" },
     ],
   };
 }

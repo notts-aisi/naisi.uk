@@ -772,6 +772,12 @@ const USERS = new Map([
       "the rate limiter, the tracker writes) is stubbed, and the test asserts none of them is reached",
   ],
   [
+    "app-frame.test.mjs",
+    "executes src/layout/appNav.ts, the signed-in menu as data: its matchers decide which admin " +
+      "page an address belongs to and `currentEntry` decides which menu entry is lit, and both " +
+      "are held to the page files in the tree by running them rather than by reading their text",
+  ],
+  [
     "slug-id.test.mjs",
     "it executes `slugId`, with the platform's random source replaced, because where the suffix " +
       "comes from and what happens to a byte that would bias it are both about the shipping code; " +

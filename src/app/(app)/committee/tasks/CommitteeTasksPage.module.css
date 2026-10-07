@@ -45,7 +45,7 @@
 
 .fabNewTaskButton {
   position: fixed;
-  bottom: var(--space-6);
+  bottom: calc(var(--space-6) + var(--app-bottom-inset, 0px));
   right: var(--space-6);
   /* Above kanban + sidebar (AppShell.module.css uses 10/15/20) but well
      below modal/drawer overlays. */

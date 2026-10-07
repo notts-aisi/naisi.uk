@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import BrandMark from "@/components/BrandMark";
 import Button from "@/components/ui/Button";
 import Drawer from "@/components/ui/Drawer";
+import InitialsChip from "@/components/ui/InitialsChip";
 import { useAuth } from "@/auth/AuthProvider";
 import { exitImpersonation } from "@/auth/impersonation";
 import { signOut } from "@/auth/signInWithGoogle";
@@ -15,6 +16,15 @@ import { mark, warn } from "@/lib/devMonitor";
 import { hardNavigate } from "@/lib/navigation/hardNavigate";
 import { clearSelfHealAttempt } from "@/lib/navigation/selfHealGuard";
 import { InstallLink } from "@/features/pwa/InstallLink";
+import {
+  APP_NAV,
+  BOTTOM_BAR,
+  BOTTOM_BAR_MENU_LABEL,
+  barTitleFor,
+  currentEntry,
+  roleInWords,
+  type NavRule,
+} from "./appNav";
 import styles from "./AppShell.module.css";
 
 /** Banner state supplied by (app)/layout.tsx when a view-as session is live.
@@ -34,16 +44,18 @@ type Viewer = {
    *  round. See `users.admissionsReviewer`. */
   admissionsReviewer: boolean;
 };
-type NavItem = {
-  label: string;
-  href: string;
-  visible: (v: Viewer) => boolean;
-};
-type NavGroup = {
-  label: string | null;
-  items: NavItem[];
-};
 
+/*
+  WHO IS SHOWN WHICH ENTRY. The entries themselves (their words, addresses and
+  groups) are data in `appNav.ts`; each names one of the rules below.
+
+  The rules stay in this file on purpose. They read the raw `permissions` keys
+  off the live sign-in, and `tests/authority-at-use.test.mjs` registers this
+  file as the one place in the frame that does: every entry they show lands on
+  a layout or a route that applies the floored helper, so the worst a stale
+  key does here is show a link that redirects. Moving a rule out of this file
+  moves a raw read with it, and that test fails.
+*/
 const MEMBER_AND_UP = (v: Viewer) =>
   v.role === "member" || v.role === "committee" || v.role === "admin";
 const COMMITTEE_AND_UP = (v: Viewer) => v.role === "committee" || v.role === "admin";
@@ -66,13 +78,13 @@ const EVENTS_ACCESS = (v: Viewer) =>
   Boolean(v.permissions.approveEvent);
 // A non-admin holding draftCourse or approveCourse may use /admin/courses and
 // nothing else in the admin area, so they get a link straight to the course
-// tree rather than the Admin entry. Admins are excluded here on purpose: they
-// already have "Admin", and the two links would land on the same console.
+// tree. Admins are excluded here on purpose: they reach the same pages through
+// Programmes, and the two links would land on the same console.
 const COURSE_ADMIN_ACCESS = (v: Viewer) =>
   v.role !== "admin" &&
   (Boolean(v.permissions.draftCourse) || Boolean(v.permissions.approveCourse));
 
-// The Admissions group. Admins always; anyone the roles route has marked as a
+// The Programmes entry. Admins always; anyone the roles route has marked as a
 // reviewer or final decider on a round. The flag is a denormalisation carried
 // on the user document precisely so this predicate is a field read rather than
 // an `admissionRounds` query on every authed navigation, which is the shape
@@ -84,49 +96,23 @@ const ADMISSIONS_ACCESS = (v: Viewer) =>
 // A non-admin holding `manageMembership` may use /admin/membership and nothing
 // else in the admin area, so they get a link straight to it. Admins are
 // excluded on purpose, exactly like the course link above: they already have
-// "Admin", and the console is a tab inside it.
+// People, and the console is a page inside it.
 const MEMBERSHIP_ADMIN_ACCESS = (v: Viewer) =>
   v.role !== "admin" && Boolean(v.permissions.manageMembership);
 
-const NAV_GROUPS: NavGroup[] = [
-  {
-    label: null,
-    items: [
-      { label: "Dashboard", href: "/dashboard", visible: MEMBER_AND_UP },
-      { label: "Courses", href: "/learn", visible: MEMBER_AND_UP },
-      { label: "My work", href: "/tasks", visible: MEMBER_AND_UP },
-      { label: "Profile", href: "/profile", visible: MEMBER_AND_UP },
-    ],
-  },
-  {
-    label: "Committee",
-    items: [
-      { label: "Task board", href: "/committee/tasks", visible: SU_COMMITTEE_AND_UP },
-      // Every committee member drafts worksheets: SU recognition gates the board, not this.
-      { label: "Worksheets", href: "/worksheets", visible: COMMITTEE_AND_UP },
-      { label: "Credentials", href: "/credentials", visible: COMMITTEE_AND_UP },
-      { label: "Newsletter", href: "/newsletter", visible: NEWSLETTER_ACCESS },
-      { label: "Events", href: "/events/manage", visible: EVENTS_ACCESS },
-    ],
-  },
-  {
-    label: "Admissions",
-    items: [
-      // The reviewer's own queue is a later PR. Until it lands this points at
-      // the round console, which is where an admin acts and where a reviewer
-      // can at least see the round they have been appointed to.
-      { label: "Rounds", href: "/admin/admissions", visible: ADMISSIONS_ACCESS },
-    ],
-  },
-  {
-    label: "Admin",
-    items: [
-      { label: "Admin", href: "/admin", visible: ADMIN_ONLY },
-      { label: "Course admin", href: "/admin/courses", visible: COURSE_ADMIN_ACCESS },
-      { label: "Membership", href: "/admin/membership", visible: MEMBERSHIP_ADMIN_ACCESS },
-    ],
-  },
-];
+/** The rule behind each name `appNav.ts` uses. Typed by `NavRule`, so an entry
+ *  there cannot name a rule that is missing here. */
+const RULES: Record<NavRule, (v: Viewer) => boolean> = {
+  memberAndUp: MEMBER_AND_UP,
+  committeeAndUp: COMMITTEE_AND_UP,
+  suCommitteeAndUp: SU_COMMITTEE_AND_UP,
+  adminOnly: ADMIN_ONLY,
+  newsletter: NEWSLETTER_ACCESS,
+  events: EVENTS_ACCESS,
+  admissions: ADMISSIONS_ACCESS,
+  courseAdmin: COURSE_ADMIN_ACCESS,
+  membershipAdmin: MEMBERSHIP_ADMIN_ACCESS,
+};
 
 const NAV_DRAWER_ID = "app-nav-drawer";
 
@@ -282,13 +268,28 @@ export default function AppShell({
 
   const visibleGroups =
     role === "admin" || role === "committee" || role === "member"
-      ? NAV_GROUPS.map((g) => ({
+      ? APP_NAV.map((g) => ({
           ...g,
-          items: g.items.filter((item) =>
-            item.visible({ role, permissions, suRecognised, admissionsReviewer }),
+          entries: g.entries.filter((entry) =>
+            RULES[entry.rule]({ role, permissions, suRecognised, admissionsReviewer }),
           ),
-        })).filter((g) => g.items.length > 0)
+        })).filter((g) => g.entries.length > 0)
       : [];
+  const visibleEntries = visibleGroups.flatMap((g) => g.entries);
+  // The one entry marked as the current page, in the sidebar, the drawer and
+  // the bottom bar alike. See `currentEntry` for how an admin page finds the
+  // entry that is the way into its section.
+  const current = currentEntry(visibleEntries, pathname);
+  // The phone's bottom bar: its words, for the entries this person has.
+  const barEntries = BOTTOM_BAR.filter((b) => visibleEntries.some((e) => e.href === b.href));
+  // Menu carries the line when the page somebody is on is one the bar has no
+  // word for, so the bar always says where they are.
+  const menuHoldsPage = current !== null && !barEntries.some((b) => b.href === current.href);
+  const barTitle = barTitleFor(current);
+
+  const displayName = user?.displayName ?? user?.email ?? "Signed in";
+  const roleWords = roleInWords(role, suRecognised);
+  const initials = <InitialsChip name={displayName} uid={user?.uid ?? displayName} size="lg" />;
 
   // Slide the entire app shell off to the right when signing out, in
   // mirror of the sign-in slide-left. The public homepage then fades in
@@ -327,29 +328,40 @@ export default function AppShell({
     hardNavigate("/");
   }
 
-  // Shared nav body — rendered both inside the desktop sidebar and inside
-  // the mobile drawer so role-conditional rules and the pending-count
-  // badge stay single-sourced.
-  const renderNav = (onLinkClick?: () => void): ReactNode => (
-    <nav className={styles.nav}>
+  // Shared nav body: rendered both inside the desktop sidebar and inside
+  // the phone's Menu drawer so the role-conditional rules and the count
+  // stay single-sourced.
+  //
+  // `label` names the landmark. The sidebar's is "Main". The drawer's has
+  // none: it sits inside a dialog that is already named, beside the bottom
+  // bar, which is the "Main" navigation on a narrow screen.
+  const renderNav = (opts: { label?: string; onLinkClick?: () => void }): ReactNode => (
+    <nav className={styles.nav} aria-label={opts.label}>
       {visibleGroups.map((group, gi) => (
-        <div
-          key={group.label ?? `group-${gi}`}
-          className={`${styles.navGroup} ${gi === 0 ? "" : styles.navGroupSpaced}`}
-        >
-          {group.label && <div className={styles.navGroupLabel}>{group.label}</div>}
-          {group.items.map((item) => {
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            const showBadge = item.href === "/admin" && pendingCount > 0;
+        <div key={group.label ?? `group-${gi}`} className={styles.navGroup}>
+          {group.label && (
+            <div className={`meta ${styles.navGroupLabel}`}>{group.label}</div>
+          )}
+          {group.entries.map((entry) => {
+            const active = entry === current;
+            const count = entry.count === "joinRequests" ? pendingCount : 0;
             return (
               <Link
-                key={item.href}
-                href={item.href}
+                key={entry.href}
+                href={entry.href}
                 className={`${styles.navLink} ${active ? styles.active : ""}`}
-                onClick={onLinkClick}
+                aria-current={active ? "page" : undefined}
+                onClick={opts.onLinkClick}
               >
-                <span>{item.label}</span>
-                {showBadge && <span className={styles.navBadge}>{pendingCount}</span>}
+                <span>{entry.label}</span>
+                {count > 0 && (
+                  <span
+                    className={styles.navBadge}
+                    aria-label={`${count} waiting to join`}
+                  >
+                    {count}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -358,21 +370,21 @@ export default function AppShell({
     </nav>
   );
 
-  const renderUserBlock = (): ReactNode => (
-    <div className={styles.userBlock}>
-      <div className={styles.userName}>
-        {user?.displayName ?? user?.email ?? "Signed in"}
+  // The foot of the menu: who is signed in, and the way out. The initials are
+  // decoration (the chip hides itself from screen readers), so the name is
+  // always written beside them.
+  const renderFoot = (): ReactNode => (
+    <div className={styles.foot}>
+      <div className={styles.userBlock}>
+        {initials}
+        <div className={styles.userText}>
+          <div className={styles.userName}>{displayName}</div>
+          {roleWords && <div className={styles.userRole}>{roleWords}</div>}
+        </div>
       </div>
-      {role && <div className={styles.userRole}>{role}</div>}
-      <Button
-        variant="secondary"
-        size="md"
-        fullWidth
-        onClick={handleSignOut}
-        className={styles.signOut}
-      >
+      <button type="button" className={styles.signOut} onClick={handleSignOut}>
         Sign out
-      </Button>
+      </button>
     </div>
   );
 
@@ -385,16 +397,18 @@ export default function AppShell({
   // permission-gated content appearing and disappearing.
   if (loading) {
     return (
-      <>
+      <div className={styles.frame}>
         <div className={styles.topStrip} aria-hidden>
           <div className={styles.topStripBrand}>
-            <BrandMark size={28} />
+            <BrandMark size={26} className={styles.barMark} />
           </div>
         </div>
         <div className={styles.shell}>
           <aside className={styles.sidebar} aria-label="Primary">
-            <div className={styles.brand}>
-              <BrandMark size={28} />
+            <div className={styles.brandRow}>
+              <div className={styles.brandLink}>
+                <BrandMark size={28} className={styles.sidebarMark} />
+              </div>
             </div>
             <nav className={styles.nav} aria-hidden>
               {[...Array(4)].map((_, i) => (
@@ -412,181 +426,227 @@ export default function AppShell({
             </div>
           </main>
         </div>
-      </>
+        {/* The bar's ground with no words on it yet, so the page does not
+            jump when they arrive. Who is shown which word is not known until
+            the sign-in has loaded. */}
+        <div className={styles.bottomBar} aria-hidden />
+      </div>
     );
   }
 
   return (
-    <div className={signoutExiting ? styles.shellExitingRight : undefined}>
-      <div className={styles.topStrip}>
-        <Link href="/" className={styles.topStripBrand} aria-label="NAISI home">
-          <BrandMark size={28} />
-        </Link>
-        {/*
-          Reload, shown ONLY in an installed app. A standalone window has no
-          URL bar and no reload button, so when a page half-renders or goes
-          stale the user's only option is force-quitting. Android keeps
-          pull-to-refresh (which is why no overscroll-behavior rule was
-          added), but iOS standalone has no refresh gesture at all.
+    <div className={styles.frame}>
+      {/*
+        The part that slides away on sign-out. The bottom bar is deliberately
+        NOT inside it: a transform on an ancestor turns `position: fixed` into
+        "fixed to that ancestor", so the bar would jump to the foot of the page
+        for the length of the slide. It sits beside this wrapper and leaves
+        with a class of its own.
+      */}
+      <div className={signoutExiting ? styles.shellExitingRight : undefined}>
+        <div className={styles.topStrip}>
+          <Link href="/" className={styles.topStripBrand} aria-label="NAISI home">
+            <BrandMark size={26} className={styles.barMark} />
+          </Link>
+          {/* The current menu entry's name. Home has none: the brand beside it
+              already says where you are. */}
+          {barTitle && <div className={styles.topStripTitle}>{barTitle}</div>}
+          <div className={styles.topStripEnd}>
+            {/*
+              Reload, shown ONLY in an installed app. A standalone window has no
+              URL bar and no reload button, so when a page half-renders or goes
+              stale the user's only option is force-quitting. Android keeps
+              pull-to-refresh (which is why no overscroll-behavior rule was
+              added), but iOS standalone has no refresh gesture at all.
 
-          Always in the DOM and hidden by CSS keyed on the attribute
-          StandaloneFlag stamps before first paint, rather than rendered
-          behind useIsStandalone: the hook is false on the first client
-          render, so a JS-gated button would pop into the strip after
-          hydration and shove the hamburger sideways.
-        */}
-        <button
-          type="button"
-          className={styles.standaloneReload}
-          aria-label="Reload this page"
-          onClick={() => window.location.reload()}
+              Always in the DOM and hidden by CSS keyed on the attribute
+              StandaloneFlag stamps before first paint, rather than rendered
+              behind useIsStandalone: the hook is false on the first client
+              render, so a JS-gated button would pop into the strip after
+              hydration and shove the initials sideways.
+            */}
+            <button
+              type="button"
+              className={styles.standaloneReload}
+              aria-label="Reload this page"
+              onClick={() => window.location.reload()}
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden focusable="false">
+                <path
+                  d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+            {initials}
+          </div>
+        </div>
+        <div
+          className={styles.shell}
+          data-sidebar={sidebarCollapsed ? "collapsed" : "open"}
         >
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden focusable="false">
-            <path
-              d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
+          <aside
+            id="app-sidebar"
+            className={styles.sidebar}
+            aria-label="Primary"
+            aria-hidden={sidebarCollapsed || undefined}
+            inert={sidebarCollapsed}
+          >
+            <div className={styles.brandRow}>
+              <Link href="/" className={styles.brandLink} aria-label="NAISI home">
+                <BrandMark size={28} className={styles.sidebarMark} />
+              </Link>
+              <button
+                type="button"
+                className={styles.sidebarHamburger}
+                onClick={toggleSidebar}
+                aria-label="Collapse sidebar"
+                aria-expanded={!sidebarCollapsed}
+                aria-controls="app-sidebar"
+              >
+                <span className={styles.menuIcon} aria-hidden>
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              </button>
+            </div>
+            {renderNav({ label: "Main" })}
+            {renderFoot()}
+          </aside>
+          <main
+            className={`${styles.main} ${isWideRoute(pathname) ? styles.mainWide : ""} ${enteringFromSignin ? styles.entering : ""}`}
+          >
+            {impersonation && (
+              <div
+                className={styles.impersonationBanner}
+                role="status"
+                aria-live="polite"
+              >
+                <span className={styles.impersonationText}>
+                  <strong>Viewing as {impersonation.targetName}</strong>{" "}
+                  <span className={styles.impersonationRole}>
+                    ({impersonation.targetRole})
+                  </span>
+                  <span className={styles.impersonationWarn}>
+                    {": "}any actions you take will be recorded as this member.
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={handleExitImpersonation}
+                  disabled={exiting}
+                  className={styles.impersonationExit}
+                >
+                  {exiting ? "Exiting…" : "Exit view-as"}
+                </button>
+              </div>
+            )}
+            {children}
+          </main>
+        </div>
+        {/* Always rendered so the slide-in/out transition has an interpolation
+            source. CSS hides the container (transform off-screen right) unless
+            its sibling .shell is in the collapsed state. `inert` mirrors the
+            visual hidden state so keyboard / screen readers can't reach the
+            off-screen brand link or hamburger. */}
+        <div
+          className={styles.floatingControls}
+          aria-hidden={!sidebarCollapsed || undefined}
+          inert={!sidebarCollapsed}
+        >
+          <Link
+            href="/"
+            aria-label="NAISI home"
+            className={styles.floatingBrandLink}
+          >
+            <BrandMark size={24} />
+          </Link>
+          <button
+            type="button"
+            className={styles.floatingHamburger}
+            onClick={toggleSidebar}
+            aria-label="Open sidebar"
+            aria-expanded={!sidebarCollapsed}
+            aria-controls="app-sidebar"
+          >
+            <span className={styles.menuIcon} aria-hidden>
+              <span />
+              <span />
+              <span />
+            </span>
+          </button>
+        </div>
+        <Drawer
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          id={NAV_DRAWER_ID}
+          ariaLabel="App navigation"
+          closeAboveRem={60}
+        >
+          <div className={styles.drawerBody}>
+            <div className={styles.drawerBrand}>
+              <BrandMark size={28} className={styles.sidebarMark} />
+            </div>
+            {renderNav({ onLinkClick: () => setDrawerOpen(false) })}
+            {/* Quiet, permanent install route. Renders nothing when installed,
+                on desktop, or on Android before Chrome offers its prompt. */}
+            <InstallLink />
+            {renderFoot()}
+          </div>
+        </Drawer>
+      </div>
+      {/*
+        The phone's bottom bar, shown wherever the sidebar is hidden. A few of
+        the person's own entries by a short name, then Menu, which opens the
+        drawer above with every entry they have. Written from a list
+        (`BOTTOM_BAR` in appNav.ts), so another word is one line there.
+      */}
+      <nav
+        className={`${styles.bottomBar} ${signoutExiting ? styles.bottomBarExiting : ""}`}
+        aria-label="Main"
+      >
+        {barEntries.map((entry) => {
+          const active = current?.href === entry.href;
+          return (
+            <Link
+              key={entry.href}
+              href={entry.href}
+              className={`${styles.barItem} ${active ? styles.barItemCurrent : ""}`}
+              aria-current={active ? "page" : undefined}
+            >
+              <span className={styles.barLine} aria-hidden />
+              <span>{entry.label}</span>
+            </Link>
+          );
+        })}
         <button
           type="button"
-          className={styles.hamburger}
-          aria-label={drawerOpen ? "Close menu" : "Open menu"}
+          className={`${styles.barItem} ${menuHoldsPage ? styles.barItemCurrent : ""}`}
+          aria-haspopup="dialog"
           aria-expanded={drawerOpen}
           aria-controls={NAV_DRAWER_ID}
           onClick={() => setDrawerOpen(true)}
         >
-          <span className={styles.menuIcon} aria-hidden>
-            <span />
-            <span />
-            <span />
-          </span>
+          <span className={styles.barLine} aria-hidden />
+          <span>{BOTTOM_BAR_MENU_LABEL}</span>
+          {/* The count of people waiting to join rides on Menu while the
+              drawer is closed, so an admin still sees there is something to
+              attend to without opening it. */}
           {pendingCount > 0 && (
             <span
-              className={styles.hamburgerBadge}
-              aria-label={`${pendingCount} pending approval${pendingCount === 1 ? "" : "s"}`}
+              className={styles.barBadge}
+              aria-label={`${pendingCount} waiting to join`}
             >
               {pendingCount}
             </span>
           )}
         </button>
-      </div>
-      <div
-        className={styles.shell}
-        data-sidebar={sidebarCollapsed ? "collapsed" : "open"}
-      >
-        <aside
-          id="app-sidebar"
-          className={styles.sidebar}
-          aria-label="Primary"
-          aria-hidden={sidebarCollapsed || undefined}
-          inert={sidebarCollapsed}
-        >
-          <div className={styles.brandRow}>
-            <Link href="/" aria-label="NAISI home">
-              <BrandMark size={28} />
-            </Link>
-            <button
-              type="button"
-              className={styles.sidebarHamburger}
-              onClick={toggleSidebar}
-              aria-label="Collapse sidebar"
-              aria-expanded={!sidebarCollapsed}
-              aria-controls="app-sidebar"
-            >
-              <span className={styles.menuIcon} aria-hidden>
-                <span />
-                <span />
-                <span />
-              </span>
-            </button>
-          </div>
-          {renderNav()}
-          {renderUserBlock()}
-        </aside>
-        <main
-          className={`${styles.main} ${isWideRoute(pathname) ? styles.mainWide : ""} ${enteringFromSignin ? styles.entering : ""}`}
-        >
-          {impersonation && (
-            <div
-              className={styles.impersonationBanner}
-              role="status"
-              aria-live="polite"
-            >
-              <span className={styles.impersonationText}>
-                <strong>Viewing as {impersonation.targetName}</strong>{" "}
-                <span className={styles.impersonationRole}>
-                  ({impersonation.targetRole})
-                </span>
-                <span className={styles.impersonationWarn}>
-                  {" — "}any actions you take will be recorded as this member.
-                </span>
-              </span>
-              <button
-                type="button"
-                onClick={handleExitImpersonation}
-                disabled={exiting}
-                className={styles.impersonationExit}
-              >
-                {exiting ? "Exiting…" : "Exit view-as"}
-              </button>
-            </div>
-          )}
-          {children}
-        </main>
-      </div>
-      {/* Always rendered so the slide-in/out transition has an interpolation
-          source. CSS hides the container (transform off-screen right) unless
-          its sibling .shell is in the collapsed state. `inert` mirrors the
-          visual hidden state so keyboard / screen readers can't reach the
-          off-screen brand link or hamburger. */}
-      <div
-        className={styles.floatingControls}
-        aria-hidden={!sidebarCollapsed || undefined}
-        inert={!sidebarCollapsed}
-      >
-        <Link
-          href="/"
-          aria-label="NAISI home"
-          className={styles.floatingBrandLink}
-        >
-          <BrandMark size={24} />
-        </Link>
-        <button
-          type="button"
-          className={styles.floatingHamburger}
-          onClick={toggleSidebar}
-          aria-label="Open sidebar"
-          aria-expanded={!sidebarCollapsed}
-          aria-controls="app-sidebar"
-        >
-          <span className={styles.menuIcon} aria-hidden>
-            <span />
-            <span />
-            <span />
-          </span>
-        </button>
-      </div>
-      <Drawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        id={NAV_DRAWER_ID}
-        ariaLabel="App navigation"
-        closeAboveRem={60}
-      >
-        <div className={styles.drawerBrand}>
-          <BrandMark size={32} />
-        </div>
-        {renderNav(() => setDrawerOpen(false))}
-        {/* Quiet, permanent install route. Renders nothing when installed,
-            on desktop, or on Android before Chrome offers its prompt. */}
-        <InstallLink />
-        {renderUserBlock()}
-      </Drawer>
+      </nav>
     </div>
   );
 }
