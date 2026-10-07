@@ -1,123 +1,502 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Badge from "@/components/ui/Badge";
-import Card from "@/components/ui/Card";
-import { COURSE_TRACK_LABELS } from "@/lib/firestore/courses";
+import Chip from "@/components/ui/Chip";
 import {
   listPublishedCourses,
   roundOwnsDates,
   type CourseCatalogueEntry,
 } from "@/features/courses/fetchCourses";
+import CourseFaq from "@/features/courses/CourseFaq";
 import CourseVisual from "@/features/courses/CourseVisual";
+import { applicationStateTone, applicationStateWords } from "@/features/courses/stateWords";
 import {
   formatRunStartShort,
   formatWindowDate,
   type ApplicationWindowState,
 } from "@/lib/courses/window";
-import Reveal from "../Reveal";
+import type { PublicTermProgramme, PublicTermStage } from "@/lib/applications/lifecycle/publicTerm";
+import Arrow from "@/features/programmes/Arrow";
+import { bandWords } from "@/features/programmes/bandWords";
+import Callout from "@/features/programmes/Callout";
+import ClosingBand from "@/features/programmes/ClosingBand";
+import FactRows, { type FactRow } from "@/features/programmes/FactRows";
+import ProgrammeHero from "@/features/programmes/ProgrammeHero";
+import { firstLine } from "@/features/programmes/prose";
+import Section from "@/features/programmes/Section";
+import SectionHead from "@/features/programmes/SectionHead";
+import Steps, { type Step } from "@/features/programmes/Steps";
+import { SESSION_TIMES, weeklyHoursWords } from "@/features/programmes/words";
+import shared from "@/features/programmes/programme.module.css";
+import { fetchPublicTerm } from "@/features/term/fetchPublicTerm";
+import TermApplyLink from "@/features/term/TermApplyLink";
+import TermDates from "@/features/term/TermDates";
+import TermStatusLine from "@/features/term/TermStatusLine";
+import { sharedStart, termCivilDay, termDeadline } from "@/features/term/termWords";
+import { FELLOWSHIP_QUESTIONS } from "./questions";
 import styles from "./courses.module.css";
 
+/**
+ * THE FELLOWSHIPS PAGE, at the address it has always had.
+ *
+ * It lists the term's fellowships: the programmes on the term's application
+ * form, in the form's order, each with what its course's page stores when a
+ * published course is tied to it. Every other published course is listed
+ * under them, saying exactly what the catalogue has always said about it.
+ *
+ * Three rules a maintainer has to keep:
+ *
+ * 1. WHAT A CARD SAYS ABOUT APPLYING IS DECIDED ELSEWHERE. For a course, by
+ *    the same lookup and the same rule its own page asks (`roundOwnsDates`,
+ *    through the catalogue entry). For the term, by `fetchPublicTerm`. This
+ *    file words what it is told and decides no window itself.
+ * 2. A PROGRAMME'S COURSE IS CHECKED BEFORE IT IS LINKED. The tie is stored as
+ *    it was made, and a course can be unpublished afterwards, so "Read more"
+ *    is drawn only for a course the published list holds.
+ * 3. NO DATE IS WRITTEN HERE. Every day on the page comes from the term or
+ *    from a course's own round or run, formatted in London's time.
+ */
+
 export const metadata: Metadata = {
-  title: "Courses",
+  title: "Fellowships",
   description:
-    "NAISI's fellowships and reading groups — the full curriculum, week by week, and when applications open.",
+    "6 weeks in a small group, led by a trained facilitator. You do the reading at home, then talk it through together once a week. It’s free.",
 };
 
 // Application windows and run statuses change without a deploy, so the
-// catalogue is rendered per request rather than cached at build.
+// page is rendered per request rather than cached at build.
 export const dynamic = "force-dynamic";
 
-export default async function CourseCataloguePage() {
-  const entries = await listPublishedCourses();
+/** Where the mailing list form is. */
+const MAILING_LIST = "/#stay-in-touch";
+
+export default async function FellowshipsPage() {
+  const [term, entries] = await Promise.all([fetchPublicTerm(), listPublishedCourses()]);
+  const { stage, opensAt, closesAt, decisionsByDate, applyPath } = term;
+
+  const byCourse = new Map(entries.map((entry) => [entry.course.id, entry]));
+  const fellowships = term.programmes.filter((programme) => programme.kind === "fellowship");
+  const incubator = term.programmes.find((programme) => programme.kind === "incubator") ?? null;
+
+  // A course the term's form speaks for is drawn as its programme, once. A
+  // course tied to the incubator has the incubator's own page to speak for
+  // it. Everything else published is a course on no form.
+  const onTheForm = new Set(term.programmes.map((programme) => programme.courseId));
+  const otherCourses = entries.filter((entry) => !onTheForm.has(entry.course.id));
+
+  const starts = sharedStart(fellowships);
+  const decisionsDay = decisionsByDate ? termCivilDay(decisionsByDate) : null;
+  const ahead = stage === "before" || stage === "open";
+  const band = bandWords({
+    stage,
+    opensAt,
+    closesAt,
+    decisionsByDate,
+    nextLabel: term.next?.label ?? null,
+    nextOpensAt: term.next?.opensAt ?? null,
+  });
+
+  const steps: Step[] = [
+    {
+      title: "Apply",
+      body: "Tick the programmes you’re interested in and put them in order.",
+      chip: ahead && closesAt ? `By ${termDeadline(closesAt)}` : null,
+    },
+    {
+      title: "Hear back",
+      body: "The person who runs each programme reads every answer. We’ll email you our decision.",
+      chip: stage !== "running" ? decisionsDay : null,
+    },
+    {
+      title: "Meet your group",
+      body: "Your first session is on campus.",
+      chip: stage !== "running" ? starts : null,
+    },
+  ];
 
   return (
-    <section className={styles.page}>
-      <div className="container">
-        <header className={styles.intro}>
-          <Badge>Learn with us</Badge>
-          <Reveal variant="mask-wipe" as="h1" className={styles.heading}>
-            Courses
-          </Reveal>
-          <Reveal variant="blur-rise" as="p" className={styles.lede}>
-            Our fellowships and reading groups, with the whole curriculum
-            readable before you commit to anything. Applications run through
-            this site — every course below tells you where it is in that cycle.
-          </Reveal>
-        </header>
-
-        {entries.length === 0 ? (
-          <Card padding="lg">
-            <p className={styles.emptyText}>
-              No courses are on the catalogue right now. We publish the next
-              term&apos;s curriculum a few weeks before applications open —
-              check back soon.
-            </p>
-          </Card>
-        ) : (
-          <Reveal
-            variant="tilt-in"
-            staggerChildren
-            staggerMs={110}
-            as="div"
-            className={styles.grid}
+    <>
+      <ProgrammeHero>
+        {term.label ? <p className={`meta ${shared.heroEyebrow}`}>{term.label}</p> : null}
+        <h1 className={shared.pageTitle}>Fellowships.</h1>
+        <p className={shared.pageLede}>
+          6 weeks in a small group, led by a trained facilitator. You do the reading at home,
+          then talk it through together once a week. It’s free.
+        </p>
+        <div className={shared.heroActions}>
+          <TermApplyLink
+            stage={stage}
+            applyPath={applyPath}
+            className={`${shared.btn} ${shared.btnLg} ${shared.btnPrimary}`}
           >
-            {entries.map((entry) => (
-              <CourseCard key={entry.course.id} entry={entry} />
-            ))}
-          </Reveal>
-        )}
-      </div>
-    </section>
+            Apply
+            <Arrow />
+          </TermApplyLink>
+          <a href="#how-it-works" className={`${shared.btn} ${shared.btnLg} ${shared.btnOutline}`}>
+            How applying works
+          </a>
+        </div>
+        <div className={shared.heroStatus}>
+          <TermStatusLine
+            stage={stage}
+            opensAt={opensAt}
+            closesAt={closesAt}
+            decisionsByDate={decisionsByDate}
+            nextLabel={term.next?.label}
+            nextOpensAt={term.next?.opensAt}
+          />
+        </div>
+        <div className={shared.heroDates}>
+          <TermDates
+            stage={stage}
+            showOpening
+            opensAt={opensAt}
+            closesAt={closesAt}
+            decisionsByDate={decisionsByDate}
+            starts={starts}
+          />
+        </div>
+      </ProgrammeHero>
+
+      <Section rule={false} labelledBy="fellowships-heading">
+        {fellowships.length > 0 ? (
+          <>
+            <SectionHead id="fellowships-heading" eyebrow="This term" title="Running this term." />
+            <div className={styles.grid}>
+              {fellowships.map((programme) => (
+                <ProgrammeCard
+                  key={programme.id}
+                  {...programmeCard(programme, byCourse.get(programme.courseId ?? "") ?? null, {
+                    stage,
+                    opensAt,
+                    closesAt,
+                  })}
+                />
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        {otherCourses.length > 0 ? (
+          <div className={fellowships.length > 0 ? styles.more : undefined}>
+            <SectionHead
+              id={fellowships.length > 0 ? "more-courses-heading" : "fellowships-heading"}
+              eyebrow={fellowships.length > 0 ? "More courses" : "Courses"}
+              space="tight"
+            />
+            <div className={styles.grid}>
+              {otherCourses.map((entry) => (
+                <ProgrammeCard key={entry.course.id} {...courseCard(entry)} />
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {fellowships.length === 0 && otherCourses.length === 0 ? (
+          <>
+            <SectionHead id="fellowships-heading" eyebrow="This term" space="tight" />
+            <p className={styles.empty}>No fellowships are listed right now.</p>
+          </>
+        ) : null}
+      </Section>
+
+      <Section tone="raised" id="how-it-works" labelledBy="how-it-works-heading">
+        <SectionHead
+          id="how-it-works-heading"
+          eyebrow="Applications"
+          title="How applying works."
+          lede={
+            fellowships.length === 2 && incubator
+              ? "One form covers both fellowships and the research incubator."
+              : "There’s one form for every programme."
+          }
+          space="loose"
+        />
+        <Steps steps={steps} />
+        <div className={styles.lead}>
+          <Callout
+            id="lead-a-group"
+            title="Want to lead a group?"
+            action={
+              <TermApplyLink
+                stage={stage}
+                applyPath={applyPath}
+                className={`${shared.btn} ${shared.btnSurface}`}
+              >
+                Apply
+                <Arrow />
+              </TermApplyLink>
+            }
+          >
+            Say so when you apply. You don’t need any experience. We’ll train you and give you
+            everything you need.
+          </Callout>
+        </div>
+      </Section>
+
+      <Section labelledBy="course-faq-heading">
+        <CourseFaq items={FELLOWSHIP_QUESTIONS} eyebrow="Questions" title="Before you apply." />
+      </Section>
+
+      <Section tone="raised" labelledBy="incubator-heading">
+        <SectionHead
+          id="incubator-heading"
+          eyebrow="After a fellowship"
+          title="Ready for research?"
+          space="tight"
+        />
+        <div className={styles.teaser}>
+          <div className={styles.teaserPicture}>
+            <CourseVisual
+              seed="research-incubator"
+              size="wide"
+              label={incubator?.facts || "10 weeks over 2 terms"}
+            />
+          </div>
+          <div className={styles.teaserWords}>
+            <p className={`meta ${styles.teaserEyebrow}`}>Research incubator</p>
+            <p className={styles.teaserBody}>
+              Replicate a published AI safety paper with a small team, then add your own twist.
+              There’s food at every session.
+            </p>
+            <Link href="/incubator" className={`${shared.btn} ${shared.btnSurface}`}>
+              See the incubator
+              <Arrow />
+            </Link>
+          </div>
+        </div>
+      </Section>
+
+      <ClosingBand labelledBy="fellowships-band-heading">
+        <div className={shared.bandWords}>
+          <h2 id="fellowships-band-heading" className={shared.bandTitle}>
+            {band.title}
+          </h2>
+          {band.sub ? <p className={shared.bandSub}>{band.sub}</p> : null}
+        </div>
+        <div className={shared.bandActions}>
+          <TermApplyLink
+            stage={stage}
+            applyPath={applyPath}
+            className={`${shared.btn} ${shared.btnLg} ${shared.btnPrimary}`}
+          >
+            Apply
+            <Arrow />
+          </TermApplyLink>
+          <Link href={MAILING_LIST} className={`${shared.btn} ${shared.btnLg} ${shared.btnOutline}`}>
+            Get the emails
+          </Link>
+        </div>
+      </ClosingBand>
+    </>
   );
 }
 
-function CourseCard({ entry }: { entry: CourseCatalogueEntry }) {
-  const { course } = entry;
-  const state = cardState(entry);
-  const dates = cardDates(entry);
+// ---------------------------------------------------------------------------
+// A card
+// ---------------------------------------------------------------------------
+
+/** What one card prints. Plain fields, so a card can never be handed a document. */
+type CardProps = {
+  name: string;
+  pitch: string;
+  /** The line of metadata over the picture: "6 weeks · ~5 hrs a week". */
+  facts: string;
+  seed: string;
+  coverImageUrl: string | null;
+  coverAlt: string;
+  /** Open, opening soon or over: decides the colour of the first chip. */
+  state: ApplicationWindowState | null;
+  /** "Applications open". */
+  stateWords: string;
+  /** "Open to every subject", or empty. */
+  level: string;
+  rows: FactRow[];
+  /** The course's own page, or null when no published course stands behind the card. */
+  href: string | null;
+};
+
+function ProgrammeCard({
+  name,
+  pitch,
+  facts,
+  seed,
+  coverImageUrl,
+  coverAlt,
+  state,
+  stateWords,
+  level,
+  rows,
+  href,
+}: CardProps) {
   return (
-    // Plain next/link, never TransitionLink: the public transition's ~960ms
-    // exit choreography is tuned for one-off editorial pages and reads as a
-    // broken tap on a grid of cards.
-    <Link href={`/courses/${course.id}`} className={styles.cardLink}>
-      <Card padding="lg" interactive className={styles.card}>
-        {/* The same seed and cover the course page's hero uses, read in one
-            batch by the fetcher, so a course is one picture across the site. */}
-        <CourseVisual
-          seed={entry.visual.seed}
-          track={course.track}
-          coverImageUrl={entry.visual.coverImageUrl}
-          coverAlt={entry.visual.coverAlt}
-          className={styles.visual}
-        />
-
-        <div className={styles.cardTop}>
-          <Badge tone="accent">{COURSE_TRACK_LABELS[course.track]}</Badge>
-          {course.level ? <span className={styles.level}>{course.level}</span> : null}
-        </div>
-
-        <h2 className={styles.cardTitle}>{course.title || "Untitled course"}</h2>
-        {course.tagline ? <p className={styles.tagline}>{course.tagline}</p> : null}
-
-        <p className={styles.cardFoot}>
-          {course.estimatedWeeklyHours ? (
-            <span className={styles.commitment}>
-              {formatWeeklyHours(course.estimatedWeeklyHours)}
-            </span>
-          ) : null}
-          {/* Three tones for three states. "Applications open Mon 21 Sep" is a
-              date to plan around, so it must not be painted the same muted
-              grey as "Applications closed" and read as a run that is over. */}
-          <span className={stateClass(state)}>{applicationState(entry)}</span>
-          {/* Shares `.commitment` (muted, tabular numerals) rather than
-              growing the stylesheet a near-identical class: it is the same
-              kind of line, and `.cardFoot` is already the flex column that
-              stacks them. */}
-          {dates ? <span className={styles.commitment}>{dates}</span> : null}
+    <article className={styles.card}>
+      <CourseVisual seed={seed} coverImageUrl={coverImageUrl} coverAlt={coverAlt} label={facts} />
+      <div className={styles.cardBody}>
+        <p className={styles.cardChips}>
+          <Chip tone={applicationStateTone(state)} dot={state === "open"}>
+            {stateWords}
+          </Chip>
+          {level ? <Chip>{level}</Chip> : null}
         </p>
-      </Card>
-    </Link>
+        <h3 className={styles.cardTitle}>{name}</h3>
+        {pitch ? <p className={styles.cardPitch}>{pitch}</p> : null}
+        <FactRows rows={rows} />
+        {href ? (
+          <p className={styles.cardFoot}>
+            {/* Plain next/link, never TransitionLink: the public transition's
+                exit choreography is tuned for one-off editorial pages and
+                reads as a broken tap on a grid of cards. */}
+            <Link
+              href={href}
+              className={`${shared.btn} ${shared.btnText}`}
+              aria-label={`Read more about ${withArticle(name)}`}
+            >
+              Read more
+              <Arrow />
+            </Link>
+          </p>
+        ) : null}
+      </div>
+    </article>
   );
+}
+
+/** "the AGI Strategy Fellowship", for a link's spoken name. */
+function withArticle(name: string): string {
+  return /^(the|a|an)\s/i.test(name) ? name : `the ${name}`;
+}
+
+/**
+ * The weeks a course's page stores, as a short numbered list, or the one
+ * line that stands in for them. Null when there is nothing to say: a course
+ * on no form with no weeks written simply has no such row.
+ */
+function weeksRow(
+  themes: CourseCatalogueEntry["about"]["themes"],
+  comingShortly: boolean,
+): FactRow | null {
+  if (themes.length === 0) {
+    return comingShortly ? { label: "What you’ll do", value: "Curriculum coming shortly." } : null;
+  }
+  return {
+    label: "What you’ll do",
+    value: (
+      <ol className={styles.weeks}>
+        {themes.map((theme) => (
+          <li key={theme.weekNumber} value={theme.weekNumber}>
+            {theme.title || "To be confirmed"}
+          </li>
+        ))}
+      </ol>
+    ),
+  };
+}
+
+/** A fact row, or nothing for an empty answer. */
+function row(label: string, value: string, note?: string): FactRow | null {
+  const answer = value.trim();
+  if (!answer && !note) return null;
+  return answer ? { label, value: answer, note } : { label, value: note };
+}
+
+const kept = (rows: (FactRow | null)[]): FactRow[] => rows.filter((r): r is FactRow => r !== null);
+
+/**
+ * One of the term's fellowships. Its name, its line and its facts are the
+ * programme's own, from the form. Everything else comes from the published
+ * course tied to it, and is left out when there is none.
+ */
+function programmeCard(
+  programme: PublicTermProgramme,
+  entry: CourseCatalogueEntry | null,
+  term: { stage: PublicTermStage; opensAt: Date | null; closesAt: Date | null },
+): CardProps {
+  const words = entry ? courseWords(entry) : programmeWords(term, programme.starts);
+  return {
+    name: programme.name,
+    pitch: programme.pitch || entry?.course.tagline || "",
+    facts: programme.facts,
+    seed: entry?.visual.seed ?? programme.id,
+    coverImageUrl: entry?.visual.coverImageUrl ?? null,
+    coverAlt: entry?.visual.coverAlt ?? "",
+    state: words.state,
+    stateWords: words.stateWords,
+    level: entry?.course.level ?? "",
+    rows: kept([
+      row("Who it’s for", firstLine(entry?.about.whoItIsFor ?? "")),
+      weeksRow(entry?.about.themes ?? [], true),
+      row("Time", entry?.about.weeklyHoursText ?? ""),
+      row("Format", entry?.about.formatText ?? "", SESSION_TIMES),
+      row("Dates", words.dates),
+    ]),
+    href: entry ? `/courses/${encodeURIComponent(entry.course.id)}` : null,
+  };
+}
+
+/** A published course on no form: what the catalogue has always said about it. */
+function courseCard(entry: CourseCatalogueEntry): CardProps {
+  const { course } = entry;
+  const words = courseWords(entry);
+  return {
+    name: course.title || "Untitled course",
+    pitch: course.tagline,
+    facts: course.estimatedWeeklyHours ? weeklyHoursWords(course.estimatedWeeklyHours) : "",
+    seed: entry.visual.seed,
+    coverImageUrl: entry.visual.coverImageUrl,
+    coverAlt: entry.visual.coverAlt,
+    state: words.state,
+    stateWords: words.stateWords,
+    level: course.level,
+    rows: kept([
+      row("Who it’s for", firstLine(entry.about.whoItIsFor)),
+      weeksRow(entry.about.themes, false),
+      row("Time", entry.about.weeklyHoursText),
+      row("Format", entry.about.formatText),
+      row("Dates", words.dates),
+    ]),
+    href: `/courses/${encodeURIComponent(course.id)}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// What a card says about applying
+// ---------------------------------------------------------------------------
+
+type CardWords = {
+  state: ApplicationWindowState | null;
+  stateWords: string;
+  dates: string;
+};
+
+/** A published course's three lines, by the catalogue's own rules below. */
+function courseWords(entry: CourseCatalogueEntry): CardWords {
+  return {
+    state: cardState(entry),
+    stateWords: applicationState(entry),
+    dates: cardDates(entry),
+  };
+}
+
+/**
+ * The same three lines for a programme of the term with no published course
+ * behind it, in the words a course on the form is given: the term has
+ * already decided the stage, and this only words it.
+ */
+function programmeWords(
+  term: { stage: PublicTermStage; opensAt: Date | null; closesAt: Date | null },
+  starts: string,
+): CardWords {
+  const state: ApplicationWindowState =
+    term.stage === "open" ? "open" : term.stage === "before" ? "not-yet" : "closed";
+  const stateWords = applicationStateWords({
+    state,
+    openEnrolment: false,
+    opensOn: term.opensAt ? formatWindowDate(term.opensAt) : null,
+  });
+  const bits: string[] = [];
+  if (state !== "closed" && term.closesAt) bits.push(`Apply by ${formatWindowDate(term.closesAt)}`);
+  if (starts.trim()) bits.push(`Starts ${starts.trim()}`);
+  return { state, stateWords, dates: bits.join(" · ") };
 }
 
 /**
@@ -132,23 +511,14 @@ function cardState(entry: CourseCatalogueEntry): ApplicationWindowState | null {
     : (entry.featuredRun?.window.state ?? null);
 }
 
-/** Open is live, not-yet is upcoming, everything else is over. */
-function stateClass(state: ApplicationWindowState | null): string {
-  if (state === "open") return styles.stateOpen;
-  if (state === "not-yet") return styles.stateSoon;
-  return styles.stateClosed;
-}
-
 /**
  * The card's one-line state, keyed on the WINDOW rather than the run's
  * status. Keying on status alone is what put "Applications open" on a card
  * whose deadline had passed and whose form the apply route then refused, and
  * on one whose window had not started yet.
  *
- * The noun changes with the run's `enrolMode`. An open-enrolment run (the
- * pre-course) has no application: telling a fresher they can "apply" to
- * something that admits everybody promises a wait and a decision that are
- * never coming.
+ * The words themselves are `applicationStateWords`, which the course's own
+ * page prints too, so the two cannot say it two ways.
  *
  * The run LABEL never appears here. It is an internal handle an admin typed,
  * and "Applications open for wd" is what that reads like in the wild.
@@ -157,18 +527,16 @@ function applicationState(entry: CourseCatalogueEntry): string {
   const round = entry.liveRound;
   const found = entry.featuredRun;
   if (!round && !found) return "Next run TBA";
-  // An open-enrolment run is never spoken for by a round, so the noun is only
-  // ever "Sign-ups" on the run's own window.
-  const noun = found?.run.enrolMode === "open" ? "Sign-ups" : "Applications";
   // Which object is speaking: `roundOwnsDates`, the one rule.
   const viaRound = roundOwnsDates(round, found?.run.enrolMode ?? null);
-  const state = cardState(entry);
   const opensAt = viaRound ? (round?.opensAt ?? null) : (found?.window.opensAt ?? null);
-  if (state === "open") return `${noun} open`;
-  if (state === "not-yet") {
-    return opensAt ? `${noun} open ${formatWindowDate(opensAt)}` : `${noun} open soon`;
-  }
-  return `${noun} closed`;
+  return applicationStateWords({
+    state: cardState(entry),
+    // An open-enrolment run is never spoken for by a round, so the noun is
+    // only ever "Sign-ups" on the run's own window.
+    openEnrolment: found?.run.enrolMode === "open",
+    opensOn: opensAt ? formatWindowDate(opensAt) : null,
+  });
 }
 
 /**
@@ -214,9 +582,4 @@ function cardDates(entry: CourseCatalogueEntry): string {
     || (viaForm ? round?.form?.starts : undefined);
   if (starts) bits.push(`Starts ${starts}`);
   return bits.join(" · ");
-}
-
-/** "~5 hrs/week", a rough commitment figure phrased as one. */
-function formatWeeklyHours(hours: number): string {
-  return hours === 1 ? "~1 hr/week" : `~${hours} hrs/week`;
 }
