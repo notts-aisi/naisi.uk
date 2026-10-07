@@ -114,8 +114,8 @@ describe("copy a member reads never names the operator's tools", () => {
   // admin-only gate stands in front of. tests/no-admin-gating.test.mjs holds
   // the gate; this list holds the reason.
   const OPERATOR_SCREENS = {
-    "src/app/(app)/admin/": "the admin area, every page of which is role-gated",
-    "src/features/admin/": "the components those pages render, and the mutations behind them",
+    "src/features/admin/":
+      "the components the admin area's pages render, and the mutations behind them; every one of those pages is role-gated",
   };
   // Lines written FOR the operator, in a place only the operator reads: the
   // server log, or the error a deployment raises while it is being set up.
