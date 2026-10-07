@@ -101,5 +101,7 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* Nothing to change: the two grids above drop to one column by themselves
+     when the form is narrow, the button's row wraps, and every control is
+     already 44px tall. */
 }

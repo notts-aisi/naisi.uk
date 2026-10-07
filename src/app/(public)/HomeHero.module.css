@@ -18,6 +18,8 @@
   --hero-accent-to: #5cf3ff;
   --hero-bar: calc(var(--header-height) + env(safe-area-inset-top, 0px));
   --hero-gap: var(--space-6);
+  /* The room over and under the words: 2rem, and less on a short screen. */
+  --hero-air: clamp(1rem, 3.95vh, 2rem);
 
   position: relative;
   display: flex;
@@ -33,7 +35,7 @@
 
 /* The words' column: the site's `.container` (its width and its gutter),
    with the words to the right of it. The padding at the top is what keeps
-   the words clear of the bar: the bar's height, and 2rem more. Pointer
+   the words clear of the bar: the bar's height, and up to 2rem more. Pointer
    events fall through everything but the words themselves, so the scene
    behind still follows the pointer across the empty ground. */
 .inner {
@@ -43,8 +45,8 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding-top: calc(var(--hero-bar) + var(--space-8));
-  padding-bottom: var(--space-8);
+  padding-top: calc(var(--hero-bar) + var(--hero-air));
+  padding-bottom: var(--hero-air);
   pointer-events: none;
 }
 
@@ -64,10 +66,12 @@
   filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.55));
 }
 
+/* 216px tall on a screen 810px high or more, and smaller on a shorter one,
+   so the hero's last line stays near the first screen on a small laptop. */
 .mark svg {
   display: block;
   overflow: visible;
-  height: 13.5rem;
+  height: clamp(8.5rem, 26.67vh, 13.5rem);
   width: auto;
   aspect-ratio: 221.07 / 270.4;
   /* img, svg { max-width: 100% } in globals.css would squash the drawing in
@@ -95,7 +99,8 @@
   margin: 0;
   min-height: 2.1em;
   font-family: var(--font-display);
-  font-size: clamp(2.5rem, 6.4vw, 4rem);
+  /* 64px, and smaller in a window that is narrow or short. */
+  font-size: clamp(3rem, min(6.4vw, 7.9vh), 4rem);
   font-weight: 700;
   line-height: 1.05;
   letter-spacing: -0.025em;
@@ -387,7 +392,113 @@
   .hero :global(.nh-caret) { display: none; }
 }
 
-/* === Mobile === */
+/* === Tablet ===
+   The hero has three forms, and the animated scene picks its own by the same
+   two conditions as the two blocks below, so the words and the scene always
+   agree: a phone at or below 48rem; a tablet at or below 60rem, or on any
+   screen that is taller than it is wide; a laptop otherwise.
+
+   On a tablet the words sit at the foot of the screen at the page's full
+   width, and the mark stands to the right above them, where the network
+   arrives. */
+@media (max-width: 60rem), (orientation: portrait) { /* --bp-lg, and any upright screen */
+  .hero { --hero-gap: var(--space-5); }
+
+  .inner {
+    justify-content: flex-end;
+    padding-top: calc(var(--hero-bar) + var(--space-6));
+    padding-bottom: clamp(1.5rem, 4.7vh, 3.5rem);
+  }
+
+  .stack {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  /* The room under the mark gives way first on a short screen. */
+  .mark {
+    align-self: flex-end;
+    margin-bottom: clamp(1rem, 8vh, 6rem);
+  }
+  .mark svg { height: clamp(7.5rem, 16.75vh, 12.5rem); }
+
+  .tagline {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    visibility: visible;
+    white-space: normal;
+    font-family: var(--font-display);
+    font-size: var(--text-base);
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 0.005em;
+    color: var(--color-live);
+    text-align: left;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+  }
+
+  .headline {
+    margin-top: calc(-1 * var(--space-2));
+    font-size: clamp(2.5rem, 5vw, 3rem);
+  }
+
+  .lede { font-size: var(--text-lg); }
+
+  /* The award names the giver in short, and is drawn flat. */
+  .awardRow { margin-top: 0; }
+  .award {
+    gap: 0.625rem;
+    height: auto;
+    min-height: 2.875rem;
+    padding: 0 var(--space-4);
+    background: color-mix(in srgb, var(--color-bg-elevated) 92%, transparent);
+    box-shadow: none;
+  }
+  .awardName { font-size: var(--text-caption); }
+  .awardByLong { display: none; }
+  .awardByShort { display: inline; }
+}
+
+/* === Mobile ===
+   On a phone the buttons are the width of the page, one over the other, and
+   the award is not drawn. */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  .inner {
+    padding-top: calc(var(--hero-bar) + var(--space-5));
+    padding-bottom: var(--space-5);
+  }
+
+  /* The mark is a fifth of the screen's height: 170px on a tall phone, less
+     on a short one, so the buttons stay on the first screen. */
+  .mark { margin-bottom: 0; }
+  .mark svg { height: clamp(7rem, 20vh, 10.625rem); }
+
+  /* 40px on a 390px phone, and smaller on a narrower one, so the second
+     sentence always fits on its line. */
+  .headline { font-size: min(2.5rem, 10.26vw); }
+
+  .lede { font-size: var(--text-base); }
+
+  .buttons { flex-direction: column; }
+  .button { width: 100%; }
+
+  /* Out of sight it keeps a 1px box under the bar, as the tagline does on a
+     laptop, so the scene does not find a hole to steer round. */
+  .awardRow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    margin: 0;
+    visibility: hidden;
+  }
+  .award {
+    width: 1px;
+    height: 1px;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+  }
 }

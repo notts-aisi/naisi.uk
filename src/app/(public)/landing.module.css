@@ -193,7 +193,7 @@
 .cardFacts {
   position: absolute;
   left: var(--space-4);
-  right: var(--space-4);
+  right: var(--space-1);
   bottom: var(--space-3);
   margin: 0;
   letter-spacing: 0.08em;
@@ -284,9 +284,11 @@
 .workTitle {
   position: relative;
   margin: 0;
-  padding-top: 3.0625rem;
+  /* 76px on a wide laptop and 64px on a narrow one or a tablet, with the
+     marker and the room over it in step. */
+  padding-top: clamp(2.75rem, 3.4vw, 3.0625rem);
   font-family: var(--font-display);
-  font-size: 4.75rem;
+  font-size: clamp(4rem, 5.28vw, 4.75rem);
   font-weight: 700;
   line-height: 0.98;
   letter-spacing: -0.025em;
@@ -296,11 +298,11 @@
 .workMarker {
   position: absolute;
   top: 0;
-  left: 9rem;
+  left: clamp(7.625rem, 10vw, 9rem);
   display: inline-block;
   transform: rotate(-5deg);
   font-family: var(--font-marker), "Marker Felt", cursive;
-  font-size: 3.25rem;
+  font-size: clamp(2.875rem, 3.61vw, 3.25rem);
   font-weight: 400;
   letter-spacing: 0;
   white-space: nowrap;
@@ -310,6 +312,7 @@
 .workStruck {
   position: relative;
   display: inline-block;
+  white-space: nowrap;
 }
 
 .workStrike {
@@ -457,7 +460,49 @@
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 
+/* === Tablet ===
+   Sections stand closer together, headings step down a size, and the two
+   sections that are two columns on a laptop become one. */
+@media (max-width: 60rem) { /* --bp-lg */
+  .section,
+  .mailingField { padding-block: 5.5rem; }
+
+  .title { font-size: 2.5rem; }
+  .titleEvents { font-size: 2.25rem; }
+  .mailingTitle { font-size: 2.375rem; }
+
+  .cards {
+    grid-template-columns: repeat(auto-fit, minmax(min(13.75rem, 100%), 1fr));
+    gap: var(--space-4);
+  }
+
+  .work,
+  .mailingRow { grid-template-columns: minmax(0, 1fr); }
+
+  .workSlogan { align-self: start; }
+}
+
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  .section,
+  .mailingField { padding-block: 4rem; }
+
+  .title { font-size: 2.125rem; }
+  .titleEvents { font-size: 1.875rem; }
+  .mailingTitle { font-size: 2rem; }
+
+  /* One card to a row, as far apart as on a laptop. */
+  .cards {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-5);
+  }
+
+  .workTitle {
+    padding-top: 2rem;
+    font-size: 2.875rem;
+  }
+  .workMarker {
+    left: 5.4375rem;
+    font-size: 2.125rem;
+  }
 }

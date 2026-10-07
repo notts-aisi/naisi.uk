@@ -55,7 +55,7 @@ function placesChip(event: EventRow): { tone: "neutral" | "success" | "warning" 
   const left = event.capacity - (event.rsvpCountConfirmed ?? 0);
   if (left > 0) return { tone: "warning", label: left === 1 ? "1 place left" : `${left} places left` };
   return event.waitlistEnabled
-    ? { tone: "warning", label: "Full · waiting list open" }
+    ? { tone: "warning", label: "Full · waiting list" }
     : { tone: "danger", label: "Full" };
 }
 
@@ -144,7 +144,11 @@ export default async function UpcomingEvents() {
                     <h3 className={styles.name}>{e.title || "(no title)"}</h3>
                     <p className={styles.when}>{where ? `${timeOfDay(start)} · ${where}` : timeOfDay(start)}</p>
                     <div className={styles.chip}>
-                      <Chip tone={chip.tone}>{chip.label}</Chip>
+                      {/* One line always: three cards share a row on a tablet, and a
+                          chip that wrapped there would be a two-line pill. */}
+                      <Chip tone={chip.tone} style={{ whiteSpace: "nowrap" }}>
+                        {chip.label}
+                      </Chip>
                     </div>
                   </div>
                 </Link>

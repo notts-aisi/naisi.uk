@@ -109,7 +109,20 @@
 /* The chip rests on the card's floor. */
 .chip { margin-top: auto; }
 
+/* === Tablet === */
+@media (max-width: 60rem) { /* --bp-lg */
+  /* Three narrower cards still share a row. */
+  .list {
+    grid-template-columns: repeat(auto-fit, minmax(min(14.375rem, 100%), 1fr));
+    gap: var(--space-4);
+  }
+}
+
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* One card to a row. */
+  .list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-5);
+  }
 }
