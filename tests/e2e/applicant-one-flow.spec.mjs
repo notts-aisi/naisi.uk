@@ -18,9 +18,10 @@
  *
  * The emailed link opens in a tab of its own, as it does for a person. What was
  * typed on the first step lives in the tab it was typed in, so that tab is
- * where the spec carries on. Where the link's own tab ends up is asserted to
- * be one of two addresses and no other: the register page carrying this form
- * as its return, or the form itself.
+ * where the spec carries on. The link's own tab is held to one ending: this
+ * form, at the address the form itself marked for the way back, where the
+ * first step says that what was typed is in the other tab. It never ends on
+ * the register page's profile form, which would ask the same questions again.
  *
  * ## Nothing here is seeded except the form
  *
@@ -402,25 +403,25 @@ test(
             await inbox.waitForURL((url) => !url.pathname.startsWith("/verify-email/"), {
               timeout: WAIT_MS,
             });
-            // Where it moves on to is one of two addresses and no other: the
-            // register page carrying this form as its return, or the form.
+            // It moves on to THIS FORM, at the address the form marked for the
+            // way back, and nowhere else. A registration that began on a form
+            // is never handed to the register page's own profile form: the
+            // form's first step is where this person's join request is made.
             const landed = new URL(inbox.url());
-            const returnTo = `${formPath}?join=1`;
-            if (landed.pathname === "/register") {
-              assert.equal(
-                landed.searchParams.get("next"),
-                returnTo,
-                "the emailed link continued to the register page without this form as " +
-                  "its return address",
-              );
-            } else {
-              assert.equal(
-                `${landed.pathname}${landed.search}`,
-                returnTo,
-                "the emailed link continued somewhere that is neither the register page " +
-                  "nor this form",
-              );
-            }
+            assert.equal(
+              `${landed.pathname}${landed.search}`,
+              `${formPath}?join=1`,
+              "the emailed link did not bring a registration that began on this form " +
+                "back to the form",
+            );
+            // This tab holds none of what was typed, which lives in the tab it
+            // was typed in. The step says so here, instead of looking blank.
+            await inbox.getByRole("heading", { name: "About you" }).waitFor({ timeout: WAIT_MS });
+            await inbox
+              .getByText("If you started this form in another tab, what you typed is still there.", {
+                exact: false,
+              })
+              .waitFor({ timeout: WAIT_MS });
           } finally {
             await inbox.close();
           }

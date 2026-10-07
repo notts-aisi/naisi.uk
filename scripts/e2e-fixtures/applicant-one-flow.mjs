@@ -45,6 +45,7 @@
  * journey causes is counted below and removed by teardown.
  */
 import {
+  applicationId,
   assertFixtureTarget,
   countAccounts,
   deleteQuery,
@@ -359,12 +360,16 @@ async function countRows(state) {
   counts.admissionApplications = (
     await fixtureQuery("admissionApplications").where("roundId", "==", roundId).get()
   ).size;
-  // The new form keeps no private row beside an application. Counted anyway:
-  // a manifest that only looks where it expects rows reports zero for the one
-  // case worth catching.
-  counts.admissionApplicationPrivate = (
-    await fixtureQuery("admissionApplicationPrivate").where("roundId", "==", roundId).get()
-  ).size;
+  // The form's last step has an access-requirements box, and what is typed
+  // there is kept in a row of its own at the application's id. That row
+  // carries no roundId and no uid to query on, so it is counted by address,
+  // for the one account this journey makes. The spec types nothing in the
+  // box, so this reads zero unless a later step starts to.
+  const uid = await routeCreatedUid(state);
+  const privateRow = uid
+    ? await fixtureDoc("admissionApplicationPrivate", applicationId(roundId, uid)).get()
+    : null;
+  counts.admissionApplicationPrivate = privateRow?.exists ? 1 : 0;
 
   let verifications = 0;
   for (const address of [state.loginEmail, state.uniEmail]) {
@@ -395,7 +400,6 @@ async function countRows(state) {
   }
   counts.emailSends = sends;
 
-  const uid = await routeCreatedUid(state);
   const registration = uid ? await fixtureDoc("registrations", uid).get() : null;
   counts.registrations = registration?.exists ? 1 : 0;
 
@@ -450,9 +454,11 @@ async function teardown(state) {
     await deleteQuery(fixtureQuery("subscriptionEvents").where("subscriptionId", "==", id));
     await fixtureDoc("subscriptions", id).delete();
   }
-  await deleteQuery(
-    fixtureQuery("admissionApplicationPrivate").where("roundId", "==", state.roundId),
-  );
+  // By address, before the application it sits beside and the account whose
+  // uid is the only way to find it.
+  if (uid) {
+    await fixtureDoc("admissionApplicationPrivate", applicationId(state.roundId, uid)).delete();
+  }
   await deleteQuery(
     fixtureQuery("admissionApplications").where("roundId", "==", state.roundId),
   );
