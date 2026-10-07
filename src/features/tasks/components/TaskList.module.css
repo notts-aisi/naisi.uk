@@ -30,5 +30,9 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* My work is a member's page, so the button a thumb presses is 44px tall
+     here (docs/touch-targets.md). It keeps the dense size on a laptop. */
+  .quickComplete > button {
+    min-height: 2.75rem;
+  }
 }

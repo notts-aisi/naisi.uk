@@ -112,5 +112,17 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* A step down, as PageHead takes on a phone. */
+  .title {
+    font-size: 1.75rem;
+  }
+  /* Closer together and a size down, so all three tabs are in sight at
+     360px. If a longer count ever pushes them past the edge, the row scrolls
+     inside itself and the page stays still. */
+  .tabs {
+    gap: var(--space-3);
+  }
+  .tab {
+    font-size: var(--text-sm);
+  }
 }

@@ -113,6 +113,10 @@
     flex-direction: column;
     align-items: stretch;
   }
+  /* A step down, as PageHead takes on a phone. */
+  .headerTitle {
+    font-size: 1.75rem;
+  }
   .subtitle {
     display: none;
   }

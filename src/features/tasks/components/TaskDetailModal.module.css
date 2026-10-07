@@ -181,6 +181,13 @@
   align-items: end;
 }
 
+/* The read-only "Priority: ..." chip (shown to somebody who cannot change it)
+   is the row's only bare span. It keeps a chip's width and is not stretched
+   across its cell. */
+.fieldRow > span {
+  justify-self: start;
+}
+
 /* The metadata style (mono capitals), as the global `.meta` class sets it. */
 .sectionLabel {
   font-family: var(--font-meta);
@@ -402,6 +409,13 @@
     top: calc(var(--space-4) + env(safe-area-inset-top, 0px));
     width: 2.75rem;
     height: 2.75rem;
+  }
+  /* The close button sits over the top right corner of this column on a
+     phone. The title and its edit box stop short of it, so a long title wraps
+     beside the button and is never drawn under it. */
+  .title,
+  .titleInput {
+    margin-right: 3rem;
   }
   /* Bigger glyph on phone so the X reads as substantial inside the
      bigger 2.75rem button. */
