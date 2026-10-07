@@ -195,3 +195,24 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+@media (max-width: 48rem) { /* --bp-md */
+  /* The autumn's three blocks no longer fit in a row either. The first two
+     share one, the reading weeks and the pitch week, and the project weeks
+     take the next to themselves. */
+  .autumn .blocks {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+
+  .autumn .block:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .after {
+    margin-top: var(--space-8);
+  }
+
+  .details {
+    padding: var(--space-5) var(--space-5) var(--space-2);
+  }
+}
