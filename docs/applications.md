@@ -158,10 +158,9 @@ the person. Once the person accepts (`joinedByInvitation()` in
 if it had ranked the programme (`canReadApplication()` takes the joined
 programme beside the ranking), and it has a row in the programme's list,
 marked `byInvitation`, standing as accepted, with no decision to make and
-nothing of that programme's to score. The invitation card tells the person
-so before they press Accept. If they later cannot make it, the row stays,
-marked withdrawn, like anybody else's who left after applying. Somebody who
-says no thanks is never read by the programme they turned down.
+nothing of that programme's to score. If they later cannot make it, the row
+stays, marked withdrawn, like anybody else's who left after applying.
+Somebody who says no thanks is never read by the programme they turned down.
 `tests/applications-wave-h-joined.test.mjs` runs every kind of account
 against every way an invitation can stand.
 
