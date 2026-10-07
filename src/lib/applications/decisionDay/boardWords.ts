@@ -1,5 +1,5 @@
 import { STATUS_LABELS, type AffiliationStatus } from "@/lib/firestore/users";
-import type { AboutYou } from "../model";
+import type { AboutYou, SuMembershipAnswer } from "../model";
 import type { OwnApplication } from "./plan";
 import type { SendReport } from "./views";
 
@@ -42,6 +42,20 @@ export function ownApplicationLine(own: OwnApplication, page: "pool" | "send"): 
   return page === "pool"
     ? `${notShown} Another admin has to choose its outcome.`
     : `${notShown} Another admin has to choose its outcome, and you hear with everybody else.`;
+}
+
+/**
+ * What somebody answered when the form asked whether they have SU
+ * membership, as the decision-day page says it under their name.
+ *
+ * It is their own answer to that question and not a membership record, which
+ * the site keeps elsewhere, so the line says that they said it. The form's
+ * two answers are "Yes" and "Not yet".
+ */
+export function suMembershipLabel(answer: SuMembershipAnswer | null): string {
+  if (answer === "yes") return "SU membership: said yes";
+  if (answer === "not-yet") return "SU membership: said not yet";
+  return "SU membership: no answer";
 }
 
 function invitations(n: number): string {

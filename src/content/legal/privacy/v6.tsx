@@ -422,11 +422,11 @@ export default function PrivacyContentV6({
                 <li>
                   <strong>Whether you have SU membership.</strong> The last
                   step asks whether you have SU membership, yes or not yet.
-                  Your answer is kept with your application. It is not shown to
-                  the people who read your application, and it does not affect
-                  whether you are offered a place. Your membership record (see
-                  membership below) is separate, and is not shown to them
-                  either.
+                  Your answer is kept with your application. It is shown to
+                  admins only, and it does not affect whether you are offered a
+                  place. Your membership record (see membership below) is
+                  separate, and is not shown to the people who read your
+                  application.
                 </li>
               </ul>
 

@@ -1,3 +1,4 @@
+import type { SuMembershipAnswer } from "../model";
 import type { DecisionEmailButtonLook, DecisionEmailKind, DecisionEmailSignOff } from "./emailCopy";
 import type { OwnApplication, PoolChoice, TestState } from "./plan";
 
@@ -16,6 +17,9 @@ import type { OwnApplication, PoolChoice, TestState } from "./plan";
  * for whoever is looking, from the term with their own application left out
  * of every list and every number. `ownApplication` says only that they have
  * one, so the page can say in a line that it is not shown.
+ *
+ * ONE OF THEM CARRIES SOMEBODY'S ANSWER ABOUT SU MEMBERSHIP, AND IT IS THE
+ * ONLY THING THAT DOES. See `SendGroupPerson`.
  */
 
 // ---------------------------------------------------------------------------
@@ -116,6 +120,31 @@ export type PoolBoard = {
 
 export type SendPerson = { uid: string; name: string };
 
+/**
+ * Somebody in one of the decision-day page's three groups, with what they
+ * answered when the form asked whether they have SU membership: `yes`,
+ * `not-yet`, or null where their application holds no answer.
+ *
+ * THIS IS THE ONE PLACE THAT ANSWER LEAVES ITS OWNER'S OWN FORM, and four
+ * things about it have to stay true together, because the form tells
+ * applicants the answer will not affect their application and the site's
+ * privacy page says who is shown it:
+ *
+ *  - ONLY AN ADMIN IS SENT IT. The decision-day page and its route answer an
+ *    admin and nobody else, before anything is read. No payload a lead or a
+ *    reviewer is sent has this key in it, on any screen.
+ *  - NOTHING THAT DECIDES, RECOMMENDS OR ORDERS APPLICATIONS READS IT. It is
+ *    read once, where this list is built, for people whose outcome is already
+ *    chosen. The plan, the scores, the review screens, pooled applicants and
+ *    the send itself are never handed it.
+ *  - NEVER THE VIEWER'S OWN. The list is of the term as the viewer is shown
+ *    it, which leaves their own application out.
+ *  - NOT IN A VIEW-AS SESSION. A session borrowed from a member is not an
+ *    admin's, so it is refused this page, and the member's own form draws a
+ *    notice in place of their application.
+ */
+export type SendGroupPerson = SendPerson & { suMembership: SuMembershipAnswer | null };
+
 /** One email as the page previews it. The addresses stay on the server. */
 export type EmailPreview = {
   kind: DecisionEmailKind;
@@ -129,7 +158,7 @@ export type EmailPreview = {
 };
 
 export type SendGroup = {
-  people: SendPerson[];
+  people: SendGroupPerson[];
   /** The first person's email, as it will read. Null when the group is empty. */
   preview: EmailPreview | null;
   /**

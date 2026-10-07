@@ -411,6 +411,14 @@ const USERS = new Map([
       "whether a refusal is decided from what the transaction read is only shown by running it",
   ],
   [
+    "applications-su-membership-answer.test.mjs",
+    "executes the decision-day, pooled applicants and review handlers as two admins, a lead, a " +
+      "reviewer and people with no role, and the applicant's own read and form (a .tsx server " +
+      "component) with the real view-as module reading a cookie the test sets, against an " +
+      "in-memory term in which each person gave an answer, because which payloads carry " +
+      "somebody's answer about SU membership, and for whom, is decided by the code that runs",
+  ],
+  [
     "applications-versions.test.mjs",
     "executes the rules for what a send keeps of the application it replaces " +
       "(src/lib/applications/versions/kept.ts), then the review loaders and builders, the " +

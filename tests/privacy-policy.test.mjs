@@ -1384,14 +1384,31 @@ describe("the application form passage", () => {
     }
   });
 
-  test("the SU membership answer reaches nobody who reads an application", () => {
-    assert.match(PAGE_FLAT, /It is not shown to the people who read your application, and it does not affect whether you are offered a place/i);
-    // Every file that names the answer, and why it may. None is a screen, a
-    // payload or a record a reader of applications is given. A file that
-    // starts naming it fails here until somebody has decided what the page
-    // should then say.
+  test("the SU membership answer is shown to admins only, on one page, and nothing that decides reads it", () => {
+    // OWNER DECISION, 7 October 2026: an admin is shown each person's answer
+    // on the decision-day page, so that somebody can help the people joining
+    // a programme to get their membership before term. Nobody else is shown
+    // it, and it bears on no decision.
+    assert.match(PAGE_FLAT, /It is shown to admins only, and it does not affect whether you are offered a place/i);
+    assert.ok(
+      !/It is not shown to the people who read your application, and it does not affect/i.test(PAGE_FLAT),
+      "v6 says again that nobody who reads an application is shown the answer. " +
+        "An admin is, on the decision-day page.",
+    );
+    // The membership record is a different thing, and the screens where
+    // applications are read show it to nobody (the next test walks for it).
+    assert.match(
+      PAGE_FLAT,
+      /Your membership record \(see membership below\) is separate, and is not shown to the people who read your application\./i,
+    );
+
+    // Every file that names the answer, by any name code gives it, and why it
+    // may. The first nine are the applicant's own form and the shape of an
+    // application. The last four are the admin's decision-day page and
+    // nothing else. A file that starts naming it fails here until somebody
+    // has decided what the page should then say.
     assertExactlyTheseFiles(
-      sourceFilesNaming(/\bsuMembership\b/),
+      sourceFilesNaming(/suMembership/i),
       new Map([
         ["src/lib/applications/model.ts", "the shape of what an applicant fills in, which is where the answer is declared"],
         ["src/lib/applications/normalise.ts", "reads a stored draft or sent application back into that shape"],
@@ -1402,12 +1419,89 @@ describe("the application form passage", () => {
         ["src/lib/applications/applicant/join.ts", "an empty application for checking the first step's answers, where the answer is always null"],
         ["src/features/applications/apply/ApplicationForm.tsx", "the applicant's own form, which holds their answer while they fill it in"],
         ["src/features/applications/apply/CheckStep.tsx", "the applicant's own last step, where the question is asked"],
+        ["src/lib/applications/decisionDay/views.ts", "the shape of what the decision-day page is sent, which an admin alone is: a person in one of its groups carries the answer"],
+        ["src/lib/applications/decisionDay/send.ts", "builds that page, and reads the answer once, where a group's names are listed"],
+        ["src/lib/applications/decisionDay/boardWords.ts", "the words the decision-day page says the answer in"],
+        ["src/features/applications/decisionDay/SendBoard.tsx", "draws those words under each name on the decision-day page"],
       ]),
       "naming the SU membership answer",
-      "The policy says the answer is not shown to the people who read an " +
-        "application. If this file shows it to one of them, the sentence is " +
-        "wrong and a new version has to say who sees it.",
+      "The policy says the answer is shown to admins only, and that it does " +
+        "not affect whether a place is offered. If this file shows it to " +
+        "anybody else, or reads it where applications are decided, " +
+        "recommended or ordered, the sentence is wrong and a new version has " +
+        "to say so.",
     );
+
+    // "Shown to admins only": the decision-day page is built in three places,
+    // and each has answered everybody who is not an admin, and left, first.
+    // `canRunTerm` is an admin and nobody else (held above, with the reader
+    // of access requirements).
+    const refusesFirst = (source, from, what) => {
+      const built = source.indexOf("await buildSendBoard(", from);
+      assert.ok(built !== -1, `${what} no longer builds the decision-day page`);
+      const asked = source.lastIndexOf("if (!canRunTerm(user))", built);
+      assert.ok(asked >= from, `${what} builds the decision-day page without asking whether the caller is an admin`);
+      assert.match(
+        source.slice(asked, built),
+        /^if \(!canRunTerm\(user\)\) (return NextResponse\.json\(\{ error: NOT_ADMIN \}, \{ status: 403 \}\);|\{\s*return \()/,
+        `${what} does not answer and leave when the caller is not an admin`,
+      );
+    };
+    const sendRoute = read("src/app/api/admissions/forms/[roundId]/send/route.ts");
+    refusesFirst(sendRoute, sendRoute.indexOf("export async function GET("), "the decision-day route's GET");
+    refusesFirst(sendRoute, sendRoute.indexOf("export async function POST("), "the decision-day route's POST");
+    const sendPage = read("src/app/(app)/admin/admissions/forms/[roundId]/send/page.tsx");
+    refusesFirst(sendPage, sendPage.indexOf("export default async function"), "the decision-day page");
+    const builders = textFilesUnder(SRC)
+      .map((file) => file.slice(REPO_ROOT.length + 1).split(sep).join("/"))
+      .filter((file) => /\bbuildSendBoard\(/.test(read(file)))
+      .sort();
+    assert.deepEqual(
+      builders,
+      [
+        "src/app/(app)/admin/admissions/forms/[roundId]/send/page.tsx",
+        "src/app/api/admissions/forms/[roundId]/send/route.ts",
+        "src/lib/applications/decisionDay/send.ts",
+      ],
+      "the decision-day page is built somewhere new. It carries people's " +
+        "answers about SU membership, which the policy says admins alone are shown.",
+    );
+
+    // "It does not affect whether you are offered a place": the builder reads
+    // it in one expression, beside a name, and nothing that decides,
+    // recommends or orders applications names it at all. The list above
+    // already says so; these are named so that a failure says which half of
+    // the sentence went.
+    const builder = read("src/lib/applications/decisionDay/send.ts")
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+    assert.equal(
+      (builder.match(/suMembership/gi) ?? []).length,
+      2,
+      "the module that sends decisions names the answer somewhere other than " +
+        "the one line that lists it beside a name.",
+    );
+    assert.match(builder, /suMembership: applicationOf\(person\.uid\)\?\.sent\?\.suMembership \?\? null,/);
+    for (const decides of [
+      "src/lib/applications/decisions.ts",
+      "src/lib/applications/scoring.ts",
+      "src/lib/applications/sections.ts",
+      "src/lib/applications/decisionDay/plan.ts",
+      "src/lib/applications/decisionDay/pool.ts",
+      "src/lib/applications/decisionDay/term.ts",
+      "src/lib/applications/review/board.ts",
+      "src/lib/applications/review/detail.ts",
+      "src/lib/applications/review/decide.ts",
+      "src/lib/applications/review/term.ts",
+    ]) {
+      assert.ok(
+        !/suMembership/i.test(read(decides)),
+        `${decides} now reads the answer about SU membership. It is where ` +
+          "applications are decided, recommended, ordered or read for " +
+          "scoring, and the policy says the answer does not affect whether a " +
+          "place is offered.",
+      );
+    }
   });
 
   test("a conduct flag and the membership tier reach no screen where applications are read", () => {

@@ -262,8 +262,8 @@ function that holds the whole term, with what it does with it.
 **A view-as session is not the applicant.** Admin "view as" borrows a
 member's session, so every read addressed by "the caller's own uid" would be
 the member's. An application is its owner's to read: the people who review it
-read what was sent and never the draft, and nobody who reads an application
-is shown the SU membership answer. So while a view-as session is live
+read what was sent and never the draft, and the SU membership answer is
+shown to nobody but an admin, on one page. So while a view-as session is live
 (`markerIsLive`, the one comparison the admin area and the write guard go by)
 the person's own application is not shown and not read. The form
 (`/apply/<roundId>`), the list (`/applications`) and the page for one
@@ -316,6 +316,35 @@ earlier answer decides nothing by itself.
 The round's `reviewerUids` is kept as the union of every lead and reviewer on
 the form, with the `users.admissionsReviewer` flag that draws the sidebar
 entry, so every existing gate keeps working without knowing about programmes.
+
+**Somebody's answer about SU membership is an admin's to see, on one page.**
+The form's last step asks whether a person has SU membership and tells them
+the answer will not affect their application. The decision-day page shows an
+admin each person's answer under their name, so that somebody can help the
+people joining a programme to get their membership before term. That is the
+one place the answer leaves its owner's own form, and four things about it
+hold together:
+
+- **Only an admin is sent it.** The page and its route answer whoever
+  `canRunTerm()` refuses, and leave, before the page is built. No payload a
+  lead or a reviewer is sent has the key in it, on any screen.
+- **Nothing that decides, recommends or orders applications reads it.** It is
+  read in one expression, where the page's three groups are listed (`groupOf`
+  in `decisionDay/send.ts`), for people whose outcome is already chosen. The
+  plan, the scores, the review screens and the send itself are never handed
+  it, and pooled applicants, where an admin chooses what somebody hears, does
+  not show it.
+- **Never the viewer's own.** The groups are of the term as the viewer is
+  shown it, so an admin who has applied is not on their own page.
+- **Not in a view-as session.** A session borrowed from a member is not an
+  admin's, and the member's own form and route answer it as the paragraph
+  above says.
+
+The site's privacy page says who is shown the answer and that it does not
+affect whether a place is offered. `tests/applications-su-membership-answer.test.mjs`
+lists every file outside the applicant's own form that names the answer, and
+runs the page, the review screens and pooled applicants as an admin, a lead,
+a reviewer and a view-as session.
 
 ## A programme and its course page
 
@@ -919,6 +948,13 @@ All in `src/lib/applications/`.
   why it reads everybody. A term is never planned from a raw list anywhere
   else. A writer that is handed an applicant's id refuses the caller's own
   before it reads.
+- **The SU membership answer is read in one place.** A new file outside the
+  applicant's own form that names it is a new reader of something applicants
+  are told does not affect their application, and that the privacy page says
+  admins alone are shown. It is added to the list in
+  `tests/applications-su-membership-answer.test.mjs` only once both of those
+  still hold, and the privacy page's own list
+  (`tests/privacy-policy.test.mjs`) with it.
 - **No query that sorts or ranges on the server.** Every read here is one or
   two equalities, which need no composite index. A term is a few hundred
   documents: filter and sort in memory.
