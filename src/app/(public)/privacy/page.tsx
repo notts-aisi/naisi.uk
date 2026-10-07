@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import LegalPolicyPage from "@/components/legal/LegalPolicyPage";
+import { linkPreviewImages } from "@/lib/linkPreviewCard";
 
 const TITLE = "Privacy policy";
 const DESCRIPTION =
@@ -8,8 +9,9 @@ const DESCRIPTION =
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
-  openGraph: { title: TITLE, description: DESCRIPTION, type: "article" },
-  twitter: { card: "summary", title: TITLE, description: DESCRIPTION },
+  // No picture of its own, so the card: 1200 by 630, which is the large format.
+  openGraph: { title: TITLE, description: DESCRIPTION, type: "article", images: linkPreviewImages() },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: linkPreviewImages() },
 };
 
 export default function PrivacyPage() {

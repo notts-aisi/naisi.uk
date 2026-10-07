@@ -70,8 +70,9 @@ export const metadata: Metadata = {
    *
    * This is the DEFAULT card, not a guarantee. Metadata is merged a whole key
    * at a time, so a page that sets its own `openGraph` replaces this one,
-   * card included. Such a page names its own picture, or names this one
-   * ("/opengraph-image.png", 1200 by 630) when it has none.
+   * card included. Such a page names its pictures with `linkPreviewImages`
+   * (src/lib/linkPreviewCard.ts): its own picture, or this card when it has
+   * none. tests/brand-assets.test.mjs walks the tree for a page that does not.
    */
   openGraph: {
     title: "Nottingham AI Safety Initiative",
