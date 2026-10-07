@@ -19,6 +19,15 @@ devDependencies** on the critical path of every production deploy, so a heavy
 test-only dependency there is a deploy-time liability. Nothing in this
 directory ships.
 
+One suite reaches the other way. `users-profile-self-edit.test.mjs` runs the
+function that builds the profile form's save
+(`src/features/profile/studyChange.ts`) and sends what it returns through the
+rules, so that the write it tests is the form's own. It loads that function
+with the unit suite's TypeScript loader (`tests/lib/tsLoader.mjs`), which uses
+the root package's `typescript`. So the root package has to be installed too
+(`npm install` at the repository root), as it is in CI's rules job and in any
+checkout that runs the site. Nothing is added to either `package.json`.
+
 ## Why it exists
 
 `firestore.rules` decides what every client read and write may do. This suite
