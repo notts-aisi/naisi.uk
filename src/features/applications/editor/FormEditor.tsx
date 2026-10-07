@@ -1055,7 +1055,7 @@ function RenameSetDialog({
         </div>
         <div className={shared.field}>
           <label htmlFor={`${ids}-intro`} className={shared.label}>
-            Line under the heading <span className={shared.optional}>(optional)</span>
+            Note for admins <span className={shared.optional}>(optional)</span>
           </label>
           <input
             id={`${ids}-intro`}
@@ -1065,7 +1065,9 @@ function RenameSetDialog({
             maxLength={L.setIntro}
             onChange={(event) => setIntro(event.target.value)}
           />
-          <p className={shared.hint}>Applicants read this too.</p>
+          <p className={shared.hint}>
+            Kept with the set for whoever edits this form next. Applicants never see it.
+          </p>
         </div>
         {problem && (
           <p role="alert" className={shared.problem}>
