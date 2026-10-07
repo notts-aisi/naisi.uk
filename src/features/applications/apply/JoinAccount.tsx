@@ -35,10 +35,16 @@ import styles from "./join.module.css";
  * page first opens.
  *
  * INSIDE THE INSTALLED APP the Google button cannot open its own window, so
- * it leaves for Google and comes back through the sign-in page. That page
- * sends a new account on to the register page, not here. So the button is
- * not drawn there: the app offers email on this step, and a plain link to
- * sign in with Google through those pages.
+ * it leaves for Google, and what Google sends back is received by the
+ * sign-in page and by no other. So the button is not drawn there: the app
+ * offers email on this step, and a plain link to the sign-in page, which
+ * carries this form's marked address (`signInHref`) and so brings a new
+ * account back to this step once it has signed in.
+ *
+ * "The installed app" is whatever `useIsStandalone` answers yes to. That hook
+ * also asks for the `fullscreen` display mode, which some browsers report for
+ * an ordinary window put into full screen, so such a window is drawn the link
+ * as well.
  */
 
 const GOOGLE_SCRIPT = "https://accounts.google.com/gsi/client";
@@ -197,7 +203,7 @@ export default function JoinAccount({
         )}
         {standalone ? (
           <p className={styles.aside}>
-            Google opens its own page and brings you back. If you’re new, you’ll be asked these questions there.
+            Google opens its own page and brings you back to this form.
           </p>
         ) : null}
 

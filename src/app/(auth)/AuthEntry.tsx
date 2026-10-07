@@ -33,6 +33,7 @@ import {
   RECAPTCHA_ENABLED,
   type RecaptchaHandle,
 } from "@/components/ui/RecaptchaInvisible";
+import { joinStepForNewAccount } from "@/features/applications/apply/joinClient";
 
 type Mode = "signin" | "register";
 type SignInPhase = "idle" | "active" | "navigating" | "exitingBack";
@@ -393,6 +394,22 @@ export default function AuthEntry({ initialMode }: { initialMode: Mode }) {
           // set and lands them on the right form (?type carries the audience,
           // since the in-place toggle's history.replaceState isn't observed by
           // the router).
+          //
+          // An application form takes the join request on its own first step,
+          // so an account with none that came here from one goes straight
+          // back to that step, where what it typed is still in the tab, and
+          // is never shown the register page's profile form. Which return
+          // addresses count is `newAccountReturn`
+          // (`src/lib/applications/applicant/join.ts`): one the step marked
+          // is taken at once, and one that only has a form's shape is taken
+          // when the form's own route says it is open for this account.
+          // Asked BEFORE the sign-in is marked finished below, so nothing
+          // else on this page moves while the answer is on its way. The
+          // collaborator route keeps its own branch and is never asked.
+          const onTheForm =
+            mode === "register" && audience === "collaborator"
+              ? null
+              : await joinStepForNewAccount(safeNext);
           credentialReceivedRef.current = false;
           setPhase("idle");
           // A funnel return address survives the hop. Without this, someone
@@ -411,7 +428,7 @@ export default function AuthEntry({ initialMode }: { initialMode: Mode }) {
           router.replace(
             mode === "register" && audience === "collaborator"
               ? "/register?type=collaborator"
-              : funnelNext,
+              : (onTheForm ?? funnelNext),
           );
           return;
         }

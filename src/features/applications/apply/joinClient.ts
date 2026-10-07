@@ -1,8 +1,10 @@
+import { newAccountReturn } from "@/lib/applications/applicant/join";
 import type { AboutYou } from "@/lib/applications/model";
 
 /**
- * The requests the join step makes, and the two the signed-in form makes
- * about a university address.
+ * The requests the join step makes, the two the signed-in form makes about a
+ * university address, and the one question the sign-in page asks on the
+ * form's behalf (`joinStepForNewAccount`, at the foot).
  *
  * EVERY ONE OF THESE IS A ROUTE THE SITE ALREADY HAS, called with the body
  * the register page and the sign-in page already send it. Nothing here is a
@@ -121,10 +123,14 @@ export async function sendUniversityCheck(
   }
 }
 
-/** Whether the caller's account has a join request, and whether its university address is checked. */
+/**
+ * Whether the caller's account has a join request, whether its university
+ * address is checked, and whether the form is open. The route answers only
+ * for a form an applicant may see, so `ok` also says this round is one.
+ */
 export async function readOwnAccount(
   roundId: string,
-): Promise<{ ok: true; joined: boolean; verified: boolean } | Failed> {
+): Promise<{ ok: true; joined: boolean; verified: boolean; open: boolean } | Failed> {
   let response: Response | null = null;
   try {
     response = await fetch(applicationUrl(roundId), { cache: "no-store" });
@@ -133,11 +139,16 @@ export async function readOwnAccount(
   }
   if (!response?.ok) return failure(response, "We could not check your account.");
   try {
-    const body = (await response.json()) as { joined?: unknown; account?: { universityEmailVerified?: unknown } };
+    const body = (await response.json()) as {
+      joined?: unknown;
+      account?: { universityEmailVerified?: unknown };
+      form?: { windowState?: unknown };
+    };
     return {
       ok: true,
       joined: body.joined === true,
       verified: body.account?.universityEmailVerified === true,
+      open: body.form?.windowState === "open",
     };
   } catch {
     return { ok: false, status: response.status, error: "We could not check your account." };
@@ -162,4 +173,42 @@ export async function saveAboutYou(roundId: string, about: AboutYou): Promise<{ 
   }
   if (!response?.ok) return failure(response, "We could not save your application.");
   return { ok: true };
+}
+
+/** How long the sign-in page waits for the form's answer before it carries on without one. */
+export const ASK_THE_FORM_MS = 4000;
+
+/**
+ * Where the sign-in page sends an account with no join request that was
+ * handed `next` as its return address: the address of a form's first step,
+ * or null for "nowhere of ours", which the sign-in page reads as the register
+ * page, as it always has.
+ *
+ * The rule is `newAccountReturn` (`src/lib/applications/applicant/join.ts`).
+ * An address the step marked is answered at once. An address with a form's
+ * shape and no mark is answered by the form's own route, under the session
+ * the sign-in has just made: only a form that is open, with no join request
+ * from this account, takes the person back to its first step.
+ *
+ * IT NEVER THROWS AND NEVER WAITS FOR EVER. A sign-in is in the middle of
+ * finishing when this is called, so a route that fails, says no, or has not
+ * answered within `limitMs` is null, and the person carries on to the
+ * register page exactly as before this existed.
+ */
+export async function joinStepForNewAccount(next: string, limitMs: number = ASK_THE_FORM_MS): Promise<string | null> {
+  const where = newAccountReturn(next);
+  if (where.to === "form") return where.href;
+  if (where.to !== "ask") return null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const tooLong = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), limitMs);
+  });
+  try {
+    const account = await Promise.race([readOwnAccount(where.roundId), tooLong]);
+    return account?.ok && account.open && !account.joined ? where.href : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
