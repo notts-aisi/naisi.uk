@@ -209,6 +209,14 @@
   color: var(--color-accent-text);
 }
 
+/* A glyph beside a label keeps its size when the row runs out of room. */
+.primary > svg,
+.secondary > svg,
+.textLink > svg,
+.headLink > svg {
+  flex: none;
+}
+
 .textLink:focus-visible,
 .headLink:focus-visible,
 .inlineLink:focus-visible {
@@ -548,6 +556,11 @@
   color: var(--color-live);
 }
 
+/* Two wordings of one line: the stylesheet draws one of them. */
+.phoneOnly {
+  display: none;
+}
+
 .sessionWhen {
   margin: 0;
   font-family: var(--font-display);
@@ -664,6 +677,11 @@
 .readingBody {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* The title gives way; the link beside it does not. */
+.readingRow > .textLink {
+  flex: none;
 }
 
 .readingTitle,
@@ -957,6 +975,10 @@
     padding: var(--space-5) var(--space-4);
   }
 
+  .termTitle {
+    font-size: var(--text-2xl);
+  }
+
   /* The picture is decoration, and a phone has no room to spend on it. */
   .termNet {
     display: none;
@@ -971,9 +993,63 @@
     display: none;
   }
 
-  /* The two things to do about a session share a row, each half of it. */
+  /* === The next session, as the phone boards draw it ===
+     A narrower tile, the short eyebrow, and who it is with on a line of its
+     own in the quieter colour, without the initials. */
+  .wideOnly {
+    display: none;
+  }
+
+  .phoneOnly {
+    display: inline;
+  }
+
+  .sessionTile {
+    width: 4.75rem;
+  }
+
+  .sessionBody {
+    gap: var(--space-2);
+    padding: var(--space-4);
+  }
+
+  .sessionWhen {
+    font-size: var(--text-2xl);
+  }
+
+  .sessionFacts {
+    font-size: var(--text-ui);
+  }
+
+  .sessionPeople {
+    flex-basis: 100%;
+    color: var(--color-text-muted);
+  }
+
+  .sessionFaces {
+    display: none;
+  }
+
+  /* The things to do about a session share a row, each as wide as it can be. */
   .sessionActions > * {
     flex: 1 1 8.75rem;
+  }
+
+  .sessionFoot {
+    padding: var(--space-2) var(--space-4);
+  }
+
+  /* === This week's reading sits on the page, not in a box === */
+  .readingCard {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+
+  .tick,
+  .tickDone {
+    margin: 0 var(--space-2) 0 0;
   }
 
   /* A row's one action goes under its words, the full width of the card. */
@@ -987,9 +1063,18 @@
     width: 100%;
   }
 
+  /* A row with no figure starts at the edge like the rows that have one. */
   .todoFigure {
     width: auto;
     min-width: 2.25rem;
+  }
+
+  .todoFigure:empty {
+    display: none;
+  }
+
+  .siteName {
+    flex-basis: 100%;
   }
 
   .people {

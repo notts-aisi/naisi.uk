@@ -81,6 +81,8 @@ export function sessionFacts(group: OverviewGroup): SessionFacts | null {
 
 type CardParts = {
   eyebrow: string;
+  /** A shorter eyebrow for a phone, where the long one would take two lines. */
+  eyebrowShort?: string;
   facts: SessionFacts;
   /** Who is there: "with Rahul and Sofia", or "8 in the group". */
   people?: ReactNode;
@@ -90,7 +92,14 @@ type CardParts = {
   foot?: ReactNode;
 };
 
-export default function NextSession({ eyebrow, facts, people, actions, foot }: CardParts) {
+export default function NextSession({
+  eyebrow,
+  eyebrowShort,
+  facts,
+  people,
+  actions,
+  foot,
+}: CardParts) {
   const tile = tilePartsOfDay(facts.dateKey);
   const day = dayLabel(facts.dateKey);
   const clock = clockLabel(facts.startTimeLocal);
@@ -110,7 +119,16 @@ export default function NextSession({ eyebrow, facts, people, actions, foot }: C
       )}
       <div className={styles.sessionMain}>
         <div className={styles.sessionBody}>
-          <p className={`meta ${styles.sessionEyebrow}`}>{eyebrow}</p>
+          {eyebrowShort ? (
+            // One of the two is drawn, by the stylesheet: the long one on a
+            // laptop and the short one on a phone.
+            <p className={`meta ${styles.sessionEyebrow}`}>
+              <span className={styles.wideOnly}>{eyebrow}</span>
+              <span className={styles.phoneOnly}>{eyebrowShort}</span>
+            </p>
+          ) : (
+            <p className={`meta ${styles.sessionEyebrow}`}>{eyebrow}</p>
+          )}
           <h2 className={styles.sessionWhen}>{when}</h2>
           <div className={styles.sessionFacts}>
             {facts.room && <span className={styles.sessionRoom}>{facts.room}</span>}

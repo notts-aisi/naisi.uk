@@ -148,6 +148,7 @@ export default function HomeProgramme({ given, entry, comingUp, applications, mo
               ? `Your next session · week ${facts.weekNumber} of ${entry.totalWeeks}`
               : `Your next session · week ${facts.weekNumber}`
           }
+          eyebrowShort="Next session"
           facts={facts}
           people={
             group.facilitatorNames.length > 0 ? (
@@ -208,7 +209,7 @@ export default function HomeProgramme({ given, entry, comingUp, applications, mo
       <div className={styles.columns}>
         <div className={styles.stack}>
           {target && week.status === "ready" && materials.length > 0 && (
-            <section className={styles.card} aria-labelledby="home-reading">
+            <section className={`${styles.card} ${styles.readingCard}`} aria-labelledby="home-reading">
               <div className={styles.cardHead}>
                 <h2 id="home-reading" className={styles.cardTitle}>
                   This week’s reading
