@@ -31,11 +31,14 @@ import WorkOnAiSafety from "./WorkOnAiSafety";
  * Each section is handed the FIELDS it prints, never the term itself.
  */
 
-// Rebuilt at most every 10 minutes, so a form opening or closing, and an
-// event being published, edited or deleted, reach the page without a deploy.
-// The form's own page decides again whether it is open: this page can be up
-// to ten minutes behind it.
-export const revalidate = 600;
+// Rendered per request, as the fellowships and incubator pages are, so a form
+// opening or closing, and an event being published, edited or deleted, reach
+// the page without a deploy. NOT prerendered and refreshed on a timer: the
+// build has no database, so the copy it makes has no term in it, and every
+// fresh server instance would hand that copy to its first visitor. That is a
+// homepage with no status line and no Apply while applications are open. The
+// form's own page still decides for itself whether it is open.
+export const dynamic = "force-dynamic";
 
 export default async function Landing() {
   const term = await fetchPublicTerm();
