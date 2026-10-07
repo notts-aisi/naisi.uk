@@ -591,7 +591,7 @@ const NOT_COVERED = {
   },
   "/api/admissions/forms/[roundId]/application/send": {
     reason:
-      "The new application form's send. Executed by tests/applications-apply-routes.test.mjs (issues refused, the two copies, the counters, sending again), with no browser spec yet.",
+      "The new application form's send. Executed by tests/applications-apply-routes.test.mjs (issues refused, the two copies, the counters, sending again, the version a send replaces), with no browser spec yet.",
     coverWhen:
       "With the spec above: the send is the last step of the same journey.",
   },

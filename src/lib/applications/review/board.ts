@@ -18,6 +18,8 @@ import {
   scorableKeysFor,
   sectionScore,
 } from "../scoring";
+import { changeCount, versionsOf } from "../versions/kept";
+import { dayOf } from "./earlier";
 import { emptyMap, own, programmeOn } from "./own";
 import { applicantDetail, applicantName } from "./people";
 import { newestFirst, placesLeftOn, type TermPicture, type Viewer } from "./term";
@@ -43,6 +45,9 @@ import type {
  *    applicant whose first review they have finished, so it cannot lean on a
  *    score they have yet to give.
  *  - NO ADDRESS. A row carries a name and a degree and never an email.
+ *  - A ROW SAYS WHEN ITS APPLICATION CHANGED after it was first sent, and
+ *    carries nothing of what it said before. The earlier versions are for
+ *    the screen that reads one application (`detail.ts`).
  *
  * EVERY NUMBER HERE IS OF THE PEOPLE IN THE TERM (`isInTerm`). Somebody who
  * withdrew, or gave a place or an invitation back, keeps their row, marked
@@ -131,6 +136,10 @@ function buildRow(input: {
   const detail = applicantDetail(sent.aboutYou);
   const rankedNames = ranked.map((id) => programmeOn(form, id)?.shortName ?? "");
   const appliedAt = application.submittedAt ?? application.sentAt;
+  // Sent again with something different, at least once. The day is the day
+  // the application of record became what it is now.
+  const changed = changeCount(application) > 0;
+  const versions = versionsOf(application);
 
   return {
     viewerHasScored,
@@ -159,6 +168,8 @@ function buildRow(input: {
           ? (programmeOn(form, placement)?.shortName ?? null)
           : null,
       appliedAt: appliedAt ? appliedAt.toISOString() : null,
+      changed,
+      changedOn: changed ? dayOf(versions[versions.length - 1]?.sentAt) : null,
       searchText: [name, detail, ...rankedNames].join(" ").toLowerCase(),
     },
   };

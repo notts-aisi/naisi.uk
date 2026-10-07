@@ -53,6 +53,7 @@ import {
   type ReviewComment,
   type ReviewDoc,
 } from "./model";
+import { SENT_HISTORY_LIMITS, type SentVersion } from "./model";
 
 /**
  * Reading the application system's documents.
@@ -422,6 +423,26 @@ export function normaliseContent(
   };
 }
 
+/**
+ * The earlier applications of record, oldest first, each read the way `sent`
+ * is. An entry with no content of its own is not a version and is dropped.
+ *
+ * A list longer than the cap keeps what the cap's own rule keeps (the first,
+ * and the most recent after it), so reading a document never loses the first
+ * version sent. Only a document somebody edited by hand can be that long.
+ */
+function asSentHistory(v: unknown, grid: AvailabilityGrid): SentVersion[] {
+  if (!Array.isArray(v)) return [];
+  const out: SentVersion[] = [];
+  for (const entry of v) {
+    const raw = asRecord(entry);
+    if (!raw.content || typeof raw.content !== "object" || Array.isArray(raw.content)) continue;
+    out.push({ content: normaliseContent(raw.content, grid), sentAt: tsToDate(raw.sentAt) });
+  }
+  const cap = SENT_HISTORY_LIMITS.maxVersions;
+  return out.length > cap ? [out[0], ...out.slice(out.length - (cap - 1))] : out;
+}
+
 function asResult(v: unknown): ApplicationResult | null {
   const raw = asRecord(v);
   const kind = raw.kind as ApplicationResultKind;
@@ -484,6 +505,10 @@ export function normaliseApplication(
     status: ADMISSION_APPLICATION_STATUSES.includes(status) ? status : "draft",
     submittedAt: tsToDate(raw.submittedAt),
     sentAt: tsToDate(raw.sentAt),
+    sentChangedAt: tsToDate(raw.sentChangedAt),
+    // An application never sent has no earlier version, whatever is stored.
+    sentHistory: sent ? asSentHistory(raw.sentHistory, grid) : [],
+    sentHistoryDropped: sent ? (intIn(raw.sentHistoryDropped, 0, 1_000_000) ?? 0) : 0,
     withdrawnAt: tsToDate(raw.withdrawnAt),
     result: asResult(raw.result),
     invitation: asInvitation(raw.invitation),

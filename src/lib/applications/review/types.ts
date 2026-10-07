@@ -70,6 +70,13 @@ export type ApplicationRow = {
   placedOn: string | null;
   /** When they first sent it, as an ISO instant, for sorting. */
   appliedAt: string | null;
+  /**
+   * They sent it again with something different, at least once. The earlier
+   * versions are kept and the review screen shows them.
+   */
+  changed: boolean;
+  /** "Wed 14 Oct": the day it last changed. Null when it has not, or the day is not known. */
+  changedOn: string | null;
   /** Lower-case name, degree and ranked programmes, for the search box. */
   searchText: string;
 };
@@ -178,6 +185,72 @@ export type AnswerView = {
   scale: { options: string[]; index: number } | null;
   /** This caller gives this answer 1 to 5 on this screen. */
   scorable: boolean;
+  /**
+   * What this answer said in the versions they sent before, newest first.
+   * Empty when it has not changed since it was first sent.
+   */
+  earlier: EarlierAnswer[];
+  /**
+   * "This answer changed on Wed 14 Oct, after you scored it." A score stays
+   * on the question, so this says when one was given to words that have since
+   * changed. Null otherwise, and it names nobody whose review this caller is
+   * not shown.
+   */
+  changedSinceScored: string | null;
+};
+
+/** What one answer draws: its words, its ticks, or its point on a scale. */
+export type AnswerBody = Pick<AnswerView, "answered" | "text" | "items" | "scale">;
+
+/**
+ * One answer as an earlier version held it. Only versions in which the
+ * question was asked are here: `answered` false is asked and left blank.
+ */
+export type EarlierAnswer = AnswerBody & {
+  /** "Sat 10 Oct": the day that version was sent. Null when the document does not say. */
+  sentOn: string | null;
+};
+
+/** One About you fact that changed, with what it said before, newest first. */
+export type EarlierFact = {
+  /** "Degree". */
+  label: string;
+  earlier: { sentOn: string | null; value: string }[];
+};
+
+/** A ranking they sent before. */
+export type EarlierRanking = {
+  sentOn: string | null;
+  ranked: { shortName: string; choice: number }[];
+};
+
+/** When they were free in a version they sent before, as lines of words. */
+export type EarlierAvailability = {
+  sentOn: string | null;
+  empty: boolean;
+  lines: string[];
+  total: string | null;
+};
+
+/**
+ * That an application changed after it was first sent, for the line near the
+ * top of the review screen.
+ */
+export type ChangesSummary = {
+  /** How many times the application of record changed after it was first sent. */
+  count: number;
+  /** "Sat 17 Oct": the day it last changed. */
+  lastOn: string | null;
+  /** Earlier versions that are no longer kept. */
+  dropped: number;
+  /**
+   * The cards on this screen that changed, in the order the screen draws
+   * them: "about", a question set's id, or "availability". A card is here
+   * when a part of it has something earlier to open, or when its questions
+   * were not part of an earlier version at all. Empty when what changed is in
+   * the ranking or facilitating alone, or is not shown on this screen.
+   */
+  where: string[];
 };
 
 export type SectionChip = { text: string; tone: "neutral" | "accent" };
@@ -292,6 +365,10 @@ export type ReviewPayload = {
      */
     invitedTo: { programmeId: string; shortName: string } | null;
     wantsToFacilitate: boolean;
+    /** What they ranked before, newest first. Empty when the ranking has not changed. */
+    earlierRankings: EarlierRanking[];
+    /** Whether they wanted to facilitate before, newest first. Empty when that has not changed. */
+    earlierFacilitating: { sentOn: string | null; wanted: boolean }[];
     about: {
       status: string;
       subjectLabel: string;
@@ -302,6 +379,10 @@ export type ReviewPayload = {
       motivation: string;
       /** The key a comment on the motivation answer uses. */
       motivationKey: string;
+      /** The facts above that changed, each with what it said before. */
+      earlierFacts: EarlierFact[];
+      /** What the motivation answer said before, newest first. */
+      earlierMotivation: { sentOn: string | null; text: string }[];
     };
     /** Present for an admin and for nobody else. */
     email?: string | null;
@@ -309,6 +390,14 @@ export type ReviewPayload = {
   };
   sections: ReviewSection[];
   availability: AvailabilityView;
+  /** When they were free in the versions they sent before, newest first. Empty when it has not changed. */
+  earlierAvailability: EarlierAvailability[];
+  /**
+   * Null when the application is as it was first sent. Otherwise how often it
+   * has changed and where on this screen the earlier versions can be opened.
+   * Built from what was SENT each time, never from the draft.
+   */
+  changes: ChangesSummary | null;
   queue: {
     /** This application's place among those left to review, or null when it is not one of them. */
     position: number | null;

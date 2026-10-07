@@ -632,9 +632,19 @@ const mine = (who) => call(who, routes.application.GET, params());
 const save = (who, draft) => call(who, routes.application.PUT, params(), { body: { draft } });
 const sendIt = (who) => call(who, routes.applicationSend.POST, params(), { body: {} });
 
+/**
+ * What Amara first says about why. She changes it and sends again, so these
+ * are the words of a version she has replaced: nobody else's answer, and no
+ * later one of hers, contains them.
+ */
+const AMARA_FIRST_WHY = "A first reason, which she goes on to change.";
+const AMARA_SECOND_WHY = "I have changed my mind about why.";
+/** The fields an application carries its earlier versions in. No applicant's route may answer with one. */
+const HISTORY_FIELDS = ["sentHistory", "sentHistoryDropped", "sentChangedAt"];
+
 /** Who applies, with what they rank. */
 const plans = () => ({
-  amara: { ranked: [P.agi, P.tais] },
+  amara: { ranked: [P.agi, P.tais], why: AMARA_FIRST_WHY },
   jasmine: { ranked: [P.agi] },
   oliver: { ranked: [P.inc], facilitate: true },
   hannah: { ranked: [P.agi] },
@@ -712,13 +722,33 @@ async function peopleApply() {
     seen.applied[who] = { look, saved, sent, stored: structuredClone(applicationDoc(who)) };
   }
 
+  // Amara presses Send again with nothing changed. There is nothing different to keep.
+  later(60);
+  seen.amaraSentUnchanged = { response: await sendIt("amara"), stored: structuredClone(applicationDoc("amara")) };
+
   // Amara changes an answer. Saved is not sent: the committee still has the first one.
   later(60);
-  const changed = draftFor(seen.applied.amara.look.body, { ...people.amara, why: "I have changed my mind about why." });
+  const changed = draftFor(seen.applied.amara.look.body, { ...people.amara, why: AMARA_SECOND_WHY });
   const savedAgain = await save("amara", changed);
   seen.amaraSavedAgain = { response: savedAgain, stored: structuredClone(applicationDoc("amara")) };
   const sentAgain = await sendIt("amara");
   seen.amaraSentAgain = { response: sentAgain, stored: structuredClone(applicationDoc("amara")) };
+
+  // The version that send replaced is kept. Who can be shown it, straight away:
+  // her own routes, another applicant's, and everybody with no role asking as staff would.
+  seen.firstVersion = {
+    own: await mine("amara"),
+    page: await statusLoad.loadStatus(world.db, ROUND, "amara", new Date()),
+    listed: [...(await statusLoad.loadListWords(world.db, "amara", [ROUND], new Date())).values()],
+    anotherApplicant: await mine("jasmine"),
+    asStaff: {},
+  };
+  for (const who of [null, "jasmine", "nell", "yusuf", "amara"]) {
+    seen.firstVersion.asStaff[who ?? "nobody signed in"] = {
+      review: await call(who, routes.review.GET, { roundId: ROUND, uid: "amara" }, { query: { programme: P.agi } }),
+      list: await call(who, routes.board.GET, { roundId: ROUND, programmeId: P.agi }),
+    };
+  }
 
   // Dev starts and never sends.
   const devLook = await mine("dev");
@@ -793,6 +823,9 @@ async function theCommitteeDecides() {
   await census("nothing decided");
 
   at("reviewing");
+  // The lead opens Amara's application, and the list it is on, before anybody has scored.
+  seen.leadReadsAmara = await reviewOf("claudia", "amara", "agi");
+  seen.leadsList = await call("claudia", routes.board.GET, { roundId: ROUND, programmeId: P.agi });
   // Claudia, the lead, scores Amara first. Lloyd, the reviewer, has not yet.
   seen.claudiaScores = await step("the lead scores Amara", 200, "claudia", routes.saveReview.PUT, { roundId: ROUND, uid: "amara" }, {
     body: { programmeId: P.agi, scores: { [key("agi", "event")]: 4, [key("agi", "law")]: 5 }, overallComment: "Strong on the law." },
@@ -1252,15 +1285,80 @@ describe("one term, from nothing to settled", () => {
       const first = seen.applied.amara.stored;
       const saved = seen.amaraSavedAgain.stored;
       assert.equal(saved.status, "submitted");
-      assert.equal(saved.draft.answers[SET.fellowships][Q.fellowships.why], "I have changed my mind about why.");
-      assert.equal(saved.sent.answers[SET.fellowships][Q.fellowships.why], "I want to understand it.");
+      assert.equal(saved.draft.answers[SET.fellowships][Q.fellowships.why], AMARA_SECOND_WHY);
+      assert.equal(saved.sent.answers[SET.fellowships][Q.fellowships.why], AMARA_FIRST_WHY);
       assert.deepEqual(saved.sent, first.sent, "the copy of record is untouched by a save");
 
       const again = seen.amaraSentAgain;
       assert.equal(again.response.body.first, false);
-      assert.equal(again.stored.sent.answers[SET.fellowships][Q.fellowships.why], "I have changed my mind about why.");
+      assert.equal(again.stored.sent.answers[SET.fellowships][Q.fellowships.why], AMARA_SECOND_WHY);
       assert.equal(again.stored.submittedAt.getTime(), first.submittedAt.getTime(), "the first send is when they applied");
       assert.ok(again.stored.sentAt.getTime() > first.sentAt.getTime());
+    });
+
+    test("a send that changes nothing keeps nothing", () => {
+      const first = seen.applied.amara.stored;
+      const unchanged = seen.amaraSentUnchanged;
+      assert.deepEqual([unchanged.response.status, unchanged.response.body.first], [200, false]);
+      assert.deepEqual(unchanged.stored.sent, first.sent);
+      assert.equal(unchanged.stored.sentHistory, undefined, "pressing Send again with nothing changed kept a version");
+      assert.ok(unchanged.stored.sentAt.getTime() > first.sentAt.getTime(), "the press itself is still recorded");
+      assert.equal(unchanged.stored.sentChangedAt.getTime(), first.sentAt.getTime(), "and the application of record is as old as it was");
+    });
+
+    test("the send that changed an answer keeps the version it replaced, whole, with when it was first sent", () => {
+      const first = seen.applied.amara.stored;
+      const again = seen.amaraSentAgain.stored;
+      assert.equal(first.sentHistory, undefined, "a first send has nothing earlier to keep");
+      assert.equal(again.sentHistory.length, 1);
+      assert.deepEqual(again.sentHistory[0].content, first.sent, "the kept version is the application the committee had");
+      assert.equal(again.sentHistory[0].content.answers[SET.fellowships][Q.fellowships.why], AMARA_FIRST_WHY);
+      // The day she first sent those words, not the day she pressed Send again without changing them.
+      assert.equal(again.sentHistory[0].sentAt.getTime(), first.sentAt.getTime());
+      assert.equal(again.sentHistoryDropped, 0);
+      assert.equal(again.sentChangedAt.getTime(), again.sentAt.getTime());
+      // Everybody else sent once, and to the end of the term nobody's history grows.
+      for (const who of APPLICANTS) {
+        assert.equal(applicationDoc(who).sentHistory?.length ?? 0, who === "amara" ? 1 : 0, who);
+      }
+      assert.deepEqual(applicationDoc("amara").sentHistory, again.sentHistory, "nothing after the send touched it");
+    });
+
+    test("nobody else is shown the version she replaced: not a stranger, not another applicant, not Amara herself", () => {
+      const { own, page, listed, anotherApplicant, asStaff } = seen.firstVersion;
+      // Asking as the committee would: nobody signed in, another applicant, a member with no
+      // application, SU-recognised committee named on nothing, and Amara of her own application.
+      assert.deepEqual(Object.keys(asStaff), ["nobody signed in", "jasmine", "nell", "yusuf", "amara"]);
+      for (const [who, answers] of Object.entries(asStaff)) {
+        for (const [name, response] of Object.entries(answers)) {
+          const refused = who === "nobody signed in" ? response.status === 401 : REFUSED.includes(response.status);
+          assert.ok(refused, `${who} asked for the ${name} and was answered ${response.status}`);
+          assert.ok(!JSON.stringify(response.body).includes(AMARA_FIRST_WHY), `${who}, the ${name}`);
+        }
+      }
+      // Her own routes show her what she sent last, and nothing she sent before it.
+      assert.equal(own.status, 200);
+      assert.equal(own.body.application.sent.answers[SET.fellowships][Q.fellowships.why], AMARA_SECOND_WHY);
+      assert.equal(anotherApplicant.status, 200);
+      for (const [name, said] of Object.entries({ "her own route": own.body, "her own page": page, "her line on the list": listed, "another applicant's route": anotherApplicant.body })) {
+        const text = JSON.stringify(said);
+        assert.ok(!text.includes(AMARA_FIRST_WHY), `${name} carries the words of the version she replaced`);
+        for (const field of HISTORY_FIELDS) assert.ok(!text.includes(field), `${name} carries ${field}`);
+      }
+    });
+
+    test("and not at any later moment of the term, on any applicant's own route or page", () => {
+      // Every time the story listened before the send, and every outcome read after it.
+      const heard = [
+        ...seen.earshot.map((entry) => Object.values(entry.heard).map((one) => [one.application, one.page, one.reply])),
+        seen.outcomes,
+        seen.outsiders,
+      ];
+      assert.ok(seen.earshot.length >= 6 && Object.keys(seen.outcomes).length >= 3, "the story stopped listening");
+      const text = JSON.stringify(heard);
+      assert.ok(text.includes(AMARA_SECOND_WHY), "the scan is not reading what her own route returns");
+      assert.ok(!text.includes(AMARA_FIRST_WHY));
+      for (const field of HISTORY_FIELDS) assert.ok(!text.includes(field), field);
     });
 
     test("the form's counters are the applications, counted", () => {
@@ -1340,6 +1438,43 @@ describe("one term, from nothing to settled", () => {
       for (const name of ["save", "send", "amaraSave", "amaraSend"]) {
         assert.deepEqual(short(closed[name]), [403, "Applications have closed, so this application can no longer be changed."], name);
       }
+    });
+
+    test("the lead and the reviewer are shown what the application said before, and the list marks it", () => {
+      for (const [who, response] of [["the lead", seen.leadReadsAmara], ["the reviewer", seen.lloydBeforeScoring]]) {
+        assert.equal(response.status, 200, who);
+        const review = response.body.review;
+        // She sent on the Saturday, and changed it later the same day.
+        assert.deepEqual(review.changes, { count: 1, lastOn: "Sat 10 Oct", dropped: 0, where: [SET.fellowships] }, who);
+        const fellowships = review.sections.find((section) => section.id === SET.fellowships);
+        const why = fellowships.answers.find((answer) => answer.key === key("fellowships", "why"));
+        assert.equal(why.text, AMARA_SECOND_WHY, who);
+        assert.deepEqual(
+          why.earlier.map((entry) => [entry.sentOn, entry.text]),
+          [["Sat 10 Oct", AMARA_FIRST_WHY]],
+          who,
+        );
+        assert.ok(fellowships.chips.some((chip) => chip.text === "Changed"), who);
+        // Nothing else changed, so nothing else has anything before it.
+        const others = review.sections.flatMap((section) => section.answers).filter((answer) => answer !== why);
+        assert.deepEqual(others.map((answer) => [answer.key, answer.earlier.length]), [
+          [key("agi", "event"), 0],
+          [key("agi", "law"), 0],
+          [key("tais", "built"), 0],
+        ], who);
+        assert.deepEqual(
+          [review.applicant.earlierRankings, review.applicant.earlierFacilitating, review.earlierAvailability, review.applicant.about.earlierFacts],
+          [[], [], [], []],
+          who,
+        );
+      }
+      // The list: a mark on her row, and on nobody else's.
+      const rows = seen.leadsList.body.board.rows;
+      assert.deepEqual(
+        Object.fromEntries(rows.map((row) => [row.uid, [row.changed, row.changedOn]])),
+        { amara: [true, "Sat 10 Oct"], hannah: [false, null], jasmine: [false, null] },
+      );
+      assert.ok(!JSON.stringify(seen.leadsList.body).includes(AMARA_FIRST_WHY), "the list carries no answer, earlier or not");
     });
 
     test("a first review is blind to the others until it is complete", () => {
@@ -2185,6 +2320,17 @@ describe("one term, from nothing to settled", () => {
       // The scores the reviewers gave ride along: one voice each.
       assert.equal(entry("amara").scoreSummary.reviewerCount, 2);
       assert.equal(entry("amara").scoreSummary.mean, 3.75);
+    });
+
+    test("the records hold none of what an applicant wrote, in the version on record or one before it", () => {
+      const kept = JSON.stringify(seen.records);
+      assert.ok(kept.includes("Strong on the law."), "the scan is not reading the records: a reviewer's note is missing");
+      for (const words of [AMARA_FIRST_WHY, AMARA_SECOND_WHY, "A new law came into force.", "A small classifier."]) {
+        assert.ok(!kept.includes(words), `a member record carries an answer: ${words}`);
+      }
+      for (const field of HISTORY_FIELDS) assert.ok(!kept.includes(field), field);
+      // The application itself still holds the version it replaced, for as long as it is kept.
+      assert.equal(applicationDoc("amara").sentHistory.length, 1);
     });
 
     test("both accounts that were waiting and were accepted are members, and nobody else's account moved", () => {

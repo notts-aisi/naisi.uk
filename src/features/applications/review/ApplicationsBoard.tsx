@@ -23,6 +23,7 @@ import {
   type SortKey,
   type StatusFilter,
 } from "./listModel";
+import { changedMark } from "./changesWords";
 import { Avatar, Chip, Icon, ScoreBox, StandingChip } from "./parts";
 import styles from "./ApplicationsBoard.module.css";
 import parts from "./parts.module.css";
@@ -728,6 +729,10 @@ function Row({
             <div className={styles.applicantDetail}>{row.detail}</div>
           </div>
         </div>
+        {row.changed ? (
+          // They sent it again with something different. The review screen shows what it said before.
+          <div className={styles.changedMark}>{changedMark(row.changedOn)}</div>
+        ) : null}
         {row.accountWaiting ? <div className={styles.flag}>Account waiting</div> : null}
       </td>
       <td data-label="Choice">

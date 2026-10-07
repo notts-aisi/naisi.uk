@@ -356,6 +356,14 @@ const USERS = new Map([
       "each is worked out from stored data and only running it shows the words match",
   ],
   [
+    "applications-versions.test.mjs",
+    "executes the rules for what a send keeps of the application it replaces " +
+      "(src/lib/applications/versions/kept.ts), then the review loaders and builders, the " +
+      "applicant's projections, the status page's read and the member record's builder " +
+      "against one in-memory store, because who is sent an earlier version of an application, " +
+      "and who is not, is decided by the code that runs",
+  ],
+  [
     "applications-wave-e1-lifecycle.test.mjs",
     "executes the three pure modules under src/lib/applications/lifecycle (the readiness " +
       "list, the moves a form may make, and what the term page is handed), because each " +

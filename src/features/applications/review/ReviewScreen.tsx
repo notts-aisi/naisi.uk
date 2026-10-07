@@ -2,17 +2,27 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import MemberText from "@/components/ui/MemberText";
 import Select from "@/components/ui/Select";
 import kit from "@/features/applications/kit/kit.module.css";
 import { useHydrated } from "@/hooks/useHydrated";
 import type { PoolReason, ProgrammeDecisionKind } from "@/lib/applications/model";
+import { listInWords } from "@/lib/applications/review/people";
 import type { ReviewPayload } from "@/lib/applications/review/types";
 import { own } from "@/lib/applications/keys";
 import { formatScore, reviewerScore } from "@/lib/applications/scoring";
 import { POOL_REASON_LABEL, choiceLabel, ordinal } from "@/lib/applications/words";
-import { AboutCard, AvailabilityCard, SectionCard, type AnswerActions } from "./ReviewSections";
+import {
+  AboutCard,
+  AvailabilityCard,
+  Earlier,
+  EarlierEntry,
+  SectionCard,
+  cardId,
+  type AnswerActions,
+} from "./ReviewSections";
+import { NOTHING_SHOWN, WHAT_THEY_CHOSE_BEFORE, changesLine } from "./changesWords";
 import { Avatar, Chip, Icon, Key, ScoreBox, StandingChip } from "./parts";
 import parts from "./parts.module.css";
 import styles from "./ReviewScreen.module.css";
@@ -33,6 +43,11 @@ import styles from "./ReviewScreen.module.css";
  * Keys: 1 to 5 score the answer in focus, A accepts, P pools, J and K move to
  * the next and previous application. They are ignored while somebody is
  * typing in a box.
+ *
+ * When the applicant has sent again with something different, a line under
+ * their name says how often and when, and names the cards where what it said
+ * before can be opened. Each name takes the reader to its card, which on a
+ * phone is behind a tab.
  */
 
 /**
@@ -337,10 +352,23 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
   };
 
   const tabs = [
-    { id: "about", label: "About you" },
-    ...review.sections.map((section) => ({ id: section.id, label: section.tab })),
-    { id: "availability", label: "Availability" },
+    { id: "about", label: "About you", title: "About you" },
+    ...review.sections.map((section) => ({ id: section.id, label: section.tab, title: section.title })),
+    { id: "availability", label: "Availability", title: "When they’re free" },
   ];
+
+  // What changed since it was first sent: the cards with something earlier
+  // to open, under the names this screen already gives them.
+  const { changes } = review;
+  const changedCards = changes ? tabs.filter((entry) => changes.where.includes(entry.id)) : [];
+  const earlierChoices = applicant.earlierRankings.length + applicant.earlierFacilitating.length;
+  /** Bring a card into view. On a phone it is behind its tab, so the tab is chosen first. */
+  const showCard = (id: string) => {
+    setTab(id);
+    window.requestAnimationFrame(() => {
+      document.getElementById(cardId(id))?.scrollIntoView({ block: "start" });
+    });
+  };
 
   const nextHref = queue.nextUid ? `${listPath}/${encodeURIComponent(queue.nextUid)}` : listPath;
   const nextLabel = queue.nextUid ? "Next application" : "Back to applications";
@@ -487,6 +515,63 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
               {applicant.accountWaiting ? <span className={styles.flag}>Account waiting</span> : null}
               {applicant.withdrawn ? <span className={styles.flag}>Withdrawn</span> : null}
             </div>
+            {changes ? (
+              <div className={styles.changes}>
+                <p className={styles.changesLine}>
+                  {changesLine(changes)}
+                  {changedCards.length === 0 && earlierChoices === 0 ? ` ${NOTHING_SHOWN}` : ""}
+                </p>
+                {changedCards.length > 0 ? (
+                  <p className={styles.changesLine}>
+                    What changed:{" "}
+                    {/* On a laptop each name takes the reader down the page to its card. */}
+                    <span className={styles.wideOnly}>
+                      {changedCards.map((entry, at) => (
+                        <Fragment key={entry.id}>
+                          {at === 0 ? null : at === changedCards.length - 1 ? " and " : ", "}
+                          <button
+                            type="button"
+                            className={styles.changesLink}
+                            onClick={() => showCard(entry.id)}
+                          >
+                            {entry.title}
+                          </button>
+                        </Fragment>
+                      ))}
+                      .
+                    </span>
+                    {/* On a phone the names are the tabs just below, which are the way there. */}
+                    <span className={styles.narrowOnly}>
+                      {listInWords(changedCards.map((entry) => entry.label))}.
+                    </span>
+                  </p>
+                ) : null}
+                <Earlier count={earlierChoices} label={WHAT_THEY_CHOSE_BEFORE}>
+                  {applicant.earlierRankings.map((entry, at) => (
+                    <EarlierEntry key={`ranking-${at}`} sentOn={entry.sentOn}>
+                      {entry.ranked.length === 0 ? (
+                        <p className={styles.earlierChoice}>Ranked no programme on this form.</p>
+                      ) : (
+                        <div className={styles.earlierRanking}>
+                          {entry.ranked.map((choice) => (
+                            <Chip key={choice.choice}>
+                              {choice.shortName} · {ordinal(choice.choice)}
+                            </Chip>
+                          ))}
+                        </div>
+                      )}
+                    </EarlierEntry>
+                  ))}
+                  {applicant.earlierFacilitating.map((entry, at) => (
+                    <EarlierEntry key={`facilitating-${at}`} sentOn={entry.sentOn}>
+                      <p className={styles.earlierChoice}>
+                        {entry.wanted ? "Wanted to facilitate" : "Didn’t want to facilitate"}
+                      </p>
+                    </EarlierEntry>
+                  ))}
+                </Earlier>
+              </div>
+            ) : null}
           </div>
 
           <nav className={styles.tabs} aria-label="Sections">
@@ -512,7 +597,11 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
               actions={actions}
             />
           ))}
-          <AvailabilityCard availability={review.availability} shown={tab === "availability"} />
+          <AvailabilityCard
+            availability={review.availability}
+            earlier={review.earlierAvailability}
+            shown={tab === "availability"}
+          />
         </div>
 
         {/* ---- Your review ---- */}
