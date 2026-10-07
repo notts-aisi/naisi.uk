@@ -178,6 +178,10 @@ function applicationState(entry: CourseCatalogueEntry): string {
  *
  * A closed run drops the deadline: it is no longer something to plan around,
  * and the state line above has already said it has passed.
+ *
+ * A course on the term's APPLICATION FORM says it the way its own page does:
+ * "Apply by Sun 18 Oct". The state line above is unchanged, and the card
+ * still leads to the course's page, where the one button to the form is.
  */
 function cardDates(entry: CourseCatalogueEntry): string {
   const round = entry.liveRound;
@@ -188,9 +192,14 @@ function cardDates(entry: CourseCatalogueEntry): string {
   const viaRound = roundOwnsDates(round, found?.run.enrolMode ?? null);
   const state = cardState(entry);
   const closesAt = viaRound ? (round?.closesAt ?? null) : (found?.window.closesAt ?? null);
+  const viaForm = viaRound && Boolean(round?.form);
   if (state !== "closed" && closesAt) {
     const noun = found?.run.enrolMode === "open" ? "Sign-ups" : "Applications";
-    bits.push(`${noun} close ${formatWindowDate(closesAt)}`);
+    bits.push(
+      viaForm
+        ? `Apply by ${formatWindowDate(closesAt)}`
+        : `${noun} close ${formatWindowDate(closesAt)}`,
+    );
   }
   // The start date belongs to whichever run the card is speaking for. When a
   // round owns the card that is the run the round will place people onto,
@@ -198,7 +207,11 @@ function cardDates(entry: CourseCatalogueEntry): string {
   // fetcher resolves it as `roundRun`. No target run means no start date,
   // rather than the featured run's, which would be a different intake's.
   const startingRun = viaRound ? entry.roundRun : (found?.run ?? null);
-  const starts = startingRun ? formatRunStartShort(startingRun.startDate) : undefined;
+  // The application form names no run until groups are made, so until then
+  // the start is the tied programme's own "w/c 26 Oct", as its lead wrote it.
+  const starts =
+    (startingRun ? formatRunStartShort(startingRun.startDate) : undefined)
+    || (viaForm ? round?.form?.starts : undefined);
   if (starts) bits.push(`Starts ${starts}`);
   return bits.join(" · ");
 }

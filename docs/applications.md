@@ -67,7 +67,9 @@ document and then does one of three things.
 - **It leaves the form alone.** The two scheduler jobs that walk open rounds
   skip a form and count it, so nothing older emails an applicant on one. The
   lookup behind the course pages drops a form, so one is never offered as a
-  single course's own intake.
+  single course's own intake. A course's page does offer the form, by another
+  door that the form's own code decides: see "A programme and its course
+  page".
 - **It serves both**, on purpose: destroying a round, deleting an account, the
   member record, the list of one person's applications, the apply page and
   the page that reads one application back. Each of those two pages shows a
@@ -207,6 +209,52 @@ changing their places.
 or deleted after a programme is tied to it, and no write is made to the form
 when that happens. Whatever reads `courseId` treats a course that is not
 there, or has no public page, as no course.
+
+### What the course's page says
+
+`findFormsByCourse()` in `lifecycle/openForm.ts` answers, for each course,
+the form that speaks for it and where that form is in its term. It is the one
+place this is decided, for the course's own page and for the catalogue, and
+it reads every form with the single equality `findOpenForm()` uses.
+
+| The form is | The course's page |
+| --- | --- |
+| a draft, archived or cancelled | is told nothing, and is exactly the page it would be with no form |
+| open, and its opening is still ahead | says the day applications open, and offers nothing to press |
+| taking applications | says "Apply by Sun 18 Oct", and its button leads to `/apply/<roundId>` |
+| closed, by the clock or by an admin, or further on | says applications have closed, and offers nothing to press |
+
+"Taking applications" is `roundWindowState`, the predicate the form's own
+routes refuse on, so a page never offers a button the form would turn away.
+A draft is answered exactly as a form that does not exist, the same reading
+the form's own page gives it. A cancelled form is the one status the two read
+differently: its own page says applications have closed, and no course's page
+says anything, because a term that was called off promises no decision day.
+
+- **A programme that has been closed speaks for no course**, whatever it is
+  still tied to: it is off the site and out of the form.
+- **A closed form hands over only the times that have passed.** Closed by
+  hand, the time written on it can still be ahead, and a page that printed it
+  would say applications closed on a day that has not come.
+- **It is one form whichever button somebody presses.** The button's address
+  is `applyPathFor()`, built in one place, and it is the same for somebody
+  signed in and somebody who is not: the form's own page decides what a
+  person with no account sees.
+- **Between two forms tied to one course**, taking applications beats opening
+  soon beats closed (`pickLiveRound`, the ranking the course pages already
+  used). So last term's form goes on saying it has closed until next term's
+  is opened, and a draft for next term changes nothing.
+- **A round of the older kind can still speak for a course.**
+  `speakingRoundFor()` in `src/features/courses/fetchFormRound.ts` is the one
+  rule: the form speaks, unless the older round is further along. With no
+  tie, the page is handed the older lookup's own answer untouched.
+- **An open-enrolment course keeps its own sign-up window.** The course
+  pages' own rule (`roundOwnsDates`) is unchanged, so a tie to a course whose
+  run admits everybody from a session picker puts no Apply button on it.
+- **What a page is handed** is `CourseFormView`, written out field by field:
+  the form's id and address, its state, its three dates, and from the tied
+  programme when it starts as its lead wrote it and the run it places people
+  on. Not the form's label, and not a programme's name, places or people.
 
 ## Scores
 
@@ -588,6 +636,8 @@ All in `src/lib/applications/`.
 | `status/standing.ts`, `status/replies.ts`, `status/view.ts`, `status/words.ts` | Where one person stands after sending, what each reply does, what their page says, the chip and title of an outcome | anywhere |
 | `status/load.ts`, `status/record.ts` | The page's read, and the one transaction a reply writes | server, applicant-safe |
 | `accounts/approve.ts`, `accounts/afterReply.ts` | Approving a waiting account on an acceptance, and the call an accepted invitation makes | server, applicant-safe |
+| `lifecycle/openForm.ts` | Which form is open, and which form speaks for each course, for a page that offers Apply | server, safe for a page any visitor can load |
+| `editor/courses.ts` | The courses a programme can be tied to, and the one rule the box and the route share | server, staff |
 
 ## Rules for anything built on this
 

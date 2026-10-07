@@ -23,6 +23,7 @@ import {
   toPublicCoursePage,
   type PublicCoursePage,
 } from "@/lib/firestore/coursePages";
+import { fetchFormRoundsByCourse, speakingRoundFor } from "./fetchFormRound";
 import {
   listLiveRoundsByCourse,
   type CourseLiveRound,
@@ -90,7 +91,9 @@ export type CourseCatalogueEntry = {
   featuredRun: RunWindow | null;
   /**
    * The ADMISSION ROUND that places people onto one of this course's runs, or
-   * null when no round names any of them.
+   * null when no round names any of them. When the course is on the term's
+   * application form (one of the form's programmes is tied to it), this is
+   * the form, with `form` set: `speakingRoundFor` chose between the two.
    *
    * When it is present it OUTRANKS the run's own window for every date on the
    * card: a round is the object an applicant applies to, it carries the dates
@@ -288,8 +291,12 @@ export async function listPublishedCourses(): Promise<CourseCatalogueEntry[]> {
   // in `draft`).
   const courses = courseSnap.docs.map((d) => normalizeCourse(d.id, d.data()));
 
-  const [roundPass, pages] = await Promise.all([
+  const [roundPass, formRounds, pages] = await Promise.all([
     listLiveRoundsByCourse(knownRuns, now),
+    // The term's application form, for each course a programme on it is tied
+    // to. One read for the whole catalogue, and an empty map when no form is
+    // one a visitor may be told about.
+    fetchFormRoundsByCourse(now),
     // ONE batch read for every card's artwork. The page id IS the course id,
     // so this needs no query and no index; a course with no authored page
     // comes back missing and falls through to the id-seeded default.
@@ -309,7 +316,10 @@ export async function listPublishedCourses(): Promise<CourseCatalogueEntry[]> {
   return courses
     .map((course) => {
       const page = visuals.get(course.id) ?? null;
-      const liveRound = roundPass.rounds.get(course.id) ?? null;
+      const liveRound = speakingRoundFor(
+        formRounds.get(course.id) ?? null,
+        roundPass.rounds.get(course.id) ?? null,
+      );
       return {
         course,
         featuredRun: byCourse.get(course.id) ?? null,
