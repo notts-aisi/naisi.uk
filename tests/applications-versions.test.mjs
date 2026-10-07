@@ -514,6 +514,14 @@ describe("a stored history is read safely", () => {
     assert.equal(application.sentHistoryDropped, 0);
   });
 
+  test("reading a version twice changes nothing, so writing the list back cannot wear it away", () => {
+    for (const version of [AMARA_FIRST, AMARA_SECOND, AMARA_NOW]) {
+      const once = normalise.normaliseContent(version, GRID);
+      assert.deepEqual(normalise.normaliseContent(once, GRID), once);
+      assert.equal(kept.sameContent(once, normalise.normaliseContent(structuredClone(once), GRID)), true);
+    }
+  });
+
   test("a document with none of it reads as an application that never changed", () => {
     const application = read({ sentHistory: undefined, sentHistoryDropped: undefined, sentChangedAt: undefined });
     assert.deepEqual(application.sentHistory, []);

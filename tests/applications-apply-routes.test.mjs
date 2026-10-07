@@ -1036,6 +1036,9 @@ describe("POST, the send: what it replaces is kept", () => {
       [FIRST_WHY, "A better answer."],
     );
     assert.equal(third.sentHistory[1].sentAt.getTime(), second.sentChangedAt.getTime());
+    // The list is written whole each time, and what was already in it comes through unchanged.
+    assert.deepEqual(third.sentHistory[0], second.sentHistory[0]);
+    assert.deepEqual(third.sentHistory[1].content, second.sent);
     assert.equal(third.sent.answers.fellowships.why, "A third answer.");
     assert.equal(third.submittedAt.getTime(), first.submittedAt.getTime());
   });
