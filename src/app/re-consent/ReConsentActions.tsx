@@ -131,7 +131,7 @@ export default function ReConsentActions({
         >
           If you don&apos;t accept, you&apos;ll be signed out. To delete your
           account, email{" "}
-          <a href={`mailto:${supportEmail}`} style={{ color: "var(--color-accent)" }}>
+          <a href={`mailto:${supportEmail}`} style={{ color: "var(--color-accent-text)" }}>
             {supportEmail}
           </a>
           .
@@ -158,7 +158,7 @@ export default function ReConsentActions({
             marginTop: "var(--space-3)",
             marginBottom: 0,
             fontSize: "var(--text-sm)",
-            color: "var(--color-danger)",
+            color: "var(--color-danger-text)",
           }}
         >
           {error}

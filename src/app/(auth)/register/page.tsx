@@ -18,6 +18,7 @@ import AuthEntry from "../AuthEntry";
 import PolicyConsent from "@/components/PolicyConsent";
 import { AUTH_BACK_HOME_EVENT, AUTH_PAGE_READY_EVENT } from "../LogoLink";
 import GraduationSelect from "@/components/ui/GraduationSelect";
+import Notice from "@/components/ui/Notice";
 import StatusSelect from "@/components/ui/StatusSelect";
 import Switch from "@/components/ui/Switch";
 import { Field, Input } from "@/components/ui/Input";
@@ -689,9 +690,11 @@ function RegisterPageInner() {
   // collaborator never flashes the member profile form before the guard.
   if (user && !role && hasCollabDoc === null) {
     return (
-      <Card padding="lg" style={{ width: "100%", maxWidth: "30rem" }}>
-        <p style={{ color: "var(--color-text-muted)" }}>Loading…</p>
-      </Card>
+      <div className={styles.frame}>
+        <Card padding="lg" className={styles.card} style={{ width: "100%" }}>
+          <p className={styles.para}>Loading…</p>
+        </Card>
+      </div>
     );
   }
 
@@ -699,24 +702,24 @@ function RegisterPageInner() {
   // member on the same account. Mirror of CollaboratorApply's member guard.
   if (user && !role && hasCollabDoc) {
     return (
-      <Card padding="lg" style={{ width: "100%", maxWidth: "30rem" }}>
-        <h1 style={{ fontSize: "var(--text-2xl)", marginBottom: "var(--space-2)" }}>
-          You&apos;re signed in as a collaborator
-        </h1>
-        <p style={{ color: "var(--color-text-muted)", marginBottom: "var(--space-5)" }}>
-          You&apos;re signed in as an external collaborator ({user.email}). Head to
-          your collaborator space, or sign out to register as a University of
-          Nottingham student or staff member on a different account.
-        </p>
-        <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
-          <Button onClick={() => router.push("/collaborator")}>
-            Go to your collaborator space
-          </Button>
-          <Button variant="secondary" onClick={() => void signOut()}>
-            Sign out
-          </Button>
-        </div>
-      </Card>
+      <div className={styles.frame}>
+        <Card padding="lg" className={styles.card} style={{ width: "100%" }}>
+          <h1 className={styles.heading}>You&apos;re signed in as a collaborator</h1>
+          <p className={styles.lede}>
+            You&apos;re signed in as an external collaborator ({user.email}). Head to
+            your collaborator space, or sign out to register as a University of
+            Nottingham student or staff member on a different account.
+          </p>
+          <div className={styles.buttonRow}>
+            <Button onClick={() => router.push("/collaborator")}>
+              Go to your collaborator space
+            </Button>
+            <Button variant="secondary" onClick={() => void signOut()}>
+              Sign out
+            </Button>
+          </div>
+        </Card>
+      </div>
     );
   }
 
@@ -729,43 +732,33 @@ function RegisterPageInner() {
     .filter(Boolean)
     .join(" ");
 
+  // The form of ten fields gets the wider column; the two short steps before
+  // it keep the sign-in card's width.
+  const onProfileForm = step === "profile" && emailVerified;
+
   return (
-    <div className={`${frameClass} ${styles.frame}`}>
+    <div
+      className={`${frameClass} ${styles.frame}${onProfileForm ? ` ${styles.frameWide}` : ""}`}
+    >
     <Card padding="lg" className={styles.card} style={{ width: "100%" }}>
-      <h1 className={styles.heading}>Join NAISI</h1>
-      <p
-        className={styles.subcopy}
-        style={{ color: "var(--color-text-muted)", marginBottom: "var(--space-6)" }}
-      >
+      {onProfileForm && <p className={`meta ${styles.eyebrow}`}>Your account</p>}
+      <h1 className={styles.heading}>{onProfileForm ? "A bit about you" : "Join NAISI"}</h1>
+      <p className={styles.lede}>
         {step === "sign-in"
           ? "Apply to join the Nottingham AI Safety Initiative. We'll review your application and be in touch."
           : !emailVerified
             ? "Verify your email address to continue."
-            : "Tell us a bit about you so the committee can review your application."}
+            : "The committee reads this with your join request. You can change it later in your profile."}
       </p>
 
       {step === "profile" && user && emailVerified && (
-        <p
-          style={{
-            color: "var(--color-text-subtle)",
-            fontSize: "var(--text-sm)",
-            marginBottom: "var(--space-5)",
-          }}
-        >
+        <p className={styles.accountLine}>
           Signed in as {user.email}. Not you?{" "}
           <button
             type="button"
             onClick={() => void handleStartOver()}
             disabled={resetBusy}
-            style={{
-              background: "none",
-              border: "none",
-              padding: 0,
-              font: "inherit",
-              color: "var(--color-accent)",
-              textDecoration: "underline",
-              cursor: "pointer",
-            }}
+            className={styles.inlineAction}
           >
             {resetBusy ? "Starting over…" : "Start over with a different email"}
           </button>
@@ -775,22 +768,11 @@ function RegisterPageInner() {
       )}
 
       {fromSubscriber && (
-        <div
-          style={{
-            border: "1px solid var(--color-border)",
-            borderRadius: "var(--radius-md)",
-            padding: "var(--space-3) var(--space-4)",
-            marginBottom: "var(--space-5)",
-            background: "var(--color-bg-elevated)",
-            color: "var(--color-text-muted)",
-            fontSize: "var(--text-sm)",
-            lineHeight: 1.5,
-          }}
-        >
+        <Notice tone="info" role="note" className={styles.noticeGap}>
           We noticed you&apos;ve subscribed to NAISI emails before. Completing
           registration will move your subscription onto your member account so
           you don&apos;t get duplicate emails.
-        </div>
+        </Notice>
       )}
 
       {step === "sign-in" ? (
@@ -802,43 +784,23 @@ function RegisterPageInner() {
               onReady={handleGisReady}
             />
           </div>
-          {error && (
-            <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)", marginTop: "var(--space-4)" }}>
-              {error}
-            </p>
-          )}
+          {error && <p className={`${styles.formError} ${styles.boxNote}`}>{error}</p>}
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-3)",
-              margin: "var(--space-6) 0 var(--space-4)",
-            }}
-          >
-            <span style={{ flex: 1, height: 1, background: "var(--color-border)" }} />
-            <span
-              style={{
-                color: "var(--color-text-subtle)",
-                fontSize: "var(--text-xs)",
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-              }}
-            >
-              or
-            </span>
-            <span style={{ flex: 1, height: 1, background: "var(--color-border)" }} />
+          <div className={styles.divider}>
+            <span className={styles.dividerLine} />
+            <span>or</span>
+            <span className={styles.dividerLine} />
           </div>
 
           <form
             id="register-account-form"
             onSubmit={handleCreateAccount}
-            style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}
+            className={styles.authForm}
           >
             <Field
               id="register-email"
               label="Email"
-              hint="A personal email you'll keep — your university address can't be used to sign in. You'll add your university email separately to confirm eligibility."
+              hint="A personal email you'll keep. Your university address can't be used to sign in. You'll add your university email separately to confirm eligibility."
             >
               <Input
                 id="register-email"
@@ -879,23 +841,12 @@ function RegisterPageInner() {
                 required
               />
             </Field>
-            {accountError && (
-              <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>
-                {accountError}
-              </p>
-            )}
+            {accountError && <p className={styles.formError}>{accountError}</p>}
           </form>
 
-          <p
-            style={{
-              color: "var(--color-text-muted)",
-              fontSize: "var(--text-sm)",
-              marginTop: "var(--space-6)",
-              textAlign: "center",
-            }}
-          >
+          <p className={`${styles.formNote} ${styles.boxNote}`}>
             Already have an account?{" "}
-            <Link href="/login" style={{ color: "var(--color-accent)" }}>
+            <Link href="/login" className={styles.inlineLink}>
               Sign in
             </Link>
           </p>
@@ -924,7 +875,7 @@ function RegisterPageInner() {
           startingOver={resetBusy}
         />
       ) : (
-        <form onSubmit={handleSubmitProfile} style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+        <form onSubmit={handleSubmitProfile} className={styles.profileForm}>
           <Field id="preferredName" label="Preferred name">
             <Input
               id="preferredName"
@@ -940,7 +891,7 @@ function RegisterPageInner() {
             label="University email"
             hint="We accept @nottingham.ac.uk (including subdomains like exmail.nottingham.ac.uk). Staff welcome. If your address is a different format, email ai-safety@uonsu.com and we'll add you manually."
           >
-            <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "stretch" }}>
+            <div className={styles.uniRow}>
               <Input
                 id="universityEmail"
                 type="email"
@@ -951,29 +902,22 @@ function RegisterPageInner() {
                 pattern="^[^@\s]+@([a-zA-Z0-9-]+\.)*nottingham\.ac\.uk$"
                 title="Use your University of Nottingham email address"
                 required
-                style={{ flex: 1 }}
               />
-              <button
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={() => {
                   const local = universityEmail.split("@")[0].trim();
                   if (local) setUniversityEmail(`${local}@nottingham.ac.uk`);
                 }}
                 title="Append @nottingham.ac.uk to what you've typed"
-                style={{
-                  padding: "0 var(--space-4)",
-                  background: "var(--color-bg-elevated)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-md)",
-                  color: "var(--color-text-muted)",
-                  fontSize: "var(--text-sm)",
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
               >
                 @nottingham.ac.uk
-              </button>
+              </Button>
             </div>
+            <p className={styles.fieldNote}>
+              We&rsquo;ll email you a link to check it&rsquo;s yours.
+            </p>
 
             <VerificationPanel
               state={verification}
@@ -985,27 +929,13 @@ function RegisterPageInner() {
             />
 
             {uniEmailRejected && (
-              <div
-                style={{
-                  marginTop: "var(--space-3)",
-                  padding: "var(--space-3) var(--space-4)",
-                  borderRadius: "var(--radius-md)",
-                  background: "var(--color-bg-elevated)",
-                  border: "1px solid var(--color-border)",
-                  color: "var(--color-text-muted)",
-                  fontSize: "var(--text-sm)",
-                  lineHeight: 1.5,
-                }}
-              >
+              <Notice tone="neutral" className={styles.boxNote}>
                 Not a University of Nottingham student or staff member?{" "}
-                <Link
-                  href="/register?type=collaborator"
-                  style={{ color: "var(--color-accent)" }}
-                >
+                <Link href="/register?type=collaborator" className={styles.inlineLink}>
                   Apply as an external collaborator
                 </Link>{" "}
-                instead — no university email needed.
-              </div>
+                instead. No university email is needed.
+              </Notice>
             )}
           </Field>
           <Field id="status" label="What do you do at UoN?">
@@ -1074,7 +1004,11 @@ function RegisterPageInner() {
           </Field>
           <Field
             id="interests"
-            label="Interests within AI safety (optional)"
+            label={
+              <>
+                Interests within AI safety <span className={styles.optional}>(optional)</span>
+              </>
+            }
             hint="e.g. interpretability, alignment, governance, evals. Anything that draws you in."
           >
             <CountedTextarea
@@ -1086,94 +1020,61 @@ function RegisterPageInner() {
             />
           </Field>
 
-          <fieldset
-            style={{
-              border: "1px solid var(--color-border)",
-              borderRadius: "var(--radius-md)",
-              padding: "var(--space-4)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "var(--space-4)",
-            }}
-          >
-            <legend
-              style={{
-                padding: "0 var(--space-2)",
-                fontSize: "var(--text-sm)",
-                fontWeight: 500,
-                color: "var(--color-text)",
-              }}
-            >
-              Email preferences
-            </legend>
-            {REGISTER_CATEGORIES.map((cat) => (
-              <Switch
-                key={cat}
-                checked={prefs.categories[cat]}
-                onChange={(next) => setPrefs((p) => setCategory(p, cat, next))}
-                label={CATEGORY_LABELS[cat]}
-                description={CATEGORY_DESCRIPTIONS[cat]}
-              />
-            ))}
-            {/* Only the two subscription categories have a delivery choice —
+          <hr className={styles.rule} />
+          <div className={styles.emails}>
+            <h2 className={styles.sectionTitle}>Emails</h2>
+            <fieldset className={styles.switchGroup}>
+              <legend className={styles.groupLegend}>Send me</legend>
+              {REGISTER_CATEGORIES.map((cat) => (
+                <div key={cat} className={styles.switchRow}>
+                  <Switch
+                    checked={prefs.categories[cat]}
+                    onChange={(next) => setPrefs((p) => setCategory(p, cat, next))}
+                    label={CATEGORY_LABELS[cat]}
+                    description={CATEGORY_DESCRIPTIONS[cat]}
+                  />
+                </div>
+              ))}
+            </fieldset>
+            {/* Only the two subscription categories have a delivery choice:
                 see `anySubscriptionCategoryOn`. Cohort mail is addressed to
                 one proven address by the run itself, so these switches would
                 not move it. */}
             {anySubscriptionCategoryOn && (
-              <div
-                style={{
-                  padding: "var(--space-3)",
-                  background: "var(--color-bg-elevated)",
-                  borderRadius: "var(--radius-md)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "var(--space-3)",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "var(--text-xs)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                    color: "var(--color-text-muted)",
-                  }}
-                >
-                  {/* Names the two it actually routes. A bare "Deliver to"
-                      under three switches reads as covering all three, and
-                      course announcements go to whichever address the run has
-                      proven, whatever is picked here. */}
+              <fieldset className={styles.switchGroup}>
+                {/* Names the two it actually routes. A bare "Deliver to"
+                    under three switches reads as covering all three, and
+                    course announcements go to whichever address the run has
+                    proven, whatever is picked here. */}
+                <legend className={styles.groupLegend}>
                   Deliver newsletter and event email to
-                </span>
-                <Switch
-                  checked={prefs.channels.gmail}
-                  onChange={(next) => setPrefs((p) => setChannel(p, "gmail", next))}
-                  label={`Account email (${user?.email ?? "your sign-in email"})`}
-                />
-                <Switch
-                  checked={prefs.channels.uniEmail}
-                  onChange={(next) => setPrefs((p) => setChannel(p, "uniEmail", next))}
-                  label="University email"
-                />
-              </div>
+                </legend>
+                <div className={styles.switchRow}>
+                  <Switch
+                    checked={prefs.channels.gmail}
+                    onChange={(next) => setPrefs((p) => setChannel(p, "gmail", next))}
+                    label={`Account email (${user?.email ?? "your sign-in email"})`}
+                  />
+                </div>
+                <div className={styles.switchRow}>
+                  <Switch
+                    checked={prefs.channels.uniEmail}
+                    onChange={(next) => setPrefs((p) => setChannel(p, "uniEmail", next))}
+                    label="University email"
+                  />
+                </div>
+              </fieldset>
             )}
-            <p
-              style={{
-                fontSize: "var(--text-xs)",
-                color: "var(--color-text-subtle)",
-              }}
-            >
-              You can change these at any time from your profile page, and every
-              email includes a one-click unsubscribe link.
-            </p>
-          </fieldset>
+            <Notice tone="neutral" role="note">
+              Emails about your own applications and places always come.
+            </Notice>
+          </div>
           <PolicyConsent
             checked={agreedPolicies}
             onChange={setAgreedPolicies}
             id="member-consent"
           />
-          {error && (
-            <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>
-          )}
+          {error && <p className={styles.formError}>{error}</p>}
           {registrationsPaused && (
             <SurfacePausedNotice notice={siteNotice} surface="newRegistrations" />
           )}
@@ -1184,7 +1085,7 @@ function RegisterPageInner() {
             size="lg"
             disabled={loading || registrationsPaused}
           >
-            {loading ? "Submitting…" : "Submit application"}
+            {loading ? "Sending…" : "Finish"}
           </Button>
         </form>
       )}
@@ -1212,20 +1113,7 @@ function VerificationPanel({
 
   if (state.status === "verified") {
     return (
-      <div
-        data-testid="register-uni-verified"
-        style={{
-          marginTop: "var(--space-3)",
-          padding: "var(--space-3)",
-          borderRadius: "var(--radius-md)",
-          background: "var(--color-success-soft)",
-          color: "var(--color-success)",
-          fontSize: "var(--text-sm)",
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--space-2)",
-        }}
-      >
+      <div data-testid="register-uni-verified" className={styles.verified}>
         <Badge tone="success">Verified</Badge>
         <span>You&apos;re all set. This email is confirmed.</span>
       </div>
@@ -1233,79 +1121,35 @@ function VerificationPanel({
   }
 
   return (
-    <div
-      style={{
-        marginTop: "var(--space-3)",
-        display: "flex",
-        flexDirection: "column",
-        gap: "var(--space-2)",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
+    <div className={styles.verify}>
+      <div className={styles.verifyRow}>
         <Badge tone={state.status === "sent" ? "accent" : "neutral"}>
           {state.status === "sent" ? "Check your inbox" : "Not verified"}
         </Badge>
         {state.status === "sent" ? (
-          <button
-            type="button"
-            onClick={onSend}
-            disabled={cooldown > 0}
-            style={{
-              padding: "0.35rem 0.7rem",
-              background: "transparent",
-              color: cooldown > 0 ? "var(--color-text-muted)" : "var(--color-accent)",
-              border: "1px solid var(--color-border)",
-              borderRadius: "var(--radius-md)",
-              fontSize: "var(--text-xs)",
-              cursor: cooldown > 0 ? "not-allowed" : "pointer",
-            }}
-          >
+          <Button type="button" variant="secondary" onClick={onSend} disabled={cooldown > 0}>
             {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend email"}
-          </button>
+          </Button>
         ) : (
-          <button
+          <Button
             data-testid="register-uni-send"
             type="button"
             onClick={onSend}
             disabled={state.status === "sending"}
-            style={{
-              padding: "0.35rem 0.7rem",
-              background: "var(--color-accent)",
-              color: "white",
-              border: "none",
-              borderRadius: "var(--radius-md)",
-              fontSize: "var(--text-xs)",
-              cursor: "pointer",
-              fontWeight: 500,
-            }}
           >
             {state.status === "sending" ? "Sending…" : "Send verification email"}
-          </button>
+          </Button>
         )}
       </div>
       {state.status === "sent" && (
-        <p style={{ fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
+        <p className={styles.formNote}>
           We&apos;ve sent a link to your university email. Click it and
           this page will update automatically when we see the click.
           Check spam if it doesn&apos;t land in a minute.
         </p>
       )}
-      {state.status === "error" && (
-        <p style={{ fontSize: "var(--text-xs)", color: "var(--color-danger)" }}>
-          {state.message}
-        </p>
-      )}
-      <label
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          gap: "var(--space-2)",
-          fontSize: "var(--text-xs)",
-          color: "var(--color-text-subtle)",
-          marginTop: "var(--space-1)",
-          cursor: "pointer",
-        }}
-      >
+      {state.status === "error" && <p className={styles.formError}>{state.message}</p>}
+      <label className={styles.escape}>
         <input
           type="checkbox"
           checked={allowUnverifiedSubmit}

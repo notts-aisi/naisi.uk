@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { sendEmailVerification } from "firebase/auth";
 import Button from "@/components/ui/Button";
 import { getClientAuth } from "@/lib/firebase/client";
+import styles from "./registerSignIn.module.css";
 
 type Props = {
   email: string | null;
@@ -63,7 +64,7 @@ export default function VerifyEmailStep({
     setBusy(true);
     try {
       await sendEmailVerification(current);
-      setNote("Verification email sent — check your inbox (and spam).");
+      setNote("Verification email sent. Check your inbox (and spam).");
     } catch {
       setNote("Couldn't send right now. Try again in a moment.");
     } finally {
@@ -80,42 +81,30 @@ export default function VerifyEmailStep({
       /* ignore — fall through to the not-verified note */
     }
     if (current.emailVerified) onVerified();
-    else setNote("Not verified yet — open the link we emailed you, then try again.");
+    else setNote("Not verified yet. Open the link we emailed you, then try again.");
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-      <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
+    <div className={`${styles.stack} ${styles.stackLoose}`}>
+      <p className={styles.para}>
         We&apos;ve sent a verification link to{" "}
-        <strong style={{ color: "var(--color-text)" }}>{email}</strong>. Open it, then
-        come back — this page continues automatically once you&apos;re verified.
+        <strong className={styles.paraStrong}>{email}</strong>. Open it, then come
+        back. This page continues automatically once you&apos;re verified.
       </p>
-      <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
+      <div className={styles.buttonRow}>
         <Button onClick={() => void recheck()}>I&apos;ve verified</Button>
         <Button variant="secondary" onClick={() => void resend()} disabled={busy}>
           {busy ? "Sending…" : "Resend email"}
         </Button>
       </div>
-      {note && (
-        <p style={{ color: "var(--color-text-muted)", fontSize: "var(--text-sm)", margin: 0 }}>
-          {note}
-        </p>
-      )}
-      <p style={{ color: "var(--color-text-subtle)", fontSize: "var(--text-sm)", margin: 0 }}>
+      {note && <p className={styles.formNote}>{note}</p>}
+      <p className={styles.formNote}>
         Wrong email?{" "}
         <button
           type="button"
           onClick={onStartOver}
           disabled={startingOver}
-          style={{
-            background: "none",
-            border: "none",
-            padding: 0,
-            font: "inherit",
-            color: "var(--color-accent)",
-            textDecoration: "underline",
-            cursor: "pointer",
-          }}
+          className={styles.inlineAction}
         >
           {startingOver ? "Starting over…" : "Start over with a different email"}
         </button>
