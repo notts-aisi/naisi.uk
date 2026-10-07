@@ -11,12 +11,12 @@
 
 .page {
   /* Labels one step quieter than body text: a built-in section's name. */
-  --ed-ink-soft: #c3cad9;
+  --ed-ink-soft: var(--color-text-soft);
   /* The label on a neutral chip. */
-  --ed-ink-chip: #b4bccf;
+  --ed-ink-chip: var(--color-text-body);
   /* Text and outline of a careful action. Lighter than --color-danger so it
      reads on a dark surface. */
-  --ed-ink-careful: #ff7a7f;
+  --ed-ink-careful: var(--color-danger-text);
   display: flex;
   flex-direction: column;
   min-width: 0;

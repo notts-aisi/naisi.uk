@@ -26,7 +26,7 @@
    * vibe just enough that the auth surface still feels its own thing. */
   background:
     radial-gradient(ellipse at top, var(--color-accent-soft) 0%, transparent 55%),
-    #050810;
+    var(--color-floor);
 }
 
 .header {

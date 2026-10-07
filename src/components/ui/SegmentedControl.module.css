@@ -1,7 +1,10 @@
 .group {
   display: inline-flex;
+  /* Segments drop to a second line before they push a narrow row sideways. */
+  flex-wrap: wrap;
+  max-width: 100%;
   padding: 2px;
-  background: var(--color-bg-elevated);
+  background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   gap: 2px;
@@ -47,9 +50,11 @@
   cursor: inherit;
 }
 
-.radio:focus-visible + .optionLabel {
-  box-shadow: var(--focus-ring);
-  border-radius: calc(var(--radius-md) - 3px);
+/* The ring goes round the whole segment. The radio that takes focus fills
+   the segment and is invisible. */
+.option:has(.radio:focus-visible) {
+  outline: 2px solid var(--color-live);
+  outline-offset: 1px;
 }
 
 .optionLabel {
@@ -57,20 +62,25 @@
   z-index: 1;
 }
 
+/* The chosen segment is a raised surface with full-strength text, never a
+   colour fill. Its weight does not change, so choosing a segment never
+   changes the control's width. */
 .active {
   color: var(--color-text);
   background: var(--color-surface-hover);
-  box-shadow: 0 0 0 1px var(--color-border-strong) inset;
+  box-shadow: none;
 }
 
+/* The accent tone is the plain chosen segment. The rule stays so the class
+   the component asks for exists. */
 .tone_accent .active {
-  color: white;
-  background: var(--color-accent);
-  box-shadow: none;
+  background: var(--color-surface-hover);
 }
 
+/* The success tone tints the chosen segment and its text, for a choice that
+   means live or approved. Text on a solid green fill did not hold 4.5:1. */
 .tone_success .active {
-  color: white;
-  background: var(--color-success);
-  box-shadow: none;
+  color: var(--color-ok);
+  background: var(--color-success-soft);
+  box-shadow: 0 0 0 1px var(--color-ok-line) inset;
 }

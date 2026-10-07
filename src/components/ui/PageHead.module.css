@@ -1,0 +1,100 @@
+/*
+  PageHead: the head of a signed-in page.
+
+  The title's size, weight and tracking are set here, on the class, so the
+  element defaults in typography.css (which pages without a redesign still
+  rely on) are not touched.
+*/
+
+.head {
+  margin-bottom: var(--space-6);
+}
+
+.crumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: 0.625rem;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.crumb a { color: inherit; }
+.crumb a:hover { color: var(--color-text); }
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4) var(--space-6);
+}
+
+.main {
+  flex: 1 1 26.25rem;
+  min-width: 0;
+}
+
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.description {
+  margin: 0.375rem 0 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem var(--space-4);
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.meta a {
+  color: var(--color-accent-text);
+  font-weight: 600;
+}
+.meta a:hover { color: var(--color-accent-text-hover); }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* A step down, so a long name breaks into two lines and not four. */
+  .title { font-size: 1.75rem; }
+  .main { flex-basis: 100%; }
+}

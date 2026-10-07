@@ -1,0 +1,25 @@
+/*
+  The term's status line: one row of metadata type under a hero's buttons.
+
+  The reskin's tokens are named first and today's value stands behind each,
+  so the line reads the same before and after they arrive at :root.
+*/
+
+.line {
+  margin: 0;
+  font-family: var(--font-meta, var(--font-mono));
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-soft, var(--color-text-muted));
+  /* Each part is tied together, so the line breaks at the dot. This is for a
+     part that is wider than the page on its own. */
+  overflow-wrap: anywhere;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* The boards draw the line the same on a phone: same size, and it breaks
+     at the dot between its two parts. Nothing to change. */
+}

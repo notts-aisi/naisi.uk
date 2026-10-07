@@ -2,22 +2,11 @@
   The few things every application screen shares, so that four sets of
   screens built separately agree with each other.
 
-  Colours come from the theme tokens (src/theme/tokens.css) wherever a token
-  exists. The handful below are the ones these screens use that the theme does
-  not carry yet. They are scoped to .root, so nothing outside these screens
-  changes.
+  Every colour and the metadata font come from the theme (src/theme/tokens.css
+  and typography.css): --font-meta, --color-floor, --color-accent-text,
+  --color-ok and --color-live began here, scoped to these screens, and are now
+  the site's under the same names.
 */
-
-.root {
-  /* Metadata type. Falls back to the theme's own mono stack. */
-  --font-meta: var(--font-space-mono), var(--font-mono);
-  /* The page floor, and the label colour on a filled accent button. */
-  --color-floor: #050810;
-  /* Accent as TEXT on a dark ground: links, selected labels. */
-  --color-accent-text: #9aa9ff;
-  --color-ok: #6fd185;
-  --color-live: #22d3ee;
-}
 
 /* Dates, durations, eyebrow labels, table headers. Never body copy. */
 .mono {
@@ -30,8 +19,10 @@
 }
 
 /*
-  A primary action. The label is dark on the accent, which reads at 5.9:1.
-  A white label on the same blue does not reach the contrast a button needs.
+  A primary action, for the links and buttons these screens style themselves.
+  The label is dark on the accent, which reads at 5.96:1. A white label on the
+  same blue does not reach the contrast a button needs. The shared Button's
+  primary variant (src/components/ui/Button) follows the same recipe.
 */
 .primary {
   appearance: none;
@@ -45,7 +36,7 @@
   border: 1px solid var(--color-accent);
   border-radius: var(--radius-md);
   background: var(--color-accent);
-  color: var(--color-floor);
+  color: var(--color-on-accent);
   font: inherit;
   font-weight: 600;
   text-decoration: none;
@@ -56,8 +47,9 @@
   border-color: var(--color-accent-hover);
 }
 .primary:focus-visible {
-  outline: 2px solid var(--color-accent-text);
+  outline: 2px solid var(--color-live);
   outline-offset: 2px;
+  box-shadow: none;
 }
 .primary:disabled {
   opacity: 0.5;

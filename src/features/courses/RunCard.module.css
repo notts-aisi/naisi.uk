@@ -86,7 +86,7 @@
    stylesheet ORDER, i.e. by import order in a bundle. Doubling the selector
    settles it here instead of in the bundler. */
 .card.offer {
-  border-color: var(--color-accent-ring);
+  border-color: var(--color-accent-line);
   /* Longhands, not the `background` shorthand: layering the wash OVER Card's
      surface (rather than replacing it) is what keeps the card readable in both
      themes without this file naming a colour of its own — and the shorthand
