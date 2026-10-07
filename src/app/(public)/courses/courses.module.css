@@ -156,8 +156,27 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* The phone pass fills this in. One column of cards from here down. */
+  /* One column of cards from here down. A card's rows put each label over
+     its answer on their own, because the two no longer fit side by side. */
   .grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .more {
+    margin-top: var(--space-12);
+  }
+
+  .lead {
+    margin-top: var(--space-8);
+  }
+
+  /* The picture sits over the words, and the panel keeps one padding all
+     round once they stack. */
+  .teaser {
+    padding: var(--space-4);
+  }
+
+  .teaserWords {
+    padding: 0 var(--space-2) var(--space-2);
   }
 }
