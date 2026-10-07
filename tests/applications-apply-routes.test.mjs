@@ -962,6 +962,225 @@ describe("POST, the send", () => {
 });
 
 // ---------------------------------------------------------------------------
+// What a send replaces is kept
+// ---------------------------------------------------------------------------
+
+/**
+ * Sending again replaces the application of record. When the new one is
+ * different, the one it replaces is kept on the same document, with when it
+ * was sent, for the people reviewing the application. The rule is in
+ * `src/lib/applications/versions/kept.ts`; these run it through the route.
+ */
+describe("POST, the send: what it replaces is kept", () => {
+  const HISTORY_FIELDS = ["sentChangedAt", "sentHistory", "sentHistoryDropped"];
+  const FIRST_WHY = "The first thing I wrote, before I thought again.";
+  const draftSaying = (why, more = {}) =>
+    fullDraft({ answers: { fellowships: { why }, [AGI]: { event: "Open weights." } }, ...more });
+  const stored = () => db.data(appPath(me));
+  /** Save a draft and send it, expecting both to work. */
+  async function sendDraft(draft) {
+    assert.equal((await PUT({ draft })).status, 200);
+    const response = await SEND();
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    return response;
+  }
+
+  test("the first send keeps nothing, and says when the application of record began", async () => {
+    await sendDraft(draftSaying(FIRST_WHY));
+    const first = stored();
+    assert.equal(first.sentHistory, undefined, "there is nothing earlier to keep");
+    assert.equal(first.sentHistoryDropped, undefined);
+    assert.equal(first.sentChangedAt.getTime(), first.sentAt.getTime());
+    assert.equal(first.sentChangedAt.getTime(), first.submittedAt.getTime());
+  });
+
+  test("a save alone keeps nothing: only a send replaces the application of record", async () => {
+    await sendDraft(draftSaying(FIRST_WHY));
+    const first = stored();
+    await PUT({ draft: draftSaying("A better answer.") });
+    const saved = stored();
+    assert.equal(saved.sentHistory, undefined);
+    assert.equal(saved.sentChangedAt.getTime(), first.sentChangedAt.getTime());
+  });
+
+  test("sending again after a change keeps the version it replaces, whole, with when it was sent", async () => {
+    await sendDraft(draftSaying(FIRST_WHY));
+    const first = stored();
+    db.writes.length = 0;
+    await sendDraft(draftSaying("A better answer."));
+    const second = stored();
+
+    assert.equal(second.sent.answers.fellowships.why, "A better answer.");
+    assert.equal(second.sentHistory.length, 1);
+    assert.deepEqual(second.sentHistory[0].content, first.sent, "the kept version is what was the application of record");
+    assert.equal(
+      second.sentHistory[0].sentAt.getTime(),
+      first.sentChangedAt.getTime(),
+      "kept with the time IT became the application of record, not the time of this send",
+    );
+    assert.equal(second.sentHistoryDropped, 0);
+    assert.equal(second.sentChangedAt.getTime(), second.sentAt.getTime());
+    assert.ok(second.sentChangedAt.getTime() > first.sentChangedAt.getTime());
+    // One transaction: the history lands with the send that replaces `sent`, or not at all.
+    assert.deepEqual(db.writes.at(-1), {
+      kind: "update",
+      path: appPath(me),
+      fields: ["draft", "sent", "sentAt", "sentChangedAt", "sentHistory", "sentHistoryDropped", "updatedAt"],
+    });
+
+    // And again: oldest first, each with its own time.
+    await sendDraft(draftSaying("A third answer."));
+    const third = stored();
+    assert.deepEqual(
+      third.sentHistory.map((version) => version.content.answers.fellowships.why),
+      [FIRST_WHY, "A better answer."],
+    );
+    assert.equal(third.sentHistory[1].sentAt.getTime(), second.sentChangedAt.getTime());
+    assert.equal(third.sent.answers.fellowships.why, "A third answer.");
+    assert.equal(third.submittedAt.getTime(), first.submittedAt.getTime());
+  });
+
+  test("a send that changes nothing keeps nothing, and the current version keeps its date", async () => {
+    await sendDraft(draftSaying(FIRST_WHY));
+    await sendDraft(draftSaying("A better answer."));
+    const before = stored();
+    db.writes.length = 0;
+
+    // Pressed again as it is, and again after a save of the very same draft.
+    assert.equal((await SEND()).status, 200);
+    await sendDraft(draftSaying("A better answer."));
+    const after = stored();
+    assert.deepEqual(after.sentHistory, before.sentHistory);
+    assert.equal(after.sentHistoryDropped, before.sentHistoryDropped);
+    assert.equal(after.sentChangedAt.getTime(), before.sentChangedAt.getTime());
+    assert.ok(after.sentAt.getTime() > before.sentAt.getTime(), "the last press of Send is still recorded");
+    for (const write of db.writes.filter((entry) => entry.fields.includes("sent"))) {
+      assert.deepEqual(write.fields, ["draft", "sent", "sentAt", "updatedAt"], "a send with no change writes no history");
+    }
+  });
+
+  test("a draft that changed in a way the send does not carry is not a change", async () => {
+    // An answer to a programme they have unticked stays in the draft and is never sent.
+    const unticked = (event) =>
+      fullDraft({ rankedProgrammeIds: [TAIS], answers: { fellowships: { why: FIRST_WHY }, [AGI]: { event } } });
+    await sendDraft(unticked("One thing."));
+    const first = stored();
+    await sendDraft(unticked("Another thing."));
+    const second = stored();
+    assert.equal(second.draft.answers[AGI].event, "Another thing.", "the draft did change");
+    assert.deepEqual(second.sent, first.sent);
+    assert.equal(second.sentHistory, undefined);
+    assert.equal(second.sentChangedAt.getTime(), first.sentChangedAt.getTime());
+  });
+
+  test("a change to any part of the application is a change", async () => {
+    const changes = {
+      "an answer": draftSaying("Something else."),
+      "About you": fullDraft({ aboutYou: { ...fullDraft().aboutYou, subject: "BSc Mathematics" }, answers: draftSaying(FIRST_WHY).answers }),
+      "the ranking": draftSaying(FIRST_WHY, { rankedProgrammeIds: [TAIS, AGI] }),
+      facilitating: draftSaying(FIRST_WHY, { wantsToFacilitate: true }),
+      availability: draftSaying(FIRST_WHY, { availability: { days: ["000000000000", "00000000ffff"] } }),
+      "the SU membership answer": draftSaying(FIRST_WHY, { suMembership: "yes" }),
+    };
+    for (const [part, changed] of Object.entries(changes)) {
+      world();
+      await sendDraft(draftSaying(FIRST_WHY));
+      await sendDraft(changed);
+      assert.equal(stored().sentHistory?.length, 1, `changing ${part} kept no earlier version`);
+      assert.equal(stored().sentHistory[0].content.answers.fellowships.why, FIRST_WHY, part);
+    }
+  });
+
+  test("nothing an applicant is answered with carries an earlier version, even their own", async () => {
+    await sendDraft(draftSaying(FIRST_WHY));
+    const again = await sendDraft(draftSaying("A better answer."));
+    const look = await GET();
+    const save = await PUT({ draft: draftSaying("A third answer, not sent.") });
+    assert.equal(stored().sentHistory.length, 1, "the version is kept");
+    for (const [name, response] of Object.entries({ "the send": again, "the read": look, "the save": save })) {
+      const said = JSON.stringify(response.body);
+      assert.ok(!said.includes(FIRST_WHY), `${name} answered with what the earlier version said`);
+      for (const field of HISTORY_FIELDS) assert.ok(!said.includes(field), `${name} answered with ${field}`);
+    }
+    assert.deepEqual(Object.keys(look.body.application).sort(), [
+      "attendance",
+      "createdAt",
+      "draft",
+      "id",
+      "invitation",
+      "result",
+      "roundId",
+      "sent",
+      "sentAt",
+      "sentLabel",
+      "status",
+      "submittedAt",
+      "updatedAt",
+    ]);
+  });
+
+  test("at the cap the first version stays, the oldest after it goes, and it is counted", async () => {
+    await sendDraft(draftSaying("Version 11, the one on record."));
+    const cap = (await loadTs(join("lib", "applications", "model.ts"))).SENT_HISTORY_LIMITS.maxVersions;
+    assert.equal(cap, 10);
+    const record = db.docs.get(appPath(me));
+    const at = (n) => new Date(Date.UTC(2026, 9, 1, 12, n));
+    // Ten versions already kept: the cap, exactly.
+    record.sentHistory = Array.from({ length: cap }, (_, i) => ({
+      content: { ...clone(record.sent), answers: { ...clone(record.sent.answers), fellowships: { why: `Version ${i + 1}.` } } },
+      sentAt: at(i + 1),
+    }));
+    record.sentHistoryDropped = 0;
+    record.sentChangedAt = at(cap + 1);
+
+    await sendDraft(draftSaying("Version 12."));
+    const after = stored();
+    assert.deepEqual(
+      after.sentHistory.map((version) => version.content.answers.fellowships.why),
+      ["Version 1.", "Version 3.", "Version 4.", "Version 5.", "Version 6.", "Version 7.", "Version 8.", "Version 9.", "Version 10.", "Version 11, the one on record."],
+      "the first is kept, the second went, and the one just replaced is on the end",
+    );
+    assert.equal(after.sentHistory[0].sentAt.getTime(), at(1).getTime());
+    assert.equal(after.sentHistory.at(-1).sentAt.getTime(), at(cap + 1).getTime());
+    assert.equal(after.sentHistoryDropped, 1);
+
+    await sendDraft(draftSaying("Version 13."));
+    assert.equal(stored().sentHistory.length, cap);
+    assert.equal(stored().sentHistory[0].content.answers.fellowships.why, "Version 1.");
+    assert.equal(stored().sentHistoryDropped, 2);
+  });
+
+  test("a stored history that is not one reads as none, and the next send writes a clean one", async () => {
+    await sendDraft(draftSaying(FIRST_WHY));
+    const record = db.docs.get(appPath(me));
+    record.sentHistory = { 0: "not a list" };
+    record.sentHistoryDropped = "many";
+    await sendDraft(draftSaying("A better answer."));
+    assert.equal(stored().sentHistory.length, 1);
+    assert.equal(stored().sentHistory[0].content.answers.fellowships.why, FIRST_WHY);
+    assert.equal(stored().sentHistoryDropped, 0);
+
+    record.sentHistory = [null, "x", { sentAt: new Date() }, { content: [] }, ...clone(record.sentHistory)];
+    await sendDraft(draftSaying("A third answer."));
+    assert.deepEqual(
+      stored().sentHistory.map((version) => version.content.answers.fellowships.why),
+      [FIRST_WHY, "A better answer."],
+      "entries with no content of their own are not versions",
+    );
+  });
+
+  test("a refused send keeps nothing", async () => {
+    await sendDraft(draftSaying(FIRST_WHY));
+    const before = stored();
+    await PUT({ draft: fullDraft({ answers: {} }) });
+    assert.equal((await SEND()).status, 400);
+    assert.deepEqual(stored().sent, before.sent);
+    assert.equal(stored().sentHistory, undefined);
+    assert.equal(stored().sentChangedAt.getTime(), before.sentChangedAt.getTime());
+  });
+});
+
+// ---------------------------------------------------------------------------
 // The shape of the files, where the tree-walking guards read them
 // ---------------------------------------------------------------------------
 

@@ -49,6 +49,11 @@ import type { AdmissionApplicationStatus } from "@/lib/firestore/admissionApplic
  * An applicant can change their answers until the close, and a half-made
  * change must never unseat the application they already sent, so reviewers
  * read `sent` and nothing else.
+ *
+ * What a send replaces is not lost. When the new `sent` differs from the old
+ * one, the old one is kept in `sentHistory` on the same document, with when
+ * it was sent, and the review screens show it beside the current answers.
+ * See {@link SentVersion}.
  */
 
 /** The value of `formVersion` on a round that is an application form. */
@@ -302,6 +307,45 @@ export type ApplicationContent = {
   suMembership: SuMembershipAnswer | null;
 };
 
+// ---------------------------------------------------------------------------
+// What is kept when they send again
+// ---------------------------------------------------------------------------
+
+/**
+ * One EARLIER application of record: what `sent` held, whole, and when that
+ * version became the application of record.
+ *
+ * `sent` is replaced each time somebody presses Send. When the new one
+ * differs from the one it replaces, the one it replaces is kept here, so the
+ * people reviewing the application can see what it said before. A send that
+ * changes nothing keeps nothing.
+ *
+ * Kept on the application document itself and nowhere else, so whatever
+ * deletes the application deletes these with it. Never sent to the applicant:
+ * their own routes build what they answer field by field and name none of
+ * this (`applicant/project.ts`).
+ */
+export type SentVersion = {
+  content: ApplicationContent;
+  /** When THIS version became the application of record. */
+  sentAt: Date | null;
+};
+
+/**
+ * How much history one application may carry. A document has a size limit,
+ * and the draft and the application of record must always fit beside it.
+ *
+ * Beyond either limit the oldest version THAT IS NOT THE FIRST is dropped,
+ * and counted (`sentHistoryDropped`). The first version sent is never
+ * dropped. The rule is `keepVersion` in `versions/kept.ts`.
+ */
+export const SENT_HISTORY_LIMITS = {
+  /** Earlier versions kept: the first one sent, and the most recent after it. */
+  maxVersions: 10,
+  /** What the kept versions may weigh together, as the bytes of their JSON. */
+  maxBytes: 300_000,
+} as const;
+
 /** What decision day told this person. */
 export type ApplicationResultKind = "accepted" | "invited" | "no-offer" | "declined";
 
@@ -390,6 +434,16 @@ export type ApplicationFields = {
   submittedAt: Date | null;
   /** The most recent time. */
   sentAt: Date | null;
+  /**
+   * When `sent` became what it is now: the first send, or the latest send
+   * that changed something. `sentAt` moves on a send that changes nothing and
+   * this does not, so this is the date of the current version.
+   */
+  sentChangedAt: Date | null;
+  /** The earlier applications of record, oldest first. Empty until a send changes something. */
+  sentHistory: SentVersion[];
+  /** Earlier versions that are no longer kept. See {@link SENT_HISTORY_LIMITS}. */
+  sentHistoryDropped: number;
   result: ApplicationResult | null;
   invitation: Invitation | null;
   attendance: Attendance | null;
