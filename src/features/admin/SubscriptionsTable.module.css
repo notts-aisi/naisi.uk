@@ -811,6 +811,33 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
+  .reachCard,
+  .find {
+    padding: var(--space-4);
+  }
+
+  .findSearch {
+    max-width: none;
+  }
+
+  /* A found person stacks: who, what they get, then the button full width. */
+  .person > button {
+    flex: 1 1 100%;
+  }
+
+  .everyToggle {
+    padding: 0 var(--space-4);
+  }
+
+  .everyBody {
+    padding: var(--space-2) var(--space-4) var(--space-4);
+  }
+
+  .noticeLink {
+    display: inline-block;
+    padding-block: var(--space-2);
+  }
+
   .minis {
     gap: var(--space-4);
   }
