@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Button from "@/components/ui/Button";
+import Chip from "@/components/ui/Chip";
 import { Input } from "@/components/ui/Input";
 import OptionRow from "@/components/ui/OptionRow";
 import ResponsiveSelect from "@/components/ui/ResponsiveSelect";
@@ -30,6 +31,20 @@ type Props = {
   hiddenTypes?: FormQuestionType[];
   /** Replaces the events-flavoured empty-state copy. */
   emptyStateHint?: string;
+  /**
+   * The words on the button that adds a question, drawn with a plus beside
+   * them. Left out, the button reads "+ Add question", which is what the
+   * forms of a course run and of an older application round show.
+   */
+  addLabel?: string;
+  /**
+   * Draw each question as one row (its words, its kind, whether it has to be
+   * answered) that opens to be edited, instead of every question open at
+   * once. A question that has just been added opens by itself. Off unless a
+   * caller asks: the other forms that use this builder keep every question
+   * open.
+   */
+  collapsible?: boolean;
 };
 
 const TYPE_LABEL: Record<FormQuestionType, string> = {
@@ -87,9 +102,13 @@ export default function FormBuilder({
   showPresets = true,
   hiddenTypes = [],
   emptyStateHint,
+  addLabel,
+  collapsible = false,
 }: Props) {
   const addMenu = ADD_MENU.filter((item) => !hiddenTypes.includes(item.type));
   const [adding, setAdding] = useState(false);
+  // Which question is open to be edited, when questions are drawn as rows.
+  const [openId, setOpenId] = useState<string | null>(null);
   const [presetWarning, setPresetWarning] = useState<string | null>(null);
 
   function patch(index: number, fields: Partial<FormQuestion>) {
@@ -99,7 +118,9 @@ export default function FormBuilder({
   }
 
   function addQuestion(type: FormQuestionType) {
-    onChange([...questions, emptyQuestion(type)]);
+    const added = emptyQuestion(type);
+    onChange([...questions, added]);
+    setOpenId(added.id);
     setAdding(false);
   }
 
@@ -130,32 +151,37 @@ export default function FormBuilder({
     setPresetWarning(null);
   }
 
+  // Where the preset picker sits depends on the shape: first for the forms
+  // that keep every question open, and under the add button where questions
+  // are rows, which is where the redesign puts its shortcuts.
+  const presets = showPresets ? (
+    <div className={styles.preset}>
+      <div className={styles.presetWords}>
+        <strong>Start from a preset</strong>
+        <span>Pick a set of questions, then change them. You can always add or remove one.</span>
+      </div>
+      <ResponsiveSelect
+        value=""
+        onChange={(next) => {
+          if (next) applyPreset(next);
+        }}
+        options={[
+          { value: "", label: "Choose a preset…", disabled: true },
+          ...FORM_PRESETS.map((p) => ({
+            value: p.id,
+            label: `${p.label}: ${p.description}`,
+          })),
+        ]}
+        disabled={disabled}
+        ariaLabel="Form preset"
+      />
+      {presetWarning && <p className={styles.warn}>{presetWarning}</p>}
+    </div>
+  ) : null;
+
   return (
     <div className={styles.wrap}>
-      {showPresets && (
-        <div className={styles.preset}>
-          <div className={styles.presetWords}>
-            <strong>Start from a preset</strong>
-            <span>Pick a set of questions, then change them. You can always add or remove one.</span>
-          </div>
-          <ResponsiveSelect
-            value=""
-            onChange={(next) => {
-              if (next) applyPreset(next);
-            }}
-            options={[
-              { value: "", label: "Choose a preset…", disabled: true },
-              ...FORM_PRESETS.map((p) => ({
-                value: p.id,
-                label: `${p.label}: ${p.description}`,
-              })),
-            ]}
-            disabled={disabled}
-            ariaLabel="Form preset"
-          />
-          {presetWarning && <p className={styles.warn}>{presetWarning}</p>}
-        </div>
-      )}
+      {!collapsible && presets}
 
       {questions.length === 0 && (
         <p className={styles.none}>
@@ -164,7 +190,39 @@ export default function FormBuilder({
         </p>
       )}
 
-      {questions.map((q, i) => (
+      {questions.map((q, i) =>
+        collapsible && q.id !== openId ? (
+          <div key={q.id} className={styles.row}>
+            <div className={styles.rowWords}>
+              <div className={q.label.trim() ? styles.rowLabel : styles.rowLabelEmpty}>
+                {q.label.trim() || "No question written yet"}
+              </div>
+              <div className={styles.rowKind}>{kindLine(q)}</div>
+            </div>
+            <div className={styles.rowEnd}>
+              <Chip tone="neutral">{q.required ? "Required" : "Optional"}</Chip>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setOpenId(q.id)}
+                aria-label={`${disabled ? "View" : "Edit"} “${q.label.trim() || "question"}”`}
+              >
+                {disabled ? "View" : "Edit"}
+              </Button>
+              <button
+                type="button"
+                className={styles.removeBtn}
+                onClick={() => removeQuestion(i)}
+                disabled={disabled}
+                aria-label={`Remove “${q.label.trim() || "question"}”`}
+                title="Remove"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+          </div>
+        ) : (
         <div key={q.id} className={styles.question}>
           <div className={styles.qHeader}>
             <span className={`meta ${styles.qType}`}>{TYPE_LABEL[q.type]}</span>
@@ -197,6 +255,11 @@ export default function FormBuilder({
               >
                 Remove
               </Button>
+              {collapsible && (
+                <Button type="button" variant="secondary" size="sm" onClick={() => setOpenId(null)}>
+                  Done
+                </Button>
+              )}
             </div>
           </div>
 
@@ -345,7 +408,8 @@ export default function FormBuilder({
             </OptionRow>
           </div>
         </div>
-      ))}
+        ),
+      )}
 
       {adding ? (
         <div className={styles.addMenu}>
@@ -371,12 +435,73 @@ export default function FormBuilder({
         </div>
       ) : (
         <div>
-          <Button type="button" variant="secondary" onClick={() => setAdding(true)} disabled={disabled}>
-            + Add question
-          </Button>
+          {addLabel ? (
+            <Button
+              type="button"
+              variant="secondary"
+              leading={<PlusIcon />}
+              onClick={() => setAdding(true)}
+              disabled={disabled}
+            >
+              {addLabel}
+            </Button>
+          ) : (
+            <Button type="button" variant="secondary" onClick={() => setAdding(true)} disabled={disabled}>
+              + Add question
+            </Button>
+          )}
         </div>
       )}
+
+      {collapsible && presets}
     </div>
+  );
+}
+
+/**
+ * A question's kind in words, with the choices of a choice question after it:
+ * "Single choice · None, Vegetarian, Vegan".
+ */
+function kindLine(q: FormQuestion): string {
+  const kind = TYPE_LABEL[q.type];
+  if (q.type !== "singleSelect" && q.type !== "multiSelect") return kind;
+  const options = q.options.map((o) => o.trim()).filter(Boolean);
+  return options.length > 0 ? `${kind} · ${options.join(", ")}` : kind;
+}
+
+function PlusIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
   );
 }
 

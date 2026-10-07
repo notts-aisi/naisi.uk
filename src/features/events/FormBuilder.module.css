@@ -51,7 +51,81 @@
   color: var(--color-text-muted);
 }
 
-/* === One question === */
+/* === One question, as a row that opens === */
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) 0.625rem;
+  padding: var(--space-2) 0.375rem var(--space-2) 0.875rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  min-width: 0;
+}
+
+.rowWords {
+  flex: 1 1 15rem;
+  min-width: 0;
+}
+
+.rowLabel,
+.rowLabelEmpty {
+  font-size: var(--text-ui);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.rowLabelEmpty {
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.rowKind {
+  font-size: var(--text-caption);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.rowEnd {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.removeBtn {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.removeBtn:hover:not(:disabled) {
+  color: var(--color-danger-text);
+  background: var(--color-danger-soft);
+}
+
+.removeBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* === One question, open === */
 
 .question {
   padding: var(--space-4);
