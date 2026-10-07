@@ -1,4 +1,9 @@
-import type { ApplicationFormFields, EmailWording, ProgrammeSettings } from "../model";
+import type {
+  ApplicationFormFields,
+  EmailWording,
+  ProgrammeEmailKind,
+  ProgrammeSettings,
+} from "../model";
 import { programmeOf } from "./programmes";
 
 /**
@@ -23,6 +28,21 @@ import { programmeOf } from "./programmes";
  * it is a placeholder and nothing in it is markup. The greeting, the buttons
  * and the sign-off are added around it, because only they know who the email
  * is for.
+ *
+ * EMPTY MEANS STANDARD, AND EACH PART ON ITS OWN. A stored wording with an
+ * empty subject keeps the standard subject and uses its own body; one with an
+ * empty body keeps the standard body under its own subject. That is what a
+ * programme's settings page tells a lead ("Leave a box empty to keep the
+ * standard wording for it"), so it has to be what is sent.
+ *
+ * ## One place for the standard subjects, and for the subject that goes
+ *
+ * {@link standardSubject} is the only place the three standard subjects are
+ * written, and {@link programmeEmailSubject} is the only code that decides
+ * which subject one of a programme's emails goes out under. The settings page
+ * shows what the second returns, and the composers below send what it
+ * returns, so the subject a lead reads beside "Edit wording" and the subject
+ * an applicant receives cannot be two strings.
  *
  * ## An email changes nothing by being opened
  *
@@ -127,17 +147,52 @@ export function paragraphsOf(body: string): string[] {
     .filter((paragraph) => paragraph.length > 0);
 }
 
-/** The default subject and paragraphs, with the committee's own laid over them. */
-function worded(
-  wording: EmailWording | null | undefined,
-  fallback: { subject: string; paragraphs: string[] },
-): { subject: string; paragraphs: string[] } {
-  const subject = wording?.subject.trim() ?? "";
-  const paragraphs = wording ? paragraphsOf(wording.body) : [];
+/**
+ * The standard subject of each of a programme's three emails. THE one place
+ * they are written: nothing else in the tree spells one out.
+ */
+export function standardSubject(kind: ProgrammeEmailKind, shortName: string): string {
+  if (kind === "accepted") return `You’re in ${shortName}`;
+  if (kind === "invitation") return `An invitation to ${shortName}`;
+  return NO_OFFER_SUBJECT;
+}
+
+/** The committee's own subject, or the standard one where they left it empty. */
+function subjectOr(wording: EmailWording | null | undefined, standard: string): string {
+  return wording?.subject.trim() || standard;
+}
+
+/** The committee's own paragraphs, or the standard ones where they left the body empty. */
+function paragraphsOr(wording: EmailWording | null | undefined, standard: string[]): string[] {
+  const own = wording ? paragraphsOf(wording.body) : [];
+  return own.length > 0 ? own : standard;
+}
+
+/** "No offer this time" as this form words it: its own wording over the standard, part by part. */
+function noOfferWords(form: Form): { subject: string; paragraphs: string[] } {
   return {
-    subject: subject || fallback.subject,
-    paragraphs: paragraphs.length > 0 ? paragraphs : fallback.paragraphs,
+    subject: subjectOr(form.noOfferWording, NO_OFFER_SUBJECT),
+    paragraphs: paragraphsOr(form.noOfferWording, NO_OFFER_BODY),
   };
+}
+
+/**
+ * The subject one of a programme's emails goes out under: the programme's
+ * own where it wrote one, and the standard one where it did not.
+ *
+ * For "Declined" the standard is the form's "No offer this time", because
+ * that is the email a declined application is sent when its programme wrote
+ * nothing: so a programme that words only the body of its declined email
+ * keeps the subject that email would have had anyway.
+ */
+export function programmeEmailSubject(
+  form: Form,
+  programme: Pick<ProgrammeSettings, "shortName" | "emailWording">,
+  kind: ProgrammeEmailKind,
+): string {
+  const standard =
+    kind === "declined" ? noOfferWords(form).subject : standardSubject(kind, programme.shortName);
+  return subjectOr(programme.emailWording[kind], standard);
 }
 
 function signOffFor(
@@ -157,22 +212,18 @@ function greetingFor(firstName: string): string {
 
 function acceptedEmail(input: ComposeInput, programme: ProgrammeSettings): DecisionEmail {
   const starts = programme.starts.trim();
-  const { subject, paragraphs } = worded(programme.emailWording.accepted, {
-    subject: `You’re in ${programme.shortName}`,
-    paragraphs: [
+  return {
+    kind: "accepted",
+    subject: programmeEmailSubject(input.form, programme, "accepted"),
+    greeting: greetingFor(input.firstName),
+    paragraphs: paragraphsOr(programme.emailWording.accepted, [
       // A programme with no start written down yet says nothing about when,
       // rather than "It starts ." with a hole in it.
       `You’re in the ${programme.name}.${starts ? ` It starts ${starts}.` : ""} ` +
         "You’ll be in a small group with a facilitator, on campus, and we’ll email you " +
         "your group and when it meets before you start.",
       ACCEPTED_REPLY,
-    ],
-  });
-  return {
-    kind: "accepted",
-    subject,
-    greeting: greetingFor(input.firstName),
-    paragraphs,
+    ]),
     buttons: [
       { label: "I’m coming", href: input.links.application, look: "primary" },
       { label: "I can’t make it", href: input.links.application, look: "quiet" },
@@ -187,21 +238,17 @@ function invitationEmail(input: ComposeInput, programme: ProgrammeSettings): Dec
     .filter((ranked): ranked is ProgrammeSettings => Boolean(ranked))
     .map((ranked) => `the ${ranked.name}`);
   const thanks = applied.length > 0 ? `Thanks for applying to ${listInWords(applied)}.` : "Thanks for applying.";
-  const { subject, paragraphs } = worded(programme.emailWording.invitation, {
-    subject: `An invitation to ${programme.shortName}`,
-    paragraphs: [
+  return {
+    kind: "invitation",
+    subject: programmeEmailSubject(input.form, programme, "invitation"),
+    greeting: greetingFor(input.firstName),
+    paragraphs: paragraphsOr(programme.emailWording.invitation, [
       `${thanks} The pool was really strong and we don’t have space for you this time, ` +
         `but we think you’d be a great fit for the ${programme.name} instead.`,
       input.replyBy
         ? `Accept your invitation by ${input.replyBy} to let us know you’re coming.`
         : "Accept your invitation to let us know you’re coming.",
-    ],
-  });
-  return {
-    kind: "invitation",
-    subject,
-    greeting: greetingFor(input.firstName),
-    paragraphs,
+    ]),
     buttons: [
       { label: "Accept your invitation", href: input.links.application, look: "primary" },
       { label: "No thanks", href: input.links.application, look: "quiet" },
@@ -210,17 +257,20 @@ function invitationEmail(input: ComposeInput, programme: ProgrammeSettings): Dec
   };
 }
 
-function noOfferEmail(input: ComposeInput, wording: EmailWording | null | undefined): DecisionEmail {
+/**
+ * The kind no. `declined` is true for a declined application an admin chose
+ * to email: it is the same email, with its 1st choice's own "Declined"
+ * wording laid over the form's "No offer this time", part by part.
+ */
+function noOfferEmail(input: ComposeInput, declined: boolean): DecisionEmail {
   const firstChoice = programmeOf(input.form, input.ranked[0]);
-  const { subject, paragraphs } = worded(wording, {
-    subject: NO_OFFER_SUBJECT,
-    paragraphs: NO_OFFER_BODY,
-  });
+  const standard = noOfferWords(input.form);
+  const own = declined ? firstChoice : undefined;
   return {
     kind: "no-offer",
-    subject,
+    subject: own ? programmeEmailSubject(input.form, own, "declined") : standard.subject,
     greeting: greetingFor(input.firstName),
-    paragraphs,
+    paragraphs: own ? paragraphsOr(own.emailWording.declined, standard.paragraphs) : standard.paragraphs,
     buttons: [{ label: "See what’s on", href: input.links.events, look: "outline" }],
     signOff: signOffFor(firstChoice, input.leadNames),
   };
@@ -243,11 +293,7 @@ export function composeDecisionEmail(input: ComposeInput): DecisionEmail | null 
       ? acceptedEmail(input, programme)
       : invitationEmail(input, programme);
   }
-  if (outcome.kind === "declined") {
-    const own = programmeOf(form, input.ranked[0])?.emailWording.declined;
-    return noOfferEmail(input, own ?? form.noOfferWording);
-  }
-  return noOfferEmail(input, form.noOfferWording);
+  return noOfferEmail(input, outcome.kind === "declined");
 }
 
 /**
