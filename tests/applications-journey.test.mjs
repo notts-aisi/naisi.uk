@@ -23,7 +23,9 @@
  *  1. An admin makes a form from nothing, and it will not open until ready.
  *  2. People apply. Nobody reaches anybody else's data.
  *  3. The form closes. Reviewers score, leads decide, an admin picks what
- *     pooled applicants hear.
+ *     pooled applicants hear. The send stays locked until an admin has sent
+ *     themselves a test of the emails, and locks again when a lead rewords
+ *     one afterwards.
  *  4. NOBODY HEARS EARLY: until the send, everything an applicant's own
  *     routes say about their application is what it said when they sent it.
  *  5. The send. It stops part way, and what the one person told was told is
@@ -943,11 +945,37 @@ async function theCommitteeDecides() {
   await earshot("the pooled outcomes are picked");
   await census("ready to send");
 
+  // Every decision is made and every outcome picked. The send is still
+  // locked: no admin has sent themselves a test of the emails.
+  seen.pressBeforeAnyTest = await press(await onTheButton());
+  seen.toldBeforeAnyTest = told();
+
   // A test email goes to the admin who asked for it, and to nobody who applied.
   seen.mailBeforeTheTest = world.mail.calls.length;
   seen.testEmail = await call("zach", routes.sendTest.POST, params(), { body: { kind: "accepted" } });
   seen.testMail = world.mail.calls.slice(seen.mailBeforeTheTest).map((mail) => ({ to: mail.to, subject: mail.subject, kind: mail.kind }));
+  seen.testRecord = structuredClone(roundDoc().decisionEmailTest ?? null);
   await earshot("a test email has been sent");
+  await census("tested, and ready to send");
+
+  // A lead rewords one of her programme's emails after the test. Nobody in
+  // this term is sent that email, and it still counts: the test was of the
+  // emails as they were worded, and they are worded differently now.
+  await step("the Technical AI Safety lead rewords her You’re in after the test", 200, "tess", routes.programme.PATCH, { roundId: ROUND, programmeId: P.tais }, {
+    body: { emailWording: { accepted: { subject: "Welcome to Technical AI Safety", body: "" } } },
+  });
+  await earshot("a lead has reworded an email");
+  await census("reworded since the test");
+  seen.pressAfterRewording = await press(await onTheButton());
+  seen.toldAfterRewording = told();
+
+  // The admin tests again, as the emails are worded now.
+  seen.mailBeforeTheSecondTest = world.mail.calls.length;
+  seen.secondTest = await call("zach", routes.sendTest.POST, params(), { body: { kind: "invitation" } });
+  seen.secondTestMail = world.mail.calls.slice(seen.mailBeforeTheSecondTest).map((mail) => ({ to: mail.to, subject: mail.subject, kind: mail.kind }));
+  seen.secondTestRecord = structuredClone(roundDoc().decisionEmailTest ?? null);
+  await earshot("the emails have been tested again");
+  await census("tested again, and ready to send");
 }
 
 const address = (uid) => `${uid}@example.com`;
@@ -1744,9 +1772,78 @@ describe("one term, from nothing to settled", () => {
       assert.deepEqual(ready.send.noOffer, ["hannah"]);
       assert.equal(ready.send.declined, 1);
       assert.deepEqual(ready.send.pending, { people: 6, emails: 5 });
-      assert.equal(ready.send.ready, true);
+      // Every decision is made and every outcome picked, so every row but the
+      // last is ticked. The send itself waits for a test of the emails, which
+      // has a test of its own below.
+      assert.deepEqual(
+        Object.entries(ready.send.readiness).filter(([, row]) => row[0] === false).map(([key]) => key),
+        ["#test"],
+      );
+      assert.equal(ready.send.ready, false);
+      // Once tested, the page is ready, and nothing else on it has moved.
+      const tested = censusAt("tested again, and ready to send").send;
+      assert.equal(tested.ready, true);
+      assert.deepEqual(
+        { ...tested, ready: false, readiness: { ...tested.readiness, "#test": ready.send.readiness["#test"] } },
+        ready.send,
+      );
       // Jasmine is accepted and her join request has not been looked at.
       assert.equal(ready.send.accountsWaiting, 1);
+    });
+
+    // The owner's decision of 7 October 2026: "I wouldn't let this happen
+    // without a test." The story presses Send three times before decision
+    // day: with no test, with a test, and after a lead reworded an email.
+    test("the send is locked until an admin has sent themselves a test, and locks again when wording changes after it", () => {
+      const NO_TEST = "Nobody has sent themselves a test of these emails yet. Send yourself one before you send.";
+      const STALE_TEST =
+        "A decision email’s wording has changed since the last test. Send yourself a test again before you send.";
+      const when = (date) =>
+        new Intl.DateTimeFormat("en-GB", {
+          timeZone: "Europe/London",
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        }).format(date);
+
+      // No test: refused, in a sentence, and nobody is told.
+      assert.deepEqual(censusAt("ready to send").send.readiness["#test"], [false, "No test sent yet", "Send one below before you send"]);
+      assert.deepEqual(short(seen.pressBeforeAnyTest), [409, NO_TEST]);
+      assert.deepEqual(seen.toldBeforeAnyTest, []);
+
+      // The test is recorded on the form: who sent it, when, and the wording it was made from.
+      assert.deepEqual([seen.testEmail.status, seen.testEmail.body.recorded], [200, true]);
+      assert.equal(seen.testRecord.byUid, "zach");
+      assert.ok(seen.testRecord.at instanceof Date);
+      assert.match(seen.testRecord.wording, /^[0-9a-f]{64}$/);
+      const tested = censusAt("tested, and ready to send").send;
+      assert.equal(tested.ready, true);
+      assert.deepEqual(tested.readiness["#test"], [true, `Sent ${when(seen.testRecord.at)}`, ""]);
+
+      // A lead rewords an email: the same test no longer counts.
+      const reworded = censusAt("reworded since the test").send;
+      assert.equal(reworded.ready, false);
+      assert.deepEqual(reworded.readiness["#test"], [
+        false,
+        `Sent ${when(seen.testRecord.at)}, and the wording has changed since`,
+        "Send it again below before you send",
+      ]);
+      assert.deepEqual(short(seen.pressAfterRewording), [409, STALE_TEST]);
+      assert.deepEqual(seen.toldAfterRewording, []);
+
+      // Tested again, as the emails are worded now. Any one of the three emails is a test.
+      assert.deepEqual([seen.secondTest.status, seen.secondTest.body.recorded], [200, true]);
+      assert.equal(seen.secondTestRecord.byUid, "zach");
+      assert.notEqual(seen.secondTestRecord.wording, seen.testRecord.wording);
+      assert.ok(seen.secondTestRecord.at > seen.testRecord.at);
+      assert.deepEqual(censusAt("tested again, and ready to send").send.readiness["#test"], [
+        true,
+        `Sent ${when(seen.secondTestRecord.at)}`,
+        "",
+      ]);
     });
   });
 
@@ -1759,6 +1856,8 @@ describe("one term, from nothing to settled", () => {
       "every lead has decided",
       "the pooled outcomes are picked",
       "a test email has been sent",
+      "a lead has reworded an email",
+      "the emails have been tested again",
     ];
 
     test("the story listened after every thing the committee did", () => {
@@ -1802,6 +1901,12 @@ describe("one term, from nothing to settled", () => {
       assert.equal(seen.testMail[0].kind, "admin-test");
       assert.match(seen.testMail[0].subject, /^\[TEST\] /);
       assert.equal(seen.mailBeforeTheTest, 0);
+      // The second test, after a lead reworded an email, went the same way.
+      assert.equal(seen.mailBeforeTheSecondTest, 1, "the two refused presses in between sent nothing");
+      assert.deepEqual(
+        seen.secondTestMail.map((mail) => [mail.to, mail.kind, /^\[TEST\] /.test(mail.subject)]),
+        [[address("zach"), "admin-test", true]],
+      );
       assert.deepEqual(seen.beforeAnyPress.mail, []);
       assert.deepEqual(seen.beforeAnyPress.told, []);
     });
@@ -2374,7 +2479,12 @@ describe("one term, from nothing to settled", () => {
         tais: [true, "Every application has a decision", "0 of 2 places, and 1 invitation"],
         inc: [true, "Every application has a decision", "0 of 1 places"],
         pooled: [true, "Every pooled person has an outcome", "2 invitations, 1 no offer"],
+        // Who tested the emails and when: the record of the last test, which
+        // no reply moves either.
+        "#test": sent.readiness["#test"],
       });
+      assert.match(sent.readiness["#test"][1], /^Sent \w{3} \d{1,2} \w{3}, \d{2}:\d{2}$/);
+      assert.deepEqual([sent.readiness["#test"][0], sent.readiness["#test"][2]], [true, ""]);
       assert.ok(sent.sentOn, "the term is marked as sent");
       for (const label of [...AFTER_EACH_REPLY, "settled"]) {
         assert.deepEqual(censusAt(label).send, sent, label);

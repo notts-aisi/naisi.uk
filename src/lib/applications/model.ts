@@ -253,6 +253,25 @@ export type QuestionSetDoc = {
   updatedAt: Date | null;
 };
 
+/**
+ * The last test of the decision-day emails an admin sent to their own
+ * address.
+ *
+ * Decision day cannot be sent until one has gone, and a test stops counting
+ * the moment any decision email's wording changes. `wording` is a fingerprint
+ * of all of that wording as it stood when the test went, and the send compares
+ * it with the form as it stands now (`decisionDay/tested.ts`). Nothing stamps
+ * a "wording changed" time: the comparison is made where it is used, so no
+ * writer of wording has to remember to.
+ */
+export type DecisionEmailTest = {
+  /** The admin who sent it. */
+  byUid: string;
+  at: Date | null;
+  /** `wordingFingerprint(form)` at the moment the test went. */
+  wording: string;
+};
+
 /** The fields an admission round carries when it is an application form. */
 export type ApplicationFormFields = {
   formVersion: typeof FORM_VERSION;
@@ -269,6 +288,8 @@ export type ApplicationFormFields = {
   revealOtherReviews: boolean;
   /** The "No offer this time" email, the same for every programme. */
   noOfferWording: EmailWording | null;
+  /** The last test of the decision-day emails. Null until an admin sends one. */
+  decisionEmailTest: DecisionEmailTest | null;
   /** Stamped once, by the send. Null until decision day. */
   decisionsSentAt: Date | null;
   decisionsSentByUid: string | null;

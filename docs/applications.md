@@ -413,6 +413,30 @@ publishes each outcome onto the applicant's own document (`result`, and
 `invitation` where there is one) and sends the emails. Until it runs, every
 applicant's status stays "sent".
 
+### A test before the send
+
+No press of Send is taken until an admin has sent themselves a test of the
+emails as they are worded now. The test is the page's "Send a test to me":
+the first person's real email in a group, to the admin's own address. Each
+one that is handed to the mail provider is recorded on the form as
+`decisionEmailTest`: who sent it, when, and a fingerprint of every decision
+email's wording at that moment (each programme's own `emailWording`, and the
+form's `noOfferWording`). A test this copy of the site held, or one to an
+address on the do-not-email list, reached nobody and is not recorded. A
+programme's own test, sent from its settings page, is not this test and
+leaves no record.
+
+`testStanding()` in `decisionDay/tested.ts` compares the record's fingerprint
+with the form as it stands: `fresh`, `stale` (a decision email's wording has
+changed since), or `none`. Nothing stamps a "wording changed" time, so no
+writer of wording has to remember to, and wording put back to exactly what
+was tested is tested wording again. `sendBlockers()` and `owedBlockers()`
+(`decisionDay/plan.ts`) hold both kinds of press on anything but `fresh`,
+with a sentence that says which, and a caller that hands over no answer is
+held too. A press composes its emails from the same reading of the form it
+judged the test against. The decision-day page's last readiness row says who
+tested and when, or that a test is owed.
+
 ### What became of the email
 
 A result is published first and its email follows, so the two can come apart:

@@ -1,5 +1,5 @@
 import type { DecisionEmailButtonLook, DecisionEmailKind, DecisionEmailSignOff } from "./emailCopy";
-import type { PoolChoice } from "./plan";
+import type { PoolChoice, TestState } from "./plan";
 
 /**
  * WHAT THE TWO SCREENS ARE SENT.
@@ -105,10 +105,13 @@ export type SendGroup = {
 };
 
 export type ReadinessRow = {
-  /** A programme's id, or a fixed key for a row that is not a programme. */
+  /** A programme's id, or a fixed key for a row that is not a programme: "pooled", "#test". */
   key: string;
   title: string;
-  /** Who it is waiting on: the lead's first name, or "Committee". */
+  /**
+   * Who it is waiting on: the lead's first name, or "Committee". On the test
+   * row, the admin who sent the last test, or "An admin" when nobody has.
+   */
   owner: string;
   ready: boolean;
   /** "Every application has a decision". */
@@ -133,6 +136,12 @@ export type SendBoard = {
    * were told, not who holds a place today.
    */
   readiness: ReadinessRow[];
+  /**
+   * Whether an admin has sent themselves a test of these emails as they are
+   * worded now. A press is refused unless this is "fresh". Who tested and
+   * when is the last of the readiness rows.
+   */
+  test: TestState;
   /** Why the send cannot go, a sentence each. Empty when it can. */
   blockers: string[];
   /** The day decisions went out, and who sent them, once they all have. */

@@ -35,6 +35,7 @@ import {
   type ApplicationResultKind,
   type Attendance,
   type DecisionDoc,
+  type DecisionEmailTest,
   type EmailWording,
   type Invitation,
   type PlacementException,
@@ -153,6 +154,18 @@ function asWording(v: unknown): EmailWording | null {
   return subject || body ? { subject, body } : null;
 }
 
+/**
+ * The record of a test of the decision-day emails. One that does not say who
+ * sent it, or carries no fingerprint, reads as no test at all: the send is
+ * never unlocked by half a record.
+ */
+function asDecisionEmailTest(v: unknown): DecisionEmailTest | null {
+  const raw = asRecord(v);
+  if (typeof raw.byUid !== "string" || !raw.byUid) return null;
+  if (typeof raw.wording !== "string" || !raw.wording) return null;
+  return { byUid: str(raw.byUid, 128), at: tsToDate(raw.at), wording: str(raw.wording, 128) };
+}
+
 export function normaliseProgramme(id: string, v: unknown): ProgrammeSettings {
   const raw = asRecord(v);
   const L = APPLICATION_LIMITS;
@@ -224,6 +237,7 @@ export function normaliseFormFields(data: unknown): ApplicationFormFields {
     invitationReplyBy: dateKey(raw.invitationReplyBy),
     revealOtherReviews: bool(raw.revealOtherReviews),
     noOfferWording: asWording(raw.noOfferWording),
+    decisionEmailTest: asDecisionEmailTest(raw.decisionEmailTest),
     decisionsSentAt: tsToDate(raw.decisionsSentAt),
     decisionsSentByUid:
       typeof raw.decisionsSentByUid === "string" && raw.decisionsSentByUid
