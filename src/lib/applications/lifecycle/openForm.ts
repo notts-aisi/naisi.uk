@@ -29,8 +29,15 @@ import { openProgrammes } from "../sections";
  * the wording of its decision emails. This module reads the round on the
  * Admin SDK, so the rules are no defence here, and it keeps those things in
  * by PROJECTION: `OpenFormView` and `CourseFormView` are written out field by
- * field below, and no round or form leaves this file. A field added to the
- * round later stays private until somebody names it here on purpose.
+ * field below, and no round or form leaves this file for a page. A field
+ * added to the round later stays private until somebody names it here on
+ * purpose.
+ *
+ * One module is handed whole forms: `./publicTerm.ts`, which answers a third
+ * question for the same pages (where the term is, and what is on it) from the
+ * same read, and keeps the same rule with a projection of its own.
+ * `tests/applications-public-term.test.mjs` holds that nothing else imports
+ * `readForms`.
  *
  * It imports nothing that reads a review or a decision, and nothing that
  * says who has a role on a form. `tests/applications-wave-e1-open-form.test.mjs`
@@ -53,8 +60,9 @@ import { openProgrammes } from "../sections";
  * ## The read
  *
  * One equality on one field (`formVersion`), which needs no declared index,
- * made in one place (`readForms`) for both lookups. A site has a handful of
- * forms over its whole life, so the rest is done in memory.
+ * made in one place (`readForms`) for both lookups here and for the one in
+ * `./publicTerm.ts`. A site has a handful of forms over its whole life, so
+ * the rest is done in memory.
  */
 
 /** One programme somebody can tick, as a page that links to the form may know it. */
@@ -134,8 +142,13 @@ function byClose(a: ApplicationForm, b: ApplicationForm): number {
  * Every application form there is, whatever its state. The one read in this
  * module: each lookup below starts here and decides for itself which of them
  * a visitor may be told about.
+ *
+ * Exported for `./publicTerm.ts` and for nothing else. What comes back is
+ * whole forms, leads, counts and all, so a caller owes a visitor's page a
+ * projection written out field by field, as the two lookups here do. A page
+ * never calls this.
  */
-async function readForms(db: Firestore): Promise<ApplicationForm[]> {
+export async function readForms(db: Firestore): Promise<ApplicationForm[]> {
   const snap = await db.collection(ROUNDS_COLLECTION).where("formVersion", "==", FORM_VERSION).get();
   const forms: ApplicationForm[] = [];
   for (const doc of snap.docs) {
