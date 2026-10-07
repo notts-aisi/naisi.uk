@@ -565,6 +565,42 @@ const NOT_COVERED = {
     coverWhen:
       "When the first round publishes its decisions, because this is the screen an applicant refreshes.",
   },
+  "/api/admissions/forms": {
+    reason:
+      "Application forms: /api/admissions/forms is pressed by an admin who reads the outcome on the screen in front of them, and tests/applications-editor-routes.test.mjs executes it as every kind of caller.",
+    coverWhen:
+      "When the first application form is opened to applicants, because from then on what an admin saves here is what real people are asked.",
+  },
+  "/api/admissions/forms/[roundId]": {
+    reason:
+      "Application forms: /api/admissions/forms/[roundId] is pressed by an admin who reads the outcome on the screen in front of them, and tests/applications-editor-routes.test.mjs executes it as every kind of caller.",
+    coverWhen:
+      "When the first application form is opened to applicants, because from then on what an admin saves here is what real people are asked.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
+    reason:
+      "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId] is pressed by a programme's lead or an admin who reads the outcome on the screen in front of them, and tests/applications-editor-routes.test.mjs executes it as every kind of caller.",
+    coverWhen:
+      "When the first application form is opened to applicants, because from then on what a lead saves here is what real people are shown.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/roles": {
+    reason:
+      "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId]/roles is pressed by a programme's lead or an admin, and tests/applications-editor-routes.test.mjs and tests/applications-access.test.mjs execute who may name whom.",
+    coverWhen:
+      "When a programme is first run with a reviewer who is not its lead, so a grant made here is used by somebody other than the person who made it.",
+  },
+  "/api/admissions/forms/[roundId]/sets": {
+    reason:
+      "Application forms: /api/admissions/forms/[roundId]/sets is pressed by an admin who reads the outcome on the screen in front of them, and tests/applications-editor-routes.test.mjs executes it as every kind of caller.",
+    coverWhen:
+      "When the first application form is opened to applicants, because from then on what an admin saves here is what real people are asked.",
+  },
+  "/api/admissions/forms/[roundId]/sets/[setId]": {
+    reason:
+      "Application forms: /api/admissions/forms/[roundId]/sets/[setId] is pressed by an admin who reads the outcome on the screen in front of them, and tests/applications-editor-routes.test.mjs executes it as every kind of caller, the lock included.",
+    coverWhen:
+      "When the first application form is opened to applicants, because from then on what an admin saves here is what real people are asked.",
+  },
   "/api/admissions/rounds/[roundId]/apply/stage/[stageId]": {
     reason:
       "Admissions: /api/admissions/rounds/[roundId]/apply/stage/[stageId] is pressed by a reviewer or an admin who reads the outcome on the console.",
@@ -1236,6 +1272,30 @@ const NOT_COVERED = {
       "Admin CRUD: /(app)/admin/(admin-only)/task-templates is used by one admin, fails loudly on the screen of the person who pressed the button, and nothing member-facing waits on it.",
     coverWhen:
       "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
+  },
+  "/(app)/admin/admissions/forms": {
+    reason:
+      "Application forms: /(app)/admin/admissions/forms is a committee screen an admin uses a few times a term, and a fault in it is seen by the person using it.",
+    coverWhen:
+      "When the first application form is opened to applicants, alongside the spec that walks an applicant through it.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]": {
+    reason:
+      "Application forms: /(app)/admin/admissions/forms/[roundId] is a committee screen, and a fault in it is seen by the lead or admin using it.",
+    coverWhen:
+      "When the first application form is opened to applicants, alongside the spec that walks an applicant through it.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/form": {
+    reason:
+      "Application forms: /(app)/admin/admissions/forms/[roundId]/form is the editor an admin builds the term's questions in, and a fault in it is seen by the admin using it.",
+    coverWhen:
+      "When the first application form is opened to applicants, alongside the spec that walks an applicant through it.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/setup": {
+    reason:
+      "Application forms: /(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/setup is a programme's settings, and a fault in it is seen by the lead or admin using it.",
+    coverWhen:
+      "When the first application form is opened to applicants, alongside the spec that walks an applicant through it.",
   },
   "/(app)/admin/courses": {
     reason:

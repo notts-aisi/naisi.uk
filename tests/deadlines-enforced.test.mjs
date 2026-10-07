@@ -132,6 +132,12 @@ const DEADLINE_NAMES = new Map([
         "src/lib/admissions/roundRoutes.ts",
         "src/lib/admissions/stageRelease.ts",
         "src/lib/admissions/window.ts",
+        // The application form's editor. `parse.ts` declares the close on the
+        // change an admin sends and `write.ts` stores it (null on a new form).
+        // Neither tells an applicant the close nor refuses a write past it, so
+        // `told` and `enforced` below are as they were.
+        "src/lib/applications/editor/parse.ts",
+        "src/lib/applications/editor/write.ts",
         "src/lib/courses/enrolWindow.ts",
         "src/lib/courses/window.ts",
         "src/lib/firestore/admissionRounds.ts",
@@ -569,6 +575,13 @@ const DEADLINE_PREDICATES = new Map([
         [
           "src/app/api/admissions/rounds/[roundId]/stages/[stageId]/release/route.ts",
           { role: "enforces", why: "refuses a manual release into a round nobody can answer" },
+        ],
+        [
+          "src/lib/applications/editor/views.ts",
+          {
+            role: "tells",
+            why: "`formStateFor`, the one chip on the committee's screens that says where a form is in its term: opens on a day, open, or closed",
+          },
         ],
       ]),
     },

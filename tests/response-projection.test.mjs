@@ -127,6 +127,28 @@ const PROJECTIONS = {
     serves: "admins",
     why: "the conduct flag as the approvals queue shows it, with the reviewer's uid resolved to a name",
   },
+  projectFormForStaff: {
+    from: "@/lib/applications/editor/views",
+    serves: "anybody with a role on the application form: an admin, a programme's lead, a programme's reviewer",
+    why:
+      "the form's dates, where it is in the term, and its programmes with the caller's own " +
+      "role on each. Withholds the round's applicationCounts (only how many have sent " +
+      "leaves), each programme's reviewers (only its lead leaves, as a uid and a name), the " +
+      "author, and every question",
+  },
+  projectSetForEditor: {
+    from: "@/lib/applications/editor/views",
+    serves: "admins, who are the only people who edit the application form",
+    why: "one question set with every question in it and the sentences that say who it is shown to",
+  },
+  projectProgrammeForSetup: {
+    from: "@/lib/applications/editor/views",
+    serves: "one programme's lead, and admins",
+    why:
+      "that programme's settings, its lead and reviewers each as a uid and a name, the people " +
+      "who could be added, a summary of its question sets (never the questions) and its " +
+      "email wording",
+  },
 };
 
 /**

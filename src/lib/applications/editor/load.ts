@@ -5,7 +5,7 @@ import { ROUNDS_COLLECTION } from "@/lib/firestore/admissionRounds";
 import { canEditProgramme, canRunTerm, canSeeForm, roleOnProgramme } from "../access";
 import { tallyTerm, type TermTally } from "../decisions";
 import { FORM_VERSION, type ProgrammeSettings, type QuestionSetDoc } from "../model";
-import { isId, normaliseForm, type ApplicationForm } from "../normalise";
+import { isApplicationForm, isId, normaliseForm, type ApplicationForm } from "../normalise";
 import { loadForm, loadQuestionSets } from "../repo";
 import { rankedProgrammes } from "../sections";
 import { listDecisions, listSentApplications } from "../staffRepo";
@@ -75,6 +75,11 @@ export async function listFormsForStaff(
   const snap = await db.collection(ROUNDS_COLLECTION).where("formVersion", "==", FORM_VERSION).get();
   const out: LoadedForm[] = [];
   for (const doc of snap.docs) {
+    // The query asks the database for forms. Each stored document is asked the
+    // contract's own question as well, so this list is held to the rule every
+    // other read of a round is: nothing is read as a form unless
+    // `isApplicationForm` says it is one.
+    if (!isApplicationForm(doc.data())) continue;
     const form = normaliseForm(doc.id, doc.data());
     if (!canSeeForm(user, form)) continue;
     out.push({ form, context: contextFor(user, form, await namesOnForm(db, form), now) });

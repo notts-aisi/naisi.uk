@@ -503,6 +503,91 @@ export const ROUTES = {
         "a rejected one is refused, and every approved account sees its own.",
     },
   },
+  "/api/admissions/forms": {
+    GET: {
+      expect: signedIn(200),
+      fields: ["canCreate", "forms"],
+      why:
+        "Any signed-in account may list application forms, and canSeeForm filters the list " +
+        "per caller: an admin sees every form, a lead or a reviewer the forms that name them. " +
+        "Here the list is empty, so pending and rejected see nothing and canCreate is false " +
+        "for everybody but the admin.",
+    },
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Only an admin makes an application form; everyone else is forbidden before the body " +
+        "is read, and the admin meets the validation: a form needs a name.",
+    },
+  },
+  "/api/admissions/forms/[roundId]": {
+    GET: {
+      expect: signedIn(404),
+      why:
+        "404 for a form the caller has no role on, the same as for one that does not exist: " +
+        "whether a form exists is not something a stranger is told. Here it does not exist, " +
+        "so every session including pending and rejected gets the same answer.",
+    },
+    PATCH: {
+      expect: adminOnly(400),
+      why:
+        "The form itself is an admin's to change; everyone else is forbidden before the body " +
+        "is read, and the admin meets the validation on an empty change before any read.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
+    GET: {
+      expect: signedIn(404),
+      why:
+        "A programme's settings are for its lead and for admins. A caller with no role on the " +
+        "programme gets the 404 a missing programme gets, and here the form is missing for " +
+        "everybody.",
+    },
+    PATCH: {
+      expect: signedIn(400),
+      why:
+        "Session required, then the body is validated before any document is read, so every " +
+        "signed-in persona meets the same 400 on an empty change whether or not the programme " +
+        "exists. Who may edit is decided from the form, inside the write.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/roles": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "Session required, then the body is validated before any document is read: a roles " +
+        "change has to say who leads or who reviews. Who may name whom is setProgrammeRoles's " +
+        "decision, taken from the form once it is read.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/sets": {
+    GET: {
+      expect: adminOnly(404),
+      why:
+        "The question sets are the form, and the form is an admin's to edit: everyone else is " +
+        "forbidden before the read, and the admin is told the form is missing.",
+    },
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Admin only, decided before the body is read; the admin meets the validation: a new " +
+        "question set needs a name and somebody to show it to.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/sets/[setId]": {
+    PATCH: {
+      expect: adminOnly(400),
+      why:
+        "Admin only, decided before the body is read; the admin meets the validation on an " +
+        "empty change before any read.",
+    },
+    DELETE: {
+      expect: adminOnly(404),
+      why:
+        "Admin only, decided before the read: everyone else is forbidden and the admin is " +
+        "told the form is missing.",
+    },
+  },
   "/api/admissions/rounds": {
     GET: {
       expect: signedIn(200),
@@ -1898,6 +1983,35 @@ export const PAGES = {
       "approveCourse) and named reviewers; a draftCourse holder passes the admin front door " +
       "and is sent on to the dashboard here. A missing round renders the console's " +
       "not-found state for those admitted.",
+  },
+  "/(app)/admin/admissions/forms": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree: requireAdmissionsPage admits round authors (admin or " +
+      "approveCourse) and named reviewers, and sends everybody else to the dashboard. The " +
+      "list is filtered per caller, so the approveCourse holder is shown an empty page that " +
+      "says they are on no form.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the page's own: a form the caller has no role on, " +
+      "and a form that does not exist, both render 'there is no application form here' in " +
+      "place of the page, as ordinary HTML with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/form": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the page's own: the form's editor is an admin's, and " +
+      "a missing form or one the caller has no role on renders 'there is no application form " +
+      "here' in place of the page with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/setup": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's: a programme the caller has no " +
+      "role on, and one that does not exist, both render 'there is no programme here' in " +
+      "place of the page with a 200.",
   },
   "/(app)/admin/courses": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, draftCourse: 200, approveCourse: 200 }),

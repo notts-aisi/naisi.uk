@@ -265,6 +265,33 @@ const ROUND_SURFACES = {
         "and the queue's join of every applicant's details is never read for one",
     },
   },
+  "/(app)/admin/admissions/forms/[roundId]": {
+    kind: "form",
+    why:
+      "one term's programmes, for anybody with a role on the form. It reaches the round only " +
+      "through loadFormForStaff, which starts from the form's own loader and answers null for " +
+      "a round that is not a form, and the page then says there is no application form here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/form": {
+    kind: "form",
+    why:
+      "the application form's editor, an admin's. The round comes from loadFormForStaff and " +
+      "the question sets from the form's own repository, so a round of the older kind renders " +
+      "the same 'no application form here' as one that does not exist",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/layout.tsx": {
+    kind: "form",
+    why:
+      "the header and tab strip over one programme's pages. It loads the programme through " +
+      "loadProgrammeForStaff, which starts from the form's own loader, so a round of the " +
+      "older kind has no programme here to draw",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/setup": {
+    kind: "form",
+    why:
+      "one programme's settings, for its lead and for admins. It loads through loadSetup, " +
+      "which starts from the form's own loader and finds nothing for a round that is not a form",
+  },
   "/(public)/applications/[roundId]": {
     kind: "older",
     page: {
@@ -288,6 +315,39 @@ const ROUND_SURFACES = {
         "returns the applicant notice. The form itself is to be served at this address, and " +
         "this entry becomes `both` when it is",
     },
+  },
+  "/api/admissions/forms/[roundId]": {
+    kind: "form",
+    why:
+      "reads and changes the form itself: its name, its dates, the order of its programmes, a " +
+      "new programme. The GET loads through loadFormForStaff and the PATCH writes through " +
+      "changeForm, whose transaction reads the round and stops unless it is a form",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
+    kind: "form",
+    why:
+      "reads and changes one programme's settings. It loads through loadSetup and writes " +
+      "through changeProgramme, and both stop at a round that is not a form before anything " +
+      "is read as a programme",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/roles": {
+    kind: "form",
+    why:
+      "names a programme's lead and reviewers through setProgrammeRoles, the one writer, " +
+      "which asks whether the round is a form before its transaction and again inside it",
+  },
+  "/api/admissions/forms/[roundId]/sets": {
+    kind: "form",
+    why:
+      "lists the form's question sets for the editor and adds one. It loads through loadEditor " +
+      "and writes through createSet, whose transaction stops unless the round is a form",
+  },
+  "/api/admissions/forms/[roundId]/sets/[setId]": {
+    kind: "form",
+    why:
+      "edits and deletes one question set through changeSet and deleteSet. Each reads the " +
+      "round inside its transaction and stops unless it is a form, so a question set is never " +
+      "written under a round of the older kind",
   },
   "/api/admissions/rounds/[roundId]": {
     kind: "older",
@@ -482,6 +542,23 @@ function importsFrom(scope, name, from) {
   return scope.imports.get(name) === from;
 }
 
+/** The contract module that defines the question, as a path in the repository. */
+const NORMALISE_FILE = "src/lib/applications/normalise";
+
+/**
+ * Does the file at `path` import the contract's own `isApplicationForm`? By
+ * the alias, or by a relative path that RESOLVES to the contract's module
+ * from where the file sits: `./normalise` beside it, `../normalise` from a
+ * folder under it. A relative path is resolved and not matched by its
+ * spelling, so a `./normalise` in some other folder is not the contract's.
+ */
+function importsTheQuestion(path, scope) {
+  const from = scope.imports.get("isApplicationForm");
+  if (from === NORMALISE_MODULE) return true;
+  if (typeof from !== "string" || !from.startsWith(".")) return false;
+  return rel(join(dirname(path), from)) === NORMALISE_FILE;
+}
+
 /**
  * What is wrong with one `older` route handler, as sentences. Empty means the
  * handler is fenced the way its entry says. Pure, so section 5 can hand it
@@ -606,7 +683,7 @@ describe("every route, page and layout with a round id in its address", () => {
 
   test("the walk finds them", () => {
     assert.ok(
-      surfaces.length >= 17,
+      surfaces.length >= 26,
       `only ${surfaces.length} files with a [roundId] segment were found: the trees have moved`,
     );
   });
@@ -841,6 +918,30 @@ const ROUND_READERS = new Map([
     },
   ],
   [
+    "src/lib/applications/editor/load.ts",
+    {
+      kind: "form",
+      asks: 1,
+      proof: ['.where("formVersion", "==", FORM_VERSION)', "loadForm(db, roundId)"],
+      why:
+        "the editor's loaders. One form is loaded through the form's own loader, which answers " +
+        "null for a round that is not a form. The list of forms asks the database for forms " +
+        "only, and asks each stored document the question again before it reads it as one",
+    },
+  ],
+  [
+    "src/lib/applications/editor/write.ts",
+    {
+      kind: "form",
+      asks: 1,
+      proof: ["formVersion: FORM_VERSION", "await readForm(tx, db, roundId)"],
+      why:
+        "every write the editor makes. A new form is created as a form. Every other write is a " +
+        "transaction that reads the round through one reader, which asks, and stops before it " +
+        "writes anything when the round is not a form",
+    },
+  ],
+  [
     "src/lib/applications/normalise.ts",
     {
       kind: "form",
@@ -970,8 +1071,7 @@ describe("everything else that can address a round", () => {
         );
         if (entry.asks > 0 && definitions === 0) {
           assert.ok(
-            importsFrom(scope, "isApplicationForm", NORMALISE_MODULE) ||
-              importsFrom(scope, "isApplicationForm", "./normalise"),
+            importsTheQuestion(path, scope),
             "it asks a question of its own instead of the contract's isApplicationForm",
           );
         }
@@ -1025,6 +1125,13 @@ const CLONE_MENTIONS = new Map([
     {
       proof: "clonedFromRoundId: null",
       why: "the one writer, and it writes null: a new round is made from a name, with no source",
+    },
+  ],
+  [
+    "src/lib/applications/editor/write.ts",
+    {
+      proof: "clonedFromRoundId: null",
+      why: "makes a new application form from a name and writes null: a form has no source either, and the create reads no round",
     },
   ],
   [
@@ -1349,6 +1456,22 @@ describe("the checks catch what they are for", () => {
       formProblems(reading(`import { NextResponse } from "next/server";`)).join(" "),
       /imports nothing from the application form's own code/,
     );
+  });
+
+  test("the contract's question is told from one of the same name, wherever the file sits", () => {
+    const asking = (from) => ({ imports: new Map([["isApplicationForm", from]]), locals: new Map() });
+    const inRepo = (file) => join(REPO_ROOT, ...file.split("/"));
+    // The contract's own module, reached by the alias, from beside it and
+    // from a folder under it.
+    assert.ok(importsTheQuestion(inRepo("src/lib/scheduler/jobs/x.ts"), asking(NORMALISE_MODULE)));
+    assert.ok(importsTheQuestion(inRepo("src/lib/applications/repo.ts"), asking("./normalise")));
+    assert.ok(importsTheQuestion(inRepo("src/lib/applications/editor/write.ts"), asking("../normalise")));
+    // The same spelling from somewhere it does not lead to the contract.
+    assert.ok(!importsTheQuestion(inRepo("src/lib/admissions/x.ts"), asking("./normalise")));
+    assert.ok(!importsTheQuestion(inRepo("src/lib/applications/repo.ts"), asking("../normalise")));
+    assert.ok(!importsTheQuestion(inRepo("src/lib/applications/editor/write.ts"), asking("./normalise")));
+    assert.ok(!importsTheQuestion(inRepo("src/lib/applications/editor/write.ts"), asking("@/lib/mine/normalise")));
+    assert.ok(!importsTheQuestion(inRepo("src/lib/applications/editor/write.ts"), { imports: new Map(), locals: new Map() }));
   });
 
   test("the scan for what addresses a round reads code and not prose", () => {
