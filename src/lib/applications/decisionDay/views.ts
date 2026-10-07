@@ -97,6 +97,11 @@ export type SendGroup = {
   people: SendPerson[];
   /** The first person's email, as it will read. Null when the group is empty. */
   preview: EmailPreview | null;
+  /**
+   * The programme whose wording the preview is in, which is where that
+   * wording is edited. Null when the email belongs to no one programme.
+   */
+  wordingProgrammeId: string | null;
 };
 
 export type ReadinessRow = {

@@ -190,17 +190,30 @@ function Group({
           <div className={styles.letterHead}>
             <div className={`${kit.mono} ${shared.eyebrow}`}>The email</div>
             {editable && group.preview ? (
-              // Wording is edited with the programme's own settings. Until
-              // this page is given that address the control is shown and off.
-              <button
-                type="button"
-                className={styles.wording}
-                disabled
-                title="Wording is edited in the programme’s settings."
-              >
-                <Icon name="pencil" />
-                <span>Edit wording</span>
-              </button>
+              group.wordingProgrammeId ? (
+                // A programme words its own emails, on its settings page. This
+                // page is an admin's, and an admin may open every programme's.
+                <Link
+                  className={styles.wording}
+                  href={`/admin/admissions/forms/${encodeURIComponent(board.roundId)}/programmes/${encodeURIComponent(group.wordingProgrammeId)}/setup`}
+                  title="Opens this programme’s settings, where its emails are worded."
+                >
+                  <Icon name="pencil" />
+                  <span>Edit wording</span>
+                </Link>
+              ) : (
+                // "No offer this time" is the form's own email, not a
+                // programme's, and no page edits it yet. Drawn, and off.
+                <button
+                  type="button"
+                  className={styles.wording}
+                  disabled
+                  title="This email is the same for every programme. There is no page to edit it on yet."
+                >
+                  <Icon name="pencil" />
+                  <span>Edit wording</span>
+                </button>
+              )
             ) : null}
           </div>
           <Letter board={board} preview={group.preview} />

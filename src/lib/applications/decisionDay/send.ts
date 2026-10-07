@@ -7,7 +7,7 @@ import { COURSE_AUDIT_COLLECTION, COURSE_AUDIT_LIMITS } from "@/lib/firestore/co
 import { approveWaitingAccount, holdsAcceptance } from "../accounts/approve";
 import { outcomeFor } from "../decisions";
 import { own } from "../keys";
-import type { ResultEmailState } from "../model";
+import type { ProgrammeEmailKind, ResultEmailState } from "../model";
 import {
   isApplicationForm,
   normaliseApplication,
@@ -27,6 +27,7 @@ import {
   composeDecisionEmail,
   type DecisionEmail,
   type DecisionEmailKind,
+  type DecisionEmailOutcome,
 } from "./emailCopy";
 import { emailStanding, handoverAfter } from "./emailState";
 import { appUrl, emailContext, type EmailContext } from "./letters";
@@ -211,6 +212,9 @@ function groupOf(context: EmailContext, term: Term, kind: Publication["kind"]): 
   return {
     people: members.map((person) => ({ uid: person.uid, name: person.name })),
     preview: first && email ? previewOf(first, email) : null,
+    // "You're in" and an invitation are worded by the programme they are
+    // about. "No offer this time" is the form's own, so it names none.
+    wordingProgrammeId: first && email && told && kind !== "no-offer" ? told.programmeId : null,
   };
 }
 
@@ -339,6 +343,19 @@ export async function sendTestEmail(
       error: "Nobody is in that group yet, so there is no email to test.",
     };
   }
+  return rehearse(actor, roundId, email);
+}
+
+/**
+ * Hand one composed email to the person who asked for it, marked as a test.
+ * The only address a test ever goes to is the one on the asker's own session:
+ * no caller passes one in from a request.
+ */
+async function rehearse(
+  actor: { uid: string; email: string },
+  roundId: string,
+  email: DecisionEmail,
+): Promise<TestSend> {
   try {
     const delivery = await sendDecisionEmail({
       to: actor.email,
@@ -352,6 +369,46 @@ export async function sendTestEmail(
     console.error("[decision day] test send failed", roundId, err);
     return { ok: false, status: 502, error: "That test could not be sent. Try again in a minute." };
   }
+}
+
+/**
+ * Send one programme's own wording of one of its emails to whoever asked,
+ * from that programme's settings page. It is addressed to them by their own
+ * name, because the page is used long before anybody is in a group: there may
+ * be no applicant to borrow yet, and nobody's name is needed to read wording.
+ *
+ * It tells no applicant anything and writes nothing. Who may ask is the
+ * route's to decide: this function sends to the address it is handed.
+ */
+export async function sendProgrammeTestEmail(
+  db: Firestore,
+  actor: { uid: string; email: string; firstName: string },
+  form: ApplicationForm,
+  programmeId: string,
+  kind: ProgrammeEmailKind,
+): Promise<TestSend> {
+  const none: TestSend = { ok: false, status: 404, error: "That programme is not on this form." };
+  if (!programmeOf(form, programmeId)) return none;
+  const context = await emailContext(db, form);
+  const outcome: DecisionEmailOutcome =
+    kind === "accepted"
+      ? { kind: "accepted", programmeId }
+      : kind === "invitation"
+        ? { kind: "invited", programmeId }
+        : { kind: "declined" };
+  const email = composeDecisionEmail({
+    outcome,
+    firstName: actor.firstName,
+    form,
+    // An invitation is to something the person did not pick, so the test of
+    // one ranks nothing. The other two are about this programme itself.
+    ranked: kind === "invitation" ? [] : [programmeId],
+    leadNames: context.leadNames,
+    replyBy: context.replyBy,
+    links: context.links,
+  });
+  if (!email) return none;
+  return rehearse(actor, form.round.id, email);
 }
 
 // ---------------------------------------------------------------------------

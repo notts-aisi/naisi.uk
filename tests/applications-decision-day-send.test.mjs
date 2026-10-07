@@ -28,6 +28,8 @@
  *  7. THE COUNTS ADD UP, every time: each person a press looked at is in
  *     exactly one of them.
  *  8. ONLY AN ADMIN, decided before anything is read, on all three routes.
+ *     A programme's own test email is its lead's or an admin's, and goes to
+ *     the address on the caller's own session whatever the request says.
  *  9. WHAT BECAME OF EACH EMAIL IS ON THE RESULT, and that record decides what
  *     a later press does. An email known not to have gone is owed and a later
  *     press sends it. One that was sent, held, refused by the do-not-email
@@ -113,6 +115,9 @@ const repo = await loadTs(join("lib", "applications", "repo.ts"));
 const sendRoute = await loadTs(join("app", "api", "admissions", "forms", "[roundId]", "send", "route.ts"));
 const testRoute = await loadTs(
   join("app", "api", "admissions", "forms", "[roundId]", "send", "test", "route.ts"),
+);
+const programmeTestRoute = await loadTs(
+  join("app", "api", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "test-email", "route.ts"),
 );
 
 // ---------------------------------------------------------------------------
@@ -1539,6 +1544,18 @@ describe("the decision-day page", () => {
     assert.deepEqual(view.declined, { count: 1 });
     assert.deepEqual(view.pending, { people: 8, emails: 7, declined: 1, perPress: send.MAX_PEOPLE_PER_PRESS });
     assert.deepEqual([view.replyBy, view.fromName, view.replyTo], ["Sun 25 Oct", "NAISI", "ai-safety@uonsu.com"]);
+    // "Edit wording" opens the settings of the programme each preview is
+    // worded by. "No offer this time" is the form's own, so it names none.
+    assert.deepEqual(
+      [view.accepted.wordingProgrammeId, view.invited.wordingProgrammeId, view.noOffer.wordingProgrammeId],
+      [AGI, TAIS, null],
+    );
+  });
+
+  test("an empty group has no wording to edit", async () => {
+    const nobodyInvited = PEOPLE.filter(([uid]) => uid !== "oliver");
+    const view = await board(makeDb(seed({}, nobodyInvited)));
+    assert.deepEqual([view.invited.preview, view.invited.wordingProgrammeId], [null, null]);
   });
 
   test("it says how many accepted people have an account still waiting", async () => {
@@ -1904,5 +1921,229 @@ describe("the three routes are an admin's, decided before anything is read", () 
     assert.equal((await testRoute.POST(post({ kind: "accepted" }), ctx())).status, 400);
     assert.deepEqual(globalThis.__ddMail.calls, []);
     assert.deepEqual(db.counters, { reads: 0, writes: 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. A test of one programme's own wording, from its settings page
+// ---------------------------------------------------------------------------
+
+describe("a test of a programme's own email goes to whoever asked, and to nobody else", () => {
+  const me = { uid: "claudia", email: "claudia@example.com", firstName: "Claudia" };
+  const form = (db) => repo.loadForm(db, ROUND);
+  const worded = (emailWording) =>
+    seed({
+      [`admissionRounds/${ROUND}`]: roundDoc({
+        programmes: {
+          ...roundDoc().programmes,
+          [AGI]: programme("AGI Strategy Fellowship", "AGI Strategy", 32, "claudia", { emailWording }),
+        },
+      }),
+    });
+
+  test("You’re in: this programme's email, addressed to the asker by their own name", async () => {
+    const db = makeDb(seed());
+    const result = await send.sendProgrammeTestEmail(db, me, await form(db), AGI, "accepted");
+    assert.deepEqual(result, { ok: true, delivery: "sent", subject: "You’re in AGI Strategy" });
+    const { calls } = globalThis.__ddMail;
+    assert.equal(calls.length, 1);
+    assert.deepEqual(
+      [calls[0].to, calls[0].subject, calls[0].kind, calls[0].replyTo, calls[0].actorUid, calls[0].referenceId],
+      ["claudia@example.com", "[TEST] You’re in AGI Strategy", "admin-test", "ai-safety@uonsu.com", "claudia", ROUND],
+    );
+    const text = await render(calls[0].react, { plainText: true });
+    assert.ok(text.includes("Hi Claudia,"));
+    assert.ok(text.includes("You’re in the AGI Strategy Fellowship. It starts w/c 26 Oct."));
+    assert.ok(text.includes("AGI Strategy lead, NAISI"));
+    // It borrows no applicant: nobody's name but the asker's is in it.
+    for (const [, name] of PEOPLE) assert.ok(!text.includes(name.split(" ")[0]), name);
+    assert.equal(db.counters.writes, 0);
+  });
+
+  test("Invitation: an invitation to this programme, with the form's reply-by day", async () => {
+    const db = makeDb(seed());
+    const result = await send.sendProgrammeTestEmail(db, me, await form(db), TAIS, "invitation");
+    assert.equal(result.subject, "An invitation to Technical AI Safety");
+    const text = await render(globalThis.__ddMail.calls[0].react, { plainText: true });
+    assert.ok(text.includes("Thanks for applying. The pool was really strong"));
+    assert.ok(text.includes("you’d be a great fit for the Technical AI Safety Fellowship instead."));
+    assert.ok(text.includes("Accept your invitation by Sun 25 Oct to let us know you’re coming."));
+    assert.ok(text.includes("Technical AI Safety lead, NAISI"));
+  });
+
+  test("Declined: the kind no, signed for this programme, until the programme writes its own", async () => {
+    const db = makeDb(seed());
+    const standard = await send.sendProgrammeTestEmail(db, me, await form(db), AGI, "declined");
+    assert.equal(standard.subject, "Your NAISI application");
+    const text = await render(globalThis.__ddMail.calls[0].react, { plainText: true });
+    assert.ok(text.includes("Thanks for applying. We can’t offer you a place this term."));
+    assert.ok(text.includes("AGI Strategy lead, NAISI"));
+
+    const own = makeDb(worded({ declined: { subject: "About your application", body: "This one is not for us.\n\nThank you for sending it." } }));
+    const result = await send.sendProgrammeTestEmail(own, me, await form(own), AGI, "declined");
+    assert.equal(result.subject, "About your application");
+    const sent = await render(globalThis.__ddMail.calls[1].react, { plainText: true });
+    assert.ok(sent.includes("This one is not for us.") && sent.includes("Thank you for sending it."));
+    assert.ok(!sent.includes("We can’t offer you a place this term."));
+  });
+
+  test("what is sent is the wording as it is saved, and each kind reads its own", async () => {
+    const db = makeDb(
+      worded({
+        accepted: { subject: "Welcome aboard", body: "You have a place.\n\nSee you there." },
+        invitation: { subject: "Join us instead", body: "We would love to have you." },
+      }),
+    );
+    const accepted = await send.sendProgrammeTestEmail(db, me, await form(db), AGI, "accepted");
+    const invitation = await send.sendProgrammeTestEmail(db, me, await form(db), AGI, "invitation");
+    assert.deepEqual([accepted.subject, invitation.subject], ["Welcome aboard", "Join us instead"]);
+    assert.deepEqual(globalThis.__ddMail.calls.map((call) => call.subject), ["[TEST] Welcome aboard", "[TEST] Join us instead"]);
+    const text = await render(globalThis.__ddMail.calls[0].react, { plainText: true });
+    assert.ok(text.includes("You have a place.") && text.includes("See you there."));
+    // Another programme on the same form still has the standard words.
+    const other = await send.sendProgrammeTestEmail(db, me, await form(db), TAIS, "accepted");
+    assert.equal(other.subject, "You’re in Technical AI Safety");
+  });
+
+  test("a programme the form does not carry has nothing to test, whatever its name", async () => {
+    const db = makeDb(seed());
+    for (const id of ["not-on-the-form", "constructor", "__proto__", ""]) {
+      const result = await send.sendProgrammeTestEmail(db, me, await form(db), id, "accepted");
+      assert.deepEqual([result.ok, result.status], [false, 404], id);
+    }
+    assert.deepEqual(globalThis.__ddMail.calls, []);
+  });
+
+  test("what the mail door did with it is reported", async () => {
+    const db = makeDb(seed());
+    globalThis.__ddMail.verdict = () => "held";
+    assert.equal((await send.sendProgrammeTestEmail(db, me, await form(db), AGI, "accepted")).delivery, "held");
+    globalThis.__ddMail.verdict = () => "throw";
+    const failed = await quietly(async () => send.sendProgrammeTestEmail(db, me, await form(db), AGI, "accepted"));
+    assert.deepEqual([failed.ok, failed.status], [false, 502]);
+  });
+});
+
+describe("the programme test route: its lead or an admin, and only to themselves", () => {
+  const pctx = (programmeId = AGI, roundId = ROUND) => ({ params: Promise.resolve({ roundId, programmeId }) });
+  const ask = (body, where = pctx()) => programmeTestRoute.POST(post(body), where);
+  let db;
+  beforeEach(() => {
+    // Claudia leads AGI Strategy and Lloyd reviews it. Zach leads the other two.
+    db = makeDb(
+      seed({
+        [`admissionRounds/${ROUND}`]: roundDoc({
+          programmes: {
+            ...roundDoc().programmes,
+            [AGI]: programme("AGI Strategy Fellowship", "AGI Strategy", 32, "claudia", { reviewerUids: ["lloyd"] }),
+            [TAIS]: programme("Technical AI Safety Fellowship", "Technical AI Safety", 24, "priya"),
+          },
+        }),
+      }),
+    );
+    globalThis.__ddDb = db;
+    globalThis.__ddUser = session("claudia", "committee", true, "Claudia Reyes");
+    globalThis.__ddBlocked = null;
+  });
+
+  test("the lead of the programme gets its test, at their own address", async () => {
+    const response = await ask({ kind: "accepted" });
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body, { ok: true, kind: "accepted", delivery: "sent", subject: "You’re in AGI Strategy" });
+    assert.deepEqual(globalThis.__ddMail.calls.map((call) => [call.to, call.kind]), [["claudia@example.com", "admin-test"]]);
+    assert.ok((await render(globalThis.__ddMail.calls[0].react, { plainText: true })).includes("Hi Claudia,"));
+    assert.equal(db.counters.writes, 0);
+  });
+
+  test("an admin gets any programme's test", async () => {
+    globalThis.__ddUser = ZACH;
+    for (const programmeId of [AGI, TAIS, INC]) assert.equal((await ask({ kind: "invitation" }, pctx(programmeId))).status, 200);
+    assert.deepEqual(globalThis.__ddMail.calls.map((call) => call.to), ["zach@example.com", "zach@example.com", "zach@example.com"]);
+  });
+
+  test("nobody can address a test to another person: the body's addresses are not read", async () => {
+    const response = await ask({
+      kind: "accepted",
+      to: "amara@example.com",
+      email: "amara@example.com",
+      uid: "amara",
+      recipient: "amara@example.com",
+      actor: { email: "amara@example.com" },
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(globalThis.__ddMail.calls.map((call) => call.to), ["claudia@example.com"]);
+    assert.deepEqual(mailTo("amara@example.com"), []);
+  });
+
+  const REFUSED = [
+    ["signed out", null, 401],
+    ["a reviewer on the programme", session("lloyd", "committee", true), 403],
+    ["the lead of another programme on the same form", session("priya", "committee", true), 404],
+    ["SU-recognised committee named nowhere", session("yusuf", "committee", true), 404],
+    ["a member", session("amara", "member"), 404],
+    ["an account still waiting", session("jasmine", "pending"), 404],
+    // Named as lead, and no longer the kind of account a lead has to be.
+    ["a lead whose standing has lapsed", session("claudia", "committee", false), 404],
+    ["a lead whose account is now a plain member's", session("claudia", "member"), 404],
+  ];
+  for (const [who, user, status] of REFUSED) {
+    test(`${who}: ${status}, and nothing is sent`, async () => {
+      globalThis.__ddUser = user;
+      for (const kind of ["accepted", "invitation", "declined"]) {
+        assert.equal((await ask({ kind })).status, status, kind);
+      }
+      assert.deepEqual(globalThis.__ddMail.calls, []);
+      assert.equal(db.counters.writes, 0);
+    });
+  }
+
+  test("somebody with no role is told the same thing as for a programme or a form that does not exist", async () => {
+    globalThis.__ddUser = session("amara", "member");
+    const noRole = await ask({ kind: "accepted" });
+    const noProgramme = await ask({ kind: "accepted" }, pctx("not-on-the-form"));
+    const noForm = await ask({ kind: "accepted" }, pctx(AGI, "no-such-form"));
+    for (const response of [noRole, noProgramme, noForm]) {
+      assert.deepEqual([response.status, response.body], [404, { error: "That programme is not on this form." }]);
+    }
+    // And so is an admin asking about one that is not there.
+    globalThis.__ddUser = ZACH;
+    assert.equal((await ask({ kind: "accepted" }, pctx("not-on-the-form"))).status, 404);
+    assert.equal((await ask({ kind: "accepted" }, pctx(AGI, "no-such-form"))).status, 404);
+  });
+
+  test("a body that names no email of this programme's is refused before anything is read", async () => {
+    for (const body of [{}, { kind: "no-offer" }, { kind: "invited" }, { kind: "constructor" }, { kind: 1 }, null]) {
+      assert.equal((await ask(body)).status, 400, JSON.stringify(body));
+    }
+    assert.equal((await programmeTestRoute.POST({ json: async () => { throw new SyntaxError("bad"); } }, pctx())).status, 400);
+    assert.deepEqual(db.counters, { reads: 0, writes: 0 });
+  });
+
+  test("an id that could not be one is not looked up", async () => {
+    for (const where of [pctx("a.b"), pctx("constructor"), pctx(AGI, "a/b"), pctx(AGI, "__proto__")]) {
+      assert.equal((await ask({ kind: "accepted" }, where)).status, 404);
+    }
+    assert.deepEqual(db.counters, { reads: 0, writes: 0 });
+  });
+
+  test("an account with no address has nowhere to send a test, said before anything is read", async () => {
+    globalThis.__ddUser = { ...session("claudia", "committee", true), email: null };
+    assert.equal((await ask({ kind: "accepted" })).status, 400);
+    assert.deepEqual(db.counters, { reads: 0, writes: 0 });
+    assert.deepEqual(globalThis.__ddMail.calls, []);
+  });
+
+  test("a view-as session is turned away before anything else: the address on it is the member's", async () => {
+    globalThis.__ddUser = ZACH;
+    globalThis.__ddBlocked = { status: 403, body: { error: "viewing as" } };
+    assert.equal((await ask({ kind: "accepted" })).status, 403);
+    assert.deepEqual(db.counters, { reads: 0, writes: 0 });
+    assert.deepEqual(globalThis.__ddMail.calls, []);
+  });
+
+  test("a test that cannot be sent says so, and is not reported as sent", async () => {
+    globalThis.__ddMail.verdict = () => "throw";
+    const response = await quietly(() => ask({ kind: "accepted" }));
+    assert.deepEqual([response.status, response.body.error], [502, "That test could not be sent. Try again in a minute."]);
   });
 });
