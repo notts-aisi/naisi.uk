@@ -372,8 +372,8 @@ export default function PrivacyContentV6({
                   your request to join as well as the start of your
                   application. When you continue you make an account, with
                   Google or with an email address. What you typed is then
-                  saved as your profile, exactly as it would be if you had
-                  registered first (see{" "}
+                  saved as your profile, as it would be if you had registered
+                  first (see{" "}
                   <a href="#data-we-collect">Data we collect</a>), and copied
                   onto your application. We email a link to your university
                   address so you can show it is yours, and until that address
@@ -934,9 +934,9 @@ export default function PrivacyContentV6({
                 you type on the form&apos;s first step is kept in that browser
                 tab, in its session storage under a key beginning{" "}
                 <code>naisi.apply.join</code>, so that it is still there once
-                you have signed in. It is your answers to that step and the
-                time you typed them, and nothing else: no password, no sign-in
-                address, and not whether you agreed to our terms. Those
+                you have signed in. It is your answers to that step and when
+                you last changed them, and nothing else: no password, no
+                sign-in address, and not whether you agreed to our terms. Those
                 answers are not sent to us until you have signed in. The copy
                 in the tab is removed when your request to join is sent, it is
                 ignored once it is a day old, and it goes when you close the
