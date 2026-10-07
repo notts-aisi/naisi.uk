@@ -14,7 +14,7 @@ It was rewritten on 7 October 2026, when the events pages were rebuilt to the re
 4. The places bar, for an event that takes sign-ups and has a limit.
 5. Two columns. On the left, what the event is: the calendar buttons, the description, the food line. On the right, what a visitor can do: the sign-up panel, or a card in its place (cancelled, ended, or "No sign-up needed").
 
-**On a narrow screen there is one column, and the sign-up panel comes first**, straight under the facts and above the calendar buttons and the description. "Narrow" is the page's own box being 48rem wide or less, so the preview inside the signed-in shell follows the same rule as a phone.
+**On a narrow screen there is one column, and the sign-up panel comes first**, straight under the facts and above the calendar buttons and the description. "Narrow" is the page's own box being less than 48rem wide (a container query), so the preview inside the signed-in shell follows the same rule as a phone. One column is the stylesheet's plain rule and two columns are the exception inside the query, so a browser too old for container queries shows the phone's one column at every width, never two squeezed ones.
 
 **The sign-up panel is never sticky and never fixed, at any width.** It is an ordinary block. A sign-up form can be taller than a phone, and a pinned panel is how a submit button ends up underneath something. The submit button is the last control in the form, as wide as the panel, 52px tall.
 
@@ -115,7 +115,7 @@ The baseline is not fixed for ever. If a deliberate improvement to the events fl
 
 ## What changed on 7 October 2026
 
-- The page was two columns with the sign-up panel sticky on the right above 880px, and one column with the panel LAST below that. It is now two columns with nothing sticky when the page's box is wider than 48rem, and one column with the panel FIRST when it is not.
+- The page was two columns with the sign-up panel sticky on the right above 880px, and one column with the panel LAST below that. It is now two columns with nothing sticky when the page's box is at least 48rem wide, and one column with the panel FIRST when it is not.
 - The details card (title, when, where, capacity) became the hero card, the facts and the places bar.
 - The submit button was 140px wide and 44px tall and said "Request RSVP". It is as wide as the panel, 52px tall, and says "Request a place".
 - An event that has ended shows a card saying so in place of the form. An event is over once its end time has passed, or, with no end time, once its day has.

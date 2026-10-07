@@ -6,6 +6,12 @@
   (a container query), because the same view is drawn inside the signed-in
   shell, where the window is wide and the box is not.
 
+  ONE COLUMN IS THE RULE AND TWO ARE THE EXCEPTION, written that way round on
+  purpose. A browser too old to know a container query reads only the rule,
+  and gets the phone's one column at any width: plain, and whole. Written the
+  other way round it would get two columns on a phone, with the description
+  squeezed to nothing beside the form.
+
   Nothing here is pinned to the screen. See the component for why.
 */
 
@@ -86,8 +92,12 @@
   gap: 2px;
   max-width: 100%;
   padding: var(--space-3) var(--space-4);
-  border: 1px solid color-mix(in srgb, var(--color-text-soft) 35%, transparent);
+  /* A solid edge and ground first, for a browser that cannot mix a colour;
+     the see-through pair after them is what the box is meant to wear. */
+  border: 1px solid var(--color-border-strong);
+  border-color: color-mix(in srgb, var(--color-text-soft) 35%, transparent);
   border-radius: var(--radius-row);
+  background: var(--color-floor);
   background: color-mix(in srgb, var(--color-floor) 60%, transparent);
 }
 
@@ -216,11 +226,15 @@
   color: var(--color-text-muted);
 }
 
-/* === The two columns === */
+/* === The two columns ===
+   One column, with the right-hand column FIRST: on a phone the sign-up panel
+   sits straight under the facts, not at the foot of a long description. The
+   markup keeps the reading order (what the event is, then what to do about
+   it); only the picture changes. The wide case is at the end of the file. */
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 26rem);
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-8) 3.5rem;
   align-items: start;
   margin-top: clamp(1.5rem, 3vw, 2.5rem);
@@ -231,6 +245,7 @@
 }
 
 .aside {
+  order: -1;
   min-width: 0;
 }
 
@@ -366,17 +381,15 @@
   margin-top: var(--space-1);
 }
 
-/* One column once the page's own box is narrow, and the right-hand column
-   comes first: on a phone the sign-up panel sits straight under the facts,
-   not at the foot of a long description. The markup keeps the reading order
-   (what the event is, then what to do about it); only the picture changes. */
-@container event (max-width: 48rem) {
+/* Two columns once the page's own box is wide enough for them: the
+   description on the left, and the panel beside it at its own width. */
+@container event (min-width: 48rem) {
   .layout {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 26rem);
   }
 
   .aside {
-    order: -1;
+    order: 0;
   }
 }
 
