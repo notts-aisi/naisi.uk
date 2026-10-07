@@ -8,8 +8,10 @@ import { downloadCSV, toCSV } from "@/lib/csv";
 import {
   AdminLoadingBar,
   AdminListFooter,
+  AdminTable,
   useClientPagination,
 } from "./adminList";
+import { AdminPanel, AdminProblem, AdminStat, AdminStats } from "./adminPanels";
 import { useNewsletterSubscribers, type Subscriber } from "./useNewsletterSubscribers";
 import styles from "./NewsletterTable.module.css";
 
@@ -69,7 +71,7 @@ export default function NewsletterTable() {
       setCopyStatus(`Copied ${unique.split(", ").length} address(es).`);
     } catch (err) {
       console.error(err);
-      setCopyStatus("Copy failed — browser blocked clipboard access.");
+      setCopyStatus("Copy failed: the browser blocked clipboard access.");
     }
     setTimeout(() => setCopyStatus(null), 3000);
   }
@@ -87,107 +89,101 @@ export default function NewsletterTable() {
     );
   }
   if (error) {
-    return (
-      <Card padding="md">
-        <p style={{ color: "var(--color-danger)" }}>
-          Couldn&apos;t load subscribers: {error.message}
-        </p>
-      </Card>
-    );
+    return <AdminProblem>Couldn&apos;t load subscribers: {error.message}</AdminProblem>;
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
-      <div className={styles.summary}>
-        <div>
-          <div className={styles.bigCount}>{subs.length}</div>
-          <div className={styles.bigLabel}>
-            Subscriber{subs.length === 1 ? "" : "s"}
-          </div>
-        </div>
-        <div className={styles.minis}>
-          <div>
-            <div className={styles.miniCount}>{counts.gmail}</div>
-            <div className={styles.miniLabel}>Deliver to Gmail</div>
-          </div>
-          <div>
-            <div className={styles.miniCount}>{counts.uni}</div>
-            <div className={styles.miniLabel}>Deliver to uni email</div>
-          </div>
-        </div>
-      </div>
+    <>
+      <AdminStats label="Newsletter recipients">
+        <AdminStat
+          value={subs.length}
+          label={subs.length === 1 ? "subscriber" : "subscribers"}
+          note="Opted in from their profile"
+        />
+        <AdminStat
+          value={counts.gmail}
+          label="deliver to Gmail"
+          note="The address they signed in with"
+        />
+        <AdminStat
+          value={counts.uni}
+          label="deliver to their university email"
+          note="Where they have asked for it"
+        />
+      </AdminStats>
 
-      <Card padding="md">
+      <AdminPanel
+        title="Take the list"
+        description="“Honour preferences” copies each person’s chosen inbox or inboxes. Somebody who has not chosen gets their Gmail address."
+      >
         <div className={styles.actions}>
           <Button size="sm" onClick={() => copyAddresses("preferred")}>
-            Copy (honour prefs)
+            Copy (honour preferences)
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => copyAddresses("gmail")}>
+          <Button size="sm" variant="secondary" onClick={() => copyAddresses("gmail")}>
             Copy Gmail addresses
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => copyAddresses("uni")}>
-            Copy uni addresses
+          <Button size="sm" variant="secondary" onClick={() => copyAddresses("uni")}>
+            Copy university addresses
           </Button>
-          <Button size="sm" variant="ghost" onClick={onDownload}>
+          <Button size="sm" variant="secondary" onClick={onDownload}>
             Download CSV
           </Button>
         </div>
         {copyStatus && (
-          <p style={{ marginTop: "var(--space-3)", color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>
+          <p className={styles.status} role="status">
             {copyStatus}
           </p>
         )}
-        <p style={{ marginTop: "var(--space-3)", color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>
-          &ldquo;Honour prefs&rdquo; sends to each person&apos;s chosen inbox(es); if they haven&apos;t
-          set a preference, falls back to their Gmail address.
-        </p>
-      </Card>
+      </AdminPanel>
 
       {subs.length === 0 ? (
         <Card padding="md">
-          <p style={{ color: "var(--color-text-muted)" }}>
-            No subscribers yet. Registered users can opt in from their{" "}
-            <a href="/profile" style={{ color: "var(--color-accent)", textDecoration: "underline" }}>
+          <p className={styles.muted}>
+            No subscribers yet. Members can opt in from their{" "}
+            <a href="/profile" className={styles.link}>
               profile
             </a>
             .
           </p>
         </Card>
       ) : (
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Role</th>
-                <th>Gmail</th>
-                <th>University email</th>
-                <th>Delivery</th>
+        <AdminTable caption="Newsletter recipients" minWidth="48rem" stackOnPhone>
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">Account</th>
+              <th scope="col">Gmail</th>
+              <th scope="col">University email</th>
+              <th scope="col">Delivery</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((s) => (
+              <tr key={s.uid}>
+                <td className={styles.name}>{s.displayName}</td>
+                <td data-label="Account">
+                  <Badge tone="neutral">{s.role}</Badge>
+                </td>
+                <td data-label="Gmail" className={styles.address}>
+                  {s.gmailEmail ?? <span className={styles.muted}>None</span>}
+                </td>
+                <td data-label="University" className={styles.address}>
+                  {s.universityEmail ?? <span className={styles.muted}>None</span>}
+                </td>
+                <td data-label="Delivery">
+                  <div className={styles.deliveryCell}>
+                    {s.deliverToGmail && <Badge tone="accent">Gmail</Badge>}
+                    {s.deliverToUniEmail && <Badge tone="accent">University</Badge>}
+                    {!s.deliverToGmail && !s.deliverToUniEmail && (
+                      <Badge tone="warning">No inbox set</Badge>
+                    )}
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {shown.map((s) => (
-                <tr key={s.uid}>
-                  <td>{s.displayName}</td>
-                  <td>
-                    <Badge tone="neutral">{s.role}</Badge>
-                  </td>
-                  <td>{s.gmailEmail ?? <span className={styles.muted}>—</span>}</td>
-                  <td>{s.universityEmail ?? <span className={styles.muted}>—</span>}</td>
-                  <td>
-                    <div className={styles.deliveryCell}>
-                      {s.deliverToGmail && <Badge tone="accent">Gmail</Badge>}
-                      {s.deliverToUniEmail && <Badge tone="success">Uni</Badge>}
-                      {!s.deliverToGmail && !s.deliverToUniEmail && (
-                        <Badge tone="warning">No inbox set</Badge>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </AdminTable>
       )}
 
       {!loading && !error && total > 0 && (
@@ -201,6 +197,6 @@ export default function NewsletterTable() {
           noun="subscribers"
         />
       )}
-    </div>
+    </>
   );
 }
