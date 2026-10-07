@@ -13,7 +13,7 @@ import Notice from "@/components/ui/Notice";
 import OptionRow from "@/components/ui/OptionRow";
 import PageHead from "@/components/ui/PageHead";
 import Link from "next/link";
-import ResponsiveSelect from "@/components/ui/ResponsiveSelect";
+import SegmentedControl from "@/components/ui/SegmentedControl";
 import Switch from "@/components/ui/Switch";
 import { useAuth } from "@/auth/AuthProvider";
 import { getClientDb } from "@/lib/firebase/client";
@@ -1379,28 +1379,36 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
               </h2>
               <p className={styles.sectionHint}>How people get a place and what you ask them.</p>
               <div className={styles.fields}>
-                <div className={styles.twoCol}>
-                  <Field id="visibility" label="Who can sign up?">
-                    <ResponsiveSelect<EventVisibility>
-                      value={visibility}
-                      onChange={(value) => {
-                        setVisibility(value);
-                        markDirty();
-                      }}
-                      options={[
-                        { value: "public", label: "Anyone with the link" },
-                        { value: "members", label: "Only people with a naisi.uk account" },
-                      ]}
-                      disabled={locked}
-                      ariaLabel="Who can sign up?"
-                    />
-                  </Field>
+                {/* For a drop-in: a social, a screening, a stall. The sign-up
+                    settings below this are kept as they are and simply not used, so
+                    switching back loses nothing. */}
+                <div className={styles.choice}>
+                  <span className={styles.groupLabel}>Do people need to sign up?</span>
+                  <SegmentedControl<"yes" | "no">
+                    value={noSignup ? "no" : "yes"}
+                    onChange={(value) => {
+                      setNoSignup(value === "no");
+                      markDirty();
+                    }}
+                    options={[
+                      { value: "yes", label: "Yes, they request a place" },
+                      { value: "no", label: "No, they just turn up" },
+                    ]}
+                    disabled={locked}
+                    ariaLabel="Do people need to sign up?"
+                  />
+                </div>
 
-                  <Field
-                    id="capacity"
-                    label="Places (optional)"
-                    hint="Leave it empty for no limit."
-                  >
+                {noSignup && (
+                  <Notice tone="neutral" role="note">
+                    The event page shows no form and offers add to calendar. The places, the
+                    questions and the waiting list below are kept, and not used while this is
+                    set.
+                  </Notice>
+                )}
+
+                <div className={styles.places}>
+                  <Field id="capacity" label="Places" hint="Leave it empty for no limit.">
                     <Input
                       id="capacity"
                       type="number"
@@ -1420,33 +1428,6 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                   </Field>
                 </div>
 
-                {/* For a drop-in: a social, a screening, a stall. The sign-up
-                    settings around this are kept as they are and simply not used, so
-                    switching back loses nothing. */}
-                <Switch
-                  checked={noSignup}
-                  onChange={(value) => {
-                    setNoSignup(value);
-                    markDirty();
-                  }}
-                  disabled={locked}
-                  label="No sign-up needed"
-                  description="People just turn up. The event page shows no form and offers add to calendar. The places, the waiting list and the questions are kept, and not used while this is on."
-                />
-
-                {capacity !== null && (
-                  <Switch
-                    checked={waitlistEnabled}
-                    onChange={(value) => {
-                      setWaitlistEnabled(value);
-                      markDirty();
-                    }}
-                    disabled={locked}
-                    label="Waiting list when it’s full"
-                    description="If someone cancels, the next person on the list gets their place and an email."
-                  />
-                )}
-
                 <div>
                   <h3 className={styles.partTitle}>Questions</h3>
                   <p className={styles.partHint}>
@@ -1459,6 +1440,38 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                       markDirty();
                     }}
                     disabled={locked}
+                    collapsible
+                    addLabel="Ask a question"
+                    emptyStateHint="No questions yet. People are asked for their name and email and nothing else."
+                  />
+                </div>
+
+                <div className={styles.switches}>
+                  {capacity !== null && (
+                    <Switch
+                      checked={waitlistEnabled}
+                      onChange={(value) => {
+                        setWaitlistEnabled(value);
+                        markDirty();
+                      }}
+                      disabled={locked}
+                      label="Waiting list when it’s full"
+                      description="If someone cancels, the next person on the list gets their place and an email."
+                    />
+                  )}
+                  <Switch
+                    checked={visibility === "members"}
+                    onChange={(value) => {
+                      setVisibility(value ? "members" : "public");
+                      markDirty();
+                    }}
+                    disabled={locked}
+                    label="Account needed"
+                    description={
+                      noSignup
+                        ? "The event is marked members only, and its announcement goes to people with a naisi.uk account."
+                        : "Only people with a naisi.uk account can request a place."
+                    }
                   />
                 </div>
               </div>
