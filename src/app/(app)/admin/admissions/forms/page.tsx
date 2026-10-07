@@ -8,6 +8,7 @@ import { canRunTerm } from "@/lib/applications/access";
 import { listFormsForStaff } from "@/lib/applications/editor/load";
 import { applicationFormPath } from "@/lib/applications/editor/olderRounds";
 import { projectFormForStaff } from "@/lib/applications/editor/views";
+import { stageSummaryFor } from "@/lib/applications/lifecycle/view";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
@@ -24,7 +25,11 @@ export default async function ApplicationFormsPage() {
   const user = await requireAdmissionsPage();
   const db = getAdminDb();
   const loaded = db ? await listFormsForStaff(db, user) : [];
-  const forms = loaded.map((entry) => projectFormForStaff(entry.form, entry.context));
+  const forms = loaded.map((entry) => ({
+    ...projectFormForStaff(entry.form, entry.context),
+    // The same reading of where the form is that its own page draws.
+    stage: stageSummaryFor(entry.form, entry.context.now),
+  }));
   const admin = canRunTerm(user);
 
   return (
@@ -65,8 +70,11 @@ export default async function ApplicationFormsPage() {
                 <span className={styles.formMain}>
                   <span className={styles.formTitle}>
                     <span className={styles.formName}>{form.label}</span>
-                    <Chip tone={form.state.live || form.state.key === "opens" ? "live" : "neutral"} dot={form.state.live}>
-                      {form.state.label}
+                    <Chip
+                      tone={form.stage.live || form.stage.stage === "opens-later" ? "live" : "neutral"}
+                      dot={form.stage.live}
+                    >
+                      {form.stage.title}
                     </Chip>
                   </span>
                   <span className={styles.formLine}>

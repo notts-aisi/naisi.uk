@@ -1,0 +1,178 @@
+/*
+  Where the term is, under the strip of its dates: a sentence, the careful
+  action that goes with it, and the list of what is left before a form can
+  open.
+*/
+
+/* A sentence with something to press, or a list under it. */
+.state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  margin-bottom: var(--space-6);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+/* A sentence on its own: nothing to act on, so no box around it. */
+.quiet {
+  min-width: 0;
+  margin: calc(var(--space-2) * -1) 0 var(--space-6);
+}
+.quiet .line {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+.line {
+  flex: 1 1 18rem;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+.line a,
+.itemHint a {
+  color: var(--color-accent-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+.line a:hover,
+.itemHint a:hover {
+  text-decoration: underline;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.action {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+/* Why a button cannot be pressed yet, beside it. */
+.waits {
+  order: -1;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+/* Why a move would be refused, under the sentence. */
+.reason {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* --- what is left before the form can open ----------------------------- */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+.listHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 16px;
+}
+.listTitle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+}
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+.mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 22px;
+  color: var(--color-ok);
+}
+/* Not done yet: an empty ring where the tick will be. */
+.ring {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--color-border-strong);
+  border-radius: 50%;
+}
+.itemBody {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.itemLabel {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.met .itemLabel {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+.itemHint {
+  margin-top: 2px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .state {
+    padding: var(--space-4);
+    margin-bottom: var(--space-5);
+  }
+  .quiet {
+    margin-bottom: var(--space-5);
+  }
+  .actions,
+  .action {
+    width: 100%;
+  }
+  .action > button {
+    flex: 1 1 100%;
+  }
+  .waits {
+    order: 0;
+  }
+}

@@ -8,11 +8,19 @@ import shared from "@/features/applications/editor/editor.module.css";
 import styles from "@/features/applications/editor/FormHome.module.css";
 import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
 import kit from "@/features/applications/kit/kit.module.css";
+import { TermState } from "@/features/applications/lifecycle/TermState";
 import { loadFormForStaff, loadTermTally } from "@/lib/applications/editor/load";
 import { applicationFormPath } from "@/lib/applications/editor/olderRounds";
-import { own } from "@/lib/applications/editor/own";
 import { projectFormForStaff, type FormStaffView } from "@/lib/applications/editor/views";
 import type { ProgrammeTally } from "@/lib/applications/decisions";
+import { own } from "@/lib/applications/keys";
+import { loadReadiness } from "@/lib/applications/lifecycle/load";
+import type { TermSteps as TermStepStates } from "@/lib/applications/lifecycle/status";
+import {
+  buildLifecycleView,
+  wantsReadiness,
+  type LifecycleView,
+} from "@/lib/applications/lifecycle/view";
 import { PROGRAMME_STANDING_LABEL } from "@/lib/applications/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -30,6 +38,13 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * The two things an admin starts from here are the application form and a new
  * programme. Neither is offered to anybody else, and both routes refuse
  * anybody else whatever this page draws.
+ *
+ * Where the form is in its term is said in one sentence under the dates, for
+ * everybody. An admin also gets what goes with it: the list of what is left
+ * before the form can open, and the careful actions (open applications, close
+ * early, reopen, settle the term). The chip, the day marked Now, the sentence
+ * and the buttons all come from one reading of the form
+ * (`buildLifecycleView`), so they cannot disagree.
  */
 export default async function TermPage({ params }: { params: Promise<{ roundId: string }> }) {
   const [{ roundId }, user] = await Promise.all([params, requireAdmissionsPage()]);
@@ -38,8 +53,22 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
   if (!db || !loaded) return <NoFormHere />;
 
   const form = projectFormForStaff(loaded.form, loaded.context);
-  const tally = await loadTermTally(db, loaded.form);
   const home = applicationFormPath(form.id);
+  const { now } = loaded.context;
+  // The list of what is left is only worked out for somebody who can act on
+  // it, at a moment the form could be opened.
+  const [tally, readiness] = await Promise.all([
+    loadTermTally(db, loaded.form),
+    wantsReadiness(loaded.form, form.canRunTerm, now) ? loadReadiness(db, loaded.form, now) : null,
+  ]);
+  const lifecycle = buildLifecycleView({
+    form: loaded.form,
+    readiness,
+    canRunTerm: form.canRunTerm,
+    sent: form.sent,
+    home,
+    now,
+  });
   const order = form.programmes.map((programme) => programme.id);
 
   return (
@@ -52,9 +81,7 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
           <div className={shared.titleRow}>
             <h1 className={shared.title}>Programmes</h1>
             <div className={shared.chips}>
-              <Chip tone={form.state.live || form.state.key === "opens" ? "live" : "neutral"} dot={form.state.live}>
-                {form.state.label}
-              </Chip>
+              <StageChip lifecycle={lifecycle} />
             </div>
           </div>
           <p className={shared.lede}>
@@ -73,7 +100,8 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
         )}
       </header>
 
-      <TermSteps form={form} />
+      <TermSteps form={form} states={lifecycle.steps} />
+      <TermState roundId={form.id} lifecycle={lifecycle} />
 
       {form.programmes.length === 0 ? (
         <section className={`${shared.card} ${shared.empty}`}>
@@ -93,13 +121,7 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
               <section key={programme.id} className={styles.programme} aria-label={programme.name}>
                 <div className={styles.programmeTop}>
                   <div className={kit.mono}>{programme.facts || (programme.kind === "incubator" ? "Incubator" : "Fellowship")}</div>
-                  {programme.closed ? (
-                    <Chip>Closed</Chip>
-                  ) : (
-                    <Chip tone={form.state.live || form.state.key === "opens" ? "live" : "neutral"} dot={form.state.live}>
-                      {form.state.label}
-                    </Chip>
-                  )}
+                  {programme.closed ? <Chip>Closed</Chip> : <StageChip lifecycle={lifecycle} />}
                 </div>
                 <h2 className={styles.programmeName}>{programme.name}</h2>
                 <div className={styles.lead}>
@@ -159,37 +181,27 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
   );
 }
 
-/** The form's own dates, as steps: gone, now, or still to come. */
-function TermSteps({ form }: { form: FormStaffView }) {
+/** Where the form is in its term, as the one chip that says so. */
+function StageChip({ lifecycle }: { lifecycle: LifecycleView }) {
+  return (
+    <Chip tone={lifecycle.live || lifecycle.stage === "opens-later" ? "live" : "neutral"} dot={lifecycle.live}>
+      {lifecycle.title}
+    </Chip>
+  );
+}
+
+/**
+ * The form's own dates, as steps: gone, now, or still to come. Which is which
+ * is worked out with the rest of the lifecycle (`termStepsFor`), from the
+ * form's status, its dates and whether decision day has been sent.
+ */
+function TermSteps({ form, states }: { form: FormStaffView; states: TermStepStates }) {
   const starts = [...new Set(form.programmes.filter((p) => !p.closed && p.starts).map((p) => p.starts))];
   const steps: { label: string; value: string; state: "done" | "now" | "ahead" }[] = [];
-  const key = form.state.key;
-  // A draft has not begun, so none of its days has been.
-  const begun = !form.draft && key !== "archived" && key !== "cancelled";
-  if (form.opens) {
-    steps.push({
-      label: "Applications open",
-      value: form.opens.day,
-      state: !begun ? "ahead" : key === "opens" ? "now" : "done",
-    });
-  }
-  if (form.closes) {
-    steps.push({
-      label: "Close",
-      value: form.closes.dayAndTime,
-      state: !begun || key === "opens" ? "ahead" : key === "open" ? "now" : "done",
-    });
-  }
-  if (form.decisions) {
-    steps.push({
-      label: "Decisions",
-      value: form.decisions.day,
-      state: key === "settled" ? "done" : begun && (key === "closed" || key === "deciding") ? "now" : "ahead",
-    });
-  }
-  if (starts.length === 1) {
-    steps.push({ label: "Start", value: starts[0], state: key === "settled" ? "now" : "ahead" });
-  }
+  if (form.opens) steps.push({ label: "Applications open", value: form.opens.day, state: states.opens });
+  if (form.closes) steps.push({ label: "Close", value: form.closes.dayAndTime, state: states.closes });
+  if (form.decisions) steps.push({ label: "Decisions", value: form.decisions.day, state: states.decisions });
+  if (starts.length === 1) steps.push({ label: "Start", value: starts[0], state: states.start });
   if (steps.length === 0) return null;
 
   return (
