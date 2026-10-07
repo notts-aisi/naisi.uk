@@ -9,10 +9,9 @@
 
 .grid {
   display: grid;
-  /* Two cards side by side on a laptop, one under the other once a card
-     would be narrower than it can read at. min() keeps the floor from ever
-     being wider than the page. */
-  grid-template-columns: repeat(auto-fit, minmax(min(21.25rem, 100%), 1fr));
+  /* Two cards side by side, however many there are: a card's rows of a
+     label and its answer need the width. One column on a phone, below. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-6);
 }
 
