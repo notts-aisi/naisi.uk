@@ -1,154 +1,373 @@
+/* The SU list import: three steps, each kind of match in a panel of its own,
+   and one row of buttons at the foot. */
+
 .wrap {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
   min-width: 0;
 }
 
-.blurb {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  max-width: 48rem;
+/* === The three steps === */
+.steps {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-1);
+  padding: 0;
+  list-style: none;
 }
 
+.step {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-ui);
+  font-weight: 500;
+}
+
+/* The line between one step and the next, drawn by every step but the last. */
+.step:not(:last-child) {
+  flex: 1 1 auto;
+}
+
+.step:not(:last-child)::after {
+  content: "";
+  flex: 1 1 2rem;
+  height: 1px;
+  min-width: 1rem;
+  background: var(--color-border-strong);
+}
+
+.stepDone:not(:last-child)::after {
+  height: 2px;
+  background: var(--color-accent);
+}
+
+.stepDot {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: 50%;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.stepOn {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.stepOn .stepDot {
+  border-color: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.stepDone {
+  color: var(--color-text);
+}
+
+.stepDone .stepDot {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.stepLabel {
+  white-space: nowrap;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* === Words === */
+.blurb {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.sub {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  overflow-wrap: anywhere;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger-text);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+/* === Step 1: the file === */
 .controls {
   display: flex;
-  gap: var(--space-4);
   flex-wrap: wrap;
-  align-items: flex-end;
+  gap: var(--space-4);
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  min-width: 16rem;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* Side by side, each taking half until there is no room for two. */
+.controls > .field {
+  flex: 1 1 16rem;
 }
 
 .fieldLabel {
-  color: var(--color-text-muted);
   font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 .file {
-  font-size: var(--text-sm);
-  color: var(--color-text);
-  padding: var(--space-2) 0;
-}
-
-.actions {
-  display: flex;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-
-.error {
-  color: var(--color-danger);
-  font-size: var(--text-sm);
-}
-
-.receipt {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-bg-elevated);
-  padding: var(--space-4);
-}
-
-.receiptHead {
-  font-size: var(--text-base);
-  font-weight: 600;
-}
-
-.facts {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
-
-.confirmList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  border-top: 1px solid var(--color-border);
-  padding-top: var(--space-3);
-}
-
-.confirmRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  padding: var(--space-3);
+  box-sizing: border-box;
+  width: 100%;
   min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+.file::file-selector-button {
+  margin-right: var(--space-3);
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.checkbox {
-  width: 1.25rem;
-  height: 1.25rem;
+/* === Steps 2 and 3 === */
+.fileRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+}
+
+.fileName {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) 0.625rem;
+  min-width: 0;
+  color: var(--color-ok);
+}
+
+.textButton {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 2.25rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.textButton:hover:not(:disabled) {
+  color: var(--color-accent-text-hover);
+}
+
+.textButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+}
+
+.groupCount {
   flex: none;
-  accent-color: var(--color-accent);
+  min-width: 2rem;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.countOk {
+  color: var(--color-ok);
+}
+
+.countWarn {
+  color: var(--color-warning);
+}
+
+.groupText {
+  display: flex;
+  flex: 1 1 16rem;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.groupTitle {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-ui);
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--color-text);
+}
+
+.facts {
+  margin: var(--space-1) 0 0;
+  padding-left: 1.1rem;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+/* One name match: who the SU list says, who it landed on here, and the choice. */
+.matchList {
+  display: flex;
+  flex-direction: column;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.match {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.match:first-child {
+  border-top: 0;
+}
+
+.matchSide {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.matchArrow {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.matchAccount {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.matchAccountText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.35;
 }
 
 .confirmBody {
   display: flex;
+  flex: 1 1 14rem;
   flex-direction: column;
-  gap: var(--space-1);
   min-width: 0;
-  flex: 1 1 auto;
 }
 
+/* Size only. `MemberText` already carries `pre-wrap` and
+   `overflow-wrap: anywhere` for text straight off an uploaded file. */
 .confirmName {
+  color: var(--color-text);
+  font-size: var(--text-ui);
   font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.sub {
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-  overflow-wrap: anywhere;
 }
 
 .resumeRow {
   display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
-  border-top: 1px solid var(--color-border);
+  gap: var(--space-2) var(--space-3);
   padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
 }
 
 .resumeActions {
   display: flex;
-  align-items: center;
   gap: var(--space-2);
-  flex: none;
 }
 
-@media (max-width: 48rem) {
-  .field {
-    min-width: 0;
-    width: 100%;
-  }
+/* === The foot === */
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
 
-  .confirmRow {
-    align-items: flex-start;
-    /* The badge drops under the name rather than squeezing it to two words. */
-    flex-wrap: wrap;
-  }
+.footNote {
+  flex: 1 1 10rem;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-align: right;
+}
 
-  .resumeRow {
-    align-items: flex-start;
-    /* Resume and Abandon drop under the filename rather than crushing it. */
-    flex-wrap: wrap;
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .group {
+    padding: var(--space-4);
   }
 }

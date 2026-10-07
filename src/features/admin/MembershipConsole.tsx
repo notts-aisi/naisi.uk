@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import Badge from "@/components/ui/Badge";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
 import CountedTextarea from "@/components/ui/CountedTextarea";
 import { Input } from "@/components/ui/Input";
 import {
@@ -13,6 +12,7 @@ import {
   type MembershipTier,
 } from "@/lib/firestore/memberships";
 import { currentAcademicYear } from "@/lib/firestore/users";
+import { AdminPage, AdminPageHead } from "./adminList";
 import { resetCurrentPeriodCache } from "./currentPeriodCache";
 import ImportPanel from "./ImportPanel";
 import MembershipTable from "./MembershipTable";
@@ -27,9 +27,10 @@ import styles from "./MembershipConsole.module.css";
  * The membership console: the periods, their dates, their per-tier totals, and
  * which one is CURRENT.
  *
- * Four things, in the order somebody works through them: the periods and which
- * one is CURRENT, the period being LOOKED AT, the table of every account
- * against that period, and the SU list import.
+ * Four things, in the order somebody works through them: the year being
+ * LOOKED AT with its counts, the SU list import, the table of every account
+ * against that year, and last the periods themselves and which one is CURRENT,
+ * which is set once a year.
  *
  * ## Looking at a period is not making it current
  *
@@ -324,43 +325,215 @@ export default function MembershipConsole({ isAdmin }: { isAdmin: boolean }) {
   }
 
   const viewing = periods.find((p) => p.id === viewingId) ?? null;
+  const viewingCurrent = viewing !== null && viewing.id === currentPeriodId;
+  const inAll = viewing
+    ? ALL_MEMBERSHIP_TIERS.reduce((sum, tier) => sum + (viewing.totals[tier] ?? 0), 0)
+    : 0;
+  // Who an import's name match landed on, by account id, from the accounts the
+  // table below has already loaded.
+  const accountByUid = useMemo(
+    () =>
+      new Map(
+        rows.map((row) => [
+          row.uid,
+          { name: row.displayName || row.preferredName || "No name", email: row.email },
+        ]),
+      ),
+    [rows],
+  );
 
   return (
-    <div className={styles.wrap}>
-      <Card padding="lg">
-        <h2 className={styles.heading}>Membership periods</h2>
-        <p className={styles.blurb}>
-          One period per academic year. Marking somebody a member means adding
-          them to a period, which is done from their row on the Members tab.
-          Membership is a badge and a record: it gates nothing anywhere on the
-          site.
-        </p>
-        {!canSetCurrent && (
-          <p className={styles.blurb}>
-            Choosing which period is current is an admin job, because it changes
-            every member&apos;s badge at once.
-          </p>
-        )}
-      </Card>
+    <AdminPage wide>
+      <AdminPageHead
+        title="SU membership"
+        description="Who’s paid the £6 SU membership this year. It doesn’t change what anyone can do on the site."
+        meta={<span>Admins can edit this page, and so can anyone an admin has given it to.</span>}
+        actions={
+          viewing ? (
+            <Button
+              variant="secondary"
+              disabled={exporting || rowsLoading}
+              onClick={exportCsv}
+              title="The download is recorded: who took it, which year, and how many people were in it"
+              leading={<DownloadMark />}
+            >
+              {exporting ? "Exporting…" : "Export CSV"}
+            </Button>
+          ) : undefined
+        }
+      />
 
       {error && (
-        <Card padding="md">
-          <p className={styles.error}>{error}</p>
-        </Card>
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
       )}
 
-      <Card padding="lg">
+      {viewing && (
+        <section className={styles.card} aria-labelledby="membership-year">
+          <div className={styles.yearHead}>
+            <div>
+              <p className="meta">Academic year</p>
+              <div className={styles.yearTitle}>
+                <h3 id="membership-year" className={styles.year}>
+                  {viewing.year}
+                </h3>
+                {viewingCurrent ? (
+                  <Chip
+                    tone="success"
+                    dot
+                    title="Every membership badge on the site is about this year"
+                    data-testid="membership-viewing-current"
+                  >
+                    Current
+                  </Chip>
+                ) : (
+                  <Chip tone="neutral">Not the current year</Chip>
+                )}
+              </div>
+              {(viewing.startsOn || viewing.endsOn) && (
+                <p className={styles.muted}>
+                  {civilDay(viewing.startsOn) || "No start date"} to{" "}
+                  {civilDay(viewing.endsOn) || "no end date"}
+                </p>
+              )}
+            </div>
+            <PeriodSwitcher
+              periods={periods}
+              value={viewingId}
+              currentPeriodId={currentPeriodId}
+              onChange={setViewingId}
+              disabled={rowsLoading}
+            />
+          </div>
+
+          {/* One count a tile. Each tile is one run of text, "Paid: 41", which
+              is how the page states a count; the stylesheet draws the number
+              over its label. */}
+          <div className={styles.totals} data-testid="membership-period-totals">
+            {ALL_MEMBERSHIP_TIERS.map((tier) => (
+              <div key={tier} className={styles.stat}>
+                <span className={styles.statLabel}>
+                  {MEMBERSHIP_TIER_LABELS[tier]}
+                  <span className={styles.statColon}>:</span>
+                </span>{" "}
+                <span className={styles.statValue}>{viewing.totals[tier] ?? 0}</span>
+              </div>
+            ))}
+            <div className={styles.stat}>
+              <span className={styles.statLabel}>
+                In all<span className={styles.statColon}>:</span>
+              </span>{" "}
+              <span className={styles.statValue}>{inAll}</span>
+            </div>
+          </div>
+
+          <div className={styles.yearFoot}>
+            <p className={styles.muted}>
+              These counts are kept by every change and every import. If an import ever says it
+              could not move them, Recount rebuilds them from the membership records.
+            </p>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={recounting || rowsLoading}
+              onClick={recount}
+              title="Rebuild the counts above from the membership records"
+            >
+              {recounting ? "Recounting…" : "Recount"}
+            </Button>
+          </div>
+          {recountNote && <p className={styles.muted}>{recountNote}</p>}
+          {!viewingCurrent && (
+            <p className={styles.muted}>
+              You are looking at a year that is not the current one. Badges across the site still
+              read the current year.
+            </p>
+          )}
+        </section>
+      )}
+
+      {viewing && (
+        <section className={styles.card} aria-labelledby="membership-import">
+          <div>
+            <h3 id="membership-import" className={styles.cardTitle}>
+              Import the SU list
+            </h3>
+            <p className={styles.muted}>
+              Download the members list from the SU website and upload it here.
+            </p>
+          </div>
+          <ImportPanel
+            periodId={viewing.id}
+            periodLabel={viewing.label || viewing.year}
+            accountByUid={accountByUid}
+            onCommitted={() => {
+              resetCurrentPeriodCache();
+              void load();
+              void loadRows(viewing.id);
+            }}
+          />
+        </section>
+      )}
+
+      {viewing && (
+        <section className={styles.card} aria-labelledby="membership-members">
+          <h3 id="membership-members" className={styles.cardTitle}>
+            Members {viewing.year}
+          </h3>
+          <MembershipTable
+            rows={rows}
+            periodId={viewingId}
+            loading={rowsLoading}
+            truncated={rowsTruncated}
+            onRowChanged={(uid, tier) => {
+              // The row settles locally rather than re-paging every account to
+              // move one of them. The year's totals move server-side, so the
+              // periods list is refetched for the counts above.
+              setRows((current) =>
+                current.map((row) =>
+                  row.uid === uid
+                    ? {
+                        ...row,
+                        tier,
+                        source: tier ? "manual" : null,
+                        matchedOn: tier ? "manual" : null,
+                        recordedAt: tier ? new Date().toISOString() : null,
+                      }
+                    : row,
+                ),
+              );
+              resetCurrentPeriodCache();
+              void load();
+            }}
+          />
+        </section>
+      )}
+
+      <section className={styles.card} aria-labelledby="membership-periods">
         <div className={styles.sectionHead}>
-          <h3 className={styles.subheading}>Periods</h3>
+          <h3 id="membership-periods" className={styles.cardTitle}>
+            Membership periods
+          </h3>
           <Button
             size="sm"
-            variant="ghost"
+            variant="secondary"
             data-testid="membership-new-period"
             onClick={() => setCreating((v) => !v)}
           >
             {creating ? "Cancel" : "New period"}
           </Button>
         </div>
+        <p className={styles.muted}>
+          One period for each academic year. Recording somebody as a member adds them to a period,
+          from the table above or from their own page under Accounts.
+        </p>
+        {!canSetCurrent && (
+          <p className={styles.muted}>
+            Choosing which period is current is an admin’s job, because it changes every
+            member’s badge at once.
+          </p>
+        )}
 
         {creating && (
           <PeriodForm
@@ -385,8 +558,8 @@ export default function MembershipConsole({ isAdmin }: { isAdmin: boolean }) {
           <p className={styles.muted}>Loading…</p>
         ) : periods.length === 0 ? (
           <p className={styles.muted}>
-            No membership periods yet. Create {currentAcademicYear()} and set it
-            current, or every badge on the site reads &ldquo;not recorded&rdquo;.
+            No membership periods yet. Create {currentAcademicYear()} and make it current, or every
+            badge on the site reads &ldquo;not recorded&rdquo;.
           </p>
         ) : (
           <ul className={styles.list}>
@@ -395,22 +568,23 @@ export default function MembershipConsole({ isAdmin }: { isAdmin: boolean }) {
                 <div className={styles.rowHead}>
                   <div className={styles.rowTitle}>
                     <strong>{period.label || period.year}</strong>
-                    <Badge tone="neutral">{period.year}</Badge>
+                    <Chip tone="neutral">{period.year}</Chip>
                     {period.id === currentPeriodId && (
-                      <Badge
+                      <Chip
                         tone="success"
+                        dot
                         title="Every badge on the site is about this period"
                         data-testid="membership-period-current"
                       >
                         Current
-                      </Badge>
+                      </Chip>
                     )}
                   </div>
                   <div className={styles.rowActions}>
                     {canSetCurrent && period.id !== currentPeriodId && (
                       <Button
                         size="sm"
-                        variant="ghost"
+                        variant="secondary"
                         disabled={busy}
                         data-testid="membership-make-current"
                         onClick={() =>
@@ -435,7 +609,8 @@ export default function MembershipConsole({ isAdmin }: { isAdmin: boolean }) {
 
                 <div className={styles.facts}>
                   <span className={styles.fact}>
-                    {period.startsOn || "no start date"} to {period.endsOn || "no end date"}
+                    {civilDay(period.startsOn) || "no start date"} to{" "}
+                    {civilDay(period.endsOn) || "no end date"}
                   </span>
                   {ALL_MEMBERSHIP_TIERS.map((tier) => (
                     <span key={tier} className={styles.fact}>
@@ -475,112 +650,38 @@ export default function MembershipConsole({ isAdmin }: { isAdmin: boolean }) {
             ))}
           </ul>
         )}
+      </section>
+    </AdminPage>
+  );
+}
 
-        <p className={styles.footnote}>
-          Membership is a badge and a record: it gates nothing anywhere on the
-          site. Recording somebody, changing their tier or taking it back is
-          done from the table below, or from their row on the Members page.
-        </p>
-      </Card>
+/** "1 Sept 2026" from a stored civil date (`YYYY-MM-DD`). No instant is
+ *  involved, so the date is read and written in UTC and no time zone can move it. */
+function civilDay(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return "";
+  return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))).toLocaleDateString(
+    "en-GB",
+    { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" },
+  );
+}
 
-      {viewing && (
-        <Card padding="lg">
-          <div className={styles.sectionHead}>
-            <h3 className={styles.subheading}>Members</h3>
-            <div className={styles.rowActions}>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={recounting || rowsLoading}
-                onClick={recount}
-                title="Rebuild the four counts below from the membership rows"
-              >
-                {recounting ? "Recounting…" : "Recount"}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={exporting || rowsLoading}
-                onClick={exportCsv}
-              >
-                {exporting ? "Exporting…" : "Export CSV"}
-              </Button>
-            </div>
-          </div>
-
-          <PeriodSwitcher
-            periods={periods}
-            value={viewingId}
-            currentPeriodId={currentPeriodId}
-            onChange={setViewingId}
-            disabled={rowsLoading}
-          />
-
-          <div className={styles.facts} data-testid="membership-period-totals">
-            {ALL_MEMBERSHIP_TIERS.map((tier) => (
-              <span key={tier} className={styles.fact}>
-                {MEMBERSHIP_TIER_LABELS[tier]}: {viewing.totals[tier] ?? 0}
-              </span>
-            ))}
-          </div>
-          <p className={styles.blurb}>
-            Those four counts are the period&apos;s own, kept up to date by every
-            grant and every import. Everything below is counted from the
-            accounts loaded here. If an import ever says it could not move them,
-            Recount rebuilds all four from the membership rows.
-          </p>
-          {recountNote && <p className={styles.blurb}>{recountNote}</p>}
-          <p className={styles.blurb}>
-            Downloading the CSV is recorded: who took it, which period, and how
-            many people were in it.
-          </p>
-
-          <MembershipTable
-            rows={rows}
-            periodId={viewingId}
-            loading={rowsLoading}
-            truncated={rowsTruncated}
-            onRowChanged={(uid, tier) => {
-              // The row settles locally rather than re-paging every account to
-              // move one of them. The period totals move server-side, so the
-              // periods list is refetched for the counts strip.
-              setRows((current) =>
-                current.map((row) =>
-                  row.uid === uid
-                    ? {
-                        ...row,
-                        tier,
-                        source: tier ? "manual" : null,
-                        matchedOn: tier ? "manual" : null,
-                        recordedAt: tier ? new Date().toISOString() : null,
-                      }
-                    : row,
-                ),
-              );
-              resetCurrentPeriodCache();
-              void load();
-            }}
-          />
-        </Card>
-      )}
-
-      {viewing && (
-        <Card padding="lg">
-          <div className={styles.sectionHead}>
-            <h3 className={styles.subheading}>Import the SU list</h3>
-          </div>
-          <ImportPanel
-            periodId={viewing.id}
-            periodLabel={viewing.label || viewing.year}
-            onCommitted={() => {
-              resetCurrentPeriodCache();
-              void load();
-              void loadRows(viewing.id);
-            }}
-          />
-        </Card>
-      )}
-    </div>
+function DownloadMark() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M12 4v11M7 11l5 5 5-5M5 20h14" />
+    </svg>
   );
 }
 
