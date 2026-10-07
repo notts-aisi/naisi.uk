@@ -61,7 +61,7 @@
   max-width: var(--content-max-width);
   margin-inline: auto;
   min-height: var(--header-height);
-  padding-inline: clamp(1.25rem, 3.4vw, 3rem);
+  padding-inline: var(--page-gutter);
 }
 
 /* The frame's brand, at the public bar's sizes: "NAISI" at 21px beside the

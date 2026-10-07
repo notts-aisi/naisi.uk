@@ -18,8 +18,8 @@
   width: 100%;
   max-width: var(--content-max-width);
   margin-inline: auto;
-  padding-left: max(var(--space-6), env(safe-area-inset-left, 0px));
-  padding-right: max(var(--space-6), env(safe-area-inset-right, 0px));
+  padding-left: max(var(--page-gutter), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--page-gutter), env(safe-area-inset-right, 0px));
 }
 
 /* The brand block and the columns share a row while there is room and wrap

@@ -64,20 +64,17 @@ input, textarea, select {
    physical edges, so in landscape on a notched device the first character of
    every line sits under the notch. max() means the inset only ever widens
    the existing padding, so this is byte-identical on desktop, on
-   non-notched devices and in DevTools. */
+   non-notched devices and in DevTools.
+
+   The padding itself is the page gutter, the same one the header and the
+   footer take, so a page's first column sits under the header's brand. It
+   narrows by itself on a phone, so there is no narrow-screen override. */
 .container {
   width: 100%;
   max-width: var(--content-max-width);
   margin-inline: auto;
-  padding-left: max(var(--space-6), env(safe-area-inset-left, 0px));
-  padding-right: max(var(--space-6), env(safe-area-inset-right, 0px));
-}
-
-@media (max-width: 48rem) {
-  .container {
-    padding-left: max(var(--space-4), env(safe-area-inset-left, 0px));
-    padding-right: max(var(--space-4), env(safe-area-inset-right, 0px));
-  }
+  padding-left: max(var(--page-gutter), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--page-gutter), env(safe-area-inset-right, 0px));
 }
 
 .stack { display: flex; flex-direction: column; }
