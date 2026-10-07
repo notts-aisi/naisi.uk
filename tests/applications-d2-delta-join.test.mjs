@@ -1004,6 +1004,35 @@ describe("the join step keeps to them", () => {
     assert.equal((step.match(/<RecaptchaLine \/>/g) ?? []).length, 2);
   });
 
+  test("the box Google's button is drawn in is a plain block, because the button measures it", () => {
+    // The button asks Google for a width once, from the box it is drawn in:
+    // 320px where there is room, the box's own width where there is not, and
+    // never under 200px. The step's box is the column's width only while the
+    // stylesheet leaves it alone.
+    const button = stripSource(readFileSync(join(REPO_ROOT, "src", "components", "GoogleSignInButton.tsx"), "utf8"), {
+      keepStrings: true,
+    });
+    assert.match(button, /const room = Math\.floor\(buttonRef\.current\.parentElement\?\.clientWidth \?\? 0\);/);
+    assert.match(button, /const width = room > 0 \? Math\.max\(200, Math\.min\(320, room\)\) : 320;/);
+    const sheet = sourceOf("join.module.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    const rules = [...sheet.matchAll(/(?<![\w-])\.google(?![\w-])(\[[^\]]*\])?\s*\{([^}]*)\}/g)].map((match) => [
+      match[1] ?? "",
+      match[2].trim().replace(/\s+/g, " "),
+    ]);
+    assert.deepEqual(rules, [
+      ["", "min-height: 2.75rem;"],
+      ['[aria-busy="true"]', "opacity: 0.55; pointer-events: none;"],
+    ]);
+    // Nothing between that box and the button: the step hands the box the script and the button and nothing else.
+    const account = codeOf("JoinAccount.tsx");
+    assert.match(
+      account,
+      /<div className=\{styles\.google\} aria-busy=\{busy === "google"\}>\s*<Script src=\{GOOGLE_SCRIPT\} strategy="afterInteractive" \/>\s*<GoogleSignInButton onCredential=\{onGoogle\} onScriptError=\{scriptProblem\} \/>\s*<\/div>/,
+    );
+    // And the column it sits in gives its children the column's whole width.
+    assert.match(sheet, /\.ways \{[^}]*align-items: stretch;[^}]*\}/);
+  });
+
   test("Google's button is drawn when its script arrives late, and the message it put up comes down", () => {
     // HELD BY READING THE FILE. The button waits on another site's script
     // and a clock in a browser, and nothing here can stand in for either.
