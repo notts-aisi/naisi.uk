@@ -135,6 +135,16 @@ const nextConfig: NextConfig = {
         destination: "/",
         permanent: false,
       },
+      // /fellowships is the name the menus give the page that lives at
+      // /courses. The page keeps its address, so the name forwards to it.
+      // An exact source with no pattern in it, so it cannot match /q/<slug>.
+      // Temporary on purpose: a 308 is cached by browsers for good, and the
+      // page may one day move to this address.
+      {
+        source: "/fellowships",
+        destination: "/courses",
+        permanent: false,
+      },
       // Short links: naisi.uk/q/<slug> is what a QR code encodes. The scan
       // itself is answered by src/app/api/q/[slug]/route.ts, through the
       // rewrite below, from a record an admin can repoint.

@@ -74,7 +74,7 @@ export function isCurrentPage(pathname: string, href: string): boolean {
 /** The pages in the bar, left to right. The phone menu lists the same ones. */
 export const HEADER_PAGES: readonly NavEntry[] = [
   { key: "fellowships", label: "Fellowships", href: "/courses", live: true },
-  { key: "incubator", label: "Incubator", href: "/incubator", live: false },
+  { key: "incubator", label: "Incubator", href: "/incubator", live: true },
   { key: "events", label: "Events", href: "/events", live: true },
   { key: "about", label: "About", href: "/about", live: false },
 ];
@@ -116,10 +116,10 @@ export const FOOTER_COLUMNS: readonly NavColumn[] = [
     heading: "Programmes",
     entries: [
       { key: "fellowships", label: "Fellowships", href: "/courses", live: true },
-      { key: "incubator", label: "Research incubator", href: "/incubator", live: false },
-      // Waits for the part of a page that says how to lead a group. Check
-      // the address against that page before switching this on.
-      { key: "facilitate", label: "Facilitate a group", href: "/courses#lead-a-group", live: false },
+      { key: "incubator", label: "Research incubator", href: "/incubator", live: true },
+      // Leads to the part of the fellowships page that says how to lead a
+      // group. tests/public-nav-pages.test.mjs holds the id to that page.
+      { key: "facilitate", label: "Facilitate a group", href: "/courses#lead-a-group", live: true },
       // The form's own address carries the term's id, so there is no fixed
       // address to give yet. Switch on only once something answers at this
       // one, or render the term's own Apply link in its place.

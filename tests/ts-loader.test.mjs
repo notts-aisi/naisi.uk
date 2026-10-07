@@ -364,6 +364,13 @@ const USERS = new Map([
       "and dates printed for each stage are decided by the code that runs",
   ],
   [
+    "reskin-programme-pages.test.mjs",
+    "executes the words of the programme pages' closing band and renders a course's call to action " +
+      "(a .tsx client component) to HTML from the same dates, because whether the two say the same " +
+      "thing is decided by the code that runs; it also runs the helpers that word a chip and split " +
+      "an authored paragraph",
+  ],
+  [
     "applications-review-routes.test.mjs",
     "executes the review loaders, builders and writers under src/lib/applications/review with " +
       "access.ts and the real eligibility bar underneath, against an in-memory Firestore, " +
@@ -596,6 +603,14 @@ const USERS = new Map([
       "prove nothing about what a phone receives; the module has no imports, so nothing is stubbed",
   ],
   [
+    "events-when.test.mjs",
+    "it executes `src/features/events/eventWhen.ts` for real under a process zone far from " +
+      "London: the words the public events pages print for a time, a date and the places left " +
+      "are built there from `formatSiteDate`, and a copy of that arithmetic would prove nothing " +
+      "about what a deployed page says; its graph is that module and `siteTime.ts`, so nothing " +
+      "is stubbed",
+  ],
+  [
     "event-rsvp-identity.test.mjs",
     "the RSVP route executed as a guest, a member, a pending and a rejected account; its graph " +
       "reaches `sendRsvpEmail` by alias, stubbed here because the rendering is the sibling " +
@@ -776,6 +791,13 @@ const USERS = new Map([
     "executes src/layout/appNav.ts, the signed-in menu as data: its matchers decide which admin " +
       "page an address belongs to and `currentEntry` decides which menu entry is lit, and both " +
       "are held to the page files in the tree by running them rather than by reading their text",
+  ],
+  [
+    "public-nav-pages.test.mjs",
+    "executes src/layout/publicNav.ts, the public menus as data, and its own `addressOf`: which " +
+      "entries are drawn and where each leads is decided by that function and by constants the " +
+      "file imports, so the addresses are held to the page files in the tree by running the " +
+      "module rather than by reading its text; nothing is stubbed",
   ],
   [
     "slug-id.test.mjs",

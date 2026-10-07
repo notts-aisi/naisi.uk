@@ -321,6 +321,31 @@ describe("next.config.ts", () => {
     );
   });
 
+  test("every other redirect is one exact path, so it cannot match a slug either", () => {
+    // The test above reads the sources that begin /q. A source with a pattern
+    // in it (`/:path*`, `/(.*)`) begins elsewhere and matches /q/<slug> all
+    // the same, so every source outside /q has to be a path spelt out in
+    // full: one or more plain segments, nothing a matcher expands.
+    const redirects = config.slice(config.indexOf("async redirects()"), config.indexOf("async rewrites()"));
+    const sources = [...redirects.matchAll(/source:\s*"([^"]*)"/g)].map((m) => m[1]);
+    // Every entry spells its source as a plain string, so the scan misses none.
+    assert.equal(
+      sources.length,
+      redirects.split("destination:").length - 1,
+      "a redirect declares its source some other way than a double-quoted string, so this test cannot read it",
+    );
+    const others = sources.filter((source) => source !== "/q" && !source.startsWith("/q/"));
+    assert.ok(others.length >= 1, "the scan no longer sees the redirects outside /q");
+    for (const source of others) {
+      assert.match(
+        source,
+        /^(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)+$/,
+        `the redirect from ${source} has a pattern in it. A pattern can match /q/<slug>, and a redirect ` +
+          "is matched before the rewrite and before the route. Spell the path out in full.",
+      );
+    }
+  });
+
   test("the route the rewrite points at exists, under src/app/api", () => {
     assert.match(read("src/app/api/q/[slug]/route.ts"), /export async function GET\(/);
   });

@@ -1620,7 +1620,7 @@ const NOT_COVERED = {
   },
   "/(public)/courses": {
     reason:
-      "The catalogue lists published courses and is one query behind the course page a spec already drives.",
+      "The fellowships page lists the fellowships on the term's form and then every published course on no form, from the term's one lookup, which tests/applications-public-term.test.mjs executes, and the catalogue's own reads. What a card says about applying is held by tests/applications-d2-gamma-find-the-form.test.mjs and tests/reskin-programme-pages.test.mjs, and the course page behind a card is driven by a spec.",
     coverWhen:
       "When the catalogue lists more than one published course, so an ordering or a filter can be wrong.",
   },
@@ -1635,6 +1635,12 @@ const NOT_COVERED = {
       "The public week page renders published curriculum, which the October rebuild reshapes.",
     coverWhen:
       "When the October curriculum rebuild lands and the first published week is public.",
+  },
+  "/(public)/incubator": {
+    reason:
+      "The research incubator's page is words, server-rendered, with the term's dates read through the one lookup tests/applications-public-term.test.mjs executes. tests/reskin-programme-pages.test.mjs holds its closing band to the words a course's own page uses, and a break is visible to anybody who opens it.",
+    coverWhen:
+      "When the incubator is first on an application form that is open on the live site, because its Apply button is then a way into the form that a browser spec should press.",
   },
   "/(public)/events": {
     reason:
