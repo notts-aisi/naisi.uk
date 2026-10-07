@@ -1508,7 +1508,7 @@ export const REGISTRY = [
     path: "newsletterDrafts",
     clauses: [],
     reason:
-      "Every draft, for /newsletter. Both branches of the rule are resource-independent permission checks, so the unfiltered list passes for precisely the set the layout admits: admins and the two newsletter permission holders. Committee membership grants nothing here, which is the difference from events.",
+      "Every draft, for /newsletter, and for the newsletter line on an admin's Home, mounted for admins only. Both branches of the rule are resource-independent permission checks, so the unfiltered list passes for precisely the set the layout admits: admins and the two newsletter permission holders. Committee membership grants nothing here, which is the difference from events.",
     outcomes: {
       "signed-out": "refused",
       pending: "refused",
@@ -1910,19 +1910,24 @@ export const REGISTRY = [
   },
   {
     id: "tasks-committee-board",
+    callers: "useTasks",
     pins: [
       {
         file: "src/app/(app)/committee/tasks/page.tsx",
         text: 'useTasks({ visibility: "committee", includeArchived: showArchived })',
+      },
+      {
+        file: "src/app/(app)/dashboard/HomeAdmin.tsx",
+        text: 'useTasks({ visibility: "committee", includeArchived: false })',
       },
     ],
     file: "src/features/tasks/hooks/useTasks.ts",
     path: "tasks",
     clauses: ["where(visibility,==)"],
     unresolved:
-      "useTasks builds its constraint array conditionally and spreads it into query(), so the scanner can see the collection but not the clauses. The three shapes its callers actually produce are declared as three entries, found by reading every call site: /committee/tasks passes { visibility: 'committee' }, /tasks and MyWorkSummary pass { completerUid }, and /admin/danger-zone passes neither. `projectId` and `source` are supported by the hook and passed by nobody.",
+      "useTasks builds its constraint array conditionally and spreads it into query(), so the scanner can see the collection but not the clauses. The three shapes its callers actually produce are declared as three entries, found by reading every call site: /committee/tasks and the admin's Home pass { visibility: 'committee' }, /tasks and MyWorkSummary pass { completerUid }, and /admin/danger-zone passes neither. `projectId` and `source` are supported by the hook and passed by nobody. Each of the three names the hook in `callers`, and the test holds every file that calls it to a pin in one of them, so a new caller is read before it ships.",
     reason:
-      "The committee board's query. `visibility == 'committee'` matches the rule's committee branch, but that branch is still resource-dependent (it reads the document's visibility), so the clause alone does not save a caller who is not SU committee: the board is gated to SU committee and admins in committee/layout.tsx for exactly that reason.",
+      "The committee board's query. `visibility == 'committee'` matches the rule's committee branch, but that branch is still resource-dependent (it reads the document's visibility), so the clause alone does not save a caller who is not SU committee: the board is gated to SU committee and admins in committee/layout.tsx for exactly that reason. The admin's Home issues the same shape for its count of tasks due this week; it is mounted only when the page has read the role as admin on the server, which is the one persona this shape is allowed for unconditionally.",
     outcomes: {
       "signed-out": "refused",
       pending: "refused",
@@ -1938,6 +1943,7 @@ export const REGISTRY = [
   },
   {
     id: "tasks-my-work",
+    callers: "useTasks",
     pins: [
       {
         file: "src/app/(app)/tasks/page.tsx",
@@ -1974,6 +1980,7 @@ export const REGISTRY = [
   },
   {
     id: "tasks-unfiltered",
+    callers: "useTasks",
     pins: [
       {
         file: "src/app/(app)/admin/(admin-only)/danger-zone/page.tsx",

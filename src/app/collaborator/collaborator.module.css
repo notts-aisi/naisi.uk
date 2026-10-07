@@ -1,0 +1,138 @@
+/* The collaborator space: a bar with the brand and the way out, then one
+   column of cards. */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--header-height);
+  padding: env(safe-area-inset-top, 0px)
+    max(clamp(1.25rem, 3.4vw, 3rem), env(safe-area-inset-right, 0px)) 0
+    max(clamp(1.25rem, 3.4vw, 3rem), env(safe-area-inset-left, 0px));
+  border-bottom: 1px solid var(--color-border);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--color-text);
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  padding: var(--space-6) max(var(--space-4), env(safe-area-inset-right, 0px))
+    max(var(--space-6), env(safe-area-inset-bottom, 0px))
+    max(var(--space-4), env(safe-area-inset-left, 0px));
+}
+
+.column {
+  width: 100%;
+  max-width: 44rem;
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.headRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.para {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-ui);
+  line-height: var(--leading-normal);
+}
+
+.plain {
+  margin: 0;
+}
+
+/* The reason the committee gave, set apart from the sentence above it. */
+.reason {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3) 0.875rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.noteRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.note {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.small {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+
+.verified {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-ok);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* The name gives way to the brand and the way out. */
+  .name {
+    display: none;
+  }
+}

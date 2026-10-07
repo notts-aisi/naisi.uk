@@ -1,22 +1,17 @@
-import Badge from "@/components/ui/Badge";
+import PageHead from "@/components/ui/PageHead";
 import { MaintenanceNotice } from "@/features/admin/AdminLockUI";
 import ProfileForm from "@/features/profile/ProfileForm";
 import { PushSettings } from "@/features/pwa/PushSettings";
 import { PushDeviceProvider } from "@/features/pwa/pushDevice";
+import styles from "./profile.module.css";
 
 export default function ProfilePage() {
   return (
-    <div>
-      <div style={{ marginBottom: "var(--space-8)" }}>
-        <Badge tone="accent">Profile</Badge>
-        <h1 style={{ marginTop: "var(--space-3)" }}>Your profile</h1>
-        <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-2)" }}>
-          Keep your details current, and control how we reach you by email.
-        </p>
-      </div>
+    <div className={styles.page}>
+      <PageHead title="Profile" description="Your details and the emails you get from us." />
       {/* One probe of this browser's push state, read by both children: the
           form's Push column (disabled with a hint when this device cannot
-          receive anything) and the per-device card below it. */}
+          receive anything) and the per-device section below it. */}
       <PushDeviceProvider>
         <ProfileForm />
         {/* Per-device push opt-in. Renders nothing until VAPID keys are
