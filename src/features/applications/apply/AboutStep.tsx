@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import Link from "next/link";
 import Select from "@/components/ui/Select";
 import {
@@ -26,9 +26,11 @@ import styles from "./form.module.css";
  * that could retype it would undo that. See
  * `src/lib/applications/applicant/account.ts`.
  *
- * This step is only ever drawn for somebody who is signed in. A visitor with
- * no account is shown no field at all (see `JoinFirst.tsx`), so there is no
- * version of this step with an email box to type into.
+ * For somebody with no join request the same questions ARE the join request
+ * (`JoinStep.tsx` draws this step for them). They have no account address
+ * yet, so the university email is a box to type into: `email.kind` is
+ * `"typed"`, and nothing on that version of the step is saved to an
+ * application until the join request has been sent.
  */
 
 /** The order the join form lists them in. */
@@ -44,8 +46,18 @@ const STATUS_ORDER: AffiliationStatus[] = [
 
 const STUDENT: readonly string[] = STATUSES_WITH_GRADUATION;
 
-/** The address on the account, with whether its owner has proved it. */
-export type AboutEmail = { address: string; verified: boolean; profileHref: string | null };
+/**
+ * The university email, one of two ways.
+ *
+ * `account`: the address on the account, with whether its owner has proved
+ * it. `check` is drawn under the box when the address still has to be
+ * checked before this person can send (see `UniversityCheck.tsx`).
+ *
+ * `typed`: no account holds an address yet, so the person types one.
+ */
+export type AboutEmail =
+  | { kind: "account"; address: string; verified: boolean; profileHref: string | null; check?: ReactNode }
+  | { kind: "typed" };
 
 export default function AboutStep({
   about,
@@ -85,51 +97,68 @@ export default function AboutStep({
         autoComplete="given-name"
       />
 
-      <TextField
-        label="University email"
-        type="email"
-        first={email.address}
-        onChange={() => {}}
-        readOnly
-        adornment={
-          email.verified ? (
-            <span className={styles.chip} data-tone="ok">
-              <span aria-hidden="true" className={styles.chipDot} />
-              Verified
-            </span>
-          ) : null
-        }
-        helpBelow={
-          email.address ? (
-            <>
-              This is the address on your account.
-              {email.profileHref ? (
+      {email.kind === "typed" ? (
+        <TextField
+          label="University email"
+          type="email"
+          first={about.universityEmail}
+          onChange={(universityEmail) => onChange({ universityEmail })}
+          placeholder="you@nottingham.ac.uk"
+          maxLength={FIELD_LIMITS.universityEmail}
+          autoComplete="email"
+          inputMode="email"
+          helpBelow="We’ll email you a link to check it’s yours."
+        />
+      ) : (
+        <div>
+          <TextField
+            label="University email"
+            type="email"
+            first={email.address}
+            onChange={() => {}}
+            readOnly
+            adornment={
+              email.verified ? (
+                <span className={styles.chip} data-tone="ok">
+                  <span aria-hidden="true" className={styles.chipDot} />
+                  Verified
+                </span>
+              ) : null
+            }
+            helpBelow={
+              email.address ? (
                 <>
-                  {" "}
-                  <Link href={email.profileHref} className={styles.inlineLink}>
-                    Change it on your profile
-                  </Link>
-                </>
-              ) : null}
-            </>
-          ) : (
-            <>
-              Your account has no university email yet.
-              {email.profileHref ? (
-                <>
-                  {" "}
-                  <Link href={email.profileHref} className={styles.inlineLink}>
-                    Add one on your profile
-                  </Link>
-                  , then come back to this form.
+                  This is the address on your account.
+                  {email.profileHref ? (
+                    <>
+                      {" "}
+                      <Link href={email.profileHref} className={styles.inlineLink}>
+                        Change it on your profile
+                      </Link>
+                    </>
+                  ) : null}
                 </>
               ) : (
-                <> Email ai-safety@uonsu.com and we’ll add it for you.</>
-              )}
-            </>
-          )
-        }
-      />
+                <>
+                  Your account has no university email yet.
+                  {email.profileHref ? (
+                    <>
+                      {" "}
+                      <Link href={email.profileHref} className={styles.inlineLink}>
+                        Add one on your profile
+                      </Link>
+                      , then come back to this form.
+                    </>
+                  ) : (
+                    <> Email ai-safety@uonsu.com and we’ll add it for you.</>
+                  )}
+                </>
+              )
+            }
+          />
+          {email.check ?? null}
+        </div>
+      )}
 
       <div className={styles.field}>
         <label htmlFor={statusId} className={styles.label}>

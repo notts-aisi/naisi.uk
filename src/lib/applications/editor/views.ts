@@ -379,6 +379,24 @@ export type QuestionSetSummaryView = {
 
 export type CandidateView = { uid: string; name: string; fullName: string };
 
+/**
+ * One course in the "Course page" picker.
+ *
+ * `label` is written on the server and is all a screen prints: the course's
+ * title, or a few words in its place for a course this caller may not read
+ * (a draft is its authors' until it is published) or that has since been
+ * deleted. So the title of a draft never reaches somebody who could not open
+ * the draft.
+ */
+export type CourseChoiceView = {
+  id: string;
+  label: string;
+  /** `gone` is a course deleted after the programme was tied to it. */
+  standing: "published" | "draft" | "archived" | "gone";
+  /** False for an entry that only explains the current choice and cannot be picked. */
+  selectable: boolean;
+};
+
 export type ProgrammeSetupView = {
   roundId: string;
   /** "Autumn 2026". */
@@ -399,6 +417,10 @@ export type ProgrammeSetupView = {
   groupSize: string;
   useScores: boolean;
   closed: boolean;
+  /** The course whose public page offers this programme, or null for no course page. */
+  courseId: string | null;
+  /** The courses this caller can pick, and the current one whatever has become of it. */
+  courses: CourseChoiceView[];
   /** The caller's role: only a lead or an admin is given this view. */
   role: "admin" | "lead";
   lead: PersonView | null;
@@ -416,6 +438,8 @@ export type ProgrammeSetupView = {
 export type SetupContext = StaffContext & {
   role: "admin" | "lead";
   candidates: readonly CandidateView[];
+  /** The "Course page" picker's entries, from `listCourseChoices`. */
+  courses: readonly CourseChoiceView[];
   /** People whose sent application ranks this programme. */
   applications: number;
 };
@@ -467,6 +491,13 @@ export function projectProgrammeForSetup(
     groupSize: programme.groupSize,
     useScores: programme.useScores,
     closed: programme.closed,
+    courseId: programme.courseId,
+    courses: context.courses.map((course) => ({
+      id: course.id,
+      label: course.label,
+      standing: course.standing,
+      selectable: course.selectable,
+    })),
     role: context.role,
     lead: programme.leadUid ? personView(programme.leadUid, context) : null,
     reviewers: programme.reviewerUids.map((uid) => personView(uid, context)),

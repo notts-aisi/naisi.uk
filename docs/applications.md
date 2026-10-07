@@ -48,6 +48,57 @@ A round with `formVersion: 2` is an application form and is edited only by the
 application form's own routes. The older round editor and its routes belong to
 rounds without it.
 
+### What is kept apart from an application
+
+Three things about a person are not on the application, and each is held
+narrower than the application is.
+
+**The access-requirements answer.** The last step has one optional box, with
+the older form's question, and what somebody writes there is in practice
+about their health, a disability or who they care for. It is stored where the
+older rounds store it, `admissionApplicationPrivate/{roundId}__{uid}`: a
+collection of its own, at the application's own id, holding that one answer.
+
+- It is not in `draft` and not in `sent`. It is saved as it is typed, through
+  a route of its own (`application/access-requirements`), there is one copy,
+  and an admin reads what is stored at that moment. It can be changed until
+  the close and needs no second Send. The form saves the draft first, because
+  the first save of a draft is what creates the application, and a row is
+  only ever written beside one: the application's id is the only way back to
+  the row. Both deletions take the row in the application's own batch.
+- The applicant reads back their own, and a view-as session is refused, the
+  read included, because the session is then not theirs.
+- **Only an admin reads anybody else's**, by pressing a button on the review
+  screen, and every read appends a log line of kind `access-requirements-read`
+  in the transaction that reads it
+  (`applications/[uid]/access-requirements`, a POST). A lead and a reviewer
+  are refused before anything is read. The answer is in no payload a review
+  screen is sent and not in the record kept afterwards.
+- One file under `src/lib/applications/` names the collection
+  (`applicant/accessRequirementsDoc.ts`), two modules import it, and two
+  routes import those. `tests/applications-d2-zeta-access-requirements-boundary.test.mjs`
+  walks the tree for anything wider, and lists every route in the site that
+  can reach an answer with what it is.
+
+**The record kept after a term.** `memberRecords/{uid}/applications/{roundId}`
+(what they applied for, the outcome, average scores, each reviewer's overall
+comment) is written when a term settles or a form is destroyed, and it
+outlives both the form and the account. It holds reviewers' comments about a
+named person, so it is read by admins and nobody else: one panel shows it, on
+the admin Members page, and `tests/applications-d2-zeta-member-record-readers.test.mjs`
+walks the tree for a second.
+
+**The log.** A log line about an application names the applicant by account
+id and never by name. The log is kept when an account is deleted, so a name on
+a line would outlive the person's account; the id leads to the name only while
+there is an account. That covers the five `application-` kinds and
+`access-requirements-read`: who a line is about is `subjectUid`, and the
+sentence says "an applicant". Anything that draws a line looks the name up
+then, and says "somebody whose account has been deleted" when there is none
+(`subjectLabel()` in `review/audit.ts`).
+`tests/applications-d2-zeta-audit-names.test.mjs` lists every file that
+names one of those kinds and runs every writer.
+
 ### The fence
 
 A form sits in the same collection as the rounds that came before it, so every
@@ -67,7 +118,9 @@ document and then does one of three things.
 - **It leaves the form alone.** The two scheduler jobs that walk open rounds
   skip a form and count it, so nothing older emails an applicant on one. The
   lookup behind the course pages drops a form, so one is never offered as a
-  single course's own intake.
+  single course's own intake. A course's page does offer the form, by another
+  door that the form's own code decides: see "A programme and its course
+  page".
 - **It serves both**, on purpose: destroying a round, deleting an account, the
   member record, the list of one person's applications, the apply page and
   the page that reads one application back. Each of those two pages shows a
@@ -112,11 +165,18 @@ of the last reminder for an invitation nobody has answered. The reminder job
 into it before it sends, so a day sends at most one. It reads no decision
 document and changes nothing the person was told.
 
-**2. There are two copies of what the applicant wrote.** `draft` is what the
-form is showing and is saved as they type. `sent` is the application of record
-and is replaced whole each time they press Send. Reviewers read `sent` and
-nothing else. An applicant can change their answers until the close, and a
-half-made change never unseats the application they already sent.
+**2. There are two copies of what the applicant wrote, and what a send
+replaces is kept.** `draft` is what the form is showing and is saved as they
+type. `sent` is the application of record and is replaced whole each time
+they press Send. Reviewers read `sent` and nothing else. An applicant can
+change their answers until the close, and a half-made change never unseats
+the application they already sent.
+
+When they do send again and something is different, the application of
+record that send replaces is kept on the same document (`sentHistory`), with
+when it was sent, and the people reviewing the application are shown what
+each part said before. A send that changes nothing keeps nothing. See "What
+an application said before".
 
 **3. One place a term.** A person is placed on the highest programme in their
 own ranking that accepted them (`placementFor`). A second place exists only as
@@ -149,10 +209,9 @@ the person. Once the person accepts (`joinedByInvitation()` in
 if it had ranked the programme (`canReadApplication()` takes the joined
 programme beside the ranking), and it has a row in the programme's list,
 marked `byInvitation`, standing as accepted, with no decision to make and
-nothing of that programme's to score. The invitation card tells the person
-so before they press Accept. If they later cannot make it, the row stays,
-marked withdrawn, like anybody else's who left after applying. Somebody who
-says no thanks is never read by the programme they turned down.
+nothing of that programme's to score. If they later cannot make it, the row
+stays, marked withdrawn, like anybody else's who left after applying.
+Somebody who says no thanks is never read by the programme they turned down.
 `tests/applications-wave-h-joined.test.mjs` runs every kind of account
 against every way an invitation can stand.
 
@@ -167,6 +226,86 @@ The round's `reviewerUids` is kept as the union of every lead and reviewer on
 the form, with the `users.admissionsReviewer` flag that draws the sidebar
 entry, so every existing gate keeps working without knowing about programmes.
 
+## A programme and its course page
+
+A programme is for a course, and `programmes.<id>.courseId` says which: the
+id of a course on the site, or null for a programme with no course page. It
+is something else than `runId`. A course is the evergreen page; a run is one
+term of it, and `runId` is the run accepted people are placed on.
+
+**One writer.** The programme's `PATCH`
+(`/api/admissions/forms/[roundId]/programmes/[programmeId]`) is the only
+thing that stores it, for the programme's lead or an admin, from the "Course
+page" box on the Settings tab. `editor/courses.ts` holds the one rule the box
+and the route both go by, so the route accepts exactly what the box offered
+the caller:
+
+| A course that is | Can be picked by |
+| --- | --- |
+| published | the programme's lead, or an admin |
+| a draft | somebody who may read a draft course: an admin, or a holder of `draftCourse` or `approveCourse` |
+| archived, or not there | nobody |
+
+"Not there" and "not yours to pick" are refused in the same sentence, after
+the route has decided the caller may change the programme at all, so the
+route says nothing about which ids exist. The box always shows the course
+already chosen, whatever has become of it: by its title to somebody who may
+read it, and by a few words in its place to somebody who may not, or when it
+has been deleted. A tie already stored is never checked again by a later save
+of the same page, so a course somebody else unpublished cannot stop a lead
+changing their places.
+
+**Nothing follows a course around.** A course can be unpublished, archived
+or deleted after a programme is tied to it, and no write is made to the form
+when that happens. Whatever reads `courseId` treats a course that is not
+there, or has no public page, as no course.
+
+### What the course's page says
+
+`findFormsByCourse()` in `lifecycle/openForm.ts` answers, for each course,
+the form that speaks for it and where that form is in its term. It is the one
+place this is decided, for the course's own page and for the catalogue, and
+it reads every form with the single equality `findOpenForm()` uses.
+
+| The form is | The course's page |
+| --- | --- |
+| a draft, archived or cancelled | is told nothing, and is exactly the page it would be with no form |
+| open, and its opening is still ahead | says the day applications open, and offers nothing to press |
+| taking applications | says "Apply by Sun 18 Oct", and its button leads to `/apply/<roundId>` |
+| closed, by the clock or by an admin, or further on | says applications have closed, and offers nothing to press |
+
+"Taking applications" is `roundWindowState`, the predicate the form's own
+routes refuse on, so a page never offers a button the form would turn away.
+A draft is answered exactly as a form that does not exist, the same reading
+the form's own page gives it. A cancelled form is the one status the two read
+differently: its own page says applications have closed, and no course's page
+says anything, because a term that was called off promises no decision day.
+
+- **A programme that has been closed speaks for no course**, whatever it is
+  still tied to: it is off the site and out of the form.
+- **A closed form hands over only the times that have passed.** Closed by
+  hand, the time written on it can still be ahead, and a page that printed it
+  would say applications closed on a day that has not come.
+- **It is one form whichever button somebody presses.** The button's address
+  is `applyPathFor()`, built in one place, and it is the same for somebody
+  signed in and somebody who is not: the form's own page decides what a
+  person with no account sees.
+- **Between two forms tied to one course**, taking applications beats opening
+  soon beats closed (`pickLiveRound`, the ranking the course pages already
+  used). So last term's form goes on saying it has closed until next term's
+  is opened, and a draft for next term changes nothing.
+- **A round of the older kind can still speak for a course.**
+  `speakingRoundFor()` in `src/features/courses/fetchFormRound.ts` is the one
+  rule: the form speaks, unless the older round is further along. With no
+  tie, the page is handed the older lookup's own answer untouched.
+- **An open-enrolment course keeps its own sign-up window.** The course
+  pages' own rule (`roundOwnsDates`) is unchanged, so a tie to a course whose
+  run admits everybody from a session picker puts no Apply button on it.
+- **What a page is handed** is `CourseFormView`, written out field by field:
+  the form's id and address, its state, its three dates, and from the tied
+  programme when it starts as its lead wrote it and the run it places people
+  on. Not the form's label, and not a programme's name, places or people.
+
 ## Scores
 
 Scoring is per answer, 1 to 5, and optional per programme (`useScores`). Only a
@@ -175,12 +314,121 @@ else.
 
 - A reviewer's score for a programme is the mean of what they gave its answers.
 - The section score is the mean of the reviewers' scores, one voice each.
-- **A first review is blind to other reviewers.** Until you have scored every
-  answer there is to score for a programme, you are not shown what anybody else
-  gave or wrote for it (`reviewsVisibleTo`). An admin can switch that off for
-  the form (`revealOtherReviews`).
-- **Names are shown.** Reviewers see who they are reading, and the form has to
-  tell applicants so.
+- **A first review is blind to other reviewers.** A lead or a reviewer who has
+  not yet scored every answer there is to score for a programme is not shown
+  what anybody else gave or wrote for it (`reviewsVisibleTo`). An admin can
+  switch that off for the form (`revealOtherReviews`), which changes what
+  leads and reviewers are shown.
+- **An admin is never blind.** An admin is shown every score and comment, on
+  every programme, whether or not they have scored and whatever the switch
+  says: on a programme's list, on the single application and in the
+  recommendations made from the scores. "Admin" is the role on the site,
+  never a role on a programme, so a lead who is not an admin still scores
+  blind first. `otherReviewsShownTo` in `scoring.ts` is the whole rule. Every
+  caller hands it the caller's own standing, and nothing else reads the
+  switch as a condition: `tests/applications-review-routes.test.mjs` walks
+  the tree for both.
+- **Names are shown.** Reviewers see who they are reading. The form says who
+  reads an application and does not mention names.
+
+## What an application said before
+
+An edit counts only once the applicant presses Send again. What that send
+replaces is not lost: it is kept, and shown to whoever reviews the
+application.
+
+### What is stored
+
+Three fields on the application document, beside `sent`. None is on a
+document that has never needed it.
+
+| Field | Means |
+| --- | --- |
+| `sentHistory` | The earlier applications of record, oldest first. Each is `{ content, sentAt }`: a whole content, exactly what `sent` held, and when THAT version became the application of record. |
+| `sentHistoryDropped` | How many earlier versions are no longer kept. |
+| `sentChangedAt` | When `sent` became what it is now: the first send, or the latest send that changed something. |
+
+`sentAt` is the last press of Send and moves even when nothing changed, so it
+cannot say when the current version began. `sentChangedAt` can, and the date
+under an earlier answer and the line about a score both need it.
+
+`sendApplication` (`applicant/store.ts`) is the one writer, inside the
+transaction that replaces `sent`. It compares the new content with the stored
+one, both read through `normaliseContent` (`sameContent`, in
+`versions/kept.ts`). ANY difference is a change: an answer, About you, the
+ranking, facilitating, availability, the SU membership answer, the university
+address the account held at that moment. The comparison does not ask what a
+screen shows, because what is kept must not depend on how it is drawn.
+
+It is on the application document so that whatever deletes an application
+deletes its history in the same write, and so that it needs no collection,
+rule or index of its own.
+
+### How much is kept
+
+A document has a size limit, and the draft and the application of record have
+to fit beside the history. `SENT_HISTORY_LIMITS` (`model.ts`) holds it to 10
+earlier versions and 300,000 bytes. Beyond either, the oldest version THAT IS
+NOT THE FIRST is dropped, and counted in `sentHistoryDropped`, so a screen
+can say "Changed 14 times" truthfully when only 10 can be opened. **The first
+version sent is never dropped** (`keepVersion`): with the first alone over
+the weight, the history is the first, alone.
+
+The cap only ever drops from between the first version kept and the next, so
+that is the one place the kept versions are not consecutive (`hasGap`).
+
+### Who is shown it
+
+Whoever may read the application: an admin, and the lead and reviewers of a
+programme the person ranked or joined by invitation. Nobody else, and never
+the applicant. Their own routes build what they answer field by field
+(`applicant/project.ts`) and name none of the three fields.
+`tests/applications-versions.test.mjs` lists every file under `src` that
+does name one, both ways, so a new reader is written down from the change
+that adds it.
+
+The record the committee keeps about a person (`memberRecords`) holds none of
+the applicant's writing, from the version on record or from one before it.
+
+### How the review screens show it
+
+`review/earlier.ts` reads the versions PART BY PART, not as whole earlier
+applications. A part is one thing the screen draws: one answer, one About
+you fact, the ranking, whether they would facilitate, when they are free.
+For each, the versions are collapsed into runs in which the part said the
+same thing. The last run is what the screen already shows. The runs before
+it are what it said before, newest first, each with the day the first
+version of that run was sent. A part that never changed shows nothing extra.
+
+- **Only what the screen shows is a part.** The SU membership answer is kept
+  with every version and is not read there: the form tells applicants it
+  does not affect their application, and reviewers are not shown it. An
+  answer to a programme the person has since unticked is kept too and is not
+  shown; the ranking's own history says the programme went. A university
+  address in an earlier version is an admin's to read, as the one on record
+  is.
+- **So a change can be counted and have nothing to open.** The line under
+  the applicant's name counts every change to the application of record, and
+  says so plainly when none of it is on the screen.
+- **A question they were not asked is not an answer they gave.** A version in
+  which a question set did not apply (the programme was not ranked yet, or
+  they had not said yes to facilitating) is passed over when that set's
+  answers are compared, and the set's card says once when it joined the
+  application (`setAddedOn`). Asked and left blank is different: that is an
+  answer, and reads "No answer."
+- **A score and a comment stay on the question, not on a version.** Where a
+  score was given before the answer last changed, one line under the answer
+  says so (`changedSinceScoredLine`). A review row records when it was last
+  saved, not when each score was given, so the line is said only when it is
+  certain: the reviewer has saved nothing since before the change. It names
+  nobody whose review the reader is not shown.
+- **When a part last changed is said only when it is known.** A value first
+  seen right after the gap the cap leaves may have arrived in a version that
+  is gone. Its day is still shown, and nothing is claimed about a score
+  against it.
+
+The words these screens use for all of it are in
+`src/features/applications/review/changesWords.ts`.
 
 ## Decisions and decision day
 
@@ -214,6 +462,30 @@ Nothing is emailed before decision day. The send is one action by an admin: it
 publishes each outcome onto the applicant's own document (`result`, and
 `invitation` where there is one) and sends the emails. Until it runs, every
 applicant's status stays "sent".
+
+### A test before the send
+
+No press of Send is taken until an admin has sent themselves a test of the
+emails as they are worded now. The test is the page's "Send a test to me":
+the first person's real email in a group, to the admin's own address. Each
+one that is handed to the mail provider is recorded on the form as
+`decisionEmailTest`: who sent it, when, and a fingerprint of every decision
+email's wording at that moment (each programme's own `emailWording`, and the
+form's `noOfferWording`). A test this copy of the site held, or one to an
+address on the do-not-email list, reached nobody and is not recorded. A
+programme's own test, sent from its settings page, is not this test and
+leaves no record.
+
+`testStanding()` in `decisionDay/tested.ts` compares the record's fingerprint
+with the form as it stands: `fresh`, `stale` (a decision email's wording has
+changed since), or `none`. Nothing stamps a "wording changed" time, so no
+writer of wording has to remember to, and wording put back to exactly what
+was tested is tested wording again. `sendBlockers()` and `owedBlockers()`
+(`decisionDay/plan.ts`) hold both kinds of press on anything but `fresh`,
+with a sentence that says which, and a caller that hands over no answer is
+held too. A press composes its emails from the same reading of the form it
+judged the test against. The decision-day page's last readiness row says who
+tested and when, or that a test is owed.
 
 ### What became of the email
 
@@ -331,6 +603,28 @@ above). `result` is what decision day said and no reply changes it. A place give
 `status/standing.ts` reads all of that off the document, and `decideReply()`
 in `status/replies.ts` is the whole table.
 
+### Why somebody did not take a place
+
+The two replies that give something back are asked why: one of a short list
+("The times don't work for me", "I have too much on this term", "I'm doing
+something else instead") or "Other" with a few words of the person's own, at
+most `APPLICATION_LIMITS.releaseReasonOther` characters. A reason is
+required. The route refuses the reply without one before it reads a document
+(`parseReplyRequest()`), and the transaction that writes the reply refuses
+it too. It is stored on the person's own application as `releaseReason`, in
+the same write as the reply, and by no other write: a reply that gives
+nothing back carries none, and the first reason given stands.
+
+The committee reads it wherever the person's row is, because the answer is
+often something that can be put right. `gaveBackOf()` in `status/reasons.ts`
+is the one reading: the button the person pressed and their reason, off
+their own document. It is on the withdrawn row of each programme they ranked,
+on the application itself, and on the pooled applicants page, which keeps
+pooled people who left after they were told in a list of their own (`left`),
+counted nowhere. So nobody disappears from a screen by replying. The reason
+is not sent back to the applicant, and the programme whose invitation
+somebody turned down still never reads them.
+
 ### One set of words for an outcome
 
 Somebody reads where they stand on their own page and, one line each, on the
@@ -345,6 +639,14 @@ With no outcome to state (a draft, sent and waiting, withdrawn before
 anything was decided) there are no words, and the list keeps its own.
 `tests/applications-wave-h-list-words.test.mjs` holds that function and the
 page to the same words.
+
+The way back to that list is a card on the dashboard, "Your applications"
+(`src/features/applications/home/YourApplications.tsx`), drawn for somebody
+who has applied to anything. It names each application and links to it, and
+it states no outcome at all: a summary card is a third place the words could
+come to disagree, and nobody should learn a decision from one. A waiting
+account, which the dashboard does not admit, has the same link on the page
+it is held on.
 
 ### Who is in the term
 
@@ -393,6 +695,7 @@ every kind of reply has been made, through each of them.
 | A form is destroyed | The form, its question sets, every application with the access-requirements row beside it, every review, every decision document, and the log lines about the form's decisions | Each applicant's member record, the delivery log, the download log, the course runs |
 | An account is deleted | Each of its applications with the access-requirements row and the decision document beside it, the reviews about it, the reviews it wrote, and its name wherever a round carries it: the reviewer list, the final decider, and the lead and reviewers of each programme | Its member record, the log lines |
 | A course run is destroyed | Nothing on a form | The form, with any programme whose `runId` named that run |
+| A course is destroyed | Nothing on a form | The form, with any programme whose `courseId` named that course |
 
 - **A form is destroyed through the round destroy**
   (`src/lib/admissions/destroy.ts`), the one older action a form shares. It
@@ -416,6 +719,14 @@ every kind of reply has been made, through each of them.
 - **A programme's `runId` can name a run that has since been destroyed.** The
   run destroy writes no round. Whatever reads a programme's `runId` treats a
   run that is not there as no run.
+- **A programme's `courseId` can name a course that has since been
+  destroyed**, for the same reason: the course destroy writes no round. The
+  Settings tab shows such a tie as a course that is no longer on the site,
+  and no public page can be offered the form through it, because there is no
+  page.
+- **An application's earlier versions go with the application.** They are
+  fields of its own document, so every delete above takes them in the same
+  write, and nothing else holds a copy.
 
 ## The modules
 
@@ -428,6 +739,7 @@ All in `src/lib/applications/`.
 | `normalise.ts` | Reads stored documents into the model's shapes. Never throws. | anywhere |
 | `sections.ts` | Which steps and question sets one person sees | anywhere |
 | `validate.ts` | What stops a send; what is copied into `sent`; word counts | anywhere |
+| `versions/kept.ts` | What a send keeps of the application it replaces: what counts as a change, the cap, how the versions are read | anywhere |
 | `scoring.ts` | Scored questions, section scores, first-review blindness | anywhere |
 | `decisions.ts` | Placement, outcomes, who is in the term, who holds a place, tallies, readiness, recommendations | anywhere |
 | `words.ts` | Labels, ordinals, the words applicants never see | anywhere |
@@ -435,9 +747,12 @@ All in `src/lib/applications/`.
 | `roles.ts` | `setProgrammeRoles`, the one writer of leads and reviewers | server |
 | `repo.ts` | The form, its sets, the caller's own application | server, applicant-safe |
 | `staffRepo.ts` | Everybody's applications, reviews, decisions | server, staff only |
-| `status/standing.ts`, `status/replies.ts`, `status/view.ts`, `status/words.ts` | Where one person stands after sending, what each reply does, what their page says, the chip and title of an outcome | anywhere |
+| `status/standing.ts`, `status/replies.ts`, `status/reasons.ts`, `status/view.ts`, `status/words.ts` | Where one person stands after sending, what each reply does, why somebody gave a place back and how the committee reads it, what their page says, the chip and title of an outcome | anywhere |
 | `status/load.ts`, `status/record.ts` | The page's read, and the one transaction a reply writes | server, applicant-safe |
 | `accounts/approve.ts`, `accounts/afterReply.ts` | Approving a waiting account on an acceptance, and the call an accepted invitation makes | server, applicant-safe |
+| `lifecycle/openForm.ts` | Which form is open, and which form speaks for each course, for a page that offers Apply | server, safe for a page any visitor can load |
+| `lifecycle/publicTerm.ts` | Where the term is (`none`, `before`, `open`, `closed`, `running`) and what is on it, for a page that draws the term | server, safe for a page any visitor can load |
+| `editor/courses.ts` | The courses a programme can be tied to, and the one rule the box and the route share | server, staff |
 
 ## Rules for anything built on this
 
@@ -483,6 +798,12 @@ All in `src/lib/applications/`.
   after decision day they do not know who accepted an invitation.
 - **Questions lock once somebody has sent an application.** Editing a question
   set after that would change what an answer already given was an answer to.
+- **An earlier version is for the people reviewing the application.** A new
+  reader of `sentHistory` is added to the list in
+  `tests/applications-versions.test.mjs` with what it does with it, and
+  nothing that builds an applicant's page belongs on that list. On a review
+  screen, compare versions a part at a time through `review/earlier.ts`, so
+  that what is shown before is held to the same rules as what is shown now.
 - **Email** goes through `sendEmail()` with reply-to set to the society's
   contact address, and nowhere else. See "Who a copy of the site may email" in
   `docs/notifications.md` for what staging does with it.

@@ -21,9 +21,9 @@
    row lifted while ranking) can carry them too. */
 .tokens {
   /* Secondary text set on a card, lighter than the muted token. */
-  --ap-soft: #b4bccf;
+  --ap-soft: var(--color-text-body);
   /* The outline of an empty tick box or radio. */
-  --ap-ring: #566284;
+  --ap-ring: var(--color-control-border);
   /* An icon on a control that cannot be pressed. */
   --ap-quiet: #4a5574;
   --ap-selected: color-mix(in srgb, var(--color-accent) 14%, transparent);
@@ -871,7 +871,7 @@
 
 .inlineLink:hover,
 .textLink:hover {
-  color: #c2cbff;
+  color: var(--color-accent-text-hover);
 }
 
 /* Pulls a link that carries its own 44px of height up towards the block above it. */
@@ -947,53 +947,6 @@
 
 .navSpacer {
   flex: 1 1 auto;
-}
-
-/* === The panel for a visitor who is not signed in ===
-   No field and no bar of actions: a heading, a sentence, the way to an
-   account and the way back in. */
-
-.joinActions {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-2);
-}
-
-.shell .join {
-  min-height: 52px;
-  padding: 0 var(--space-6);
-  font-size: 16px;
-  letter-spacing: -0.005em;
-}
-
-.joinAside {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: 15px;
-  line-height: 1.55;
-}
-
-.joinSignIn {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.75rem;
-  color: var(--color-accent-text);
-  font-weight: 600;
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-}
-
-.joinSignIn:hover {
-  color: #c2cbff;
-}
-
-.joinSignIn:focus-visible {
-  outline: 2px solid var(--color-accent-text);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
-  box-shadow: none;
 }
 
 /* === A calm card for a form that cannot be filled in right now === */
@@ -1182,15 +1135,6 @@
     padding: var(--space-3) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
     border-top: 1px solid var(--color-border);
     background: color-mix(in srgb, var(--color-bg) 97%, transparent);
-  }
-
-  .joinActions {
-    align-items: stretch;
-    gap: var(--space-1);
-  }
-
-  .joinAside {
-    text-align: center;
   }
 
   .bottomActions {

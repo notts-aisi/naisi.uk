@@ -52,6 +52,13 @@
   flex: 1 1 15rem;
   min-width: 0;
 }
+/* The course whose page offers this programme: one box, kept to a readable
+   width so a short list of titles is not stretched across the card. */
+.basicsCourse {
+  flex: 1 1 17.5rem;
+  max-width: 35rem;
+  min-width: 0;
+}
 
 /* --- dates and places --------------------------------------------------- */
 

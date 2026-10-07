@@ -355,8 +355,18 @@ describe("the send is held, one sentence per reason", () => {
     ["nina", "Nina Petrova", [AGI], { [AGI]: "pool" }, { kind: "no-offer" }],
     ["zara", "Zara Ahmed", [AGI], { [AGI]: "decline" }],
   ];
+  // Every case here has had its emails tested as they are worded, unless it
+  // says otherwise: the test is the last thing that holds a send, and has
+  // cases of its own below.
   const blockers = (form, rows, over = {}) =>
-    plan.sendBlockers({ form, term: termOf(form, rows), now: DECISION_DAY, appUrl: "https://staging.example.com", ...over });
+    plan.sendBlockers({
+      form,
+      term: termOf(form, rows),
+      now: DECISION_DAY,
+      appUrl: "https://staging.example.com",
+      test: "fresh",
+      ...over,
+    });
 
   test("a term with every decision made and every outcome picked may go", () => {
     assert.deepEqual(blockers(makeForm(), ready), []);
@@ -470,7 +480,57 @@ describe("the send is held, one sentence per reason", () => {
     const rows = [...ready, ["rosa", "Rosa García", [INC], { [INC]: "pool" }], ["sam", "Sam Whitfield", [TAIS], null]];
     const term = termOf(form, rows);
     assert.equal(term.readiness.ready, false);
-    assert.ok(plan.sendBlockers({ form, term, now: DECISION_DAY, appUrl: "https://staging.example.com" }).length >= 2);
+    assert.ok(
+      plan.sendBlockers({ form, term, now: DECISION_DAY, appUrl: "https://staging.example.com", test: "fresh" }).length >= 2,
+    );
+  });
+
+  // The owner's decision of 7 October 2026: decision day is not sent until an
+  // admin has sent themselves a test of the emails as they are worded now.
+  const NO_TEST = "Nobody has sent themselves a test of these emails yet. Send yourself one before you send.";
+  const STALE_TEST =
+    "A decision email’s wording has changed since the last test. Send yourself a test again before you send.";
+
+  test("a term that is ready in every other way is held until a test has gone", () => {
+    assert.deepEqual(blockers(makeForm(), ready, { test: "none" }), [NO_TEST]);
+    assert.deepEqual(blockers(makeForm(), ready, { test: "stale" }), [STALE_TEST]);
+    assert.deepEqual(blockers(makeForm(), ready, { test: "fresh" }), []);
+  });
+
+  test("only the word fresh lets a send through: a caller that says nothing, or something else, is held", () => {
+    assert.equal(plan.testBlocker("fresh"), null);
+    assert.equal(plan.testBlocker("stale"), STALE_TEST);
+    for (const unsaid of [undefined, null, "", "none", "FRESH", "yes", true, 1, {}]) {
+      assert.equal(plan.testBlocker(unsaid), NO_TEST, JSON.stringify(unsaid));
+      assert.deepEqual(blockers(makeForm(), ready, { test: unsaid }), [NO_TEST], JSON.stringify(unsaid));
+    }
+  });
+
+  test("the test is the last thing asked for, after everything it would be made from", () => {
+    const rows = [...ready, ["rosa", "Rosa García", [INC], { [INC]: "pool" }]];
+    assert.deepEqual(blockers(makeForm(), rows, { test: "none", appUrl: " " }), [
+      "1 pooled person still needs an outcome.",
+      "This copy of the site doesn’t know its own address, so the buttons in the emails would lead nowhere.",
+      NO_TEST,
+    ]);
+  });
+
+  test("a form that sends nothing at all says so, and does not also ask for a test", () => {
+    const open = makeForm(undefined, { form: { status: "open", closesAt: new Date("2026-10-25T23:59:00Z") } });
+    assert.deepEqual(blockers(open, ready, { test: "none" }), [
+      "Applications are still open until Sun 25 Oct, 23:59. Decisions go out after they close.",
+    ]);
+    const sent = makeForm(undefined, { form: { decisionsSentAt: DECISION_DAY, decisionsSentByUid: "zach" } });
+    assert.deepEqual(blockers(sent, ready, { test: "stale" }), [
+      "Decisions for Autumn 2026 went out on Fri 23 Oct. They can’t be sent again.",
+    ]);
+  });
+
+  test("neither sentence uses a word an applicant must never read, or a long dash", () => {
+    for (const sentence of [NO_TEST, STALE_TEST]) {
+      assert.equal(/[\u2013\u2014]/.test(sentence), false);
+      assert.ok(sentence.length > 40, "a refusal is a sentence somebody can act on");
+    }
   });
 });
 
@@ -518,7 +578,10 @@ describe("the two screens say the design's sentences, with the design's numbers"
       [AGI, TAIS, INC].map((id) => pooled.filter((p) => p.ranked[0] === id).length),
       [24, 20, 11],
     );
-    assert.deepEqual(plan.sendBlockers({ form, term, now: DECISION_DAY, appUrl: "https://staging.example.com" }), []);
+    assert.deepEqual(
+      plan.sendBlockers({ form, term, now: DECISION_DAY, appUrl: "https://staging.example.com", test: "fresh" }),
+      [],
+    );
   });
 
   test("the button says 121 emails, and 122 with the declined one switched on", () => {
@@ -948,15 +1011,29 @@ describe("who a later press takes up", () => {
   });
 
   test("an owed email waits for much less than the term does", () => {
-    const blockers = (over) => plan.owedBlockers({ form: makeForm(undefined, { form: over }), appUrl: "https://staging.example.com" });
+    const blockers = (over) =>
+      plan.owedBlockers({ form: makeForm(undefined, { form: over }), appUrl: "https://staging.example.com", test: "fresh" });
     // A term that is sent, still open, or not ready does not hold an owed email.
     assert.deepEqual(blockers({ decisionsSentAt: WHEN }), []);
     assert.deepEqual(blockers({ status: "open", closesAt: new Date("2026-10-25T23:59:00Z") }), []);
     assert.deepEqual(blockers({ invitationReplyBy: null }), []);
     assert.deepEqual(blockers({ archived: true }), ["This application form is archived, so nothing can be sent from it."]);
     assert.deepEqual(blockers({ status: "cancelled" }), ["This application form was cancelled, so nothing can be sent from it."]);
-    assert.deepEqual(plan.owedBlockers({ form, appUrl: " " }), [
+    assert.deepEqual(plan.owedBlockers({ form, appUrl: " ", test: "fresh" }), [
       "This copy of the site doesn’t know its own address, so the buttons in the emails would lead nowhere.",
     ]);
+  });
+
+  // An owed email is a decision email like any other, so it waits for a test
+  // of the wording as it is now, even once the term is marked as sent.
+  test("an owed email waits for a test of the emails as they are worded now, like any other press", () => {
+    const sent = makeForm(undefined, { form: { decisionsSentAt: WHEN } });
+    const NO_TEST = "Nobody has sent themselves a test of these emails yet. Send yourself one before you send.";
+    const STALE_TEST =
+      "A decision email’s wording has changed since the last test. Send yourself a test again before you send.";
+    assert.deepEqual(plan.owedBlockers({ form: sent, appUrl: "https://staging.example.com", test: "stale" }), [STALE_TEST]);
+    assert.deepEqual(plan.owedBlockers({ form: sent, appUrl: "https://staging.example.com", test: "none" }), [NO_TEST]);
+    assert.deepEqual(plan.owedBlockers({ form: sent, appUrl: "https://staging.example.com" }), [NO_TEST], "said nothing: held");
+    assert.deepEqual(plan.owedBlockers({ form: sent, appUrl: "https://staging.example.com", test: "fresh" }), []);
   });
 });

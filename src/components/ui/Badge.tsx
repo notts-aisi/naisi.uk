@@ -3,17 +3,17 @@ import Chip, { type ChipTone } from "./Chip";
 
 type Props = HTMLAttributes<HTMLSpanElement> & {
   tone?: ChipTone;
+  /** A small dot before the word. See Chip. */
+  dot?: boolean;
   children: ReactNode;
 };
 
 /**
- * Thin alias for `<Chip size="md">`. Chip's `md` rules are Badge's former
- * inline styles verbatim, so every existing callsite renders identically —
- * including the ~23 that pass a `style` override, since inline styles still
- * win over Chip's classes.
+ * Thin alias for `<Chip size="md">`, kept so the many existing callsites need
+ * no edit. A `style` override still wins over Chip's classes.
  *
- * New code should reach for Chip directly (it has the size axis and the
- * hover/focus states); Badge stays so this refactor costs zero callsite churn.
+ * New code should reach for Chip directly: it has the size axis and the
+ * hover and focus states.
  */
 export default function Badge({ tone = "neutral", children, ...rest }: Props) {
   return (

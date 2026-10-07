@@ -19,10 +19,11 @@
  * Putting it in its own collection makes the property STRUCTURAL. The export
  * route never joins this collection, so no column of the CSV can carry the
  * answer; the queue never joins it, so no blind reviewer can be handed it.
- * There is exactly one reader,
- * `GET /api/admissions/rounds/[roundId]/applications/[uid]/private`, gated to
- * the final decider and admins, and every read of it appends a `courseAudit`
- * row with kind `access-requirements-read`.
+ * There is exactly one reader for anybody but the answer's author:
+ * `POST /api/admissions/forms/[roundId]/applications/[uid]/access-requirements`,
+ * for an application made on an application form, gated to admins, and every
+ * read of it appends a `courseAudit` row with kind `access-requirements-read`
+ * in the transaction that reads. An older round has no reader at all.
  *
  * ## Why the id is shared with the application
  *

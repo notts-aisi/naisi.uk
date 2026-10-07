@@ -140,6 +140,21 @@
   font-size: 13px;
   color: var(--color-warning);
 }
+/* What somebody said when they gave a place or an invitation back, and why. */
+.gaveBack {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+.gaveBackSaid {
+  color: var(--color-warning);
+}
+.gaveBackWhy {
+  color: var(--color-text);
+  white-space: pre-wrap;
+}
 
 /* Section tabs are a phone's way through the page. */
 .tabs {
@@ -190,6 +205,8 @@
   align-items: center;
   gap: 8px 12px;
   min-width: 0;
+  /* When the head wraps, the aside keeps to the right, where it sits on one line. */
+  margin-left: auto;
 }
 .asideNote {
   font-size: 14px;
@@ -965,6 +982,12 @@
   font-size: 15px;
   font-weight: 500;
 }
+.switchNote {
+  margin: 0 0 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
 .switchInput {
   position: absolute;
   width: 1px;
@@ -1108,6 +1131,141 @@
   outline: 2px solid var(--color-accent-text);
   outline-offset: 2px;
   box-shadow: none;
+}
+
+/* --- What it said before ---------------------------------------------- */
+
+/* Under the name: that the application changed after it was first sent, and
+   where on the page the earlier versions can be opened. */
+.changes {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 14px;
+}
+.changesLine {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+/* A name in that line: it takes the reader to its card. */
+.changesLink {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.changesLink:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.changesLink:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* One line under an answer whose score was given to words that have since
+   changed. */
+.changedNote {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-warning);
+}
+
+/* What a part said in the versions sent before. Closed until it is asked
+   for: the answer as it stands is what is being reviewed. */
+.earlier {
+  min-width: 0;
+}
+.earlierToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  margin-left: -8px;
+  padding: 0 8px;
+  border-radius: var(--radius-md);
+  color: var(--color-accent-text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  list-style: none;
+  cursor: pointer;
+}
+.earlierToggle::-webkit-details-marker {
+  display: none;
+}
+.earlierToggle:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.earlierToggle:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+.earlierChevron {
+  display: inline-flex;
+}
+.earlier[open] .earlierChevron {
+  transform: rotate(180deg);
+}
+.earlierList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 4px 0 6px;
+  padding: 2px 0 2px 14px;
+  border-left: 2px solid var(--color-border-strong);
+  list-style: none;
+}
+.earlierEntry {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.earlierWhen {
+  letter-spacing: 0.1em;
+}
+/* Earlier words are read beside the current ones, so they sit a step back. */
+.earlierEntry .answer,
+.earlierEntry .noAnswer,
+.earlierFact,
+.earlierChoice,
+.earlierTimes {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+.earlierEntry .answer,
+.earlierFact {
+  overflow-wrap: anywhere;
+}
+.earlierFact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+}
+.earlierFactLabel {
+  color: var(--color-text);
+}
+.earlierRanking {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* A card the line under the name can bring into view. */
+.card {
+  scroll-margin-top: 16px;
 }
 
 /* === Mobile === */
@@ -1360,7 +1518,7 @@
   /* The decision, in reach of a thumb for as long as the page is. */
   .bar {
     position: sticky;
-    bottom: 0;
+    bottom: var(--app-bottom-inset, 0px);
     z-index: 5;
     display: flex;
     align-items: center;
@@ -1413,5 +1571,10 @@
     left: 16px;
     max-width: none;
     margin: 0;
+  }
+
+  /* What it said before: a finger needs the full height. */
+  .earlierToggle {
+    min-height: 44px;
   }
 }

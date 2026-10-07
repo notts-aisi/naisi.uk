@@ -477,6 +477,8 @@ describe("the settings page shows the subject that is sent, and empty means stan
         canRunTerm: false,
         role: "lead",
         candidates: [],
+        // The "Course page" picker's entries. None here: these cases are about the emails.
+        courses: [],
         applications: 0,
       })
       .emails.find((email) => email.kind === kind);
@@ -592,6 +594,8 @@ describe("the settings page shows the subject that is sent, and empty means stan
         canRunTerm: false,
         role: "lead",
         candidates: [],
+        // The "Course page" picker's entries. None here: these cases are about the emails.
+        courses: [],
         applications: 0,
       }).emails;
       const other = [AGI, TAIS, INC].find((id) => id !== programmeId);

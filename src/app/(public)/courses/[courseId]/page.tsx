@@ -16,6 +16,10 @@ import {
   type RunWindow,
 } from "@/features/courses/fetchCourses";
 import {
+  fetchFormRoundForCourse,
+  speakingRoundFor,
+} from "@/features/courses/fetchFormRound";
+import {
   fetchLiveRoundForRuns,
   type CourseLiveRound,
 } from "@/features/courses/fetchLiveRound";
@@ -29,10 +33,8 @@ import {
   formatWindowDate,
   formatWindowDeadline,
 } from "@/lib/courses/window";
-import CourseCTA, {
-  type CourseCTARound,
-  type CourseCTARun,
-} from "@/features/courses/CourseCTA";
+import CourseCTA, { type CourseCTARun } from "@/features/courses/CourseCTA";
+import { toCTARound } from "@/features/courses/ctaRound";
 import CourseFactsRail, {
   type CourseFact,
   type CourseNote,
@@ -68,6 +70,14 @@ import styles from "./course.module.css";
  *    application window, or to the enrolment window and the session picker for
  *    an open-enrolment pre-course. Two objects naming the same deadline is the
  *    drift V3 exists to stop, so exactly one of them is read per render.
+ *
+ *    THE TERM'S APPLICATION FORM arrives the same way. A programme on the form
+ *    is tied to the course it is for, and `fetchFormRound.ts` hands this page
+ *    the form in the round's own shape, so everything below draws it with the
+ *    code that draws a round. `speakingRoundFor` chooses between the form and
+ *    a round of the older kind, and a course tied to no programme is handed
+ *    exactly what it always was. The CTA words the form its own way ("Apply
+ *    by Sun 18 Oct") and sends everybody to the one form.
  *
  * 2. NO RAW `run.label` REACHES A VISITOR. The cohort is named by
  *    `cohortLabel(run)` and by nothing else. `run.label` survives on the
@@ -164,8 +174,15 @@ export default async function PublicCoursePage({
   const { course, weeks } = found;
   const applicationRun = runSet.featuredRun;
   // The round can only be asked for once the run ids are known: the join runs
-  // backwards from `outcomeRunIds` until PR17 adds the forward pointer.
-  const round = await fetchLiveRoundForRuns(runSet.runIds);
+  // backwards from `outcomeRunIds` until PR17 adds the forward pointer. The
+  // term's application form is asked for beside it, by the course: it is null
+  // for a course tied to no programme and for a form that is still a draft,
+  // and then `round` is the older lookup's answer and nothing else changes.
+  const [olderRound, formRound] = await Promise.all([
+    fetchLiveRoundForRuns(runSet.runIds),
+    fetchFormRoundForCourse(course.id),
+  ]);
+  const round = speakingRoundFor(formRound, olderRound);
 
   // ONE precedence decision for the whole page, made by the one helper the
   // catalogue also asks. `speakingRound` is null when the run's own window is
@@ -190,6 +207,8 @@ export default async function PublicCoursePage({
   // Dates are formatted HERE, on the server, in Europe/London. The CTA is a
   // client island, and formatting a Nottingham deadline in the visitor's own
   // timezone is how someone reads "closes Sat 17 Oct" and applies a day late.
+  // The round's flattener lives beside the CTA (`ctaRound.ts`), where a test
+  // can run it; the run's is at the foot of this file.
   const ctaRun = toCTARun(applicationRun);
   const ctaRound = toCTARound(speakingRound, targetRun);
 
@@ -453,8 +472,12 @@ function buildFacts(
       // The ROUND's target run when a round owns the page, because that is the
       // run someone applying today would join. Blank when none resolves: an
       // empty fact is dropped by the rail, and a start date lifted off the
-      // featured run would be a different intake's.
-      value: startDateOf(viaRound ? targetRun : (run?.run ?? null)),
+      // featured run would be a different intake's. The application form
+      // names no run until groups are made, so until then it is the tied
+      // programme's own "w/c 26 Oct", as its lead wrote it.
+      value:
+        startDateOf(viaRound ? targetRun : (run?.run ?? null))
+        || (round?.form?.starts ?? ""),
     },
   ];
 }
@@ -505,37 +528,5 @@ function toCTARun(found: RunWindow | null): CourseCTARun | null {
         : formatWindowDeadline(window.closesAt)
       : null,
     startsOn: formatRunStartShort(run.startDate) ?? null,
-  };
-}
-
-/**
- * The same flattening for the round, whose state can never be `inactive`.
- *
- * `targetRun` is the run the round will place people onto, and the two rows
- * derived from it (the cohort chip and the start date) are EMPTY when it is
- * null rather than falling back to the featured run: they would then describe
- * a different intake than the deadline beside them.
- */
-function toCTARound(
-  round: CourseLiveRound | null,
-  targetRun: CourseRunDoc | null,
-): CourseCTARound | null {
-  if (!round || round.state === "inactive") return null;
-  const past = round.state === "closed";
-  return {
-    id: round.id,
-    state: round.state,
-    opensOn: round.opensAt ? formatWindowDate(round.opensAt) : null,
-    closesOn: round.closesAt
-      ? past
-        ? formatPastWindowDate(round.closesAt)
-        : formatWindowDeadline(round.closesAt)
-      : null,
-    decisionsOn: round.decisionsByDate
-      ? (formatRunStartShort(round.decisionsByDate) ?? null)
-      : null,
-    // The structured cohort, never the admin label. See rule 2 at the top.
-    cohortLabel: cohortLabel(targetRun),
-    startsOn: targetRun ? (formatRunStartShort(targetRun.startDate) ?? null) : null,
   };
 }

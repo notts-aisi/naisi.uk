@@ -1,0 +1,60 @@
+/*
+  The strip of the term's dates. Each date is a cell with a rule over it, and
+  the cells share a row for as long as each has room.
+
+  The reskin's tokens are named first and today's value stands behind each,
+  so the strip reads the same before and after they arrive at :root.
+*/
+
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  margin: 0;
+  padding: 0;
+}
+
+.cell {
+  flex: 1 1 12.5rem;
+  min-width: 0;
+  padding-top: var(--space-4);
+  border-top: 3px solid var(--color-live, #22d3ee);
+}
+
+.label {
+  margin: 0;
+  font-family: var(--font-meta, var(--font-mono));
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* The date: 30px on a laptop, 26px on a tablet and 22px on a phone, as the
+   three boards draw it, and every size between on the widths between. */
+.value {
+  margin: 0.375rem 0 0;
+  font-family: var(--font-meta, var(--font-mono));
+  font-size: clamp(1.375rem, 1.156rem + 0.9vw, 1.875rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.25;
+  color: var(--color-text-muted);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* The cells wrap on their own, so on a phone each date has a row to
+     itself, the same distance apart as the boards draw them. The date's
+     size is set above for every width. Nothing to change. */
+}

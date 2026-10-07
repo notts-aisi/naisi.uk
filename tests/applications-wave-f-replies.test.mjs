@@ -42,6 +42,7 @@ const at = (file) => join("lib", "applications", "status", file);
 
 const standing = await loadTs(at("standing.ts"));
 const replies = await loadTs(at("replies.ts"));
+const reasons = await loadTs(at("reasons.ts"));
 const view = await loadTs(at("view.ts"));
 const shape = await loadTs(join("lib", "applications", "applicant", "shape.ts"));
 const validate = await loadTs(join("lib", "applications", "validate.ts"));
@@ -589,6 +590,18 @@ describe("what an applicant reads on decision day", () => {
     assert.match(page, /const EVENTS = "\/events";/);
   });
 
+  // The owner's decision of 7 October 2026: the invitation card carries no
+  // line about who reads the application once the person accepts. The rule
+  // itself is unchanged (`joinedByInvitation`, `canReadApplication`), and
+  // `tests/applications-wave-h-joined.test.mjs` still holds it.
+  test("the invitation card says nothing about who can read the application", () => {
+    for (const file of readdirSync(SCREEN_DIR).filter((name) => /\.tsx?$/.test(name))) {
+      const shown = flat(codeOf(SCREEN_DIR, file));
+      assert.equal(/can read your application/i.test(shown), false, `${file} says who can read the application`);
+      assert.equal(/If you accept, the lead/i.test(shown), false, `${file} carries the line the card lost`);
+    }
+  });
+
   test("the committee's word for the people nothing took appears once, in the board's own sentence", () => {
     const files = [
       ...readdirSync(SCREEN_DIR).filter((name) => /\.tsx?$/.test(name)).map((name) => [SCREEN_DIR, name]),
@@ -621,14 +634,25 @@ describe("what an applicant reads on decision day", () => {
 describe("the reply buttons", () => {
   const buttons = codeOf(SCREEN_DIR, "ReplyButtons.tsx");
 
-  test("they post one word to the reply route and then have the server draw the page again", () => {
+  // The body used to be the one word. The two replies that give something
+  // back now carry the reason beside it, and the other two still send the
+  // word alone (the owner's decision of 7 October 2026).
+  test("they post the reply, with a reason where one is asked, and then have the server draw the page again", () => {
     assert.match(buttons, /`\/api\/admissions\/forms\/\$\{encodeURIComponent\(roundId\)\}\/application\/reply`/);
     assert.match(buttons, /method: "POST"/);
-    assert.match(buttons, /body: JSON\.stringify\(\{ reply \}\)/);
+    assert.match(buttons, /body: JSON\.stringify\(reason \? \{ reply, reason \} : \{ reply \}\)/);
     assert.match(buttons, /startRedraw\(\(\) => router\.refresh\(\)\)/);
-    const sent = [...buttons.matchAll(/send\("([a-z-]+)"\)/g)].map((found) => found[1]).sort();
-    assert.deepEqual(sent, ["accept-invitation", "cant-make-it", "coming", "decline-invitation"]);
-    for (const reply of sent) assert.equal(replies.isReply(reply), true, reply);
+    const sent = [...buttons.matchAll(/send\("([a-z-]+)"(, reason)?\)/g)].map((found) => [found[1], Boolean(found[2])]).sort();
+    assert.deepEqual(sent, [
+      ["accept-invitation", false],
+      ["cant-make-it", true],
+      ["coming", false],
+      ["decline-invitation", true],
+    ]);
+    for (const [reply, withReason] of sent) {
+      assert.equal(replies.isReply(reply), true, reply);
+      assert.equal(replies.givesBack(reply), withReason, `${reply}: a reason goes with exactly the replies that give something back`);
+    }
   });
 
   test("two taps before the buttons are disabled still send one reply", () => {
@@ -642,10 +666,57 @@ describe("the reply buttons", () => {
     assert.equal((buttons.match(/onClick=\{\(\) => setAsking\(true\)\}/g) ?? []).length, 2);
     assert.match(buttons, /onClick=\{\(\) => setAsking\(true\)\} disabled=\{off\}>\s+I can’t make it/);
     assert.match(buttons, /onClick=\{\(\) => setAsking\(true\)\} disabled=\{off\}>\s+No thanks/);
-    assert.match(buttons, /onConfirm=\{\(\) => send\("cant-make-it"\)\}/);
-    assert.match(buttons, /onConfirm=\{\(\) => send\("decline-invitation"\)\}/);
+    // The second press sends, and only with the reason the step collected.
+    assert.match(buttons, /onConfirm=\{\(reason\) => send\("cant-make-it", reason\)\}/);
+    assert.match(buttons, /onConfirm=\{\(reason\) => send\("decline-invitation", reason\)\}/);
     assert.match(buttons, /onClick=\{\(\) => send\("coming"\)\}/);
     assert.match(buttons, /onClick=\{\(\) => send\("accept-invitation"\)\}/);
+  });
+
+  test("the second step asks why: a list of real radios, Other with a labelled box, and nothing sent without a reason", () => {
+    const raw = flat(sourceOf(SCREEN_DIR, "ReplyButtons.tsx"));
+    // The options are the one list the route and the committee's screens read.
+    assert.match(buttons, /\{RELEASE_REASON_OPTIONS\.map\(\(option, at\) => \{/);
+    assert.match(buttons, /<fieldset\s+className=\{styles\.reasons\}/);
+    assert.match(buttons, /<legend className=\{styles\.reasonsLegend\}>/);
+    assert.match(buttons, /type="radio"\s+name=\{`\$\{id\}-reason`\}/);
+    assert.match(buttons, /\{chosen === "other" \? \(/);
+    assert.match(buttons, /<label htmlFor=\{`\$\{id\}-other`\} className=\{styles\.reasonsLegend\}>/);
+    assert.match(buttons, /<textarea\s+ref=\{otherBox\}\s+id=\{`\$\{id\}-other`\}/);
+    assert.match(buttons, /maxLength=\{RELEASE_REASON_OTHER_MAX\}/);
+    // The page refuses exactly what the route would: it asks the same function.
+    assert.match(buttons, /const parsed = parseReleaseReason\(\{ kind: chosen, other: otherBox\.current\?\.value \?\? "" \}\);/);
+    assert.match(buttons, /if \(!parsed\.ok\) \{\s+setMissing\(parsed\.error\);/);
+    assert.match(buttons, /setMissing\(null\);\s+onConfirm\(parsed\.reason\);/);
+    assert.match(buttons, /<p id=\{`\$\{id\}-missing`\} className=\{styles\.problem\} role="alert">/);
+    // The words that are on no board, pinned so a change to them is a decision.
+    for (const fixed of [
+      "What\u2019s the main reason?",
+      "We ask in case we can offer you something that works.",
+      "Tell us a bit more",
+      "{left} {left === 1 ? \"character\" : \"characters\"} left",
+    ]) {
+      assert.ok(raw.includes(fixed), `missing: ${fixed}`);
+    }
+    // The two buttons that open the step carry the words the committee is shown for them.
+    assert.ok(raw.includes(reasons.SAID_CANT_MAKE_IT) && raw.includes(reasons.SAID_NO_THANKS));
+    assert.deepEqual([reasons.SAID_CANT_MAKE_IT, reasons.SAID_NO_THANKS], ["I can\u2019t make it", "No thanks"]);
+  });
+
+  test("a reason is a place or an invitation given back, and nothing an applicant must never read", () => {
+    const shown = [
+      ...reasons.RELEASE_REASON_OPTIONS.map((option) => option.label),
+      ...Object.values(reasons.RELEASE_REASON_PROBLEMS),
+      "What\u2019s the main reason?",
+      "We ask in case we can offer you something that works.",
+      "Tell us a bit more",
+    ];
+    for (const text of shown) {
+      assert.equal(/[\u2013\u2014]/.test(text), false, text);
+      for (const word of words.WORDS_APPLICANTS_NEVER_SEE) {
+        assert.equal(text.toLowerCase().includes(word.toLowerCase()), false, `${text} uses ${word}`);
+      }
+    }
   });
 
   test("Accept is only drawn when the page was told it can be taken", () => {

@@ -1,0 +1,70 @@
+/* ============================================================
+   An applicant's access requirements, on the review screen, for
+   an admin. The frame is the screen's own admin frame
+   (ReviewScreen.module.css); this is what goes inside it.
+   ============================================================ */
+
+.box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rule {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+/* A full 44px target (docs/touch-targets.md). */
+.box .button {
+  min-height: 2.75rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.answer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* The applicant's own words. */
+.text {
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: 15px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.empty {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .box .button {
+    justify-content: center;
+    text-align: center;
+  }
+}

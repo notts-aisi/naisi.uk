@@ -162,6 +162,7 @@ const MUST_GUARD = [
   ["src/app/api/admissions/rounds/[roundId]/apply/stage/[stageId]/route.ts", "submits one later-released stage of an application, which cannot be undone"],
   ["src/app/api/admissions/forms/[roundId]/application/route.ts", "saves the draft of an application in the applicant's own name, and creates the application on the first save"],
   ["src/app/api/admissions/forms/[roundId]/application/send/route.ts", "sends an application, which puts somebody's answers in front of each programme's lead and reviewers"],
+  ["src/app/api/admissions/forms/[roundId]/application/access-requirements/route.ts", "reads and saves an applicant's own access-requirements answer; during a view-as session the session is the member's, so even the read would hand an admin that answer with nothing recording it"],
   ["src/app/api/admissions/forms/[roundId]/application/reply/route.ts", "records an applicant's reply to their offer or invitation in their own name, which can give their place back, and accepting an invitation approves their own account if it was still waiting"],
   // The application form's review screens. Every write here is recorded under
   // the caller's own name: a score, an internal comment, a programme's
@@ -175,6 +176,10 @@ const MUST_GUARD = [
     "writes scores and internal comments about an applicant on the caller's own review row",
   ],
   [
+    "src/app/api/admissions/forms/[roundId]/applications/[uid]/access-requirements/route.ts",
+    "opens an applicant's access-requirements answer and logs the read under the caller's name",
+  ],
+  [
     "src/app/api/admissions/forms/[roundId]/applications/[uid]/decision/route.ts",
     "records a programme's decision on somebody's application, or revokes an acceptance, and logs it under the caller's name",
   ],
@@ -184,7 +189,7 @@ const MUST_GUARD = [
   ],
   ["src/app/api/admissions/forms/[roundId]/pool/route.ts", "picks what a pooled applicant will hear on decision day, recorded under whoever the session says is acting"],
   ["src/app/api/admissions/forms/[roundId]/send/route.ts", "publishes every applicant's outcome and emails them, which cannot be unsent"],
-  ["src/app/api/admissions/forms/[roundId]/send/test/route.ts", "sends a decision-day email to the address on the session, which during view-as is the member's"],
+  ["src/app/api/admissions/forms/[roundId]/send/test/route.ts", "sends a decision-day email to the address on the session, which during view-as is the member's, and records on the form who tested and when"],
   ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email/route.ts", "sends one of a programme's decision emails to the address on the session, which during view-as is the member's"],
   // Outside the scanned trees above (it lives under /api/admin), so it is
   // named here or it is checked by nothing: it writes `config/courses`, whose
