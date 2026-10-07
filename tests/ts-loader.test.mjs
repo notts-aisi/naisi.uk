@@ -364,6 +364,13 @@ const USERS = new Map([
       "and dates printed for each stage are decided by the code that runs",
   ],
   [
+    "reskin-programme-pages.test.mjs",
+    "executes the words of the programme pages' closing band and renders a course's call to action " +
+      "(a .tsx client component) to HTML from the same dates, because whether the two say the same " +
+      "thing is decided by the code that runs; it also runs the helpers that word a chip and split " +
+      "an authored paragraph",
+  ],
+  [
     "applications-review-routes.test.mjs",
     "executes the review loaders, builders and writers under src/lib/applications/review with " +
       "access.ts and the real eligibility bar underneath, against an in-memory Firestore, " +
@@ -596,6 +603,14 @@ const USERS = new Map([
       "prove nothing about what a phone receives; the module has no imports, so nothing is stubbed",
   ],
   [
+    "events-when.test.mjs",
+    "it executes `src/features/events/eventWhen.ts` for real under a process zone far from " +
+      "London: the words the public events pages print for a time, a date and the places left " +
+      "are built there from `formatSiteDate`, and a copy of that arithmetic would prove nothing " +
+      "about what a deployed page says; its graph is that module and `siteTime.ts`, so nothing " +
+      "is stubbed",
+  ],
+  [
     "event-rsvp-identity.test.mjs",
     "the RSVP route executed as a guest, a member, a pending and a rejected account; its graph " +
       "reaches `sendRsvpEmail` by alias, stubbed here because the rendering is the sibling " +
@@ -778,10 +793,32 @@ const USERS = new Map([
       "are held to the page files in the tree by running them rather than by reading their text",
   ],
   [
+    "public-nav-pages.test.mjs",
+    "executes src/layout/publicNav.ts, the public menus as data, and its own `addressOf`: which " +
+      "entries are drawn and where each leads is decided by that function and by constants the " +
+      "file imports, so the addresses are held to the page files in the tree by running the " +
+      "module rather than by reading its text; nothing is stubbed",
+  ],
+  [
     "slug-id.test.mjs",
     "it executes `slugId`, with the platform's random source replaced, because where the suffix " +
       "comes from and what happens to a byte that would bias it are both about the shipping code; " +
       "nothing is stubbed",
+  ],
+  [
+    "home-words.test.mjs",
+    "it executes `homeWords.ts`, the pure functions that say what the homepage's two buttons, " +
+      "the chip on a programme and the sentence under This term read at each stage of the term, " +
+      "in a time zone far from London, because the promise is the words a visitor is given and " +
+      "a copy of the table would prove nothing; nothing is stubbed",
+  ],
+  [
+    "hero-scene.test.mjs",
+    "it executes `mountHero` and `startScene` against a page made of plain objects, because what " +
+      "the homepage's scene gives back when it stops, whether it asks for a frame under reduced " +
+      "motion and when a drag is held are only real when the modules run. `./engine.js` is stubbed " +
+      "with the engine's own source, which is plain script this loader does not compile; nothing " +
+      "else is stubbed",
   ],
 ]);
 

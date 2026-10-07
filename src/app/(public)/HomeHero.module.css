@@ -1,0 +1,503 @@
+/*
+  The homepage's hero: one screen of navy with the words set on it.
+
+  WHAT THE ANIMATED SCENE AND THIS FILE AGREE ON. The scene (and, until it is
+  in, HeadlineLoop) says where the typed sentence has got to by writing on
+  the hero's own box, the element that carries `.hero`:
+
+    data-ul      none | grow | full | shrink    the line under the sentence
+    data-caret   on | off                       the caret after it
+    data-replay  absent | b                     flipped to run the entrance again
+
+  and two numbers, --nh-kick and --nh-flash, that move the emblem's cyan
+  copy. None of them is there until a script has run, so every rule below
+  starts from the page with no script: the line drawn, the caret not.
+
+  The two values written out by hand are the hero's own and appear nowhere
+  else: the two ends of the gradient on the headline's second sentence.
+  Everything else is a theme token.
+*/
+
+/* `.hero` is the class handed to whatever frames the hero. It sets nothing
+   about the box: the frame owns its own size, ground and place under the
+   site's bar (HeroFrame.module.css, or the scene's stylesheet). It only
+   carries the words' own numbers, and is what the rules for the typed
+   sentence hang from. */
+.hero {
+  --hero-accent-from: #4d8eff;
+  --hero-accent-to: #5cf3ff;
+  --hero-gap: var(--space-6);
+  /* The room over and under the words: 2rem, and less on a short screen. */
+  --hero-air: clamp(1rem, 3.95vh, 2rem);
+}
+
+/* The words' column: the site's `.container` (its width and its gutter),
+   with the words to the right of it.
+
+   WHAT IT ASSUMES OF ITS FRAME. The frame is a column (a flex container,
+   top to bottom) one screen high, pulled up under the site's sticky bar,
+   whose first piece is a strip as tall as that bar. This column is the
+   next piece and takes the height that is left. So the words never add the
+   bar's height themselves: their own padding, top and bottom, is the 2rem
+   or less in --hero-air on a laptop, and the fixed values in the two blocks
+   at the foot of this file on a tablet and a phone.
+
+   Pointer events fall through everything but the words themselves, so the
+   scene behind still follows the pointer across the empty ground. */
+.inner {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-block: var(--hero-air);
+  pointer-events: none;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hero-gap);
+  width: min(38.75rem, 100%);
+  margin-left: auto;
+  pointer-events: auto;
+}
+
+/* === The mark === */
+
+.mark {
+  align-self: flex-start;
+  filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.55));
+  animation: hero-up-a 500ms ease-out 250ms both;
+}
+
+/* 216px tall on a screen 810px high or more, and smaller on a shorter one,
+   so the hero's last line stays near the first screen on a small laptop. */
+.mark svg {
+  display: block;
+  overflow: visible;
+  height: clamp(8.5rem, 26.67vh, 13.5rem);
+  width: auto;
+  aspect-ratio: 221.07 / 270.4;
+  /* img, svg { max-width: 100% } in globals.css would squash the drawing in
+     a narrow column. Its size is its height. */
+  max-width: none;
+}
+
+/* The cyan copy of the emblem slides out from behind the white one. */
+.markOffset {
+  transform: translate(-6px, 6px);
+  animation: hero-offset-a 760ms cubic-bezier(0.22, 0.61, 0.36, 1) 700ms both;
+}
+
+/* A piece that a form of the hero does not show is never `display: none`:
+   the scene would measure it as a hole at the hero's corner. It is set aside
+   instead, out of the layout, out of every reader's way, and far outside the
+   scene. The tagline is set aside on a laptop, the award on a phone. */
+.tagline {
+  position: absolute;
+  left: -200vw;
+  margin: 0;
+  visibility: hidden;
+  animation: hero-up-a 500ms ease-out 350ms both;
+}
+
+/* === The headline === */
+
+.headline {
+  margin: 0;
+  min-height: 2.1em;
+  font-family: var(--font-display);
+  /* 64px, and smaller in a window that is narrow or short. */
+  font-size: clamp(3rem, min(6.4vw, 7.9vh), 4rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  color: var(--color-text);
+  text-align: left;
+  text-shadow: 0 1px 10px rgba(5, 8, 16, 0.35);
+}
+
+/* Each word of the first sentence rises in, a little after the last. */
+.word {
+  display: inline-block;
+  animation: hero-rise-a 700ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* The second sentence keeps its place while it is being typed: the box is
+   as wide as the whole sentence whether or not the letters are there. */
+.accent {
+  position: relative;
+  display: inline-block;
+  min-width: min(9.5em, 100%);
+  white-space: nowrap;
+  text-align: left;
+  animation: hero-rise-a 700ms cubic-bezier(0.22, 0.61, 0.36, 1) 980ms both;
+}
+
+.accentText {
+  position: relative;
+  display: inline-block;
+  background: linear-gradient(120deg, var(--hero-accent-from), var(--color-live) 70%, var(--hero-accent-to));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* The line under the sentence. Drawn, unless the box says otherwise. */
+.accentText::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -0.08em;
+  height: 0.09em;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--hero-accent-from), var(--color-live) 60%, var(--hero-accent-to));
+  transform: scaleX(1);
+  transform-origin: left center;
+  opacity: 1;
+}
+
+.hero[data-ul="none"] .accentText::after {
+  transform: scaleX(0);
+  opacity: 0;
+}
+.hero[data-ul="grow"] .accentText::after { animation: hero-underline-on 350ms ease-out both; }
+.hero[data-ul="shrink"] .accentText::after { animation: hero-underline-off 250ms ease-in both; }
+
+/* The caret. Not drawn, unless the box says it is on. */
+.caret {
+  display: inline-block;
+  margin-left: 0.04em;
+  font-weight: 400;
+  color: var(--color-live);
+  visibility: hidden;
+}
+
+.hero[data-caret="on"] .caret {
+  visibility: visible;
+  animation: hero-blink 1s steps(2) infinite;
+}
+
+/* === The lede, the buttons, the status line === */
+
+.lede {
+  margin: 0;
+  max-width: 33em;
+  font-size: 1.1875rem;
+  line-height: 1.55;
+  color: var(--color-text-soft);
+  text-shadow: 0 1px 8px rgba(5, 8, 16, 0.7);
+  animation: hero-up-a 550ms cubic-bezier(0.22, 0.61, 0.36, 1) 900ms both;
+}
+
+.cta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  animation: hero-up-a 550ms cubic-bezier(0.22, 0.61, 0.36, 1) 1050ms both;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* The large public button, as a link. Button in components/ui draws the
+   same thing as a <button>. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  min-height: 3.25rem;
+  padding: 0 var(--space-6);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.secondary {
+  background: color-mix(in srgb, var(--color-bg) 55%, transparent);
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+@media (hover: hover) {
+  .primary:hover {
+    background: var(--color-accent-hover);
+    border-color: var(--color-accent-hover);
+  }
+  .secondary:hover {
+    background: color-mix(in srgb, var(--color-surface) 80%, transparent);
+    border-color: var(--color-control-border);
+  }
+}
+
+.status {
+  text-shadow: 0 1px 8px rgba(5, 8, 16, 0.7);
+}
+
+/* === The award === */
+
+.awardRow {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: var(--space-2);
+}
+
+.award {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: 100%;
+  height: 2.75rem;
+  padding: 0 var(--space-5) 0 1.125rem;
+  border: 1px solid color-mix(in srgb, var(--color-warning) 45%, transparent);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-surface) 92%, transparent),
+    color-mix(in srgb, var(--color-bg-elevated) 96%, transparent)
+  );
+  box-shadow:
+    0 2px 14px color-mix(in srgb, var(--color-warning) 16%, transparent),
+    0 6px 22px rgba(0, 0, 0, 0.35);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: border-color var(--transition-fast);
+  animation: hero-up-a 550ms cubic-bezier(0.22, 0.61, 0.36, 1) 2900ms both;
+}
+
+/* The global focus ring is a box-shadow, and this pill has one of its own. */
+.award:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+  border-radius: var(--radius-pill);
+}
+
+@media (hover: hover) {
+  .award:hover { border-color: var(--color-warning); }
+}
+
+.awardName {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--color-text);
+}
+
+.awardDot {
+  flex: none;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-warning) 75%, transparent);
+}
+
+.awardBy {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-warning);
+}
+
+/* The giver's name in short, for a tablet. A plain swap of two spans that
+   mark no zone, so `display` is safe here. */
+.awardByShort { display: none; }
+
+/* === The entrance, again ===
+   Each piece arrives a little after the last (the animations above). The
+   scene can run the whole entrance again by setting data-replay="b" on the
+   hero's box, and again by taking it off: the second set of keyframes is the
+   same motion under another name, which is what makes a browser start it
+   afresh. */
+
+.hero[data-replay="b"] .word,
+.hero[data-replay="b"] .accent { animation-name: hero-rise-b; }
+.hero[data-replay="b"] .mark,
+.hero[data-replay="b"] .tagline,
+.hero[data-replay="b"] .lede,
+.hero[data-replay="b"] .cta,
+.hero[data-replay="b"] .award { animation-name: hero-up-b; }
+.hero[data-replay="b"] .markOffset { animation-name: hero-offset-b; }
+
+@keyframes hero-rise-a {
+  from { opacity: 0; transform: translateY(18px); filter: blur(14px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes hero-rise-b {
+  from { opacity: 0; transform: translateY(18px); filter: blur(14px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes hero-up-a {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes hero-up-b {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes hero-offset-a {
+  from { transform: translate(0, 0); }
+  to { transform: translate(-6px, 6px); }
+}
+@keyframes hero-offset-b {
+  from { transform: translate(0, 0); }
+  to { transform: translate(-6px, 6px); }
+}
+@keyframes hero-underline-on {
+  from { transform: scaleX(0); opacity: 0; }
+  to { transform: scaleX(1); opacity: 1; }
+}
+@keyframes hero-underline-off {
+  from { transform: scaleX(1); opacity: 1; }
+  to { transform: scaleX(0); opacity: 0; }
+}
+@keyframes hero-blink {
+  50% { opacity: 0; }
+}
+
+/* Less motion: everything is where it ends up from the first paint, the
+   line is drawn whatever the box says, and the caret is not. */
+@media (prefers-reduced-motion: reduce) {
+  .mark,
+  .tagline,
+  .word,
+  .accent,
+  .lede,
+  .cta,
+  .award {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  /* Only the words blur as they rise. The mark's shadow is a filter too, and
+     stays. */
+  .word,
+  .accent { filter: none !important; }
+  .markOffset {
+    animation: none !important;
+    transform: translate(-6px, 6px) !important;
+  }
+  .hero .accentText::after {
+    animation: none !important;
+    transform: scaleX(1) !important;
+    opacity: 1 !important;
+  }
+  .hero .caret { display: none; }
+}
+
+/* === Tablet ===
+   The hero has three forms, and the animated scene picks its own by the same
+   two conditions as the two blocks below, so the words and the scene always
+   agree: a phone at or below 48rem; a tablet at or below 60rem, or on any
+   screen that is taller than it is wide; a laptop otherwise.
+
+   On a tablet the words sit at the foot of the screen at the page's full
+   width, and the mark stands to the right above them, where the network
+   arrives. */
+@media (max-width: 60rem), (orientation: portrait) { /* --bp-lg, and any upright screen */
+  .hero { --hero-gap: var(--space-5); }
+
+  .inner {
+    justify-content: flex-end;
+    padding-top: var(--space-6);
+    padding-bottom: clamp(1.5rem, 4.7vh, 3.5rem);
+  }
+
+  .stack {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  /* The room under the mark gives way first on a short screen. */
+  .mark {
+    align-self: flex-end;
+    margin-bottom: clamp(1rem, 8vh, 6rem);
+  }
+  .mark svg { height: clamp(7.5rem, 16.75vh, 12.5rem); }
+
+  /* Shown here, and the line the network stops above. */
+  .tagline {
+    position: static;
+    visibility: visible;
+    font-family: var(--font-display);
+    font-size: var(--text-base);
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 0.005em;
+    color: var(--color-live);
+    text-align: left;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+  }
+
+  .headline {
+    margin-top: calc(-1 * var(--space-2));
+    font-size: clamp(2.5rem, 5vw, 3rem);
+  }
+
+  .lede { font-size: var(--text-lg); }
+
+  /* The award names the giver in short, and is drawn flat. */
+  .awardRow { margin-top: 0; }
+  .award {
+    gap: 0.625rem;
+    height: auto;
+    min-height: 2.875rem;
+    padding: 0 var(--space-4);
+    background: color-mix(in srgb, var(--color-bg-elevated) 92%, transparent);
+    box-shadow: none;
+  }
+  .awardName { font-size: var(--text-caption); }
+  .awardByLong { display: none; }
+  .awardByShort { display: inline; }
+}
+
+/* === Mobile ===
+   On a phone the buttons are the width of the page, one over the other, and
+   the award is not drawn. */
+@media (max-width: 48rem) { /* --bp-md */
+  .inner { padding-block: var(--space-5); }
+
+  /* The mark is a fifth of the screen's height: 170px on a tall phone, less
+     on a short one, so the buttons stay on the first screen. */
+  .mark { margin-bottom: 0; }
+  .mark svg { height: clamp(7rem, 20vh, 10.625rem); }
+
+  /* 40px on a 390px phone, and smaller on a narrower one, so the second
+     sentence always fits on its line. */
+  .headline { font-size: min(2.5rem, 10.26vw); }
+
+  .lede { font-size: var(--text-base); }
+
+  .buttons { flex-direction: column; }
+  .button { width: 100%; }
+
+  /* Set aside, as the tagline is on a laptop. */
+  .awardRow {
+    position: absolute;
+    left: -200vw;
+    margin: 0;
+    visibility: hidden;
+  }
+}

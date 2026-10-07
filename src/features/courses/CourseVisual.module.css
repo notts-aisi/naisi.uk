@@ -1,32 +1,45 @@
 /* ============================================================
-   CourseVisual: the generated per-track artwork.
+   CourseVisual: the picture on a programme's card.
 
-   Every colour is a token. The track classes set two local
-   custom properties and nothing below them names a track
-   again, so adding a fourth track is one block here rather
-   than a sweep through the shapes.
+   The network motif on its navy ground, cropped by the seed,
+   or the author's own cover when there is one. A line of
+   metadata sits over its foot.
    ============================================================ */
 
 .visual {
   position: relative;
+  flex: none;
   overflow: hidden;
-  border-radius: var(--radius-lg);
   border: 1px solid var(--color-border);
-  background: var(--color-bg-elevated);
-  /* The composition is the only thing in here; nothing should be able to
-     stretch it out of ratio. */
-  line-height: 0;
-}
-
-.hero {
-  aspect-ratio: 21 / 9;
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
 }
 
 .card {
-  aspect-ratio: 16 / 7;
+  height: clamp(8.25rem, 12vw, 10.5rem);
 }
 
-.svg,
+.wide {
+  height: clamp(9.375rem, 14vw, 12.5rem);
+}
+
+/* The motif, moved and turned by the seed. The custom properties are set on
+   this element by the component; with none it is the plain net. */
+.net {
+  position: absolute;
+  inset: 0;
+  transform:
+    translate(var(--net-x, 0%), var(--net-y, 0%))
+    scale(var(--net-zoom, 1))
+    scale(var(--net-flip-x, 1), var(--net-flip-y, 1));
+}
+
+/* The shared field, filling the picture. */
+.fill {
+  width: 100%;
+  height: 100%;
+}
+
 .cover {
   display: block;
   width: 100%;
@@ -34,64 +47,32 @@
   object-fit: cover;
 }
 
-/* === Track palettes === */
-
-.technical {
-  --visual-ink: var(--color-accent);
-  --visual-wash: var(--color-accent-soft);
-  --visual-ring: var(--color-accent-line);
+.label {
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: var(--space-3);
+  color: var(--color-text-soft);
+  letter-spacing: 0.08em;
+  overflow-wrap: anywhere;
 }
 
-.governance {
-  --visual-ink: var(--color-collaborator-accent);
-  --visual-wash: var(--color-collaborator-soft);
-  --visual-ring: var(--color-collaborator-accent);
+/* A photograph can be any brightness, so the line over it gets a ground of
+   its own to stay readable. */
+.hasCover::after {
+  content: "";
+  position: absolute;
+  inset: 40% 0 0;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--color-floor) 78%, transparent));
+  pointer-events: none;
 }
 
-/* `--color-warning` used as a HUE, not as a status: it is the third distinct
-   accent the palette carries, and a general-track course is not a warning. */
-.general {
-  --visual-ink: var(--color-warning);
-  --visual-wash: var(--color-warning-soft);
-  --visual-ring: var(--color-warning);
-}
-
-/* === Marks === */
-
-.stopStart {
-  stop-color: var(--visual-wash);
-}
-
-.stopEnd {
-  stop-color: var(--color-bg-elevated);
-}
-
-.dot {
-  fill: var(--visual-ink);
-  opacity: 0.35;
-}
-
-.trace {
-  fill: none;
-  stroke: var(--visual-ink);
-  stroke-width: 1.25;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.45;
-}
-
-.ring {
-  fill: none;
-  stroke: var(--visual-ring);
-  opacity: 0.5;
+.hasCover .label {
+  z-index: 1;
 }
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  .hero {
-    aspect-ratio: 16 / 9;
-  }
-  .card {
-    aspect-ratio: 16 / 6;
-  }
+  /* The heights above already shrink with the screen, down to their floor.
+     Nothing to change. */
 }
