@@ -11,7 +11,8 @@
 
 /**
  * Whether the send approves an accepted applicant's account when it is still
- * waiting. While this is off, the page says how many accepted people are
- * still waiting and where to approve them, instead of saying it is done.
+ * waiting (`../accounts/approve`). While this is off, the send approves
+ * nobody, and the page says how many accepted people are still waiting and
+ * where to approve them instead of saying it is done.
  */
-export const SEND_APPROVES_WAITING_ACCOUNTS = false;
+export const SEND_APPROVES_WAITING_ACCOUNTS = true;

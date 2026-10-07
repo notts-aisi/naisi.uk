@@ -213,6 +213,28 @@ export function unconfirmedLine(names: readonly string[]): string {
   );
 }
 
+/**
+ * Accepted people whose account is still waiting, and where to approve them.
+ * Said when the send does not approve accounts, and again after a send that
+ * could not approve somebody's.
+ */
+export function accountsWaitingLine(waiting: number, sendingApproves: boolean): string {
+  const one = waiting === 1;
+  const who = `${waiting} of them ${one ? "has" : "have"} an account that’s still waiting.`;
+  return sendingApproves
+    ? `${who} Approve ${one ? "it" : "them"} in Approvals.`
+    : `${who} Sending doesn’t approve it, so approve ${one ? "it" : "them"} in Approvals.`;
+}
+
+/** Accepted people whose join request was refused before they were accepted. */
+export function accountsRefusedLine(names: readonly string[]): string {
+  const one = names.length === 1;
+  return (
+    `${nameList(names)} ${one ? "was" : "were"} accepted, but ${one ? "their join request was" : "their join requests were"} refused earlier. ` +
+    `Sending leaves ${one ? "that account as it is" : "those accounts as they are"}.`
+  );
+}
+
 /** What one press did, in sentences whose numbers add up to the people it looked at. */
 export function reportLines(report: SendReport): string[] {
   const lines: string[] = [];
@@ -246,6 +268,21 @@ export function reportLines(report: SendReport): string[] {
     );
   }
   if (report.unconfirmed > 0) lines.push(unconfirmedLine(report.unconfirmedNames));
+  if (report.accountsApproved > 0) {
+    lines.push(
+      report.accountsApproved === 1
+        ? "1 account that was waiting is now approved."
+        : `${report.accountsApproved} accounts that were waiting are now approved.`,
+    );
+  }
+  if (report.accountsFailed.length > 0) {
+    const one = report.accountsFailed.length === 1;
+    lines.push(
+      `Could not approve the ${one ? "account" : "accounts"} of ${nameList(report.accountsFailed)}. ` +
+        `Approve ${one ? "it" : "them"} in Approvals.`,
+    );
+  }
+  if (report.accountsRefused.length > 0) lines.push(accountsRefusedLine(report.accountsRefused));
   if (!report.owedOnly && report.skipped > 0) {
     lines.push(`${people(report.skipped)} already had their result, so nothing went to them again.`);
   }

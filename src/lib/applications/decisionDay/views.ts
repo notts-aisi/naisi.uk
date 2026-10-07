@@ -140,6 +140,11 @@ export type SendBoard = {
   remindsDaily: boolean;
   /** Accepted people whose account is still waiting to be approved. */
   accountsWaiting: number;
+  /**
+   * Accepted people whose join request was refused earlier. Sending leaves
+   * their account as it is, so they are named for somebody to look at.
+   */
+  accountsRefused: SendPerson[];
   /** The name emails are sent under. */
   fromName: string;
   replyTo: string;
@@ -211,6 +216,12 @@ export type SendReport = {
   failedNames: string[];
   /** The names of the people whose email nobody can vouch for. */
   unconfirmedNames: string[];
+  /** Waiting accounts of accepted people that this press approved. */
+  accountsApproved: number;
+  /** Accepted people whose waiting account this press could not approve. */
+  accountsFailed: string[];
+  /** Accepted people whose join request was refused earlier: left as they are. */
+  accountsRefused: string[];
   /** Why the press stopped early, when it did. */
   stopped: "emails-failing" | "out-of-time" | null;
   /** True when everybody in the term now has their result. */

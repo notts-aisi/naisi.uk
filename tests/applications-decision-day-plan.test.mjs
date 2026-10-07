@@ -674,7 +674,8 @@ describe("the sentences agree with their numbers", () => {
     const report = (over) => ({
       owedOnly: false, published: 0, retried: 0, emailed: 0, held: 0, suppressed: 0, failed: 0,
       unconfirmed: 0, notEmailed: 0, skipped: 0, changed: 0, notReached: 0, failedNames: [],
-      unconfirmedNames: [], stopped: null, complete: false, ...over,
+      unconfirmedNames: [], accountsApproved: 0, accountsFailed: [], accountsRefused: [],
+      stopped: null, complete: false, ...over,
     });
     assert.deepEqual(say.reportLines(report({ published: 122, emailed: 121, notEmailed: 1, complete: true })), [
       "122 people told: 121 emailed, 1 declined and not emailed.",
@@ -732,6 +733,48 @@ describe("the sentences agree with their numbers", () => {
       "Held means this copy of the site may not write to that address, so nothing was sent to it. That is how a rehearsal works.",
       "1 person was left out because their decision changed after you pressed Send. Check the page and send again.",
     ]);
+  });
+
+  test("what a press did about waiting accounts is said, and only when there is something to say", () => {
+    const report = (over) => ({
+      owedOnly: false, published: 3, retried: 0, emailed: 3, held: 0, suppressed: 0, failed: 0,
+      unconfirmed: 0, notEmailed: 0, skipped: 0, changed: 0, notReached: 0, failedNames: [],
+      unconfirmedNames: [], accountsApproved: 0, accountsFailed: [], accountsRefused: [],
+      stopped: null, complete: false, ...over,
+    });
+    assert.deepEqual(say.reportLines(report({})), ["3 people told: 3 emailed."]);
+    assert.deepEqual(say.reportLines(report({ accountsApproved: 1 })), [
+      "3 people told: 3 emailed.",
+      "1 account that was waiting is now approved.",
+    ]);
+    assert.equal(say.reportLines(report({ accountsApproved: 12 }))[1], "12 accounts that were waiting are now approved.");
+    assert.equal(
+      say.reportLines(report({ accountsFailed: ["Wen Zhao"] }))[1],
+      "Could not approve the account of Wen Zhao. Approve it in Approvals.",
+    );
+    assert.equal(
+      say.reportLines(report({ accountsFailed: ["Wen Zhao", "Sam Whitfield"] }))[1],
+      "Could not approve the accounts of Wen Zhao and Sam Whitfield. Approve them in Approvals.",
+    );
+    assert.equal(
+      say.reportLines(report({ accountsRefused: ["Sam Whitfield"] }))[1],
+      "Sam Whitfield was accepted, but their join request was refused earlier. Sending leaves that account as it is.",
+    );
+  });
+
+  test("the note under You’re in says who is still waiting, and who was refused", () => {
+    // After a send that approves accounts, somebody's can still be waiting.
+    assert.equal(say.accountsWaitingLine(1, true), "1 of them has an account that’s still waiting. Approve it in Approvals.");
+    assert.equal(say.accountsWaitingLine(3, true), "3 of them have an account that’s still waiting. Approve them in Approvals.");
+    // Where the send approves nobody, the page says so.
+    assert.equal(
+      say.accountsWaitingLine(2, false),
+      "2 of them have an account that’s still waiting. Sending doesn’t approve it, so approve them in Approvals.",
+    );
+    assert.equal(
+      say.accountsRefusedLine(["Sam Whitfield", "Wen Zhao"]),
+      "Sam Whitfield and Wen Zhao were accepted, but their join requests were refused earlier. Sending leaves those accounts as they are.",
+    );
   });
 
   test("the line under a degree is what the form asked", () => {

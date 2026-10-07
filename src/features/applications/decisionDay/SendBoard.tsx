@@ -7,6 +7,8 @@ import Switch from "@/components/ui/Switch";
 import kit from "@/features/applications/kit/kit.module.css";
 import { useHydrated } from "@/hooks/useHydrated";
 import {
+  accountsRefusedLine,
+  accountsWaitingLine,
   applicationsLabel,
   declinedLine,
   emailsLabel,
@@ -465,18 +467,23 @@ export default function SendBoard({ initial }: { initial: Board }) {
 
       <Group board={board} group={board.accepted} title="You’re in" tone="ok" first editable={!sent}>
         <p className={styles.groupText}>A presumed yes. They don’t have to reply.</p>
-        {SEND_APPROVES_WAITING_ACCOUNTS ? (
+        {SEND_APPROVES_WAITING_ACCOUNTS && !sent ? (
           <div className={shared.note}>
             <Icon name="check" size={16} className={shared.noteIcon} />
             <span>This also approves their account if it was waiting.</span>
           </div>
         ) : waiting > 0 ? (
+          // Either the send does not approve accounts, or it has run and
+          // somebody's is still waiting: say how many, and where to do it.
           <div className={shared.note}>
             <Icon name="info" size={16} className={shared.noteIcon} />
-            <span>
-              {waiting} of them {waiting === 1 ? "has" : "have"} an account that’s still waiting.
-              Sending doesn’t approve it, so approve {waiting === 1 ? "it" : "them"} in Approvals.
-            </span>
+            <span>{accountsWaitingLine(waiting, SEND_APPROVES_WAITING_ACCOUNTS)}</span>
+          </div>
+        ) : null}
+        {board.accountsRefused.length > 0 ? (
+          <div className={shared.note}>
+            <Icon name="warning" size={16} className={styles.sendWarningIcon} />
+            <span>{accountsRefusedLine(board.accountsRefused.map((person) => person.name))}</span>
           </div>
         ) : null}
       </Group>

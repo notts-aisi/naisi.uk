@@ -4,6 +4,7 @@ import { formatRoundDate } from "@/lib/admissions/window";
 import { resolveEmailAudience } from "@/lib/email/audience";
 import { dispatchSends } from "@/lib/email/dispatch";
 import { COURSE_AUDIT_COLLECTION, COURSE_AUDIT_LIMITS } from "@/lib/firestore/courseAudit";
+import { approveWaitingAccount, holdsAcceptance } from "../accounts/approve";
 import { outcomeFor } from "../decisions";
 import { own } from "../keys";
 import type { ResultEmailState } from "../model";
@@ -19,6 +20,7 @@ import { rankedProgrammes } from "../sections";
 import { decisionRef } from "../staffRepo";
 import { invitationRemindersArmed } from "./armed";
 import { emailsLabel, placesDetail, pooledDetail } from "./boardWords";
+import { SEND_APPROVES_WAITING_ACCOUNTS } from "./built";
 import { sendDecisionEmail, type Delivery } from "./deliver";
 import {
   DECISION_REPLY_TO,
@@ -28,7 +30,7 @@ import {
 } from "./emailCopy";
 import { emailStanding, handoverAfter } from "./emailState";
 import { appUrl, emailContext, type EmailContext } from "./letters";
-import { countWaitingAccounts, loadFirstNames } from "./people";
+import { loadAccountRoles, loadFirstNames } from "./people";
 import {
   countOf,
   emailCount,
@@ -108,6 +110,18 @@ import type { EmailPreview, ReadinessRow, SendBoard, SendGroup, SendReport } fro
  * published. If it cannot be sent, the press stops there, with one person
  * holding a result and no email instead of the whole term. Three failures in
  * a row later on stop it the same way.
+ *
+ * ## Accepting somebody approves an account that is still waiting
+ *
+ * A person told they are in has their account approved in the same press,
+ * straight after their result is written and before their email goes, by the
+ * one function that does it (`../accounts/approve`). It approves only a
+ * waiting account, only on an acceptance, and only in an admin's name, and
+ * it checks all three itself. Every press also tries again for anybody an
+ * earlier press told whose approval did not go through. A member, a committee
+ * member, an admin and a refused account are left exactly as they are, and a
+ * refused one is named on the page. No welcome email is sent from here: the
+ * decision email is the one they get.
  *
  * ## What marks the term as sent
  *
@@ -241,14 +255,15 @@ export async function buildSendBoard(
 ): Promise<SendBoard> {
   const [{ term }, context] = await Promise.all([loadTerm(db, form), emailContext(db, form)]);
   const accepted = groupOf(context, term, "accepted");
-  const [accountsWaiting, sender, remindsDaily] = await Promise.all([
-    countWaitingAccounts(
+  const [accountRoles, sender, remindsDaily] = await Promise.all([
+    loadAccountRoles(
       db,
       accepted.people.map((person) => person.uid),
     ),
     loadFirstNames(db, form.decisionsSentByUid ? [form.decisionsSentByUid] : []),
     invitationRemindersArmed(db, now),
   ]);
+  const withRole = (role: string) => accepted.people.filter((person) => accountRoles.get(person.uid) === role);
   const todo = unpublished(term).filter((person) => publicationFor(person.outcome) !== null);
   const listed = (people: readonly TermPerson[]) =>
     people.map((person) => ({ uid: person.uid, name: person.name }));
@@ -271,7 +286,8 @@ export async function buildSendBoard(
     declined: { count: inGroup(term, "declined").length },
     replyBy: context.replyBy,
     remindsDaily,
-    accountsWaiting,
+    accountsWaiting: withRole("pending").length,
+    accountsRefused: withRole("rejected"),
     fromName: process.env.SMTP_FROM_NAME ?? "NAISI",
     replyTo: DECISION_REPLY_TO,
     emailsEveryone: resolveEmailAudience(process.env).mode === "everyone",
@@ -381,11 +397,13 @@ export function auditDetail(
   failedUids: readonly string[],
   unconfirmedUids: readonly string[] = [],
 ): string {
+  // The press that only sends what is owed publishes nothing, so it does not
+  // say it did; the other press always says how many it published.
   const did: string[] = [];
-  if (report.published > 0 || report.retried === 0) {
+  if (!report.owedOnly || report.published > 0) {
     did.push(`Published ${countOf(report.published, "decision", "decisions")}`);
   }
-  if (report.retried > 0) {
+  if (report.owedOnly || report.retried > 0) {
     did.push(`${did.length > 0 ? "took" : "Took"} up ${countOf(report.retried, "owed email", "owed emails")}`);
   }
   const parts = [
@@ -402,6 +420,9 @@ export function auditDetail(
   if (report.stopped === "out-of-time") parts.push("Stopped when the press ran out of time.");
   if (!report.owedOnly) {
     parts.push(report.complete ? "Everybody in the term now has their result." : "The term is not finished.");
+  }
+  if (report.accountsApproved > 0) {
+    parts.push(`Approved ${countOf(report.accountsApproved, "waiting account", "waiting accounts")}.`);
   }
   if (failedUids.length > 0) parts.push(`Email still owed to: ${failedUids.join(", ")}.`);
   if (unconfirmedUids.length > 0) parts.push(`Email unconfirmed for: ${unconfirmedUids.join(", ")}.`);
@@ -420,7 +441,7 @@ export async function runDecisionDay(
 
   const owedOnly = request.owedOnly === true;
   const startedAt = now();
-  const { term } = await loadTerm(db, form);
+  const { term, applications } = await loadTerm(db, form);
   const blockers = owedOnly
     ? owedBlockers({ form, appUrl: appUrl() })
     : sendBlockers({ form, term, now: startedAt, appUrl: appUrl() });
@@ -473,9 +494,57 @@ export async function runDecisionDay(
     notReached: lined.length - letters.length,
     failedNames: [],
     unconfirmedNames: [],
+    accountsApproved: 0,
+    accountsFailed: [],
+    accountsRefused: [],
     stopped: null,
     complete: false,
   };
+
+  // ACCEPTING SOMEBODY APPROVES AN ACCOUNT THAT IS STILL WAITING. Two groups:
+  // the people this press tells they are in, each approved straight after
+  // their result is written and before their email goes; and people an
+  // earlier press told, whose approval did not go through then. The roles are
+  // read once here to know who to try. They decide nothing: the function that
+  // approves reads everything again inside its own transaction.
+  const toldBefore = term.people.filter(
+    (person) => person.result !== null && holdsAcceptance(applications.get(person.uid) ?? null),
+  );
+  const newlyIn = letters
+    .filter((letter) => !letter.owed && letter.told.kind === "accepted")
+    .map((letter) => letter.person);
+  const roles = SEND_APPROVES_WAITING_ACCOUNTS
+    ? await loadAccountRoles(db, [...toldBefore, ...newlyIn].map((person) => person.uid))
+    : new Map<string, string>();
+
+  /** Approve one accepted person's account if it is waiting. Never rejects. */
+  const approve = async (person: TermPerson): Promise<void> => {
+    const role = roles.get(person.uid);
+    if (role === "rejected") {
+      // Refused earlier: left exactly as it is, and named for somebody to look at.
+      report.accountsRefused.push(person.name);
+      return;
+    }
+    if (role !== "pending") return;
+    try {
+      const outcome = await approveWaitingAccount(db, {
+        uid: person.uid,
+        roundId,
+        approvedByUid: actor.uid,
+      });
+      if (outcome.approved) report.accountsApproved += 1;
+      else if (outcome.why === "not-waiting") {
+        // Somebody settled it in the meantime. Only a refusal is worth a word.
+        if (outcome.role === "rejected") report.accountsRefused.push(person.name);
+      } else {
+        report.accountsFailed.push(person.name);
+      }
+    } catch (err) {
+      console.error("[decision day] could not approve an account", roundId, person.uid, err);
+      report.accountsFailed.push(person.name);
+    }
+  };
+
   const failedUids: string[] = [];
   const unconfirmedUids: string[] = [];
   const invitable = new Set(form.programmeIds);
@@ -656,6 +725,7 @@ export async function runDecisionDay(
     }
 
     let to: string | null;
+    let approves = false;
     try {
       if (letter.owed) {
         const claimed = await claim(letter);
@@ -678,12 +748,16 @@ export async function runDecisionDay(
         }
         report.published += 1;
         to = written.to;
+        approves = SEND_APPROVES_WAITING_ACCOUNTS && letter.told.kind === "accepted";
       }
     } catch (err) {
       console.error("[decision day] could not publish", roundId, letter.person.uid, err);
       report.notReached += 1;
       return;
     }
+
+    // Their account first, so that by the time "You're in" arrives they are.
+    if (approves) await approve(letter.person);
 
     if (!letter.email) {
       // Told, and deliberately not emailed: published as settled.
@@ -731,6 +805,14 @@ export async function runDecisionDay(
     else report.notReached += rest.length;
   }
 
+  // People an earlier press told they are in, whose account is still waiting.
+  if (SEND_APPROVES_WAITING_ACCOUNTS) {
+    for (const person of toldBefore) {
+      if (now().getTime() - startedAt.getTime() > PRESS_BUDGET_MS) break;
+      await approve(person);
+    }
+  }
+
   // Sent means everybody has a result. Read the term again rather than trust
   // the counts: another press may have been running beside this one.
   const after = await loadTerm(db, form);
@@ -751,7 +833,7 @@ export async function runDecisionDay(
         updatedAt: FieldValue.serverTimestamp(),
       });
     }
-    if (report.published > 0 || report.retried > 0 || stamp) {
+    if (report.published > 0 || report.retried > 0 || report.accountsApproved > 0 || stamp) {
       tx.create(db.collection(COURSE_AUDIT_COLLECTION).doc(), {
         kind: DECISIONS_SENT_AUDIT_KIND,
         // A form is not a run, so the run axis is empty and the form's own id
