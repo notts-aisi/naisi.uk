@@ -35,7 +35,7 @@ import {
   startEmailRegistration,
   type AccountKind,
 } from "./joinClient";
-import { forgetAnswers, keepAnswers, loadKept } from "./keptAnswers";
+import { acrossTabs, forgetAnswers, keepAnswers, loadKept } from "./keptAnswers";
 import { STEP_PARAM } from "./steps";
 import styles from "./form.module.css";
 import join from "./join.module.css";
@@ -478,6 +478,9 @@ export default function JoinStep({
         setError(started.error);
         return;
       }
+      // The link opens in a tab of its own, so that tab is left what was
+      // typed here. This is the only way of making an account that does it.
+      acrossTabs(roundId, "link-emailed");
       setInboxFor(email);
       setMoved((count) => count + 1);
     },
@@ -620,7 +623,20 @@ export default function JoinStep({
                       Not you? Sign out
                     </button>
                   </p>
-                ) : null}
+                ) : (
+                  // Somebody who has an account, or who started this form on
+                  // another day, reaches this view signed out and would
+                  // otherwise answer it all again. The link is the form's own
+                  // (`signInHref`), so signing in brings them back here, to
+                  // where they left off.
+                  <p className={styles.lede}>
+                    Already have an account, or started an application before?{" "}
+                    <Link href={signInHref} className={join.asideLink}>
+                      Sign in
+                    </Link>{" "}
+                    to carry on.
+                  </p>
+                )}
               </div>
 
               {signedIn && fromLink && !hasJoinAnswers(about) ? (

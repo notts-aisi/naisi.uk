@@ -14,14 +14,20 @@
  * Nothing is typed twice, and the register page's own profile form is never
  * filled in: that is the whole of what this spec exists to hold.
  *
- * ## The first tab is where the journey continues
+ * ## The link's tab is left the answers, and the first tab is where the journey continues
  *
- * The emailed link opens in a tab of its own, as it does for a person. What was
- * typed on the first step lives in the tab it was typed in, so that tab is
- * where the spec carries on. The link's own tab is held to one ending: this
- * form, at the address the form itself marked for the way back, where the
- * first step says that what was typed is in the other tab. It never ends on
- * the register page's profile form, which would ask the same questions again.
+ * The emailed link opens in a tab of its own, as it does for a person. That
+ * tab is held to one ending: this form, at the address the form itself marked
+ * for the way back, with every answer typed in the first tab already in its
+ * boxes. Somebody who continues with an email address is left a copy of what
+ * they typed where the link's tab can read it (the browser's local storage,
+ * which the two tabs share), for an hour at most and until the join request
+ * has gone. It never ends on the register page's profile form, which would
+ * ask the same questions again.
+ *
+ * The spec then carries on in the first tab, which still holds its own copy.
+ * So both places a person can finish from are held: the link's tab is ready,
+ * and the tab they started in still works.
  *
  * ## Nothing here is seeded except the form
  *
@@ -169,6 +175,21 @@ function verificationLink(message, origin) {
 /** The account the register route made for this run's address, or null. */
 async function accountFor(email) {
   return (await harnessUserByEmail(email).catch(() => null)) ?? null;
+}
+
+/**
+ * Wait for a box to hold `expected`. The first step fills its boxes from what
+ * the browser kept once the page is listening, and draws them afresh when it
+ * does, so the box is found again on every look.
+ */
+async function holds(box, expected, what) {
+  const until = Date.now() + WAIT_MS;
+  let found = await box.inputValue({ timeout: WAIT_MS });
+  while (found !== expected && Date.now() < until) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    found = await box.inputValue({ timeout: WAIT_MS });
+  }
+  assert.equal(found, expected, `the link's tab was not left ${what} typed in the first tab`);
 }
 
 // `skipReason ?? false`, never `skipReason`: node:test reads the PRESENCE of a
@@ -418,14 +439,36 @@ test(
               "the emailed link did not bring a registration that began on this form " +
                 "back to the form",
             );
-            // This tab holds none of what was typed, which lives in the tab it
-            // was typed in. The step says so here, instead of looking blank.
+            // THIS TAB HOLDS WHAT WAS TYPED IN THE FIRST ONE. Continuing with
+            // an email address left a copy where the link's tab can read it,
+            // so nothing is asked a second time here either. The boxes are
+            // filled once the page is listening, so each is waited for.
             await inbox.getByRole("heading", { name: "About you" }).waitFor({ timeout: WAIT_MS });
-            await inbox
-              .getByText("If you started this form in another tab, what you typed is still there.", {
-                exact: false,
-              })
-              .waitFor({ timeout: WAIT_MS });
+            await holds(inbox.getByLabel("Preferred name"), TYPED.name, "the name");
+            await holds(inbox.getByLabel("University email"), state.uniEmail, "the university address");
+            await holds(inbox.getByLabel("What do you do at UoN?"), TYPED.status, "the status");
+            await holds(inbox.getByLabel("Degree"), TYPED.degree, "the degree");
+            await holds(inbox.getByLabel("Expected graduation"), graduation, "the graduation date");
+            await holds(
+              inbox.getByLabel("Why are you interested in AI safety?"),
+              motivation,
+              "the reason for joining",
+            );
+            // So the step has nothing to say about another tab. That line is
+            // for a tab that was left no answers, and this one has them.
+            assert.equal(
+              await inbox
+                .getByText("If you started this form in another tab", { exact: false })
+                .count(),
+              0,
+              "the link's tab holds the answers and still says they are in another tab",
+            );
+            // Agreeing is a fresh act in every tab: it never crosses.
+            assert.equal(
+              await inbox.locator("#join-consent").isChecked(),
+              false,
+              "the tick that agrees to the terms was carried into the link's tab",
+            );
           } finally {
             await inbox.close();
           }

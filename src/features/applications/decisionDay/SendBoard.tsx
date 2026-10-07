@@ -20,6 +20,7 @@ import {
   reportLines,
   sendButtonLabel,
   sendTotalsLine,
+  suMembershipLabel,
   unconfirmedLine,
 } from "@/lib/applications/decisionDay/boardWords";
 import { SEND_APPROVES_WAITING_ACCOUNTS } from "@/lib/applications/decisionDay/built";
@@ -180,7 +181,11 @@ function Group({
               {listed.map((person) => (
                 <li key={person.uid} className={styles.name}>
                   <InitialsChip name={person.name} uid={person.uid} size="sm" />
-                  <span className={styles.nameText}>{person.name}</span>
+                  <span className={styles.nameWho}>
+                    <span className={styles.nameText}>{person.name}</span>
+                    {/* For an admin only, as this whole page is. It decides nothing. */}
+                    <span className={styles.nameAnswer}>{suMembershipLabel(person.suMembership)}</span>
+                  </span>
                 </li>
               ))}
             </ul>

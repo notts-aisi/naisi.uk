@@ -44,7 +44,18 @@ export const POLICIES: Record<
     // contract rather than consent, which is a new legal basis for a class of
     // message the notification settings do not switch off. That is a material
     // change to what v4 promised, so it moved the version rather than editing
-    // v4, and every member is asked again at their next sign-in.
+    // v4, and every member is asked again at their next sign-in. It is frozen
+    // in its turn: a digest holds the file, and it renders unchanged at
+    // /privacy/v/5.
+    //
+    // v6 is the application form's version. v5 said reviewers scored with
+    // names hidden unless a round's author switched that off, and that the
+    // form would say so. On an application form everybody who reads an
+    // application sees whose it is, and the form does not say so, so the
+    // policy does. That reverses a promise v5 made, which is a material
+    // change, so it moved the version and every member is asked again at
+    // their next sign-in. It also says who reads an application, what is kept
+    // beside it and what decision day sends.
     //
     // Keep this comment ABOVE `versions:`, never between the `[` and the first
     // `{`: tests/funnel-harness-guards.test.mjs reads the current version out
@@ -52,6 +63,7 @@ export const POLICIES: Record<
     // so a comment sitting there leaves the guard unable to read the very
     // number it exists to pin. Anywhere else in the file is fine.
     versions: [
+      { version: 6, lastUpdated: "7 October 2026" },
       { version: 5, lastUpdated: "7 September 2026" },
       { version: 4, lastUpdated: "6 September 2026" },
       { version: 3, lastUpdated: "3 September 2026" },

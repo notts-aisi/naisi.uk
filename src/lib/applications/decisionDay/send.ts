@@ -7,7 +7,7 @@ import { COURSE_AUDIT_COLLECTION, COURSE_AUDIT_LIMITS } from "@/lib/firestore/co
 import { approveWaitingAccount, holdsAcceptance } from "../accounts/approve";
 import { outcomeFor } from "../decisions";
 import { own } from "../keys";
-import type { ProgrammeEmailKind, ResultEmailState } from "../model";
+import type { ApplicationDoc, ProgrammeEmailKind, ResultEmailState } from "../model";
 import {
   isApplicationForm,
   normaliseApplication,
@@ -234,13 +234,22 @@ function groupOf(
   context: EmailContext,
   people: readonly TermPerson[],
   kind: Publication["kind"],
+  /** The application behind somebody the page lists. */
+  applicationOf: (uid: string) => ApplicationDoc | undefined,
 ): SendGroup {
   const members = inGroup(people, kind);
   const first = members[0];
   const told = first ? toldTo(first) : null;
   const email = first && told ? emailFor(context, first, told, false) : null;
   return {
-    people: members.map((person) => ({ uid: person.uid, name: person.name })),
+    // THE ONE READ OF SOMEBODY'S ANSWER ABOUT SU MEMBERSHIP OUTSIDE THEIR OWN
+    // FORM. It goes beside their name on this page, which an admin alone is
+    // sent, and nowhere else: see `SendGroupPerson` for what has to stay true.
+    people: members.map((person) => ({
+      uid: person.uid,
+      name: person.name,
+      suMembership: applicationOf(person.uid)?.sent?.suMembership ?? null,
+    })),
     preview: first && email ? previewOf(first, email) : null,
     // "You're in" and an invitation are worded by the programme they are
     // about. "No offer this time" is the form's own, so it names none.
@@ -368,10 +377,12 @@ export async function buildSendBoard(
   // left out. `whole` is handed to one function, which only answers whether
   // the send is held: the viewer is told on decision day like everybody else,
   // so an application of theirs with no outcome holds the send too.
-  const [{ shown: term, whole, own: ownApplication }, context] = await Promise.all([
-    loadTerm(db, form, viewerUid),
-    emailContext(db, form),
-  ]);
+  const [{ shown: term, shownApplications, leftApplications, whole, own: ownApplication }, context] =
+    await Promise.all([loadTerm(db, form, viewerUid), emailContext(db, form)]);
+  // The applications behind the people this page lists: everybody in the term
+  // as the viewer is shown it, and anybody already told who has since left it.
+  // The viewer's own is in neither.
+  const applicationOf = (uid: string) => shownApplications.get(uid) ?? leftApplications.get(uid);
   const tested = testStanding(form);
   // WHAT THE PAGE REPORTS IS THE SEND: everybody it has told or has still to
   // tell, each read through what they were told. Somebody who has since given
@@ -380,7 +391,7 @@ export async function buildSendBoard(
   // tell, which emails are owed, whose account is waiting) is of the people
   // in the term, as it always was.
   const everybody = everybodyAddressed(term);
-  const accepted = groupOf(context, everybody, "accepted");
+  const accepted = groupOf(context, everybody, "accepted", applicationOf);
   // An account is waiting on the send only while its owner still holds the place.
   const holding = inGroup(term.people, "accepted").map((person) => ({ uid: person.uid, name: person.name }));
   // The two admins the page names: whoever sent the term, and whoever tested it.
@@ -418,8 +429,8 @@ export async function buildSendBoard(
     sentBy: form.decisionsSentByUid ? (sender.get(form.decisionsSentByUid) ?? null) : null,
     published: everybody.filter((person) => person.result !== null).length,
     accepted,
-    invited: groupOf(context, everybody, "invited"),
-    noOffer: groupOf(context, everybody, "no-offer"),
+    invited: groupOf(context, everybody, "invited", applicationOf),
+    noOffer: groupOf(context, everybody, "no-offer", applicationOf),
     declined: { count: inGroup(everybody, "declined").length },
     replyBy: context.replyBy,
     remindsDaily,

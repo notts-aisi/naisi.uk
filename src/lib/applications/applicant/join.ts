@@ -26,7 +26,9 @@ import { own } from "./keys";
  *  - WHAT IS SENT (`joinRequestFrom`). Field by field, so nothing typed
  *    anywhere else can ride along.
  *  - WHAT IS KEPT WHILE THEY SIGN IN (`packKept`, `readKept`). The answers to
- *    this one step and nothing else, for a day at most.
+ *    this one step and nothing else, for a day at most in the tab they were
+ *    typed in, and for an hour at most in the copy the tab an emailed link
+ *    opens is left (`ACROSS_TABS_MAX_AGE_MS`).
  *  - WHAT HOLDS A SEND (`sendHoldFor`). An account still waiting to be
  *    approved cannot send an application until its university address has
  *    been checked. See the note on that function for why.
@@ -158,6 +160,17 @@ export function joinRequestFrom(about: AboutYou): JoinRequest {
 /** How long kept answers are believed. Longer than any sign-in takes. */
 export const KEPT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * How long the copy that crosses tabs is believed: an hour.
+ *
+ * Somebody who asks for an emailed link is left a copy of what they typed
+ * where the tab that link opens can read it. That is the browser's local
+ * storage, which outlives the tab and is read by every tab of the browser, so
+ * the copy is believed for far less time than the tab's own. The site's
+ * privacy page names this hour: the two move together.
+ */
+export const ACROSS_TABS_MAX_AGE_MS = 60 * 60 * 1000;
+
 const KEPT_VERSION = 1;
 
 /** The one key the step keeps its answers under, per form. */
@@ -181,13 +194,18 @@ export function packKept(about: AboutYou, now: number): string {
 
 /**
  * The answers a kept text holds, or null when there is nothing to believe:
- * no text, text that is not ours, another version, or older than a day.
+ * no text, text that is not ours, another version, or older than `maxAgeMs`
+ * (a day, unless the caller holds it to less).
  *
  * What comes back is read the way a stored profile is read
  * (`aboutYouFromAccount`): each answer capped to its limit, the status one of
  * the site's own, and the address NOT verified whatever the text says.
  */
-export function readKept(raw: string | null | undefined, now: number): AboutYou | null {
+export function readKept(
+  raw: string | null | undefined,
+  now: number,
+  maxAgeMs: number = KEPT_MAX_AGE_MS,
+): AboutYou | null {
   if (!raw) return null;
   let parsed: unknown;
   try {
@@ -199,7 +217,10 @@ export function readKept(raw: string | null | undefined, now: number): AboutYou 
   const { v, at, about } = parsed as { v?: unknown; at?: unknown; about?: unknown };
   if (v !== KEPT_VERSION) return null;
   if (typeof at !== "number" || !Number.isFinite(at)) return null;
-  if (at > now || now - at > KEPT_MAX_AGE_MS) return null;
+  // Never for longer than a day, whatever a caller asks for, and a limit
+  // that is not a number believes nothing.
+  const limit = Math.min(maxAgeMs, KEPT_MAX_AGE_MS);
+  if (at > now || !(now - at <= limit)) return null;
   if (!about || typeof about !== "object" || Array.isArray(about)) return null;
   const given = about as Record<string, unknown>;
   const profile: Record<string, unknown> = {};
