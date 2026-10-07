@@ -13,6 +13,7 @@
  * stay where they are and are reached by address.
  */
 import { CONTACT_EMAIL, LINKS_PAGE_PATH, SU_PAGE_URL, socialHref } from "@/content/socials";
+import { formPageReturn, signInHrefWithReturn } from "@/lib/authReturn";
 
 export type NavEntry = {
   /** A stable name: the React key, and how a caller finds one entry. */
@@ -81,8 +82,9 @@ export const HEADER_PAGES: readonly NavEntry[] = [
 
 /**
  * What sits after the hairline. A signed-out visitor gets `signIn` and
- * `join`. Somebody signed in gets the entry for where their account stands in
- * place of `join`, and a Sign out button in place of `signIn`.
+ * `join`, as `signedOutEntriesOn` gives them for the page they are on.
+ * Somebody signed in gets the entry for where their account stands in place
+ * of `join`, and a Sign out button in place of `signIn`.
  *
  * `join` leads to the sign-up page until the Join page exists, and to the
  * Join page from the moment its `live` is switched on.
@@ -95,6 +97,31 @@ export const ACCOUNT_ENTRIES = {
   /** An account the committee has not approved yet: its waiting page. */
   waiting: { key: "waiting", label: "Application status", href: "/pending-approval", live: true },
 } as const satisfies Record<string, NavEntry>;
+
+/**
+ * The two signed-out entries as they are drawn on the page at `pathname`.
+ *
+ * ON A PAGE THAT IS A FORM (an application form, an older round, a course's
+ * apply page: `formPageReturn`) the bar must not lose the form:
+ *
+ *  - `signIn` leads to the sign-in page WITH that page as the place to come
+ *    back to. Whoever signs in there is brought back, and an account with no
+ *    join request is brought back to an application form's own first step by
+ *    the sign-in page's rule, never left on the register page.
+ *  - `join` is not drawn. The form is how somebody joins from here: its
+ *    first step is the join request. The Join page leads on to the register
+ *    page's own profile form, away from what they have typed.
+ *
+ * Everywhere else both are the entries above, as they stand.
+ */
+export function signedOutEntriesOn(pathname: string | null | undefined): {
+  signIn: NavEntry;
+  join: NavEntry | null;
+} {
+  const formPage = formPageReturn(pathname);
+  if (formPage === null) return { signIn: ACCOUNT_ENTRIES.signIn, join: ACCOUNT_ENTRIES.join };
+  return { signIn: { ...ACCOUNT_ENTRIES.signIn, href: signInHrefWithReturn(formPage) }, join: null };
+}
 
 /** Shown, with no link, to an account that was not approved. */
 export const NOT_APPROVED_LABEL = "Application not approved";
