@@ -64,6 +64,13 @@
   padding-inline: clamp(1.25rem, 3.4vw, 3rem);
 }
 
+/* The frame's brand, at the public bar's sizes: "NAISI" at 21px beside the
+   32px emblem, 11px apart. BrandMark reads both from the class it is handed. */
+.brandMark {
+  --brand-wordmark-size: 1.3125rem;
+  --brand-gap: 0.6875rem;
+}
+
 /* Signed out: the way back to the site. */
 .back {
   display: inline-flex;

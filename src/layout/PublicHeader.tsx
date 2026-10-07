@@ -193,7 +193,7 @@ export default function PublicHeader() {
       >
         <div className={styles.inner}>
           <Link href="/" className={styles.brand} aria-label="NAISI home">
-            <BrandMark size={32} />
+            <BrandMark size={32} className={styles.brandMark} />
           </Link>
 
           <div className={account.long ? `${styles.desk} ${styles.deskLong}` : styles.desk}>
@@ -243,7 +243,7 @@ export default function PublicHeader() {
         ariaLabel="Site navigation"
       >
         <div className={styles.drawerBrand}>
-          <BrandMark size={32} />
+          <BrandMark size={32} className={styles.brandMark} />
         </div>
         <nav className={styles.drawerNav} aria-label="Primary">
           {pages.map((entry) => (

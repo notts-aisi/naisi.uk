@@ -82,6 +82,14 @@
   color: var(--color-text);
 }
 
+/* The bar's brand: "NAISI" at 21px beside the 32px emblem, 11px apart.
+   BrandMark reads both from whichever class it is handed. The menu's brand
+   takes the same class. */
+.brandMark {
+  --brand-wordmark-size: 1.3125rem;
+  --brand-gap: 0.6875rem;
+}
+
 /* Everything to the right of the brand at laptop widths. One gap serves the
    pages, the hairline and the account pair. */
 .desk {

@@ -36,16 +36,7 @@ export default function PublicFooter() {
           <div className={styles.brandBlock}>
             {/* The emblem beside the society's name on three lines. The name
                 is real text, so the emblem stays decorative. */}
-            <div className={styles.lockup}>
-              <BrandMark size={72} showWordmark={false} />
-              <p className={styles.name}>
-                Nottingham
-                <br />
-                AI Safety
-                <br />
-                Initiative
-              </p>
-            </div>
+            <BrandMark lockup size={72} />
             <p className={styles.tagline}>
               The AI safety student community at the University of Nottingham.
             </p>

@@ -62,7 +62,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <header className={styles.header}>
         <div className={styles.bar}>
           <LogoLink aria-label="NAISI home">
-            <BrandMark size={32} />
+            <BrandMark size={32} className={styles.brandMark} />
           </LogoLink>
           <FrameAccount />
         </div>
