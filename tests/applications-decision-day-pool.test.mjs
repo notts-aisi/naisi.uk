@@ -755,10 +755,30 @@ describe("the route is an admin's, decided before anything is read", () => {
   test("the writer's refusals come back with their own status and sentence", async () => {
     const full = await route.PUT(put({ uid: "ben", outcome: { kind: "invite", programmeId: TAIS } }), ctx());
     assert.deepEqual([full.status, full.body.error], [409, "Technical AI Safety has no free places left."]);
-    const unknown = await route.PUT(put({ uid: "ben", outcome: { kind: "invite", programmeId: "constructor" } }), ctx());
+    // A well-formed id the form does not carry is the writer's to refuse.
+    const unknown = await route.PUT(put({ uid: "ben", outcome: { kind: "invite", programmeId: "not-on-the-form" } }), ctx());
     assert.deepEqual([unknown.status, unknown.body.error], [400, "That programme is not on this form."]);
     const missing = await route.PUT(put({ uid: "ben", outcome: { kind: "no-offer" } }), ctx("no-such-form"));
     assert.equal(missing.status, 404);
+    assert.equal(decisionOf(db, "ben").pooledOutcome, null, "no refusal wrote anything");
+  });
+
+  // A name every object carries is not an id (`isId`, the contract), so it
+  // cannot be the programme an invitation is to. The route says so while it
+  // is still reading the body, which is earlier than the writer would have
+  // and costs no read: the request never reaches the store. The writer's own
+  // refusal of the same names stands behind it and is executed above.
+  test("a name every object carries is not a programme id: refused with the body, before anything is read", async () => {
+    for (const programmeId of ["constructor", "__proto__", "toString", "hasOwnProperty", "valueOf"]) {
+      const response = await route.PUT(put({ uid: "ben", outcome: { kind: "invite", programmeId } }), ctx());
+      assert.deepEqual(
+        [response.status, response.body.error],
+        [400, "Say which programme the invitation is to."],
+        programmeId,
+      );
+    }
+    assert.deepEqual(db.counters, { reads: 0, writes: 0 });
+    assert.equal(decisionOf(db, "ben").pooledOutcome, null);
   });
 
   test("everybody left can be given no offer through the route", async () => {

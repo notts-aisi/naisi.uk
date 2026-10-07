@@ -13,6 +13,7 @@ import {
   type Readiness,
   type TermTally,
 } from "../decisions";
+import { own } from "../keys";
 import type { ApplicationDoc, ApplicationResult, ApplicationResultKind, DecisionDoc } from "../model";
 import type { ApplicationForm } from "../normalise";
 import { rankedProgrammes } from "../sections";
@@ -260,13 +261,6 @@ export function civilDateLabel(key: string | null): string | null {
   return key ? (formatRunStartShort(key) ?? null) : null;
 }
 
-/** People whose ranking holds nothing the form still carries, so nobody can decide them. */
-export function unrankedCount(term: Term): number {
-  return term.people.filter(
-    (person) => person.outcome.kind === "undecided" && person.outcome.waitingOn.length === 0,
-  ).length;
-}
-
 export type BlockerInput = {
   form: ApplicationForm;
   term: Term;
@@ -315,14 +309,9 @@ export function sendBlockers({ form, term, now, appUrl }: BlockerInput): string[
     const name = programmeOf(form, programmeId)?.shortName ?? programmeId;
     blockers.push(`${name} still owes ${countOf(owed, "application", "applications")} a decision.`);
   }
-  const unranked = unrankedCount(term);
-  if (unranked > 0) {
-    blockers.push(
-      unranked === 1
-        ? "1 application ranks nothing that is still on the form, so no programme can decide it."
-        : `${unranked} applications rank nothing that is still on the form, so no programme can decide them.`,
-    );
-  }
+  // Somebody whose ranking holds nothing the form still carries is counted
+  // here too: no programme can owe them a decision, so they are pooled
+  // (`outcomeFor`) and wait for an outcome to be picked like anybody else.
   if (readiness.needsOutcome > 0) {
     blockers.push(
       readiness.needsOutcome === 1
@@ -340,7 +329,7 @@ export function sendBlockers({ form, term, now, appUrl }: BlockerInput): string[
   // place on it or are invited to it.
   for (const programmeId of form.programmeIds) {
     const programme = programmeOf(form, programmeId);
-    const counted = tally.programmes[programmeId];
+    const counted = own(tally.programmes, programmeId);
     if (!programme?.closed || !counted) continue;
     if (counted.placed > 0) {
       blockers.push(

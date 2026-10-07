@@ -1,3 +1,4 @@
+import { own } from "../keys";
 import type { ApplicationFormFields, ProgrammeSettings } from "../model";
 
 /**
@@ -7,16 +8,16 @@ import type { ApplicationFormFields, ProgrammeSettings } from "../model";
  * object answers to more names than its own keys: `form.programmes["constructor"]`
  * is not a programme, and it is not undefined either. An id that arrived in a
  * request, or was read off a stored document, is therefore looked up through
- * this function, which answers only for a key the form itself carries.
+ * this function, which answers only for a key the form itself carries. The
+ * lookup is the contract's own (`own` in `../keys`), so there is one rule for
+ * what a map holds.
  */
 export function programmeOf(
   form: Pick<ApplicationFormFields, "programmes">,
   programmeId: string | null | undefined,
 ): ProgrammeSettings | undefined {
-  if (typeof programmeId !== "string" || !Object.hasOwn(form.programmes, programmeId)) {
-    return undefined;
-  }
-  return form.programmes[programmeId];
+  if (typeof programmeId !== "string") return undefined;
+  return own(form.programmes, programmeId);
 }
 
 /** What a programme is called on a chip or in a list. Falls back to its id. */

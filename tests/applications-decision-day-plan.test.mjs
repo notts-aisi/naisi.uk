@@ -370,11 +370,39 @@ describe("the send is held, one sentence per reason", () => {
     assert.deepEqual(blockers(makeForm(), two), ["2 pooled people still need an outcome."]);
   });
 
-  test("an application that ranks nothing still on the form holds it, and is said", () => {
-    const rows = [...ready, ["tom", "Tomasz Nowak", ["a-programme-that-left"], null]];
-    assert.deepEqual(blockers(makeForm(), rows), [
-      "1 application ranks nothing that is still on the form, so no programme can decide it.",
-    ]);
+  // The contract reads somebody whose ranking holds nothing the form still
+  // carries as POOLED (`outcomeFor`): no programme they ranked took them, and
+  // no programme can owe them a decision. So they hold the send the way any
+  // pooled person does, under the one ordinary sentence, and an admin clears
+  // it the ordinary way, by picking what they hear. They get no sentence of
+  // their own: the reading this replaces (`undecided`, waiting on nothing)
+  // held the send for a reason nobody on either screen could do anything about.
+  test("an application that ranks nothing still on the form is pooled: it holds the send until an outcome is picked", () => {
+    const form = makeForm();
+    const left = ["tom", "Tomasz Nowak", ["a-programme-that-left"], null];
+    const term = termOf(form, [...ready, left]);
+    const tom = person(term, "tom");
+    assert.deepEqual(tom.ranked, [], "the form carries nothing they ranked");
+    assert.deepEqual(tom.outcome, { kind: "needs-outcome" });
+    assert.equal(decisions.isPooled(tom.outcome), true);
+    assert.equal(term.tally.outcomes.undecided, 0, "no programme is waited on");
+    assert.equal(term.tally.outcomes.needsOutcome, 1);
+
+    // Held, in the one sentence a pooled person without an outcome earns.
+    assert.deepEqual(blockers(form, [...ready, left]), ["1 pooled person still needs an outcome."]);
+    const another = ["una", "Una Byrne", ["another-that-left"], null];
+    assert.deepEqual(blockers(form, [...ready, left, another]), ["2 pooled people still need an outcome."]);
+
+    // And an admin can clear it: either outcome may be picked for them.
+    assert.equal(plan.poolProblem(form, tom), null);
+    assert.equal(plan.inviteProblem(form, term.tally, tom, INC), null);
+    const told = (outcome) => ["tom", "Tomasz Nowak", ["a-programme-that-left"], {}, outcome];
+    const noOffer = [...ready, told({ kind: "no-offer" })];
+    assert.deepEqual(person(termOf(form, noOffer), "tom").outcome, { kind: "no-offer" });
+    assert.deepEqual(blockers(form, noOffer), [], "once picked, nothing is left that nobody can clear");
+    const invited = [...ready, told({ kind: "invite", programmeId: INC })];
+    assert.deepEqual(person(termOf(form, invited), "tom").outcome, { kind: "invited", programmeId: INC });
+    assert.deepEqual(blockers(form, invited), []);
   });
 
   test("an invitation needs a reply-by day, and one that has not passed", () => {

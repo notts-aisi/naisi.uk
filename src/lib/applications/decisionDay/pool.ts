@@ -3,6 +3,7 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { formatRoundDate } from "@/lib/admissions/window";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import { freePlaces, isPooled } from "../decisions";
+import { own } from "../keys";
 import type { ApplicationDoc, DecisionDoc, ReviewDoc } from "../model";
 import {
   isApplicationForm,
@@ -73,7 +74,7 @@ function rowFor(
   const reasons: string[] = [];
   const couldSuit: string[] = [];
   for (const programmeId of person.ranked) {
-    const entry = person.decision?.programmes[programmeId];
+    const entry = own(person.decision?.programmes, programmeId);
     if (!entry || entry.decision !== "pool") continue;
     const reason = entry.poolReason ? POOL_REASON_LABEL[entry.poolReason] : "";
     if (reason && !reasons.includes(reason)) reasons.push(reason);
@@ -147,7 +148,7 @@ export async function buildPoolBoard(
 
   const programmes: PoolProgramme[] = form.programmeIds.map((programmeId) => {
     const settings = programmeOf(form, programmeId);
-    const counted = term.tally.programmes[programmeId];
+    const counted = own(term.tally.programmes, programmeId);
     const places = settings?.places ?? null;
     const placed = counted?.placed ?? 0;
     return {

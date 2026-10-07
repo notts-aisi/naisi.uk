@@ -6,6 +6,7 @@ import { resolveEmailAudience } from "@/lib/email/audience";
 import { dispatchSends } from "@/lib/email/dispatch";
 import { COURSE_AUDIT_COLLECTION, COURSE_AUDIT_LIMITS } from "@/lib/firestore/courseAudit";
 import { outcomeFor } from "../decisions";
+import { own } from "../keys";
 import {
   isApplicationForm,
   normaliseApplication,
@@ -204,7 +205,7 @@ function readinessRows(context: EmailContext, term: Term): ReadinessRow[] {
   const { tally, readiness } = term;
   const rows: ReadinessRow[] = form.programmeIds.map((programmeId) => {
     const settings = programmeOf(form, programmeId);
-    const counted = tally.programmes[programmeId];
+    const counted = own(tally.programmes, programmeId);
     const owed = readiness.toReview[programmeId] ?? 0;
     return {
       key: programmeId,
