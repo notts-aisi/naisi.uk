@@ -60,6 +60,19 @@ export const metadata: Metadata = {
   },
   description:
     "The AI safety student community at the University of Nottingham. Termly courses, real projects, and a weekly digest of what's happening in the field.",
+  /*
+   * No `images` here or under `twitter`, on purpose. Next reads
+   * src/app/opengraph-image.png (the link-preview card, which `npm run brand`
+   * copies from brand-source/2-lockup/) and writes og:image and twitter:image
+   * itself, with the picture's real width and height and an address that
+   * changes when the picture does. An `images` key written here would switch
+   * that off for the tag it sits under.
+   *
+   * This is the DEFAULT card, not a guarantee. Metadata is merged a whole key
+   * at a time, so a page that sets its own `openGraph` replaces this one,
+   * card included. Such a page names its own picture, or names this one
+   * ("/opengraph-image.png", 1200 by 630) when it has none.
+   */
   openGraph: {
     title: "Nottingham AI Safety Initiative",
     description:
@@ -83,8 +96,10 @@ export const metadata: Metadata = {
    * "we did not think about the status bar".
    *
    * Deliberately no metadata.manifest and no metadata.icons here: static
-   * discovery of manifest.ts and of icon.png / apple-icon.png already emits
-   * both, and mergeStaticMetadata runs last so an explicit value would lose.
+   * discovery of manifest.ts, of favicon.ico and icon.svg (the browser tab)
+   * and of apple-icon.png (the home screen, a different picture on purpose)
+   * already emits both, and mergeStaticMetadata runs last so an explicit
+   * value would lose.
    */
   appleWebApp: {
     title: "NAISI",
