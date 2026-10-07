@@ -16,6 +16,7 @@ import {
   COURSE_APPLICATION_STATUS_LABEL,
   type CourseApplicationStatus,
 } from "@/lib/firestore/courseApplications";
+import { own } from "@/lib/applications/keys";
 import {
   useRunApplications,
   type AdmissionsGroup,
@@ -119,7 +120,7 @@ function answerRows(
       label:
         labels.get(key) ??
         (OPAQUE_QUESTION_ID.test(key) ? `Question ${index + 1}` : key),
-      value: answerToText(answers[key]),
+      value: answerToText(own(answers, key)),
     }))
     .filter((row) => row.value !== "");
 }

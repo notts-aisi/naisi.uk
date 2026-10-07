@@ -21,6 +21,7 @@ import {
   type ApplicationProgrammePreference,
 } from "@/lib/firestore/admissionApplications";
 import type { RsvpAnswer } from "@/lib/firestore/events";
+import { own } from "@/lib/applications/keys";
 import ApplicationPrivacyNotice from "./ApplicationPrivacyNotice";
 import AvailabilityGrid from "./AvailabilityGrid";
 import DraftSaveBar from "./DraftSaveBar";
@@ -318,7 +319,7 @@ export default function ApplyFlow({
       const result = await submitStage(
         round.id,
         stageId,
-        answers[stageId] ?? {},
+        own(answers, stageId) ?? {},
         await token(),
       );
       adopt(result.application);
@@ -539,7 +540,7 @@ export default function ApplyFlow({
       {released.map((stage) => {
         const frozen = Boolean(application.stageSubmittedAt?.[stage.id]);
         const questions = stage.questions ?? [];
-        const stageAnswers = answers[stage.id] ?? {};
+        const stageAnswers = own(answers, stage.id) ?? {};
         const stageEditable =
           stage.openForAnswers && (editable || (laterStagesOpen && !frozen));
         return (
@@ -574,8 +575,8 @@ export default function ApplyFlow({
                   <div key={question.id} className={styles.reviewRow}>
                     <dt className={styles.reviewLabel}>{question.label}</dt>
                     <dd className={styles.reviewValue}>
-                      {answerText(stageAnswers[question.id]) ? (
-                        <MemberText text={answerText(stageAnswers[question.id])} />
+                      {answerText(own(stageAnswers, question.id)) ? (
+                        <MemberText text={answerText(own(stageAnswers, question.id))} />
                       ) : (
                         <span className={styles.blank}>Not answered</span>
                       )}
