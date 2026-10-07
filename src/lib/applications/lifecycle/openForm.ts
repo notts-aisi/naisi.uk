@@ -3,7 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { roundWindowState } from "@/lib/admissions/window";
 import { ROUNDS_COLLECTION, type AdmissionRoundDoc } from "@/lib/firestore/admissionRounds";
 import { FORM_VERSION, type ProgrammeKind } from "../model";
-import { normaliseForm, type ApplicationForm } from "../normalise";
+import { isApplicationForm, normaliseForm, type ApplicationForm } from "../normalise";
 import { openProgrammes } from "../sections";
 
 /**
@@ -125,6 +125,11 @@ export async function findOpenForm(db: Firestore, now: Date = new Date()): Promi
   const snap = await db.collection(ROUNDS_COLLECTION).where("formVersion", "==", FORM_VERSION).get();
   const open: ApplicationForm[] = [];
   for (const doc of snap.docs) {
+    // The query asks the database for forms. Each stored document is asked the
+    // contract's own question as well, so this lookup is held to the rule every
+    // other read of a round is: nothing is read as a form unless
+    // `isApplicationForm` says it is one.
+    if (!isApplicationForm(doc.data())) continue;
     const form = normaliseForm(doc.id, doc.data());
     if (roundWindowState(form.round, now).state !== "open") continue;
     if (openProgrammes(form).length === 0) continue;

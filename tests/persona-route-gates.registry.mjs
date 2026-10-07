@@ -708,6 +708,15 @@ export const ROUTES = {
         "told the form is missing.",
     },
   },
+  "/api/admissions/forms/[roundId]/status": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Moving a form along its term is admin only, decided before the body or any document " +
+        "is read: every other session is forbidden in the same words whether or not the form " +
+        "exists, and the admin meets the validation, which asks for a status.",
+    },
+  },
   "/api/admissions/rounds": {
     GET: {
       expect: signedIn(200),
@@ -2135,7 +2144,7 @@ export const PAGES = {
       "on, renders not found for those admitted; a lead or a reviewer on the form is shown " +
       "a notice that the page is an admin's.",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications": {
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/applications": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
     why:
       "The admissions console: requireAdmissionsPage admits round authors (admin or " +
@@ -2151,7 +2160,7 @@ export const PAGES = {
       "those admitted, an application that is missing or not theirs to read renders the " +
       "page's own calm not-here state as ordinary HTML, with a 200.",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/setup": {
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's: a programme the caller has no " +

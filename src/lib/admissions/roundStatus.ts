@@ -14,14 +14,17 @@ import {
  * The transition map itself is `ADMISSION_ROUND_TRANSITIONS` in
  * `src/lib/firestore/admissionRounds.ts`, beside the union it is written in
  * terms of. This module is the only thing that INTERPRETS it: the status
- * route calls `planStatusChange` and so does the console's status control, so
- * a button that offers a move and a route that refuses it cannot drift apart.
- * There is deliberately no second copy of the arrows anywhere.
+ * route calls `planStatusChange` and so does the console's status control,
+ * and the application form's own status route reads the same table through
+ * `planFormMove` (`src/lib/applications/lifecycle/status.ts`), so a button
+ * that offers a move and a route that refuses it cannot drift apart. There is
+ * deliberately no second copy of the arrows anywhere.
  *
  * That is safe ONLY because `admissionRounds` is `allow write: if false`, so
- * one Admin SDK route is the sole writer. The moment a client-direct write is
- * allowed onto the round document, this table has to be duplicated into
- * `firestore.rules` in the same change.
+ * the two Admin SDK status routes, one for each kind of round, are the only
+ * writers of a status. The moment a client-direct write is allowed onto the
+ * round document, this table has to be duplicated into `firestore.rules` in
+ * the same change.
  *
  * ## Why a plan object rather than a boolean
  *

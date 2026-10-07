@@ -341,6 +341,30 @@ const USERS = new Map([
       "each is worked out from stored data and only running it shows the words match",
   ],
   [
+    "applications-wave-e1-lifecycle.test.mjs",
+    "executes the three pure modules under src/lib/applications/lifecycle (the readiness " +
+      "list, the moves a form may make, and what the term page is handed), because each " +
+      "sentence an admin is shown is built from stored dates and only running it shows the words",
+  ],
+  [
+    "applications-wave-e1-open-form.test.mjs",
+    "executes the lookup a public page asks which application form is open, against a " +
+      "database that records its queries, because what leaves it for a visitor's page and " +
+      "the shape of its one read are decided by the code that runs",
+  ],
+  [
+    "applications-wave-e1-status-route.test.mjs",
+    "executes the form status route and the transaction behind it with access.ts and the " +
+      "readiness list underneath, against an in-memory Firestore, because whether an unready " +
+      "form opens, and what a move writes, are decided by the code that runs",
+  ],
+  [
+    "applications-wave-e1-term-home.test.mjs",
+    "executes the term page's numbers beside the loaders of the two screens they link to " +
+      "(the programme's list and the pooled applicants), on one stored term, because a " +
+      "button that says 23 is only right if the list behind it walks 23",
+  ],
+  [
     "applications-own-keys.test.mjs",
     "executes every exported function of every module under src/lib/applications against " +
       "each name Object.prototype carries, with the real eligibility bar and the real roles " +

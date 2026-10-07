@@ -286,7 +286,7 @@ const ROUND_SURFACES = {
       "which answers null for a round that is not a form, and the page then answers as it " +
       "does for a form that is not there",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications": {
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/applications": {
     kind: "form",
     why:
       "the list of one programme's applications. It loads through loadProgrammeBoard, which " +
@@ -299,14 +299,14 @@ const ROUND_SURFACES = {
       "one application, to read, score and decide. It loads through loadReview, which starts " +
       "from the form's own loader and finds nothing for a round that is not a form",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/layout.tsx": {
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/layout.tsx": {
     kind: "form",
     why:
-      "the header and tab strip over one programme's pages. It loads the programme through " +
-      "loadProgrammeForStaff, which starts from the form's own loader, so a round of the " +
-      "older kind has no programme here to draw",
+      "the header and tab strip over one programme's tabbed pages, its settings and its list " +
+      "of applications. It loads the programme through loadProgrammeForStaff, which starts " +
+      "from the form's own loader, so a round of the older kind has no programme here to draw",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/setup": {
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     kind: "form",
     why:
       "one programme's settings, for its lead and for admins. It loads through loadSetup, " +
@@ -440,6 +440,13 @@ const ROUND_SURFACES = {
       "edits and deletes one question set through changeSet and deleteSet. Each reads the " +
       "round inside its transaction and stops unless it is a form, so a question set is never " +
       "written under a round of the older kind",
+  },
+  "/api/admissions/forms/[roundId]/status": {
+    kind: "form",
+    why:
+      "opens, closes, reopens and settles a form through moveFormStatus, the one writer of a " +
+      "form's status. Its transaction reads the round and stops unless it is a form, so the " +
+      "older round console keeps the only way to move a round of the older kind",
   },
   "/api/admissions/rounds/[roundId]": {
     kind: "older",
@@ -775,7 +782,7 @@ describe("every route, page and layout with a round id in its address", () => {
 
   test("the walk finds them", () => {
     assert.ok(
-      surfaces.length >= 40,
+      surfaces.length >= 41,
       `only ${surfaces.length} files with a [roundId] segment were found: the trees have moved`,
     );
   });
@@ -1068,6 +1075,30 @@ const ROUND_READERS = new Map([
         "every write the editor makes. A new form is created as a form. Every other write is a " +
         "transaction that reads the round through one reader, which asks, and stops before it " +
         "writes anything when the round is not a form",
+    },
+  ],
+  [
+    "src/lib/applications/lifecycle/move.ts",
+    {
+      kind: "form",
+      asks: 1,
+      proof: ["if (!snap.exists || !raw || !isApplicationForm(raw)) return NO_FORM;"],
+      why:
+        "the one writer of a form's status. The move is one transaction that reads the round " +
+        "and asks before it plans anything, so a round of the older kind is answered as no form " +
+        "here and its status is never written from the form's side",
+    },
+  ],
+  [
+    "src/lib/applications/lifecycle/openForm.ts",
+    {
+      kind: "form",
+      asks: 1,
+      proof: ['.where("formVersion", "==", FORM_VERSION)', "if (!isApplicationForm(doc.data())) continue;"],
+      why:
+        "which application form is open, for a page that offers Apply. It asks the database for " +
+        "forms only, and asks each stored document the question again before it reads it as " +
+        "one, so a round of the older kind is never the form a visitor is sent to",
     },
   ],
   [

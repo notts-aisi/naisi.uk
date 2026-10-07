@@ -28,8 +28,10 @@
  *     (`constructor`) finds nothing and writes nothing.
  *  5. TWO EDITORS DO NOT OVERWRITE EACH OTHER. A programme's settings are
  *     written at their own field paths.
- *  6. A FORM IS NEVER OPENED HERE. No route in this tree writes a form's
- *     status, and the older round console refuses to edit a form at all.
+ *  6. A FORM IS NEVER OPENED BY THE EDITOR. None of the editor's six route
+ *     files writes a form's status; the status route beside them is the one
+ *     writer, and tests/applications-wave-e1-status-route.test.mjs holds that.
+ *     The older round console refuses to edit a form at all.
  *
  * ## What is real and what is stubbed
  *
@@ -1226,7 +1228,7 @@ const code = (file) =>
     .replace(/^[ \t]*\/\/.*$/gm, "");
 const rel = (file) => relative(REPO_ROOT, file).split("\\").join("/");
 
-describe("no route in this tree writes a form's status", () => {
+describe("the editor's routes never write a form's status", () => {
   const TREES = ["src/app/api/admissions/forms", "src/lib/applications/editor"];
 
   test("the only status ever stored by the editor is the draft a new form starts as", () => {
