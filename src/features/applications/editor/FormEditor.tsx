@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   DndContext,
@@ -86,6 +87,11 @@ type Props = {
   initialSetId: string | null;
   /** Where the term's programmes are. */
   homeHref: string;
+  /**
+   * Where the term is, as the chip beside the title: the same word the term's
+   * own page and each programme's header draw, worked out by the page.
+   */
+  stage: { title: string; live: boolean; soon: boolean };
 };
 
 const SAVE_DELAY_MS = 700;
@@ -99,7 +105,15 @@ function mergeSets(local: readonly LocalSet[], stored: readonly QuestionSetView[
   });
 }
 
-export default function FormEditor({ form: initialForm, sets: initialSets, fixedAfter, initialSetId, homeHref }: Props) {
+export default function FormEditor({
+  form: initialForm,
+  sets: initialSets,
+  fixedAfter,
+  initialSetId,
+  homeHref,
+  stage,
+}: Props) {
+  const router = useRouter();
   const [form, setForm] = useState(initialForm);
   const [sets, setSets] = useState<LocalSet[]>(() => initialSets.map(toLocalSet));
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -277,8 +291,8 @@ export default function FormEditor({ form: initialForm, sets: initialSets, fixed
           <div className={shared.titleRow}>
             <h1 className={shared.title}>Application form · {form.label}</h1>
             <div className={shared.chips}>
-              <Chip tone={form.state.key === "opens" || form.state.live ? "live" : "neutral"} dot={form.state.live}>
-                {form.state.label}
+              <Chip tone={stage.soon || stage.live ? "live" : "neutral"} dot={stage.live}>
+                {stage.title}
               </Chip>
             </div>
           </div>
@@ -466,6 +480,8 @@ export default function FormEditor({ form: initialForm, sets: initialSets, fixed
           onSaved={(saved) => {
             setForm(saved);
             setDialog(null);
+            // New dates can move the term on (or back), and the chip is the page's to work out.
+            router.refresh();
           }}
         />
       )}

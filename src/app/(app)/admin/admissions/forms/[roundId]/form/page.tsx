@@ -9,6 +9,7 @@ import {
   projectSetForEditor,
   setsInFormOrder,
 } from "@/lib/applications/editor/views";
+import { stageSummaryFor } from "@/lib/applications/lifecycle/view";
 import { loadQuestionSets } from "@/lib/applications/repo";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -45,8 +46,11 @@ export default async function ApplicationFormPage({
   // The questions are read only once the caller is known to be an admin.
   if (!canRunTerm(user)) return <FormIsAdminOnly roundId={form.round.id} />;
   const sets = await loadQuestionSets(db, form.round.id);
+  // The chip is the term's, from the function the term's own page asks.
+  const stage = stageSummaryFor(form, context.now);
   return (
     <FormEditor
+      stage={{ title: stage.title, live: stage.live, soon: stage.stage === "opens-later" }}
       form={projectFormForStaff(form, context)}
       sets={setsInFormOrder(form, sets).map((set) => projectSetForEditor(set, form, sets))}
       fixedAfter={fixedSectionsAfter(form.round.availabilityGrid)}
