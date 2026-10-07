@@ -455,11 +455,11 @@ export default function PrivacyContentV6({
                   on{" "}
                   <code>naisi.uk</code>, and a reply to it goes to{" "}
                   <a href="mailto:ai-safety@uonsu.com">ai-safety@uonsu.com</a>.
-                  The one exception is an application that every programme you
+                  The one exception is an application that every programme it
                   ranked turned down outright, for example as spam or as not
-                  eligible: we do not email it unless an admin chooses to, and
-                  its outcome is still on its page. We keep a note on your
-                  application of whether the email was sent.
+                  eligible: its owner is not emailed unless an admin chooses
+                  to, and the outcome is still on their page. We keep a note on
+                  your application of whether the email was sent.
                 </li>
                 <li>
                   <strong>Reminders about an invitation.</strong> If you are
@@ -475,9 +475,10 @@ export default function PrivacyContentV6({
                   it, that you accept an invitation, or no thanks. We record
                   your answer and when you gave it. Saying you cannot make it,
                   or no thanks, gives the place back and marks your application
-                  as withdrawn. When you do, we ask why, from a short list or
-                  in your own words, and the committee can read your reason,
-                  because we may be able to offer something that works for you.
+                  as withdrawn. To do either you choose a reason from a short
+                  list, or write a few words of your own. Your reason is kept
+                  with your application and the committee can read it, because
+                  we may be able to offer something that works for you.
                 </li>
                 <li>
                   <strong>Your account.</strong> You can apply while your
@@ -609,9 +610,9 @@ export default function PrivacyContentV6({
                   ranked a programme they review, and the application of
                   anybody who joined it by accepting an invitation. They see
                   your name and the application you sent. They also see their
-                  own and other reviewers&apos; scores and comments on it, and
-                  what has been decided for their programme and whether a
-                  programme you ranked higher has accepted you. They do not see
+                  own and other reviewers&apos; scores and comments on it, what
+                  has been decided for their programme, and whether a programme
+                  you ranked higher has accepted you. They do not see
                   your answer about SU membership, access requirements, the
                   membership tier, or a conduct flag, and unless they are an
                   admin they do not see your email addresses.
