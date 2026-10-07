@@ -97,7 +97,7 @@ describe("what stops a join request", () => {
         users.validateUniversityEmail(address),
       ]);
     }
-    assert.deepEqual(rules.joinIssues(answers({ universityEmail: "ada@exmail.nottingham.ac.uk" }), true), []);
+    assert.deepEqual(rules.joinIssues(answers({ universityEmail: " ada@nottingham.ac.uk " }), true), []);
   });
 
   test("a student is asked when they graduate, and nobody else is", () => {

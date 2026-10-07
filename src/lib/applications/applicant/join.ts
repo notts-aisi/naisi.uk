@@ -173,9 +173,9 @@ export function keptKey(roundId: string): string {
  * among them and cannot be added by passing a bigger object.
  */
 export function packKept(about: AboutYou, now: number): string {
-  const kept: Record<string, string> = {};
-  for (const field of JOIN_FIELDS) kept[field] = about[field];
-  return JSON.stringify({ v: KEPT_VERSION, at: now, about: kept });
+  const fields: Record<string, string> = {};
+  for (const field of JOIN_FIELDS) fields[field] = about[field];
+  return JSON.stringify({ v: KEPT_VERSION, at: now, about: fields });
 }
 
 /**
