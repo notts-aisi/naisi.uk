@@ -11,7 +11,10 @@
  * from `SU_PAGE_URL` is checked at build time rather than matched by label.
  * The mailing list form, the application buttons and the upcoming events are
  * not rows here. They are rendered by the page itself, because each is more
- * than a link.
+ * than a link. So are three things the page always offers and nobody should
+ * be able to edit away: the way to every event, the way home, and the
+ * society's address to write to (which is not a row because a row's address
+ * is a page or an https link, never a mailto).
  */
 import { SU_PAGE_URL, socialHref } from "./socials";
 
@@ -37,36 +40,7 @@ export type LinkGroup = {
 
 export const LINK_GROUPS: LinkGroup[] = [
   {
-    heading: "Get involved",
-    rows: [
-      {
-        key: "courses",
-        label: "Our courses",
-        sub: "Termly AI safety courses. See what is running and apply.",
-        href: "/courses",
-      },
-      {
-        key: "events",
-        label: "All events",
-        sub: "Socials, talks and fellowship sessions. No account needed to look.",
-        href: "/events",
-      },
-      {
-        key: "register",
-        label: "Create a NAISI account",
-        sub: "Sign up with your university email to apply for courses.",
-        href: "/register",
-      },
-      {
-        key: "su",
-        label: "Join the society for £6",
-        sub: "Official Students' Union membership, on the SU website.",
-        href: SU_PAGE_URL,
-      },
-    ],
-  },
-  {
-    heading: "Find us",
+    heading: "Elsewhere",
     rows: [
       {
         key: "instagram",
@@ -76,9 +50,15 @@ export const LINK_GROUPS: LinkGroup[] = [
       },
       {
         key: "substack",
-        label: "Substack",
-        sub: "Longer writing from the committee, and past newsletters.",
+        label: "Newsletter",
+        sub: "Longer writing and past newsletters, on Substack",
         href: socialHref("Substack"),
+      },
+      {
+        key: "su",
+        label: "Students’ Union page",
+        sub: "Join the society for £6 a year",
+        href: SU_PAGE_URL,
       },
       // Hidden for now (21 Sep 2026): /resources redirects home until the
       // page is rewritten, and a row pointing at it would bounce people back
@@ -89,12 +69,6 @@ export const LINK_GROUPS: LinkGroup[] = [
       //   sub: "Where to start reading about AI safety.",
       //   href: "/resources",
       // },
-      {
-        key: "home",
-        label: "naisi.uk",
-        sub: "Everything else about who we are and what we do.",
-        href: "/",
-      },
     ],
   },
 ];

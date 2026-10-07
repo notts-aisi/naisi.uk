@@ -1,0 +1,399 @@
+/*
+  /about. Five parts down the page: the hero, what we do, why it matters,
+  our first year, say hello. Every length is fluid, so one set of rules
+  holds from a laptop to a phone and the block at the foot is short.
+*/
+
+/* === Hero === */
+
+.hero {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.heroInner {
+  display: flex;
+  flex-wrap: wrap-reverse;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem 4rem;
+  padding-top: clamp(2.5rem, 5.6vw, 5rem);
+  padding-bottom: clamp(3.5rem, 6vw, 5.5rem);
+}
+
+.heroText {
+  flex: 1 1 28.75rem;
+  min-width: 0;
+}
+
+.eyebrowLive {
+  color: var(--color-live);
+}
+
+.title {
+  margin: 0.875rem 0 0;
+  font-size: var(--text-display-1);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+.lede {
+  margin: 1.125rem 0 0;
+  max-width: 32em;
+  font-size: clamp(1.0625rem, 1.32vw, 1.1875rem);
+  line-height: var(--leading-normal);
+  color: var(--color-text-soft);
+  text-wrap: pretty;
+}
+
+/*
+  The emblem with its second copy behind it, down and to the left. The copy
+  is a shadow of the image's own shape with no blur, so the file is never
+  redrawn. Its colour is the emblem's own cyan, which is not the theme's
+  live colour and appears nowhere else, so it lives here.
+*/
+.emblem {
+  --emblem-width: clamp(6.5rem, 15vw, 13.125rem);
+  --emblem-cyan: #00d4ff;
+  --emblem-shift: calc(var(--emblem-width) * 0.027);
+
+  flex: none;
+  width: var(--emblem-width);
+  height: auto;
+  margin-right: clamp(0rem, 3vw, 3rem);
+  filter: drop-shadow(calc(var(--emblem-shift) * -1) var(--emblem-shift) 0 var(--emblem-cyan));
+}
+
+/* === Sections === */
+
+.section {
+  padding-block: clamp(4rem, 7.4vw, 6.5rem);
+}
+
+.sectionAlt {
+  background: var(--color-bg);
+  border-top: 1px solid var(--color-border);
+}
+
+.sectionTight {
+  padding-block: clamp(3.5rem, 5vw, 4.5rem);
+  border-top: 1px solid var(--color-border);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--text-display-2);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.headingAfterEyebrow {
+  margin-top: 0.625rem;
+}
+
+/* A heading that is set as a label: it takes no type of its own. */
+.labelHeading {
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: 1.3;
+}
+
+/* A text action with an arrow. 44px tall, so it is a full touch target. */
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-accent-text);
+  white-space: nowrap;
+  transition: color var(--transition-fast);
+}
+
+.textLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.inlineLink {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.inlineLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+/* === What we do === */
+
+.strands {
+  list-style: none;
+  margin: 2rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(14.375rem, 100%), 1fr));
+  gap: 1.25rem;
+}
+
+.strand {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 1.5rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.strandTitle {
+  margin: 0.75rem 0 0;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.strandBody {
+  margin: 0.5rem 0 0;
+  font-size: var(--text-ui);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+
+/* Pushed to the foot, so the links of a row of cards line up. */
+.strandFoot {
+  margin-top: auto;
+  padding-top: 0.5rem;
+}
+
+/* === Why we think it matters === */
+
+.why {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 2rem 4rem;
+}
+
+.whyHead {
+  flex: 1 1 18.75rem;
+  min-width: 0;
+}
+
+.whyBody {
+  flex: 2 1 27.5rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.125rem;
+}
+
+.whyLead {
+  margin: 0;
+  font-size: 1.1875rem;
+  line-height: var(--leading-normal);
+  color: var(--color-text);
+  text-wrap: pretty;
+}
+
+.whyText {
+  margin: 0;
+  font-size: 1.0625rem;
+  line-height: var(--leading-normal);
+  color: var(--color-text-soft);
+  text-wrap: pretty;
+}
+
+.whyStrong {
+  color: var(--color-text);
+}
+
+.sides {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.side {
+  flex: 1 1 13.75rem;
+  min-width: 0;
+  padding: 1rem 1.125rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.sideTitle {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+.sideBody {
+  margin: 0.375rem 0 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* === Our first year === */
+
+.year {
+  margin-top: 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2rem;
+}
+
+.award {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+
+/* The one warm thing on the page: the award's own amber, as a line and a
+   glow around a dark pill. */
+.awardPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 1.25rem 0 1.125rem;
+  border: 1px solid var(--color-warning-line);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(180deg, var(--color-surface), var(--color-bg-elevated));
+  box-shadow: 0 2px 14px var(--color-warning-soft), var(--shadow-md);
+  white-space: nowrap;
+}
+
+.awardName {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--color-text);
+}
+
+.awardDot {
+  flex: none;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--color-warning);
+  opacity: 0.75;
+}
+
+.awardBody {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-warning);
+}
+
+/* The awarding body in full, and in short for a narrow screen. Exactly one
+   of the two is ever shown, so it is read out once. */
+.awardShort {
+  display: none;
+}
+
+.certificate {
+  padding-left: 0.25rem;
+  font-size: var(--text-sm);
+}
+
+.numbers {
+  list-style: none;
+  flex: 1 1 26.25rem;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(9.375rem, 100%), 1fr));
+  gap: 1.5rem;
+}
+
+.number {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.numberValue {
+  font-family: var(--font-display);
+  font-size: 2.125rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.numberLabel {
+  margin-top: 0.5rem;
+}
+
+/* === Say hello === */
+
+.contacts {
+  list-style: none;
+  margin: 1.5rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(18.75rem, 100%), 1fr));
+  gap: 1.25rem;
+}
+
+.contact {
+  min-width: 0;
+  padding: 1.5rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.contactLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  margin-top: 0.25rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.1875rem, 1.6vw, 1.375rem);
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+  transition: color var(--transition-fast);
+}
+
+.contactLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.contactNote {
+  margin: 0.125rem 0 0;
+  font-size: var(--text-ui);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* The pill would be wider than a phone with the awarding body in full. */
+  .awardLong {
+    display: none;
+  }
+
+  .awardShort {
+    display: inline;
+  }
+}

@@ -13,7 +13,8 @@
  *
  * A printed code is scanned on a phone, at a stall, on whatever signal the
  * hall has. Its landing page is kept out of the `(public)` group for exactly
- * that reason (that group's main element is invisible until hydration). A
+ * that reason (that group's layout carries the site header, a client
+ * component, and this page has to read from its first HTML with no script). A
  * blank screen until the JavaScript lands is the same failure by another door,
  * and it happens precisely when something has already gone wrong: the event on
  * the poster was deleted, or the material's sources were unpublished.

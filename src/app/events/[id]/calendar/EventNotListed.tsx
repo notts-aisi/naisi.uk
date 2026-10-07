@@ -33,7 +33,7 @@ export function EventNotListed() {
           <BrandMark size={32} />
         </Link>
         <div className={styles.sheet}>
-          <p className={styles.kicker}>Add to calendar</p>
+          <p className={`meta ${styles.kicker}`}>Add to calendar</p>
           <h1 className={styles.title}>This event is no longer listed</h1>
           <p className={styles.note}>
             The code you scanned is for an event that has been taken down or has moved. Nothing is

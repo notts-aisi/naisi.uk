@@ -1,9 +1,9 @@
-import Card from "@/components/ui/Card";
 import ChangeRequestForm from "@/features/events/ChangeRequestForm";
 import { getEventForPreview } from "@/features/events/fetchEvents";
 import { verifyRsvpToken } from "@/lib/events/rsvpToken";
 import { getAdminDb } from "@/lib/firebase/admin";
 import type { RsvpAnswer } from "@/lib/firestore/events";
+import styles from "@/features/events/RsvpPages.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -26,24 +26,24 @@ export default async function ChangeRequestPage({
   const event = await getEventForPreview(eventId);
 
   const shell = (body: React.ReactNode) => (
-    <section style={{ padding: "var(--space-12) 0" }}>
-      <div className="container" style={{ maxWidth: "40rem" }}>
-        {body}
+    <section className={styles.shell}>
+      <div className="container">
+        <div className={`${styles.column} ${styles.wide}`}>{body}</div>
       </div>
     </section>
   );
 
   if (!event || !rsvpSnap?.exists) {
     return shell(
-      <Card padding="lg">
-        <h2 style={{ fontSize: "var(--text-xl)", margin: "0 0 var(--space-2)" }}>
+      <div className={styles.card}>
+        <h1 className={styles.title}>
           Link no longer valid
-        </h2>
-        <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
+        </h1>
+        <p className={styles.muted}>
           We couldn&apos;t find this RSVP. If you need to change your details, reply to
           your confirmation email and an organiser will help.
         </p>
-      </Card>,
+      </div>,
     );
   }
 
@@ -52,42 +52,42 @@ export default async function ChangeRequestPage({
   const ok = token && email && verifyRsvpToken(rsvpId, email, token);
   if (!ok || rsvp.eventId !== eventId) {
     return shell(
-      <Card padding="lg">
-        <h2 style={{ fontSize: "var(--text-xl)", margin: "0 0 var(--space-2)" }}>
+      <div className={styles.card}>
+        <h1 className={styles.title}>
           Link no longer valid
-        </h2>
-        <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
+        </h1>
+        <p className={styles.muted}>
           This change-request link has expired or doesn&apos;t match this event. Reply to
           your confirmation email and we&apos;ll sort it out.
         </p>
-      </Card>,
+      </div>,
     );
   }
 
   if (rsvp.status === "cancelled" || rsvp.status === "denied") {
     return shell(
-      <Card padding="lg">
-        <h2 style={{ fontSize: "var(--text-xl)", margin: "0 0 var(--space-2)" }}>
+      <div className={styles.card}>
+        <h1 className={styles.title}>
           No active RSVP to change
-        </h2>
-        <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
+        </h1>
+        <p className={styles.muted}>
           This RSVP is {rsvp.status}. If you want to re-register, visit the event page.
         </p>
-      </Card>,
+      </div>,
     );
   }
 
   if (event.signupForm.length === 0) {
     return shell(
-      <Card padding="lg">
-        <h2 style={{ fontSize: "var(--text-xl)", margin: "0 0 var(--space-2)" }}>
+      <div className={styles.card}>
+        <h1 className={styles.title}>
           Nothing to update
-        </h2>
-        <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
+        </h1>
+        <p className={styles.muted}>
           This event doesn&apos;t have any signup questions, so there&apos;s nothing here to
           change.
         </p>
-      </Card>,
+      </div>,
     );
   }
 

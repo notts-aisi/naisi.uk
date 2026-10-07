@@ -18,7 +18,12 @@
  */
 export const SU_PAGE_URL = "https://su.nottingham.ac.uk/activities/view/NottsAISafety";
 
-export const CONTACT_EMAIL = "contact@naisi.org.uk";
+/**
+ * The one address the society is written to at. The footer prints it, and it
+ * is the same address the emails, the application screens and the privacy
+ * policy already give, so a visitor is never handed two.
+ */
+export const CONTACT_EMAIL = "ai-safety@uonsu.com";
 
 /**
  * Our own page of every link in one place, and where most printed QR codes
