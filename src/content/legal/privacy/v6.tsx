@@ -404,10 +404,10 @@ export default function PrivacyContentV6({
                   application you sent: what you told us about yourself, the
                   order of your choices, your availability, and every answer,
                   including your answers to the other programmes you ranked.
-                  Your email addresses are shown to admins only. If you are
-                  invited to a programme you did not rank and you accept, that
-                  programme&apos;s lead and reviewers can read your
-                  application from then on, and not before.
+                  The application shows your email addresses to admins only. If
+                  you are invited to a programme you did not rank and you
+                  accept, that programme&apos;s lead and reviewers can read
+                  your application from then on, and not before.
                 </li>
                 <li>
                   <strong>Reviewer scores and comments.</strong> Where a
@@ -615,7 +615,8 @@ export default function PrivacyContentV6({
                   you ranked higher has accepted you. They do not see
                   your answer about SU membership, access requirements, the
                   membership tier, or a conduct flag, and unless they are an
-                  admin they do not see your email addresses.
+                  admin the application does not show them your email
+                  addresses.
                 </li>
                 <li>
                   <strong>The lead of each programme</strong> sees everything
