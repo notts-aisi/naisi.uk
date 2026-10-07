@@ -1,84 +1,139 @@
 /* ============================================================
-   CourseFaq: native <details> rows.
+   CourseFaq: the questions on a programme page.
 
-   The marker is suppressed and replaced with our own glyph so
-   the row matches the rest of the page; the summary keeps the
-   44px touch floor because this is a public surface.
+   Two columns: a short head, then the questions. Native
+   <details>, so there is no script to wait for and no animated
+   height to manage. The marker is hidden in both engines
+   (list-style for Firefox, the WebKit pseudo for Safari and
+   Chromium) and a chevron in a ring stands in for it.
    ============================================================ */
 
-.section {
-  padding-block: var(--space-10);
-  border-bottom: 1px solid var(--color-border);
+.layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-8) var(--space-16);
+}
+
+.head {
+  flex: 1 1 17.5rem;
+  min-width: 0;
+  max-width: 24rem;
+}
+
+.eyebrow {
+  margin: 0;
 }
 
 .heading {
-  margin: 0 0 var(--space-5);
-  font-size: clamp(1.35rem, 2.6vw, 1.75rem);
-  line-height: 1.2;
-  letter-spacing: -0.015em;
-  font-weight: 700;
+  margin: 0.625rem 0 0;
+  font-family: var(--font-display);
+  font-size: var(--text-display-2);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+}
+
+.contact {
+  margin: 0.875rem 0 0;
+  font-size: var(--text-base);
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.contactLink {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+.contactLink:hover {
+  color: var(--color-accent-text-hover);
 }
 
 .list {
-  display: grid;
-  gap: var(--space-2);
+  flex: 2 1 20rem;
+  min-width: 0;
+  border-top: 1px solid var(--color-border);
 }
 
 .item {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-elevated);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
-  /* 44px floor - public surface, enforced (docs/touch-targets.md). */
-  min-height: 2.75rem;
-  padding: var(--space-3) var(--space-4);
+  gap: var(--space-4);
+  /* 64px: comfortably over the 44px floor for a public tap target. */
+  min-height: 4rem;
+  padding: 0.875rem 0;
   cursor: pointer;
   list-style: none;
-  color: var(--color-text);
 }
 
-/* Safari draws its own disclosure triangle through a pseudo-element that
-   `list-style: none` alone does not remove. */
 .summary::-webkit-details-marker {
   display: none;
 }
 
 .summary:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-live);
   outline-offset: 2px;
-  border-radius: var(--radius-md);
+  box-shadow: none;
+  border-radius: var(--radius-sm);
 }
 
 .question {
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.0625rem, 1.3vw, 1.1875rem);
   font-weight: 600;
-  line-height: var(--leading-snug);
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
 }
 
 .chevron {
+  display: inline-flex;
   flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 50%;
   color: var(--color-text-muted);
-  font-size: var(--text-lg);
-  line-height: 1;
-  transition: transform var(--transition-fast);
+  transition:
+    transform var(--transition-base),
+    border-color var(--transition-base),
+    color var(--transition-base);
+}
+
+.summary:hover .chevron {
+  border-color: var(--color-control-border);
+  color: var(--color-text);
 }
 
 .item[open] .chevron {
-  transform: rotate(45deg);
+  transform: rotate(180deg);
+  border-color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .answer {
-  margin: 0;
-  padding: 0 var(--space-4) var(--space-4);
-  white-space: pre-line;
-  color: var(--color-text-muted);
-  line-height: var(--leading-relaxed);
   max-width: 44rem;
+  margin: 0;
+  padding: 0 var(--space-12) 1.375rem 0;
+  font-size: var(--text-base);
+  line-height: 1.55;
+  color: var(--color-text-soft);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -89,13 +144,5 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  .section {
-    padding-block: var(--space-8);
-  }
-  .summary {
-    padding: var(--space-3);
-  }
-  .answer {
-    padding: 0 var(--space-3) var(--space-3);
-  }
+  /* The phone pass fills this in. */
 }

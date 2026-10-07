@@ -2,7 +2,8 @@ import type { CoursePageFaq } from "@/lib/firestore/coursePages";
 import styles from "./CourseFaq.module.css";
 
 /**
- * The programme page's FAQ.
+ * The questions on a programme page: a short head on the left, the questions
+ * on the right.
  *
  * Native `<details>` / `<summary>`, not the shared `ui/Accordion`. Three
  * reasons, and the first is the one that decides it:
@@ -22,29 +23,63 @@ import styles from "./CourseFaq.module.css";
  *
  * Questions and answers are TEXT NODES; `white-space: pre-line` keeps the
  * author's paragraph breaks without anything parsing the string.
+ *
+ * The first question starts open, so the list reads as one that opens.
  */
 
-export default function CourseFaq({ items }: { items: CoursePageFaq[] }) {
+/** Where a question that is not on the list goes. */
+const CONTACT = "ai-safety@uonsu.com";
+
+type Props = {
+  items: CoursePageFaq[];
+  /** The small label over the title. */
+  eyebrow?: string;
+  title?: string;
+};
+
+export default function CourseFaq({ items, eyebrow = "FAQ", title = "Questions." }: Props) {
   if (items.length === 0) return null;
 
   return (
-    <section className={styles.section} aria-labelledby="course-faq-heading">
-      <h2 id="course-faq-heading" className={styles.heading}>
-        Questions people ask
-      </h2>
+    <div className={styles.layout}>
+      <div className={styles.head}>
+        <p className={`meta ${styles.eyebrow}`}>{eyebrow}</p>
+        <h2 id="course-faq-heading" className={styles.heading}>
+          {title}
+        </h2>
+        <p className={styles.contact}>
+          Something else? Email{" "}
+          <a href={`mailto:${CONTACT}`} className={styles.contactLink}>
+            {CONTACT}
+          </a>
+          .
+        </p>
+      </div>
       <div className={styles.list}>
         {items.map((item, i) => (
-          <details key={`${item.q}-${i}`} className={styles.item}>
+          <details key={`${item.q}-${i}`} className={styles.item} open={i === 0}>
             <summary className={styles.summary}>
               <span className={styles.question}>{item.q}</span>
               <span aria-hidden="true" className={styles.chevron}>
-                +
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  focusable="false"
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
               </span>
             </summary>
             <p className={styles.answer}>{item.a}</p>
           </details>
         ))}
       </div>
-    </section>
+    </div>
   );
 }
