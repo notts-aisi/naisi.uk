@@ -1,12 +1,14 @@
 import type { ReactNode } from "react";
-import { spaceMono } from "./fonts";
-import styles from "./kit.module.css";
 
 /**
  * The wrapper every application screen renders inside: the applicant's form
- * and the committee's screens alike. It loads the metadata font for the
- * routes that use it and scopes the few colours these screens add (see
- * `kit.module.css`), so two screens built separately share one look.
+ * and the committee's screens alike.
+ *
+ * It used to load the metadata font and scope the colours these screens
+ * added. Both now belong to the whole site: the root layout loads the font
+ * and `src/theme/tokens.css` carries the colours under the same names. What
+ * is left is the element itself, which the screens hang their own root class
+ * on.
  */
 export default function ApplicationsRoot({
   children,
@@ -15,6 +17,5 @@ export default function ApplicationsRoot({
   children: ReactNode;
   className?: string;
 }) {
-  const classes = [spaceMono.variable, styles.root, className].filter(Boolean).join(" ");
-  return <div className={classes}>{children}</div>;
+  return <div className={className}>{children}</div>;
 }
