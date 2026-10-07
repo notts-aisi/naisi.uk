@@ -19,10 +19,12 @@
  *     an application form does not have.
  *  3. **What the form asks.** Its own copy of the joining questions, the
  *     ranking, facilitating, availability in quarter hours, and SU membership.
- *     It has no access-requirements box, and the page says so beside the
- *     promises that still hold wherever a form does have one.
+ *     Its last step has the optional access-requirements box, kept apart from
+ *     the application, which only an admin can open and whose every read is
+ *     recorded (`src/lib/applications/review/accessRequirements.ts`).
  *  4. **Two copies, and the versions before.** A draft and the application of
- *     record, with what a later send replaces kept for the people reviewing.
+ *     record, with what a later send replaces kept for the people reviewing,
+ *     up to the limit in `SENT_HISTORY_LIMITS`.
  *  5. **Scores, comments and decisions are kept beside the application, never
  *     on it.** Nothing about a decision reaches the applicant's own record,
  *     their page or their inbox before decision day.
@@ -30,12 +32,21 @@
  *     daily reminder for an unanswered invitation, what each reply records,
  *     and that a place approves a join request that was still waiting.
  *  7. **What stays afterwards.** The short record names what it holds for an
- *     application made on the form, who can read it and when it is written;
- *     a deletion also removes the decisions; the decision log lines name the
- *     applicant and stay; destroying a term's applications is described.
+ *     application made on the form, that only admins can read it and when it
+ *     is written; a deletion also removes the decisions; the log lines about
+ *     a decision hold the applicant's account id, never a name, and stay;
+ *     destroying a term's applications is described.
  *  8. **Smaller corrections that follow from the same system.** A score is an
  *     average and not a sum, a conduct flag is not shown on the review
  *     screens, and the examples of email we send name the decision.
+ *  9. **Joining on the form.** Somebody with no account makes their request
+ *     to join on the form's first step. What they type is kept in the browser
+ *     tab until they have signed in (`keptAnswers.ts`), the spam check and
+ *     Google's sign-in script load only at the point an account is made, and
+ *     an account still waiting to be approved cannot send until its
+ *     university address is verified (`sendHoldFor`).
+ * 10. **Where the spam check runs.** The event sign-up form is named beside
+ *     the registration and application forms, because it runs there too.
  *
  * v5 IS FROZEN AS ACCEPTED. It is the wording members agreed to at sign-in
  * while it was current, so it is a digest in `tests/privacy-policy.test.mjs`
@@ -330,8 +341,9 @@ export default function PrivacyContentV6({
                   see what you last sent, never the draft. When you send again
                   and something is different, the version you sent before is
                   kept with your application, so the people reading it can see
-                  what it said before. We keep the first version you sent and a
-                  limited number of the most recent ones. A draft you never
+                  what it said before. We keep up to ten earlier versions: the
+                  first one you sent, and the most recent ones after it. They
+                  are deleted when your application is. A draft you never
                   send is still an application record until your account is
                   deleted or that term&apos;s applications are destroyed, and
                   you can ask us to remove it sooner.
@@ -341,15 +353,36 @@ export default function PrivacyContentV6({
                   asks: your preferred name, your status (for example
                   undergraduate, master&apos;s, PhD, staff), your degree or
                   area of work, when you expect to graduate, why you are
-                  interested in AI safety, and your interests. It opens filled
-                  in from your profile. What you send is saved on the
-                  application as a copy of its own, so that whoever reads it
-                  sees what was true when you applied, and changing it there
-                  does not change your profile. Your university email address,
-                  and whether you have verified it, are copied from your
-                  account and cannot be typed in. The application also carries
-                  the name and email address your account had when you started
-                  it.
+                  interested in AI safety, and your interests. If you already
+                  have an account it opens filled in from your profile. What
+                  you send is saved on the application as a copy of its own, so
+                  that whoever reads it sees what was true when you applied,
+                  and changing it there does not change your profile. The
+                  university email address on your application, and whether it
+                  has been verified, are copied from your account and cannot be
+                  changed on the application itself. The application also
+                  carries the name and email address your account had when you
+                  started it.
+                </li>
+                <li>
+                  <strong>If you have not joined NAISI yet.</strong> You can
+                  start the form without an account. The first step then also
+                  asks for your University of Nottingham email address and for
+                  your agreement to our Terms of Use and this policy, and it is
+                  your request to join as well as the start of your
+                  application. When you continue you make an account, with
+                  Google or with an email address. What you typed is then
+                  saved as your profile, exactly as it would be if you had
+                  registered first (see{" "}
+                  <a href="#data-we-collect">Data we collect</a>), and copied
+                  onto your application. We email a link to your university
+                  address so you can show it is yours, and until that address
+                  has been verified you can save your application but not send
+                  it. Joining this way does not sign you up to the newsletter
+                  or to event announcements: both start switched off until you
+                  choose them. Until you have signed in, what you type on that
+                  step stays in your browser: see{" "}
+                  <a href="#cookies">Cookies and local storage</a>.
                 </li>
                 <li>
                   <strong>Your programme preferences.</strong> Which programmes
@@ -363,24 +396,26 @@ export default function PrivacyContentV6({
                   application can see it, and we use it to build groups.
                 </li>
                 <li>
-                  <strong>Access requirements.</strong> The application form for
-                  the fellowships and the incubator does not have a box for
-                  these. Anything you write in one of its answers, including
-                  anything about your health or a disability, is read by the
-                  people who read your application. Where one of our forms does
-                  have the optional box asking whether there is anything we
-                  should know to make the programme work for you, people use it
-                  in practice to tell us about disability, health, caring
-                  responsibilities or similar, so we treat whatever you write
-                  there as sensitive. It is stored separately from the rest of
-                  your application, in a different place in our database, so
-                  that it cannot be swept into a scoring screen or a
-                  spreadsheet by accident. Your access requirements are never
-                  scored and never shown to reviewers. Only the person making
-                  the final decision and site admins can open it, they have to
-                  open it deliberately, and every time one of them does we
-                  record who read it and when. Leaving it blank does not count
-                  against you. We do not ask for your date of birth anywhere.
+                  <strong>Access requirements.</strong> The optional box asking
+                  whether there is anything we should know to make the
+                  programme work for you. On the application form for the
+                  fellowships and the incubator it is on the last step. In
+                  practice people use it to tell us about disability, health,
+                  caring responsibilities or similar, so we treat whatever you
+                  write there as sensitive. It is stored separately from the
+                  rest of your application, in a different place in our
+                  database, so that it cannot be swept into a scoring screen or
+                  a spreadsheet by accident. It is not part of the application
+                  you send: it is saved as you type, you can change it until
+                  applications close without sending again, and once you have
+                  sent your application an admin who opens it reads whatever
+                  is there at that moment. Your access requirements are never
+                  scored and never shown to reviewers. A programme&apos;s lead
+                  cannot open them either. Only site admins can open it, they
+                  have to open it deliberately, one application at a time, and
+                  every time one of them does we record who read it and when.
+                  Leaving it blank does not count against you. We do not ask
+                  for your date of birth anywhere.
                 </li>
                 <li>
                   <strong>Whether you have SU membership.</strong> The last
@@ -483,19 +518,24 @@ export default function PrivacyContentV6({
                 </li>
                 <li>
                   <strong>Your account.</strong> You can apply while your
-                  request to join is still waiting. If you are then given a
-                  place, that approves the request: your account becomes a
-                  member account on decision day, or when you accept an
-                  invitation, and we record when it was approved and under
-                  which admin&apos;s name.
+                  request to join is still waiting. A waiting account cannot
+                  send its application until the university email address on
+                  it has been verified. If you are then given a place, that
+                  approves the request: your account becomes a member account
+                  on decision day, or when you accept an invitation, and we
+                  record when it was approved and under which admin&apos;s
+                  name.
                 </li>
                 <li>
-                  <strong>What you can see.</strong> Your application page
-                  shows what you wrote, what you last sent and when, and from
-                  decision day your outcome and your own replies. It does not
-                  show the scores, the comments, what each programme decided,
-                  or the earlier versions you sent. Ask us and we will tell
-                  you: see <a href="#your-rights">Your rights</a>.
+                  <strong>What you can see.</strong> While applications are
+                  open, the form shows you what you have written and lets you
+                  change it. Your application page shows when you last sent
+                  it, the order of your choices and, from decision day, your
+                  outcome and your own replies. It does not show the scores,
+                  the comments, what each programme decided, or the earlier
+                  versions you sent. Ask us and we will tell you, and ask us
+                  too if you want a copy of your own answers once applications
+                  have closed: see <a href="#your-rights">Your rights</a>.
                 </li>
               </ul>
 
@@ -610,7 +650,8 @@ export default function PrivacyContentV6({
                   and admins, all of them students) read the applications that
                   ranked a programme they review, and the application of
                   anybody who joined it by accepting an invitation. They see
-                  your name and the application you sent. They also see their
+                  your name, the application you sent, and what it said in the
+                  versions you sent before. They also see their
                   own and other reviewers&apos; scores and comments on it, what
                   has been decided for their programme, and whether a programme
                   you ranked higher has accepted you. They do not see
@@ -624,9 +665,9 @@ export default function PrivacyContentV6({
                   a reviewer sees, and records the decision for that programme.
                   Admins see every application, with your email addresses, and
                   are the only ones who choose what somebody no programme took
-                  will hear and who send the decisions. On a form that has the
-                  access-requirements box, only the person making the final
-                  decision and admins can open that answer, which is recorded.
+                  will hear and who send the decisions. Only admins can open
+                  what you wrote under access requirements, and each time one
+                  does it is recorded. A programme&apos;s lead cannot.
                 </li>
                 <li>
                   <strong>Facilitators</strong> (students, in most cases only a
@@ -745,9 +786,9 @@ export default function PrivacyContentV6({
                 is made solely by automated means. Scores are given by named
                 reviewers, and a programme&apos;s score for an application is
                 only the average of what those reviewers gave. Where a
-                programme uses scores, the site shows its lead which
-                applications scored highest, as a guide. Every decision is
-                taken by a person.
+                programme uses scores, the site shows the people reviewing its
+                applications which ones scored highest, as a guide. Every
+                decision is taken by a person.
               </p>
             </section>
 
@@ -790,11 +831,14 @@ export default function PrivacyContentV6({
                 </li>
                 <li>
                   <strong>Google reCAPTCHA</strong> checks that the person
-                  filling in our registration and course application forms is
-                  not a bot. When one of those forms is on screen, Google
-                  receives information about your browser and how you
-                  interacted with the page, and sets its own cookie. We see
-                  only Google&apos;s pass or fail verdict.
+                  filling in our registration, event sign-up and course
+                  application forms is not a bot. On the application form for
+                  the fellowships and the incubator it runs only on the first
+                  step, while somebody who is not signed in is making an
+                  account, and never for somebody who is already signed in.
+                  While it is running, Google receives information about your
+                  browser and how you interacted with the page, and sets its
+                  own cookie. We see only Google&apos;s pass or fail verdict.
                 </li>
                 <li>
                   <strong>YouTube (Google)</strong> hosts the thumbnail image
@@ -827,8 +871,9 @@ export default function PrivacyContentV6({
               <p>
                 We do not use analytics, advertising, or tracking cookies. The
                 one exception is Google reCAPTCHA, which sets a cookie of its
-                own while our registration and course application forms are on
-                screen (see <a href="#sharing">Sharing and processors</a>).
+                own while it is running on our registration, event sign-up and
+                course application forms (see{" "}
+                <a href="#sharing">Sharing and processors</a>).
                 Every cookie the site itself sets is strictly necessary:
               </p>
               <ul>
@@ -862,7 +907,10 @@ export default function PrivacyContentV6({
                 Google&apos;s sign-in script is loaded from{" "}
                 <code>accounts.google.com</code> on the sign-in and register
                 pages, and as soon as you press a link to one of them, so that
-                the Google button is ready by the time the page appears.
+                the Google button is ready by the time the page appears. It is
+                also loaded on the first step of the application form, when
+                somebody who is not signed in continues to making an account,
+                and not before.
                 Loading it tells Google that a browser opened one of those
                 pages.
               </p>
@@ -880,6 +928,19 @@ export default function PrivacyContentV6({
                 browser&apos;s own storage, which Firebase Auth keeps in
                 IndexedDB. You can clear all of it from your browser&apos;s
                 site-data settings at any time.
+              </p>
+              <p>
+                If you start an application before you have an account, what
+                you type on the form&apos;s first step is kept in that browser
+                tab, in its session storage under a key beginning{" "}
+                <code>naisi.apply.join</code>, so that it is still there once
+                you have signed in. It is your answers to that step and the
+                time you typed them, and nothing else: no password, no sign-in
+                address, and not whether you agreed to our terms. Those
+                answers are not sent to us until you have signed in. The copy
+                in the tab is removed when your request to join is sent, it is
+                ignored once it is a day old, and it goes when you close the
+                tab.
               </p>
             </section>
 
@@ -907,8 +968,10 @@ export default function PrivacyContentV6({
                 This is the one exception to keeping them. An admin can destroy
                 a whole application form, for example one made as a test or by
                 mistake. That removes the form and its questions, every
-                application on it, the scores and comments written about them,
-                the decisions, and the log lines about those decisions. The
+                application on it with the access-requirements answer stored
+                beside it, the scores and comments written about them, the
+                decisions, and the log lines about those decisions and about
+                each time an admin opened an access-requirements answer. The
                 short record described below is written for each applicant
                 before anything is removed, and it stays. So do the log of
                 emails we sent and the record of downloads.
@@ -950,14 +1013,15 @@ export default function PrivacyContentV6({
                   stood when the record was written, and each reviewer&apos;s
                   name with their average score and their overall comment,
                   together with the averages across them. It holds none of
-                  your own writing: no answers, no availability, and no email
-                  address, and none of the comments reviewers left on single
-                  answers. An application you started and never sent is
-                  recorded too, as one that was not sent. The record is written
-                  when an admin marks a term as finished or destroys its
-                  applications, and admins and SU-recognised committee members
-                  can read it. We keep it deliberately, so that a later
-                  application from the same person can be read in context. The
+                  your own writing: no answers, no availability, no email
+                  address and no reason you gave for giving a place back, and
+                  none of the comments reviewers left on single answers. An
+                  application you started and never sent is recorded too, as
+                  one that was not sent. The record is written when an admin
+                  marks a term as finished or destroys its applications, and
+                  only admins can read it. We keep it deliberately, so that a
+                  later application from the same person can be read in
+                  context. The
                   reviewers&apos; scores and notes about an application stay in
                   that record after the account is deleted.
                 </li>
@@ -1008,10 +1072,13 @@ export default function PrivacyContentV6({
                 read an access-requirements answer and each decision made about
                 an application, and the record of the two downloads the site
                 logs. They name the person who took the action and what it
-                concerned. A log line about a decision on an application names
-                the applicant and the programme and says what was decided, and
-                where an admin took an acceptance back it holds the reason they
-                gave. Those lines stay when the applicant&apos;s account is
+                concerned. A log line about a decision on an application, or
+                about an admin opening an access-requirements answer,
+                identifies the applicant by their account&apos;s id and not by
+                name, names the programme where there is one, and says what
+                was done. It never holds the answer that was opened. Where an
+                admin took an acceptance back, the line holds the reason they
+                typed. Those lines stay when the applicant&apos;s account is
                 deleted, and go only if that term&apos;s applications are
                 destroyed. Apart from that reason, the logs hold no course
                 answers, marks or notes, and no scores or reviewers&apos;
@@ -1132,7 +1199,10 @@ export default function PrivacyContentV6({
                 that materially affect how we use your data, the next time you
                 sign in you will be shown the new version and asked to accept
                 or decline it. Declining signs you out, and you can then email
-                us to have the account removed. Earlier versions stay readable
+                us to have the account removed. The application form does not
+                ask that question: its last step says that sending your
+                application is agreeing to this policy, with the date it was
+                last updated. Earlier versions stay readable
                 at{" "}
                 <a href="/privacy/versions">/privacy/versions</a>.
               </p>
