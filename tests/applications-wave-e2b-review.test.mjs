@@ -92,3 +92,43 @@ describe("a withdrawn application on a programme's list", () => {
     assert.doesNotMatch(board, /styles\.flag\}>Withdrawn</, "said once, in the status, not twice");
   });
 });
+
+describe("the review screen once a person has been told", () => {
+  const screen = flat("features", "applications", "review", "ReviewScreen.tsx");
+
+  test("the flag is optional, on the screen's own type, and true only when sent as true", () => {
+    assert.match(screen, /type Review = ReviewPayload & \{ told\?: boolean \};/);
+    assert.match(screen, /initial: Review;/);
+    assert.match(screen, /const told = review\.told === true;/);
+  });
+
+  test("nothing can be decided for somebody who has been told: not by button, key or bar", () => {
+    assert.match(screen, /const canAct = viewer\.canDecide && !round\.decisionsSent && !told;/);
+    // The keys and the bar at the foot of a phone both ask canAct.
+    assert.match(screen, /if \(now\.canAct\) now\.decide\("accept"\);/);
+    assert.match(screen, /if \(now\.canAct\) now\.decide\("pool"\);/);
+    assert.match(screen, /\{canAct \? \( <div className=\{styles\.bar\} role="group" aria-label="Decision"/);
+  });
+
+  test("the decision card is a record, drawn before the card that has things to press", () => {
+    const card = screen.slice(screen.indexOf("{told ? ("), screen.indexOf(") : viewer.canDecide ? ("));
+    assert.ok(card.length > 0, "the told branch comes first");
+    assert.match(card, /<StandingChip standing=\{decision\.standing\} \/>/);
+    assert.match(card, /\{applicant\.firstName\} has been told their result\. It’s on their own application page now, so this decision can’t be changed\./);
+    assert.doesNotMatch(card, /<input|<button|<fieldset|type="radio"|\{menu\}/, "nothing in it can be pressed");
+  });
+
+  test("on a phone, where the decision is otherwise a bar at the foot, the record stays on the page", () => {
+    assert.match(screen, /className=\{`\$\{styles\.decision\} \$\{styles\.decisionTold\}`\}/);
+    const css = flat("features", "applications", "review", "ReviewScreen.module.css");
+    const phone = css.slice(css.indexOf("@media (max-width: 48rem)"));
+    assert.match(phone, /\.decision \{ display: none; \}/, "the laptop's card is still hidden on a phone");
+    assert.match(phone, /\.decision\.decisionTold \{ display: flex; \}/);
+  });
+
+  test("the admin's revoke card is not drawn, and the line about emailing is not said", () => {
+    assert.match(screen, /\{decision\.standing === "accepted" && !told \? \(/);
+    assert.match(screen, /\{told \? null : \( <p className=\{styles\.fine\}>/);
+  });
+});
+

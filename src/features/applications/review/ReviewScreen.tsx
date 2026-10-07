@@ -35,15 +35,26 @@ import styles from "./ReviewScreen.module.css";
  * typing in a box.
  */
 
+/**
+ * What this screen is sent, as it reads it.
+ *
+ * `told` is true once decision day has told this person their result. From
+ * then on the decision is a record, not a choice: it is drawn as it stands,
+ * with no Accept, Pool, Decline or Revoke to press, because the route that
+ * would take the press refuses it. A reply that does not carry the flag
+ * leaves the screen exactly as it was, so the flag is optional here.
+ */
+type Review = ReviewPayload & { told?: boolean };
+
 type Props = {
-  initial: ReviewPayload;
+  initial: Review;
   /** The address of the programme's list, which this page hangs off. */
   listPath: string;
   /** `/api/admissions/forms/<round>`: where the saves go. */
   apiBase: string;
 };
 
-type Saved = { review?: ReviewPayload; error?: string };
+type Saved = { review?: Review; error?: string };
 
 const DECIDED_WORD: Record<ProgrammeDecisionKind, string> = {
   accept: "Accepted",
@@ -51,7 +62,7 @@ const DECIDED_WORD: Record<ProgrammeDecisionKind, string> = {
   decline: "Declined",
 };
 
-function firstUnscored(review: ReviewPayload, scores: Readonly<Record<string, number>>): string | null {
+function firstUnscored(review: Review, scores: Readonly<Record<string, number>>): string | null {
   const keys = review.review.scorableKeys;
   return keys.find((key) => own(scores, key) === undefined) ?? keys[0] ?? null;
 }
@@ -59,7 +70,7 @@ function firstUnscored(review: ReviewPayload, scores: Readonly<Record<string, nu
 export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
   const router = useRouter();
   const hydrated = useHydrated();
-  const [review, setReview] = useState(initial);
+  const [review, setReview] = useState<Review>(initial);
   /** Scores chosen and not yet answered by the server. Null is a score taken back. */
   const [pendingScores, setPendingScores] = useState<Record<string, number | null>>({});
   const [pendingDecision, setPendingDecision] = useState<ProgrammeDecisionKind | null>(null);
@@ -83,7 +94,9 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
 
   const { applicant, programme, viewer, round, decision, queue } = review;
   const uid = encodeURIComponent(applicant.uid);
-  const canAct = viewer.canDecide && !round.decisionsSent;
+  /** This person has their result. Only ever true when the server says so. */
+  const told = review.told === true;
+  const canAct = viewer.canDecide && !round.decisionsSent && !told;
   const decisionDay = round.decisionDay ?? "decision day";
 
   // ---------------------------------------------------------------------
@@ -91,7 +104,7 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
   // ---------------------------------------------------------------------
 
   const send = useCallback(
-    (method: string, path: string, body: unknown, then?: (next: ReviewPayload) => void) => {
+    (method: string, path: string, body: unknown, then?: (next: Review) => void) => {
       setWorking((count) => count + 1);
       setError(null);
       const run = async (): Promise<boolean> => {
@@ -565,7 +578,29 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
 
             <hr className={`${styles.panelRule} ${styles.wideOnlyBlock}`} />
 
-            {viewer.canDecide ? (
+            {told ? (
+              // A record, with nothing to press: what was decided, and where
+              // it has gone. On a phone it is the only place the decision is
+              // drawn once the bar at the foot has gone, so it is kept there.
+              <div className={`${styles.decision} ${styles.decisionTold}`}>
+                <div className={styles.fieldLabel}>Decision</div>
+                {decision.standing !== "to-review" || decidedLine ? (
+                  <div className={styles.readDecision}>
+                    {decision.standing !== "to-review" ? <StandingChip standing={decision.standing} /> : null}
+                    {decidedLine ? <span className={styles.decided}>{decidedLine}</span> : null}
+                  </div>
+                ) : null}
+                {decision.placedOn ? (
+                  <p className={styles.decided}>
+                    {decision.placedOn}, a higher choice of theirs, accepted them.
+                  </p>
+                ) : null}
+                <p className={styles.decided}>
+                  {applicant.firstName} has been told their result. It’s on their own application
+                  page now, so this decision can’t be changed.
+                </p>
+              </div>
+            ) : viewer.canDecide ? (
               <div className={styles.decision}>
                 <fieldset className={styles.options} disabled={!canAct || !hydrated}>
                   <legend className={styles.fieldLabel}>Decision</legend>
@@ -722,13 +757,16 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
               <span>{nextLabel}</span>
               {queue.nextUid ? <Icon name="arrow-right" /> : null}
             </Link>
-            <p className={styles.fine}>
-              {round.decisionsSent
-                ? "Decisions for this term have been sent, so they can’t be changed here."
-                : viewer.canDecide
-                  ? `Accepting records it now. Nobody’s emailed until ${decisionDay}.`
-                  : `Nobody’s emailed until ${decisionDay}.`}
-            </p>
+            {/* Somebody who has been told is past all three of these lines: the card above says so. */}
+            {told ? null : (
+              <p className={styles.fine}>
+                {round.decisionsSent
+                  ? "Decisions for this term have been sent, so they can’t be changed here."
+                  : viewer.canDecide
+                    ? `Accepting records it now. Nobody’s emailed until ${decisionDay}.`
+                    : `Nobody’s emailed until ${decisionDay}.`}
+              </p>
+            )}
 
             <hr className={`${styles.panelRule} ${styles.wideOnlyBlock}`} />
 
@@ -828,7 +866,7 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
                   </div>
                 )}
 
-                {decision.standing === "accepted" ? (
+                {decision.standing === "accepted" && !told ? (
                   <>
                     <hr className={styles.adminRule} />
                     <div className={styles.adminTitle}>On an accepted application</div>
