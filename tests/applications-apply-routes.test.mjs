@@ -135,27 +135,25 @@ class FakeDb {
   }
 
   ref(path) {
-    const db = this;
     return {
       path,
       id: path.split("/").pop(),
-      async get() {
-        db.reads.push(path);
-        const stored = db.docs.get(path);
+      get: async () => {
+        this.reads.push(path);
+        const stored = this.docs.get(path);
         return { id: path.split("/").pop(), exists: stored !== undefined, data: () => (stored ? clone(stored) : undefined) };
       },
-      collection: (name) => db.collection(`${path}/${name}`),
+      collection: (name) => this.collection(`${path}/${name}`),
     };
   }
 
   collection(path) {
-    const db = this;
     return {
-      doc: (id) => db.ref(`${path}/${id}`),
-      async get() {
-        db.reads.push(`${path}/*`);
+      doc: (id) => this.ref(`${path}/${id}`),
+      get: async () => {
+        this.reads.push(`${path}/*`);
         const docs = [];
-        for (const [key, stored] of db.docs) {
+        for (const [key, stored] of this.docs) {
           if (!key.startsWith(`${path}/`) || key.slice(path.length + 1).includes("/")) continue;
           docs.push({ id: key.split("/").pop(), exists: true, data: () => clone(stored) });
         }

@@ -62,7 +62,13 @@ function NotYet({ form, signedIn, returnTo }: { form: ApplicantForm; signedIn: b
       }
     >
       <p className={styles.stateBody}>
-        {form.opensLabel ? `${form.label} applications open on ${form.opensLabel}.` : `${form.label} applications open soon.`}
+        {form.opensLabel ? (
+          <>
+            {form.label} applications open on <span className={styles.together}>{form.opensLabel}</span>.
+          </>
+        ) : (
+          `${form.label} applications open soon.`
+        )}
         {signedIn ? "" : " You’ll need a naisi.uk account to apply, and you can make one now."}
       </p>
     </StateCard>
@@ -92,16 +98,31 @@ function Closed({
       }
     >
       <p className={styles.stateBody}>
-        {form.closesLabel
-          ? `${form.label} applications closed on ${form.closesLabel}.`
-          : `${form.label} applications have closed.`}
+        {form.closesLabel ? (
+          <>
+            {form.label} applications closed on <span className={styles.together}>{form.closesLabel}</span>.
+          </>
+        ) : (
+          `${form.label} applications have closed.`
+        )}
       </p>
       {!signedIn ? (
         <p className={styles.stateBody}>If you sent an application, sign in to see where it stands.</p>
       ) : application?.sent ? (
         <p className={styles.stateBody}>
-          We have your application{application.sentLabel ? `, sent on ${application.sentLabel}` : ""}.
-          {form.decisionsLabel ? ` Everyone hears on ${form.decisionsLabel}.` : ""}
+          We have your application
+          {application.sentLabel ? (
+            <>
+              , sent on <span className={styles.together}>{application.sentLabel}</span>
+            </>
+          ) : null}
+          .
+          {form.decisionsLabel ? (
+            <>
+              {" "}
+              Everyone hears on <span className={styles.together}>{form.decisionsLabel}</span>.
+            </>
+          ) : null}
         </p>
       ) : application ? (
         <p className={styles.stateBody}>
