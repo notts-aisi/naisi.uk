@@ -1,26 +1,32 @@
-/* viewport-fit: cover has been on at the root all along, so this sticky bar
-   already runs under the status bar and, in landscape, under the notch. That
-   is a live bug in an ordinary Safari tab, not something installing causes;
-   installing only makes it permanent. Each inset resolves to 0 elsewhere, so
-   this is a no-op on desktop and on non-notched devices. */
+/* The bar every public page sits under: the brand, the pages, a hairline, then
+   the account pair. Its entries come from publicNav.ts.
+
+   viewport-fit: cover is on at the root, so this sticky bar runs under the
+   status bar and, in landscape, under the notch. Each inset resolves to 0
+   elsewhere, so the three paddings are a no-op on desktop and on non-notched
+   devices. */
 .header {
   position: sticky;
   top: 0;
+  z-index: 10;
   padding-top: env(safe-area-inset-top, 0px);
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
-  z-index: 10;
-  background: color-mix(in srgb, var(--color-bg) 85%, transparent);
+  /* Halfway between the page floor and --color-bg, let through at 78%. The
+     blur keeps the entries readable over whatever scrolls beneath. */
+  background: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--color-floor), var(--color-bg)) 78%,
+    transparent
+  );
   backdrop-filter: saturate(1.4) blur(12px);
   -webkit-backdrop-filter: saturate(1.4) blur(12px);
-  border-bottom: 1px solid var(--color-border);
-  /* Transition-based entrance + exit. The header sits at default
-   * (translateY 0, opacity 1) by default; .headerInitial holds it
-   * offscreen-up for the first paint, then JS strips that class on the
-   * next animation frame which lets the transition interpolate down
-   * into place. Same transition is used for the exit (with
-   * .headerExiting setting the destination). Avoids the CSS animation
-   * conflict that caused jumpy hand-offs between entrance + exit. */
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 75%, transparent);
+  /* One transition serves the entrance and the exit. .headerWaiting holds the
+     bar above the screen for the first paint after a navigation, and
+     stripping it lets the bar come down into place; .headerLifting sends it
+     back up. Transitions, not keyframes: an exit that interrupts an entrance
+     then picks up from wherever the bar is. */
   transform: translateY(0);
   opacity: 1;
   transition:
@@ -29,16 +35,17 @@
   will-change: transform, opacity;
 }
 
-.headerInitial {
+/* Only ever set on a bar reached by a navigation inside the browser. A bar
+   that arrives in the page's own HTML never carries it, so it is visible
+   without any script (PublicMain.tsx has the rule). */
+.headerWaiting {
   transform: translateY(-100%);
   opacity: 0;
 }
 
-/* Exit-upward: applied while the public layout is in its `exiting`
- * fade-out (e.g. user clicked Sign in). Banner transitions to
- * translateY(-100%) + opacity 0 over the same 540ms curve as the
- * entrance — exact mirror motion. */
-.headerExiting {
+/* Applied while the public layout is on its way out (a visitor pressed Sign
+   in, say). The exact mirror of the entrance. */
+.headerLifting {
   transform: translateY(-100%);
   opacity: 0;
   pointer-events: none;
@@ -48,308 +55,294 @@
   .header {
     transition: opacity 200ms ease;
   }
-  .headerInitial {
-    transform: none;
-    opacity: 0;
-  }
-  .headerExiting {
+  .headerWaiting,
+  .headerLifting {
     transform: none;
     opacity: 0;
   }
 }
 
 .inner {
-  height: var(--header-height);
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-4);
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin-inline: auto;
+  min-height: var(--header-height);
+  padding-inline: clamp(1.25rem, 3.4vw, 3rem);
 }
 
 .brand {
   display: inline-flex;
   align-items: center;
+  flex: none;
+  min-height: 2.75rem;
+  color: var(--color-text);
+}
+
+/* Everything to the right of the brand at laptop widths. */
+.desk {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-width: 0;
 }
 
 .nav {
   display: flex;
   align-items: center;
-  gap: var(--space-5);
-  margin-left: auto;
+  gap: var(--space-6);
 }
 
 .navLink {
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  padding: 0.5rem 0.25rem;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 2px;
+  color: var(--color-text-body);
+  font-size: var(--text-ui);
+  font-weight: 500;
+  white-space: nowrap;
   transition: color var(--transition-fast);
 }
 .navLink:hover {
   color: var(--color-text);
 }
 
-.actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
+/* The current page: full-strength text and a 2px accent line sitting on the
+   bar's hairline. The link is 44px tall inside a taller bar, so the line is
+   dropped by half the difference to reach the bar's bottom edge. Drawn as its
+   own box, which leaves the link's focus ring to the site's default. */
+.navLink[aria-current="page"] {
+  color: var(--color-text);
+}
+.navLink[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc((2.75rem - var(--header-height)) / 2);
+  height: 2px;
+  background: var(--color-accent);
 }
 
-/*
-  Header CTA buttons share the .button3d base from landing.module.css
-  conceptually, but the rules are duplicated here to keep this module
-  self-contained (no cross-module composes fragility).
+.rule {
+  flex: none;
+  width: 1px;
+  height: 1.25rem;
+  background: var(--color-border);
+}
 
-  .signIn → ghost 3D in NAISI accent blue. Used for: signed-out "Sign in",
-            signed-in "Sign out", pending "Application status".
-  .joinBtn → primary 3D in NAISI accent gradient. Used for: signed-out
-            "Join us", approved "Dashboard", rejected-state "Sign out".
-  Both: 44×44 touch-target floor, shine sweep on hover, translateY press,
-  reduced-motion safe.
-*/
-.signIn,
-.joinBtn {
-  position: relative;
+.account {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+/* The two account controls. Each is a link in one state and a <button> in
+   another (Sign out), so both carry the reset a button needs: without it
+   Safari paints its own grey face over the colours set here. */
+.quiet,
+.outlined,
+.drawerQuiet,
+.drawerOutlined,
+.menuButton {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* Where "Sign in" sits: plain text at full strength. */
+.quiet {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font-size: var(--text-ui);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.quiet:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+
+/* Where "Join" sits: an outlined button, never a fill. */
+.outlined {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.5rem;
-  padding: 0 1rem;
-  border: 1px solid transparent;
+  min-height: 2.75rem;
+  padding: 0 1.125rem;
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
-  font-size: var(--text-sm);
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-ui);
   font-weight: 600;
   letter-spacing: -0.005em;
-  text-decoration: none;
   white-space: nowrap;
-  overflow: hidden;
-  isolation: isolate;
-  will-change: transform;
   transition:
-    transform 80ms ease,
-    box-shadow 80ms ease,
-    background 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+.outlined:hover {
+  background: var(--color-surface);
+  border-color: var(--color-control-border);
 }
 
-.signIn::after,
-.joinBtn::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    120deg,
-    transparent 30%,
-    rgba(255, 255, 255, 0.22) 50%,
-    transparent 70%
-  );
-  transform: translateX(-110%);
-  transition: transform 700ms cubic-bezier(0.22, 0.61, 0.36, 1);
-  pointer-events: none;
-  border-radius: inherit;
-  z-index: 1;
-}
-.signIn:hover::after,
-.joinBtn:hover::after { transform: translateX(110%); }
-
-.signIn {
-  background: transparent;
-  color: var(--color-accent);
-  border-color: var(--color-accent);
-  box-shadow:
-    0 var(--btn3d-press-distance) 0 color-mix(in oklab, var(--color-accent), transparent 60%),
-    0 calc(var(--btn3d-press-distance) + 4px) 10px rgba(0, 0, 0, 0.18);
-}
-.signIn:hover {
-  background: var(--color-accent-soft);
-}
-.signIn:active {
-  transform: translateY(var(--btn3d-press-distance));
-  box-shadow:
-    0 0 0 color-mix(in oklab, var(--color-accent), transparent 60%),
-    0 2px 4px rgba(0, 0, 0, 0.15);
-}
-
-.joinBtn {
-  background: linear-gradient(180deg, var(--color-accent-hover), var(--color-accent));
-  color: #fff;
-  box-shadow:
-    0 var(--btn3d-press-distance) 0 color-mix(in oklab, var(--color-accent), black 35%),
-    0 calc(var(--btn3d-press-distance) + 4px) 14px rgba(0, 0, 0, 0.28);
-}
-.joinBtn:hover {
-  background: linear-gradient(180deg, var(--color-accent-hover), var(--color-accent-hover));
-}
-.joinBtn:active {
-  transform: translateY(var(--btn3d-press-distance));
-  box-shadow:
-    0 0 0 color-mix(in oklab, var(--color-accent), black 35%),
-    0 2px 6px rgba(0, 0, 0, 0.2);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .signIn,
-  .joinBtn {
-    transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
-  }
-  .signIn::after,
-  .joinBtn::after { display: none; }
-  .signIn:active,
-  .joinBtn:active { transform: none; }
-}
-
-.rejectedLabel {
+/* An account that was not approved: words, in the status colour for text. */
+.note {
+  color: var(--color-danger-text);
   font-size: var(--text-sm);
-  color: var(--color-danger);
-  margin-right: var(--space-2);
+  white-space: nowrap;
 }
 
-/* Hamburger button — hidden on desktop, shown via the mobile block below. */
-.menuButton {
+/* What replaces .desk on a phone: the outlined button, when the state has a
+   short one, and the menu button. Hidden until the mobile block below. */
+.phone {
   display: none;
   align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
+.menuButton {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  min-width: 2.75rem;
-  min-height: 2.75rem;
-  border-radius: var(--radius-md);
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-row);
+  background: transparent;
   color: var(--color-text);
-  margin-left: auto;
   transition: background var(--transition-fast);
 }
 .menuButton:hover {
-  background: var(--color-surface-hover);
+  background: var(--color-surface);
 }
 
-.menuIcon {
-  display: inline-flex;
-  flex-direction: column;
-  justify-content: space-between;
-  width: 1.25rem;
-  height: 0.875rem;
-}
-.menuIcon > span {
-  display: block;
-  height: 2px;
-  background: var(--color-text);
-  border-radius: 1px;
-}
-
-/* === Drawer contents (rendered into the Drawer portal) === */
+/* === The menu's contents (rendered into the Drawer portal) === */
 .drawerBrand {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
   margin-bottom: var(--space-6);
 }
 
 .drawerNav {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 2px;
 }
 
 .drawerLink {
   display: flex;
   align-items: center;
-  min-height: 2.75rem;
-  padding: var(--space-3);
-  font-size: var(--text-base);
-  color: var(--color-text);
-  border-radius: var(--radius-sm);
-  text-align: left;
   width: 100%;
-  transition: background var(--transition-fast);
+  min-height: 2.75rem;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--color-text-body);
+  font-size: var(--text-ui);
+  font-weight: 500;
+  text-align: left;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
-.drawerLink:hover,
-.drawerLink:focus-visible {
+.drawerLink:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+/* The bar's current-page mark, turned on its side: full-strength text and a
+   2px accent line on the leading edge. The line is a box-shadow, so the focus
+   state restates it beside the site's ring, or the ring would replace it. */
+.drawerLink[aria-current="page"] {
   background: var(--color-surface-hover);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+  color: var(--color-text);
+  font-weight: 600;
+}
+.drawerLink[aria-current="page"]:focus-visible {
+  box-shadow:
+    inset 2px 0 0 var(--color-accent),
+    var(--focus-ring);
 }
 
-.drawerLinkPrimary {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2.75rem;
-  padding: var(--space-3);
-  font-size: var(--text-base);
-  font-weight: 500;
-  background: var(--color-accent);
-  color: white;
-  border-radius: var(--radius-md);
-  transition: background var(--transition-fast);
-}
-.drawerLinkPrimary:hover {
-  background: var(--color-accent-hover);
-}
-
-/* Outlined ghost variant — mirrors the desktop .signIn (accent-outlined) but
-   shaped for a full-width drawer footer slot. Used for auth secondary actions
-   in the mobile drawer: Sign in, Sign out, Application status. Keeps the
-   3D shine off (busy in a drawer context); the colour + outline carry the
-   "this is a button" affordance. */
-.drawerLinkSecondary {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2.75rem;
-  padding: var(--space-3);
-  font-size: var(--text-base);
-  font-weight: 500;
-  background: transparent;
-  color: var(--color-accent);
-  border: 1px solid var(--color-accent);
-  border-radius: var(--radius-md);
-  transition: background var(--transition-fast), color var(--transition-fast);
-}
-.drawerLinkSecondary:hover,
-.drawerLinkSecondary:focus-visible {
-  background: var(--color-accent-soft);
-}
-
-/* Collaborator (external, non-UoN) join option — collaborator-tinted so the
-   non-Nottingham path reads as its own thing in the drawer, mirroring the
-   JoinMenu's separated section on desktop / the mobile sheet. */
-.drawerLinkCollaborator {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  min-height: 2.75rem;
-  padding: var(--space-3);
-  font-size: var(--text-base);
-  font-weight: 500;
-  background: var(--color-collaborator-soft);
-  color: var(--color-collaborator-accent);
-  border: 1px solid var(--color-collaborator-accent);
-  border-radius: var(--radius-md);
-  transition: filter var(--transition-fast);
-}
-.drawerLinkCollaborator:hover,
-.drawerLinkCollaborator:focus-visible {
-  filter: brightness(1.15);
-}
-
-.drawerRejected {
-  font-size: var(--text-sm);
-  color: var(--color-danger);
-  padding: var(--space-2) var(--space-3);
-}
-
-.drawerFooter {
-  margin-top: auto;
-  padding-top: var(--space-6);
-  border-top: 1px solid var(--color-border);
+.drawerAccount {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border);
+}
+
+.drawerQuiet {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-text);
+  font-size: var(--text-ui);
+  font-weight: 500;
+  transition: background var(--transition-fast);
+}
+.drawerQuiet:hover {
+  background: var(--color-surface);
+}
+
+.drawerOutlined {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0 1.125rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-ui);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+.drawerOutlined:hover {
+  background: var(--color-surface);
+  border-color: var(--color-control-border);
+}
+
+.drawerNote {
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-danger-text);
+  font-size: var(--text-sm);
+  text-align: center;
 }
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  .nav {
+  .desk {
     display: none;
   }
-  .actions {
-    display: none;
-  }
-  .menuButton {
-    display: inline-flex;
+  .phone {
+    display: flex;
   }
 }

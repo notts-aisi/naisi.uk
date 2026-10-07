@@ -1,13 +1,22 @@
 .main {
   flex: 1;
+  /* An identity transform, on purpose. The entrance below ends on exactly
+     this, and until this rule existed every page was left holding it for
+     good. Two things on the pages inside came to lean on that: <main> is its
+     own stacking context, so nothing in a page can paint over the sticky
+     header, and it is the box a fixed-position descendant is placed in.
+     Written down here so a page that arrives in its own HTML, which no
+     longer plays the entrance, behaves like one that did. */
+  transform: translateY(0);
 }
 
-/* Animated entrance — applied via a className swap on the next animation
- * frame so the initial paint can have an inline `opacity:0` keeping
- * content invisible. Splitting the animation off the base class lets us
- * defer animation start until after first paint, eliminating the flash
- * where CSS-class animations briefly land AFTER React commits the
- * initial visible content. */
+/* Animated entrance, for a page reached by a navigation inside the browser
+ * only (PublicMain.tsx says why). Applied via a className swap on the next
+ * animation frame so the initial paint can have an inline `opacity:0`
+ * keeping content invisible. Splitting the animation off the base class lets
+ * us defer animation start until after first paint, eliminating the flash
+ * where CSS-class animations briefly land AFTER React commits the initial
+ * visible content. */
 .mainAnim {
   animation: public-fade-in 360ms ease-out both;
 }
@@ -70,4 +79,9 @@
     from { opacity: 1; }
     to { opacity: 0; }
   }
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* Nothing to adapt: <main> is a plain block at every width. */
 }

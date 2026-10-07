@@ -1,7 +1,10 @@
+import Link from "next/link";
 import Script from "next/script";
 import type { Viewport } from "next";
 import BrandMark from "@/components/BrandMark";
+import { LEGAL_ENTRIES, shown } from "@/layout/publicNav";
 import AuthBodyLock from "./AuthBodyLock";
+import FrameAccount from "./FrameAccount";
 import LogoLink from "./LogoLink";
 import styles from "./layout.module.css";
 
@@ -37,22 +40,48 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
+/**
+ * The frame around the sign-in pages: no site header and no site footer. The
+ * brand at the top left, the way back (or the signed-in account and its way
+ * out) at the top right, the page's one card on the floor with a soft glow
+ * behind it, then the legal links.
+ *
+ * The right-hand corner and the legal links are in the page's own HTML and
+ * wait for no script.
+ */
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className={styles.shell}>
       <AuthBodyLock />
-      {/* Google Identity Services — loaded only on auth routes (/login,
+      {/* Google Identity Services, loaded only on auth routes (/login,
           /register, /pending-approval) so marketing pages don't pay the
           script cost. afterInteractive runs after hydration so React
           isn't blocked. GoogleSignInButton waits for window.google to
           appear before rendering. */}
       <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
       <header className={styles.header}>
-        <LogoLink aria-label="NAISI home">
-          <BrandMark size={32} />
-        </LogoLink>
+        <div className={styles.bar}>
+          <LogoLink aria-label="NAISI home">
+            <BrandMark size={32} />
+          </LogoLink>
+          <FrameAccount />
+        </div>
       </header>
-      <main className={styles.main}>{children}</main>
+      {/* On a phone this is the part that scrolls, under the pinned header.
+          <main> stays the direct parent of the page, which the sign-in step's
+          stylesheet builds its full-screen view on. */}
+      <div className={styles.scroll}>
+        <main className={styles.main}>{children}</main>
+        {/* Each opens in a new tab: the page above may hold a half-filled
+            form, and reading a policy should not cost somebody their answers. */}
+        <nav className={styles.legal} aria-label="Legal">
+          {shown(LEGAL_ENTRIES).map((entry) => (
+            <Link key={entry.key} href={entry.href} target="_blank" rel="noopener">
+              {entry.label}
+            </Link>
+          ))}
+        </nav>
+      </div>
     </div>
   );
 }
