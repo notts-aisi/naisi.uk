@@ -356,6 +356,10 @@
 .leftSection {
   min-width: 0;
 }
+/* A heading for the outline, drawn as the page's other section labels are. */
+.leftTitle {
+  font-weight: 400;
+}
 .left {
   padding: 20px var(--space-4);
 }

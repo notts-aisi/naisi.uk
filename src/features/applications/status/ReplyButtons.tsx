@@ -184,7 +184,7 @@ function GiveBack({
   };
 
   return (
-    <div className={styles.actions} role="group" aria-label={question}>
+    <div className={styles.actions} role="group" aria-label={question} data-asks="why">
       <p className={styles.note}>{question}</p>
       <fieldset
         className={styles.reasons}

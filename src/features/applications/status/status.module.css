@@ -554,7 +554,9 @@
   background: var(--st-accent-wash);
   font-weight: 600;
 }
-.reasonRow:focus-within {
+/* For the keyboard only: the first reason is given the focus when the step
+   opens, and after a tap that must not look like a choice already made. */
+.reasonRow:has(.reasonNative:focus-visible) {
   outline: 2px solid var(--color-accent-text);
   outline-offset: 2px;
 }
@@ -788,9 +790,14 @@
     text-align: center;
   }
 
-  /* The reasons are a form, read from the left like any other. */
+  /* The reasons are a form, read from the left like any other, and so is the
+     question above them. */
   .reasons {
     margin-top: 8px;
+  }
+
+  .actions[data-asks="why"] .note {
+    text-align: left;
   }
 
   .quiet {

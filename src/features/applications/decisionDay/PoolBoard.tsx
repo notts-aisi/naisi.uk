@@ -388,7 +388,10 @@ export default function PoolBoard({ initial }: { initial: Board }) {
 
       {board.left.length > 0 ? (
         <section className={styles.leftSection} aria-labelledby="pool-left-title">
-          <h2 id="pool-left-title" className={`${kit.mono} ${shared.eyebrow} ${styles.sectionLabel}`}>
+          <h2
+            id="pool-left-title"
+            className={`${kit.mono} ${shared.eyebrow} ${styles.sectionLabel} ${styles.leftTitle}`}
+          >
             Withdrawn since decision day
           </h2>
           <div className={`${shared.card} ${styles.left}`}>
