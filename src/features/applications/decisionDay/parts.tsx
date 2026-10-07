@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
 import styles from "./decisionDay.module.css";
+import Icon from "./Icon";
 
 /**
  * The pieces the pooled applicants page and the decision-day page are both
@@ -43,18 +44,24 @@ function termPath(roundId: string): string {
   return `/admin/admissions/forms/${encodeURIComponent(roundId)}`;
 }
 
-/** The page frame: where you are, the title with its chips, and one line under it. */
+/**
+ * The page frame: where you are, the title with its chips, and one line under
+ * it. `aside` is a second, quieter line for something about the person
+ * looking and not about the page: that their own application is not on it.
+ */
 export function Page({
   roundId,
   title,
   chips,
   lede,
+  aside = null,
   children,
 }: {
   roundId: string;
   title: string;
   chips: ReactNode;
   lede: string;
+  aside?: string | null;
   children: ReactNode;
 }) {
   return (
@@ -70,6 +77,12 @@ export function Page({
           <div className={styles.titleChips}>{chips}</div>
         </div>
         <p className={styles.lede}>{lede}</p>
+        {aside ? (
+          <p className={styles.aside}>
+            <Icon name="info" size={16} className={styles.noteIcon} />
+            <span>{aside}</span>
+          </p>
+        ) : null}
       </header>
       {children}
     </ApplicationsRoot>

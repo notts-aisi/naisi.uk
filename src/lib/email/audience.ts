@@ -20,11 +20,17 @@
  *    That is the test harness, and the value read here is the one the
  *    transporter connects to, so this is a fact about the connection and not a
  *    flag somebody could set by hand on a server that reaches the real sender.
- * 3. Otherwise only the addresses LISTED in `EMAIL_AUDIENCE` receive mail,
- *    together with the harness's own reserved domain (below).
+ * 3. Otherwise only the addresses LISTED in `EMAIL_AUDIENCE` receive mail.
  * 4. A setting that is missing, empty or unreadable means NOBODY. Never
  *    everyone. `NODE_ENV` is not consulted anywhere: staging builds in
  *    production mode, so it cannot tell the two apart.
+ *
+ * THE HARNESS'S OWN ADDRESSES ARE NOT AN EXCEPTION TO 3 AND 4. They are under
+ * a domain that cannot receive mail (below), so a real mail server has
+ * nothing to do with a message to one but bounce it. Such a message is handed
+ * over only under rule 2, to a mail server on this machine. On any other mail
+ * server an address under that domain is held like any other this copy was
+ * not told it may write to.
  *
  * A recipient outside the audience is HELD, not failed: the caller's work is
  * not wrong, this copy of the site is simply not allowed to write to that
@@ -61,7 +67,10 @@ export const PRODUCTION_PROJECT_ID = "naisi-uk";
 /**
  * The harness's reserved domain. `.invalid` can never resolve (RFC 2606), so
  * an address under it cannot belong to anybody, and the suites that execute
- * the real send path address everything there.
+ * the real send path address everything there. Named here so that the rule
+ * above has something to point at: no branch below reads it, because being
+ * under this domain earns an address nothing. It is delivered where
+ * everything is (a mail server on this machine) and nowhere else.
  */
 export const HARNESS_DOMAIN = "e2e.invalid";
 
@@ -126,11 +135,6 @@ export function resolveEmailAudience(env: Env): EmailAudience {
   return { mode: "listed", allow, because: allow.size > 0 ? "listed" : "unset" };
 }
 
-/** True for an address under the harness's reserved domain. */
-function isHarnessAddress(address: string): boolean {
-  return address.endsWith(`@${HARNESS_DOMAIN}`);
-}
-
 export type AudienceVerdict = {
   /** Addresses this copy of the site may write to, as they were given. */
   allowed: string[];
@@ -151,7 +155,7 @@ export function splitByAudience(
   const held: string[] = [];
   for (const given of addresses) {
     const address = given.trim().toLowerCase();
-    if (audience.allow.has(address) || isHarnessAddress(address)) allowed.push(given);
+    if (audience.allow.has(address)) allowed.push(given);
     else held.push(given);
   }
   return { allowed, held };

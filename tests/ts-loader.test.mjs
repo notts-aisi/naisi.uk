@@ -290,6 +290,13 @@ const USERS = new Map([
       "counters are transactions and only running them shows what was written",
   ],
   [
+    "applications-blind-first.test.mjs",
+    "executes the review screen's read, the review save, a programme's list and its settings " +
+      "route as leads and reviewers who are not admins, against an in-memory term with every " +
+      "kind of programme that has nothing to score, because whose scores and comments somebody " +
+      "is sent before they have saved a review of their own is decided by the code that runs",
+  ],
+  [
     "applications-d2-delta-join.test.mjs",
     "executes the rules of joining on the application form (src/lib/applications/applicant/join.ts: " +
       "what stops a join request, what is sent as one, what is kept while somebody signs in, " +
@@ -357,6 +364,13 @@ const USERS = new Map([
       "templates behind it are compiled for real",
   ],
   [
+    "applications-own-application.test.mjs",
+    "executes the pooled applicants, decision day, test email and decision handlers for an " +
+      "admin who has applied, beside what a second admin is sent, against an in-memory term, " +
+      "because whether a page lists or counts the viewer's own application, and whether the " +
+      "send still tells them, are decided by the code that runs",
+  ],
+  [
     "applications-public-term.test.mjs",
     "executes the lookup a public page asks what a visitor may be told about this term, against a " +
       "database that records its queries, and renders the three components a page draws the term " +
@@ -369,6 +383,13 @@ const USERS = new Map([
       "(a .tsx client component) to HTML from the same dates, because whether the two say the same " +
       "thing is decided by the code that runs; it also runs the helpers that word a chip and split " +
       "an authored paragraph",
+  ],
+  [
+    "applications-readable-before-answering.test.mjs",
+    "executes the decision route and the route that decides several at once as a programme's " +
+      "lead, against an in-memory term, for every way an application can be one she may not " +
+      "read, because whether an answer names somebody or says where their application stands " +
+      "is decided by the writer that runs",
   ],
   [
     "applications-review-routes.test.mjs",
@@ -384,12 +405,26 @@ const USERS = new Map([
       "each is worked out from stored data and only running it shows the words match",
   ],
   [
+    "applications-roles-in-transaction.test.mjs",
+    "executes the route that names a programme's lead and reviewers against an in-memory " +
+      "store whose documents change before the transaction opens and while it runs, because " +
+      "whether a refusal is decided from what the transaction read is only shown by running it",
+  ],
+  [
     "applications-versions.test.mjs",
     "executes the rules for what a send keeps of the application it replaces " +
       "(src/lib/applications/versions/kept.ts), then the review loaders and builders, the " +
       "applicant's projections, the status page's read and the member record's builder " +
       "against one in-memory store, because who is sent an earlier version of an application, " +
       "and who is not, is decided by the code that runs",
+  ],
+  [
+    "applications-view-as-own-application.test.mjs",
+    "executes the applicant's two GET handlers with the real view-as module reading a cookie " +
+      "the test sets, and renders the form's screen, the page for one application, the list and " +
+      "the dashboard (all .tsx server components) to HTML for a member and for an admin viewing " +
+      "as that member, against a database that records its reads, because whether anything of " +
+      "an application is read or drawn in a view-as session is decided by the code that runs",
   ],
   [
     "applications-wave-e1-lifecycle.test.mjs",

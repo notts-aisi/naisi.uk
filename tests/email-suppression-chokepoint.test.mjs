@@ -203,7 +203,11 @@ function makeDb(suppressedAddresses) {
 function arm(db) {
   globalThis.__db = db;
   globalThis.__sentMail = [];
-  process.env.SMTP_HOST = "smtp.test.invalid";
+  // The mail server is this machine, as it is in the harness: the one place
+  // an address under the harness's reserved domain is handed over
+  // (`src/lib/email/audience.ts`). The transport is faked either way. This
+  // suite is about the suppression list, which is asked before any of that.
+  process.env.SMTP_HOST = "127.0.0.1";
   process.env.SMTP_PORT = "587";
   process.env.SMTP_USER = "harness@test.invalid";
   process.env.SMTP_PASSWORD = "not-a-real-password";

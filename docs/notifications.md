@@ -658,11 +658,17 @@ after the suppression list and before anything is rendered.
 | --- | --- |
 | The live site: `EMAIL_AUDIENCE=everyone` AND the production project | Everyone |
 | The mail server is this machine (the harness's catcher) | Everything, because nothing can leave it |
-| `EMAIL_AUDIENCE` lists addresses | Those addresses, and the harness's reserved domain |
-| The setting is missing, empty or unreadable | Nobody, apart from the harness's reserved domain |
+| `EMAIL_AUDIENCE` lists addresses | Those addresses |
+| The setting is missing, empty or unreadable | Nobody |
 
-Four things a maintainer has to keep:
+Five things a maintainer has to keep:
 
+- **The harness's own addresses are no exception to the last two rows.** An
+  address under `e2e.invalid` cannot receive mail, so a real mail server has
+  nothing to do with a message to one but bounce it. It is handed over only
+  where everything is: a mail server on this machine. A suite that executes
+  the real send path sets its mail server to a loopback address, which is
+  what its catcher is.
 - **The setting is added on each backend itself, never in `apphosting.yaml`.**
   Both backends read that file, so a value written there is a value staging
   inherits. `tests/email-audience.test.mjs` fails if the file declares it.

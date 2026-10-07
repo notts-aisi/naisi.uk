@@ -200,7 +200,10 @@ const ApplicationEmail = (await doorLoader.loadTs("emails/ApplicationEmail.tsx")
 function armTransport() {
   // The transport is faked; these only exist because `sendEmail` refuses to
   // build a From header without them, which is the correct thing for it to do.
-  process.env.SMTP_HOST = "smtp.test.invalid";
+  // The mail server is this machine, as it is in the harness: the one place
+  // an address under the harness's reserved domain is handed over
+  // (`src/lib/email/audience.ts`).
+  process.env.SMTP_HOST = "127.0.0.1";
   process.env.SMTP_USER = "harness@test.invalid";
   process.env.SMTP_PASSWORD = "not-a-real-password";
   process.env.SMTP_FROM_EMAIL = "hello@naisi.uk";

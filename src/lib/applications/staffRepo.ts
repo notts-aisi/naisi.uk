@@ -1,5 +1,5 @@
 import "server-only";
-import type { DocumentReference, Firestore } from "firebase-admin/firestore";
+import type { DocumentReference, Firestore, Query, Transaction } from "firebase-admin/firestore";
 import { APPLICATIONS_COLLECTION } from "@/lib/firestore/admissionApplications";
 import {
   applicationId,
@@ -108,10 +108,45 @@ export async function loadDecision(
   return snap.exists ? normaliseDecision(snap.id, snap.data()) : null;
 }
 
+/** Every review row written for this form, as the query itself. */
+function reviewsQuery(db: Firestore, roundId: string): Query {
+  return db.collection(REVIEWS_COLLECTION).where("roundId", "==", roundId);
+}
+
 /** Every review row written for this form. */
 export async function listReviews(db: Firestore, roundId: string): Promise<ReviewDoc[]> {
-  const snap = await db.collection(REVIEWS_COLLECTION).where("roundId", "==", roundId).get();
+  const snap = await reviewsQuery(db, roundId).get();
   return snap.docs.map((doc) => normaliseReview(doc.id, doc.data()));
+}
+
+/**
+ * Every review row written for this form, and the application each one is
+ * about, READ THROUGH A WRITER'S OWN TRANSACTION: a review saved, or an
+ * application sent again, while the writer runs makes it start again.
+ *
+ * For a writer that has to know whether reviewing has begun on a programme.
+ * The reads are made here so that such a writer is handed what was read and
+ * never a reference to anybody's application. Somebody whose application is
+ * no longer there is left out.
+ */
+export async function loadReviewedIn(
+  tx: Transaction,
+  db: Firestore,
+  form: ApplicationForm,
+): Promise<{ reviews: ReviewDoc[]; applications: ApplicationDoc[] }> {
+  const snap = await tx.get(reviewsQuery(db, form.round.id));
+  const reviews = snap.docs.map((doc) => normaliseReview(doc.id, doc.data()));
+  const uids = [...new Set(reviews.map((review) => review.applicantUid).filter(Boolean))];
+  const applications: ApplicationDoc[] = [];
+  if (uids.length === 0) return { reviews, applications };
+  const found = await tx.getAll(...uids.map((uid) => applicationRef(db, form.round.id, uid)));
+  for (const each of found) {
+    const application = each.exists
+      ? normaliseApplication(each.id, each.data(), form.round.availabilityGrid)
+      : null;
+    if (application) applications.push(application);
+  }
+  return { reviews, applications };
 }
 
 /** Every reviewer's row about one applicant on this form. */

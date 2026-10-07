@@ -1039,9 +1039,9 @@ describe("what became of the email is recorded on the result", () => {
     // A minute later it reads as in flight, and after any press could still be
     // alive it reads as unconfirmed. Either way no press takes it up.
     const form = await repo.loadForm(db, ROUND);
-    const soon = await send.buildSendBoard(db, form, later(1)());
+    const soon = await send.buildSendBoard(db, form, ACTOR.uid, later(1)());
     assert.deepEqual([soon.owed.inFlight, soon.owed.unconfirmed, soon.owed.people], [1, [], []]);
-    const afterwards = await send.buildSendBoard(db, form, later(6)());
+    const afterwards = await send.buildSendBoard(db, form, ACTOR.uid, later(6)());
     assert.deepEqual(
       [afterwards.owed.inFlight, afterwards.owed.unconfirmed.map((p) => p.name), afterwards.owed.people],
       [0, ["Nina Petrova"], []],
@@ -1256,7 +1256,7 @@ describe("a later press sends what is owed, and nothing else", () => {
       result: { kind: "no-offer", programmeId: null, publishedAt: DECIDED },
     });
     const db = makeDb(seed({ ...everyState(), [`admissionApplications/${ROUND}__ben`]: bare }));
-    const view = await send.buildSendBoard(db, await repo.loadForm(db, ROUND), NOW);
+    const view = await send.buildSendBoard(db, await repo.loadForm(db, ROUND), ACTOR.uid, NOW);
     assert.ok(view.owed.unconfirmed.some((person) => person.name === "Ben Hartley"));
     assert.deepEqual(view.owed.people, []);
     const result = await pressOwed(db, 0);
@@ -1284,7 +1284,7 @@ describe("a later press sends what is owed, and nothing else", () => {
         [`admissionApplications/${ROUND}__ben`]: toldDoc("ben", "Ben Hartley", [AGI], "no-offer", null, { email: "owed" }, { email: null }),
       }),
     );
-    const view = await send.buildSendBoard(db, await repo.loadForm(db, ROUND), NOW);
+    const view = await send.buildSendBoard(db, await repo.loadForm(db, ROUND), ACTOR.uid, NOW);
     assert.deepEqual([view.owed.people, view.owed.noAddress.map((p) => p.name)], [[], ["Ben Hartley"]]);
     const result = await pressOwed(db, 0);
     assert.deepEqual([result.ok, result.report.retried], [true, 0]);
@@ -1471,7 +1471,7 @@ describe("accepting somebody approves an account that is still waiting", () => {
   test("a refused account stays refused, and is named before the send and after it", async () => {
     const refused = { ...userDoc("Sam Whitfield", "rejected"), rejectedAt: DECIDED, rejectedBy: "zach", rejectionReason: "not-eligible" };
     const db = makeDb(seed({ "users/sam": refused }));
-    const before = await send.buildSendBoard(db, await repo.loadForm(db, ROUND), NOW);
+    const before = await send.buildSendBoard(db, await repo.loadForm(db, ROUND), ACTOR.uid, NOW);
     assert.deepEqual(before.accountsRefused, [{ uid: "sam", name: "Sam Whitfield" }]);
     assert.equal(before.accountsWaiting, 1);
 
@@ -1479,7 +1479,7 @@ describe("accepting somebody approves an account that is still waiting", () => {
     assert.deepEqual(result.report.accountsRefused, ["Sam Whitfield"]);
     assert.deepEqual(db.read("users/sam"), refused, "sending never undoes a refusal");
     assert.equal(applicationOf(db, "sam").status, "accepted", "he is still told what the programme decided");
-    const after = await send.buildSendBoard(db, await repo.loadForm(db, ROUND), NOW);
+    const after = await send.buildSendBoard(db, await repo.loadForm(db, ROUND), ACTOR.uid, NOW);
     assert.deepEqual([after.accountsRefused.map((p) => p.name), after.accountsWaiting], [["Sam Whitfield"], 0]);
   });
 
@@ -1503,7 +1503,7 @@ describe("accepting somebody approves an account that is still waiting", () => {
     assert.equal(applicationOf(db, "wen").status, "accepted");
     assert.equal(userOf(db, "wen").role, "pending");
     // The term is sent, and the page still says one accepted account is waiting.
-    const view = await send.buildSendBoard(db, await repo.loadForm(db, ROUND), NOW);
+    const view = await send.buildSendBoard(db, await repo.loadForm(db, ROUND), ACTOR.uid, NOW);
     assert.deepEqual([view.sentOn, view.accountsWaiting], ["Fri 23 Oct", 1]);
 
     // Any later press tries again for somebody an earlier press told.
@@ -1569,7 +1569,7 @@ describe("accepting somebody approves an account that is still waiting", () => {
 // ---------------------------------------------------------------------------
 
 describe("the decision-day page", () => {
-  const board = async (db) => send.buildSendBoard(db, await repo.loadForm(db, ROUND), NOW);
+  const board = async (db) => send.buildSendBoard(db, await repo.loadForm(db, ROUND), ACTOR.uid, NOW);
 
   test("a ready term reads as ready, group by group", async () => {
     const view = await board(makeDb(seed()));
@@ -1807,7 +1807,7 @@ describe("no press without a test of the emails as they are worded now", () => {
   const NO_TEST = "Nobody has sent themselves a test of these emails yet. Send yourself one before you send.";
   const STALE_TEST =
     "A decision email’s wording has changed since the last test. Send yourself a test again before you send.";
-  const board = async (db) => send.buildSendBoard(db, await repo.loadForm(db, ROUND), NOW);
+  const board = async (db) => send.buildSendBoard(db, await repo.loadForm(db, ROUND), ACTOR.uid, NOW);
   const testRow = (view) => view.readiness.find((row) => row.key === "#test");
   const untouched = (db) => {
     assert.equal(db.counters.writes, 0);

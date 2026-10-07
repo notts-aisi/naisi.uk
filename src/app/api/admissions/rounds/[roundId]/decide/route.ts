@@ -15,7 +15,7 @@ import {
   isAppointableRun,
 } from "@/lib/admissions/appointmentQueue";
 import { canDecideAppointments } from "@/lib/admissions/appointmentQueueData";
-import { ROUNDS_COLLECTION } from "@/lib/admissions/roundRoutes";
+import { ROUNDS_COLLECTION, canSeeRound } from "@/lib/admissions/roundRoutes";
 import { formatRunStart, formatRunStartShort } from "@/lib/courses/window";
 import {
   APPLICATIONS_COLLECTION,
@@ -41,6 +41,18 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * which lands eleven days after the training it is supposed to invite people
  * to. So this route serves the appointment branch and answers 400 on an
  * enrolment round, in words that say when the other half arrives.
+ *
+ * ## Who is asking comes before anything about the round
+ *
+ * The answers below say what a round is: whether it exists, whether it is an
+ * application form, which kind it is, what state it is in. So the first thing
+ * decided from the round document is whether this caller may see the round at
+ * all (`canSeeRound`, the question the round's own GET asks). Somebody who may
+ * not is told "Round not found", in the same words as for an id that
+ * addresses nothing, whatever is really stored there. Then the caller's right
+ * to decide, before the round's kind or its state is said. A request whose
+ * body is not a decision is refused before the round is read, which says
+ * nothing about any round.
  *
  * ## What is refused before the transaction opens
  *
@@ -153,12 +165,31 @@ export async function POST(req: Request, ctx: Ctx) {
   if (!roundSnap.exists) {
     return NextResponse.json({ error: "Round not found" }, { status: 404 });
   }
+  const round = normalizeAdmissionRound(roundSnap.id, roundSnap.data() ?? {});
+  // WHO IS ASKING, before anything is said about what is stored here. A
+  // caller the round does not name, who is not staff on the course tree, is
+  // answered exactly as for an id that addresses nothing: whether a round
+  // exists, and what kind it is, is itself something about an intake.
+  if (!canSeeRound(user, round)) {
+    return NextResponse.json({ error: "Round not found" }, { status: 404 });
+  }
   // An application form is decided programme by programme, by its leads,
   // through its own routes. Nothing here may move its counters, write a
-  // facilitator list from it or email anybody on it.
+  // facilitator list from it or email anybody on it. Asked after the "not
+  // found" answer above, so only somebody who may see this round is told
+  // what it is.
   const fenced = refuseApplicationForm(roundSnap.data());
   if (fenced) return fenced;
-  const round = normalizeAdmissionRound(roundSnap.id, roundSnap.data() ?? {});
+  // The caller's right to decide, before the round's kind or its state.
+  if (!canDecideAppointments(user, round)) {
+    return NextResponse.json(
+      {
+        error:
+          "Only this round's final decider or an admin can appoint a facilitator. Reviewers can read the queue.",
+      },
+      { status: 403 },
+    );
+  }
 
   if (round.kind !== "appointment") {
     return NextResponse.json(
@@ -174,15 +205,6 @@ export async function POST(req: Request, ctx: Ctx) {
   // states the stage-release route refuses on.
   const roundBlock = appointmentDecideBlock(round);
   if (roundBlock) return NextResponse.json({ error: roundBlock }, { status: 409 });
-  if (!canDecideAppointments(user, round)) {
-    return NextResponse.json(
-      {
-        error:
-          "Only this round's final decider or an admin can appoint a facilitator. Reviewers can read the queue.",
-      },
-      { status: 403 },
-    );
-  }
 
   if (decision === "appoint" && !runId) {
     return NextResponse.json(

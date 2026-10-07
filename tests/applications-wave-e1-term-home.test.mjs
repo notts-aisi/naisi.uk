@@ -690,7 +690,7 @@ describe("the pooled numbers are the ones the pooled applicants screen shows", (
     const db = makeDb(seed());
     const form = formOf(db);
     const mine = await numbers.loadTermNumbers(db, CAST.zach, form);
-    const screen = await poolScreen.buildPoolBoard(db, form, NOW);
+    const screen = await poolScreen.buildPoolBoard(db, form, CAST.zach.uid, NOW);
     assert.deepEqual(mine.pool, { pooled: screen.counts.pooled, needsOutcome: screen.counts.needsOutcome });
     // Dev (nothing picked) and Rosa (no offer picked) are pooled.
     assert.deepEqual(mine.pool, { pooled: 2, needsOutcome: 1 });

@@ -1,4 +1,5 @@
 import { getAdminDb } from "@/lib/firebase/admin";
+import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { loadStatusRows } from "@/lib/admissions/statusHubData";
 import { formatSiteDate } from "@/lib/datetime/siteTime";
@@ -42,8 +43,15 @@ import styles from "./home.module.css";
  *
  * A failed read is null and never an empty list. Empty means "has not
  * applied", and the card would then hide the way back from somebody who has.
+ *
+ * NOT READ IN A VIEW-AS SESSION. The loader fetches every application the
+ * account has, and an application is its owner's to read, so while an admin
+ * is viewing the site as this member nothing is fetched: the answer is null,
+ * and the card offers the way to the list without naming anything on it. The
+ * list itself says why it is not shown.
  */
-async function applicationsOf(uid: string): Promise<YourApplicationRow[] | null> {
+async function applicationsOf(uid: string, viewingAs: boolean): Promise<YourApplicationRow[] | null> {
+  if (viewingAs) return null;
   const db = getAdminDb();
   if (!db) return null;
   try {
@@ -64,7 +72,10 @@ function partOfDay(now: Date): string {
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
-  const applications = user ? await applicationsOf(user.uid) : [];
+  // The session is already in hand, so this is `markerIsLive` rather than a
+  // second read of it.
+  const viewingAs = markerIsLive(await getImpersonator(), user?.uid ?? null);
+  const applications = user ? await applicationsOf(user.uid, viewingAs) : [];
   const now = new Date();
   const [term, events, steps] = await Promise.all([
     fetchPublicTerm(now),
@@ -75,7 +86,9 @@ export default async function DashboardPage() {
 
   // The way back to somebody's applications. It draws nothing for a member
   // who has not applied; while applications are open, a member who is not on
-  // a programme is told "Nothing yet" in the same place.
+  // a programme is told "Nothing yet" in the same place. In a view-as session
+  // the list was not read, so "Nothing yet" is not said either: the card
+  // offers the way to the list and that is all.
   const yourApplications = <YourApplications rows={applications} />;
   const nothingYet =
     term.stage === "open" && applications !== null && applications.length === 0 ? (
