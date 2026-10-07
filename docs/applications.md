@@ -133,13 +133,21 @@ document and then does one of three things.
 
 The refusal comes after a route's "not found" answers, never before them. A
 form nobody has opened reads to an applicant as a round that is not there, and
-somebody who may not see a round is not told it is a form.
+somebody who may not see a round is not told it is a form. So who is asking
+comes before what the round is, on every older route that refuses: an account
+with no role is given one answer by each of them, whatever its id addresses
+(a form, a form nobody has opened, a round of the older kind in any state, or
+nothing). The decide route reads the round first, because its decider is
+named on the round, and answers "not found" to anybody who may not see it
+before it says anything else.
 
 `tests/admissions-form-fence.test.mjs` walks the tree for every route, page and
 layout with a round id in its address, and for every other file that can
 address a round. Each is listed with what it does about a form, and what its
-entry says is read out of the source and then executed. A new one fails until
-somebody decides what it does.
+entry says is read out of the source and then executed. Every handler that
+refuses a form itself also says what its refusal comes after, and each staff
+route is run as an account with no role against everything an id can address.
+A new one fails until somebody decides what it does.
 
 The routes under `/api/admissions/forms` are the form's own, and the routes
 under `/api/admissions/rounds` are the older ones. A form's own route reaches a
