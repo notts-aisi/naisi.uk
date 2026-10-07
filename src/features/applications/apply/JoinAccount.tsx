@@ -41,10 +41,10 @@ import styles from "./join.module.css";
  * carries this form's marked address (`signInHref`) and so brings a new
  * account back to this step once it has signed in.
  *
- * "The installed app" is whatever `useIsStandalone` answers yes to. That hook
- * also asks for the `fullscreen` display mode, which some browsers report for
- * an ordinary window put into full screen, so such a window is drawn the link
- * as well.
+ * "The installed app" is whatever `useIsStandalone` answers yes to, and the
+ * rule is on `isStandaloneNow` (`src/lib/pwa/displayMode.ts`). A browser
+ * window is never one, in full screen or out of it, so every browser window
+ * is drawn Google's own button and signs in here, on the form.
  */
 
 const GOOGLE_SCRIPT = "https://accounts.google.com/gsi/client";

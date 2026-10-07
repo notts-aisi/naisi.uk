@@ -36,6 +36,7 @@ import {
   type RecaptchaHandle,
 } from "@/components/ui/RecaptchaInvisible";
 import { joinStepForNewAccount } from "@/features/applications/apply/joinClient";
+import { carryReturn, returnOnArrival, safeReturnPath, tabReturn } from "@/lib/signInReturn";
 
 type Mode = "signin" | "register";
 type SignInPhase = "idle" | "active" | "navigating" | "exitingBack";
@@ -79,10 +80,16 @@ export default function AuthEntry({ initialMode }: { initialMode: Mode }) {
   // /register, `useSearchParams` follows that rewrite, and the address
   // somebody arrived with is gone by the time they press anything. Pressing
   // "Create account" on an apply-funnel /login used to throw the funnel away.
-  const [next] = useState(() => params.get("next") ?? "/dashboard");
-  // Guard every post-auth redirect against open-redirect: only ever navigate to a
-  // same-origin path, never an absolute URL or a protocol-relative //evil.com.
-  const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+  //
+  // The return address is the one this page was opened with. When the
+  // callback route sent the person back here from Google with none, it is
+  // the copy this tab kept before it left (`returnOnArrival`,
+  // src/lib/signInReturn.ts). Null when the page has none.
+  const [next] = useState(() => returnOnArrival(params, tabReturn));
+  // Guard every post-auth redirect against open-redirect: only ever navigate
+  // to a path on this site. `safeReturnPath` is the one guard every copy of
+  // the return address passes, and nothing here tests an address another way.
+  const safeNext = safeReturnPath(next) ?? "/dashboard";
   const { user, role, loading: authLoading } = useAuth();
 
   const [mode, setMode] = useState<Mode>(initialMode);
@@ -350,19 +357,15 @@ export default function AuthEntry({ initialMode }: { initialMode: Mode }) {
   const redirectConsumedRef = useRef(false);
 
   /*
-   * Stash ?next= so it survives the redirect round trip through Google (GIS
-   * redirect mode carries no state). The callback route reads this cookie,
-   * re-applies the open-redirect guard server-side, and puts next back on
-   * the /login URL it redirects to.
+   * Leave the return address where the round trip through Google can find it
+   * again: a cookie the callback route reads, and a copy in this tab for when
+   * the cookie does not make the trip. A third copy rides the trip itself,
+   * in the `state` Google's button is handed below. The three copies, and
+   * the one guard they all pass, are src/lib/signInReturn.ts.
    */
   useEffect(() => {
-    if (!params.get("next")) return;
-    try {
-      document.cookie = `__auth_next=${encodeURIComponent(safeNext)}; path=/; max-age=600; samesite=lax`;
-    } catch {
-      /* fine: the user just lands on /dashboard instead */
-    }
-  }, [params, safeNext]);
+    if (next) carryReturn(next);
+  }, [next]);
 
   /* Surface a redirect-leg failure. The google_error values are set by the
      callback route; csrf-cookie-missing is the diagnostic one for installed
@@ -789,6 +792,7 @@ export default function AuthEntry({ initialMode }: { initialMode: Mode }) {
             onCredential={onCredential}
             onScriptError={onGoogleScriptError}
             onReady={handleGisReady}
+            returnTo={next}
           />
           {googleBusy && <span className={styles.googleSpinner} aria-hidden="true" />}
         </div>

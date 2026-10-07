@@ -30,7 +30,9 @@
  * The last sections read the files that use these rules, so the rules cannot
  * be kept by the module and broken by its callers, and walk everything the
  * form's page draws, so a new way off the form to the sign-in page or the
- * register page is one somebody had to write down.
+ * register page is one somebody had to write down. The site's own top bar is
+ * part of that page: on a form's page its Sign in comes back to the form,
+ * and it draws no Join.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -50,6 +52,8 @@ const notifications = await loadTs(join("lib", "firestore", "notifications.ts"))
 const users = await loadTs(join("lib", "firestore", "users.ts"));
 const authReturn = await loadTs(join("lib", "authReturn.ts"));
 const joinClient = await loadTs(join("features", "applications", "apply", "joinClient.ts"));
+const signInReturn = await loadTs(join("lib", "signInReturn.ts"));
+const publicNav = await loadTs(join("layout", "publicNav.ts"));
 const keptAnswers = await loadTs(join("features", "applications", "apply", "keptAnswers.ts"));
 
 const sourceOf = (file) => readFileSync(join(FORM_DIR, file), "utf8");
@@ -843,11 +847,13 @@ describe("where signing in returns to", () => {
   const MARKED = `/apply/${ID}?join=1`;
   const FORM_ROUTE = `/api/admissions/forms/${ID}/application`;
 
-  /** The sign-in page's own guard on `?next=`, as `AuthEntry.tsx` writes it. A test below holds the two together. */
-  const guarded = (next) => {
-    const given = next ?? "/dashboard";
-    return given.startsWith("/") && !given.startsWith("//") ? given : "/dashboard";
-  };
+  /**
+   * The sign-in page's own guard on its return address, with the page's own
+   * fallback. The guard is `safeReturnPath` (`src/lib/signInReturn.ts`), the
+   * one every copy of the address passes, and it is RUN here, not copied. A
+   * test below holds the page to calling it.
+   */
+  const guarded = (next) => signInReturn.safeReturnPath(next) ?? "/dashboard";
 
   /**
    * Run `work` with the page's `fetch` replaced by `answer`, and say what was
@@ -971,13 +977,21 @@ describe("where signing in returns to", () => {
     assert.deepEqual(lands("//evil"), { to: "register" });
     assert.deepEqual(lands("/apply/../admin"), { to: "register" });
     assert.deepEqual(lands(null), { to: "register" });
-    // And the guard written here is the one the page has. Read from the file,
-    // because the page is a component and nothing here can run it.
+    // An address a browser reads as another site's never reaches the rule:
+    // the page's own fallback does.
+    assert.equal(guarded("/\\evil.example"), "/dashboard");
+    assert.equal(guarded(`${MARKED}\n`), "/dashboard");
+    assert.deepEqual(lands("/\\evil.example"), { to: "register" });
+    // And the guard run here is the one the page has. Read from the file,
+    // because the page is a component and nothing here can run it. The page
+    // takes its address from `returnOnArrival`, which reads `?next=` and, for
+    // somebody the callback route sent back with none, the tab's own copy;
+    // tests/sign-in-return.test.mjs runs that function and the guard.
     const entry = stripSource(readFileSync(join(REPO_ROOT, "src", "app", "(auth)", "AuthEntry.tsx"), "utf8"), {
       keepStrings: true,
     });
-    assert.match(entry, /const \[next\] = useState\(\(\) => params\.get\("next"\) \?\? "\/dashboard"\);/);
-    assert.match(entry, /const safeNext = next\.startsWith\("\/"\) && !next\.startsWith\("\/\/"\) \? next : "\/dashboard";/);
+    assert.match(entry, /const \[next\] = useState\(\(\) => returnOnArrival\(params, tabReturn\)\);/);
+    assert.match(entry, /const safeNext = safeReturnPath\(next\) \?\? "\/dashboard";/);
   });
 
   test("a marked address is answered without asking anybody", async () => {
@@ -1324,6 +1338,33 @@ describe("the join step keeps to them", () => {
     assert.match(step, /router\.replace\(`\$\{formUrl\}\?\$\{STEP_PARAM\}=choose`\)/);
   });
 
+  test("a page drawn afresh opens on the answers, and its address is made to say so", () => {
+    // HELD BY READING THE FILE. The step is a component in a browser's
+    // history, and nothing here can press Back.
+    //
+    // The second half is one step forward of the first in the browser's own
+    // history, at an address ending `#account`. The view is never restored
+    // from that address (agreeing is a fresh act, and only Continue opens the
+    // second half), so somebody who comes Back to the page from the sign-in
+    // page is drawn the answers. The address is put right to match, in the
+    // same history entry: nothing is added to the history and no document is
+    // loaded.
+    const step = codeOf("JoinStep.tsx");
+    assert.match(step, /const ACCOUNT_HASH = "#account";/);
+    assert.match(step, /const \[view, setView\] = useState<View>\("questions"\);/);
+    assert.match(
+      step,
+      /useEffect\(\(\) => \{\s*if \(window\.location\.hash !== ACCOUNT_HASH\) return;\s*window\.history\.replaceState\(null, "", `\$\{window\.location\.pathname\}\$\{window\.location\.search\}`\);\s*\}, \[\]\);/,
+    );
+    // The one entry the step adds is the second half's, and the one it
+    // rewrites is this.
+    assert.equal((step.match(/history\.pushState\(/g) ?? []).length, 1);
+    assert.equal((step.match(/history\.replaceState\(/g) ?? []).length, 1);
+    // The view is opened in one place and closed in two, and none of them reads the address to decide.
+    assert.equal((step.match(/setView\("account"\)/g) ?? []).length, 1);
+    assert.equal((step.match(/setView\("questions"\)/g) ?? []).length, 2);
+  });
+
   test("Google's script and the reCAPTCHA check load with the second half, not with the page", () => {
     const account = codeOf("JoinAccount.tsx");
     assert.match(account, /<Script src=\{GOOGLE_SCRIPT\} strategy="afterInteractive" \/>/);
@@ -1556,11 +1597,20 @@ describe("every way off the form to the sign-in page or the register page is one
       [
         [
           "/login",
-          "The site's own Sign in, which the header draws in its bar and in the menu a narrow window opens instead. It carries no return address: it is the way in to the whole site, on every public page, and the header is hidden on a phone while the form is on the page.",
+          "The site's own Sign in as the header draws it on a page that is NOT a form: the way in to the whole site, with nowhere to come back to. On a form's page the header never draws this address. `signedOutEntriesOn` gives it the sign-in page with that page as the place to come back to, and a test below runs it.",
         ],
         [
           "/register",
-          "Where the header's Join entry leads while the Join page is switched off. Joining the society is what the register page is for.",
+          "Where the header's Join entry leads while the Join page is switched off. Joining the society is what the register page is for. On a form's page the header draws no Join at all: the form's first step is the join request.",
+        ],
+      ],
+    ],
+    [
+      "lib/authReturn.ts",
+      [
+        [
+          "/login?next=",
+          "`signInHrefWithReturn`, for the site's top bar on a page that is a form. It carries that page's own bare address, which the sign-in page puts to the form's route for an account with no join request: an open application form takes them back to its first step, and anything else is the register page with the form as the place to come back to.",
         ],
       ],
     ],
@@ -1632,6 +1682,105 @@ describe("every way off the form to the sign-in page or the register page is one
     assert.match(helper, /return `\/login\?next=\$\{encodeURIComponent\(joinReturnFor\(roundId\)\)\}`;/);
     assert.equal((helper.match(/\/login\b/g) ?? []).length, 1);
     assert.equal(/["'`]\/register\b/.test(helper), false);
+  });
+
+  test("on a form's page the top bar's Sign in comes back to the form, and there is no Join to leave by", async () => {
+    const ID = "autumn-2026__k3f9a2b1";
+    // The last three hold characters that mean something on an address: what
+    // the sign-in page reads back has to be the page, character for character.
+    const formPages = [`/apply/${ID}`, "/apply/sample-term__seed0001", "/courses/intro/apply", "/apply/a%26b", "/apply/a+b", "/courses/c%23d/apply"];
+    for (const page of formPages) {
+      const { signIn, join: joinEntry } = publicNav.signedOutEntriesOn(page);
+      // The form's first step is the join request. A Join beside it leads to
+      // the Join page and on to the register page's own profile form.
+      assert.equal(joinEntry, null, `${page}: the top bar offers Join beside the form`);
+      assert.equal(signIn.label, "Sign in");
+      assert.equal(signIn.live, true);
+      assert.equal(publicNav.addressOf(signIn), signIn.href);
+      // The sign-in page, and one thing on its address: this page.
+      const address = new URL(signIn.href, "https://naisi.test");
+      assert.equal(address.pathname, "/login", page);
+      assert.deepEqual([...address.searchParams.keys()], ["next"], page);
+      assert.equal(address.searchParams.get("next"), page);
+      // Which the sign-in page's own guard passes, and which registration
+      // may hand somebody back to.
+      assert.equal(signInReturn.safeReturnPath(page), page);
+      assert.equal(authReturn.safeFunnelReturn(page), page);
+      assert.equal(authReturn.formPageReturn(page), page);
+    }
+    // What the sign-in page then does with an account that has no join
+    // request. An application form's address is asked about, and an open
+    // form takes the person back to its first step: the address the top bar
+    // made, put through the page's guard and the form's rule.
+    const next = new URL(publicNav.signedOutEntriesOn(`/apply/${ID}`).signIn.href, "https://naisi.test").searchParams.get("next");
+    const guarded = signInReturn.safeReturnPath(next) ?? "/dashboard";
+    assert.deepEqual(rules.newAccountReturn(guarded), { to: "ask", roundId: ID, href: `/apply/${ID}?join=1` });
+    const real = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ joined: false, account: { universityEmailVerified: false }, form: { windowState: "open" } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    try {
+      assert.equal(await joinClient.joinStepForNewAccount(guarded), `/apply/${ID}?join=1`);
+    } finally {
+      globalThis.fetch = real;
+    }
+    // The bare address is carried, never the marked one: an older round and a
+    // form that is not open live at the same kind of address, and the mark
+    // would send an account with no join request to a page with no first
+    // step to join on.
+    assert.notEqual(publicNav.signedOutEntriesOn(`/apply/${ID}`).signIn.href, rules.signInHrefFor(ID));
+  });
+
+  test("on every other page the top bar is the two entries as they stand", () => {
+    const asTheyStand = { signIn: publicNav.ACCOUNT_ENTRIES.signIn, join: publicNav.ACCOUNT_ENTRIES.join };
+    for (const page of [
+      "/",
+      "/courses",
+      "/courses/intro",
+      "/courses/intro/weeks/2",
+      "/courses/intro/apply/more",
+      "/courses//apply",
+      "/events",
+      "/events/abc",
+      "/join",
+      "/about",
+      "/apply",
+      "/apply/",
+      "/apply/a/b",
+      "/apply/..",
+      "/apply/a\\b",
+      "/applications",
+      "/applications/autumn-2026__k3f9a2b1",
+      "//evil.example/apply/x",
+      "",
+      null,
+      undefined,
+    ]) {
+      assert.deepEqual(publicNav.signedOutEntriesOn(page), asTheyStand, String(page));
+    }
+    assert.equal(asTheyStand.signIn.href, "/login");
+    assert.equal(publicNav.addressOf(asTheyStand.join), "/join");
+  });
+
+  test("the header draws its signed-out controls from that one function, for the page it is on", () => {
+    // HELD BY READING THE FILE. The header is a component, and nothing here
+    // can draw it; the function it asks is run in the two tests above.
+    const header = reached.get("layout/PublicHeader.tsx");
+    assert.match(header, /const pathname = usePathname\(\);/);
+    assert.match(header, /const \{ signIn, join \} = signedOutEntriesOn\(pathname\);/);
+    assert.match(header, /return \{ note: null, quiet: signIn, outlined: join, inPhoneBar: true, long: false \};/);
+    assert.match(header, /const signedOut = signedOutOn\(pathname\);/);
+    // Signed out, and signed in with no join request yet: both are that view.
+    assert.match(header, /const account: AccountView = !user\s*\? signedOut\s*:/);
+    assert.match(header, /: role === "rejected"\s*\? NOT_APPROVED\s*: signedOut;/);
+    assert.equal(/ACCOUNT_ENTRIES\.(?:signIn|join)\b/.test(header), false, "the header draws Sign in or Join without asking which page it is on");
+    // The bar, the phone's bar and the menu each allow for there being no Join.
+    assert.equal((header.match(/control\(account\.outlined,/g) ?? []).length, 3);
+    assert.equal((header.match(/account\.outlined && control\(account\.outlined,/g) ?? []).length, 3);
+    // And the header holds no address of either page itself.
+    assert.deepEqual(addressesIn(header), []);
   });
 
   test("no file in the form's folder is outside the walk with an address of its own", () => {

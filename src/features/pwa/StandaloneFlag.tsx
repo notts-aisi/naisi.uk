@@ -11,17 +11,38 @@
  *
  * Server-rendered output is byte-identical for every visitor. The attributes
  * only ever appear on a device where the site is genuinely installed, so a
- * browser tab is untouched.
+ * browser tab is untouched, in full screen or out of it.
+ *
+ * WHAT COUNTS AS INSTALLED is the rule on `isStandaloneNow` in
+ * src/lib/pwa/displayMode.ts, written a second time here because this runs
+ * before any module does. The two are one rule: change them together.
+ * tests/pwa-display-mode.test.mjs runs this script and that function over the
+ * same windows and fails when they disagree.
  *
  * Kept deliberately tiny and wrapped in try/catch: it runs before anything
  * else and must never be the reason a page fails to render.
  */
 
 // Minified by hand because it ships inline on every page. Expanded:
-//   const standalone = matchMedia('(display-mode: standalone)').matches
-//     || matchMedia('(display-mode: fullscreen)').matches
+//   const key = 'naisi.pwa.installed';   // INSTALLED_WINDOW_KEY
+//   // The browser says so outright.
+//   let installed = matchMedia('(display-mode: standalone)').matches
 //     || navigator.standalone === true;
-//   if (standalone) {
+//   try {
+//     const store = window.sessionStorage;
+//     if (installed) {
+//       store.setItem(key, '1');
+//     } else if (matchMedia('(display-mode: fullscreen)').matches) {
+//       // Full screen does not change what a window is: it is installed
+//       // when it was the last time it was seen out of full screen.
+//       installed = store.getItem(key) === '1';
+//     } else {
+//       store.removeItem(key);
+//     }
+//   } catch {
+//     // Storage is refused: nothing is remembered, and `installed` stands.
+//   }
+//   if (installed) {
 //     root.dataset.standalone = 'true';
 //     // iPadOS 13+ reports a Mac UA, so maxTouchPoints disambiguates.
 //     if (/iPad|iPhone|iPod/.test(ua) || (ua.includes('Macintosh') && navigator.maxTouchPoints > 1)) {
@@ -35,7 +56,7 @@
 //     // usually granted without a prompt.
 //     navigator.storage?.persist?.();
 //   }
-const SCRIPT = `try{var m=window.matchMedia,u=navigator.userAgent;if(m('(display-mode: standalone)').matches||m('(display-mode: fullscreen)').matches||navigator.standalone===true){var d=document.documentElement;d.dataset.standalone='true';if(/iPad|iPhone|iPod/.test(u)||(u.indexOf('Macintosh')>-1&&navigator.maxTouchPoints>1)){d.dataset.standaloneIos='true'}if(navigator.storage&&navigator.storage.persist){navigator.storage.persist()}}}catch(e){}`;
+const SCRIPT = `try{var m=window.matchMedia,n=navigator,u=n.userAgent,k='naisi.pwa.installed',a=m('(display-mode: standalone)').matches||n.standalone===true,s;try{s=window.sessionStorage;if(a){s.setItem(k,'1')}else if(m('(display-mode: fullscreen)').matches){a=s.getItem(k)==='1'}else{s.removeItem(k)}}catch(e){}if(a){var d=document.documentElement;d.dataset.standalone='true';if(/iPad|iPhone|iPod/.test(u)||(u.indexOf('Macintosh')>-1&&n.maxTouchPoints>1)){d.dataset.standaloneIos='true'}if(n.storage&&n.storage.persist){n.storage.persist()}}}catch(e){}`;
 
 export function StandaloneFlag() {
   return <script dangerouslySetInnerHTML={{ __html: SCRIPT }} />;

@@ -106,8 +106,12 @@
 
 /* ---- The two-way toggles (sign in or create; member or collaborator) --- */
 
+/* The heading and the line under it are set left; a toggle sits in the
+   middle of the card, over Google's button, which is centred too. The label
+   above a toggle is centred with it. On a phone a toggle fills the card. */
 .toggleBlock {
   margin-bottom: 1.125rem;
+  text-align: center;
 }
 
 .toggleLabel {
