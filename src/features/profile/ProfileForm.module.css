@@ -110,13 +110,32 @@
 
 /* === Saving ===
    Laid out like a section with nothing in its label column, so the button
-   lines up with the cards above it when they have a heading beside them. */
+   lines up with the cards above it when they have a heading beside them.
+
+   THE ROW STAYS IN REACH. The page is long and nothing on it saves by itself
+   (the Push column apart), so the button is not left at the foot of it: the
+   row is pinned to the bottom of the screen for as long as the form runs
+   below it, on the page's floor so the sections pass under it, and it rests
+   in its own place once the page is scrolled that far. On a phone it sits
+   above the frame's bottom bar, which is what --app-bottom-inset is (nothing
+   on a wider screen). tests/app-frame.test.mjs holds every row pinned to the
+   bottom of the frame to that property. */
 
 .saveRow {
+  position: sticky;
+  bottom: var(--app-bottom-inset, 0px);
+  z-index: 2;
   display: flex;
   flex-wrap: wrap;
   gap: 0 var(--space-10);
-  padding-bottom: var(--space-8);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-floor);
+}
+
+/* What follows the row keeps the room the row used to leave under itself. */
+.saveRow + * {
+  margin-top: var(--space-4);
 }
 
 /* The empty label column: the same basis a section's label has. */
