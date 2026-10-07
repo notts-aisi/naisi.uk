@@ -615,7 +615,29 @@ describe("the settings page shows the subject that is sent, and empty means stan
     // the ..." is not.
     const SHAPES = [/Your NAISI application/, /An invitation to \$\{/, /You’re in \$\{/];
     const HOME = join("lib", "applications", "decisionDay", "emailCopy.ts");
+    /**
+     * A sentence that starts the way a standard subject does and is NOT one,
+     * with the reason. An entry gives the exact text and how many times its
+     * file holds it. That text is set aside and the shapes are then asked of
+     * what is left, so a real second copy of a subject added to the same file
+     * still fails, and so does an entry whose sentence has moved or gone.
+     */
+    const NOT_A_SUBJECT = new Map([
+      [
+        join("features", "applications", "status", "StatusPage.tsx"),
+        {
+          text: "`You’re in ${programme.shortName}.`",
+          times: 2,
+          why:
+            "the heading of the applicant's own page once they have a place, drawn in two places " +
+            "(the whole-screen offer and the accepted card). It is a sentence with its full stop " +
+            "and it is the page's own: it is drawn whatever the email's subject was worded as, " +
+            "and nothing sends it",
+        },
+      ],
+    ]);
     const offenders = [];
+    const seen = new Set();
     const walk = (dir) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const path = join(dir, entry.name);
@@ -623,13 +645,30 @@ describe("the settings page shows the subject that is sent, and empty means stan
         else if (/\.tsx?$/.test(entry.name)) {
           const name = path.slice(SRC.length + 1);
           if (name === HOME) continue;
-          const source = readFileSync(path, "utf8");
+          let source = readFileSync(path, "utf8");
+          const known = NOT_A_SUBJECT.get(name);
+          if (known) {
+            seen.add(name);
+            assert.equal(
+              source.split(known.text).length - 1,
+              known.times,
+              `${name} no longer holds its registered sentence ${known.times} times`,
+            );
+            source = source.split(known.text).join("");
+          }
           if (SHAPES.some((shape) => shape.test(source))) offenders.push(name);
         }
       }
     };
     walk(SRC);
     assert.deepEqual(offenders, [], "a standard subject is written outside the one module that owns them");
+    for (const [name, known] of NOT_A_SUBJECT) {
+      assert.ok(seen.has(name), `${name} is registered as holding a sentence that is not a subject, and is gone`);
+      assert.ok(known.why.length >= 40, `${name}: a reason is missing or too short to be one`);
+      // The registered text has to be something the shapes would have caught,
+      // or the entry sets aside nothing and says nothing.
+      assert.ok(SHAPES.some((shape) => shape.test(known.text)), `${name}: its registered sentence is not shaped like a subject`);
+    }
     // And the one module really does hold all three.
     const home = readFileSync(join(SRC, HOME), "utf8");
     for (const shape of SHAPES) assert.match(home, shape);

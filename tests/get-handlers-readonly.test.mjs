@@ -86,6 +86,9 @@ const MUTATION_HELPERS = {
   sendDecisionEmail: "sends a decision-day email, a side effect a prefetch must not fire",
   sendProgrammeTestEmail: "mails one of a programme's decision emails to whoever asked for the test",
   approveWaitingAccount: "makes a waiting account a member's, the change the Approvals tab makes",
+  // What an applicant says after decision day. The write is made in
+  // `src/lib/applications/status/record.ts`, beside the read of the same page.
+  recordReply: "records an applicant's reply, moves their application's status and the round's counters",
   // The form's lifecycle. The status route holds no GET today, and the write
   // and the member records are made in `src/lib/applications/lifecycle/move.ts`,
   // so a GET added beside it later could call this and show nothing in its body.
