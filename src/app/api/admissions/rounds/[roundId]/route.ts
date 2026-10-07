@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { refuseApplicationForm } from "@/lib/admissions/formFence";
 import {
   ADMISSION_ROUND_FIELD_LIMITS,
   normalizeAdmissionRound,
@@ -301,6 +302,11 @@ export async function GET(
     // an intake, and a caller who cannot see it has no use for the difference.
     return NextResponse.json({ error: "Round not found" }, { status: 404 });
   }
+  // An application form is read through its own routes. Asked after the
+  // "not found" answer above, so only somebody who may see this round is
+  // told what it is.
+  const fenced = refuseApplicationForm(snap.data());
+  if (fenced) return fenced;
 
   const canAuthor = canAuthorRounds(user);
   const stagesSnap = await ref.collection(STAGES_SUBCOLLECTION).get();
@@ -366,6 +372,9 @@ export async function PATCH(
   const ref = db.collection(ROUNDS_COLLECTION).doc(roundId);
   const snap = await ref.get();
   if (!snap.exists) return NextResponse.json({ error: "Round not found" }, { status: 404 });
+  // An application form shares this collection and is never edited here.
+  const fenced = refuseApplicationForm(snap.data());
+  if (fenced) return fenced;
   const current = normalizeAdmissionRound(snap.id, snap.data() ?? {});
 
   const update: Record<string, unknown> = {};

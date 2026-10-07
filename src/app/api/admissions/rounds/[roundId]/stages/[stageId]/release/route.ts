@@ -3,6 +3,7 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { refuseApplicationForm } from "@/lib/admissions/formFence";
 import {
   normalizeAdmissionRound,
   normalizeAdmissionStage,
@@ -132,6 +133,9 @@ export async function POST(
   if (!roundSnap.exists) {
     return NextResponse.json({ error: "Round not found" }, { status: 404 });
   }
+  // An application form shares this collection and is never edited here.
+  const fenced = refuseApplicationForm(roundSnap.data());
+  if (fenced) return fenced;
   const round = normalizeAdmissionRound(roundSnap.id, roundSnap.data() ?? {});
 
   const stageRef = roundRef.collection(STAGES_SUBCOLLECTION).doc(stageId);

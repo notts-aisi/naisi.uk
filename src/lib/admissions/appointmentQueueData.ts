@@ -21,6 +21,7 @@ import {
   type AdmissionStageDoc,
 } from "@/lib/firestore/admissionRounds";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
+import { isApplicationForm } from "@/lib/applications/normalise";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 
@@ -117,13 +118,19 @@ export function canViewAppointmentQueue(
  * includes every applicant's user document, which is member PII, and reading
  * it and then deciding the reader may not see it is the wrong order to do
  * those two things in.
+ *
+ * AN APPLICATION FORM HAS NO APPOINTMENT QUEUE, whatever `kind` its document
+ * carries, so it answers null here exactly as a round that does not exist.
+ * This is the queue's only way to a round. A form names every programme's
+ * lead and reviewers on the round, so without this the queue would read a
+ * form's applicants in the older shape for any of them. See `formFence.ts`.
  */
 export async function loadAppointmentRound(
   db: Firestore,
   roundId: string,
 ): Promise<AdmissionRoundDoc | null> {
   const snap = await db.collection(ROUNDS_COLLECTION).doc(roundId).get();
-  if (!snap.exists) return null;
+  if (!snap.exists || isApplicationForm(snap.data())) return null;
   return normalizeAdmissionRound(snap.id, snap.data() ?? {});
 }
 

@@ -5,6 +5,7 @@ import {
   sendAdmissionEmail,
 } from "@/lib/email/admissionEmails";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { refuseApplicationForm } from "@/lib/admissions/formFence";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { mirrorCourseDecisionToPush } from "@/lib/push/courseNotifications";
@@ -152,6 +153,11 @@ export async function POST(req: Request, ctx: Ctx) {
   if (!roundSnap.exists) {
     return NextResponse.json({ error: "Round not found" }, { status: 404 });
   }
+  // An application form is decided programme by programme, by its leads,
+  // through its own routes. Nothing here may move its counters, write a
+  // facilitator list from it or email anybody on it.
+  const fenced = refuseApplicationForm(roundSnap.data());
+  if (fenced) return fenced;
   const round = normalizeAdmissionRound(roundSnap.id, roundSnap.data() ?? {});
 
   if (round.kind !== "appointment") {

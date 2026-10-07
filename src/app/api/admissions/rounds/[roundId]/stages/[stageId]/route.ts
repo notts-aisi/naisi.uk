@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { refuseApplicationForm } from "@/lib/admissions/formFence";
 import {
   ADMISSION_ROUND_FIELD_LIMITS,
   nextAdmissionStageId,
@@ -78,6 +79,9 @@ export async function PUT(
   if (!roundSnap.exists) {
     return NextResponse.json({ error: "Round not found" }, { status: 404 });
   }
+  // An application form shares this collection and is never edited here.
+  const fenced = refuseApplicationForm(roundSnap.data());
+  if (fenced) return fenced;
   const round = normalizeAdmissionRound(roundSnap.id, roundSnap.data() ?? {});
 
   /**
@@ -296,6 +300,9 @@ export async function DELETE(
   if (!roundSnap.exists) {
     return NextResponse.json({ error: "Round not found" }, { status: 404 });
   }
+  // An application form shares this collection and is never edited here.
+  const fenced = refuseApplicationForm(roundSnap.data());
+  if (fenced) return fenced;
   const round = normalizeAdmissionRound(roundSnap.id, roundSnap.data() ?? {});
 
   if (!round.stageIds.includes(stageId)) {
