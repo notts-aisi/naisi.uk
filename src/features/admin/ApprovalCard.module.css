@@ -234,4 +234,25 @@
   .card {
     padding: var(--space-4);
   }
+  /* The label over its value, so a long address has the card's whole width. */
+  .fact dt {
+    flex-basis: 100%;
+  }
+  .fact dd {
+    flex-basis: 100%;
+  }
+  /* One reason a line, each as wide as the card: easier to press. */
+  .reasons {
+    padding: var(--space-4);
+  }
+  .reasonOptions {
+    flex-direction: column;
+  }
+  .reasonsActions > * {
+    flex: 1 1 auto;
+  }
+  .link {
+    display: inline-block;
+    padding-block: var(--space-2);
+  }
 }
