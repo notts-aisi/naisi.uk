@@ -1004,6 +1004,53 @@ describe("the join step keeps to them", () => {
     assert.equal((step.match(/<RecaptchaLine \/>/g) ?? []).length, 2);
   });
 
+  test("Google's button is drawn when its script arrives late, and the message it put up comes down", () => {
+    // HELD BY READING THE FILE. The button waits on another site's script
+    // and a clock in a browser, and nothing here can stand in for either.
+    //
+    // On a slow connection the script is late, not blocked. The button tells
+    // the caller once that sign-in could not load, and then goes on looking:
+    // more slowly, and not for ever, because a blocked script never comes.
+    const button = stripSource(readFileSync(join(REPO_ROOT, "src", "components", "GoogleSignInButton.tsx"), "utf8"), {
+      keepStrings: true,
+    });
+    const from = button.indexOf("if (!window.google?.accounts?.id) {");
+    const upTo = button.indexOf('mark("[gsi] script loaded, initializing");');
+    assert.ok(from !== -1 && upTo > from, "the wait for Google's script is gone");
+    const wait = button.slice(from, upTo);
+    // Told once, and telling is not the end of the wait.
+    assert.match(wait, /if \(!reported && performance\.now\(\) - startedAt > SCRIPT_LOAD_TIMEOUT_MS\) \{/);
+    assert.match(wait, /setStatus\("error"\);\s*onReadyRef\.current\?\.\(\);\s*reported = true;\s*\}/);
+    assert.equal((wait.match(/onScriptError\?\.\(\s*"Sign-in couldn't load\./g) ?? []).length, 1);
+    // The only way out of the wait without the script is the limit.
+    assert.match(
+      wait,
+      /if \(performance\.now\(\) - startedAt > SCRIPT_LATE_LIMIT_MS\) return;\s*setTimeout\(tryInit, reported \? SCRIPT_LATE_POLL_MS : 50\);\s*return;\s*\}/,
+    );
+    assert.equal((wait.match(/\breturn;/g) ?? []).length, 2, "a way out of the wait that is neither the limit nor the next look");
+    // When it comes after the report, the caller is handed an empty message
+    // before the button is drawn, and that is the whole of the recovery: the
+    // same lines draw the button whenever the script arrives.
+    assert.match(wait, /\}\s*if \(reported\) onScriptError\?\.\(""\);\s*$/);
+    const number = (name) => Number((new RegExp(`const ${name} = ([\\d_]+);`).exec(button)?.[1] ?? "").replaceAll("_", ""));
+    assert.equal(number("SCRIPT_LOAD_TIMEOUT_MS"), 5000);
+    assert.ok(number("SCRIPT_LATE_POLL_MS") >= 250 && number("SCRIPT_LATE_POLL_MS") <= 5000, "the later looks are not between four a second and one every five");
+    assert.ok(
+      number("SCRIPT_LATE_LIMIT_MS") > number("SCRIPT_LOAD_TIMEOUT_MS") && number("SCRIPT_LATE_LIMIT_MS") <= 10 * 60 * 1000,
+      "the looking has no end, or ends before it starts",
+    );
+    // The step shows other messages in the same place (an email address that
+    // was not typed, a sign-in that failed), so it takes down only the one
+    // the button gave it, and only while that is still the one showing.
+    const account = codeOf("JoinAccount.tsx");
+    assert.match(account, /if \(message\) \{\s*fromGoogle\.current = message;\s*onProblem\(message\);\s*\}/);
+    assert.match(
+      account,
+      /else if \(fromGoogle\.current !== null && showing\.current === fromGoogle\.current\) \{\s*onProblem\(null\);\s*\}/,
+    );
+    assert.match(account, /<GoogleSignInButton onCredential=\{onGoogle\} onScriptError=\{scriptProblem\} \/>/);
+  });
+
   test("inside the installed app the Google button is not drawn, because its return is received by the sign-in page", () => {
     const account = codeOf("JoinAccount.tsx");
     const branch = account.slice(account.indexOf("{standalone ? ("), account.indexOf("</div>\n        )}"));

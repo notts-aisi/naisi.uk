@@ -21,7 +21,12 @@ type Props = {
    *
    *  The name is kept for the sake of its two existing call sites; read it
    *  as "sign-in is unavailable, here is why" rather than strictly "the
-   *  script failed". */
+   *  script failed".
+   *
+   *  Called again with an EMPTY message when the script arrives after cause
+   *  1 was reported: the button is about to be drawn, and that message no
+   *  longer holds. A caller that keeps other messages in the same place
+   *  should take down only the one this component gave it. */
   onScriptError?: (reason: string) => void;
   /** Called once the GIS button has finished rendering and is interactive.
    *  Used by the login page to gate its swipe-in entrance — the card stays
@@ -36,6 +41,12 @@ const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 // give 5s to cover slow networks and slow re-mounts. Beyond that it's
 // almost certainly a content blocker.
 const SCRIPT_LOAD_TIMEOUT_MS = 5000;
+// A script that is only late still arrives. Once the caller has been told,
+// the button goes on looking for it, this often and for this long, and is
+// drawn the moment it comes. A blocked script never comes, so the looking
+// stops.
+const SCRIPT_LATE_POLL_MS = 1000;
+const SCRIPT_LATE_LIMIT_MS = 120_000;
 
 /**
  * Is this the address Google Identity Services opens its sign-in window at?
@@ -136,25 +147,32 @@ export default function GoogleSignInButton({
 
     let cancelled = false;
     const startedAt = performance.now();
+    // True once the caller has been told the script did not load.
+    let reported = false;
 
     function tryInit() {
       if (cancelled) return;
       if (!window.google?.accounts?.id) {
-        if (performance.now() - startedAt > SCRIPT_LOAD_TIMEOUT_MS) {
+        if (!reported && performance.now() - startedAt > SCRIPT_LOAD_TIMEOUT_MS) {
           warn("[gsi] script never loaded — likely a content blocker");
           onScriptError?.(
             "Sign-in couldn't load. A content blocker, ad-blocker, or VPN tracking-protection may be blocking Google's services. Try disabling those for this site, or use a different browser.",
           );
           setStatus("error");
           onReadyRef.current?.();
-          return;
+          reported = true;
         }
         // Poll — next/script's `afterInteractive` strategy doesn't
         // expose a load promise we can await, so we poll every 50ms
-        // until window.google appears.
-        setTimeout(tryInit, 50);
+        // until window.google appears. After the report above it keeps
+        // looking, more slowly and not for ever: see SCRIPT_LATE_LIMIT_MS.
+        if (performance.now() - startedAt > SCRIPT_LATE_LIMIT_MS) return;
+        setTimeout(tryInit, reported ? SCRIPT_LATE_POLL_MS : 50);
         return;
       }
+      // The script came after the caller was told it had not. An empty
+      // message takes that one down; the button is drawn below.
+      if (reported) onScriptError?.("");
 
       mark("[gsi] script loaded, initializing");
       /*

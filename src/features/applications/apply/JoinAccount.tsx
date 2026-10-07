@@ -118,7 +118,26 @@ export default function JoinAccount({
   const emailBox = useRef<HTMLInputElement>(null);
   const [checking, setChecking] = useState(false);
 
-  const scriptProblem = useCallback((message: string) => onProblem(message), [onProblem]);
+  // What Google's button last said could not be done, and what this half is
+  // showing now. The button says so again with an empty message when its
+  // script arrives late after all, and then only its own message is taken
+  // down: anything said since belongs to whoever said it.
+  const fromGoogle = useRef<string | null>(null);
+  const showing = useRef(error);
+  useEffect(() => {
+    showing.current = error;
+  });
+  const scriptProblem = useCallback(
+    (message: string) => {
+      if (message) {
+        fromGoogle.current = message;
+        onProblem(message);
+      } else if (fromGoogle.current !== null && showing.current === fromGoogle.current) {
+        onProblem(null);
+      }
+    },
+    [onProblem],
+  );
 
   async function submit(event: FormEvent) {
     event.preventDefault();
