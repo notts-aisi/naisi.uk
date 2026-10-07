@@ -122,9 +122,12 @@ export type ProgrammeBoard = {
     placedElsewhere: number;
     /** Applicants here whose outcome decision day has published and emailed. */
     emailed: number;
-    /** People whose place is on this programme. */
+    /**
+     * People who hold a place on this programme now: accepted by its lead and
+     * still in the term, or here by an invitation they accepted.
+     */
     placed: number;
-    /** Pooled applicants invited here, who hold a place until they answer. */
+    /** Places kept here for an invitation nobody has answered yet. */
     invited: number;
     placesLeft: number | null;
   };

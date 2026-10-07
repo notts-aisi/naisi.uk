@@ -38,7 +38,7 @@ import { programmeOf } from "./programmes";
 
 type Sent = Pick<
   ApplicationDoc,
-  "uid" | "displayName" | "email" | "status" | "sent" | "result"
+  "uid" | "displayName" | "email" | "status" | "sent" | "result" | "invitation" | "attendance"
 >;
 
 export type TermPerson = {
@@ -88,8 +88,11 @@ export function planTerm(
 ): Term {
   const invitable = new Set(form.programmeIds);
   const people: TermPerson[] = [];
+  /** Each person's own application, for what they were told and have answered. */
+  const documents = new Map<string, Sent>();
   for (const application of applications) {
     if (!isInTerm(application) || !application.sent) continue;
+    documents.set(application.uid, application);
     const ranked = rankedProgrammes(form, application.sent).map((programme) => programme.id);
     const decision = decisions.get(application.uid) ?? null;
     const preferred = application.sent.aboutYou.preferredName.trim();
@@ -110,7 +113,13 @@ export function planTerm(
   people.sort((a, b) => a.name.localeCompare(b.name, "en") || a.uid.localeCompare(b.uid));
   const tally = tallyTerm(
     form,
-    people.map((person) => ({ uid: person.uid, ranked: person.ranked, decision: person.decision })),
+    people.map((person) => ({
+      uid: person.uid,
+      ranked: person.ranked,
+      decision: person.decision,
+      // With the application, so a place taken or given up by a reply is counted.
+      application: documents.get(person.uid),
+    })),
   );
   return { people, tally, readiness: readinessFor(tally) };
 }

@@ -19,7 +19,9 @@ import type { ProgrammeWork } from "./termHome";
  * A PROGRAMME'S NUMBERS are that programme's list's own: the same picture of
  * the term (`termPictureFor`, which leaves the caller's own application out
  * before anything is counted) and the same builder (`buildProgrammeBoard`)
- * the list is drawn from. Its `counts` are what the card shows, and the
+ * the list is drawn from. Its `counts` are what the card shows, its places
+ * line is the list's own (who holds a place now, how many are kept for an
+ * invitation and how many are left, from `holdingOf`), and the
  * length of its `queue` is how many applications are waiting for this
  * caller: whoever is still owed a decision for somebody who decides, and
  * whoever they have not finished scoring for a reviewer. So the number on a
@@ -84,6 +86,11 @@ export async function loadTermNumbers(
         accepted: board.counts.accepted,
         pooled: board.counts.pooled,
         declined: board.counts.declined,
+      },
+      places: {
+        placed: board.progress.placed,
+        invited: board.progress.invited,
+        left: board.progress.placesLeft,
       },
       waiting: board.queue.length,
     };

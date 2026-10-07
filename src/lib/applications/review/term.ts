@@ -76,6 +76,8 @@ export function termPictureFor(input: {
       uid: application.uid,
       ranked: order,
       decision: decisions.get(application.uid) ?? null,
+      // With the application, so a place taken or given up by a reply is counted.
+      application,
     });
   }
   const reviews = new Map<string, ReviewDoc[]>();

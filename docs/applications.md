@@ -315,6 +315,32 @@ list somebody who has left (the review list keeps the row, marked as
 withdrawn). It may not count them.
 `tests/applications-journey-in-term.test.mjs` walks the tree for callers.
 
+### Who holds a place
+
+`holdingOf()` in `decisions.ts` is the one answer to who holds a place on a
+programme now. `tallyTerm()` counts `placed`, `joined` and `invited` from it
+and from nothing else, and `freePlaces()` is worked out from those, so every
+screen that shows a place shows the same one.
+
+- **A place is held** by somebody the programme's lead accepted who is still
+  in the term (the place their ranking gives them, and any second place an
+  exception names), and by somebody invited to it who accepted.
+- **A place is kept for an invitation** only while that invitation is
+  unanswered and its person is still in the term.
+
+It reads both halves of the record, because neither is enough: only the
+decision documents know a lead's Accept and an exception, and only the
+application knows a reply. Until a person is told, the committee's pick is
+all there is, so before decision day every number is what the decisions
+alone give. Once they are told, only their own document is asked about their
+invitation, through `standingOf()`, the reading their own page is drawn
+from. So the committee's screens and the person's page cannot disagree about
+whether they are in.
+
+Every caller of `tallyTerm()` hands each applicant over with its application.
+`tests/applications-wave-h-places.test.mjs` runs one stored term, in which
+every kind of reply has been made, through each of them.
+
 ## What deletes what
 
 | When | What goes | What stays |
@@ -358,7 +384,7 @@ All in `src/lib/applications/`.
 | `sections.ts` | Which steps and question sets one person sees | anywhere |
 | `validate.ts` | What stops a send; what is copied into `sent`; word counts | anywhere |
 | `scoring.ts` | Scored questions, section scores, first-review blindness | anywhere |
-| `decisions.ts` | Placement, outcomes, who is in the term, tallies, readiness, recommendations | anywhere |
+| `decisions.ts` | Placement, outcomes, who is in the term, who holds a place, tallies, readiness, recommendations | anywhere |
 | `words.ts` | Labels, ordinals, the words applicants never see | anywhere |
 | `access.ts` | Staff predicates | server |
 | `roles.ts` | `setProgrammeRoles`, the one writer of leads and reviewers | server |
@@ -407,6 +433,10 @@ All in `src/lib/applications/`.
   `tallyTerm()`, and before any other count of places, decisions owed or
   people to be told. Listing somebody who has left is fine; counting them is
   how two screens come to disagree about a place.
+- **A place is counted one way.** Hand `tallyTerm()` each applicant with its
+  application, and read places from its `placed`, `joined` and `invited`, or
+  from `freePlaces()`. Never count a place from the decisions on their own:
+  after decision day they do not know who accepted an invitation.
 - **Questions lock once somebody has sent an application.** Editing a question
   set after that would change what an answer already given was an answer to.
 - **Email** goes through `sendEmail()` with reply-to set to the society's

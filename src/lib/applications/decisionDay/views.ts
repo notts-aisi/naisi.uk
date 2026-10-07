@@ -22,9 +22,9 @@ export type PoolProgramme = {
   shortName: string;
   /** How many people it can take. Null until its lead has said. */
   places: number | null;
-  /** People whose place is here. */
+  /** People who hold a place here now, an accepted invitation included. */
   placed: number;
-  /** Pooled applicants invited here. */
+  /** Places kept here for an invitation: picked and not yet told, or sent and not yet answered. */
   invited: number;
   /** Places not yet taken by an acceptance: what the card's number shows. */
   open: number | null;

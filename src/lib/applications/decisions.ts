@@ -1,5 +1,6 @@
 import { isId, own } from "./keys";
 import type { ApplicationDoc, ApplicationFormFields, DecisionDoc } from "./model";
+import { standingOf } from "./status/standing";
 import { PROGRAMME_DECISION_STANDING, type ProgrammeStanding } from "./words";
 
 /**
@@ -236,6 +237,16 @@ export function decisionDayHasBegun(form: FormSoFar): boolean {
 }
 
 /**
+ * What an application's own document says about a place: whether it is still
+ * in the term, what decision day told its owner, and how they have answered
+ * since. Structural, so a stored application fits it as it is.
+ */
+export type OwnState = Pick<
+  ApplicationDoc,
+  "sent" | "status" | "result" | "invitation" | "attendance"
+>;
+
+/**
  * One application that is in the term (see {@link isInTerm}), reduced to
  * what the arithmetic needs.
  */
@@ -244,7 +255,98 @@ export type Applicant = {
   /** Their ranking, as the form knows it. */
   ranked: readonly string[];
   decision: Decided | null;
+  /**
+   * The application itself, for what decision day published on it and what
+   * its owner has answered. Every caller with the document in hand passes it:
+   * after decision day it is the only record of an invitation accepted or
+   * turned down (see {@link holdingOf}). Left out, the person is read as not
+   * yet told, which is the whole truth until decision day.
+   */
+  application?: OwnState | null;
 };
+
+// ---------------------------------------------------------------------------
+// Who holds a place on a programme now
+// ---------------------------------------------------------------------------
+
+/** What one person holds of the term's places, right now. */
+export type Holding = {
+  /** Every programme they hold a place on. */
+  places: string[];
+  /** The one of those they hold by an invitation they accepted, or null. */
+  byInvitation: string | null;
+  /** The programme keeping a place for an invitation they have not answered, or null. */
+  heldFor: string | null;
+};
+
+/**
+ * WHO HOLDS A PLACE ON A PROGRAMME NOW. The one answer, for every screen.
+ *
+ *  - A PLACE IS HELD by somebody the programme's lead accepted who is still
+ *    in the term (the place their own ranking gives them, and any second
+ *    place an admin's exception names), and by somebody invited to it who
+ *    accepted.
+ *  - A PLACE IS HELD FOR AN INVITATION only while that invitation is
+ *    unanswered and its person is still in the term.
+ *
+ * It takes both halves of the record, because neither is enough. The
+ * decision documents are the only place a lead's Accept and an exception are
+ * written, and a reply never touches them. The application is the only place
+ * a reply is written: an invitation accepted is a place taken, and one turned
+ * down, or a place given back, takes its owner out of the term.
+ *
+ * UNTIL A PERSON IS TOLD, the committee's pick is all there is: a pooled
+ * applicant picked for an invitation has a place kept for them, exactly as
+ * before decision day there was nothing else to read. ONCE THEY ARE TOLD,
+ * the invitation is theirs to answer and only their own document is asked
+ * about it ({@link standingOf}, the same reading their page is drawn from),
+ * so the committee's screens and the person's own page cannot disagree about
+ * whether they are in.
+ *
+ * {@link tallyTerm} counts `placed`, `joined` and `invited` from this and
+ * nothing else, and {@link freePlaces} is worked out from those, so no screen
+ * counts a place any other way.
+ */
+export function holdingOf(applicant: Applicant, invitable: ReadonlySet<string>): Holding {
+  const { ranked, decision } = applicant;
+  const application = applicant.application ?? null;
+  // Somebody who has left the term holds nothing, and nothing is kept for them.
+  if (application && !isInTerm(application)) return { places: [], byInvitation: null, heldFor: null };
+
+  const places = placesHeld(ranked, decision);
+  if (!application || !hasBeenTold(application)) {
+    const outcome = outcomeFor(ranked, decision, invitable);
+    return {
+      places,
+      byInvitation: null,
+      heldFor: outcome.kind === "invited" ? outcome.programmeId : null,
+    };
+  }
+
+  // Told. An invitation is to a programme on the form, as it was when it was
+  // picked: anything else is no programme, and holds and keeps nothing.
+  const onTheForm = (programmeId: string | null): programmeId is string =>
+    programmeId !== null && invitable.has(programmeId);
+  const standing = standingOf(application);
+  if (standing.kind === "invitation" && onTheForm(standing.programmeId)) {
+    return { places, byInvitation: null, heldFor: standing.programmeId };
+  }
+  if (standing.kind === "place" && standing.via === "invitation" && onTheForm(standing.programmeId)) {
+    const joined = standing.programmeId;
+    return {
+      places: places.includes(joined) ? places : [...places, joined],
+      byInvitation: joined,
+      heldFor: null,
+    };
+  }
+  // A result that says invited with no invitation beside it should not exist
+  // (the send writes the two together). The person cannot answer it, so the
+  // place they were told about stays kept until somebody puts the record right.
+  if (standing.kind === "unclear" && onTheForm(application.result?.programmeId ?? null)) {
+    return { places, byInvitation: null, heldFor: application.result?.programmeId ?? null };
+  }
+  return { places, byInvitation: null, heldFor: null };
+}
 
 export type ProgrammeTally = {
   /** People who ranked this programme at all. */
@@ -257,9 +359,17 @@ export type ProgrammeTally = {
   accepted: number;
   pooled: number;
   declined: number;
-  /** People whose place is here. Never more than `accepted`. */
+  /**
+   * People who hold a place here now ({@link holdingOf}): placed by their own
+   * ranking or an admin's exception, or here by an invitation they accepted.
+   */
   placed: number;
-  /** Pooled applicants invited here. They hold a place until they answer. */
+  /** Of `placed`, the people who are here by an invitation they accepted. */
+  joined: number;
+  /**
+   * Places kept here for an invitation: one picked for a pooled applicant
+   * not yet told, or one sent and not yet answered.
+   */
   invited: number;
 };
 
@@ -288,13 +398,16 @@ function emptyProgrammeTally(): ProgrammeTally {
     pooled: 0,
     declined: 0,
     placed: 0,
+    joined: 0,
     invited: 0,
   };
 }
 
 /**
  * Every count the manager shows, from the applications and their decisions.
- * `applicants` is the people in the term: filter by {@link isInTerm} first.
+ * `applicants` is the people in the term: filter by {@link isInTerm} first,
+ * and hand each one over with its application, so that a place taken or given
+ * up by a reply is counted (see {@link holdingOf}).
  */
 export function tallyTerm(
   form: Pick<ApplicationFormFields, "programmeIds">,
@@ -334,18 +447,21 @@ export function tallyTerm(
       else if (standing === "declined") tally.declined += 1;
       else if (owesDecision(ranked, decision, programmeId)) tally.toReview += 1;
     });
-    for (const programmeId of placesHeld(ranked, decision)) {
+    // Places, from the one answer to who holds one.
+    const holding = holdingOf({ ...applicant, ranked }, invitable);
+    for (const programmeId of holding.places) {
       const tally = own(programmes, programmeId);
-      if (tally) tally.placed += 1;
+      if (!tally) continue;
+      tally.placed += 1;
+      if (programmeId === holding.byInvitation) tally.joined += 1;
     }
+    const keeping = holding.heldFor === null ? undefined : own(programmes, holding.heldFor);
+    if (keeping) keeping.invited += 1;
 
     const outcome = outcomeFor(ranked, decision, invitable);
     if (outcome.kind === "accepted") outcomes.accepted += 1;
-    else if (outcome.kind === "invited") {
-      outcomes.invited += 1;
-      const tally = own(programmes, outcome.programmeId);
-      if (tally) tally.invited += 1;
-    } else if (outcome.kind === "no-offer") outcomes.noOffer += 1;
+    else if (outcome.kind === "invited") outcomes.invited += 1;
+    else if (outcome.kind === "no-offer") outcomes.noOffer += 1;
     else if (outcome.kind === "declined") outcomes.declined += 1;
     else if (outcome.kind === "needs-outcome") outcomes.needsOutcome += 1;
     else outcomes.undecided += 1;
@@ -360,9 +476,9 @@ export function tallyTerm(
 }
 
 /**
- * Places a programme still has: its places, less the people placed there and
- * the pooled applicants already invited there. Null when the lead has not
- * said how many places there are. Never below zero.
+ * Places a programme still has: its places, less the people who hold one
+ * there and the places kept for an invitation ({@link holdingOf}). Null when
+ * the lead has not said how many places there are. Never below zero.
  */
 export function freePlaces(
   form: Pick<ApplicationFormFields, "programmes">,

@@ -123,6 +123,7 @@ export async function countApplicationsTo(
       uid: application.uid,
       ranked: rankedProgrammes(form, application.sent).map((programme) => programme.id),
       decision: null,
+      application,
     });
   }
   return own(tallyTerm(form, applicants).programmes, programmeId)?.applications ?? 0;
@@ -146,6 +147,7 @@ export async function loadTermTally(db: Firestore, form: ApplicationForm): Promi
       uid: application.uid,
       ranked: rankedProgrammes(form, application.sent).map((programme) => programme.id),
       decision: decisions.get(application.uid) ?? null,
+      application,
     });
   }
   return tallyTerm(form, applicants);

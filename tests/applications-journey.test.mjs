@@ -455,17 +455,16 @@ async function census(label) {
     ranking: Object.fromEntries(
       PROGRAMMES.map((name) => [name, inTerm.filter((a) => a.sent.rankedProgrammeIds.includes(P[name])).length]),
     ),
+    // Who holds a place on each programme now: somebody told they are in it
+    // who is still in the term, and somebody invited to it who accepted. A
+    // place is kept for an invitation only until it is answered.
     holding: Object.fromEntries(
       PROGRAMMES.map((name) => {
-        const held = inTerm.filter((a) => a.result?.programmeId === P[name]);
-        return [
-          name,
-          {
-            placed: held.filter((a) => a.result.kind === "accepted").length,
-            invited: held.filter((a) => a.result.kind === "invited").length,
-            left: places[P[name]].places - held.length,
-          },
-        ];
+        const here = inTerm.filter((a) => a.result?.programmeId === P[name]);
+        const joined = here.filter((a) => a.result.kind === "invited" && a.invitation?.response === "accepted");
+        const placed = here.filter((a) => a.result.kind === "accepted").length + joined.length;
+        const invited = here.filter((a) => a.result.kind === "invited" && !a.invitation?.response).length;
+        return [name, { placed, invited, left: places[P[name]].places - placed - invited }];
       }),
     ),
   };
@@ -1794,6 +1793,11 @@ describe("one term, from nothing to settled", () => {
           // The term page, for whoever has a role there.
           assert.deepEqual(numbers.term.zach.work[name].counts, list.counts, `${name}: the term page's counts`);
           assert.equal(numbers.term.zach.work[name].waiting, list.waiting, `${name}: the term page's button`);
+          assert.deepEqual(
+            numbers.term.zach.work[name].places,
+            { placed: list.placed, invited: list.invited, left: list.placesLeft },
+            `${name}: the places line on the term page's card`,
+          );
           // The number beside the programme's Applications tab.
           assert.equal(numbers.tab[name], list.counts.all, `${name}: the tab`);
           // Pooled applicants.
@@ -1813,6 +1817,7 @@ describe("one term, from nothing to settled", () => {
           assert.equal(list.rows.length, list.counts.all + list.withdrawn.length, `${name}: rows`);
         }
         assert.deepEqual(numbers.term.claudia.work.agi.counts, numbers.list.agi.counts);
+        assert.deepEqual(numbers.term.claudia.work.agi.places, numbers.term.zach.work.agi.places);
         assert.deepEqual(Object.keys(numbers.term.claudia.work), ["agi"]);
         assert.equal(numbers.term.claudia.pool, null);
         // Decision day.
@@ -1826,6 +1831,37 @@ describe("one term, from nothing to settled", () => {
         assert.equal(numbers.pool.counts.pooled, numbers.pool.rows.length);
       });
     }
+
+    test("after each reply, every programme it touches reads the same on every screen, and it is a recount", () => {
+      // Each reply, the programmes it touches (the one the person was told
+      // about and the ones they ranked), and what each then reads:
+      // [who holds a place, places kept for an invitation, places left].
+      // AGI Strategy has three places, Technical AI Safety two, the incubator one.
+      const TOUCHED = {
+        // Amara ranked both fellowships and is in AGI Strategy. Nothing moves.
+        "Amara is coming": { agi: [2, 1, 0], tais: [0, 1, 1] },
+        // Jasmine was in AGI Strategy. Her place is free again.
+        "Jasmine gave her place back": { agi: [1, 1, 1] },
+        // Oliver ranked the incubator and was invited to Technical AI Safety.
+        // The place kept for him there is now his.
+        "Oliver accepted his invitation": { tais: [1, 0, 1], inc: [0, 0, 1] },
+        // Abel ranked Technical AI Safety and the incubator and was invited
+        // to AGI Strategy. The place kept for him there is free.
+        "Abel said no thanks": { agi: [1, 0, 2], tais: [1, 0, 1], inc: [0, 0, 1] },
+      };
+      for (const [label, programmes] of Object.entries(TOUCHED)) {
+        const numbers = censusAt(label);
+        for (const [name, [placed, invited, left]] of Object.entries(programmes)) {
+          const expected = { placed, invited, left };
+          const head = (list) => ({ placed: list.placed, invited: list.invited, left: list.placesLeft });
+          assert.deepEqual(head(numbers.list[name]), expected, `${label}, ${name}: the list's head, to an admin`);
+          assert.deepEqual(head(numbers.listAsLead[name]), expected, `${label}, ${name}: the list's head, to its lead`);
+          assert.deepEqual(numbers.term.zach.work[name].places, expected, `${label}, ${name}: the term page's card`);
+          assert.deepEqual(numbers.pool.programmes[name], expected, `${label}, ${name}: pooled applicants`);
+          assert.deepEqual(numbers.recount.holding[name], expected, `${label}, ${name}: the applications, recounted`);
+        }
+      }
+    });
 
     test("the numbers themselves, so a wrong answer every screen agreed on would still be seen", () => {
       const gaveBack = censusAt("Jasmine gave her place back");
@@ -1845,8 +1881,9 @@ describe("one term, from nothing to settled", () => {
 
       const accepted = censusAt("Oliver accepted his invitation");
       assert.deepEqual(accepted.counters, { draft: 1, accepted: 2, invited: 1, "no-offer": 1, declined: 1, withdrawn: 1 });
-      // His place on Technical AI Safety is his, and is still one of its two.
-      assert.deepEqual([accepted.list.tais.placed, accepted.list.tais.invited, accepted.list.tais.placesLeft], [0, 1, 1]);
+      // His place on Technical AI Safety is his: one of its two is taken, and
+      // nothing is kept for an invitation any more.
+      assert.deepEqual([accepted.list.tais.placed, accepted.list.tais.invited, accepted.list.tais.placesLeft], [1, 0, 1]);
 
       const noThanks = censusAt("Abel said no thanks");
       assert.deepEqual(noThanks.counters, { draft: 1, accepted: 2, "no-offer": 1, declined: 1, withdrawn: 2 });
