@@ -234,6 +234,11 @@
 }
 
 /* === Mobile === */
-@media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+@media (max-width: 36rem) { /* --bp-sm */
+  /* The two lower cards are stacked by here (their grid folds on its own,
+     at about 45rem), so there is no second button to line up with and the
+     held space under the first would only be a gap. */
+  .cardFoot {
+    min-height: 0;
+  }
 }
