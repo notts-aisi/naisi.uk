@@ -251,6 +251,25 @@ reads the committee's lists of applications, decisions or reviews, with
 whether it leaves the viewer's own out or why it reads everybody, and every
 function that holds the whole term, with what it does with it.
 
+**A view-as session is not the applicant.** Admin "view as" borrows a
+member's session, so every read addressed by "the caller's own uid" would be
+the member's. An application is its owner's to read: the people who review it
+read what was sent and never the draft, and nobody who reads an application
+is shown the SU membership answer. So while a view-as session is live
+(`markerIsLive`, the one comparison the admin area and the write guard go by)
+the person's own application is not shown and not read. The form
+(`/apply/<roundId>`), the list (`/applications`) and the page for one
+application (`/applications/<roundId>`) each draw a notice in its place
+(`src/features/applications/viewAsNotice.ts`). The form's own `GET` and the
+list's `GET` refuse, as every write already does. The dashboard card offers
+the way to the list and names nothing on it. The check comes before the read
+on each of them, so nothing of the application is fetched to be left out
+afterwards, and nothing of it is in the page. A marker left over from a
+session that has ended is not a session. A round of the older kind keeps the
+rule its own page states. `tests/applications-view-as-own-application.test.mjs`
+lists every place under `src/app` and `src/features` that reads the caller's
+own application, with how each is held to the check.
+
 **Somebody who joins by invitation is read from the moment they accept, and
 not before.** An invitation is to a programme the person did not pick, so
 while it is only picked, or sent and not yet answered, that programme's lead
@@ -852,6 +871,11 @@ All in `src/lib/applications/`.
 - **A route that serves an applicant** is gated by `requireApplicant()` and
   imports `repo.ts`, never `staffRepo.ts`. It returns a projection listed field
   by field, never a spread of a stored document.
+- **Anything that reads the caller's own application asks first whether the
+  session is a view-as session**, and reads nothing if it is: a route refuses
+  with `assertNotImpersonating()` as its first statement, reads included, and
+  a screen draws the notice. A new one is added to the list in
+  `tests/applications-view-as-own-application.test.mjs`.
 - **A route that serves staff** takes its answer from `access.ts`, after
   `getCurrentUser()` and before any read. A mutating route calls
   `assertNotImpersonating()` first.

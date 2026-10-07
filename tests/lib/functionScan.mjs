@@ -31,6 +31,8 @@
  *    function, exported, and is read as one;
  *  - `export { a }` where `a` was imported is reported as `{ kind: "handed-on",
  *    name, from }`, so a guard can follow it to the module that declares it;
+ *  - a default export that is a function with a name (a page) is read as
+ *    that function;
  *  - everything else is reported as `{ kind: "unread", what }`.
  *
  * A guard that walks "every exported function" decides what to do about each
@@ -54,8 +56,6 @@ export function* walkSource(dir) {
 
 const isExported = (node) =>
   (node.modifiers ?? []).some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword);
-const isDefault = (node) =>
-  (node.modifiers ?? []).some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword);
 
 /** Every name a parameter binds: its own, or each one a destructuring pattern takes out. */
 function boundNames(name, out = []) {
@@ -150,7 +150,10 @@ export function scanModule(file) {
         imports.set(bindings.name.text, from);
       }
     } else if (ts.isFunctionDeclaration(statement)) {
-      if (isDefault(statement) || !statement.name) {
+      // `export default function Page() {}` is a function with a name like
+      // any other, which is how a page is written. Only one with no name has
+      // nothing to be recorded under.
+      if (!statement.name) {
         otherExports.push({ kind: "unread", what: `export default function, line ${lineOf(statement)}` });
       } else {
         record(statement.name.text, statement, isExported(statement));

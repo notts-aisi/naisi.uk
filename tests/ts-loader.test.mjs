@@ -413,6 +413,14 @@ const USERS = new Map([
       "and who is not, is decided by the code that runs",
   ],
   [
+    "applications-view-as-own-application.test.mjs",
+    "executes the applicant's two GET handlers with the real view-as module reading a cookie " +
+      "the test sets, and renders the form's screen, the page for one application, the list and " +
+      "the dashboard (all .tsx server components) to HTML for a member and for an admin viewing " +
+      "as that member, against a database that records its reads, because whether anything of " +
+      "an application is read or drawn in a view-as session is decided by the code that runs",
+  ],
+  [
     "applications-wave-e1-lifecycle.test.mjs",
     "executes the three pure modules under src/lib/applications/lifecycle (the readiness " +
       "list, the moves a form may make, and what the term page is handed), because each " +
