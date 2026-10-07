@@ -462,6 +462,32 @@ const USERS = new Map([
       "term in which every kind of reply has been made, because each screen has to count the same place",
   ],
   [
+    "applications-d2-zeta-access-requirements.test.mjs",
+    "executes the applicant's two access-requirements handlers and the admin's one, with the " +
+      "real gate, rate limiter, access.ts and application modules, against an in-memory " +
+      "Firestore, because who is refused before anything is read and what an open writes to " +
+      "the log are decided by the code that runs",
+  ],
+  [
+    "applications-d2-zeta-access-requirements-boundary.test.mjs",
+    "executes the review loaders for an admin, a lead and a reviewer over a term in which " +
+      "two people wrote in the access-requirements box, because only running them shows the " +
+      "collection is never addressed and the words are in no payload",
+  ],
+  [
+    "applications-d2-zeta-access-requirements-deletion.test.mjs",
+    "executes the applicant's writer, then the round destroy and the account cascade over " +
+      "what it wrote, because that an answer leaves in its application's own batch is a " +
+      "claim about a commit and only a run can show one",
+  ],
+  [
+    "applications-d2-zeta-audit-names.test.mjs",
+    "executes every writer of an application audit line (a decision, several at once, a " +
+      "revoked acceptance, a pooled outcome, the send's sentence) against a term whose " +
+      "applicants have names no other string contains, because whether a row names somebody " +
+      "is decided by what the writer is handed when it runs",
+  ],
+  [
     "applications-wave-h-small.test.mjs",
     "executes src/lib/applications/lifecycle/status.ts against a form in every stage, because the " +
       "term page and the route that adds a programme have to stop on the same answer",

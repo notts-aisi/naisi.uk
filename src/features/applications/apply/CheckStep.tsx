@@ -15,8 +15,10 @@ import styles from "./check.module.css";
 
 /**
  * Check and send: everything the person has entered, a section to a row, each
- * with a Change link back to its step. Then the one question asked here (SU
- * membership), and what happens to the application once it is sent.
+ * with a Change link back to its step. Then the two things asked here (SU
+ * membership, and the optional access-requirements box, which is its own
+ * component and is saved apart from the application), and what happens to
+ * the application once it is sent.
  *
  * The rows come from the same list of steps the person walked through, so a
  * section they were never asked does not appear.
@@ -84,6 +86,7 @@ export default function CheckStep({
   hrefFor,
   onGo,
   onSuMembership,
+  accessRequirements,
   closesLabel,
   issues,
   suProblem,
@@ -102,6 +105,8 @@ export default function CheckStep({
   hrefFor: (stepId: string) => string;
   onGo: (stepId: string) => void;
   onSuMembership: (answer: SuMembershipAnswer) => void;
+  /** The access-requirements box (`AccessRequirementsBox`), drawn above who reads the application. */
+  accessRequirements: ReactNode;
   closesLabel: string | null;
   /** What still stops a send, shown once the person has pressed Send. */
   issues: readonly CheckIssue[];
@@ -254,6 +259,7 @@ export default function CheckStep({
           </a>
         </p>
       </div>
+      {accessRequirements}
 
       <div className={styles.use}>
         {/*
