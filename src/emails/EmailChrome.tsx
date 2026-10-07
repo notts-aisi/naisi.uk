@@ -23,13 +23,15 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://naisi.uk";
  *
  * A PNG, because mail clients do not show SVG. The colour lockup, the one
  * made for light grounds, because the card it sits on is white. `npm run
- * brand` copies it from brand-source/2-lockup/ at 600px wide and it is shown
- * at half that, so it stays sharp on a dense screen. No height is given: the
- * picture is 600 by 261, which has no whole number at 300 wide, and a mail
- * client works the height out from the width without squeezing it.
+ * brand` copies it from brand-source/2-lockup/ at 600px wide. It is shown at
+ * 220: that width is a decision (the README beside the artwork suggests 300),
+ * and it leaves more than two pixels for each one shown, so the logo stays
+ * sharp on a dense screen. No height is given: the picture is 600 by 261,
+ * which has no whole number at 220 wide, and a mail client works the height
+ * out from the width without squeezing it.
  */
 const LOGO_PATH = "/brand/naisi-lockup-email.png";
-const LOGO_WIDTH = 300;
+const LOGO_WIDTH = 220;
 
 type Props = {
   subject: string;
@@ -53,7 +55,17 @@ export default function EmailChrome({
 }: Props) {
   return (
     <Html>
-      <Head />
+      <Head>
+        {/*
+          The email is light and only light. A mail app that reads this
+          leaves the white card alone in dark mode; one that darkened the
+          card would put the logo's navy ink on a dark ground. Two names,
+          because mail apps read different ones. Every email built on this
+          chrome gets both, because this is the only head any of them has.
+        */}
+        <meta name="color-scheme" content="light" />
+        <meta name="supported-color-schemes" content="light" />
+      </Head>
       <Preview>{preheader ?? subject}</Preview>
       <Body style={body}>
         <Container style={container}>

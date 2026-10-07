@@ -6,6 +6,8 @@ Built from the NAISI design system's Logos group. The emblem paths are the offic
 - `naisi-emblem.svg` / `.png`: colour (navy body, cyan offset), for light backgrounds.
 - `naisi-emblem-night.svg` / `.png`: Night (white body, cyan offset), for dark backgrounds.
 - PNGs are 1674 × 2048 with a transparent background.
+- `naisi-emblem-header.svg` / `naisi-emblem-header-night.svg`: the **header cut**, the design system's official small version for 32 to 64px. The castle sits a little further from the shield and the offset is wider, so it doesn't close up at small sizes. The site header, footer and sidebar use this one.
+- `naisi-emblem-white.svg` / `naisi-emblem-navy.svg`: one ink, with no offset, for single-colour uses.
 
 ## 2-lockup: emblem + "Nottingham AI Safety Initiative"
 - The name is set in **Space Grotesk 600**, as chosen on 6 Oct. It's outlined, so no font is needed.
@@ -17,7 +19,7 @@ Built from the NAISI design system's Logos group. The emblem paths are the offic
 - `naisi-link-preview-1200x630.png`: the `og:image` / `twitter:image` card (Night lockup on the site's background).
 
 ## 3-app-icon: square, opaque, for the home screen
-- The Night emblem on the site's dark background, with no transparency (iOS fills transparency with black and rounds the corners itself).
+- The Night emblem on the site's page floor (`#050810`, glowing to `#1a2450` in the middle), with no transparency (iOS fills transparency with black and rounds the corners itself).
 - `naisi-app-icon.svg` and `naisi-app-icon-1024.png`: the masters.
 - `apple-touch-icon.png` (180): iOS home screen.
 - `icon-192.png` and `icon-512.png`: the web app manifest (Android, installed web app). The emblem sits inside the maskable safe zone, so both can be `"purpose": "any maskable"`.
@@ -36,7 +38,7 @@ In the `<head>` (Next.js can do the same through `metadata.icons` and `metadata.
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
-<meta name="theme-color" content="#0a0e16">
+<meta name="theme-color" content="#050810">
 <meta property="og:image" content="https://naisi.uk/naisi-link-preview-1200x630.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -49,8 +51,8 @@ In the `<head>` (Next.js can do the same through `metadata.icons` and `metadata.
 {
   "name": "Nottingham AI Safety Initiative",
   "short_name": "NAISI",
-  "background_color": "#0a0e16",
-  "theme_color": "#0a0e16",
+  "background_color": "#050810",
+  "theme_color": "#050810",
   "display": "standalone",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },

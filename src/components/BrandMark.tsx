@@ -11,16 +11,18 @@ import styles from "./BrandMark.module.css";
   edited by hand. There are two cuts of the castle: at small sizes the gap
   between it and the shield is wider, so the two do not close up.
 
-  The large cut, its box, its offset and both inks are the Night emblem in
-  brand-source/1-emblem/, and tests/brand-assets.test.mjs holds them to that
-  file character for character. The small cut is the redesign's own; the
-  masters do not hold it, so the same test pins it by digest and a change to
-  it is a decision about the mark.
+  Both cuts are masters in brand-source/1-emblem/. The large one is the Night
+  emblem (naisi-emblem-night.svg). The small one is the header cut
+  (naisi-emblem-header-night.svg), the design system's version for headers,
+  sidebars and anything else that small. tests/brand-assets.test.mjs holds
+  each cut's outlines, box, offset and inks to its file character for
+  character, and the size at which one gives way to the other to the README
+  beside them.
 
   The name is set in the display face (Space Grotesk 600), as every board is.
 */
 
-/** The castle, cut for a small mark: a wider gap to the shield. */
+/** The castle of the header cut, for a small mark: a wider gap to the shield. */
 const CASTLE_SMALL =
   "M46 6H80V34H108V6H142V34H176V6H204V64.98L166 55.48L89 74.73V132A117 117 0 0 0 116 " +
   "206.76V216.93C104.35 212.71 91.48 209.88 76.65 209.88C65.18 209.88 53.31 211.94 42 " +
@@ -46,8 +48,13 @@ const WAVE =
   "103.12 248.77 117.12 256.15C133.15 264.55 146.9 270.4 167.01 270.4C186.35 270.4 208.24 " +
   "263.02 227.07 238.33C212.06 250.8 196.02 254.87 181.51 254.87Z";
 
-/** At and below this emblem height the small cut is used. */
-const SMALL_UP_TO = 40;
+/**
+ * At and below this emblem height, in pixels, the header cut is drawn. The
+ * number is the README's in brand-source/: "the header cut, the design
+ * system's official small version for 32 to 64px". Under 32 the header cut
+ * is still the one drawn, because the masters hold nothing smaller.
+ */
+const SMALL_UP_TO = 64;
 
 type Props = {
   /** Rendered emblem height in pixels. */
