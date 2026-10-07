@@ -158,10 +158,10 @@ const NAME_CHUNK = 200;
 
 /**
  * Preferred name, then account name, then a neutral placeholder. NEVER an
- * email: the record is read by admins and SU-recognised committee and quotes
- * reviewers by name, and a reviewer whose display name is missing must not be
- * recorded as an address. Mirrors `displayNameOf` in the worksheet and course
- * route trees; the repo carries one copy per tree by convention.
+ * email: the record is read by admins and quotes reviewers by name, and a
+ * reviewer whose display name is missing must not be recorded as an address.
+ * Mirrors `displayNameOf` in the worksheet and course route trees; the repo
+ * carries one copy per tree by convention.
  */
 function displayNameOf(data: Record<string, unknown>): string {
   const profile = (data.profile as Record<string, unknown> | undefined) ?? {};
