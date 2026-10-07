@@ -220,6 +220,14 @@ const CAST = [
   ["rex", "Rex Dunn", "rejected", false],
 ];
 
+/**
+ * Oliver's account is still waiting AND, when the form opens, he has not yet
+ * followed the link that checks his university address. Everybody else's
+ * address is checked. He can write and save; his send is held until he has
+ * followed it, which he does part way through the applying stage.
+ */
+const UNCHECKED_AT_FIRST = "oliver";
+
 function userDoc([uid, name, role, suRecognised]) {
   return {
     uid,
@@ -231,7 +239,7 @@ function userDoc([uid, name, role, suRecognised]) {
     profile: {
       preferredName: name.split(" ")[0],
       universityEmail: "someone@nottingham.ac.uk",
-      uniEmailVerifiedAt: new Date("2026-09-20T09:00:00Z"),
+      ...(uid === UNCHECKED_AT_FIRST ? {} : { uniEmailVerifiedAt: new Date("2026-09-20T09:00:00Z") }),
       status: "undergraduate",
       subject: "BA Philosophy",
       expectedGraduation: "2028-07",
@@ -766,6 +774,26 @@ async function peopleApply() {
   await save("hannah", unfinished);
   seen.unfinishedSend = await sendIt("hannah");
   seen.afterUnfinishedSend = { status: applicationDoc("hannah").status, counters: structuredClone(roundDoc().applicationCounts) };
+
+  // Oliver's account is still waiting, and he has not followed the link that
+  // checks his university address. He writes the whole thing and saves it.
+  // He cannot send it.
+  const oliverFirst = await mine(UNCHECKED_AT_FIRST);
+  const oliverSaved = await save(UNCHECKED_AT_FIRST, draftFor(oliverFirst.body, people[UNCHECKED_AT_FIRST]));
+  const held = await sendIt(UNCHECKED_AT_FIRST);
+  seen.steps.push({ name: "oliver saves before his university address is checked", expected: 200, status: oliverSaved.status, error: oliverSaved.body?.error ?? null });
+  seen.steps.push({ name: "oliver sends before his university address is checked", expected: 400, status: held.status, error: null });
+  seen.heldSend = {
+    look: oliverFirst,
+    saved: oliverSaved,
+    refused: held,
+    stored: structuredClone(applicationDoc(UNCHECKED_AT_FIRST)),
+    counters: structuredClone(roundDoc().applicationCounts),
+    account: structuredClone(accountDoc(UNCHECKED_AT_FIRST)),
+  };
+  // He follows the link. The page that confirms it stamps his account, which
+  // is no request of the application system's.
+  world.db.poke(`users/${UNCHECKED_AT_FIRST}`, { "profile.uniEmailVerifiedAt": new Date() });
 
   seen.applied = {};
   for (const who of APPLICANTS) {
@@ -1461,6 +1489,37 @@ describe("one term, from nothing to settled", () => {
       assert.equal(seen.afterUnfinishedSend.status, "draft");
       assert.equal(seen.afterUnfinishedSend.counters.submitted, 0);
       assert.equal(seen.afterUnfinishedSend.counters.draft, 1);
+    });
+
+    test("a waiting account whose university address is not checked saves, is held at Send, and sends once it is", () => {
+      const { look, saved, refused, stored, counters, account } = seen.heldSend;
+      assert.equal(account.role, "pending");
+      assert.equal(account.profile.uniEmailVerifiedAt, undefined, "the story's unchecked account started out checked");
+      // The form tells him where he stands before he presses anything.
+      assert.equal(look.body.joined, true);
+      assert.equal(look.body.account.universityEmailVerified, false);
+      assert.equal(saved.status, 200);
+      assert.equal(refused.status, 400);
+      assert.deepEqual(refused.body.issues, [
+        {
+          step: "check",
+          questionId: null,
+          message: "Check your university email before you send. Open the link we emailed to that address, then send.",
+        },
+      ]);
+      // Saved, and not sent: the committee has nothing of his to read yet.
+      assert.equal(stored.status, "draft");
+      assert.equal(stored.sent, null);
+      assert.equal(counters.submitted, 0);
+      assert.equal(counters.draft, 2, "Hannah's unfinished draft and his");
+      // Once the link is followed the very same application goes, as a first send.
+      const after = seen.applied[UNCHECKED_AT_FIRST];
+      assert.equal(after.look.body.account.universityEmailVerified, true);
+      assert.equal(after.sent.status, 200);
+      assert.equal(after.sent.body.first, true);
+      assert.equal(after.stored.sent.aboutYou.universityEmailVerified, true);
+      // Jasmine's account is waiting too, and her address was checked all along.
+      assert.equal(seen.applied.jasmine.look.body.account.universityEmailVerified, true);
     });
 
     test("a member, two accounts still waiting, somebody who ranks two and somebody who would facilitate all send", () => {

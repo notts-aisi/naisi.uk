@@ -222,7 +222,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function ApplyPage({
   params,
   searchParams,
-}: Params & { searchParams: Promise<{ step?: string | string[] }> }) {
+}: Params & { searchParams: Promise<{ step?: string | string[]; join?: string | string[] }> }) {
   const { roundId } = await params;
   const user = await getCurrentUser();
   // The session is already in hand, so this is `markerIsLive` rather than
@@ -233,12 +233,16 @@ export default async function ApplyPage({
   // programme) is the new form's to show. It answers null for anything else,
   // a form that is still a draft included, so every other round carries on
   // below exactly as it always has, and a draft form gets the 404 below.
-  const { step } = await searchParams;
+  const { step, join } = await searchParams;
   const applicationForm = await renderApplicationForm({
     roundId,
     user,
     viewingAs,
     step: typeof step === "string" ? step : null,
+    // The mark the form's own first step puts on the address it gives the
+    // register route (`joinReturnFor`), so the form knows an arrival that
+    // came back from an emailed link.
+    fromJoinLink: join === "1",
   });
   if (applicationForm) return applicationForm;
 

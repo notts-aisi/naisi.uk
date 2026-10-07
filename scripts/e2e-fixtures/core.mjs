@@ -366,7 +366,10 @@ export const MEMBERSHIP_CONFIG_DOC_ID = "membership";
 // "stages": the questions of an admission round. "weeks": a run's curriculum,
 // which the register push reads before it will mail a group about the next
 // session (it refuses to send when that week is missing or unpublished).
-export const FIXTURE_SUBCOLLECTIONS = ["stages", "weeks"];
+// "questionSets": the questions of an application form (a round with
+// `formVersion: 2`), which keeps them under the round the way an older round
+// keeps its stages.
+export const FIXTURE_SUBCOLLECTIONS = ["stages", "weeks", "questionSets"];
 
 /**
  * The allowlist check, as a function rather than a source grep.
