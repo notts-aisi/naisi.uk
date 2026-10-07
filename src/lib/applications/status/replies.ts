@@ -1,5 +1,7 @@
 import { formatRunStartShort } from "@/lib/courses/window";
 import type { AdmissionApplicationStatus } from "@/lib/firestore/admissionApplications";
+import type { ReleaseReason } from "../model";
+import { parseReleaseReason } from "./reasons";
 import { standingOf, type Answerable } from "./standing";
 
 /**
@@ -30,6 +32,12 @@ import { standingOf, type Answerable } from "./standing";
  *  - THE STATUS FOLLOWS THE REPLY. An accepted invitation makes the
  *    application `accepted`; a place or an invitation given back makes it
  *    `withdrawn`. The route moves the form's counters with it.
+ *  - A REPLY THAT GIVES SOMETHING BACK SAYS WHY. "I can’t make it" and "No
+ *    thanks" each carry a reason, one of a short list with a few words of the
+ *    person's own for "Other" (`./reasons`). It is required, checked before
+ *    any document is read, and stored with the reply for the committee to
+ *    read. A reply that gives nothing back carries none, and one sent with it
+ *    is dropped.
  *
  * ## The reply-by day
  *
@@ -51,6 +59,36 @@ export type Reply = (typeof REPLIES)[number];
 
 export function isReply(v: unknown): v is Reply {
   return typeof v === "string" && (REPLIES as readonly string[]).includes(v);
+}
+
+/** True for the two replies that give a place or an invitation back, and so are asked why. */
+export function givesBack(reply: Reply): boolean {
+  return reply === "cant-make-it" || reply === "decline-invitation";
+}
+
+/** One reply as the route takes it: the word, and the reason when the word gives something back. */
+export type ReplyRequest = {
+  reply: Reply;
+  /** Null exactly when the reply gives nothing back. */
+  reason: ReleaseReason | null;
+};
+
+export const NOT_A_REPLY = "That reply was not one this page sends. Reload the page and try again.";
+
+export type ParsedReply = { ok: true; request: ReplyRequest } | { ok: false; error: string };
+
+/**
+ * What a request's body may be: `{ reply }`, and `{ reply, reason }` for the
+ * two replies that give something back. Pure, so the route can refuse a body
+ * before it reads a document.
+ */
+export function parseReplyRequest(body: unknown): ParsedReply {
+  const given = body && typeof body === "object" && !Array.isArray(body) ? (body as Record<string, unknown>) : {};
+  if (!isReply(given.reply)) return { ok: false, error: NOT_A_REPLY };
+  if (!givesBack(given.reply)) return { ok: true, request: { reply: given.reply, reason: null } };
+  const parsed = parseReleaseReason(given.reason);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  return { ok: true, request: { reply: given.reply, reason: parsed.reason } };
 }
 
 /** Whether accepting an invitation is refused once its reply-by day has passed. */
@@ -111,7 +149,6 @@ export function decideReply(
 ): ReplyDecision {
   const standing = standingOf(application);
   const aboutInvitation = reply === "accept-invitation" || reply === "decline-invitation";
-  const givesBack = reply === "cant-make-it" || reply === "decline-invitation";
 
   if (standing.kind === "waiting") return refused(REPLY_REFUSALS.waiting);
   if (standing.kind === "withdrawn") return refused(REPLY_REFUSALS.withdrawn);
@@ -147,7 +184,7 @@ export function decideReply(
   if (standing.via === "ranking" && aboutInvitation) return refused(REPLY_REFUSALS.placeNotInvitation);
 
   if (standing.kind === "released") {
-    return givesBack ? { kind: "unchanged" } : refused(REPLY_REFUSALS.gaveBack);
+    return givesBack(reply) ? { kind: "unchanged" } : refused(REPLY_REFUSALS.gaveBack);
   }
 
   // A place, held.

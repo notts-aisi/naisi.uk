@@ -9,6 +9,7 @@ import { isApplicationForm, isId, normaliseForm, type ApplicationForm } from "..
 import { loadForm, loadQuestionSets } from "../repo";
 import { rankedProgrammes } from "../sections";
 import { listDecisions, listSentApplications } from "../staffRepo";
+import { listCourseChoices, readsCourseDrafts } from "./courses";
 import { own } from "./own";
 import { eligibleReviewers, namesOnForm } from "./people";
 import type { SetupContext, StaffContext } from "./views";
@@ -217,9 +218,10 @@ export async function loadSetup(
   if (loaded.role === "reviewer" || !canEditProgramme(user, loaded.form, programmeId)) {
     return { status: "not-yours" };
   }
-  const [sets, candidates] = await Promise.all([
+  const [sets, candidates, courses] = await Promise.all([
     loadQuestionSets(db, loaded.form.round.id),
     eligibleReviewers(db),
+    listCourseChoices(db, loaded.programme.courseId, readsCourseDrafts(user)),
   ]);
   return {
     status: "ok",
@@ -231,6 +233,7 @@ export async function loadSetup(
         ...loaded.context,
         role: loaded.role,
         candidates,
+        courses,
         applications: loaded.applications,
       },
     },

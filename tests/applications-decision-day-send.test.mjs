@@ -49,10 +49,13 @@
  */
 import { beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { render } from "@react-email/render";
 import { createLoader } from "./lib/tsLoader.mjs";
 
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const NOW = new Date("2026-10-23T11:00:00Z");
 const APP_URL = "https://staging.example.com";
 process.env.NEXT_PUBLIC_APP_URL = APP_URL;
@@ -112,6 +115,8 @@ const { loadTs } = createLoader({
 
 const send = await loadTs(join("lib", "applications", "decisionDay", "send.ts"));
 const repo = await loadTs(join("lib", "applications", "repo.ts"));
+const tested = await loadTs(join("lib", "applications", "decisionDay", "tested.ts"));
+const normalise = await loadTs(join("lib", "applications", "normalise.ts"));
 const sendRoute = await loadTs(join("app", "api", "admissions", "forms", "[roundId]", "send", "route.ts"));
 const testRoute = await loadTs(
   join("app", "api", "admissions", "forms", "[roundId]", "send", "test", "route.ts"),
@@ -172,7 +177,17 @@ function makeDb(seed) {
     }
     docs.set(op.path, next);
   };
-  const ref = (path) => ({ id: path.split("/").pop(), path, get: async () => snap(path) });
+  const ref = (path) => ({
+    id: path.split("/").pop(),
+    path,
+    get: async () => snap(path),
+    /** A single write outside any transaction. It can be made to fail like a commit. */
+    update: async (data) => {
+      const op = { kind: "update", path, data };
+      if (sabotage && sabotage([op])) throw new Error("UNAVAILABLE: the write did not go through");
+      apply(op);
+    },
+  });
 
   return {
     counters,
@@ -230,6 +245,8 @@ function makeDb(seed) {
       sabotage = when;
     },
     paths: (prefix) => [...docs.keys()].filter((path) => path.startsWith(prefix)),
+    /** Every document as it stands, copied, for a before-and-after comparison. */
+    snapshot: () => Object.fromEntries([...docs.entries()].map(([path, data]) => [path, structuredClone(data)])),
   };
 }
 
@@ -257,7 +274,33 @@ const programme = (name, shortName, places, leadUid, over = {}) => ({
   ...over,
 });
 
+/** When the admin sent themselves the test this term's send relies on. */
+const TESTED_AT = new Date("2026-10-22T14:10:00Z");
+
+/**
+ * The record a test leaves on a form, for the form as `doc` words its emails:
+ * who, when, and the fingerprint of that wording. The fingerprint is worked
+ * out by the shipping function from the shipping normaliser's reading, so a
+ * seed can never carry a record the code would not have written.
+ */
+const testRecord = (doc, byUid = "zach", at = TESTED_AT) => ({
+  byUid,
+  at,
+  wording: tested.wordingFingerprint(normalise.normaliseFormFields(doc)),
+});
+
+/**
+ * A TERM THAT IS READY TO SEND HAS BEEN TESTED. Every round made here carries
+ * a test of its own wording, because nearly every case below is about a press
+ * that goes. A case about the test itself passes `decisionEmailTest` (null for
+ * no test, or a record of other wording) and is left exactly as it says.
+ */
 function roundDoc(over = {}, submitted = 8) {
+  const doc = untestedRoundDoc(over, submitted);
+  return "decisionEmailTest" in over ? doc : { ...doc, decisionEmailTest: testRecord(doc) };
+}
+
+function untestedRoundDoc(over = {}, submitted = 8) {
   return {
     formVersion: 2,
     kind: "enrolment",
@@ -1537,7 +1580,10 @@ describe("the decision-day page", () => {
       { key: TAIS, title: "Technical AI Safety", owner: "Zach", ready: true, status: "Every application has a decision", detail: "2 of 24 places, and 1 invitation" },
       { key: INC, title: "Research incubator", owner: "Zach", ready: true, status: "Every application has a decision", detail: "0 of 12 places" },
       { key: "pooled", title: "Pooled applicants", owner: "Committee", ready: true, status: "Every pooled person has an outcome", detail: "1 invitation, 3 no offer" },
+      // Who tested these emails and when: the last thing a send waits for.
+      { key: "#test", title: "Test email", owner: "Zach", ready: true, status: "Sent Thu 22 Oct, 15:10", detail: "" },
     ]);
+    assert.equal(view.test, "fresh");
     assert.deepEqual(view.accepted.people.map((p) => p.name), ["Amara Okafor", "Sam Whitfield", "Wen Zhao"]);
     assert.deepEqual(view.invited.people.map((p) => p.name), ["Oliver Grant"]);
     assert.deepEqual(view.noOffer.people.map((p) => p.name), ["Ben Hartley", "Nina Petrova", "Rosa García"]);
@@ -1618,7 +1664,7 @@ describe("the decision-day page", () => {
     const db = makeDb(seed({ [`admissionDecisions/${ROUND}__ben`]: decisionDoc("ben", { [AGI]: "pool" }) }));
     const view = await board(db);
     assert.deepEqual(view.blockers, ["1 pooled person still needs an outcome."]);
-    assert.deepEqual(view.readiness.at(-1), {
+    assert.deepEqual(view.readiness.find((row) => row.key === "pooled"), {
       key: "pooled",
       title: "Pooled applicants",
       owner: "Committee",
@@ -1685,10 +1731,14 @@ describe("the decision-day page", () => {
 describe("a test send", () => {
   const me = { uid: "zach", email: "zach@example.com" };
 
-  test("goes to the admin and nobody else, marked as a test, and writes nothing", async () => {
-    const db = makeDb(seed());
+  // This test used to end "and writes nothing". A test is now recorded on the
+  // form, because decision day cannot be sent without one (the owner's
+  // decision of 7 October 2026). It still writes nothing anywhere else.
+  test("goes to the admin and nobody else, marked as a test, and writes one thing: the form's record of it", async () => {
+    const db = makeDb(seed({ [`admissionRounds/${ROUND}`]: roundDoc({ decisionEmailTest: null }) }));
+    const before = db.snapshot();
     const result = await send.sendTestEmail(db, me, ROUND, "accepted");
-    assert.deepEqual(result, { ok: true, delivery: "sent", subject: "You’re in AGI Strategy" });
+    assert.deepEqual(result, { ok: true, delivery: "sent", subject: "You’re in AGI Strategy", recorded: true });
     const { calls } = globalThis.__ddMail;
     assert.equal(calls.length, 1);
     assert.deepEqual(
@@ -1697,8 +1747,18 @@ describe("a test send", () => {
     );
     // It is the first person's email exactly as they would get it.
     assert.ok((await render(calls[0].react, { plainText: true })).includes("Hi Amara,"));
-    assert.equal(db.counters.writes, 0);
     assert.equal(applicationOf(db, "amara").result, null);
+    // One document changed, by one field: who, when, and the wording tested.
+    assert.equal(db.counters.writes, 1);
+    const after = db.snapshot();
+    assert.deepEqual(
+      Object.keys(after).filter((path) => JSON.stringify(after[path]) !== JSON.stringify(before[path])),
+      [`admissionRounds/${ROUND}`],
+    );
+    assert.deepEqual(roundOf(db), {
+      ...before[`admissionRounds/${ROUND}`],
+      decisionEmailTest: { byUid: "zach", at: NOW, wording: testRecord(roundDoc()).wording },
+    });
   });
 
   test("each of the three kinds can be tested", async () => {
@@ -1724,6 +1784,385 @@ describe("a test send", () => {
     globalThis.__ddMail.verdict = () => "throw";
     const failed = await quietly(() => send.sendTestEmail(db, me, ROUND, "accepted"));
     assert.deepEqual([failed.ok, failed.status], [false, 502]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3b. No press without a test of the emails as they are worded now
+// ---------------------------------------------------------------------------
+
+/**
+ * The owner's decision of 7 October 2026: "I wouldn't let this happen without
+ * a test." Decision day tells a whole term at once and cannot be unsent, so a
+ * press is refused until an admin has sent themselves a test of the emails AS
+ * THEY ARE WORDED NOW. Three cases, and the edges of each:
+ *
+ *  - NO TEST: refused, with a sentence that says what to do.
+ *  - A STALE TEST: one sent before any decision email's wording changed.
+ *    Refused, with a sentence that says the wording changed.
+ *  - A FRESH TEST: the press goes.
+ */
+describe("no press without a test of the emails as they are worded now", () => {
+  const me = { uid: "zach", email: "zach@example.com" };
+  const NO_TEST = "Nobody has sent themselves a test of these emails yet. Send yourself one before you send.";
+  const STALE_TEST =
+    "A decision email’s wording has changed since the last test. Send yourself a test again before you send.";
+  const board = async (db) => send.buildSendBoard(db, await repo.loadForm(db, ROUND), NOW);
+  const testRow = (view) => view.readiness.find((row) => row.key === "#test");
+  const untouched = (db) => {
+    assert.equal(db.counters.writes, 0);
+    assert.deepEqual(globalThis.__ddMail.calls, []);
+  };
+  /** The round with one programme's own wording for one email. */
+  const worded = (programmeId, emailWording, over = {}) => {
+    const base = untestedRoundDoc();
+    return {
+      ...base,
+      programmes: { ...base.programmes, [programmeId]: { ...base.programmes[programmeId], emailWording } },
+      ...over,
+    };
+  };
+  const untested = () => seed({ [`admissionRounds/${ROUND}`]: roundDoc({ decisionEmailTest: null }) });
+
+  test("NO TEST: the press is refused with a sentence to act on, and nothing is written or sent", async () => {
+    const db = makeDb(untested());
+    assert.deepEqual(await press(db), { ok: false, status: 409, error: NO_TEST });
+    untouched(db);
+    for (const uid of ["amara", "oliver", "nina"]) assert.equal(applicationOf(db, uid).result, null, uid);
+    assert.equal(roundOf(db).decisionsSentAt, null);
+  });
+
+  test("NO TEST: the page says a test is owed, in the row and in the one thing left to do", async () => {
+    const view = await board(makeDb(untested()));
+    assert.equal(view.test, "none");
+    assert.deepEqual(view.blockers, [NO_TEST], "every decision is made, so the test is all that is left");
+    assert.deepEqual(testRow(view), {
+      key: "#test",
+      title: "Test email",
+      owner: "An admin",
+      ready: false,
+      status: "No test sent yet",
+      detail: "Send one below before you send",
+    });
+    // The rows above it are all ticked: the term is ready but for the test.
+    assert.deepEqual(view.readiness.filter((row) => !row.ready).map((row) => row.key), ["#test"]);
+    // And there is an email to test.
+    assert.ok(view.accepted.preview && view.invited.preview && view.noOffer.preview);
+  });
+
+  test("A FRESH TEST: sending the test records who and when, and the press then goes", async () => {
+    const db = makeDb(untested());
+    assert.equal((await press(db)).status, 409);
+    const tested = await send.sendTestEmail(db, me, ROUND, "accepted");
+    assert.deepEqual([tested.ok, tested.delivery, tested.recorded], [true, "sent", true]);
+    assert.deepEqual(roundOf(db).decisionEmailTest, {
+      byUid: "zach",
+      at: NOW,
+      wording: testRecord(untestedRoundDoc()).wording,
+    });
+    const view = await board(db);
+    assert.equal(view.test, "fresh");
+    assert.deepEqual(view.blockers, []);
+    assert.deepEqual(testRow(view), {
+      key: "#test",
+      title: "Test email",
+      owner: "Zach",
+      ready: true,
+      // 11:00 UTC on Fri 23 Oct is noon in London.
+      status: "Sent Fri 23 Oct, 12:00",
+      detail: "",
+    });
+    globalThis.__ddMail.calls.length = 0;
+    const result = await press(db);
+    assert.equal(result.ok, true);
+    assert.deepEqual([result.report.published, result.report.emailed, result.report.complete], [8, 7, true]);
+    assert.equal(globalThis.__ddMail.calls.length, 7);
+  });
+
+  test("a test of any one of the three emails is a test", async () => {
+    for (const kind of ["accepted", "invitation", "no-offer"]) {
+      const db = makeDb(untested());
+      assert.equal((await send.sendTestEmail(db, me, ROUND, kind)).recorded, true, kind);
+      assert.equal((await board(db)).test, "fresh", kind);
+    }
+  });
+
+  test("A STALE TEST: wording changed after the test, so the press is refused and says why", async () => {
+    // Tested as the form stood, then AGI Strategy rewrote its "You're in".
+    const record = testRecord(untestedRoundDoc());
+    const changed = worded(AGI, { accepted: { subject: "Welcome to AGI Strategy", body: "" } }, { decisionEmailTest: record });
+    const db = makeDb(seed({ [`admissionRounds/${ROUND}`]: changed }));
+    assert.deepEqual(await press(db), { ok: false, status: 409, error: STALE_TEST });
+    untouched(db);
+
+    const view = await board(db);
+    assert.equal(view.test, "stale");
+    assert.deepEqual(view.blockers, [STALE_TEST]);
+    assert.deepEqual(testRow(view), {
+      key: "#test",
+      title: "Test email",
+      owner: "Zach",
+      ready: false,
+      status: "Sent Thu 22 Oct, 15:10, and the wording has changed since",
+      detail: "Send it again below before you send",
+    });
+
+    // Testing again, with the new wording, is what unlocks it.
+    assert.equal((await send.sendTestEmail(db, me, ROUND, "accepted")).subject, "Welcome to AGI Strategy");
+    assert.equal((await board(db)).test, "fresh");
+    globalThis.__ddMail.calls.length = 0;
+    assert.equal((await press(db)).ok, true);
+    assert.equal(mailTo("amara@example.com")[0].subject, "Welcome to AGI Strategy", "what went is what was tested");
+  });
+
+  test("every decision email's wording counts: any programme's, any of its three emails, and the form's own", async () => {
+    const record = testRecord(untestedRoundDoc());
+    const CHANGES = [
+      ["AGI Strategy's You're in, subject", worded(AGI, { accepted: { subject: "Welcome", body: "" } })],
+      ["AGI Strategy's You're in, body", worded(AGI, { accepted: { subject: "", body: "Come along on Monday." } })],
+      ["Technical AI Safety's invitation", worded(TAIS, { invitation: { subject: "", body: "We would like you to join us." } })],
+      ["the incubator's declined", worded(INC, { declined: { subject: "About your application", body: "" } })],
+      ["the form's No offer this time, subject", { ...untestedRoundDoc(), noOfferWording: { subject: "Your application", body: "" } }],
+      ["the form's No offer this time, body", { ...untestedRoundDoc(), noOfferWording: { subject: "", body: "Thank you for applying." } }],
+    ];
+    for (const [what, doc] of CHANGES) {
+      const db = makeDb(seed({ [`admissionRounds/${ROUND}`]: { ...doc, decisionEmailTest: record } }));
+      assert.equal((await board(db)).test, "stale", what);
+      assert.deepEqual(await press(db), { ok: false, status: 409, error: STALE_TEST }, what);
+      untouched(db);
+    }
+  });
+
+  test("a change that is not wording leaves the test standing", async () => {
+    const record = testRecord(untestedRoundDoc());
+    const base = untestedRoundDoc();
+    const NOT_WORDING = [
+      ["the order of the programmes", { ...base, programmeIds: [INC, TAIS, AGI] }],
+      ["a programme's places", { ...base, programmes: { ...base.programmes, [AGI]: { ...base.programmes[AGI], places: 40 } } }],
+      ["a programme's lead", { ...base, programmes: { ...base.programmes, [AGI]: { ...base.programmes[AGI], leadUid: "zach" } } }],
+      ["the reply-by day", { ...base, invitationReplyBy: "2026-10-27" }],
+      ["the switch for other reviewers' scores", { ...base, revealOtherReviews: true }],
+    ];
+    for (const [what, doc] of NOT_WORDING) {
+      const db = makeDb(seed({ [`admissionRounds/${ROUND}`]: { ...doc, decisionEmailTest: record } }));
+      assert.equal((await board(db)).test, "fresh", what);
+    }
+  });
+
+  test("wording put back to exactly what was tested is tested wording again", async () => {
+    const record = testRecord(untestedRoundDoc());
+    const db = makeDb(seed({ [`admissionRounds/${ROUND}`]: worded(AGI, { accepted: { subject: "Welcome", body: "" } }, { decisionEmailTest: record }) }));
+    assert.equal((await board(db)).test, "stale");
+    db.patch(`admissionRounds/${ROUND}`, { programmes: untestedRoundDoc().programmes });
+    assert.equal((await board(db)).test, "fresh");
+  });
+
+  test("the record is of the wording the test was made from, not of wording changed while it was being sent", async () => {
+    const db = makeDb(untested());
+    // The wording changes in the instant the test email is handed over.
+    globalThis.__ddMail.verdict = () => {
+      db.patch(`admissionRounds/${ROUND}`, { noOfferWording: { subject: "Changed in the meantime", body: "" } });
+      return "sent";
+    };
+    const tested = await send.sendTestEmail(db, me, ROUND, "accepted");
+    assert.equal(tested.recorded, true);
+    assert.equal(roundOf(db).decisionEmailTest.wording, testRecord(untestedRoundDoc()).wording);
+    globalThis.__ddMail.verdict = null;
+    assert.equal((await board(db)).test, "stale", "the admin read the wording from before the change");
+    assert.equal((await press(db)).error, STALE_TEST);
+  });
+
+  test("a test that reached nobody is not a test: held, suppressed, failed, or with nobody to borrow", async () => {
+    for (const verdict of ["held", "suppressed"]) {
+      const db = makeDb(untested());
+      globalThis.__ddMail.verdict = () => verdict;
+      const result = await send.sendTestEmail(db, me, ROUND, "accepted");
+      assert.deepEqual([result.ok, result.delivery, result.recorded], [true, verdict, false], verdict);
+      assert.equal(db.counters.writes, 0, verdict);
+      globalThis.__ddMail.verdict = null;
+      assert.equal((await press(db)).error, NO_TEST, verdict);
+    }
+    const failing = makeDb(untested());
+    globalThis.__ddMail.verdict = () => "throw";
+    assert.equal((await quietly(() => send.sendTestEmail(failing, me, ROUND, "accepted"))).status, 502);
+    assert.equal(failing.counters.writes, 0);
+    globalThis.__ddMail.verdict = null;
+
+    const nobodyInvited = PEOPLE.filter(([uid]) => uid !== "oliver");
+    const empty = makeDb(seed({ [`admissionRounds/${ROUND}`]: roundDoc({ decisionEmailTest: null }, nobodyInvited.length) }, nobodyInvited));
+    assert.equal((await send.sendTestEmail(empty, me, ROUND, "invitation")).status, 409);
+    assert.equal(empty.counters.writes, 0);
+    assert.equal(roundOf(empty).decisionEmailTest, null);
+  });
+
+  test("a test that went and could not be recorded says so, and does not count", async () => {
+    const db = makeDb(untested());
+    db.failCommits(() => true);
+    const result = await quietly(() => send.sendTestEmail(db, me, ROUND, "accepted"));
+    db.failCommits(null);
+    assert.deepEqual(result, {
+      ok: false,
+      status: 502,
+      error: "The test was sent to you, but it could not be recorded. Send it again in a minute.",
+    });
+    assert.equal(roundOf(db).decisionEmailTest, null);
+    assert.equal((await press(db)).error, NO_TEST);
+  });
+
+  test("a programme's own test, from its settings page, is not the test a press asks for", async () => {
+    const db = makeDb(untested());
+    const lead = { uid: "claudia", email: "claudia@example.com", firstName: "Claudia" };
+    const result = await send.sendProgrammeTestEmail(db, lead, await repo.loadForm(db, ROUND), AGI, "accepted");
+    assert.deepEqual([result.ok, result.delivery, result.recorded], [true, "sent", false]);
+    assert.equal(db.counters.writes, 0);
+    assert.equal(roundOf(db).decisionEmailTest, null);
+    globalThis.__ddMail.calls.length = 0;
+    assert.equal((await press(db)).error, NO_TEST);
+  });
+
+  test("the latest test is the record: a second admin's test replaces the first", async () => {
+    const db = makeDb(seed({ "users/tess": userDoc("Tess Okoro", "admin") }));
+    assert.equal(roundOf(db).decisionEmailTest.byUid, "zach");
+    await send.sendTestEmail(db, { uid: "tess", email: "tess@example.com" }, ROUND, "no-offer");
+    assert.deepEqual([roundOf(db).decisionEmailTest.byUid, roundOf(db).decisionEmailTest.at], ["tess", NOW]);
+    assert.equal(testRow(await board(db)).owner, "Tess");
+  });
+
+  test("a record that does not say who, or carries no fingerprint, is no test at all", async () => {
+    const real = testRecord(untestedRoundDoc());
+    for (const half of [{}, { byUid: "zach" }, { wording: real.wording }, { byUid: "", wording: real.wording }, { byUid: "zach", wording: "" }, "yes", true, 1, [real]]) {
+      const db = makeDb(seed({ [`admissionRounds/${ROUND}`]: roundDoc({ decisionEmailTest: half }) }));
+      assert.equal((await board(db)).test, "none", JSON.stringify(half));
+      assert.equal((await press(db)).error, NO_TEST, JSON.stringify(half));
+      untouched(db);
+    }
+    // And one that is whole reads back as it was written.
+    const whole = normalise.normaliseFormFields(roundDoc()).decisionEmailTest;
+    assert.deepEqual(whole, { byUid: "zach", at: TESTED_AT, wording: real.wording });
+  });
+
+  test("the fingerprint is 64 hex characters and the same for the same wording, whatever else differs", () => {
+    const fingerprint = (doc) => tested.wordingFingerprint(normalise.normaliseFormFields(doc));
+    const base = fingerprint(untestedRoundDoc());
+    assert.match(base, /^[0-9a-f]{64}$/);
+    assert.equal(fingerprint(untestedRoundDoc({ label: "Spring 2027", status: "open" })), base);
+    assert.notEqual(fingerprint(worded(AGI, { accepted: { subject: "x", body: "" } })), base);
+    // A subject is not a body, and one programme's wording is not another's.
+    assert.notEqual(
+      fingerprint(worded(AGI, { accepted: { subject: "x", body: "" } })),
+      fingerprint(worded(AGI, { accepted: { subject: "", body: "x" } })),
+    );
+    assert.notEqual(
+      fingerprint(worded(AGI, { accepted: { subject: "x", body: "" } })),
+      fingerprint(worded(TAIS, { accepted: { subject: "x", body: "" } })),
+    );
+    assert.notEqual(
+      fingerprint(worded(AGI, { accepted: { subject: "x", body: "" } })),
+      fingerprint(worded(AGI, { invitation: { subject: "x", body: "" } })),
+    );
+    // A programme added to the form is an email more.
+    const more = untestedRoundDoc();
+    more.programmeIds = [...more.programmeIds, "policy"];
+    more.programmes.policy = programme("Policy Fellowship", "Policy", 10, "zach");
+    assert.notEqual(fingerprint(more), base);
+  });
+
+  test("AN OWED EMAIL waits for the test too, even once the term is marked as sent", async () => {
+    // A term sent with Nina's email still owed. Then somebody rewrites "No offer this time".
+    const db = makeDb(seed());
+    globalThis.__ddMail.verdict = (args) => (args.to === "nina@example.com" ? "throw" : "sent");
+    await quietly(() => press(db));
+    globalThis.__ddMail.verdict = null;
+    globalThis.__ddMail.calls.length = 0;
+    assert.deepEqual(roundOf(db).decisionsSentAt, NOW);
+    db.patch(`admissionRounds/${ROUND}`, { noOfferWording: { subject: "About your application", body: "" } });
+    const writesBefore = db.counters.writes;
+
+    assert.deepEqual(await pressOwed(db, 1), { ok: false, status: 409, error: STALE_TEST });
+    assert.equal(db.counters.writes, writesBefore);
+    assert.deepEqual(globalThis.__ddMail.calls, []);
+    const view = await board(db);
+    assert.deepEqual(view.owed.blockers, [STALE_TEST]);
+    assert.deepEqual(view.owed.people.map((person) => person.name), ["Nina Petrova"]);
+    // Once the term is sent the row is the record of the last test, and waits on nobody.
+    assert.deepEqual(testRow(view), {
+      key: "#test",
+      title: "Test email",
+      owner: "Zach",
+      ready: true,
+      status: "Sent Thu 22 Oct, 15:10",
+      detail: "",
+    });
+    assert.equal(view.test, "stale", "which is what the owed card offers a test for");
+
+    // A test of the wording as it is now, and the owed email goes with that wording.
+    assert.equal((await send.sendTestEmail(db, me, ROUND, "no-offer")).subject, "About your application");
+    globalThis.__ddMail.calls.length = 0;
+    const result = await pressOwed(db, 1);
+    assert.deepEqual([result.ok, result.report.retried, result.report.emailed], [true, 1, 1]);
+    assert.deepEqual(mailTo("nina@example.com").map((call) => call.subject), ["About your application"]);
+  });
+
+  test("a term sent before any test was recorded reads calmly, and still asks for one before an owed email", async () => {
+    const told = {};
+    for (const [uid, name, ranked] of PEOPLE) {
+      told[`admissionApplications/${ROUND}__${uid}`] = toldDoc(uid, name, ranked, "no-offer", null, uid === "nina" ? { email: "owed" } : SENT);
+    }
+    const db = makeDb(
+      seed({
+        ...told,
+        [`admissionRounds/${ROUND}`]: roundDoc({ decisionsSentAt: NOW, decisionsSentByUid: "zach", decisionEmailTest: null }),
+      }),
+    );
+    const view = await board(db);
+    assert.deepEqual(testRow(view), {
+      key: "#test",
+      title: "Test email",
+      owner: "An admin",
+      ready: true,
+      status: "No test was recorded",
+      detail: "",
+    });
+    assert.deepEqual(view.owed.blockers, [NO_TEST]);
+    assert.equal((await pressOwed(db, 1)).error, NO_TEST);
+  });
+
+  test("the page keeps Send off until the server says ready, reads the server again after a test, and offers the test beside owed emails", () => {
+    const raw = readFileSync(join(REPO_ROOT, "src", "features", "applications", "decisionDay", "SendBoard.tsx"), "utf8");
+    const code = raw
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/^[ \t]*\/\/.*$/gm, " ")
+      .replace(/\s+/g, " ");
+    // Ready is the server's list of things still to do, and nothing the page
+    // works out for itself. The test is one of those things.
+    assert.ok(code.includes("const ready = board.blockers.length === 0;"));
+    assert.ok(code.includes("const canSend = hydrated && ready && !sent && !sending && !testing && (left > 0 || board.published > 0);"));
+    assert.ok(code.includes("disabled={!canSend}"));
+    // After a test the page is read again from the server, whatever became of the test.
+    assert.ok(code.includes("} finally { await reload(); setTesting(false); }"));
+    assert.ok(code.includes("const response = await fetch(base); const answer = (await response.json().catch(() => null)) as { board?: Board } | null; if (response.ok && answer?.board) setBoard(answer.board);"));
+    // A test that reached nobody is said not to count.
+    assert.ok(raw.includes("A held test doesn’t count, so decisions can’t be sent from here until one reaches you."));
+    assert.ok(raw.includes("Your address is on the do-not-email list, so the test was not sent. It doesn’t count as a test."));
+    // Once the term is sent the card at the foot has no buttons, so an owed
+    // email's test is sent from the owed card, whose own button waits for it.
+    assert.ok(code.includes('const owedOffersTest = sent && owed > 0 && board.test !== "fresh";'));
+    assert.ok(code.includes("disabled={!hydrated || sending || testing || owedHeld.length > 0}"));
+    assert.equal((code.match(/onClick=\{\(\) => void sendTest\(\)\}/g) ?? []).length, 2, "the test button, in each card");
+  });
+
+  test("the send reads the test once, from the form it composes its emails from", () => {
+    // What goes has to be what was tested, so the press judges the test and
+    // words its emails from one reading of the form: `form` is loaded once,
+    // before the blockers, and nothing after them loads it again to compose.
+    const source = readFileSync(join(REPO_ROOT, "src", "lib", "applications", "decisionDay", "send.ts"), "utf8");
+    const run = source.slice(source.indexOf("export async function runDecisionDay("));
+    const composing = run.slice(0, run.indexOf("const publish ="));
+    assert.equal((composing.match(/await loadForm\(/g) ?? []).length, 1, "the press reads the form once");
+    const judged = composing.indexOf("testStanding(form)");
+    const refused = composing.indexOf("if (blockers.length > 0) return");
+    const worded = composing.indexOf("emailContext(db, form)");
+    assert.ok(judged > -1 && refused > judged && worded > refused, "judge the test, refuse, and only then compose");
   });
 });
 
@@ -1908,9 +2347,12 @@ describe("the three routes are an admin's, decided before anything is read", () 
       kind: "invitation",
       delivery: "sent",
       subject: "An invitation to Technical AI Safety",
+      recorded: true,
     });
     assert.deepEqual(globalThis.__ddMail.calls.map((call) => call.to), ["zach@example.com"]);
-    assert.equal(db.counters.writes, 0);
+    // The one write is the form's record of the test, in the caller's own name.
+    assert.equal(db.counters.writes, 1);
+    assert.deepEqual([roundOf(db).decisionEmailTest.byUid, roundOf(db).decisionEmailTest.at], ["zach", NOW]);
   });
 
   test("a test has to name one of the three emails, and the admin has to have an address", async () => {
@@ -1944,7 +2386,8 @@ describe("a test of a programme's own email goes to whoever asked, and to nobody
   test("You’re in: this programme's email, addressed to the asker by their own name", async () => {
     const db = makeDb(seed());
     const result = await send.sendProgrammeTestEmail(db, me, await form(db), AGI, "accepted");
-    assert.deepEqual(result, { ok: true, delivery: "sent", subject: "You’re in AGI Strategy" });
+    // Not the test a press of Send asks for: it borrows no applicant, and leaves no record.
+    assert.deepEqual(result, { ok: true, delivery: "sent", subject: "You’re in AGI Strategy", recorded: false });
     const { calls } = globalThis.__ddMail;
     assert.equal(calls.length, 1);
     assert.deepEqual(

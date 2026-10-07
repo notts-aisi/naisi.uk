@@ -2828,24 +2828,21 @@ service cloud.firestore {
     // destroy that finds an entry missing. Shape and reasoning in
     // src/lib/firestore/memberRecords.ts.
     //
-    // WHY SU-RECOGNISED COMMITTEE MAY READ IT. This is the SAME trust boundary
-    // as the `users` collection above, and deliberately not a new one. An
-    // entry is roster-tier knowledge about a member: it names a person, what
-    // they asked the society for and what the society decided. The people who
-    // may already read every member's profile are the people who may read
-    // this, and the split `suRecognised` draws (committee the Students' Union
-    // formally recognises, trusted with member PII, against committee scoped
-    // to what they are explicitly added to) is exactly the split this needs.
-    // Reading it is also the POINT of writing it: a later application is meant
-    // to be graded with this history in view, and the people grading are
-    // committee.
+    // WHY ONLY ADMINS READ IT. An entry is not roster-tier knowledge, though
+    // it looks like it. It holds each reviewer's name with the score they gave
+    // and the overall comment they wrote about a named applicant. On the
+    // screen those were written on, they are shown to admins and to the lead
+    // and reviewers of the programmes that person ranked, and to nobody else:
+    // a reviewer is told so before they write. An entry copies them out to a
+    // document that outlives the form, so whoever can read an entry can read
+    // those comments. An SU-recognised committee member named on none of
+    // that person's programmes cannot open their application, and must not be
+    // able to read what was written about it by reading this instead.
     //
-    // It is a wider tier than `memberConductFlags`, which is admin-only, and
-    // the difference is what the two documents hold. A conduct flag carries a
-    // free-text ALLEGATION and can expose whoever reported it. An entry here
-    // carries a DECISION the committee itself made, together with the reviewer
-    // notes that the review queue already tells reviewers are disclosable to
-    // the applicant on request.
+    // So this is the same tier as `memberConductFlags`, and narrower than the
+    // `users` collection. The one screen that shows an entry is on the
+    // admin-only Members page, and `tests/applications-d2-zeta-member-record-readers.test.mjs`
+    // holds the page gate and this rule to each other.
     //
     // WHY NOBODY WRITES IT CLIENT-SIDE, ADMINS INCLUDED. Three reasons, and
     // the first is the one that would bite hardest:
@@ -2868,7 +2865,7 @@ service cloud.firestore {
     // than streamed to the subject from a browser console. Disclosure is a
     // decision somebody makes; a read rule is not.
     match /memberRecords/{uid} {
-      allow read: if isAdmin() || isSuCommittee();
+      allow read: if isAdmin();
       allow write: if false;
     }
 
@@ -2877,7 +2874,7 @@ service cloud.firestore {
       // required rather than decorative: without it the entries themselves
       // fall to deny-by-default and the read granted above reaches only the
       // near-empty parent document.
-      allow read: if isAdmin() || isSuCommittee();
+      allow read: if isAdmin();
       allow write: if false;
     }
 

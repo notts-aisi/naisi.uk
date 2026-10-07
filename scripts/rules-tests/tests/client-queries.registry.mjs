@@ -2423,13 +2423,13 @@ export const REGISTRY = [
     path: "memberRecords/{uid}/applications",
     clauses: [],
     reason:
-      "One person's application history, listed under their row on the admin Members page: a copy of what they applied for, what was decided, how they scored and what the reviewers wrote, taken when a round settles or is destroyed so that destroying the round does not destroy the committee's memory of the person. The GATE ON THE PAGE is `requireAdminPage()` (the (admin-only) group), so an admin is the only persona who can reach this hook today. The RULE is wider on purpose, admin OR SU-recognised committee, which is the same audience the users collection already trusts with member PII, and the entry pins that: the day this record is surfaced anywhere an SU-recognised committee member works, the read has to already be allowed rather than discovered to be refused. Everybody else is refused, the person it describes included: it is the committee's record ABOUT them, not their copy of it, and a member who could list their own subtree would be reading their reviewers' private notes. No clauses, because the rule admits the whole subcollection or none of it, and the fixture sits under OTHER so no persona is quietly reading their own.",
+      "One person's application history, listed under their row on the admin Members page: a copy of what they applied for, what was decided, how they scored and what the reviewers wrote, taken when a round settles or is destroyed so that destroying the round does not destroy the committee's memory of the person. The GATE ON THE PAGE is `requireAdminPage()` (the (admin-only) group), and the RULE is the same audience: admins, and nobody else. An entry holds each reviewer's comment about a named applicant, which the review screen shows only to admins and to that programme's own lead and reviewers, so an SU-recognised committee member is refused here although they read the users collection. Everybody else is refused too, the person it describes included: it is the committee's record ABOUT them, not their copy of it. No clauses, because the rule admits the whole subcollection or none of it, and the fixture sits under OTHER so no persona is quietly reading their own. `tests/applications-d2-zeta-member-record-readers.test.mjs` holds the page gate and the rule to each other.",
     outcomes: {
       "signed-out": "refused",
       pending: "refused",
       member: "refused",
       committee: "refused",
-      "su-committee": "allowed",
+      "su-committee": "refused",
       admin: "allowed",
     },
     seed: async (db) => {

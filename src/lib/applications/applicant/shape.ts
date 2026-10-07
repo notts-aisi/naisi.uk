@@ -52,6 +52,7 @@ function programmeShape(programme: ApplicantProgramme): ProgrammeSettings {
     reviewerUids: [],
     useScores: false,
     runId: null,
+    courseId: null,
     emailWording: {},
   };
 }

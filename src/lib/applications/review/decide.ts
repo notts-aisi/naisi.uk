@@ -289,9 +289,10 @@ async function applyDecision(
       actorUid: user.uid,
       actorName: actorNameOf(user),
       targetLabel: `${form.round.label} · ${programme.shortName}`,
+      // Who it is about is `subjectUid` above, and nothing on this row names
+      // them: see `./audit.ts`.
       detail: decisionSentence({
         actorName: firstWord(actorNameOf(user)),
-        applicantName: name || UNNAMED_APPLICANT,
         programmeName: programme.shortName,
         decision: change.decision,
         previous: before?.decision ?? null,
@@ -449,9 +450,9 @@ export async function revokeAcceptance(
       actorUid: user.uid,
       actorName: actorNameOf(user),
       targetLabel: `${fresh.round.label} · ${programme.shortName}`,
+      // As for a decision: the applicant is `subjectUid`, never a name.
       detail: revocationSentence({
         actorName: firstWord(actorNameOf(user)),
-        applicantName: name,
         programmeName: programme.shortName,
         reason: input.reason,
       }),

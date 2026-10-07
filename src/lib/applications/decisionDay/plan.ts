@@ -340,12 +340,41 @@ function formClosedToSending(form: ApplicationForm): string | null {
   return null;
 }
 
+/**
+ * Where a form stands on its test of the decision emails: none sent, one sent
+ * before the wording last changed, or one that still counts. Worked out in
+ * `./tested` (`testStanding`), which is not imported here so that this module
+ * stays free of anything a browser cannot load.
+ */
+export type TestState = "none" | "stale" | "fresh";
+
+/**
+ * The sentence that holds a press of Send for want of a test, or null when a
+ * test still counts.
+ *
+ * ANYTHING BUT `fresh` HOLDS IT. A caller that hands over nothing, or a word
+ * this does not know, is refused: the send is never let through by an answer
+ * nobody gave.
+ */
+export function testBlocker(test: TestState | undefined): string | null {
+  if (test === "fresh") return null;
+  if (test === "stale") {
+    return (
+      "A decision email’s wording has changed since the last test. " +
+      "Send yourself a test again before you send."
+    );
+  }
+  return "Nobody has sent themselves a test of these emails yet. Send yourself one before you send.";
+}
+
 export type BlockerInput = {
   form: ApplicationForm;
   term: Term;
   now: Date;
   /** This site's own address, which the emails' buttons are built on. */
   appUrl: string;
+  /** `testStanding(form).state` from `./tested`. */
+  test: TestState;
 };
 
 /**
@@ -355,9 +384,12 @@ export type BlockerInput = {
  * `readinessFor` is the rule for the decisions themselves. The rest are the
  * things that would make a send wrong even with every decision made: a form
  * still taking applications, an invitation with no day to reply by, an email
- * whose buttons would lead nowhere.
+ * whose buttons would lead nowhere, and emails no admin has sent themselves a
+ * test of as they are worded now. The test comes last because it is the last
+ * thing to do: a test is the first person's real email, so there has to be
+ * somebody in a group, and an address for its buttons, before one can go.
  */
-export function sendBlockers({ form, term, now, appUrl }: BlockerInput): string[] {
+export function sendBlockers({ form, term, now, appUrl, test }: BlockerInput): string[] {
   const { round } = form;
   if (form.decisionsSentAt) {
     return [
@@ -432,6 +464,8 @@ export function sendBlockers({ form, term, now, appUrl }: BlockerInput): string[
     }
   }
   if (!appUrl.trim()) blockers.push(NO_SITE_ADDRESS);
+  const untested = testBlocker(test);
+  if (untested) blockers.push(untested);
   return blockers;
 }
 
@@ -440,13 +474,22 @@ export function sendBlockers({ form, term, now, appUrl }: BlockerInput): string[
  *
  * Much less than {@link sendBlockers}: the person has their result already,
  * so whether the rest of the term is ready has nothing to do with them, and
- * neither has whether the term is marked as sent. Only the two things that
- * would make the email itself wrong are asked.
+ * neither has whether the term is marked as sent. Only the things that would
+ * make the email itself wrong are asked: the form's standing, the site's own
+ * address, and the test. An owed email is a decision email like any other, so
+ * it waits for a test of the wording as it is now, the same as the first
+ * press did.
  */
-export function owedBlockers({ form, appUrl }: Pick<BlockerInput, "form" | "appUrl">): string[] {
+export function owedBlockers({
+  form,
+  appUrl,
+  test,
+}: Pick<BlockerInput, "form" | "appUrl" | "test">): string[] {
   const blockers: string[] = [];
   const closed = formClosedToSending(form);
   if (closed) blockers.push(closed);
   if (!appUrl.trim()) blockers.push(NO_SITE_ADDRESS);
+  const untested = testBlocker(test);
+  if (untested) blockers.push(untested);
   return blockers;
 }

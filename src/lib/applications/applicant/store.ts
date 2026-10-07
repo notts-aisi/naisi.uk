@@ -3,10 +3,11 @@ import { NextResponse } from "next/server";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import type { AdmissionApplicationStatus } from "@/lib/firestore/admissionApplications";
 import { FORM_VERSION, type AboutYou, type ApplicationContent, type QuestionSetDoc } from "../model";
-import { isId, normaliseApplication, type ApplicationForm } from "../normalise";
+import { isId, normaliseApplication, normaliseContent, type ApplicationForm } from "../normalise";
 import { applicationRef, formRef, loadForm, loadOwnApplication, loadQuestionSets } from "../repo";
 import { orderedSets } from "../sections";
 import { contentForSend, issuesFor, type Issue } from "../validate";
+import { keepVersion, sameContent } from "../versions/kept";
 import { aboutYouFromAccount } from "./account";
 import { cleanContent, openProgrammeIds } from "./draft";
 import {
@@ -40,6 +41,17 @@ import { isFormVisible } from "./window";
  * After a send the applicant can go on changing their answers until the
  * close. Those changes are saved to `draft`; `sent` moves only when they
  * press Send again.
+ *
+ * ## What a send replaces is kept
+ *
+ * When they do press Send again and something is different, the application
+ * of record that send replaces is appended to `sentHistory` in the same
+ * transaction, with the time it became the application of record. The rules
+ * (what counts as different, how many are kept, which goes first when there
+ * are too many) are `../versions/kept.ts`. The history is for the people
+ * reviewing the application. Nothing in this folder answers a request with
+ * it: `./project.ts` names every field an applicant is sent, and names none
+ * of the history.
  *
  * ## Counters move with the status
  *
@@ -288,6 +300,30 @@ export async function sendApplication(
       sentAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     };
+    // WHAT THIS SEND REPLACES IS KEPT, when the two differ. The copy kept is
+    // the application of record AS OF THIS TRANSACTION, with the time it
+    // became that, so a second tab sending at the same moment cannot keep a
+    // version twice or lose one. Both sides are read the same way before
+    // they are compared, so a stored copy and a freshly built one that say
+    // the same thing are not a change. A send that changes nothing writes
+    // none of this.
+    const replaced = application.sent;
+    if (replaced === null) {
+      update.sentChangedAt = FieldValue.serverTimestamp();
+    } else if (!sameContent(replaced, normaliseContent(sent, form.round.availabilityGrid))) {
+      const history = keepVersion(
+        { versions: application.sentHistory, dropped: application.sentHistoryDropped },
+        { content: replaced, sentAt: application.sentChangedAt ?? application.sentAt },
+      );
+      // Each kept time is a value already on the document. No server
+      // timestamp goes inside a list: the database refuses one there.
+      update.sentHistory = history.versions.map((version) => ({
+        content: version.content,
+        sentAt: version.sentAt,
+      }));
+      update.sentHistoryDropped = history.dropped;
+      update.sentChangedAt = FieldValue.serverTimestamp();
+    }
     if (first) update.status = "submitted" satisfies AdmissionApplicationStatus;
     // The FIRST time they pressed Send, kept across every later send.
     if (!application.submittedAt) update.submittedAt = FieldValue.serverTimestamp();
