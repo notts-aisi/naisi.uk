@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdminPage } from "@/features/admin/adminList";
 import EmailDesignEditor from "@/features/admin/emailDesigns/EmailDesignEditor";
 import {
   isTemplateId,
@@ -8,6 +8,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
+/**
+ * One sign-up email. The editor draws the page's head: the email's own name,
+ * with the way back to the list in the crumb above it.
+ */
 export default async function EmailDesignDetailPage({
   params,
 }: {
@@ -17,18 +21,8 @@ export default async function EmailDesignDetailPage({
   if (!isTemplateId(templateId)) notFound();
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
-      <Link
-        href="/admin/email-designs"
-        style={{
-          fontSize: "var(--text-sm)",
-          color: "var(--color-text-muted)",
-          textDecoration: "none",
-        }}
-      >
-        ← All email designs
-      </Link>
+    <AdminPage wide>
       <EmailDesignEditor templateId={templateId as TemplateId} />
-    </div>
+    </AdminPage>
   );
 }
