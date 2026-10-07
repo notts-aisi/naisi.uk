@@ -1,6 +1,7 @@
 import { formatRunStartShort } from "@/lib/courses/window";
 import {
   BORDERLINE_MARGIN,
+  hasBeenTold,
   isInTerm,
   owesDecision,
   placementFor,
@@ -140,6 +141,7 @@ function buildRow(input: {
       comments: commentCount(reviews),
       standing,
       owesDecision: owes,
+      told: hasBeenTold(application),
       placedOn:
         standing === "to-review" && !owes && placement
           ? (programmeOn(form, placement)?.shortName ?? null)

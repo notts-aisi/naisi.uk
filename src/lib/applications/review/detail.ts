@@ -1,6 +1,6 @@
 import { formatRoundDate } from "@/lib/admissions/window";
 import { formatRunStartShort } from "@/lib/courses/window";
-import { isInTerm, owesDecision, placementFor, standingWith } from "../decisions";
+import { hasBeenTold, isInTerm, owesDecision, placementFor, standingWith } from "../decisions";
 import {
   questionKey,
   type AnswerValue,
@@ -437,6 +437,7 @@ export function buildReview(input: {
     decision: {
       standing,
       owesDecision: owes,
+      told: hasBeenTold(application),
       kind: entry?.decision ?? null,
       poolReason: entry?.poolReason ?? null,
       couldSuitProgrammeId: entry?.couldSuitProgrammeId ?? null,

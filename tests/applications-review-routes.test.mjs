@@ -1714,3 +1714,159 @@ describe("the route files", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Once somebody has been told, their decision is fixed
+// ---------------------------------------------------------------------------
+
+describe("once decision day has told somebody, their decision is fixed, person by person", () => {
+  /**
+   * A send that stopped part way. Ben was accepted by AGI Strategy and HAS
+   * been told. Dev was accepted too and has not been reached yet. The form
+   * is not stamped as sent, because not everybody has a result.
+   */
+  const PUBLISHED = new Date("2026-10-23T10:00:00+01:00");
+  const told = (kind, programmeId) => ({
+    status: kind,
+    result: { kind, programmeId, publishedAt: PUBLISHED, email: "sent", emailedAt: PUBLISHED, emailClaimedAt: null },
+  });
+  function partWaySent(over = {}) {
+    const docs = seed({
+      [`admissionDecisions/${ROUND}__ben`]: { roundId: ROUND, uid: "ben", programmes: { [AGI]: decided("accept", "claudia") }, pooledOutcome: null, exception: null },
+      [`admissionDecisions/${ROUND}__dev`]: { roundId: ROUND, uid: "dev", programmes: { [AGI]: decided("accept", "claudia") }, pooledOutcome: null, exception: null },
+      ...over,
+    });
+    const ben = `admissionApplications/${ROUND}__ben`;
+    docs[ben] = { ...docs[ben], ...told("accepted", AGI) };
+    return makeDb(docs);
+  }
+  const SENTENCE =
+    "Ben Hartley has already been told their decision, so it can’t be changed here. " +
+    "If they can’t take up a place, they can give it back from their own application page.";
+
+  test("the form in this term is not stamped as sent, so only the person-by-person rule is in play", () => {
+    const db = partWaySent();
+    assert.equal(db.read(`admissionRounds/${ROUND}`).decisionsSentAt, null);
+    assert.ok(db.read(`admissionApplications/${ROUND}__ben`).result);
+    assert.equal(db.read(`admissionApplications/${ROUND}__dev`).result, null);
+  });
+
+  for (const [who, role] of [
+    ["claudia", "the programme's lead"],
+    ["zach", "an admin"],
+  ]) {
+    test(`${role} cannot change it, in any direction, and is told what can be done`, async () => {
+      for (const body of [
+        { programmeId: AGI, decision: "pool", poolReason: "capacity" },
+        { programmeId: AGI, decision: "decline" },
+        // The same decision again is not a change, and is refused all the same.
+        { programmeId: AGI, decision: "accept" },
+      ]) {
+        const db = partWaySent();
+        const before = JSON.stringify(db.read(`admissionDecisions/${ROUND}__ben`));
+        const result = await decideAs(db, who, "ben", body);
+        assert.deepEqual([result.ok, result.status, result.error], [false, 409, SENTENCE], body.decision);
+        assert.deepEqual(db.writes, [], body.decision);
+        assert.equal(JSON.stringify(db.read(`admissionDecisions/${ROUND}__ben`)), before, body.decision);
+        assert.deepEqual(auditRows(db), [], body.decision);
+      }
+    });
+  }
+
+  test("somebody the same press has not reached yet can still be decided", async () => {
+    const db = partWaySent();
+    const result = await decideAs(db, "claudia", "dev", { programmeId: AGI, decision: "pool", poolReason: "capacity" });
+    assert.deepEqual([result.ok, result.changed], [true, true]);
+    assert.equal(db.read(`admissionDecisions/${ROUND}__dev`).programmes[AGI].decision, "pool");
+  });
+
+  test("deciding several at once changes the ones not told and names the one who was", async () => {
+    const db = partWaySent();
+    const outcome = await decide.decideMany(db, CAST.claudia, ROUND, AGI, { uids: ["amara", "ben", "dev"], decision: "pool" });
+    assert.equal(outcome.ok, true);
+    assert.equal(outcome.result.changed, 2);
+    assert.deepEqual(outcome.result.refused, [{ uid: "ben", name: "Ben Hartley", reason: SENTENCE }]);
+    assert.equal(db.read(`admissionDecisions/${ROUND}__ben`).programmes[AGI].decision, "accept");
+    assert.equal(db.read(`admissionDecisions/${ROUND}__amara`).programmes[AGI].decision, "pool");
+    assert.equal(db.read(`admissionDecisions/${ROUND}__dev`).programmes[AGI].decision, "pool");
+  });
+
+  test("an admin cannot take back the acceptance of somebody who has been told they are in", async () => {
+    const db = partWaySent();
+    const revoked = await decide.revokeAcceptance(db, CAST.zach, ROUND, "ben", { programmeId: AGI, reason: "A mistake." });
+    assert.deepEqual([revoked.ok, revoked.status], [false, 409]);
+    assert.equal(
+      revoked.error,
+      "Ben Hartley has already been told they have a place, so the acceptance can’t be revoked here. " +
+        "If they are not coming, they can give the place back from their own application page, which frees it.",
+    );
+    assert.deepEqual(db.writes, []);
+    assert.equal(db.read(`admissionDecisions/${ROUND}__ben`).programmes[AGI].decision, "accept");
+
+    // Dev has not been told, so his acceptance can still be taken back.
+    const other = await decide.revokeAcceptance(db, CAST.zach, ROUND, "dev", { programmeId: AGI, reason: "A mistake." });
+    assert.equal(other.ok, true);
+    assert.equal(AGI in db.read(`admissionDecisions/${ROUND}__dev`).programmes, false);
+  });
+
+  test("it holds whatever they were told: an invitation, no offer or a decline", async () => {
+    for (const [kind, programmeId] of [
+      ["invited", TAIS],
+      ["no-offer", null],
+      ["declined", null],
+    ]) {
+      const db = partWaySent();
+      db.poke(`admissionApplications/${ROUND}__ben`, told(kind, programmeId));
+      const result = await decideAs(db, "claudia", "ben", { programmeId: AGI, decision: "accept" });
+      assert.deepEqual([result.ok, result.status, result.error], [false, 409, SENTENCE], kind);
+      assert.deepEqual(db.writes, [], kind);
+    }
+  });
+
+  test("a send that reaches them while the request is in flight wins: the application is read inside the transaction", async () => {
+    const db = partWaySent();
+    const transact = db.runTransaction;
+    db.runTransaction = async (fn) => {
+      // Decision day publishes Dev after this request passed its gate and before its write.
+      db.poke(`admissionApplications/${ROUND}__dev`, told("accepted", AGI));
+      return transact(fn);
+    };
+    const result = await decideAs(db, "claudia", "dev", { programmeId: AGI, decision: "pool" });
+    assert.deepEqual([result.ok, result.status], [false, 409]);
+    assert.match(result.error, /^Dev Patel has already been told their decision/);
+    assert.deepEqual(db.writes, []);
+    assert.equal(db.read(`admissionDecisions/${ROUND}__dev`).programmes[AGI].decision, "accept");
+
+    const revoking = partWaySent();
+    const inner = revoking.runTransaction;
+    revoking.runTransaction = async (fn) => {
+      revoking.poke(`admissionApplications/${ROUND}__dev`, told("accepted", AGI));
+      return inner(fn);
+    };
+    const revoked = await decide.revokeAcceptance(revoking, CAST.zach, ROUND, "dev", { programmeId: AGI, reason: "Late." });
+    assert.deepEqual([revoked.ok, revoked.status], [false, 409]);
+    assert.deepEqual(revoking.writes, []);
+  });
+
+  test("both screens say who has been told, so neither has to offer a decision it would refuse", async () => {
+    const db = partWaySent();
+    const list = await board(db, "claudia");
+    assert.equal(rowOf(list, "ben").told, true);
+    assert.equal(rowOf(list, "dev").told, false);
+    assert.equal((await review(db, "claudia", "ben")).review.decision.told, true);
+    assert.equal((await review(db, "claudia", "dev")).review.decision.told, false);
+  });
+
+  test("the rule is asked in every writer of a decision, inside its transaction", () => {
+    const code = readFileSync(join(REPO_ROOT, "src", "lib", "applications", "review", "decide.ts"), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/^[ \t]*\/\/.*$/gm, " ");
+    // Two transactions write a decision document: one decision, and a revocation.
+    const transactions = code.split("db.runTransaction(").slice(1);
+    assert.equal(transactions.length, 2);
+    for (const body of transactions) {
+      assert.match(body, /hasBeenTold\(application\)/);
+      assert.ok(body.indexOf("hasBeenTold(application)") < body.indexOf("tx.set("), "asked before anything is written");
+    }
+  });
+});

@@ -4,6 +4,7 @@ import { isAddressableId } from "@/lib/addressableId";
 import type { SessionUser } from "@/lib/firebase/session";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import { canDecideFor, canRunTerm, roleOnProgramme } from "../access";
+import { hasBeenTold } from "../decisions";
 import {
   APPLICATION_LIMITS,
   POOL_REASONS,
@@ -30,7 +31,14 @@ import {
 } from "./audit";
 import { own, programmeOn } from "./own";
 import { UNNAMED_APPLICANT, UNNAMED_STAFF, applicantName, firstWord } from "./people";
-import { DECISIONS_SENT, NOT_FOUND, closedToStaffWrites, refuse } from "./refusals";
+import {
+  DECISIONS_SENT,
+  NOT_FOUND,
+  alreadyTold,
+  alreadyToldTheyAreIn,
+  closedToStaffWrites,
+  refuse,
+} from "./refusals";
 import type { BulkDecisionResult, DecisionChange, Refusal } from "./types";
 
 /**
@@ -194,6 +202,13 @@ async function applyDecision(
     }
     const name = applicantName(application.sent.aboutYou, application.displayName);
     if (form.decisionsSentAt) return { outcome: "refused", status: 409, reason: DECISIONS_SENT, name };
+    // Fixed for this person from the moment they are told, which can be a
+    // whole press of Send before the term is stamped as sent. Asked of the
+    // application as it is inside this transaction, so a send that publishes
+    // them while this request is in flight makes it start again and meet this.
+    if (hasBeenTold(application)) {
+      return { outcome: "refused", status: 409, reason: alreadyTold(name), name };
+    }
     const ranked = rankedProgrammes(form, application.sent).map((entry) => entry.id);
     if (!ranked.includes(change.programmeId)) {
       return {
@@ -386,6 +401,10 @@ export async function revokeAcceptance(
     const name = application?.sent
       ? applicantName(application.sent.aboutYou, application.displayName)
       : UNNAMED_APPLICANT;
+    // The same rule as a decision: what this person has been told is fixed.
+    if (application && hasBeenTold(application)) {
+      return refuse(409, alreadyToldTheyAreIn(application.sent ? name : ""));
+    }
 
     // The same merge as a decision, taking this one programme's entry out
     // and leaving everything else on the document as it was.

@@ -52,6 +52,12 @@ export type ApplicationRow = {
   /** False once this programme has decided, or a higher choice has accepted them. */
   owesDecision: boolean;
   /**
+   * Decision day has told this person, so their decision is fixed: Accept,
+   * Pool and Decline are refused for them from now on, whether or not the
+   * term as a whole has finished sending.
+   */
+  told: boolean;
+  /**
    * The higher choice that accepted them, when that is why nothing is owed.
    * Null for a withdrawn row: somebody who has left holds no place.
    */
@@ -311,6 +317,8 @@ export type ReviewPayload = {
   decision: {
     standing: ProgrammeStanding;
     owesDecision: boolean;
+    /** Decision day has told this person, so this decision can no longer change. */
+    told: boolean;
     kind: ProgrammeDecisionKind | null;
     poolReason: PoolReason | null;
     couldSuitProgrammeId: string | null;

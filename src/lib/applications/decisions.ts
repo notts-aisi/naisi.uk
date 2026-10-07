@@ -186,6 +186,25 @@ export function isInTerm(application: Pick<ApplicationDoc, "sent" | "status">): 
 }
 
 /**
+ * Has decision day told this person? It has once their outcome is published
+ * onto their own application (`result`), which is the moment their page shows
+ * it, whether or not the email has gone yet.
+ *
+ * WHAT SOMEBODY HAS BEEN TOLD IS FIXED, PERSON BY PERSON. The send publishes
+ * one person at a time and can stop part way, so "the term has been sent"
+ * (`decisionsSentAt`) comes later than "this person has been told", sometimes
+ * by a whole press. In between, a lead's decision, an acceptance taken back or
+ * a different pooled outcome would leave the committee's screens saying one
+ * thing and the person holding another, and a later press would not put it
+ * right, because it skips anybody already told. So every route that writes a
+ * decision or a pooled outcome refuses once this is true for the person it is
+ * about, inside the transaction that would have written.
+ */
+export function hasBeenTold(application: Pick<ApplicationDoc, "result">): boolean {
+  return application.result !== null;
+}
+
+/**
  * One application that is in the term (see {@link isInTerm}), reduced to
  * what the arithmetic needs.
  */

@@ -233,6 +233,21 @@ The term is marked as sent (`decisionsSentAt`) once everybody has a result. An
 email still owed does not hold that back, and stays listed on the decision-day
 page until it goes.
 
+### Once somebody has been told
+
+The send publishes one person at a time and can stop part way: a mail server
+that is down, or a term too big for one press. So "this person has been told"
+(`hasBeenTold()`: their own document carries a `result`) comes before "the
+term has been sent" (`decisionsSentAt`), sometimes by a whole press, and a
+later press skips anybody already told. From the moment a person is told,
+what was decided about them is fixed: a lead's Accept, Pool or Decline, an
+admin taking an acceptance back, and a different pooled outcome are each
+refused for that person, inside the transaction that would have written, with
+a sentence that says what can still be done. Otherwise the committee's
+screens could come to say one thing while the person holds another. After
+that, a place changes hands only when its holder gives it back (see
+"Replies").
+
 ### Accepting somebody approves an account that is still waiting
 
 A person can apply before their join request has been looked at. When they
