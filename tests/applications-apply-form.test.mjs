@@ -434,7 +434,7 @@ describe("what an applicant reads", () => {
       join(REPO_ROOT, "src", "app", "api", "admissions", "forms", "[roundId]", "application", "send", "route.ts"),
     ];
     for (const path of lane) {
-      assert.equal(/[–—]/.test(readFileSync(path, "utf8")), false, `${path} carries an en or em dash`);
+      assert.equal(/[\u2013\u2014]/.test(readFileSync(path, "utf8")), false, `${path} carries an en or em dash`);
     }
   });
 
