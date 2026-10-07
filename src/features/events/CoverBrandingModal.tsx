@@ -89,12 +89,19 @@ export default function CoverBrandingModal({
   const [selectedShadow, setSelectedShadow] = useState(logoShadow);
 
   return (
-    <div className={styles.overlay} role="dialog" aria-modal="true">
+    <div
+      className={styles.overlay}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="cover-branding-title"
+    >
       <div className={styles.modal}>
-        <p className={styles.title}>NAISI logo on the cover</p>
+        <h2 id="cover-branding-title" className={styles.title}>
+          NAISI logo on the cover
+        </h2>
         <p className={styles.hint}>
-          Pick how the emblem sits on this event&apos;s cover image. The preview
-          is exactly what the event page will show.
+          Choose how the emblem sits on this event&apos;s cover image. The
+          preview is what the event page will show.
         </p>
 
         <div className={styles.preview}>
@@ -242,7 +249,7 @@ export default function CoverBrandingModal({
           >
             Use this
           </Button>
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
         </div>

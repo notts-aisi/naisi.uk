@@ -1,16 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
-import { Field, Input } from "@/components/ui/Input";
+import Chip from "@/components/ui/Chip";
+import { Field, Input, Textarea } from "@/components/ui/Input";
+import Notice from "@/components/ui/Notice";
+import OptionRow from "@/components/ui/OptionRow";
 import ResponsiveSelect from "@/components/ui/ResponsiveSelect";
 import { copyToClipboard, downloadCSV, toCSV } from "@/lib/csv";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   FOOD_PROVENANCE_BADGE,
-  RSVP_STATUS_LABEL,
   RSVP_STATUSES,
   type EventDoc,
   type FormQuestion,
@@ -23,26 +24,10 @@ import { useEventRsvps } from "./useEventRsvps";
 import OrderHelper from "./OrderHelper";
 import TestRsvpPanel from "./TestRsvpPanel";
 import Pie, { pickColor, type PieSlice } from "./Pie";
+import { SIGNUP_WORDS, dayWords, signupTone, stampWords } from "./manageWords";
 import styles from "./AttendeeDashboard.module.css";
 
 type Props = { event: EventDoc };
-
-function statusTone(
-  status: RsvpStatus,
-): "neutral" | "accent" | "success" | "danger" | "warning" {
-  switch (status) {
-    case "pending":
-      return "warning";
-    case "confirmed":
-      return "success";
-    case "waitlisted":
-      return "accent";
-    case "denied":
-      return "danger";
-    case "cancelled":
-      return "neutral";
-  }
-}
 
 /** Stringify a raw answer for CSV / table display. */
 function renderAnswer(a: RsvpAnswer | undefined): string {
@@ -148,7 +133,13 @@ export default function AttendeeDashboard({ event }: Props) {
   }
 
   async function onCancel(r: RsvpDoc) {
-    if (!window.confirm(`Cancel RSVP from ${r.name}? They'll need to re-submit.`)) return;
+    // Somebody who held a place, or a spot on the waiting list, is told by
+    // email. A request nobody had answered is withdrawn without one.
+    const told = r.status === "confirmed" || r.status === "waitlisted";
+    const question = told
+      ? `Cancel ${r.name}’s sign-up? They are told by email, and would have to sign up again.`
+      : `Cancel ${r.name}’s request? They are not emailed, and would have to sign up again.`;
+    if (!window.confirm(question)) return;
     await act(r.id, "cancel");
   }
 
@@ -159,7 +150,7 @@ export default function AttendeeDashboard({ event }: Props) {
   async function onDenyChange(r: RsvpDoc) {
     if (
       !window.confirm(
-        `Reject ${r.name}'s change request? Their original answers will stay in place.`,
+        `Turn down ${r.name}’s change? The answers they gave first stay as they are.`,
       )
     )
       return;
@@ -171,7 +162,7 @@ export default function AttendeeDashboard({ event }: Props) {
     if (!broadcastSubject.trim() || !broadcastBody.trim()) {
       setBroadcastState({
         kind: "error",
-        message: "Both subject and message body are required.",
+        message: "Write a subject and a message before you send.",
       });
       return;
     }
@@ -180,7 +171,7 @@ export default function AttendeeDashboard({ event }: Props) {
     if (recipientCount === 0) {
       setBroadcastState({
         kind: "error",
-        message: "No active RSVPs to email.",
+        message: "Nobody has a confirmed place or is on the waiting list, so there is nobody to email.",
       });
       return;
     }
@@ -229,12 +220,16 @@ export default function AttendeeDashboard({ event }: Props) {
   async function onCopyEmails() {
     const emails = Array.from(new Set(active.map((r) => r.email))).join(", ");
     if (!emails) {
-      setCopyStatus("No active RSVPs to copy.");
+      setCopyStatus("Nobody has a confirmed place or is on the waiting list.");
       setTimeout(() => setCopyStatus(null), 3000);
       return;
     }
     const ok = await copyToClipboard(emails);
-    setCopyStatus(ok ? `Copied ${active.length} email(s).` : "Copy failed.");
+    setCopyStatus(
+      ok
+        ? `Copied ${active.length} address${active.length === 1 ? "" : "es"}: everyone confirmed or on the waiting list.`
+        : "The addresses weren’t copied.",
+    );
     setTimeout(() => setCopyStatus(null), 3000);
   }
 
@@ -261,75 +256,67 @@ export default function AttendeeDashboard({ event }: Props) {
 
   if (loading) {
     return (
-      <Card padding="md">
-        <p style={{ color: "var(--color-text-muted)" }}>Loading RSVPs…</p>
-      </Card>
+      <p className={styles.quiet} aria-busy="true">
+        Loading sign-ups…
+      </p>
     );
   }
 
   if (error) {
     return (
-      <Card padding="md">
-        <p style={{ color: "var(--color-danger)" }}>
-          Couldn&apos;t load RSVPs: {error.message}
-        </p>
-      </Card>
+      <Notice tone="warning" role="alert" title="The sign-ups didn’t load.">
+        {error.message}
+      </Notice>
     );
   }
 
   const capacityLine =
     event.capacity !== null
-      ? `${confirmed.length} confirmed / ${event.capacity} capacity`
-      : `${confirmed.length} confirmed (unlimited capacity)`;
+      ? `${confirmed.length} confirmed of ${event.capacity} places`
+      : `${confirmed.length} confirmed, with no limit on places`;
 
   return (
     <div className={styles.wrap}>
       {/* Summary strip --------------------------------------------------- */}
-      <Card padding="lg">
-        <div className={styles.counts}>
-          <CountBox label="Pending" value={pending.length} tone="warning" />
-          <CountBox label="Confirmed" value={confirmed.length} tone="success" />
-          <CountBox label="Waitlisted" value={waitlisted.length} tone="accent" />
-          <CountBox label="Denied" value={denied.length} tone="danger" />
-          <CountBox label="Cancelled" value={cancelled.length} tone="neutral" />
-        </div>
+      <Card as="section" padding="lg" aria-label="Sign-ups by state">
+        <dl className={styles.counts}>
+          <CountBox status="pending" value={pending.length} />
+          <CountBox status="confirmed" value={confirmed.length} />
+          <CountBox status="waitlisted" value={waitlisted.length} />
+          <CountBox status="denied" value={denied.length} />
+          <CountBox status="cancelled" value={cancelled.length} />
+        </dl>
         <p className={styles.capacityLine}>
           {capacityLine}
           {event.foodProvenance !== "none" && (
-            <>
-              {" · "}
-              <Badge tone="accent">{FOOD_PROVENANCE_BADGE[event.foodProvenance]}</Badge>
-            </>
+            <Chip tone="accent">{FOOD_PROVENANCE_BADGE[event.foodProvenance]}</Chip>
           )}
         </p>
       </Card>
 
       {/* Broadcast composer --------------------------------------------- */}
-      <section>
-        <div className={styles.tableHeader}>
+      <section className={styles.section}>
+        <div className={styles.sectionHead}>
           <div>
             <h2 className={styles.sectionTitle}>Send an update</h2>
             <p className={styles.sectionHint}>
-              One-click email to every confirmed (and optionally waitlisted) attendee —
-              use for room changes, reminders, weather calls.
+              One email to everyone with a confirmed place, and to the waiting
+              list if you choose. For a room change, a reminder, a weather call.
             </p>
           </div>
           {!broadcastOpen && (
-            <Button variant="ghost" onClick={() => setBroadcastOpen(true)}>
-              Compose update
+            <Button variant="secondary" onClick={() => setBroadcastOpen(true)}>
+              Write an update
             </Button>
           )}
         </div>
         {broadcastOpen && (
           <Card padding="lg">
-            <form
-              onSubmit={onSendBroadcast}
-              style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}
-            >
+            <form onSubmit={onSendBroadcast} className={styles.form}>
               <Field
                 id="broadcast-subject"
                 label="Subject"
-                hint="The event title is appended automatically."
+                hint="The event’s name is added to the end for you."
               >
                 <Input
                   id="broadcast-subject"
@@ -337,59 +324,51 @@ export default function AttendeeDashboard({ event }: Props) {
                   onChange={(e) => setBroadcastSubject(e.target.value)}
                   disabled={broadcastState.kind === "sending"}
                   maxLength={150}
-                  placeholder="e.g. Room change — moved to Pope B11"
+                  placeholder="e.g. Room change: we’ve moved to Pope B11"
                 />
               </Field>
               <Field
                 id="broadcast-body"
                 label="Message"
-                hint="Plain text. Blank lines create paragraphs. Attendees always see the when/where at the bottom."
+                hint="Plain text. An empty line starts a new paragraph. The time and the place are added at the bottom."
               >
-                <textarea
+                <Textarea
                   id="broadcast-body"
                   value={broadcastBody}
                   onChange={(e) => setBroadcastBody(e.target.value)}
                   disabled={broadcastState.kind === "sending"}
                   rows={6}
                   maxLength={8000}
-                  className={styles.broadcastTextarea}
-                  placeholder="Hi all — just a heads up that we've moved from Pope A17 to Pope B11. Same time, same food. See you there!"
+                  placeholder="e.g. Hi all, we’ve moved from Pope A17 to Pope B11. Same time, same food. See you there."
                 />
               </Field>
-              <label className={styles.checkboxRow}>
-                <input
-                  type="checkbox"
-                  checked={broadcastIncludeWaitlist}
-                  onChange={(e) => setBroadcastIncludeWaitlist(e.target.checked)}
-                  disabled={broadcastState.kind === "sending"}
-                />
-                <span>
-                  Include waitlisted attendees ({waitlisted.length}) in addition to
-                  confirmed ({confirmed.length})
-                </span>
-              </label>
+              <OptionRow
+                checked={broadcastIncludeWaitlist}
+                onChange={(e) => setBroadcastIncludeWaitlist(e.target.checked)}
+                disabled={broadcastState.kind === "sending"}
+                description={`${confirmed.length} confirmed, ${waitlisted.length} on the waiting list`}
+              >
+                Send it to the waiting list as well
+              </OptionRow>
               {broadcastState.kind === "error" && (
-                <p style={{ color: "var(--color-danger)", margin: 0 }}>
+                <p className={styles.problem} role="alert">
                   {broadcastState.message}
                 </p>
               )}
               {broadcastState.kind === "sent" && (
-                <p style={{ color: "var(--color-success)", margin: 0 }}>
+                <p className={styles.done} role="status">
                   Sent to {broadcastState.sent} attendee
                   {broadcastState.sent === 1 ? "" : "s"}
-                  {broadcastState.failed > 0
-                    ? ` · ${broadcastState.failed} failed`
-                    : ""}
-                  .
+                  {broadcastState.failed > 0 ? ` · ${broadcastState.failed} failed` : ""}.
                 </p>
               )}
-              <div style={{ display: "flex", gap: "var(--space-2)" }}>
+              <div className={styles.buttons}>
                 <Button type="submit" disabled={broadcastState.kind === "sending"}>
                   {broadcastState.kind === "sending" ? "Sending…" : "Send update"}
                 </Button>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="secondary"
                   onClick={() => {
                     setBroadcastOpen(false);
                     setBroadcastState({ kind: "idle" });
@@ -406,21 +385,25 @@ export default function AttendeeDashboard({ event }: Props) {
 
       {/* Pending change-requests ----------------------------------------- */}
       {pendingChanges.length > 0 && (
-        <section>
-          <h2 className={styles.sectionTitle}>
-            Pending change requests ({pendingChanges.length})
-          </h2>
-          <p className={styles.sectionHint}>
-            Attendees asking to update their answers (usually dietary tweaks). Approve
-            replaces their original answers; deny keeps the originals.
-          </p>
-          <div className={styles.pendingList}>
+        <section className={styles.section}>
+          <div>
+            <h2 className={styles.sectionTitle}>
+              Asking to change an answer ({pendingChanges.length})
+            </h2>
+            <p className={styles.sectionHint}>
+              Usually a dietary change. Approving swaps in the new answers;
+              turning it down keeps the ones they gave first.
+            </p>
+          </div>
+          <div className={styles.queue}>
             {pendingChanges.map((r) => (
               <Card key={r.id} padding="md">
                 <div className={styles.rsvpRow}>
                   <div className={styles.rsvpMain}>
-                    <strong>{r.name}</strong>
-                    <span className={styles.muted}> · {r.email}</span>
+                    <div>
+                      <strong className={styles.who}>{r.name}</strong>
+                      <span className={styles.email}>{r.email}</span>
+                    </div>
                     <ChangeDiff
                       questions={event.signupForm}
                       current={r.answers}
@@ -428,23 +411,20 @@ export default function AttendeeDashboard({ event }: Props) {
                     />
                     {r.pendingAnswersRequestedAt && (
                       <div className={styles.muted}>
-                        requested {r.pendingAnswersRequestedAt.toLocaleString()}
+                        Asked {stampWords(r.pendingAnswersRequestedAt)}
                       </div>
                     )}
                   </div>
-                  <div className={styles.rsvpActions}>
-                    <Button
-                      onClick={() => onApproveChange(r)}
-                      disabled={busyId === r.id}
-                    >
+                  <div className={styles.buttons}>
+                    <Button onClick={() => onApproveChange(r)} disabled={busyId === r.id}>
                       Approve change
                     </Button>
                     <Button
-                      variant="ghost"
+                      variant="secondary"
                       onClick={() => onDenyChange(r)}
                       disabled={busyId === r.id}
                     >
-                      Reject
+                      Turn down
                     </Button>
                   </div>
                 </div>
@@ -456,69 +436,66 @@ export default function AttendeeDashboard({ event }: Props) {
 
       {/* Pending queue --------------------------------------------------- */}
       {pending.length > 0 && (
-        <section>
-          <h2 className={styles.sectionTitle}>
-            Pending approval ({pending.length})
-          </h2>
-          <p className={styles.sectionHint}>
-            Approve or deny each RSVP. Approved RSVPs get a spot if capacity
-            allows; if full (and waitlist is on) they go on the waitlist.
-          </p>
-          <div className={styles.pendingList}>
+        <section className={styles.section}>
+          <div>
+            <h2 className={styles.sectionTitle}>Waiting for a decision ({pending.length})</h2>
+            <p className={styles.sectionHint}>
+              Approve or turn down each one. An approved request gets a place
+              if there is one left; if the event is full and has a waiting
+              list, it goes on the list.
+            </p>
+          </div>
+          <div className={styles.queue}>
             {pending.map((r) => (
               <Card key={r.id} padding="md">
                 <div className={styles.rsvpRow}>
                   <div className={styles.rsvpMain}>
-                    <strong>{r.name}</strong>
-                    <span className={styles.muted}> · {r.email}</span>
-                    <div className={styles.answers}>
-                      <AnswerSummary rsvp={r} questions={event.signupForm} />
+                    <div>
+                      <strong className={styles.who}>{r.name}</strong>
+                      <span className={styles.email}>{r.email}</span>
                     </div>
+                    <AnswerSummary rsvp={r} questions={event.signupForm} />
                     {r.createdAt && (
-                      <div className={styles.muted}>
-                        submitted {r.createdAt.toLocaleString()}
-                      </div>
+                      <div className={styles.muted}>Sent {stampWords(r.createdAt)}</div>
                     )}
                   </div>
-                  <div className={styles.rsvpActions}>
-                    <Button
-                      onClick={() => onApprove(r)}
-                      disabled={busyId === r.id}
-                    >
+                  <div className={styles.buttons}>
+                    <Button onClick={() => onApprove(r)} disabled={busyId === r.id}>
                       Approve
                     </Button>
                     <Button
-                      variant="ghost"
+                      variant="secondary"
                       onClick={() => {
                         setDenyFor(r.id);
                         setDenyNote("");
                       }}
                       disabled={busyId === r.id}
                     >
-                      Deny…
+                      Turn down…
                     </Button>
                   </div>
                 </div>
                 {denyFor === r.id && (
                   <div className={styles.denyBox}>
-                    <Field id={`deny-${r.id}`} label="Reason (optional, kept for audit)">
+                    <Field
+                      id={`deny-${r.id}`}
+                      label="Note to them (optional)"
+                      hint="They read this: it goes in the email that tells them, as a note from the organiser. It is kept with the sign-up too."
+                    >
                       <Input
                         id={`deny-${r.id}`}
                         value={denyNote}
                         onChange={(e) => setDenyNote(e.target.value)}
-                        placeholder="e.g. suspected spam, prior no-show"
+                        placeholder="e.g. This one is for this term’s fellows. The next social is open to everyone."
                         maxLength={500}
                       />
                     </Field>
-                    <div className={styles.denyActions}>
-                      <Button
-                        onClick={onDenyConfirm}
-                        disabled={busyId === r.id}
-                      >
-                        Deny RSVP
+                    <div className={styles.buttons}>
+                      <Button variant="danger" onClick={onDenyConfirm} disabled={busyId === r.id}>
+                        Turn down {r.name}
                       </Button>
                       <Button
-                        variant="ghost"
+                        variant="secondary"
                         onClick={() => {
                           setDenyFor(null);
                           setDenyNote("");
@@ -536,9 +513,9 @@ export default function AttendeeDashboard({ event }: Props) {
       )}
 
       {actionErr && (
-        <Card padding="md">
-          <p style={{ color: "var(--color-danger)", margin: 0 }}>{actionErr}</p>
-        </Card>
+        <Notice tone="warning" role="alert">
+          {actionErr}
+        </Notice>
       )}
 
       {/* Test data (admin) ---------------------------------------------- */}
@@ -557,30 +534,29 @@ export default function AttendeeDashboard({ event }: Props) {
 
       {/* Charts --------------------------------------------------------- */}
       {active.length > 0 && (
-        <section>
-          <h2 className={styles.sectionTitle}>Answers (confirmed + waitlisted)</h2>
-          <p className={styles.sectionHint}>
-            Live breakdown — use these numbers when ordering food.
-          </p>
+        <section className={styles.section}>
+          <div>
+            <h2 className={styles.sectionTitle}>Answers</h2>
+            <p className={styles.sectionHint}>
+              From everyone with a confirmed place or on the waiting list. Use
+              these numbers when you order food.
+            </p>
+          </div>
           <div className={styles.chartsGrid}>
             {event.signupForm.map((q) => (
               <QuestionChart key={q.id} question={q} rsvps={active} />
             ))}
             {event.signupForm.length === 0 && (
-              <Card padding="md">
-                <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
-                  No signup questions on this event — nothing to chart.
-                </p>
-              </Card>
+              <p className={styles.quiet}>This event asks no questions, so there is nothing to chart.</p>
             )}
           </div>
         </section>
       )}
 
       {/* Attendee table + export ---------------------------------------- */}
-      <section>
-        <div className={styles.tableHeader}>
-          <h2 className={styles.sectionTitle}>All RSVPs</h2>
+      <section className={styles.section}>
+        <div className={styles.sectionHead}>
+          <h2 className={styles.sectionTitle}>Everyone who signed up</h2>
           <div className={styles.tableControls}>
             <label className={styles.filterLabel}>
               <span>Show</span>
@@ -588,91 +564,91 @@ export default function AttendeeDashboard({ event }: Props) {
                 value={filter}
                 onChange={setFilter}
                 options={[
-                  { value: "active", label: "Active (confirmed + waitlisted)" },
-                  { value: "all", label: "All" },
+                  { value: "active", label: "Confirmed and waiting list" },
+                  { value: "all", label: "Everyone" },
                   ...RSVP_STATUSES.map((s) => ({
                     value: s,
-                    label: RSVP_STATUS_LABEL[s],
+                    label: SIGNUP_WORDS[s],
                   })),
                 ]}
-                ariaLabel="Show RSVPs"
+                ariaLabel="Which sign-ups to show"
               />
             </label>
-            <Button variant="ghost" onClick={onCopyEmails}>
-              Copy emails (active)
+            <Button variant="secondary" onClick={onCopyEmails}>
+              Copy emails
             </Button>
-            <Button variant="ghost" onClick={onDownloadCSV}>
+            <Button variant="secondary" onClick={onDownloadCSV}>
               Download CSV
             </Button>
           </div>
         </div>
         {copyStatus && (
-          <p style={{ color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>
+          <p className={styles.quiet} role="status">
             {copyStatus}
           </p>
         )}
 
         {visibleRows.length === 0 ? (
-          <Card padding="md">
-            <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
-              No RSVPs in this view.
-            </p>
-          </Card>
+          <p className={styles.quiet}>Nobody in this view.</p>
         ) : (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Status</th>
-                  <th>Submitted</th>
-                  <th>Answers</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleRows.map((r) => (
-                  <tr key={r.id}>
-                    <td>{r.name}</td>
-                    <td className={styles.mono}>{r.email}</td>
-                    <td>
-                      <div style={{ display: "flex", gap: "var(--space-1)", flexWrap: "wrap" }}>
-                        <Badge tone={statusTone(r.status)}>
-                          {RSVP_STATUS_LABEL[r.status]}
-                        </Badge>
-                        {r.pendingAnswers && (
-                          <Badge tone="warning">Change pending</Badge>
-                        )}
-                      </div>
-                    </td>
-                    <td className={styles.muted}>
-                      {r.createdAt?.toLocaleDateString() ?? "—"}
-                    </td>
-                    <td>
-                      <AnswerSummary rsvp={r} questions={event.signupForm} />
-                      {r.decisionNote && (
-                        <div className={styles.decisionNote}>
-                          <strong>Note:</strong> {r.decisionNote}
-                        </div>
-                      )}
-                    </td>
-                    <td className={styles.rowActions}>
-                      {r.status !== "cancelled" && r.status !== "denied" && (
-                        <button
-                          type="button"
-                          className={styles.ghostBtnSm}
-                          onClick={() => onCancel(r)}
-                          disabled={busyId === r.id}
-                        >
-                          Cancel
-                        </button>
-                      )}
-                    </td>
+          <div className={styles.tableCard}>
+            <div className={styles.tableScroll}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Email</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Sent</th>
+                    <th scope="col">Answers</th>
+                    <th scope="col">
+                      <span className="visually-hidden">Actions</span>
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {visibleRows.map((r) => (
+                    <tr key={r.id}>
+                      <td className={styles.cellName}>{r.name}</td>
+                      <td className={styles.cellEmail}>{r.email}</td>
+                      <td>
+                        <span className={styles.chips}>
+                          <Chip tone={signupTone(r.status)} dot>
+                            {SIGNUP_WORDS[r.status]}
+                          </Chip>
+                          {r.pendingAnswers && <Chip tone="warning">Change asked for</Chip>}
+                          {r.synthetic && <Chip tone="neutral">Test</Chip>}
+                        </span>
+                      </td>
+                      <td className={styles.cellDate}>
+                        {r.createdAt ? dayWords(r.createdAt) : ""}
+                      </td>
+                      <td className={styles.cellAnswers}>
+                        <AnswerSummary rsvp={r} questions={event.signupForm} />
+                        {r.decisionNote && (
+                          <div className={styles.decisionNote}>
+                            <strong>Note:</strong> {r.decisionNote}
+                          </div>
+                        )}
+                      </td>
+                      <td className={styles.rowActions}>
+                        {r.status !== "cancelled" && r.status !== "denied" && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => onCancel(r)}
+                            disabled={busyId === r.id}
+                            aria-label={`Cancel ${r.name}’s sign-up`}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </section>
@@ -680,21 +656,15 @@ export default function AttendeeDashboard({ event }: Props) {
   );
 }
 
-function CountBox({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: "neutral" | "accent" | "success" | "danger" | "warning";
-}) {
+function CountBox({ status, value }: { status: RsvpStatus; value: number }) {
   return (
     <div className={styles.countBox}>
-      <div className={styles.countValue}>{value}</div>
-      <div className={styles.countLabel}>
-        <Badge tone={tone}>{label}</Badge>
-      </div>
+      <dt className={styles.countLabel}>
+        <Chip tone={signupTone(status)} dot>
+          {SIGNUP_WORDS[status]}
+        </Chip>
+      </dt>
+      <dd className={styles.countValue}>{value}</dd>
     </div>
   );
 }
@@ -716,19 +686,15 @@ function ChangeDiff({
     }))
     .filter((r) => r.was !== r.now);
   if (rows.length === 0) {
-    return (
-      <p className={styles.muted}>(No net change — attendee resubmitted same answers.)</p>
-    );
+    return <p className={styles.muted}>Nothing changes: they sent the same answers again.</p>;
   }
   return (
     <ul className={styles.answerList}>
       {rows.map(({ q, was, now }) => (
         <li key={q.id}>
           <span className={styles.answerLabel}>{q.label}:</span>{" "}
-          <span style={{ textDecoration: "line-through", color: "var(--color-text-muted)" }}>
-            {was || "(empty)"}
-          </span>{" "}
-          → <strong>{now || "(empty)"}</strong>
+          <span className={styles.was}>{was || "(empty)"}</span>{" "}
+          <span className={styles.answerLabel}>→</span> <strong>{now || "(empty)"}</strong>
         </li>
       ))}
     </ul>
@@ -742,7 +708,7 @@ function AnswerSummary({
   rsvp: RsvpDoc;
   questions: FormQuestion[];
 }) {
-  if (questions.length === 0) return <span className={styles.muted}>—</span>;
+  if (questions.length === 0) return null;
   return (
     <ul className={styles.answerList}>
       {questions.map((q) => {
@@ -773,7 +739,7 @@ function QuestionChart({
       <Card padding="md">
         <h3 className={styles.chartTitle}>{question.label}</h3>
         {answers.length === 0 ? (
-          <p className={styles.muted}>No responses.</p>
+          <p className={styles.muted}>No answers.</p>
         ) : (
           <ul className={styles.textAnswerList}>
             {answers.map((a, i) => (
@@ -827,7 +793,7 @@ function QuestionChart({
     }
   }
 
-  // Only chart what people actually picked — an all-zero pie is just noise.
+  // Only chart what people actually picked: an all-zero pie is just noise.
   const slices: PieSlice[] = Array.from(counts.entries())
     .filter(([, count]) => count > 0)
     .sort((a, b) => b[1] - a[1])
@@ -841,13 +807,12 @@ function QuestionChart({
     <Card padding="md">
       <h3 className={styles.chartTitle}>{question.label}</h3>
       {slices.length === 0 ? (
-        <p className={styles.muted}>No responses yet.</p>
+        <p className={styles.muted}>No answers yet.</p>
       ) : (
         <>
           <p className={styles.muted}>
-            {totalResponses} response{totalResponses === 1 ? "" : "s"}
-            {multiPick ? " · multiple picks per person" : ""} · hover a slice for
-            detail
+            {totalResponses} answer{totalResponses === 1 ? "" : "s"}
+            {multiPick ? " · people can pick more than one" : ""}
           </p>
           <Pie slices={slices} />
         </>
