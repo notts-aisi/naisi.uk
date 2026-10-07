@@ -1081,6 +1081,30 @@ describe("the application form passage", () => {
     );
   });
 
+  test("readers are shown when an account is still waiting, and the page says so", () => {
+    // Not part of the application, and shown beside it: the list a reviewer
+    // works from and the screen that reads one application both mark an
+    // applicant whose request to join has not been approved yet.
+    assert.match(
+      PAGE_FLAT,
+      /whether a programme you ranked higher has accepted you, and whether your request to join NAISI is still waiting/i,
+      "v6 no longer says that the people who read an application are shown " +
+        "when its owner's request to join is still waiting.",
+    );
+    assert.match(
+      read("src/lib/applications/review/board.ts"),
+      /accountWaiting: pendingUids\.has\(application\.uid\),/,
+      "the list of applications no longer marks a waiting account, so the " +
+        "policy says reviewers see something they are not shown.",
+    );
+    assert.match(
+      read("src/lib/applications/review/load.ts"),
+      /accountWaiting: pendingUids\.has\(applicantUid\),/,
+      "the review screen no longer marks a waiting account, so the policy " +
+        "says reviewers see something they are not shown.",
+    );
+  });
+
   test("the access-requirements box is where the page says, apart from the application, and only an admin opens it", () => {
     // OWNER DECISION, 7 October 2026: the box is on the form, on its last
     // step. `createForm` writes an empty `accessRequirementsPrompt`, and that
