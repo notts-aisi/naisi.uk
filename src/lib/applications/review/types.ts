@@ -37,7 +37,13 @@ export type ApplicationRow = {
    * listed and is in none of the board's numbers.
    */
   withdrawn: boolean;
-  /** This programme's place in their ranking: 1 for a 1st choice. */
+  /**
+   * They are on this list because they accepted an invitation to this
+   * programme, which they did not rank. `choice` is 0, `standing` is
+   * `accepted`, and there is no decision to make about them here.
+   */
+  byInvitation: boolean;
+  /** This programme's place in their ranking: 1 for a 1st choice. 0 for a row `byInvitation`. */
   choice: number;
   /** When this programme is not their 1st choice, the programme that is. */
   firstChoiceName: string | null;
@@ -113,7 +119,12 @@ export type ProgrammeBoard = {
     role: ProgrammeRole;
     canDecide: boolean;
   };
-  /** Every number here and in `counts` is of the people in the term. */
+  /**
+   * Every number here and in `counts` is of the people in the term who are
+   * on this list: those who ranked the programme, and anybody who joined it
+   * by accepting an invitation, who counts as an application decided and
+   * accepted.
+   */
   progress: {
     applications: number;
     decided: number;
@@ -275,6 +286,11 @@ export type ReviewPayload = {
     accountWaiting: boolean;
     withdrawn: boolean;
     ranked: { programmeId: string; shortName: string; choice: number; focus: boolean }[];
+    /**
+     * The programme they joined by accepting an invitation, when this screen
+     * was opened under it. Null for everybody the programme was ranked by.
+     */
+    invitedTo: { programmeId: string; shortName: string } | null;
     wantsToFacilitate: boolean;
     about: {
       status: string;
@@ -322,6 +338,11 @@ export type ReviewPayload = {
     owesDecision: boolean;
     /** Decision day has told this person, so this decision can no longer change. */
     told: boolean;
+    /**
+     * They are here by an invitation they accepted. Nobody decided for this
+     * programme and nobody can: `standing` is `accepted` and `kind` is null.
+     */
+    byInvitation: boolean;
     kind: ProgrammeDecisionKind | null;
     poolReason: PoolReason | null;
     couldSuitProgrammeId: string | null;

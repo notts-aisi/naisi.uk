@@ -102,9 +102,10 @@ export default function ApplicationsBoard({ board, listPath, apiPath }: Props) {
     });
   };
 
-  // Somebody who has withdrawn cannot be decided from the list, so the header
-  // box neither picks them nor waits for them.
-  const choosable = visible.filter((row) => !row.withdrawn);
+  // Somebody who has withdrawn cannot be decided from the list, and nobody
+  // decides for somebody who joined by invitation, so the header box neither
+  // picks them nor waits for them.
+  const choosable = visible.filter((row) => !row.withdrawn && !row.byInvitation);
   const allVisiblePicked = choosable.length > 0 && choosable.every((row) => selected.has(row.uid));
   const toggleAllVisible = () => {
     setSelected((current) => {
@@ -707,7 +708,7 @@ function Row({
     <tr className={selected ? styles.rowSelected : undefined}>
       {selectable ? (
         <td className={styles.checkCell}>
-          {row.withdrawn ? null : (
+          {row.withdrawn || row.byInvitation ? null : (
             <Checkbox
               label={`Select ${row.name}`}
               checked={selected}
@@ -730,7 +731,15 @@ function Row({
         {row.accountWaiting ? <div className={styles.flag}>Account waiting</div> : null}
       </td>
       <td data-label="Choice">
-        {row.choice === 1 ? (
+        {row.byInvitation ? (
+          // They did not rank this programme: the committee invited them to it.
+          <div>
+            <span className={styles.lowerChoice}>Invited</span>
+            {row.firstChoiceName ? (
+              <div className={styles.sub}>1st: {row.firstChoiceName}</div>
+            ) : null}
+          </div>
+        ) : row.choice === 1 ? (
           <span className={styles.nowrap}>1st</span>
         ) : (
           <div>
@@ -762,9 +771,17 @@ function Row({
           // programme decided, with that decision kept as a line under it.
           <div>
             <Chip dot>Withdrawn</Chip>
-            {row.standing === "to-review" ? null : (
+            {row.byInvitation ? (
+              <div className={styles.sub}>Had accepted an invitation</div>
+            ) : row.standing === "to-review" ? null : (
               <div className={styles.sub}>Was {PROGRAMME_STANDING_LABEL[row.standing].toLowerCase()}</div>
             )}
+          </div>
+        ) : row.byInvitation ? (
+          // In the programme by an invitation they accepted. Nothing to decide.
+          <div>
+            <StandingChip standing="accepted" />
+            <div className={styles.sub}>Accepted an invitation</div>
           </div>
         ) : settledElsewhere ? (
           <div>

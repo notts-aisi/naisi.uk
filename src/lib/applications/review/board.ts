@@ -51,6 +51,14 @@ import type {
  * not among the people the scores recommend for a place, and their row names
  * no programme they are placed on, because they hold no place.
  *
+ * SOMEBODY WHO JOINED BY INVITATION HAS A ROW, marked `byInvitation`. They
+ * did not rank the programme, so nothing about their row is a choice, a score
+ * or a decision owed: it stands as accepted, it is never in the queue, and
+ * the scores recommend nobody on account of it. While they are in the term
+ * they are counted as an application decided and accepted, which is what the
+ * head's places line already says of them. Nobody has a row for an
+ * invitation that is only picked, or sent and not yet answered.
+ *
  * Pure, with no server import: the route gates the caller and loads the
  * documents, and hands them here.
  */
@@ -85,7 +93,9 @@ function buildRow(input: {
   if (!sent) return null;
   const ranked = term.ranked.get(application.uid) ?? [];
   const at = ranked.indexOf(programmeId);
-  if (at === -1) return null;
+  // On this list by an invitation they accepted, and not by their ranking.
+  const byInvitation = at === -1 && term.joined.get(application.uid) === programmeId;
+  if (at === -1 && !byInvitation) return null;
 
   const decision = term.decisions.get(application.uid) ?? null;
   const reviews = term.reviews.get(application.uid) ?? [];
@@ -111,7 +121,8 @@ function buildRow(input: {
     elsewhere[otherId] = sectionScore(seen, otherKeys).score;
   }
 
-  const standing = standingWith(decision, programmeId);
+  // An invitation accepted is a place accepted: nobody decided it here.
+  const standing = byInvitation ? "accepted" : standingWith(decision, programmeId);
   const owes = owesDecision(ranked, decision, programmeId);
   // Somebody who has left the term holds no place, whatever was decided.
   const inTerm = isInTerm(application);
@@ -133,6 +144,7 @@ function buildRow(input: {
       detail,
       accountWaiting: pendingUids.has(application.uid),
       withdrawn: application.status === "withdrawn",
+      byInvitation,
       choice: at + 1,
       firstChoiceName: at === 0 ? null : (programmeOn(form, ranked[0])?.shortName ?? null),
       score: score === null ? null : formatScore(score),
@@ -158,13 +170,16 @@ function recommendationsOf(
   working: readonly Working[],
 ): BoardRecommendations {
   const places = programmeOn(form, programmeId)?.places ?? null;
-  // The scores recommend people for places, so only people still in the term.
-  const scored: ScoredApplicant[] = working.filter(({ inTerm }) => inTerm).map(({ row, elsewhere }) => ({
-    uid: row.uid,
-    choice: row.choice,
-    score: row.scoreValue,
-    elsewhere,
-  }));
+  // The scores recommend people for places, so only people still in the term,
+  // and only people the programme decides about: not one who joined by invitation.
+  const scored: ScoredApplicant[] = working
+    .filter(({ inTerm, row }) => inTerm && !row.byInvitation)
+    .map(({ row, elsewhere }) => ({
+      uid: row.uid,
+      choice: row.choice,
+      score: row.scoreValue,
+      elsewhere,
+    }));
   const found = recommendationsFor(scored, places);
   const scoredCount = scored.filter((applicant) => applicant.score !== null).length;
 
@@ -221,8 +236,11 @@ export function buildProgrammeBoard(input: {
   working.sort((a, b) => newestFirst(a.row, b.row));
 
   const tally = own(term.tally.programmes, programmeId);
-  const decided = tally ? tally.accepted + tally.pooled + tally.declined : 0;
-  const applications = tally?.applications ?? 0;
+  // Here by an invitation they accepted, and still in the term: on the list,
+  // decided and accepted, though the programme's lead decided none of it.
+  const joined = tally?.joined ?? 0;
+  const decided = (tally ? tally.accepted + tally.pooled + tally.declined : 0) + joined;
+  const applications = (tally?.applications ?? 0) + joined;
   const toReview = tally?.toReview ?? 0;
 
   // Somebody who decides is left with whoever is still owed a decision. A
@@ -267,7 +285,7 @@ export function buildProgrammeBoard(input: {
     counts: {
       all: applications,
       toReview,
-      accepted: tally?.accepted ?? 0,
+      accepted: (tally?.accepted ?? 0) + joined,
       pooled: tally?.pooled ?? 0,
       declined: tally?.declined ?? 0,
     },

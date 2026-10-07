@@ -280,6 +280,28 @@ export type Holding = {
 };
 
 /**
+ * The programme this person accepted an invitation to, or null.
+ *
+ * FROM THE MOMENT SOMEBODY ACCEPTS AN INVITATION, THEY ARE ON THAT
+ * PROGRAMME'S LIST as if they had ranked it: its lead and reviewers can read
+ * their application (`canReadApplication` in `./access`) and they have a row
+ * in its list. Until then the programme's own staff are shown only how many
+ * places are kept for invitations, never who they are for: the person did
+ * not pick the programme, and may yet say no.
+ *
+ * It stays the answer if they later cannot make it. They are then listed as
+ * withdrawn, like anybody else who left after applying, and {@link holdingOf}
+ * no longer counts the place.
+ */
+export function joinedByInvitation(
+  application: Pick<ApplicationDoc, "sent" | "result" | "invitation">,
+): string | null {
+  if (application.sent === null || application.result?.kind !== "invited") return null;
+  const { invitation } = application;
+  return invitation && invitation.response === "accepted" ? invitation.programmeId : null;
+}
+
+/**
  * WHO HOLDS A PLACE ON A PROGRAMME NOW. The one answer, for every screen.
  *
  *  - A PLACE IS HELD by somebody the programme's lead accepted who is still

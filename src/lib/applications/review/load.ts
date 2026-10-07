@@ -22,7 +22,7 @@ import { buildReview } from "./detail";
 import { emptyMap, own, programmeOn } from "./own";
 import { UNNAMED_STAFF, firstWord } from "./people";
 import { NOT_FOUND } from "./refusals";
-import { termPictureFor, type TermPicture, type Viewer } from "./term";
+import { listedOn, termPictureFor, type TermPicture, type Viewer } from "./term";
 import type { ProgrammeBoard, Refusal, ReviewPayload } from "./types";
 
 /**
@@ -148,7 +148,7 @@ export async function loadProgrammeBoard(
 
   const { sets, term } = await loadTerm(db, form, user.uid);
   const mine = term.applications
-    .filter((application) => (term.ranked.get(application.uid) ?? []).includes(programmeId))
+    .filter((application) => listedOn(term, application.uid).includes(programmeId))
     .map((application) => application.uid);
   const [staffNames, pendingUids] = await Promise.all([
     loadStaffNames(db, [...leadUids(form), user.uid]),
@@ -210,8 +210,9 @@ export type ReviewResult = { ok: true; review: ReviewPayload } | Refusal;
 
 /**
  * One application, for a caller who may read it. `programmeId` is the
- * programme they opened it under; without one it is the first programme in
- * the applicant's own ranking that the caller has a role on.
+ * programme they opened it under; without one it is the first programme the
+ * caller has a role on among those the applicant ranked and the one they
+ * joined by accepting an invitation.
  */
 export async function loadReview(
   db: Firestore,
@@ -231,16 +232,19 @@ export async function loadReview(
   const application = term.applications.find((entry) => entry.uid === applicantUid) ?? null;
   if (!application) return NOT_FOUND;
   const ranked = term.ranked.get(applicantUid) ?? [];
-  if (!canReadApplication(user, form, ranked)) return NOT_FOUND;
+  if (!canReadApplication(user, form, ranked, term.joined.get(applicantUid) ?? null)) return NOT_FOUND;
 
+  // The programmes this application can be opened under: the ones it ranked,
+  // and the one its owner joined by accepting an invitation.
+  const listed = listedOn(term, applicantUid);
   const focus =
     programmeId ??
-    ranked.find((id) => programmeOn(form, id) && roleOnProgramme(user, form, id) !== null) ??
+    listed.find((id) => programmeOn(form, id) && roleOnProgramme(user, form, id) !== null) ??
     null;
   if (
     !focus ||
     !programmeOn(form, focus) ||
-    !ranked.includes(focus) ||
+    !listed.includes(focus) ||
     roleOnProgramme(user, form, focus) === null
   ) {
     return NOT_FOUND;

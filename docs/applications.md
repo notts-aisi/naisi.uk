@@ -134,11 +134,27 @@ their mind needs no recount.
 | | Reads an application | Scores and comments | Decides | Edits the programme | Runs the term |
 | --- | --- | --- | --- | --- | --- |
 | Admin | every one | every programme | every programme | every programme | yes |
-| Lead of a programme | those that ranked it | that programme | that programme | that programme | no |
-| Reviewer of a programme | those that ranked it | that programme | no | no | no |
+| Lead of a programme | those that ranked it, and anybody who joined it by invitation | that programme | that programme | that programme | no |
+| Reviewer of a programme | those that ranked it, and anybody who joined it by invitation | that programme | no | no | no |
 
 "Runs the term" is the form itself, the outcome each pooled applicant hears,
 revoking an acceptance, an exception, and the decision-day send.
+
+**Somebody who joins by invitation is read from the moment they accept, and
+not before.** An invitation is to a programme the person did not pick, so
+while it is only picked, or sent and not yet answered, that programme's lead
+and reviewers are shown a number of places kept for invitations and never
+the person. Once the person accepts (`joinedByInvitation()` in
+`decisions.ts`), the programme's lead and reviewers read the application as
+if it had ranked the programme (`canReadApplication()` takes the joined
+programme beside the ranking), and it has a row in the programme's list,
+marked `byInvitation`, standing as accepted, with no decision to make and
+nothing of that programme's to score. The invitation card tells the person
+so before they press Accept. If they later cannot make it, the row stays,
+marked withdrawn, like anybody else's who left after applying. Somebody who
+says no thanks is never read by the programme they turned down.
+`tests/applications-wave-h-joined.test.mjs` runs every kind of account
+against every way an invitation can stand.
 
 A lead or a reviewer has to be an admin or SU-recognised committee, because
 applications are personal. That is checked against their live user document

@@ -38,13 +38,13 @@ import styles from "./ReviewScreen.module.css";
 /**
  * What this screen is sent, as it reads it.
  *
- * `told` is true once decision day has told this person their result. From
- * then on the decision is a record, not a choice: it is drawn as it stands,
- * with no Accept, Pool, Decline or Revoke to press, because the route that
- * would take the press refuses it. A reply that does not carry the flag
- * leaves the screen exactly as it was, so the flag is optional here.
+ * `decision.told` is true once decision day has told this person their
+ * result. From then on the decision is a record, not a choice: it is drawn as
+ * it stands, with no Accept, Pool, Decline or Revoke to press, because the
+ * route that would take the press refuses it. The flag is the server's
+ * (`hasBeenTold`, in the payload both the page and every save's reply carry).
  */
-type Review = ReviewPayload & { told?: boolean };
+type Review = ReviewPayload;
 
 type Props = {
   initial: Review;
@@ -95,7 +95,7 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
   const { applicant, programme, viewer, round, decision, queue } = review;
   const uid = encodeURIComponent(applicant.uid);
   /** This person has their result. Only ever true when the server says so. */
-  const told = review.told === true;
+  const told = decision.told === true;
   const canAct = viewer.canDecide && !round.decisionsSent && !told;
   const decisionDay = round.decisionDay ?? "decision day";
 
@@ -479,6 +479,10 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
                   )}
                 </Chip>
               ))}
+              {/* Here by an invitation they accepted: the programme is not in their ranking. */}
+              {applicant.invitedTo ? (
+                <Chip tone="accent">{applicant.invitedTo.shortName} · by invitation</Chip>
+              ) : null}
               {applicant.wantsToFacilitate ? <Chip>Wants to facilitate</Chip> : null}
               {applicant.accountWaiting ? <span className={styles.flag}>Account waiting</span> : null}
               {applicant.withdrawn ? <span className={styles.flag}>Withdrawn</span> : null}
@@ -576,14 +580,15 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
               {/*
                 WHO THIS NAMES IS WHO `canReadApplication` LETS IN
                 (src/lib/applications/access.ts): an admin, or somebody with a
-                role, lead or reviewer, on a programme this person ranked. An
+                role, lead or reviewer, on a programme this person ranked or
+                on the one they joined by accepting an invitation. An
                 SU-recognised committee member named on none of them cannot
                 open this application at all. If that predicate changes, this
                 sentence changes with it: a test holds the two together.
               */}
               <span>
                 Only you, admins, and the lead and reviewers of each programme {applicant.firstName}{" "}
-                ranked can see comments and scores.
+                ranked, or joined by invitation, can see comments and scores.
               </span>
             </p>
 
@@ -606,10 +611,19 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
                     {decision.placedOn}, a higher choice of theirs, accepted them.
                   </p>
                 ) : null}
-                <p className={styles.decided}>
-                  {applicant.firstName} has been told their result. It’s on their own application
-                  page now, so this decision can’t be changed.
-                </p>
+                {decision.byInvitation ? (
+                  // Nobody decided this here: the committee invited them and
+                  // they said yes, so there is nothing for this programme to decide.
+                  <p className={styles.decided}>
+                    {applicant.firstName} accepted an invitation to {programme.shortName}. There’s
+                    no decision to make here.
+                  </p>
+                ) : (
+                  <p className={styles.decided}>
+                    {applicant.firstName} has been told their result. It’s on their own application
+                    page now, so this decision can’t be changed.
+                  </p>
+                )}
               </div>
             ) : viewer.canDecide ? (
               <div className={styles.decision}>
