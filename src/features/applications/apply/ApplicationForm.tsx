@@ -646,7 +646,8 @@ export default function ApplicationForm({
               <p className={styles.lede}>
                 Drag down <span className={styles.onPhone}>the</span>
                 <span className={styles.onLaptop}>a</span> day to paint the times you’re free, as much or as
-                little as you like. Drag over painted time to clear it.
+                little as you like. Drag over painted time to clear it. You can also type your times in,
+                under the week.
               </p>
             ) : null}
             {step.kind === "check" ? (
