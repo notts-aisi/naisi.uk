@@ -75,12 +75,6 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: PAGE_FLOOR,
 
     /*
-     * Icon.purpose is a single-value union in Next's types, so the combined
-     * "any maskable" string is a type error here. Separate files are forced,
-     * which is what web.dev recommends anyway: a maskable icon needs a much
-     * larger safe zone and looks over-padded when used as a plain icon.
-     */
-    /*
      * Chrome's richer install sheet (the one that reads like an app listing
      * rather than a bare Add-to-Home-Screen row) is driven by screenshots.
      * Captured from the live site by Playwright; retake them when a surface
@@ -112,10 +106,23 @@ export default function manifest(): MetadataRoute.Manifest {
       },
     ],
 
+    /*
+     * The home-screen icon: the whole emblem on its own dark ground, made by
+     * `npm run brand` from brand-source/3-app-icon/. Not the tab icon, which
+     * is a different picture on purpose (src/app/favicon.ico and icon.svg).
+     *
+     * Each file is listed twice, once per purpose. The artwork keeps the
+     * emblem inside the centre circle Android guarantees to show when it crops
+     * an icon, so one file serves as both a plain and a maskable icon, and
+     * Icon.purpose is a single-value union in Next's types, so the combined
+     * "any maskable" string is a type error here. Two entries with one src
+     * say the same thing.
+     */
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "maskable" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: "/icons/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
 
     /*
