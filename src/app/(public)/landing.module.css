@@ -391,7 +391,7 @@
 
 .button3dPrimary {
   background: linear-gradient(180deg, var(--color-accent-hover), var(--color-accent));
-  color: #fff;
+  color: var(--color-on-accent);
   box-shadow:
     0 var(--btn3d-press-distance) 0 color-mix(in oklab, var(--color-accent), black 35%),
     0 calc(var(--btn3d-press-distance) + 4px) 14px rgba(0, 0, 0, 0.28);
@@ -488,7 +488,7 @@
 
 .primaryCta {
   background: linear-gradient(180deg, var(--color-accent-hover), var(--color-accent));
-  color: #fff;
+  color: var(--color-on-accent);
   border: 1px solid transparent;
   box-shadow:
     0 3px 0 color-mix(in oklab, var(--color-accent), black 35%),
