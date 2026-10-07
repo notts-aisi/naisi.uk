@@ -154,6 +154,8 @@ type ToDo = {
 type Facts = {
   /** The admin's first name, for the greeting. */
   given: string;
+  /** The invitation to install the site as an app, drawn under the greeting. */
+  invite: ReactNode;
   /** "Morning", "Afternoon" or "Evening", by the site's clock. */
   greeting: string;
   /** Whether the term's form has applications to read: open, or closed and undecided. */
@@ -171,6 +173,7 @@ type Facts = {
 
 export default function HomeAdmin({
   given,
+  invite,
   greeting,
   applicationsInHand,
   decisionsBy,
@@ -260,6 +263,7 @@ export default function HomeAdmin({
   return (
     <>
       <PageHead title={given ? `${greeting}, ${given}.` : `${greeting}.`} description={needs} />
+      {invite}
 
       <div className={styles.columns}>
         <div className={styles.stack}>

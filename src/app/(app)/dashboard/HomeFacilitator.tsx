@@ -38,6 +38,8 @@ function bySoonest(groups: OverviewGroup[]): OverviewGroup[] {
 
 type Slots = {
   given: string;
+  /** The invitation to install the site as an app, drawn under the greeting. */
+  invite: ReactNode;
   entry: MyRunEntry;
   /** Server-rendered: the next events, as two small cards. */
   comingUp: ReactNode;
@@ -45,7 +47,7 @@ type Slots = {
   more: ReactNode;
 };
 
-export default function HomeFacilitator({ given, entry, comingUp, more }: Slots) {
+export default function HomeFacilitator({ given, invite, entry, comingUp, more }: Slots) {
   const { data, error } = useRunOverview(entry.runId);
   const groups = data ? bySoonest(data.groups) : [];
   const group = groups[0] ?? null;
@@ -67,6 +69,7 @@ export default function HomeFacilitator({ given, entry, comingUp, more }: Slots)
         title={given ? `Hi ${given}.` : "Hi."}
         description={<span className={styles.headLine}>{headLine}</span>}
       />
+      {invite}
 
       {!data && !error && <Skeleton height="14rem" />}
 

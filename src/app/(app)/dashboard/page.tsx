@@ -82,15 +82,17 @@ export default async function DashboardPage() {
       <NoApplicationsYet closesAt={term.closesAt} />
     ) : null;
 
+  // Quiet install invitation: phones only, dismissible once, hidden when
+  // already installed. Each form draws it under its greeting. See
+  // src/features/pwa/InstallCard.tsx.
+  const invite = <InstallCard />;
+
   return (
     <div className={styles.page}>
-      {/* Quiet install invitation: phones only, dismissible once, hidden
-          when already installed. See src/features/pwa/InstallCard.tsx. */}
-      <InstallCard />
-
       {user?.role === "admin" ? (
         <HomeAdmin
           given={given}
+          invite={invite}
           greeting={partOfDay(now)}
           applicationsInHand={term.stage === "open" || term.stage === "closed"}
           decisionsBy={term.decisionsByDate ? termCivilDay(term.decisionsByDate) : null}
@@ -103,6 +105,7 @@ export default async function DashboardPage() {
       ) : (
         <HomeMember
           given={given}
+          invite={invite}
           termCard={<TermCard term={term} />}
           comingUpRows={<ComingUp events={events.upcoming} layout="rows" />}
           comingUpCards={<ComingUp events={events.upcoming} layout="cards" />}

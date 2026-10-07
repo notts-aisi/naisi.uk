@@ -78,6 +78,8 @@ function headLine(entry: MyRunEntry): { long: string; short: string } {
 
 type Slots = {
   given: string;
+  /** The invitation to install the site as an app, drawn under the greeting. */
+  invite: ReactNode;
   entry: MyRunEntry;
   /** Server-rendered: the next events, as two small cards. */
   comingUp: ReactNode;
@@ -87,7 +89,14 @@ type Slots = {
   more: ReactNode;
 };
 
-export default function HomeProgramme({ given, entry, comingUp, applications, more }: Slots) {
+export default function HomeProgramme({
+  given,
+  invite,
+  entry,
+  comingUp,
+  applications,
+  more,
+}: Slots) {
   const { data, error } = useRunOverview(entry.runId);
   const head = headLine(entry);
 
@@ -126,6 +135,7 @@ export default function HomeProgramme({ given, entry, comingUp, applications, mo
         title={given ? `Hi ${given}.` : "Hi."}
         description={<span className={styles.headLine}>{head.long}</span>}
       />
+      {invite}
 
       {!data && !error && <Skeleton height="14rem" />}
 

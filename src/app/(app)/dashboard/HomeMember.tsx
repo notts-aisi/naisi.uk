@@ -35,6 +35,8 @@ import styles from "./home.module.css";
 type Slots = {
   /** The member's first name, for the greeting. */
   given: string;
+  /** The invitation to install the site as an app, drawn under the greeting. */
+  invite: ReactNode;
   termCard: ReactNode;
   comingUpRows: ReactNode;
   comingUpCards: ReactNode;
@@ -47,6 +49,7 @@ type Slots = {
 
 export default function HomeMember({
   given,
+  invite,
   termCard,
   comingUpRows,
   comingUpCards,
@@ -71,6 +74,7 @@ export default function HomeMember({
     return (
       <>
         <PageHead title={greeting} />
+        {invite}
         <Skeleton height="14rem" />
       </>
     );
@@ -95,6 +99,7 @@ export default function HomeMember({
     return (
       <HomeFacilitator
         given={given}
+        invite={invite}
         entry={facilitated}
         comingUp={comingUpCards}
         more={
@@ -111,6 +116,7 @@ export default function HomeMember({
     return (
       <HomeProgramme
         given={given}
+        invite={invite}
         entry={learning}
         comingUp={comingUpCards}
         applications={applications}
@@ -126,6 +132,7 @@ export default function HomeMember({
         // A failed read is not "not on a programme": the line is left out.
         description={error || involved ? undefined : "You’re not on a programme yet."}
       />
+      {invite}
       {termCard}
       <div className={styles.columns}>
         <div className={styles.stack}>{comingUpRows}</div>
