@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Card from "@/components/ui/Card";
+import PageHead from "@/components/ui/PageHead";
+import ResponsiveSelect from "@/components/ui/ResponsiveSelect";
 import {
   AdminPage,
   AdminLoadingBar,
@@ -12,9 +14,30 @@ import ApprovalCard from "@/features/admin/ApprovalCard";
 import { useApprovals } from "@/features/admin/useApprovals";
 import { useUniEmailIndex } from "@/features/admin/useUniEmailIndex";
 
+type Order = "newest" | "oldest";
+
+const ORDER_OPTIONS: Array<{ value: Order; label: string }> = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+];
+
+/**
+ * Join requests: the new accounts waiting for an admin to approve them.
+ */
 export default function ApprovalsPage() {
   const { users, loading, refreshing, error, reload } = useApprovals();
-  // Only check the uni emails actually on screen — the hook queries just these,
+  const [order, setOrder] = useState<Order>("newest");
+
+  // The hook hands the queue back newest first. The other order is the same
+  // list turned round, on a copy.
+  const ordered = useMemo(
+    () => (order === "newest" ? users : [...users].reverse()),
+    [users, order],
+  );
+
+  const { shown, hasMore, loadMore, total, shownCount } = useClientPagination(ordered, 20);
+
+  // Only check the uni emails actually on screen: the hook queries just these,
   // instead of scanning the whole users collection.
   const uniEmails = useMemo(
     () => users.map((u) => u.profile?.universityEmail ?? "").filter(Boolean),
@@ -22,39 +45,59 @@ export default function ApprovalsPage() {
   );
   const uniEmailIndex = useUniEmailIndex(uniEmails);
 
-  const { shown, hasMore, loadMore, total, shownCount } = useClientPagination(users, 20);
-
   return (
-    <AdminPage>
+    <AdminPage wide>
+      <PageHead
+        crumb="People"
+        title="Join requests"
+        description="New accounts wait here until an admin approves them. Approving sends a welcome email."
+        meta={<span>Accepting someone onto a programme approves their account too.</span>}
+        actions={
+          users.length > 1 ? (
+            <label style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-2)" }}>
+              <span style={{ fontSize: "var(--text-sm)", color: "var(--color-text-muted)" }}>
+                Sort
+              </span>
+              <ResponsiveSelect<Order>
+                value={order}
+                onChange={setOrder}
+                options={ORDER_OPTIONS}
+                ariaLabel="Sort"
+              />
+            </label>
+          ) : undefined
+        }
+      />
+
       {error && (
         <Card padding="md">
-          <p style={{ color: "var(--color-danger)" }}>
-            Couldn&apos;t load applications: {error.message}
+          <p style={{ color: "var(--color-danger-text)" }}>
+            Couldn&apos;t load the join requests: {error.message}
           </p>
         </Card>
       )}
 
       {loading && (
         <Card padding="md">
-          <AdminLoadingBar label="Loading applications…" />
+          <AdminLoadingBar label="Loading join requests…" />
         </Card>
       )}
 
       {!loading && !error && users.length === 0 && (
         <Card padding="lg">
           <h2 style={{ fontSize: "var(--text-xl)", marginBottom: "var(--space-2)" }}>
-            No pending applications
+            Nobody is waiting
           </h2>
           <p style={{ color: "var(--color-text-muted)" }}>
-            When someone signs up at <code>/register</code>, they&apos;ll show up here for an
-            admin to review.
+            When someone makes an account, their join request shows up here for an admin to
+            approve.
           </p>
         </Card>
       )}
 
       {!loading && !error && users.length > 0 && (
-        <p style={{ color: "var(--color-text-muted)" }}>
-          {users.length} application{users.length === 1 ? "" : "s"} waiting for review.
+        <p style={{ color: "var(--color-text-muted)", fontSize: "var(--text-sm)" }}>
+          {users.length} {users.length === 1 ? "join request" : "join requests"} waiting.
         </p>
       )}
 
@@ -69,8 +112,8 @@ export default function ApprovalsPage() {
               key={u.uid}
               user={u}
               uniEmailConflicts={conflicts}
-              // The list is one-shot, so it only drops a decided application
-              // when it is asked to read again.
+              // The list is one-shot, so it only drops a decided request when
+              // it is asked to read again.
               onResolved={reload}
             />
           );
@@ -85,7 +128,7 @@ export default function ApprovalsPage() {
           onLoadMore={loadMore}
           onRefresh={reload}
           refreshing={refreshing}
-          noun="applications"
+          noun="join requests"
         />
       )}
     </AdminPage>

@@ -1,17 +1,16 @@
-/* The head of an admin page: the section's name, then a strip of its pages. */
+/* The top of an admin page: the strip of the section's pages, then the page's
+   head when the page does not draw its own. */
 .head {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-6);
 }
 
-.title {
-  font-family: var(--font-display);
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1.08;
-  letter-spacing: -0.02em;
-  color: var(--color-text);
+/* The shared head is the same PageHead a page draws for itself. The space
+   under it is the layout's, so its own is taken off; the class is doubled so
+   this wins over the component's rule whichever stylesheet loads first. */
+.sharedHead.sharedHead {
+  margin-bottom: 0;
 }
 
 /* The strip is the shared SectionTabs, which contains its own sideways
@@ -176,9 +175,6 @@
 @media (max-width: 48rem) { /* --bp-md */
   .head {
     gap: var(--space-4);
-  }
-  .title {
-    font-size: 1.75rem;
   }
   .strip {
     display: none;

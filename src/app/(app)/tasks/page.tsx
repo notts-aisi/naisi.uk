@@ -14,6 +14,7 @@ import { useTaskRoster } from "@/features/tasks/hooks/useTaskRoster";
 import { useTasks } from "@/features/tasks/hooks/useTasks";
 import { createTask } from "@/features/tasks/taskMutations";
 import { isOverdue } from "@/lib/firestore/tasks";
+import styles from "./tasks.module.css";
 
 type Tab = "due-soon" | "all-open" | "completed";
 
@@ -88,16 +89,16 @@ export default function MyWorkPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: "var(--space-5)" }}>
+      <div className={styles.header}>
         <Badge tone="accent">My work</Badge>
-        <h1 style={{ marginTop: "var(--space-2)" }}>Your tasks</h1>
-        <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-1)" }}>
+        <h1 className={styles.title}>Your tasks</h1>
+        <p className={styles.subtitle}>
           Everything assigned to you: committee work, fellowship reminders, and your own to-dos.
         </p>
       </div>
 
-      <Card padding="md" style={{ marginBottom: "var(--space-4)" }}>
-        <form onSubmit={handleQuickAdd} style={{ display: "flex", gap: "var(--space-2)" }}>
+      <Card padding="md" className={styles.quickAdd}>
+        <form onSubmit={handleQuickAdd} className={styles.quickAddForm}>
           <Input
             value={quickTitle}
             onChange={(e) => setQuickTitle(e.target.value)}
@@ -111,15 +112,7 @@ export default function MyWorkPage() {
         </form>
       </Card>
 
-      <div
-        role="tablist"
-        style={{
-          display: "flex",
-          gap: "var(--space-2)",
-          marginBottom: "var(--space-4)",
-          borderBottom: "1px solid var(--color-border)",
-        }}
-      >
+      <div role="tablist" className={styles.tabs}>
         <TabButton active={tab === "due-soon"} onClick={() => setTab("due-soon")} count={dueSoon.length}>
           Due soon
         </TabButton>
@@ -132,7 +125,7 @@ export default function MyWorkPage() {
       </div>
 
       {loading ? (
-        <p style={{ color: "var(--color-text-muted)" }}>Loading tasks…</p>
+        <p className={styles.loading}>Loading tasks…</p>
       ) : (
         <TaskList
           tasks={visible}
@@ -178,22 +171,10 @@ function TabButton({
       role="tab"
       aria-selected={active}
       onClick={onClick}
-      style={{
-        padding: "var(--space-2) var(--space-3)",
-        background: "transparent",
-        border: "none",
-        color: active ? "var(--color-text)" : "var(--color-text-muted)",
-        borderBottom: active ? "2px solid var(--color-accent)" : "2px solid transparent",
-        fontSize: "var(--text-sm)",
-        fontWeight: active ? 600 : 400,
-        cursor: "pointer",
-        marginBottom: "-1px",
-      }}
+      className={active ? `${styles.tab} ${styles.tabActive}` : styles.tab}
     >
       {children}
-      <span style={{ marginLeft: "var(--space-1)", color: "var(--color-text-subtle)" }}>
-        {count}
-      </span>
+      <span className={styles.tabCount}>{count}</span>
     </button>
   );
 }
