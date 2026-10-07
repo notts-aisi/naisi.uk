@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useAuth } from "@/auth/AuthProvider";
 import { isTerminalResponseState } from "@/lib/firestore/circulations";
 import type { WorksheetQuestion } from "@/lib/firestore/worksheets";
+import { own } from "@/lib/applications/keys";
 import { tallyOptions, type OptionCounts, type OptionTally } from "../aggregate";
 import { useResponse } from "../hooks/useResponse";
 import styles from "./PollResults.module.css";
@@ -109,7 +110,7 @@ export default function PollResults({ question, chosenOptionId, revealed }: Prop
   const uid = user?.uid ?? null;
 
   const { response } = useResponse(circulationId, uid);
-  const storedAnswer = response?.answers[question.id];
+  const storedAnswer = own(response?.answers, question.id);
   const storedOptionId = storedAnswer?.type === "choice" ? storedAnswer.optionId : "";
   const settled = response?.updatedAt !== null && response?.updatedAt !== undefined;
 

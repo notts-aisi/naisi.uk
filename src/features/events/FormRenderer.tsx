@@ -9,6 +9,7 @@ import {
   type FormQuestion,
   type RsvpAnswer,
 } from "@/lib/firestore/events";
+import { own } from "@/lib/applications/keys";
 import styles from "./FormRenderer.module.css";
 
 type Props = {
@@ -81,7 +82,7 @@ export default function FormRenderer({
 
         switch (q.type) {
           case "shortText": {
-            const value = (answers[q.id] as string | undefined) ?? "";
+            const value = (own(answers, q.id) as string | undefined) ?? "";
             return (
               <div key={q.id} className={styles.field}>
                 {label}
@@ -104,7 +105,7 @@ export default function FormRenderer({
             );
           }
           case "longText": {
-            const value = (answers[q.id] as string | undefined) ?? "";
+            const value = (own(answers, q.id) as string | undefined) ?? "";
             return (
               <div key={q.id} className={styles.field}>
                 {label}
@@ -127,7 +128,7 @@ export default function FormRenderer({
             );
           }
           case "singleSelect": {
-            const value = (answers[q.id] as string | undefined) ?? "";
+            const value = (own(answers, q.id) as string | undefined) ?? "";
             const opts = q.options.map((o) => o.trim()).filter(Boolean);
             return (
               <div key={q.id} className={styles.field}>
@@ -154,7 +155,7 @@ export default function FormRenderer({
 
             if (q.allowOther || q.noneOption) {
               const noneLabel = q.noneOption;
-              const raw = answers[q.id];
+              const raw = own(answers, q.id);
               const current =
                 raw && typeof raw === "object" && !Array.isArray(raw)
                   ? (raw as { checked: string[]; other: string })
@@ -245,7 +246,7 @@ export default function FormRenderer({
                 </fieldset>
               );
             }
-            const value = (answers[q.id] as string[] | undefined) ?? [];
+            const value = (own(answers, q.id) as string[] | undefined) ?? [];
             return (
               <fieldset
                 key={q.id}
@@ -284,7 +285,7 @@ export default function FormRenderer({
             );
           }
           case "yesNo": {
-            const value = answers[q.id];
+            const value = own(answers, q.id);
             return (
               <fieldset
                 key={q.id}
@@ -325,7 +326,7 @@ export default function FormRenderer({
             );
           }
           case "dietaryAllergies": {
-            const raw = answers[q.id];
+            const raw = own(answers, q.id);
             const current =
               raw && typeof raw === "object" && !Array.isArray(raw)
                 ? (raw as { checked: string[]; other: string })

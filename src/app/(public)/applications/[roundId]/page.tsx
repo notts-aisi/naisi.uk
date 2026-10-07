@@ -13,6 +13,7 @@ import { answerText } from "@/lib/admissions/statusHub";
 import { loadStatusRowForRound } from "@/lib/admissions/statusHubData";
 import type { ApplicationStatusRow } from "@/lib/admissions/statusTypes";
 import { formatRoundDate, formatRoundDeadline } from "@/lib/admissions/window";
+import { own } from "@/lib/applications/keys";
 import { formatRunStartShort } from "@/lib/courses/window";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
@@ -253,7 +254,7 @@ export default async function ApplicationDetailPage({ params }: Params) {
               </p>
               <dl className={styles.review}>
                 {questions.map((question) => {
-                  const text = answerText(answers[question.id]);
+                  const text = answerText(own(answers, question.id));
                   return (
                     <div key={question.id} className={styles.reviewRow}>
                       <dt className={styles.reviewLabel}>{question.label}</dt>

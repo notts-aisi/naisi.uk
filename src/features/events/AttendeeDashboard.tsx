@@ -18,6 +18,7 @@ import {
   type RsvpDoc,
   type RsvpStatus,
 } from "@/lib/firestore/events";
+import { own } from "@/lib/applications/keys";
 import { useEventRsvps } from "./useEventRsvps";
 import OrderHelper from "./OrderHelper";
 import TestRsvpPanel from "./TestRsvpPanel";
@@ -251,7 +252,7 @@ export default function AttendeeDashboard({ event }: Props) {
       r.email,
       r.status,
       r.createdAt?.toISOString() ?? "",
-      ...questions.map((q) => renderAnswer(r.answers[q.id])),
+      ...questions.map((q) => renderAnswer(own(r.answers, q.id))),
     ]);
     const stamp = new Date().toISOString().slice(0, 10);
     const safeTitle = event.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 40) || "event";
@@ -745,7 +746,7 @@ function AnswerSummary({
   return (
     <ul className={styles.answerList}>
       {questions.map((q) => {
-        const val = renderAnswer(rsvp.answers[q.id]);
+        const val = renderAnswer(own(rsvp.answers, q.id));
         if (!val) return null;
         return (
           <li key={q.id}>
@@ -766,7 +767,7 @@ function QuestionChart({
 }) {
   if (question.type === "shortText" || question.type === "longText") {
     const answers = rsvps
-      .map((r) => ({ name: r.name, value: renderAnswer(r.answers[question.id]) }))
+      .map((r) => ({ name: r.name, value: renderAnswer(own(r.answers, question.id)) }))
       .filter((a) => a.value);
     return (
       <Card padding="md">
@@ -789,7 +790,7 @@ function QuestionChart({
   // Aggregate into slices.
   const counts = new Map<string, number>();
   for (const r of rsvps) {
-    const a = r.answers[question.id];
+    const a = own(r.answers, question.id);
     if (a === undefined) continue;
 
     if (question.type === "yesNo") {
@@ -832,7 +833,7 @@ function QuestionChart({
     .sort((a, b) => b[1] - a[1])
     .map(([label, count], i) => ({ label, count, color: pickColor(i) }));
 
-  const totalResponses = rsvps.filter((r) => r.answers[question.id] !== undefined).length;
+  const totalResponses = rsvps.filter((r) => own(r.answers, question.id) !== undefined).length;
   const multiPick =
     question.type === "multiSelect" || question.type === "dietaryAllergies";
 

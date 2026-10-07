@@ -26,6 +26,7 @@ import {
   type WorksheetAnswer,
   type WorksheetItem,
 } from "@/lib/firestore/worksheets";
+import { own } from "@/lib/applications/keys";
 
 /**
  * Hold a page index inside the pages that exist.
@@ -90,7 +91,7 @@ export function pageState(
   let requiredOutstanding = 0;
   const questions = questionsOf(page);
   for (const question of questions) {
-    const answer = answers?.[question.id];
+    const answer = own(answers, question.id);
     const filled = answer !== undefined && answer !== null && !answerIsEmpty(answer);
     if (filled) answered += 1;
     else if (question.required) requiredOutstanding += 1;

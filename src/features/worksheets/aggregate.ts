@@ -43,6 +43,7 @@ import {
   type WorksheetAnswer,
   type WorksheetQuestion,
 } from "@/lib/firestore/worksheets";
+import { own } from "@/lib/applications/keys";
 
 /**
  * The label for answers whose option no longer exists.
@@ -310,7 +311,7 @@ export function answersFor(
 ): RespondentAnswer[] {
   return responses.map((response) => ({
     uid: response.uid,
-    answer: response.answers[question.id],
+    answer: own(response.answers, question.id),
   }));
 }
 
@@ -444,7 +445,7 @@ export function toCsvRows(
     .map((response) => [
       response.uid,
       nameOf(response.uid),
-      ...questions.map((question) => cellFor(question, response.answers[question.id])),
+      ...questions.map((question) => cellFor(question, own(response.answers, question.id))),
       RESPONSE_STATE_LABELS[response.state],
       isoOrBlank(response.submittedAt),
       isoOrBlank(response.activity.firstOpenedAt),

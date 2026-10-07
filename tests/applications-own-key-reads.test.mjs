@@ -1,6 +1,5 @@
 /**
- * A map kept by an id is read by its own keys, wherever the application
- * system keeps or reads one.
+ * A map kept by an id is read by its own keys, in every file under `src`.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -34,7 +33,7 @@
  *     every file under `src`. Other features keep maps under the same names
  *     (an event's sign-up `answers`, a worksheet response's `answers`). A
  *     walk cannot tell those from an application's, and the same thing is
- *     true of them. What becomes of a read found there is the next section.
+ *     true of them, so they are read the same way.
  *  2. Whatever else the application system DECLARES as a map from any string
  *     to something (`Record<string, X>`): a field of one of its types is
  *     held in every file of the system, and a variable, a parameter or a
@@ -42,27 +41,20 @@
  *     is read out of the source each run, so a new map is held to the rule
  *     from the commit that declares it.
  *
- * ## What is held, and what is not held yet
+ * ## Where such a map is read
  *
- * Every file under `src` stands in one of three places, by the one entry
- * that names it or a folder above it:
+ * A computed read fails in every file under `src`. No tree is let off.
  *
- *  - `HELD`: the application system's own trees, and each file or tree
- *    outside them that reads one of its maps by a key. A computed read there
- *    fails.
- *  - `NOT_HELD_YET`: a tree of another feature that keeps a map of its own
- *    under one of the same names and still reads it with a bracket. Those
- *    reads were there before this guard, and rewriting them changes screens
- *    the application system does not own, so each waits for a change of its
- *    own. Until then the entry lists every file that holds such a read and
- *    how many, and that count is exact: one more read, a read in a file the
- *    entry does not list, or one fewer, fails. So what is let by is what is
- *    written down, and the list can only shrink. An entry leaves it for
- *    `HELD` when its reads have been rewritten through `own`.
- *  - neither: every other file. It may not ask a map about a key at all. A
- *    computed read there fails, and so does a call of the accessor, until
- *    the tree is listed in `HELD` with what it reads. A tree that starts to
- *    keep or read such a map cannot stay off both lists.
+ * `HELD` says where these maps ARE read by a key, with what each place
+ * reads: the application system's own trees, and each file or tree outside
+ * them that reads a map of one of these names, whether the map is the
+ * system's (the member record) or another feature's under the same name (an
+ * RSVP's sign-up answers, a worksheet response's, the older apply flow's, a
+ * course application's). The walk keeps that list true both ways. A file
+ * that calls the accessor and is under no entry fails until its tree is
+ * listed with what it reads, and an entry under which no file calls the
+ * accessor is stale. So a tree that starts to keep or read such a map is
+ * written down from the change that starts it.
  *
  * ## What it reports
  *
@@ -94,7 +86,8 @@
  * is in neither set of names, is not found; nor is one handed to a function
  * whose parameter has another name and no written type. The names are the
  * net, which is why the second set is read from the declarations and not
- * kept by hand.
+ * kept by hand. In another feature's tree it finds only the maps that share
+ * one of the six names: a map kept there under any other name is not held.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -178,18 +171,18 @@ const EVERYWHERE = new Map([
 ]);
 
 /**
- * Where a computed read fails: the application system's own trees, and each
- * file or tree outside them that reads one of its maps by a key. An entry
- * ending in `/` is a tree, any other is one file, and no entry lies inside
- * another, here or in `NOT_HELD_YET`.
+ * Where these maps are read by a key, and what each place reads: the
+ * application system's own trees, and each file or tree outside them that
+ * reads a map of one of these names. An entry ending in `/` is a tree, any
+ * other is one file, and no entry lies inside another.
  *
  *  - `system: true`: a tree the system owns. Every name a file there
  *    declares as a map from any string to something is held as well: see the
  *    header, "What is walked", 2.
- *  - otherwise: code outside the system that reads one of these maps by a
- *    key. The walk finds these itself, both ways: a file that calls the
- *    accessor and stands on neither list fails, and an entry under which no
- *    file calls the accessor is stale.
+ *  - otherwise: code outside the system that reads such a map by a key. The
+ *    walk finds these itself, both ways: a file that calls the accessor and
+ *    is under no entry fails, and an entry under which no file calls the
+ *    accessor is stale.
  */
 const HELD = new Map([
   [
@@ -226,87 +219,52 @@ const HELD = new Map([
       why: "builds the kept member record: it reads a form's programmes by a programme id off the application, and a review's scores by a criterion id off the round",
     },
   ],
-]);
-
-/**
- * Where a computed read is let by FOR NOW: another feature's map under one of
- * the same names (the header, "What is held, and what is not held yet").
- *
- * `reads` lists every file under the entry that holds such a read and how
- * many it holds. Checked both ways, to the number: a read that is not counted
- * here fails, and so does a count the file no longer holds. THIS LIST ONLY
- * SHRINKS. A new read is written through `own`, never added. When an entry's
- * reads have been rewritten, move it to `HELD` and say there what it reads.
- */
-const NOT_HELD_YET = new Map([
   [
     "src/features/events/",
     {
-      reads: [
-        ["src/features/events/AttendeeDashboard.tsx", 5],
-        ["src/features/events/FormRenderer.tsx", 7],
-        ["src/features/events/pizzaHelper.ts", 1],
-      ],
-      why: "an RSVP's sign-up answers, read by a question id taken from the event's sign-up form; held once the own-key reads there merge",
+      why: "an RSVP's sign-up answers, read by a question id taken from the event's sign-up form: the form itself, the attendee dashboard and the pizza helper",
     },
   ],
   [
     "src/lib/events/",
     {
-      reads: [["src/lib/events/sendRsvpEmail.ts", 1]],
-      why: "the RSVP email lists the same sign-up answers by the event's question ids; held with the events screens, once the own-key reads there merge",
+      why: "the RSVP email lists the same sign-up answers by the event's question ids",
     },
   ],
   [
     "src/features/worksheets/",
     {
-      reads: [
-        ["src/features/worksheets/aggregate.ts", 2],
-        ["src/features/worksheets/circulation/CopyEditor.tsx", 1],
-        ["src/features/worksheets/circulation/ResponseView.tsx", 1],
-        ["src/features/worksheets/respond/PollResults.tsx", 1],
-        ["src/features/worksheets/respond/RespondPage.tsx", 2],
-        ["src/features/worksheets/respond/respondHelpers.ts", 1],
-      ],
-      why: "a worksheet response's answers, read by a question id taken from the worksheet's own questions; held once the own-key reads there merge",
+      why: "a worksheet response's answers, read by a question id taken from the worksheet's own questions: the respond page, the response view, the copy editor and the aggregate views",
     },
   ],
   [
     "src/lib/firestore/worksheets.ts",
     {
-      reads: [["src/lib/firestore/worksheets.ts", 2]],
-      why: "the progress count and the submission check read a worksheet response's answers by the worksheet's question ids; held with the worksheet screens, once the own-key reads there merge",
+      why: "the progress count and the submission check read a worksheet response's answers by the worksheet's question ids",
     },
   ],
   [
     "src/app/api/worksheets/",
     {
-      reads: [["src/app/api/worksheets/circulations/[circulationId]/aggregate/route.ts", 1]],
-      why: "the poll results route reads the caller's own worksheet response by the question id in the request; held with the worksheet screens, once the own-key reads there merge",
+      why: "the poll results route reads the caller's own worksheet response by the question id in the request",
     },
   ],
   [
     "src/features/admissions/",
     {
-      reads: [["src/features/admissions/ApplyFlow.tsx", 4]],
-      why: "the older apply flow keeps its answers by stage and then by question, and reads both by ids taken from the round; held once the own-key reads there merge",
+      why: "the older apply flow keeps its answers by stage and then by question, and reads both by ids taken from the round",
     },
   ],
   [
     "src/app/(public)/applications/[roundId]/page.tsx",
     {
-      reads: [["src/app/(public)/applications/[roundId]/page.tsx", 1]],
-      why: "the status page's older half lists an older application's answers by the round's question ids (an application form's status is drawn inside the system's trees); held once the own-key reads there merge",
+      why: "the status page's older half lists an older application's answers by the round's question ids (an application form's status is drawn inside the system's trees)",
     },
   ],
   [
     "src/features/courses/",
     {
-      reads: [
-        ["src/features/courses/AdmissionsQueue.tsx", 1],
-        ["src/features/courses/ApplyForm.tsx", 1],
-      ],
-      why: "a course application's answers: the apply form reads them by the run's question ids, and the admissions queue walks the answers' own keys with a bracket; held once the own-key reads there merge",
+      why: "a course application's answers: the apply form reads them by the run's question ids, and the admissions queue by the answers' own keys",
     },
   ],
 ]);
@@ -369,14 +327,12 @@ const TEXT = new Map(FILES.map((path) => [path, readFileSync(path, "utf8")]));
 const covers = (entry, file) => (entry.endsWith("/") ? file.startsWith(entry) : file === entry);
 
 /**
- * Where a file stands: `held`, `not yet` or `neither`, and under which entry.
- * No entry lies inside another (section 2 holds that), so at most one covers
- * any file.
+ * The entry of `HELD` a file is under, or null. No entry lies inside another
+ * (section 3 holds that), so at most one covers any file.
  */
-function standing(file, held = HELD, notYet = NOT_HELD_YET) {
-  for (const entry of held.keys()) if (covers(entry, file)) return { list: "held", entry };
-  for (const entry of notYet.keys()) if (covers(entry, file)) return { list: "not yet", entry };
-  return { list: "neither", entry: null };
+function heldUnder(file, held = HELD) {
+  for (const entry of held.keys()) if (covers(entry, file)) return entry;
+  return null;
 }
 
 /** The trees the application system owns, out of `HELD`. */
@@ -455,131 +411,29 @@ describe("the maps this file holds", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 2. Where each file stands
+// 2. No computed read outside the accessor
 // ---------------------------------------------------------------------------
 
 const keyOf = (site) => `${site.file} :: ${site.text}`;
-const shown = (site) =>
-  `  ${site.file}:${site.line}  ${site.text}` +
-  (site.fix ? `\n      write: ${site.fix}` : "\n      read the one value through own(map, key)");
-const WHY_IT_MATTERS =
-  "A plain object also answers to `constructor`, `toString` and every other name it inherits, so such a " +
-  "map is read through `own` (src/lib/applications/keys.ts), which answers from the map's own keys only.";
 
-describe("what is held, and what is not held yet", () => {
-  test("each entry of either list covers source that is there, once, with a reason", () => {
-    const entries = [...HELD.keys(), ...NOT_HELD_YET.keys()];
-    assert.equal(new Set(entries).size, entries.length, "an entry is listed twice, or stands on both lists");
-    for (const entry of entries) {
-      assert.match(
-        entry,
-        /^src\/.+(\/|\.tsx?)$/,
-        `${entry}: an entry is a tree under src ending in a slash, or one .ts or .tsx file`,
-      );
-      assert.ok(
-        FILES.some((path) => covers(entry, inRepo(path))),
-        `${entry} covers no source file. If it moved, move the entry: what is not walked is not held.`,
-      );
-      const inside = entries.filter((other) => other !== entry && covers(other, entry));
-      assert.deepEqual(
-        inside,
-        [],
-        `${entry} lies inside ${inside.join(", ")}. A tree is on one list whole: where a file stands has to ` +
-          "be readable from one entry.",
-      );
-      const why = (HELD.get(entry) ?? NOT_HELD_YET.get(entry)).why;
-      assert.ok(typeof why === "string" && why.length >= 40, `${entry}: a reason is missing or too short to be one`);
-    }
-  });
-
-  test("the system's own trees are held, and each other held entry reads a map through the accessor", () => {
-    assert.ok(THE_SYSTEM.length > 0, "HELD names no tree the application system owns");
-    assert.ok(
-      THE_SYSTEM.some((tree) => covers(tree, ACCESSOR_FILE)),
-      `${ACCESSOR_FILE} is in none of the system's own trees`,
-    );
-    for (const [entry, held] of HELD) {
-      if (held.system) {
-        assert.ok(entry.endsWith("/"), `${entry}: what the system owns is listed as a tree`);
-        continue;
-      }
-      const callers = [...USES].filter(([file, use]) => covers(entry, file) && use.calls > 0);
-      assert.ok(
-        callers.length > 0,
-        `${entry} is held as code that reads one of these maps by a key, and no file under it calls ` +
-          `\`${ACCESSOR}\`. Delete the entry if it reads none any more.`,
-      );
-    }
-  });
-
-  test("no held file reads a map with a computed key", () => {
-    const offenders = SITES.filter(
+describe("a map kept by an id is read through the accessor", () => {
+  test("no file under src reads one with a computed key", () => {
+    const offenders = SITES.filter((site) => site.file !== ACCESSOR_FILE && !KEY_IS_THE_MAPS_OWN.has(keyOf(site))).map(
       (site) =>
-        standing(site.file).list === "held" && site.file !== ACCESSOR_FILE && !KEY_IS_THE_MAPS_OWN.has(keyOf(site)),
-    ).map(shown);
+        `  ${site.file}:${site.line}  ${site.text}` +
+        (site.fix ? `\n      write: ${site.fix}` : "\n      read the one value through own(map, key)"),
+    );
     assert.deepEqual(
       offenders,
       [],
-      "these read a map kept by an id with a key worked out when the code runs. " +
-        WHY_IT_MATTERS +
-        " Fix the read. KEY_IS_THE_MAPS_OWN is only for a key that provably came from the same map's own " +
-        "keys, and NOT_HELD_YET is never for a file that is held.\n" +
+      "these read a map kept by an id with a key worked out when the code runs. A plain object also " +
+        "answers to `constructor`, `toString` and every other name it inherits, so read it through " +
+        "`own` (src/lib/applications/keys.ts), which answers from the map's own keys only. Fix the " +
+        "read. KEY_IS_THE_MAPS_OWN is only for a key that provably came from the same map's own keys.\n" +
         offenders.join("\n"),
     );
   });
 
-  test("a file on neither list asks no map about a key", () => {
-    const reads = SITES.filter((site) => standing(site.file).list === "neither").map(shown);
-    assert.deepEqual(
-      reads,
-      [],
-      "these read a map kept by an id with a key worked out when the code runs, in a file that is on " +
-        "neither list. " +
-        WHY_IT_MATTERS +
-        " Write the read through `own`, then list the file's tree in HELD with what it reads. " +
-        "NOT_HELD_YET only shrinks: a new read is never added to it.\n" +
-        reads.join("\n"),
-    );
-    const callers = [...USES]
-      .filter(([file, use]) => use.calls > 0 && standing(file).list === "neither")
-      .map(([file, use]) => `  ${file} calls \`${ACCESSOR}\` ${use.calls} time(s)`);
-    assert.deepEqual(
-      callers,
-      [],
-      "these read a map through the accessor and are on neither list. That is the right way to read one: " +
-        "list the file, or its tree, in HELD with what it reads, so the rule is held there from now on.\n" +
-        callers.join("\n"),
-    );
-  });
-
-  test("what is not held yet is what its entry lists, to the read", () => {
-    for (const [entry, notYet] of NOT_HELD_YET) {
-      assert.ok(
-        Array.isArray(notYet.reads) && notYet.reads.length > 0,
-        `${entry}: lists no read. An entry with nothing left to let by is moved to HELD.`,
-      );
-      for (const [file, count] of notYet.reads) {
-        assert.ok(covers(entry, file), `${entry}: lists a read in ${file}, which it does not cover`);
-        assert.ok(Number.isInteger(count) && count > 0, `${entry}: ${file} is listed with no read to let by`);
-      }
-      const found = new Map();
-      for (const site of SITES) {
-        if (covers(entry, site.file)) found.set(site.file, (found.get(site.file) ?? 0) + 1);
-      }
-      assert.deepEqual(
-        [...found].sort(),
-        [...notYet.reads].sort(),
-        `${entry}: the computed reads found under it (first) are not the ones its entry lists (second). ` +
-          "MORE than listed: a new read has been written with a bracket, so write it through `own`; it is " +
-          "never added here. FEWER: a read has been rewritten, so lower its count or drop its file, and " +
-          "when none is left move the entry to HELD and say there what it reads.\n" +
-          SITES.filter((site) => covers(entry, site.file)).map(shown).join("\n"),
-      );
-    }
-  });
-});
-
-describe("the two reads a held file may make with a bracket", () => {
   test("the accessor's own module holds the one read it is there to make", () => {
     const inside = SITES.filter((site) => site.file === ACCESSOR_FILE).map((site) => site.text);
     assert.deepEqual(inside, ["map[key]"], "the accessor reads its map once, after asking whether the key is its own");
@@ -605,7 +459,73 @@ describe("the two reads a held file may make with a bracket", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3. One accessor
+// 3. Where these maps are read
+// ---------------------------------------------------------------------------
+
+describe("where these maps are read by a key", () => {
+  test("each entry covers source that is there, once, with a reason", () => {
+    for (const [entry, held] of HELD) {
+      assert.match(
+        entry,
+        /^src\/.+(\/|\.tsx?)$/,
+        `${entry}: an entry is a tree under src ending in a slash, or one .ts or .tsx file`,
+      );
+      assert.ok(
+        FILES.some((path) => covers(entry, inRepo(path))),
+        `${entry} covers no source file. If it moved, move the entry: a list of where the maps are read ` +
+          "is only worth keeping while it is true.",
+      );
+      const inside = [...HELD.keys()].filter((other) => other !== entry && covers(other, entry));
+      assert.deepEqual(
+        inside,
+        [],
+        `${entry} lies inside ${inside.join(", ")}. A tree is listed once, whole, so what a file is held ` +
+          "to can be read from one entry.",
+      );
+      assert.ok(
+        typeof held.why === "string" && held.why.length >= 40,
+        `${entry}: a reason is missing or too short to be one`,
+      );
+    }
+  });
+
+  test("the system's own trees are listed, and each other entry reads a map through the accessor", () => {
+    assert.ok(THE_SYSTEM.length > 0, "HELD names no tree the application system owns");
+    assert.ok(
+      THE_SYSTEM.some((tree) => covers(tree, ACCESSOR_FILE)),
+      `${ACCESSOR_FILE} is in none of the system's own trees`,
+    );
+    for (const [entry, held] of HELD) {
+      if (held.system) {
+        assert.ok(entry.endsWith("/"), `${entry}: what the system owns is listed as a tree`);
+        continue;
+      }
+      const callers = [...USES].filter(([file, use]) => covers(entry, file) && use.calls > 0);
+      assert.ok(
+        callers.length > 0,
+        `${entry} is listed as code that reads one of these maps by a key, and no file under it calls ` +
+          `\`${ACCESSOR}\`. Delete the entry if it reads none any more.`,
+      );
+    }
+  });
+
+  test("every file that reads a map through the accessor is under an entry", () => {
+    const unlisted = [...USES]
+      .filter(([file, use]) => use.calls > 0 && heldUnder(file) === null)
+      .map(([file, use]) => `  ${file} calls \`${ACCESSOR}\` ${use.calls} time(s)`);
+    assert.deepEqual(
+      unlisted,
+      [],
+      "these read a map through the accessor and are under no entry of HELD. That is the right way to " +
+        "read one: list the file, or its tree, in HELD with what it reads, so the list of where these " +
+        "maps are read stays true.\n" +
+        unlisted.join("\n"),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. One accessor
 // ---------------------------------------------------------------------------
 
 const withoutExtension = (file) => file.replace(/\.tsx?$/, "");
@@ -664,7 +584,7 @@ describe("there is one accessor", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. The scanner, on code written to be wrong
+// 5. The scanner, on code written to be wrong
 // ---------------------------------------------------------------------------
 
 const scan = (source, file = "fixture.ts", names = [...EVERYWHERE.keys()]) =>
@@ -759,21 +679,19 @@ describe("the scanner, on code written to be wrong", () => {
     for (const source of LET_BY) assert.deepEqual(scan(source), [], source);
   });
 
-  test("where a file stands is read off the two lists as written", () => {
+  test("the entry a file is under is read off the list as written", () => {
     const held = new Map([
       ["src/a/", {}],
       ["src/b/one.ts", {}],
     ]);
-    const notYet = new Map([["src/c/", {}]]);
-    const at = (file) => standing(file, held, notYet);
-    assert.deepEqual(at("src/a/deep/x.tsx"), { list: "held", entry: "src/a/" });
-    assert.deepEqual(at("src/b/one.ts"), { list: "held", entry: "src/b/one.ts" });
-    assert.deepEqual(at("src/c/x.ts"), { list: "not yet", entry: "src/c/" });
+    const under = (file) => heldUnder(file, held);
+    assert.equal(under("src/a/deep/x.tsx"), "src/a/");
+    assert.equal(under("src/b/one.ts"), "src/b/one.ts");
     // A tree ends at its slash and a file entry covers that one file, so a
     // neighbour with a longer name is not swept in with either.
-    assert.deepEqual(at("src/ab/x.ts"), { list: "neither", entry: null });
-    assert.deepEqual(at("src/b/one.tsx"), { list: "neither", entry: null });
-    assert.deepEqual(at("src/b/two.ts"), { list: "neither", entry: null });
+    assert.equal(under("src/ab/x.ts"), null);
+    assert.equal(under("src/b/one.tsx"), null);
+    assert.equal(under("src/b/two.ts"), null);
   });
 
   test("a file that does not parse is an error, not a clean file", () => {

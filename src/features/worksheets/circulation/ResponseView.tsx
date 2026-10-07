@@ -18,6 +18,7 @@ import {
   type WorksheetSection,
 } from "@/lib/firestore/worksheets";
 import { maxWidth } from "@/theme/breakpoints";
+import { own } from "@/lib/applications/keys";
 import ActivityLine from "./ActivityLine";
 import AnswerSummary from "./AnswerSummary";
 import ReviewPanel from "./ReviewPanel";
@@ -219,7 +220,7 @@ export default function ResponseView({
                     </span>
                   )}
                 </h3>
-                <AnswerSummary question={item} answer={response.answers[item.id]} />
+                <AnswerSummary question={item} answer={own(response.answers, item.id)} />
               </li>
             ),
           )}

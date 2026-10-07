@@ -21,6 +21,7 @@ import { exactLocationFor, holdsPlace, locationForAttendee } from "./location";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isSuppressed } from "@/lib/firestore/suppression";
 import { formatSiteDate, isSameSiteDay } from "@/lib/datetime/siteTime";
+import { own } from "@/lib/applications/keys";
 import {
   cancelUrl as buildCancelUrl,
   changeUrl as buildChangeUrl,
@@ -156,7 +157,7 @@ function buildAnswersLine(
   if (!answers || Object.keys(answers).length === 0 || questions.length === 0) return "";
   const lines: string[] = [];
   for (const q of questions) {
-    const v = renderAnswerValue(answers[q.id]);
+    const v = renderAnswerValue(own(answers, q.id));
     if (!v) continue;
     lines.push(`${q.label}: ${v}`);
   }
