@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithCustomToken, signInWithEmailAndPassword } from "firebase/auth";
 import { getClientAuth } from "@/lib/firebase/client";
+import { formJoinReturn } from "@/lib/applications/applicant/join";
 import { Field } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import Button from "@/components/ui/Button";
@@ -66,9 +67,17 @@ export default function LoginEmailVerified({
   // they were halfway through instead of on /pending-approval.
   const base =
     audience === "collaborator" ? "/register?type=collaborator" : "/register";
-  const continueUrl = next
-    ? `${base}${base.includes("?") ? "&" : "?"}next=${encodeURIComponent(next)}`
-    : base;
+  // An application form takes the join request on its own first step, so a
+  // member who started on one carries on there and is never shown the
+  // register page's profile form. Only an address that form itself marked is
+  // taken this way (`formJoinReturn` matches its whole shape), and `next` was
+  // held to the funnel allowlist by the server before it reached this page.
+  const onTheForm = audience === "member" ? formJoinReturn(next) : null;
+  const continueUrl = onTheForm
+    ? onTheForm
+    : next
+      ? `${base}${base.includes("?") ? "&" : "?"}next=${encodeURIComponent(next)}`
+      : base;
 
   // Sign in with the custom token + establish the session, then ask for a password.
   useEffect(() => {

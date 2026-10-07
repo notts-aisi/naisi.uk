@@ -493,6 +493,19 @@ describe("where the emailed link may return to", () => {
     }
   });
 
+  test("the page the emailed link opens hands a form's own registrations back to the form", () => {
+    const landing = readFileSync(
+      join(REPO_ROOT, "src", "app", "verify-email", "[tokenId]", "LoginEmailVerified.tsx"),
+      "utf8",
+    );
+    assert.match(landing, /import \{ formJoinReturn \} from "@\/lib\/applications\/applicant\/join";/);
+    // A member's, and only an address the form itself marked. Everything else
+    // still finishes at the register page, as it always has.
+    assert.match(landing, /const onTheForm = audience === "member" \? formJoinReturn\(next\) : null;/);
+    assert.match(landing, /const continueUrl = onTheForm\s*\? onTheForm\s*: next/);
+    assert.match(landing, /router\.replace\(continueUrl\);/);
+  });
+
   test("every address it accepts is one the site's own return list accepts", () => {
     for (const id of ["a", "A_b-9", ID]) {
       const address = rules.joinReturnFor(id);
