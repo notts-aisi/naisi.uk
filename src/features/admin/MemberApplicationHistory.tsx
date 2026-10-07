@@ -13,7 +13,7 @@ type Props = {
 };
 
 /**
- * The member record on the admin Members row: every round this person applied
+ * The member record on one person's page in the admin area: every round this person applied
  * to, what they applied for, what was decided, how they scored and what the
  * reviewers wrote.
  *
@@ -23,7 +23,7 @@ type Props = {
  * scores go with it, and what survives is this record, written per person
  * before the destroy touches anything. So this panel is the only place what
  * was thought of somebody's first application can be read once its round has
- * gone. It sits on the Members row rather than anywhere in the admissions
+ * gone. It sits on the person's page rather than anywhere in the admissions
  * console for the same reason: it hangs off the person, and it outlives every
  * round on it.
  *
@@ -32,7 +32,7 @@ type Props = {
  * Admins, and nobody else. An entry holds each reviewer's name with the
  * overall comment they wrote, and those comments were shown, where they were
  * written, only to admins and to that programme's own lead and reviewers. So
- * the record is not shown to the committee at large: the Members page is
+ * the record is not shown to the committee at large: the person's page is
  * admin-only and the collection's read rule is the same audience
  * (`useMemberApplications.ts` says what holds the two together).
  *
@@ -54,7 +54,10 @@ export default function MemberApplicationHistory({ uid }: Props) {
 
   return (
     <section className={styles.section}>
-      <h3 className={styles.heading}>Applications</h3>
+      <h4 className={styles.heading}>
+        Applications
+        <span className="meta">Admins only</span>
+      </h4>
       <p className={styles.note}>
         Entries are written when a round settles, or when a round is destroyed, whichever
         comes first.

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
+import Chip from "@/components/ui/Chip";
 import CountedTextarea from "@/components/ui/CountedTextarea";
 import MemberText from "@/components/ui/MemberText";
 import { CONDUCT_FLAG_FIELD_LIMITS } from "@/lib/firestore/memberConductFlags";
@@ -33,7 +34,7 @@ function readFlag(body: Partial<FlagState>): FlagState {
 }
 
 /**
- * The conduct flag on the admin Members row.
+ * The conduct flag on one person's page in the admin area.
  *
  * `memberConductFlags/{uid}` is unreadable and unwritable from any client, so
  * this control is a pair of calls to `/api/admin/members/[uid]/conduct-flag`
@@ -42,10 +43,10 @@ function readFlag(body: Partial<FlagState>): FlagState {
  * a named student, and the person it describes must never be able to reach it
  * from their own browser.
  *
- * The fetch happens on mount, and the component only mounts inside the expanded
- * panel, so opening the Members list does not ask the server about everybody's
- * conduct. MemberItem does not render this control on the admin's own row; the
- * route refuses a self-flag as well, so the rule holds against a hand-made
+ * The fetch happens on mount, and the component only mounts on one person's
+ * page, so opening the Accounts list does not ask the server about everybody's
+ * conduct. MemberItem does not render this control on the admin's own page;
+ * the route refuses a self-flag as well, so the rule holds against a hand-made
  * request too.
  */
 export default function ConductFlagControl({ uid, displayName }: Props) {
@@ -80,8 +81,8 @@ export default function ConductFlagControl({ uid, displayName }: Props) {
   );
 
   useEffect(() => {
-    // The row can be collapsed while the request is in flight, so the result
-    // is dropped rather than written into an unmounted component.
+    // The page can be left while the request is in flight, so the result is
+    // dropped rather than written into an unmounted component.
     let cancelled = false;
     void (async () => {
       await load(() => cancelled);
@@ -93,7 +94,7 @@ export default function ConductFlagControl({ uid, displayName }: Props) {
 
   function onRetry() {
     // A failed GET would otherwise be a dead end: no state means no buttons,
-    // and the only way back was to collapse the row and expand it again.
+    // and the only way back would be to reload the page.
     setLoadError(null);
     void load(() => false);
   }
@@ -162,10 +163,10 @@ export default function ConductFlagControl({ uid, displayName }: Props) {
 
   return (
     <div className={styles.block}>
-      <span className={styles.label}>
+      <h3 className={styles.label}>
         Conduct flag
-        <span className={styles.hint}>(admins only)</span>
-      </span>
+        <span className={`meta ${styles.hint}`}>Admins only</span>
+      </h3>
 
       {/* Under the label in every state, not only while an admin is typing:
           somebody reading an existing flag is deciding whether to leave it
@@ -188,7 +189,9 @@ export default function ConductFlagControl({ uid, displayName }: Props) {
 
       {state !== null && current.flagged && (
         <div className={styles.flagged}>
-          <span className={styles.chip}>Flagged</span>
+          <Chip tone="warning" dot>
+            Flagged
+          </Chip>
           <MemberText text={current.reason} className={styles.reason} />
           <p className={styles.muted}>
             {current.byName ? `Set by ${current.byName}` : "Set by an admin"}
