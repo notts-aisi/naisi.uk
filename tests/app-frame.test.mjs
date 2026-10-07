@@ -491,6 +491,23 @@ describe("nothing is stuck to the bottom of the window under the bottom bar", ()
     assert.ok(stuck.has("layout/AppShell.module.css .bottomBar"), "the scan no longer sees the bar itself");
   });
 
+  test("the profile's Save row is pinned to the bottom of the screen", () => {
+    // OWNER DECISION, 7 October 2026: the profile page is long and nothing on
+    // it saves by itself (the Push column apart), so its Save button stays in
+    // reach: the row is stuck to the bottom of the screen for as long as the
+    // form runs below it. The test under this one holds it above the phone's
+    // bottom bar, as it holds every other pinned row.
+    const row = stuck.get("features/profile/ProfileForm.module.css .saveRow");
+    assert.ok(row, "the profile's Save row is no longer pinned to the bottom of the screen");
+    assert.deepEqual(row, ["var(--app-bottom-inset, 0px)"]);
+    const sheet = readFileSync(join(SRC, "features", "profile", "ProfileForm.module.css"), "utf8");
+    const block = /\n\.saveRow \{([^}]*)\}/.exec(sheet);
+    assert.ok(block, "could not find the Save row's rule");
+    assert.match(block[1], /position: sticky;/);
+    // Something has to be behind it, or the sections show through as they pass under.
+    assert.match(block[1], /background: var\(--color-floor\);/);
+  });
+
   test("each one adds the bar's height to its own bottom, or says why it need not", () => {
     const under = [];
     for (const [key, values] of stuck) {
