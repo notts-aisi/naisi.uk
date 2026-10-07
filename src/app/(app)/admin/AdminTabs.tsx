@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Drawer from "@/components/ui/Drawer";
+import SectionTabs from "@/components/ui/SectionTabs";
 import { usePendingCount } from "@/features/admin/usePendingCount";
 import { useCollaboratorCount } from "@/features/admin/useCollaboratorCount";
 import { useCourseApplicationCount } from "@/features/courses/useCourseApplicationCount";
@@ -46,7 +47,7 @@ export default function AdminTabs({ access }: { access: AdminTabAccess }) {
   const pendingCount = usePendingCount();
   const collaboratorCount = useCollaboratorCount();
   const courseApplicationCount = useCourseApplicationCount();
-  const activeRef = useRef<HTMLAnchorElement>(null);
+  const stripRef = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
   // The section the address belongs to. An address in no section (a page added
@@ -79,9 +80,12 @@ export default function AdminTabs({ access }: { access: AdminTabAccess }) {
 
   // On the horizontal strip pull the current page into view, so somebody
   // landing on a page late in a long section does not have to scroll the strip
-  // to find it.
+  // to find it. The strip is the shared SectionTabs, which marks the current
+  // tab with aria-current; that mark is how it is found here.
   useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: "nearest", inline: "center" });
+    stripRef.current
+      ?.querySelector('[aria-current="page"]')
+      ?.scrollIntoView({ block: "nearest", inline: "center" });
   }, [pathname]);
 
   // Close the phone's picker once navigation lands on a new route.
@@ -102,26 +106,25 @@ export default function AdminTabs({ access }: { access: AdminTabAccess }) {
 
       {!single && pages.length > 0 && (
         <>
-          {/* Desktop and tablet: the strip (it scrolls inside itself, see the
-              stylesheet). */}
-          <nav className={styles.tabs} aria-label={`${section.label} pages`}>
-            {pages.map((page) => {
-              const active = page === activePage;
-              const count = countFor(page);
-              return (
-                <Link
-                  key={page.href}
-                  href={page.href}
-                  ref={active ? activeRef : undefined}
-                  className={`${styles.tab} ${active ? styles.active : ""}`}
-                  aria-current={active ? "page" : undefined}
-                >
-                  <span>{page.label}</span>
-                  {count > 0 && <span className={styles.count}>{count}</span>}
-                </Link>
-              );
-            })}
-          </nav>
+          {/* Desktop and tablet: the strip, which scrolls inside itself. The
+              wrapper is what hides it on a phone, and what the effect above
+              looks inside. */}
+          <div ref={stripRef} className={styles.strip}>
+            <SectionTabs
+              ariaLabel={`${section.label} pages`}
+              current={activePage?.href ?? ""}
+              tabs={pages.map((page) => {
+                const count = countFor(page);
+                return {
+                  key: page.href,
+                  label: page.label,
+                  href: page.href,
+                  // A count of nothing is not drawn.
+                  ...(count > 0 ? { count } : {}),
+                };
+              })}
+            />
+          </div>
 
           {/* Phone: one button naming the page, which opens the section's
               pages as a list. */}

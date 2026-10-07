@@ -289,7 +289,7 @@ export default function AppShell({
 
   const displayName = user?.displayName ?? user?.email ?? "Signed in";
   const roleWords = roleInWords(role, suRecognised);
-  const initials = <InitialsChip name={displayName} uid={user?.uid ?? displayName} />;
+  const initials = <InitialsChip name={displayName} uid={user?.uid ?? displayName} size="lg" />;
 
   // Slide the entire app shell off to the right when signing out, in
   // mirror of the sign-in slide-left. The public homepage then fades in
@@ -400,14 +400,14 @@ export default function AppShell({
       <div className={styles.frame}>
         <div className={styles.topStrip} aria-hidden>
           <div className={styles.topStripBrand}>
-            <BrandMark size={26} />
+            <BrandMark size={26} className={styles.barMark} />
           </div>
         </div>
         <div className={styles.shell}>
           <aside className={styles.sidebar} aria-label="Primary">
             <div className={styles.brandRow}>
               <div className={styles.brandLink}>
-                <BrandMark size={28} />
+                <BrandMark size={28} className={styles.sidebarMark} />
               </div>
             </div>
             <nav className={styles.nav} aria-hidden>
@@ -446,7 +446,7 @@ export default function AppShell({
       <div className={signoutExiting ? styles.shellExitingRight : undefined}>
         <div className={styles.topStrip}>
           <Link href="/" className={styles.topStripBrand} aria-label="NAISI home">
-            <BrandMark size={26} />
+            <BrandMark size={26} className={styles.barMark} />
           </Link>
           {/* The current menu entry's name. Home has none: the brand beside it
               already says where you are. */}
@@ -498,7 +498,7 @@ export default function AppShell({
           >
             <div className={styles.brandRow}>
               <Link href="/" className={styles.brandLink} aria-label="NAISI home">
-                <BrandMark size={28} />
+                <BrandMark size={28} className={styles.sidebarMark} />
               </Link>
               <button
                 type="button"
@@ -590,7 +590,7 @@ export default function AppShell({
         >
           <div className={styles.drawerBody}>
             <div className={styles.drawerBrand}>
-              <BrandMark size={28} />
+              <BrandMark size={28} className={styles.sidebarMark} />
             </div>
             {renderNav({ onLinkClick: () => setDrawerOpen(false) })}
             {/* Quiet, permanent install route. Renders nothing when installed,

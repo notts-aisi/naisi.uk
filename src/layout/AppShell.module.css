@@ -95,6 +95,19 @@
   border-radius: var(--radius-md);
 }
 
+/* The brand as the design sets it in the frame: "NAISI" at 19px beside the
+   28px emblem in the sidebar and the drawer, at 17px beside 26px in the
+   phone's top bar, 11px apart in both. BrandMark reads the two properties
+   from the class it is handed; nothing here styles the mark itself. */
+.sidebarMark {
+  --brand-wordmark-size: 1.1875rem;
+  --brand-gap: 11px;
+}
+.barMark {
+  --brand-wordmark-size: 1.0625rem;
+  --brand-gap: 11px;
+}
+
 .sidebarHamburger {
   appearance: none;
   -webkit-appearance: none;
