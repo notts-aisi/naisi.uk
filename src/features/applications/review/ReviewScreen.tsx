@@ -23,6 +23,7 @@ import {
   type AnswerActions,
 } from "./ReviewSections";
 import { NOTHING_SHOWN, WHAT_THEY_CHOSE_BEFORE, changesLine } from "./changesWords";
+import { hiddenReviewsLine } from "./otherReviewsWords";
 import { Avatar, Chip, Icon, Key, ScoreBox, StandingChip } from "./parts";
 import parts from "./parts.module.css";
 import AccessRequirementsBlock from "./AccessRequirementsBlock";
@@ -164,6 +165,8 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
     else scores[key] = value;
   }
   const scorable = review.review.scorableKeys;
+  // Why other reviews are held back, and what ends that, in the server's words.
+  const hiddenLine = hiddenReviewsLine(review.review.others.until);
   const scoredCount = scorable.filter((key) => own(scores, key) !== undefined).length;
   const ownMean = reviewerScore({ scores }, scorable);
 
@@ -928,10 +931,8 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
                     <Icon name="eye-off" size={16} />
                   </span>
                   <span>
-                    <span className={styles.wideOnly}>
-                      Hidden on a first review. An admin can turn them on.
-                    </span>
-                    <span className={styles.narrowOnly}>Hidden. An admin can turn them on.</span>
+                    <span className={styles.wideOnly}>{hiddenLine.wide}</span>
+                    <span className={styles.narrowOnly}>{hiddenLine.narrow}</span>
                   </span>
                 </p>
               ) : null}

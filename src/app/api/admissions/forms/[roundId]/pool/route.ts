@@ -49,7 +49,7 @@ export async function GET(_req: Request, ctx: Ctx) {
   if (!form) {
     return NextResponse.json({ error: "There is no application form here." }, { status: 404 });
   }
-  const board = await buildPoolBoard(db, form, new Date());
+  const board = await buildPoolBoard(db, form, user.uid, new Date());
   return NextResponse.json({ board });
 }
 
@@ -127,6 +127,6 @@ export async function PUT(req: Request, ctx: Ctx) {
   if (!form) {
     return NextResponse.json({ error: "There is no application form here." }, { status: 404 });
   }
-  const board = await buildPoolBoard(db, form, new Date());
+  const board = await buildPoolBoard(db, form, user.uid, new Date());
   return NextResponse.json({ ok: true, changed: written.changed, board });
 }

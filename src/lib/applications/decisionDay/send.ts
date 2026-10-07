@@ -42,7 +42,7 @@ import {
   owedEmails,
   publicationFor,
   samePublication,
-  sendBlockers,
+  sendBlockersFor,
   toldTo,
   toldWithEmail,
   unpublished,
@@ -137,6 +137,18 @@ import type { EmailPreview, ReadinessRow, SendBoard, SendGroup, SendReport } fro
  * with a sentence that says which. A press composes its emails from the same
  * reading of the form it judged the test against, so what goes is the wording
  * that was tested.
+ *
+ * ## The admin who presses Send can have applied
+ *
+ * Nobody reads their own application on a committee screen, so the page is
+ * built for whoever is looking, from the term with their own application left
+ * out of every group and every number (`loadTerm` takes the viewer, and
+ * `./plan` keeps the two readings). The send itself is of everybody: the
+ * admin is told on decision day with the rest, their application holds the
+ * send like anybody's while it has no outcome, and the term is marked as sent
+ * only when they have a result too. The number a press sends back is the
+ * number the page showed, so it is counted the way the page counted it. A
+ * test is somebody else's email, never the asker's own.
  *
  * ## What marks the term as sent
  *
@@ -347,9 +359,19 @@ function testRow(
 export async function buildSendBoard(
   db: Firestore,
   form: ApplicationForm,
+  /** Whoever the page is for. Their own application is left out of it. */
+  viewerUid: string,
   now: Date,
 ): Promise<SendBoard> {
-  const [{ term }, context] = await Promise.all([loadTerm(db, form), emailContext(db, form)]);
+  // NOBODY READS THEIR OWN APPLICATION HERE. Every list and every number
+  // below is of `term`, which is the term with the viewer's own application
+  // left out. `whole` is handed to one function, which only answers whether
+  // the send is held: the viewer is told on decision day like everybody else,
+  // so an application of theirs with no outcome holds the send too.
+  const [{ shown: term, whole, own: ownApplication }, context] = await Promise.all([
+    loadTerm(db, form, viewerUid),
+    emailContext(db, form),
+  ]);
   const tested = testStanding(form);
   // WHAT THE PAGE REPORTS IS THE SEND: everybody it has told or has still to
   // tell, each read through what they were told. Somebody who has since given
@@ -385,12 +407,13 @@ export async function buildSendBoard(
     termLabel: form.round.label,
     today: formatRoundDate(now),
     applied: everybody.length,
+    ownApplication,
     readiness: [
       ...readinessRows(context, term, form.decisionsSentAt ? everybody : null),
       testRow(tested, sender, form.decisionsSentAt !== null),
     ],
     test: tested.state,
-    blockers: sendBlockers({ form, term, now, appUrl: appUrl(), test: tested.state }),
+    blockers: sendBlockersFor({ form, shown: term, whole, now, appUrl: appUrl(), test: tested.state }),
     sentOn: form.decisionsSentAt ? formatRoundDate(form.decisionsSentAt) : null,
     sentBy: form.decisionsSentByUid ? (sender.get(form.decisionsSentByUid) ?? null) : null,
     published: everybody.filter((person) => person.result !== null).length,
@@ -457,8 +480,13 @@ export async function sendTestEmail(
 ): Promise<TestSend> {
   const form = await loadForm(db, roundId);
   if (!form) return { ok: false, status: 404, error: "There is no application form here." };
-  const [{ term }, context] = await Promise.all([loadTerm(db, form), emailContext(db, form)]);
-  // The same first person the page previews: the group as the send addressed it.
+  const [{ shown: term }, context] = await Promise.all([
+    loadTerm(db, form, actor.uid),
+    emailContext(db, form),
+  ]);
+  // The same first person the page previews: the group as the send addressed
+  // it, with the asker's own application left out. A test is somebody's real
+  // email, and it must never be the asker's own, sent to them early.
   const first = inGroup(everybodyAddressed(term), GROUP_OF[kind])[0];
   const told = first ? toldTo(first) : null;
   const email = first && told ? emailFor(context, first, told, false) : null;
@@ -647,20 +675,29 @@ export async function runDecisionDay(
 
   const owedOnly = request.owedOnly === true;
   const startedAt = now();
-  const { term, applications } = await loadTerm(db, form);
+  // THE SEND TELLS EVERYBODY, the admin who presses it included: they hear on
+  // decision day like anybody else. So everything this press DOES is of
+  // `term`, the whole term. `shown` is the term as the page drew it for this
+  // admin, with their own application left out, and it is read for two
+  // things only: the words of a refusal, and the number the page put on the
+  // button.
+  const { shown, whole: term, wholeApplications: applications } = await loadTerm(db, form, actor.uid);
   // Judged against the reading of the form this press composes its emails
   // from, so the wording that goes is the wording that was tested.
   const test = testStanding(form).state;
   const blockers = owedOnly
     ? owedBlockers({ form, appUrl: appUrl(), test })
-    : sendBlockers({ form, term, now: startedAt, appUrl: appUrl(), test });
+    : sendBlockersFor({ form, shown, whole: term, now: startedAt, appUrl: appUrl(), test });
   if (blockers.length > 0) return { ok: false, status: 409, error: blockers.join(" ") };
 
   // With no blocker, everybody not yet told has an outcome that can be
   // published. The press that only sends what is owed tells nobody new.
   const todo = owedOnly ? [] : unpublished(term);
   const owed = owedEmails(term, startedAt);
-  const expected = emailCount(todo, request.emailDeclined) + owed.length;
+  // The number the page showed is counted the way the page counted it.
+  const expected =
+    emailCount(owedOnly ? [] : unpublished(shown), request.emailDeclined) +
+    owedEmails(shown, startedAt).length;
   if (expected !== request.emails) {
     return {
       ok: false,
@@ -1024,9 +1061,9 @@ export async function runDecisionDay(
 
   // Sent means everybody has a result. Read the term again rather than trust
   // the counts: another press may have been running beside this one.
-  const after = await loadTerm(db, form);
+  const after = await loadTerm(db, form, actor.uid);
   report.complete =
-    after.term.people.length > 0 && after.term.people.every((person) => person.result !== null);
+    after.whole.people.length > 0 && after.whole.people.every((person) => person.result !== null);
 
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(formRef(db, roundId));

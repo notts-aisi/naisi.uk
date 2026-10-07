@@ -635,10 +635,21 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
           </div>
 
           <div className={styles.scores}>
+            {/*
+              Once reviewing has begun on the programme this switch is an
+              admin's (`changeProgramme` refuses anybody else), so a lead is
+              shown it switched off with the reason, and is never offered a
+              change the server would turn away.
+            */}
             <Toggle
               label="Use scores for this programme"
-              note={`Reviewers score each ${view.shortName} answer 1 to 5. You get scores by section and recommendations.`}
+              note={
+                view.scoresHeldSentence
+                  ? `Reviewers score each ${view.shortName} answer 1 to 5. ${view.scoresHeldSentence}`
+                  : `Reviewers score each ${view.shortName} answer 1 to 5. You get scores by section and recommendations.`
+              }
               checked={scoresPressed ?? view.useScores}
+              disabled={view.scoresHeldSentence !== null}
               onChange={(useScores) => {
                 setScoresPressed(useScores);
                 void act(() => patchProgramme(view.roundId, view.id, { useScores })).finally(() =>

@@ -528,7 +528,24 @@ describe("scores, and who sees whose", () => {
       roundData({ programmes: { ...roundData().programmes, [AGI]: programme(AGI, { useScores: false }) } }),
     );
     assert.deepEqual(scoring.scoredKeysFor(form, SETS, AGI), []);
-    assert.equal(scoring.hasScored(null, []), true, "nothing to score is already scored");
+    // Nothing is left to score, which is what the list of applications still
+    // waiting for a reviewer asks. It is not a review: with nothing to score,
+    // somebody is shown other reviewers' work once they have saved an overall
+    // comment of their own, and not before.
+    assert.equal(scoring.hasScored(null, []), true, "nothing is left to score");
+    const reading = (mine) => ({
+      viewerIsAdmin: false,
+      roles: { [AGI]: "reviewer" },
+      form,
+      sets: SETS,
+      sent: amara(),
+      listed: [AGI],
+      mine,
+    });
+    assert.deepEqual(scoring.firstReviewOf(reading(null)), { over: false, needs: "overall-comment" });
+    assert.equal(scoring.otherReviewsShownTo(reading(null)), false, "nothing to score is not already scored");
+    const said = normalise.normaliseReview("r__a__claudia", { reviewerUid: "claudia", notes: "Clear and specific." });
+    assert.equal(scoring.otherReviewsShownTo(reading(said)), true);
   });
 
   test("an optional scored question left blank does not hold a first review open", () => {
@@ -550,17 +567,31 @@ describe("scores, and who sees whose", () => {
     assert.equal(scoring.formatScore(3.4499), "3.4");
   });
 
+  /**
+   * Somebody who is not an admin, reviewing one programme, reading Amara's
+   * application. The rule is asked about a person reading an application,
+   * never about one programme's answers alone.
+   */
+  const reading = (programmeId, mine, form = FORM) => ({
+    viewerIsAdmin: false,
+    roles: { [programmeId]: "reviewer" },
+    form,
+    sets: SETS,
+    sent: amara(),
+    listed: [AGI, TAIS],
+    mine,
+  });
+
   test("a first review is blind to everybody else until you have scored", () => {
     const lloyd = review("lloyd", { "agi.event": 3 });
-    const blind = { revealOtherReviews: false };
-    assert.deepEqual(scoring.reviewsVisibleTo("claudia", [lloyd], agiKeys, blind), []);
-    assert.equal(scoring.hiddenReviewCount("claudia", [lloyd], agiKeys, blind), 1);
+    assert.deepEqual(scoring.reviewsVisibleTo("claudia", [lloyd], reading(AGI, null)), []);
+    assert.equal(scoring.hiddenReviewCount("claudia", [lloyd], reading(AGI, null)), 1);
     const claudia = review("claudia", { "agi.event": 4 });
-    assert.equal(scoring.reviewsVisibleTo("claudia", [lloyd, claudia], agiKeys, blind).length, 2);
+    assert.equal(scoring.reviewsVisibleTo("claudia", [lloyd, claudia], reading(AGI, claudia)).length, 2);
     const half = review("zach", { "tais.python": 3 });
     const other = review("lloyd", { "tais.python": 5, "tais.built": 5 });
     assert.deepEqual(
-      scoring.reviewsVisibleTo("zach", [half, other], taisKeys, blind).map((r) => r.reviewerUid),
+      scoring.reviewsVisibleTo("zach", [half, other], reading(TAIS, half)).map((r) => r.reviewerUid),
       ["zach"],
       "scoring one of two answers is not having scored",
     );
@@ -568,7 +599,9 @@ describe("scores, and who sees whose", () => {
 
   test("an admin's switch shows other reviews to everybody", () => {
     const lloyd = review("lloyd", { "agi.event": 3 });
-    assert.equal(scoring.reviewsVisibleTo("claudia", [lloyd], agiKeys, { revealOtherReviews: true }).length, 1);
+    const open = normalise.normaliseForm("r", roundData({ revealOtherReviews: true }));
+    assert.equal(scoring.reviewsVisibleTo("claudia", [lloyd], reading(AGI, null, open)).length, 1);
+    assert.equal(scoring.reviewsVisibleTo("claudia", [lloyd], reading(AGI, null)).length, 0, "and with it off, none");
   });
 
   test("a review write keeps only whole scores in range on the programme's own questions", () => {

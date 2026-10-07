@@ -8,6 +8,7 @@ import kit from "@/features/applications/kit/kit.module.css";
 import { useHydrated } from "@/hooks/useHydrated";
 import {
   invitationsPickedLine,
+  ownApplicationLine,
   placesTakenLine,
   poolTotalsLine,
 } from "@/lib/applications/decisionDay/boardWords";
@@ -156,6 +157,7 @@ export default function PoolBoard({ initial }: { initial: Board }) {
         </>
       }
       lede="People no programme could take this term. Pick what each of them hears."
+      aside={ownApplicationLine(board.ownApplication, "pool")}
     >
       <div className={styles.notice} role="status">
         <Icon name="info" className={styles.noticeIcon} />

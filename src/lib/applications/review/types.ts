@@ -430,6 +430,17 @@ export type ReviewPayload = {
       count: number;
       /** How many of them are being held back. */
       hidden: number;
+      /**
+       * What this caller has left to do before the ones held back are shown:
+       * answers still to score (`here`, on this programme, and `elsewhere`,
+       * the short names of their other programmes this person ranked), or,
+       * where there is nothing for them to score, an overall comment of
+       * their own. Null when nothing is held back.
+       */
+      until:
+        | { needs: "scores"; here: boolean; elsewhere: string[] }
+        | { needs: "overall-comment" }
+        | null;
       visible: OtherReview[];
     };
   };

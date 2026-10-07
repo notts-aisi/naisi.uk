@@ -1,5 +1,5 @@
 import "server-only";
-import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, type DocumentSnapshot, type Firestore } from "firebase-admin/firestore";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { ROUNDS_COLLECTION } from "@/lib/firestore/admissionRounds";
@@ -30,6 +30,16 @@ import { isApplicationForm, normaliseForm, type ApplicationForm } from "./normal
  *
  * The write is one transaction on the round, so two people editing two
  * programmes at once each see the other's change in the union.
+ *
+ * WHO MAY, AND WHO MAY BE NAMED, ARE BOTH DECIDED INSIDE THAT TRANSACTION.
+ * The caller's standing is asked of the form the transaction read, and each
+ * named person's eligibility of the user documents it read, so there is no
+ * moment between the check and the write in which a lead could have been
+ * replaced or somebody named could have stopped being eligible: either
+ * change makes the transaction run again and meet the refusal. The same two
+ * questions are asked once before it as well, of a plain read, so that a
+ * request which is plainly not allowed is answered without opening one. That
+ * earlier answer decides nothing by itself.
  */
 
 export type ProgrammeRolesChange = {
@@ -62,6 +72,72 @@ export function everyoneNamedOn(form: Pick<ApplicationForm, "programmeIds" | "pr
     }
   }
   return named;
+}
+
+type Refused = Extract<ProgrammeRolesResult, { ok: false }>;
+
+/**
+ * Why this caller may not make this change to this programme, or null when
+ * they may. Asked of whichever reading of the programme it is handed: the
+ * answer that counts is the one from the form the transaction read.
+ */
+function notTheirs(
+  actor: SessionUser,
+  programme: { leadUid: string | null },
+  change: ProgrammeRolesChange,
+): Refused | null {
+  const isAdmin = actor.role === "admin";
+  const isLead = isNamedWithStanding(actor, "admissionRounds.leadUid", programme.leadUid);
+  if (!isAdmin && !isLead) {
+    return {
+      ok: false,
+      status: 403,
+      error: "Only an admin or this programme's lead can change who reviews it.",
+    };
+  }
+  if (change.leadUid !== undefined && !isAdmin) {
+    return { ok: false, status: 403, error: "Only an admin can change the lead." };
+  }
+  return null;
+}
+
+/**
+ * Why these people cannot be named, or null when every one of them can: each
+ * has to have an account, and to be an admin or SU-recognised committee, on
+ * the user documents it is handed.
+ */
+function cannotBeNamed(docs: readonly DocumentSnapshot[]): Refused | null {
+  const missing: string[] = [];
+  const ineligible: string[] = [];
+  for (const doc of docs) {
+    if (!doc.exists) {
+      missing.push(doc.id);
+      continue;
+    }
+    const candidate = normalizeUser(doc.id, doc.data() ?? {});
+    if (!isEligibleAdmissionsReviewer(candidate)) {
+      ineligible.push(candidate.displayName || candidate.email || doc.id);
+    }
+  }
+  if (missing.length > 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Somebody named here no longer has an account on this site. Reload and save again.",
+      uids: missing,
+    };
+  }
+  if (ineligible.length > 0) {
+    return {
+      ok: false,
+      status: 400,
+      error:
+        `${ineligible.join(", ")} cannot be named here. Leads and reviewers have to be admins or ` +
+        "SU-recognised committee, because they read applications.",
+      uids: ineligible,
+    };
+  }
+  return null;
 }
 
 function cleanUids(raw: readonly string[]): string[] {
@@ -97,14 +173,12 @@ export async function setProgrammeRoles(
   const staleProgramme = own(stale.programmes, programmeId);
   if (!staleProgramme) return refuse(404, "That programme is not on this form.");
 
-  const isAdmin = actor.role === "admin";
-  const isLead = isNamedWithStanding(actor, "admissionRounds.leadUid", staleProgramme.leadUid);
-  if (!isAdmin && !isLead) {
-    return refuse(403, "Only an admin or this programme's lead can change who reviews it.");
-  }
-  if (change.leadUid !== undefined && !isAdmin) {
-    return refuse(403, "Only an admin can change the lead.");
-  }
+  // Asked here of a plain read, to answer a request that is plainly not
+  // allowed without opening a transaction, and asked AGAIN inside the
+  // transaction, of the form it reads. The second answer is the one that
+  // counts.
+  const notAllowed = notTheirs(actor, staleProgramme, change);
+  if (notAllowed) return notAllowed;
 
   const nextReviewers =
     change.reviewerUids === undefined ? null : cleanUids(change.reviewerUids);
@@ -121,45 +195,33 @@ export async function setProgrammeRoles(
         ? change.leadUid.trim()
         : null;
 
-  // Eligibility, against each newly named person's LIVE user document.
+  // Eligibility, against each newly named person's LIVE user document. The
+  // same early answer as above, and asked again inside the transaction.
   const toCheck = cleanUids([...(nextReviewers ?? []), ...(nextLead ? [nextLead] : [])]);
-  if (toCheck.length > 0) {
-    const docs = await db.getAll(...toCheck.map((uid) => db.collection("users").doc(uid)));
-    const missing: string[] = [];
-    const ineligible: string[] = [];
-    for (const doc of docs) {
-      if (!doc.exists) {
-        missing.push(doc.id);
-        continue;
-      }
-      const candidate = normalizeUser(doc.id, doc.data() ?? {});
-      if (!isEligibleAdmissionsReviewer(candidate)) {
-        ineligible.push(candidate.displayName || candidate.email || doc.id);
-      }
-    }
-    if (missing.length > 0) {
-      return refuse(
-        400,
-        "Somebody named here no longer has an account on this site. Reload and save again.",
-        missing,
-      );
-    }
-    if (ineligible.length > 0) {
-      return refuse(
-        400,
-        `${ineligible.join(", ")} cannot be named here. Leads and reviewers have to be admins or ` +
-          "SU-recognised committee, because they read applications.",
-        ineligible,
-      );
-    }
+  const userRefs = toCheck.map((uid) => db.collection("users").doc(uid));
+  if (userRefs.length > 0) {
+    const unnameable = cannotBeNamed(await db.getAll(...userRefs));
+    if (unnameable) return unnameable;
   }
 
-  const outcome = await db.runTransaction(async (tx) => {
+  type Written = { ok: true; added: string[]; removed: string[] };
+  const outcome = await db.runTransaction(async (tx): Promise<Written | Refused | null> => {
     const snap = await tx.get(roundRef);
     if (!snap.exists || !isApplicationForm(snap.data())) return null;
     const form = normaliseForm(snap.id, snap.data());
     const programme = own(form.programmes, programmeId);
     if (!programme) return null;
+
+    // WHO MAY, from the form this transaction read. A lead who was replaced
+    // after the request began is no longer this programme's lead here.
+    const noLongerTheirs = notTheirs(actor, programme, change);
+    if (noLongerTheirs) return noLongerTheirs;
+    // WHO MAY BE NAMED, from the user documents this transaction read.
+    // Somebody whose standing changes while it runs makes it run again.
+    if (userRefs.length > 0) {
+      const noLongerNameable = cannotBeNamed(await tx.getAll(...userRefs));
+      if (noLongerNameable) return noLongerNameable;
+    }
 
     // Who the form names NOW is read from the programmes as well as from the
     // stored union, so a union that has drifted is repaired by the next save
@@ -190,11 +252,13 @@ export async function setProgrammeRoles(
       updatedAt: FieldValue.serverTimestamp(),
     });
     return {
+      ok: true,
       added: [...namedAfter].filter((uid) => !namedBefore.has(uid)),
       removed: [...namedBefore].filter((uid) => !namedAfter.has(uid)),
     };
   });
   if (!outcome) return refuse(404, "That programme is not on this form.");
+  if (!outcome.ok) return outcome;
 
   // The sidebar flag: on for everybody newly named, off for everybody this
   // took off the form who is not still named on another round. Both lookups

@@ -10,6 +10,7 @@ import {
 } from "../model";
 import type { ApplicationForm } from "../normalise";
 import {
+  firstReviewOf,
   formatScore,
   hiddenReviewCount,
   otherReviewsShownTo,
@@ -47,7 +48,7 @@ import {
   listInWords,
   statusLabel,
 } from "./people";
-import { placesLeftOn, type TermPicture, type Viewer } from "./term";
+import { lookingAt, placesLeftOn, type TermPicture, type Viewer } from "./term";
 import type {
   AnswerView,
   CommentView,
@@ -68,9 +69,11 @@ import type {
  *  - A FIRST REVIEW IS BLIND. What other people scored and wrote for the
  *    programme comes through `reviewsVisibleTo`, and what is held back leaves
  *    as a count and never as a body. The same answer decides every comment
- *    somebody else left on this application, with one more condition: a
- *    comment on ANOTHER stream's answer waits for the caller's first review
- *    of that stream too, when they review it.
+ *    somebody else left on this application. It is ONE answer for the
+ *    application, across every programme on it that the caller reviews
+ *    (`lookingAt`), so it is the same whichever of them the application was
+ *    opened under. While anything is held back, the payload says what the
+ *    caller has left to do (`others.until`), so the screen can.
  *  - AN ADMIN IS NEVER BLIND. Every one of those answers is
  *    `otherReviewsShownTo`'s, and for an admin it is always yes: every score,
  *    every comment and every overall comment is on an admin's payload whether
@@ -200,14 +203,13 @@ export function buildReview(input: {
   const others = reviews.filter((review) => review.reviewerUid !== viewer.uid);
   const keys = scorableKeysFor(form, sets, programmeId, sent);
 
-  // Is the caller shown what others gave and wrote for a programme? Always,
-  // for an admin. For anybody else, once their first review of it is over; a
-  // programme with nothing to score has no first review to protect.
-  const keysOf = new Map<string, string[]>();
-  for (const id of ranked) keysOf.set(id, scorableKeysFor(form, sets, id, sent));
-  const lifted = (id: string) =>
-    otherReviewsShownTo(viewer.isAdmin, mine, keysOf.get(id) ?? [], form);
-  const liftedHere = lifted(programmeId);
+  // Is the caller shown what others gave and wrote about this application?
+  // Always, for an admin. For anybody else, once they have saved a review of
+  // their own for it: asked once, of the whole application, and never of the
+  // programme it happens to be open under.
+  const looking = lookingAt({ form, sets, term, viewer, application });
+  if (!looking) return null;
+  const othersShown = otherReviewsShownTo(looking);
 
   // -------------------------------------------------------------------------
   // The answers, in the order they were asked
@@ -216,8 +218,6 @@ export function buildReview(input: {
   const fellowships = form.programmeIds.filter(
     (id) => programmeOn(form, id)?.kind === "fellowship",
   );
-  /** The programme whose reviewers a stream answer belongs to, by its key. */
-  const streamOf = new Map<string, string>();
   const commentKeys = new Set<string>([ABOUT_MOTIVATION_KEY]);
 
   // What they sent before, when they have sent again with something
@@ -272,7 +272,6 @@ export function buildReview(input: {
     const answers = set.questions.map((question) => {
       const key = questionKey(set.id, question.id);
       commentKeys.add(key);
-      if (streamProgramme) streamOf.set(key, streamProgramme);
       const history = answerHistory(timeline, form, set, question);
       if (history.changedAt) lastChanged.set(key, history.changedAt);
       return answerView(
@@ -308,20 +307,14 @@ export function buildReview(input: {
   // Scores and comments
   // -------------------------------------------------------------------------
 
-  /** May this caller be shown what somebody else wrote on this answer? */
-  const commentLifted = (key: string) => {
-    if (!liftedHere) return false;
-    const stream = streamOf.get(key);
-    if (!stream || stream === programmeId || !own(viewer.roles, stream)) return true;
-    return lifted(stream);
-  };
-
   const comments: CommentView[] = [];
   for (const review of reviews) {
     const mine = review.reviewerUid === viewer.uid;
     for (const comment of review.comments) {
       if (!commentKeys.has(comment.questionKey)) continue;
-      if (!mine && !commentLifted(comment.questionKey)) continue;
+      // Somebody else's comment, on whichever answer, waits for the caller's
+      // own review of the application.
+      if (!mine && !othersShown) continue;
       comments.push({
         id: comment.id,
         key: comment.questionKey,
@@ -347,9 +340,28 @@ export function buildReview(input: {
         (review.comments.length > 0 || review.overallComment.trim() !== "")),
   );
   const forProgramme = mine ? [mine, ...relevant] : relevant;
-  const visible = reviewsVisibleTo(viewer.uid, forProgramme, keys, form, viewer.isAdmin).filter(
+  const visible = reviewsVisibleTo(viewer.uid, forProgramme, looking).filter(
     (review) => review.reviewerUid !== viewer.uid,
   );
+  const hidden = hiddenReviewCount(viewer.uid, forProgramme, looking);
+  // What the caller has left to do before the reviews held back are shown.
+  // Said only while one is, so nobody is asked for a review nothing waits on.
+  let until: ReviewPayload["review"]["others"]["until"] = null;
+  if (hidden > 0) {
+    const first = firstReviewOf(looking);
+    if (!first.over && first.needs === "scores") {
+      until = {
+        needs: "scores",
+        here: first.programmeIds.includes(programmeId),
+        elsewhere: first.programmeIds
+          .filter((id) => id !== programmeId)
+          .map((id) => programmeOn(form, id)?.shortName ?? "")
+          .filter((name) => name !== ""),
+      };
+    } else if (!first.over) {
+      until = { needs: "overall-comment" };
+    }
+  }
   const visibleOthers: OtherReview[] = visible.map((review) => {
     const score = reviewerScore(review, keys);
     return {
@@ -405,9 +417,9 @@ export function buildReview(input: {
     for (const id of ranked) {
       const other = programmeOn(form, id);
       if (!other?.useScores) continue;
-      const otherKeys = keysOf.get(id) ?? [];
+      const otherKeys = scorableKeysFor(form, sets, id, sent);
       // Every review there is: nothing is held back from an admin.
-      const seen = reviewsVisibleTo(viewer.uid, reviews, otherKeys, form, viewer.isAdmin);
+      const seen = reviewsVisibleTo(viewer.uid, reviews, looking);
       const section = sectionScore(seen, otherKeys);
       let line: string | null = null;
       if (section.reviewers.length === 1) {
@@ -519,7 +531,8 @@ export function buildReview(input: {
       comments,
       others: {
         count: relevant.length,
-        hidden: hiddenReviewCount(viewer.uid, forProgramme, keys, form, viewer.isAdmin),
+        hidden,
+        until,
         visible: visibleOthers,
       },
     },

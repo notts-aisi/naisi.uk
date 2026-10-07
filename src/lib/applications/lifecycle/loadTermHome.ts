@@ -2,7 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import type { SessionUser } from "@/lib/firebase/session";
 import { canDecideFor, canRunTerm, programmeRolesFor } from "../access";
-import { planTerm } from "../decisionDay/plan";
+import { termsFor } from "../decisionDay/plan";
 import { isPooled } from "../decisions";
 import type { ApplicationForm } from "../normalise";
 import { loadQuestionSets } from "../repo";
@@ -27,9 +27,11 @@ import type { ProgrammeWork } from "./termHome";
  * whoever they have not finished scoring for a reviewer. So the number on a
  * button here is the number of applications the screen behind it walks.
  *
- * THE POOLED NUMBERS are the ones decision day is planned on (`planTerm`):
- * how many people are pooled so far, and how many of them still need an
- * outcome picked.
+ * THE POOLED NUMBERS are the ones the pooled applicants page shows this
+ * caller (`termsFor`, read as `shown`): how many people are pooled so far,
+ * and how many of them still need an outcome picked. The caller's own
+ * application is in neither, as it is in no row of that page, so the number
+ * here is the number of rows there.
  *
  * WHO GETS WHICH. A programme has an entry only when the caller has a role
  * on it (`programmeRolesFor`), and the pooled numbers are read only for
@@ -98,10 +100,10 @@ export async function loadTermNumbers(
 
   let pool: TermNumbers["pool"] = null;
   if (canRunTerm(user)) {
-    const planned = planTerm(form, applications, decisions);
+    const { shown } = termsFor(form, applications, decisions, user.uid);
     pool = {
-      pooled: planned.people.filter((person) => isPooled(person.outcome)).length,
-      needsOutcome: planned.readiness.needsOutcome,
+      pooled: shown.people.filter((person) => isPooled(person.outcome)).length,
+      needsOutcome: shown.readiness.needsOutcome,
     };
   }
   return { work, pool };

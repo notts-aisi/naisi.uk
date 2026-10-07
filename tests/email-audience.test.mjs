@@ -14,9 +14,13 @@
  *    the project is the production one;
  *  - everything, when the mail server is this machine, because nothing handed
  *    to a loopback catcher can leave it;
- *  - otherwise only the addresses the setting lists, plus the harness's own
- *    reserved domain;
+ *  - otherwise only the addresses the setting lists;
  *  - and NOBODY when the setting is missing. Never everyone.
+ *
+ * The harness's own reserved domain is no exception to the last two. An
+ * address under it cannot receive mail, so a message to one is handed over
+ * only where everything is, a mail server on this machine. On any other mail
+ * server it is held like any address this copy was not told it may write to.
  *
  * Like its neighbour `tests/email-suppression-chokepoint.test.mjs`, this file
  * guards the one door on three levels:
@@ -219,7 +223,10 @@ test("only the live site without its setting counts as a misconfigured live site
   );
 });
 
-test("a list admits its own addresses in any spelling, the harness domain, and nobody else", () => {
+// An address under the harness's reserved domain is matched like any other.
+// It is delivered where everything is, a mail server on this machine, and by
+// a real one only when the list names it.
+test("a list admits its own addresses in any spelling, and nobody else: not the harness domain either", () => {
   const audience = resolveEmailAudience({
     EMAIL_AUDIENCE: "Listed@Example.com;second@example.com not-an-address",
     NEXT_PUBLIC_FIREBASE_PROJECT_ID: STAGING,
@@ -231,18 +238,50 @@ test("a list admits its own addresses in any spelling, the harness domain, and n
     [" LISTED@example.com", "stranger@example.com", "fixture@e2e.invalid", "second@example.com", "listed@example.com.attacker.example"],
     audience,
   );
-  assert.deepEqual(verdict.allowed, [" LISTED@example.com", "fixture@e2e.invalid", "second@example.com"]);
-  assert.deepEqual(verdict.held, ["stranger@example.com", "listed@example.com.attacker.example"]);
+  assert.deepEqual(verdict.allowed, [" LISTED@example.com", "second@example.com"]);
+  assert.deepEqual(verdict.held, ["stranger@example.com", "fixture@e2e.invalid", "listed@example.com.attacker.example"]);
+
+  // The harness's address is one a list can name, like any other.
+  const naming = resolveEmailAudience({
+    EMAIL_AUDIENCE: "fixture@e2e.invalid",
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID: STAGING,
+    SMTP_HOST: REAL_SMTP,
+  });
+  assert.deepEqual(splitByAudience(["fixture@e2e.invalid", "other@e2e.invalid"], naming), {
+    allowed: ["fixture@e2e.invalid"],
+    held: ["other@e2e.invalid"],
+  });
 });
 
-test("with nothing set, the harness domain is the only thing that gets through", () => {
-  const audience = resolveEmailAudience({ NEXT_PUBLIC_FIREBASE_PROJECT_ID: STAGING, SMTP_HOST: REAL_SMTP });
-  const verdict = splitByAudience(
-    ["member@example.com", "fixture@e2e.invalid", "fixture@not-e2e.invalid", "x@e2e.invalid.example.com"],
-    audience,
-  );
-  assert.deepEqual(verdict.allowed, ["fixture@e2e.invalid"]);
-  assert.deepEqual(verdict.held, ["member@example.com", "fixture@not-e2e.invalid", "x@e2e.invalid.example.com"]);
+test("with nothing set, nothing gets through a real mail server, the harness domain included", () => {
+  const ADDRESSES = ["member@example.com", "fixture@e2e.invalid", "fixture@not-e2e.invalid", "x@e2e.invalid.example.com"];
+  for (const mailServer of [REAL_SMTP, undefined, "", "mail.internal", "127.0.0.1.example.com", "10.0.0.5"]) {
+    const audience = resolveEmailAudience({ NEXT_PUBLIC_FIREBASE_PROJECT_ID: STAGING, SMTP_HOST: mailServer });
+    assert.equal(audience.mode, "listed", `a mail server at ${mailServer} was read as this machine`);
+    const verdict = splitByAudience(ADDRESSES, audience);
+    assert.deepEqual(verdict.allowed, [], `something got through a mail server at ${mailServer}`);
+    assert.deepEqual(verdict.held, ADDRESSES);
+  }
+});
+
+test("the harness domain is delivered where everything is: a mail server on this machine", () => {
+  for (const catcher of ["127.0.0.1", "localhost", "::1", "[::1]", " LocalHost "]) {
+    const audience = resolveEmailAudience({ NEXT_PUBLIC_FIREBASE_PROJECT_ID: STAGING, SMTP_HOST: catcher });
+    assert.deepEqual([audience.mode, audience.because], ["everyone", "loopback"], catcher);
+    assert.deepEqual(splitByAudience(["fixture@e2e.invalid", "member@example.com"], audience), {
+      allowed: ["fixture@e2e.invalid", "member@example.com"],
+      held: [],
+    });
+  }
+});
+
+test("nothing in the rule reads the harness domain: being under it earns an address nothing", () => {
+  const code = readFileSync(join(REPO_ROOT, "src", "lib", "email", "audience.ts"), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+  assert.deepEqual(code.match(/\bHARNESS_DOMAIN\b/g), ["HARNESS_DOMAIN"], "the constant is declared, and read by no branch");
+  assert.equal(/e2e\.invalid/.test(code.replace('export const HARNESS_DOMAIN = "e2e.invalid";', "")), false);
+  assert.equal(/endsWith\(/.test(code), false, "an address is matched whole against the list, never by how it ends");
 });
 
 /* -------------------------------------------------------------------------
@@ -430,22 +469,40 @@ test("the harness's mail catcher on this machine takes everything", async () => 
   assert.deepEqual(result.held, []);
 });
 
+// The third address is a listed one: off the live site, being listed is the
+// one way anything is delivered by a real mail server.
 test("a suppressed address is reported as suppressed wherever it was tried", async () => {
   const db = makeDb(["bounced@example.com"]);
-  arm(db, { NEXT_PUBLIC_FIREBASE_PROJECT_ID: STAGING, SMTP_HOST: REAL_SMTP });
+  arm(db, { EMAIL_AUDIENCE: "listed@example.com", NEXT_PUBLIC_FIREBASE_PROJECT_ID: STAGING, SMTP_HOST: REAL_SMTP });
 
   const result = await sendEmail({
-    to: ["bounced@example.com", "member@example.com", "fixture@e2e.invalid"],
+    to: ["bounced@example.com", "member@example.com", "listed@example.com"],
     subject: "x",
     react: {},
   });
 
   assert.deepEqual(result.suppressed, ["bounced@example.com"]);
   assert.deepEqual(result.held, ["member@example.com"]);
-  assert.deepEqual(result.delivered, ["fixture@e2e.invalid"]);
+  assert.deepEqual(result.delivered, ["listed@example.com"]);
   assert.deepEqual(statusOf(db, "suppressed"), ["bounced@example.com"]);
   assert.deepEqual(statusOf(db, "held"), ["member@example.com"]);
-  assert.deepEqual(statusOf(db, "sent"), ["fixture@e2e.invalid"]);
+  assert.deepEqual(statusOf(db, "sent"), ["listed@example.com"]);
+});
+
+test("a message to the harness's own domain is held by a real mail server, and handed to the catcher on this machine", async () => {
+  const held = makeDb();
+  arm(held, { NEXT_PUBLIC_FIREBASE_PROJECT_ID: STAGING, SMTP_HOST: REAL_SMTP });
+  const onStaging = await sendEmail({ to: "fixture@e2e.invalid", subject: "x", react: {} });
+  assert.deepEqual(globalThis.__sentMail, [], "an address that cannot receive mail was handed to a real mail server");
+  assert.deepEqual([onStaging.delivered, onStaging.held], [[], ["fixture@e2e.invalid"]]);
+  assert.deepEqual(statusOf(held, "held"), ["fixture@e2e.invalid"]);
+
+  const caught = makeDb();
+  arm(caught, { NEXT_PUBLIC_FIREBASE_PROJECT_ID: STAGING, SMTP_HOST: "127.0.0.1" });
+  const inTheHarness = await sendEmail({ to: "fixture@e2e.invalid", subject: "x", react: {} });
+  assert.equal(globalThis.__sentMail.length, 1);
+  assert.deepEqual([inTheHarness.delivered, inTheHarness.held], [["fixture@e2e.invalid"], []]);
+  assert.deepEqual(statusOf(caught, "sent"), ["fixture@e2e.invalid"]);
 });
 
 test("a server with no database still cannot write to a stranger", async () => {

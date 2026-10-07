@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireApplicant } from "@/lib/admissions/applicantSession";
 import { loadStatusRows } from "@/lib/admissions/statusHubData";
+import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import type { ApplicationStatusPayload } from "@/lib/admissions/statusTypes";
 
 /**
@@ -32,21 +33,23 @@ import type { ApplicationStatusPayload } from "@/lib/admissions/statusTypes";
  * `tests/admissions-status-hub.test.mjs` keeps this route and the loader off
  * that module.
  *
- * ## Not guarded against view-as, and that is the decision
+ * ## A view-as session is refused, as the page is
  *
- * Every other applicant-lane route calls `assertNotImpersonating()`. Those all
- * WRITE, or (in `GET .../apply`) join the access-requirements answer, which is
- * health information the privacy notice promises is only read through a route
- * that logs it. This one does neither: it reads status, dates and the person's
- * own answers, which is exactly what "view as" exists to show an admin
- * debugging "my application has vanished". Adding the private join to this
- * route would make the guard necessary; do not add it.
+ * These are the rows `/applications` draws, and that page draws a notice in
+ * their place while an admin is viewing the site as a member: the one query
+ * behind both fetches every application the account has, and an application
+ * made on an application form is its owner's to read. This route is held to
+ * the rule the page is held to, so it refuses first, like the form's own
+ * read, and makes no query.
  *
  * A `pending` account is a legitimate caller (`requireApplicant` admits it):
  * somebody who made an account at the fair and applied the same afternoon is
  * still pending on the Monday they come back to check.
  */
 export async function GET() {
+  const blocked = await assertNotImpersonating();
+  if (blocked) return blocked;
+
   const caller = await requireApplicant();
   if (caller instanceof NextResponse) return caller;
   const { user, db } = caller;

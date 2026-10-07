@@ -33,6 +33,15 @@ import { programmeOf } from "./programmes";
  * module only lines the people up, names them, and says what each one would
  * be told.
  *
+ * NOBODY READS THEIR OWN APPLICATION ON A COMMITTEE SCREEN. Both screens are
+ * opened by admins, and an admin can have applied. So the term comes in two
+ * readings ({@link termsFor}): `shown`, which leaves the viewer's own
+ * application out of every list and every count, and `whole`, which is
+ * everybody. A screen lists and counts from `shown` and from nothing else.
+ * `whole` is for the two things that have to see everybody: the send, which
+ * tells the viewer on decision day with everybody else, and the question of
+ * whether the send may go ({@link sendBlockersFor}).
+ *
  * Pure, with no server import, so the routes, the pages and the tests all run
  * the same code against the same shapes.
  */
@@ -159,6 +168,58 @@ export function planTerm(
  */
 export function everybodyAddressed(term: Term): TermPerson[] {
   return [...term.people, ...term.left].sort(byName);
+}
+
+/**
+ * Whether the person looking has an application of their own on this form,
+ * which the committee's screens leave out. `told` once decision day has
+ * reached them: from then on their outcome is fixed, and they read it on
+ * their own page like anybody else.
+ */
+export type OwnApplication = "none" | "not-told" | "told";
+
+export type TermViews = {
+  /**
+   * The term as this viewer is shown it. Their own application is in no list
+   * and no count here, so nothing built from this can say where it stands.
+   */
+  shown: Term;
+  /**
+   * Everybody, the viewer included. For the send itself and for whether it
+   * may go, and for nothing a screen lists or counts.
+   */
+  whole: Term;
+  own: OwnApplication;
+};
+
+/**
+ * THE ONE PLACE THE VIEWER'S OWN APPLICATION IS LEFT OUT of what pooled
+ * applicants and decision day show. `viewerUid` is whoever the screen is
+ * being built for, and it has to be somebody: a term read for nobody would
+ * be the whole term, so that is refused loudly here and never guessed.
+ *
+ * The viewer's own application is dropped before `planTerm` runs, so it is
+ * out of the people, out of the tally and out of every count made from
+ * either. For somebody who has not applied, the two readings are one.
+ */
+export function termsFor(
+  form: ApplicationForm,
+  applications: readonly Sent[],
+  decisions: ReadonlyMap<string, DecisionDoc>,
+  viewerUid: string,
+): TermViews {
+  if (typeof viewerUid !== "string" || viewerUid === "") {
+    throw new Error("A committee screen is built for the person looking at it: no viewer was given.");
+  }
+  const whole = planTerm(form, applications, decisions);
+  const mine = [...whole.people, ...whole.left].find((person) => person.uid === viewerUid);
+  if (!mine) return { shown: whole, whole, own: "none" };
+  const shown = planTerm(
+    form,
+    applications.filter((application) => application.uid !== viewerUid),
+    decisions,
+  );
+  return { shown, whole, own: mine.result ? "told" : "not-told" };
 }
 
 // ---------------------------------------------------------------------------
@@ -328,6 +389,18 @@ export function civilDateLabel(key: string | null): string | null {
   return key ? (formatRunStartShort(key) ?? null) : null;
 }
 
+const NOBODY_APPLIED = "Nobody has sent an application, so there is nothing to send.";
+
+/**
+ * What holds the send when the only thing in its way is about the viewer's
+ * own application. It says that much and no more: what the application
+ * needs would say where it stands, which is not its author's to read before
+ * decision day.
+ */
+export const OWN_APPLICATION_HOLDS_THE_SEND =
+  "Your own application still needs something before decisions can go out. " +
+  "Another admin has to deal with it: what it needs is not shown to you.";
+
 const NO_SITE_ADDRESS =
   "This copy of the site doesn’t know its own address, so the buttons in the emails would lead nowhere.";
 
@@ -410,7 +483,7 @@ export function sendBlockers({ form, term, now, appUrl, test }: BlockerInput): s
 
   const blockers: string[] = [];
   const { tally, readiness } = term;
-  if (tally.applicants === 0) blockers.push("Nobody has sent an application, so there is nothing to send.");
+  if (tally.applicants === 0) blockers.push(NOBODY_APPLIED);
 
   for (const programmeId of form.programmeIds) {
     const owed = own(readiness.toReview, programmeId) ?? 0;
@@ -467,6 +540,39 @@ export function sendBlockers({ form, term, now, appUrl, test }: BlockerInput): s
   const untested = testBlocker(test);
   if (untested) blockers.push(untested);
   return blockers;
+}
+
+/**
+ * What stops the send, AS ONE VIEWER MAY READ IT. The page and the press both
+ * ask this, so they cannot disagree.
+ *
+ * WHETHER the send may go is decided by everybody: an application with no
+ * outcome holds it whoever is looking, the viewer's own included. WHAT IS
+ * SAID about it is decided by what the viewer is shown. Each sentence is
+ * worked out from `shown`, which holds nothing of the viewer's own, so a
+ * count in it agrees with the lists beside it. When everything the viewer
+ * can see is ready and the send is still held, one sentence says their own
+ * application is why, and nothing about what it needs.
+ *
+ * For somebody who has not applied the two readings are one, and this is
+ * {@link sendBlockers} exactly.
+ */
+export function sendBlockersFor({
+  form,
+  shown,
+  whole,
+  now,
+  appUrl,
+  test,
+}: Omit<BlockerInput, "term"> & Pick<TermViews, "shown" | "whole">): string[] {
+  const held = sendBlockers({ form, term: whole, now, appUrl, test });
+  if (held.length === 0) return [];
+  const visible = sendBlockers({ form, term: shown, now, appUrl, test }).filter(
+    // With the viewer's own application left out there can seem to be nobody,
+    // which is not what holds a term somebody has applied to.
+    (sentence) => sentence !== NOBODY_APPLIED || whole.tally.applicants === 0,
+  );
+  return visible.length > 0 ? visible : [OWN_APPLICATION_HOLDS_THE_SEND];
 }
 
 /**

@@ -24,7 +24,7 @@ import { changeCount, versionsOf } from "../versions/kept";
 import { dayOf } from "./earlier";
 import { emptyMap, own, programmeOn } from "./own";
 import { applicantDetail, applicantName } from "./people";
-import { newestFirst, placesLeftOn, type TermPicture, type Viewer } from "./term";
+import { lookingAt, newestFirst, placesLeftOn, type TermPicture, type Viewer } from "./term";
 import type {
   ApplicationRow,
   BoardRecommendations,
@@ -40,9 +40,12 @@ import type {
  *
  *  - THE SCORE COLUMN IS BLIND TOO. A row's section score is worked out from
  *    the reviews `reviewsVisibleTo` hands this caller, so a lead or a
- *    reviewer who has not scored an applicant reads "Not scored yet" whatever
- *    anybody else gave. The recommendations are made from the same numbers,
- *    so they cannot say what the column will not.
+ *    reviewer who has not finished their own review of an applicant reads
+ *    "Not scored yet" whatever anybody else gave. The recommendations are
+ *    made from the same numbers, so they cannot say what the column will not.
+ *    Whether it is finished is decided for the application, across every
+ *    programme on it that the caller reviews (`lookingAt`), and not for this
+ *    list's programme alone.
  *  - A SCORE FROM ANOTHER PROGRAMME is shown to a caller only for an
  *    applicant whose first review they have finished, so it cannot lean on a
  *    score they have yet to give.
@@ -114,28 +117,25 @@ function buildRow(input: {
   const reviews = term.reviews.get(application.uid) ?? [];
   const keys = scorableKeysFor(form, sets, programmeId, sent);
   const mine = reviews.find((review) => review.reviewerUid === viewer.uid) ?? null;
+  // For the queue: has this caller anything left to score here? Not whether
+  // they have reviewed, which is the rule asked below.
   const viewerHasScored = hasScored(mine, keys);
-  const score = sectionScore(
-    reviewsVisibleTo(viewer.uid, reviews, keys, form, viewer.isAdmin),
-    keys,
-  ).score;
+  // Whose work this caller is shown is decided once for the application,
+  // across every programme on it that they review.
+  const looking = lookingAt({ form, sets, term, viewer, application });
+  if (!looking) return null;
+  const score = sectionScore(reviewsVisibleTo(viewer.uid, reviews, looking), keys).score;
 
   // Another programme's section score, for "scored higher on its questions".
   // Held back while this caller's own first review of the applicant is open,
   // which an admin's never is.
-  const firstReviewDone = otherReviewsShownTo(viewer.isAdmin, mine, keys, form);
+  const firstReviewDone = otherReviewsShownTo(looking);
   const elsewhere = emptyMap<number | null>();
   for (const otherId of ranked) {
     if (otherId === programmeId || !programmeOn(form, otherId)?.useScores) continue;
-    if (!firstReviewDone) {
-      elsewhere[otherId] = null;
-      continue;
-    }
-    const otherKeys = scorableKeysFor(form, sets, otherId, sent);
-    const seen = own(viewer.roles, otherId)
-      ? reviewsVisibleTo(viewer.uid, reviews, otherKeys, form, viewer.isAdmin)
-      : reviews;
-    elsewhere[otherId] = sectionScore(seen, otherKeys).score;
+    elsewhere[otherId] = firstReviewDone
+      ? sectionScore(reviews, scorableKeysFor(form, sets, otherId, sent)).score
+      : null;
   }
 
   // An invitation accepted is a place accepted: nobody decided it here.

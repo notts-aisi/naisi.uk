@@ -71,11 +71,18 @@ import styles from "./apply.module.css";
  * the API routes use are called here, so the two cannot disagree about what an
  * applicant may see, and the release filter is applied in exactly one place.
  *
- * ## The one thing a view-as session does not get to see
+ * ## What a view-as session does not get to see
  *
- * Admin "view as" is a full impersonation: the session cookie is the target's,
- * so this page renders the member's own application, which is the whole point
- * of the tool. The exception is the access-requirements answer. It lives in
+ * Admin "view as" is a full impersonation: the session cookie is the
+ * target's. What that shows depends on the kind of round.
+ *
+ * AN APPLICATION FORM draws a notice in place of the member's application,
+ * and reads nothing of theirs: `renderApplicationForm` is handed `viewingAs`
+ * and checks it before its first read. An application on a form is its
+ * owner's to read (`src/features/applications/viewAsNotice.ts`).
+ *
+ * A ROUND OF THE OLDER KIND renders the member's own application, as it
+ * always has, with one exception: the access-requirements answer. It lives in
  * `admissionApplicationPrivate` because it will in practice carry disability
  * and health information, and the privacy policy promises that the people who
  * can open it are the final decider and site admins, through a route that
