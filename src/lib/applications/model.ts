@@ -312,11 +312,50 @@ export const APPLICATION_RESULT_KINDS: readonly ApplicationResultKind[] = [
   "declined",
 ];
 
+/**
+ * What became of the email that tells somebody their result.
+ *
+ * `owed` is the only state a later press of Send acts on: the email has not
+ * gone, and the site knows it has not. Every other state is left alone, which
+ * is what keeps anybody from being emailed their decision twice.
+ */
+export type ResultEmailState =
+  /** Not sent, for certain: never tried, or tried and known not to have gone. */
+  | "owed"
+  /** A press of Send has taken it up and has not yet recorded what happened. */
+  | "sending"
+  /** Handed to the mail provider. */
+  | "sent"
+  /** Deliberately not sent: a declined application with "Email them" off. */
+  | "not-sent"
+  /** This copy of the site may not write to that address, so nothing went. */
+  | "held"
+  /** The address is on the do-not-email list, so nothing went. */
+  | "suppressed"
+  /** It may or may not have gone and nothing can say which. Never sent again. */
+  | "unconfirmed";
+
+export const RESULT_EMAIL_STATES: readonly ResultEmailState[] = [
+  "owed",
+  "sending",
+  "sent",
+  "not-sent",
+  "held",
+  "suppressed",
+  "unconfirmed",
+];
+
 export type ApplicationResult = {
   kind: ApplicationResultKind;
   /** The programme they are in, or invited to. Null for the other two. */
   programmeId: string | null;
   publishedAt: Date | null;
+  /** What became of the email that tells them. */
+  email: ResultEmailState;
+  /** When that email was handed to the mail provider. Null unless it was. */
+  emailedAt: Date | null;
+  /** When a press of Send took the email up. Read only while `email` is "sending". */
+  emailClaimedAt: Date | null;
 };
 
 /** An offer of a programme they did not get through their own ranking. */

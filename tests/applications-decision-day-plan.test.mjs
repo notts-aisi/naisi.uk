@@ -18,6 +18,12 @@
  *     and is never to something they ranked, and an id that is not one of the
  *     form's own programmes is not a programme.
  *  3. WHY THE SEND CANNOT GO (`sendBlockers`): one sentence per reason.
+ *  4. WHAT BECAME OF AN EMAIL (`emailState.ts`): which of the states a result
+ *     can record is taken up by a later press (only `owed`), when a claim a
+ *     press left behind stops reading as a press at work, and which failures
+ *     of the mail door are known to have handed nothing over. Anything not
+ *     positively known is left alone, because the alternative is somebody
+ *     getting their decision twice.
  *
  * The last block runs the whole thing against the term the design was drawn
  * for (122 applicants: 66 accepted, 2 invited, 53 no offer, 1 declined) and
@@ -36,6 +42,7 @@ const at = (file) => join("lib", "applications", file);
 const plan = await loadTs(at(join("decisionDay", "plan.ts")));
 const say = await loadTs(at(join("decisionDay", "boardWords.ts")));
 const programmes = await loadTs(at(join("decisionDay", "programmes.ts")));
+const emailState = await loadTs(at(join("decisionDay", "emailState.ts")));
 const decisions = await loadTs(at("decisions.ts"));
 const normalise = await loadTs(at("normalise.ts"));
 
@@ -610,6 +617,123 @@ describe("the sentences agree with their numbers", () => {
     assert.equal(say.sendButtonLabel(0, 0, 150, 122), "Finish the send");
   });
 
+  test("the button's number counts the emails still owed to people already told", () => {
+    // 6 people not yet told and 1 owed: seven emails go.
+    assert.equal(say.sendButtonLabel(7, 6, 150, 1, 1), "Send the remaining 7 emails");
+    // Everybody told, the term never marked: the owed emails are what is left.
+    assert.equal(say.sendButtonLabel(2, 0, 150, 122, 2), "Send the 2 emails still owed");
+    assert.equal(say.sendButtonLabel(1, 0, 150, 122, 1), "Send the 1 email still owed");
+    // Owed emails count towards what one press can reach.
+    assert.equal(say.sendButtonLabel(155, 148, 150, 10, 5), "Send the next 150 of 153 decisions");
+    assert.equal(say.owedButtonLabel(1), "Send the 1 email still owed");
+    assert.equal(say.owedButtonLabel(4), "Send the 4 emails still owed");
+  });
+
+  test("a list of names reads the way a person would say it, and stops", () => {
+    assert.equal(say.nameList([]), "");
+    assert.equal(say.nameList(["Ada Obi"]), "Ada Obi");
+    assert.equal(say.nameList(["Ada Obi", "Ben Hartley"]), "Ada Obi and Ben Hartley");
+    assert.equal(say.nameList(["Ada Obi", "Ben Hartley", "Chloe Tan"]), "Ada Obi, Ben Hartley and Chloe Tan");
+    assert.equal(say.nameList(["A", "B", "C", "D"], 2), "A, B and 2 more");
+    const ten = Array.from({ length: 10 }, (_, i) => `P${i}`);
+    assert.equal(say.nameList(ten), "P0, P1, P2, P3, P4, P5, P6, P7 and 2 more");
+  });
+
+  test("the card for emails still owed says who, and which button sends them", () => {
+    assert.equal(
+      say.owedLine(["Nina Petrova"], false),
+      "Nina Petrova has their result on the site, but their email has not gone.",
+    );
+    assert.equal(
+      say.owedLine(["Nina Petrova"], true),
+      "Nina Petrova has their result on the site, but their email has not gone. The Send button below sends it too.",
+    );
+    assert.equal(
+      say.owedLine(["Nina Petrova", "Ben Hartley"], true),
+      "Nina Petrova and Ben Hartley have their result on the site, but their emails have not gone. The Send button below sends them too.",
+    );
+    assert.equal(
+      say.noAddressLine(["Sam Whitfield"]),
+      "Sam Whitfield has no email address on their application, so there is nowhere to send their email. Their result is on the site.",
+    );
+    assert.equal(
+      say.noAddressLine(["Sam Whitfield", "Wen Zhao"]),
+      "Sam Whitfield and Wen Zhao have no email address on their applications, so there is nowhere to send their emails. Their results are on the site.",
+    );
+    assert.equal(say.inFlightLine(1), "1 email is being sent right now. Reload the page in a minute.");
+    assert.equal(say.inFlightLine(3), "3 emails are being sent right now. Reload the page in a minute.");
+    assert.equal(
+      say.unconfirmedLine(["Ben Hartley"]),
+      "We can’t tell whether the email to Ben Hartley went: the send was cut off while it was being handed over. " +
+        "It won’t be sent again, so nobody gets their decision twice. " +
+        "Look for it in Deliverability, and write to them yourself if it isn’t there.",
+    );
+  });
+
+  test("what a press did is said in sentences whose numbers are the report's", () => {
+    const report = (over) => ({
+      owedOnly: false, published: 0, retried: 0, emailed: 0, held: 0, suppressed: 0, failed: 0,
+      unconfirmed: 0, notEmailed: 0, skipped: 0, changed: 0, notReached: 0, failedNames: [],
+      unconfirmedNames: [], stopped: null, complete: false, ...over,
+    });
+    assert.deepEqual(say.reportLines(report({ published: 122, emailed: 121, notEmailed: 1, complete: true })), [
+      "122 people told: 121 emailed, 1 declined and not emailed.",
+      "Everybody in the term now has their result.",
+    ]);
+    assert.deepEqual(say.reportLines(report({ skipped: 8, complete: true })), [
+      "Nobody new was told.",
+      "8 people already had their result, so nothing went to them again.",
+      "Everybody in the term now has their result.",
+    ]);
+    // A press that told the rest and took an owed email up with them.
+    assert.deepEqual(
+      say.reportLines(report({ published: 7, retried: 1, emailed: 7, notEmailed: 1, complete: true })),
+      ["7 people told and 1 owed email taken up: 7 emailed, 1 declined and not emailed.", "Everybody in the term now has their result."],
+    );
+    // An email that failed is owed, and the page keeps saying so.
+    assert.deepEqual(
+      say.reportLines(report({ published: 8, emailed: 6, failed: 1, notEmailed: 1, failedNames: ["Nina Petrova"], complete: true })),
+      [
+        "8 people told: 6 emailed, 1 failed, 1 declined and not emailed.",
+        "The email could not be sent to Nina Petrova. Their result is on their application page, and the email is still owed: it is listed on this page until it goes.",
+        "Everybody in the term now has their result.",
+      ],
+    );
+    // One nobody can vouch for is named, and is not sent again.
+    assert.deepEqual(
+      say.reportLines(report({ published: 1, unconfirmed: 1, unconfirmedNames: ["Ben Hartley"], notReached: 7, stopped: "emails-failing" })),
+      [
+        "1 person told: 0 emailed, 1 not confirmed.",
+        say.unconfirmedLine(["Ben Hartley"]),
+        "The send stopped because emails were failing. Nobody else was told. Press Send again once the mail is working.",
+      ],
+    );
+    // The press that only sends what is owed tells nobody, and says nothing about telling.
+    assert.deepEqual(say.reportLines(report({ owedOnly: true, retried: 2, emailed: 2, skipped: 120, complete: true })), [
+      "2 owed emails taken up: 2 emailed.",
+    ]);
+    assert.deepEqual(say.reportLines(report({ owedOnly: true, skipped: 122, complete: true })), ["No owed email was sent."]);
+    assert.deepEqual(
+      say.reportLines(report({ owedOnly: true, retried: 1, failed: 1, failedNames: ["Nina Petrova"], notReached: 2, stopped: "emails-failing" })),
+      [
+        "1 owed email taken up: 0 emailed, 1 failed.",
+        "The email could not be sent to Nina Petrova. Their result is on their application page, and the email is still owed: it is listed on this page until it goes.",
+        "The send stopped because emails were failing. Try again once the mail is working.",
+      ],
+    );
+    assert.deepEqual(say.reportLines(report({ owedOnly: true, retried: 150, emailed: 150, notReached: 3 }))[1],
+      "3 owed emails were not reached. Press the button again for the rest.");
+    assert.deepEqual(
+      say.reportLines(report({ published: 150, emailed: 150, notReached: 20, held: 0 })),
+      ["150 people told: 150 emailed.", "20 people still to be told. Press Send again for the rest."],
+    );
+    assert.deepEqual(say.reportLines(report({ published: 2, held: 2, changed: 1 })), [
+      "2 people told: 0 emailed, 2 held.",
+      "Held means this copy of the site may not write to that address, so nothing was sent to it. That is how a rehearsal works.",
+      "1 person was left out because their decision changed after you pressed Send. Check the page and send again.",
+    ]);
+  });
+
   test("the line under a degree is what the form asked", () => {
     assert.equal(say.studyLine({ status: "undergraduate", statusOther: "", expectedGraduation: "2027-07" }), "Graduating July 2027");
     assert.equal(say.studyLine({ status: "postdoc", statusOther: "", expectedGraduation: "" }), "Post-doc");
@@ -623,5 +747,173 @@ describe("the sentences agree with their numbers", () => {
     assert.equal(plan.civilDateLabel(null), null);
     assert.equal(plan.countOf(1, "person", "people"), "1 person");
     assert.equal(plan.countOf(4, "person", "people"), "4 people");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. What became of an email, and which failures hand nothing over
+// ---------------------------------------------------------------------------
+
+describe("a result's email is read one way by the send and the page", () => {
+  const at = new Date("2026-10-23T11:00:00Z");
+  const minutes = (n) => new Date(at.getTime() + n * 60_000);
+
+  test("every settled state reads as itself, whenever it is read", () => {
+    for (const state of ["owed", "sent", "not-sent", "held", "suppressed", "unconfirmed"]) {
+      for (const when of [at, minutes(1), minutes(600)]) {
+        assert.equal(emailState.emailStanding({ email: state, emailClaimedAt: null }, when), state);
+        // A time left on a settled result changes nothing.
+        assert.equal(emailState.emailStanding({ email: state, emailClaimedAt: at }, when), state);
+      }
+    }
+  });
+
+  test("an email a press holds is in flight while the press could be alive, then nobody can vouch for it", () => {
+    const held = { email: "sending", emailClaimedAt: at };
+    assert.equal(emailState.EMAIL_CLAIM_MS, 5 * 60_000);
+    assert.equal(emailState.emailStanding(held, at), "in-flight");
+    assert.equal(emailState.emailStanding(held, minutes(1)), "in-flight");
+    assert.equal(emailState.emailStanding(held, minutes(5)), "in-flight", "five minutes exactly is still a press at work");
+    assert.equal(emailState.emailStanding(held, new Date(minutes(5).getTime() + 1)), "unconfirmed");
+    assert.equal(emailState.emailStanding(held, minutes(600)), "unconfirmed");
+    // The store's clock a little ahead of this one is not a stale claim.
+    assert.equal(emailState.emailStanding(held, minutes(-1)), "in-flight");
+    // A claim with no time on it cannot be waited out.
+    assert.equal(emailState.emailStanding({ email: "sending", emailClaimedAt: null }, at), "unconfirmed");
+  });
+
+  test("it is never read as owed unless the record says owed", () => {
+    for (const state of ["sending", "sent", "not-sent", "held", "suppressed", "unconfirmed"]) {
+      for (const claimedAt of [null, at, minutes(-600)]) {
+        for (const when of [at, minutes(6), minutes(6000)]) {
+          assert.notEqual(emailState.emailStanding({ email: state, emailClaimedAt: claimedAt }, when), "owed", state);
+        }
+      }
+    }
+  });
+
+  test("the normaliser reads a result that does not say as unconfirmed, and keeps every state that does", () => {
+    const stored = (result) => application("amara", "Amara Okafor", [AGI], { status: "accepted", result }).result;
+    assert.deepEqual(stored({ kind: "accepted", programmeId: AGI, publishedAt: WHEN }), {
+      kind: "accepted",
+      programmeId: AGI,
+      publishedAt: WHEN,
+      email: "unconfirmed",
+      emailedAt: null,
+      emailClaimedAt: null,
+    });
+    for (const state of ["owed", "sending", "sent", "not-sent", "held", "suppressed", "unconfirmed"]) {
+      assert.equal(stored({ kind: "accepted", programmeId: AGI, email: state }).email, state);
+    }
+    for (const junk of ["", "OWED", "pending", 1, null, true, {}, ["owed"]]) {
+      assert.equal(stored({ kind: "accepted", programmeId: AGI, email: junk }).email, "unconfirmed", JSON.stringify(junk));
+    }
+    assert.deepEqual(
+      stored({ kind: "accepted", programmeId: AGI, email: "sent", emailedAt: WHEN, emailClaimedAt: "2026-10-19T09:00:00Z" }),
+      { kind: "accepted", programmeId: AGI, publishedAt: null, email: "sent", emailedAt: WHEN, emailClaimedAt: WHEN },
+    );
+  });
+});
+
+describe("a failed send is tried again only when it is known to have handed nothing over", () => {
+  const failure = (message, extra) => Object.assign(new Error(message), extra);
+  const NOT_HANDED_OVER = [
+    ["the provider refused the recipient", failure("Can't send mail - all recipients were rejected: 550 no such user", { code: "EENVELOPE", responseCode: 550, command: "RCPT TO" })],
+    ["the provider said try later", failure("Message failed: 451 too many requests", { code: "EMESSAGE", responseCode: 451, command: "DATA" })],
+    ["the provider refused the finished message", failure("Message failed: 554 transaction failed", { code: "EMESSAGE", responseCode: 554, command: "DATA" })],
+    ["the provider was closing down", failure("Server terminates connection. response=421 try later", { code: "ECONNECTION", responseCode: 421, command: "EHLO" })],
+    ["the sign-in was refused", failure("Invalid login: 535 authentication failed", { code: "EAUTH", responseCode: 535, command: "AUTH PLAIN" })],
+    ["the sign-in had nothing to offer", failure("Missing credentials for PLAIN", { code: "EAUTH", command: "API" })],
+    ["the connection was refused", failure("connect ECONNREFUSED 127.0.0.1:587", { code: "ESOCKET", syscall: "connect", command: "CONN" })],
+    ["the host could not be reached", failure("connect EHOSTUNREACH 203.0.113.1:587", { code: "ESOCKET", syscall: "connect", command: "CONN" })],
+    ["the name did not resolve", failure("getaddrinfo ENOTFOUND smtp.example.com", { code: "EDNS", syscall: "getaddrinfo", command: "CONN" })],
+    ["the name did not resolve, by code alone", failure("queryA ENODATA", { code: "EDNS" })],
+    ["the secure channel was never set up", failure("Error initiating TLS - handshake failed", { code: "ETLS", command: "CONN" })],
+    ["no connection opened in time", failure("Connection timeout", { code: "ETIMEDOUT", command: "CONN" })],
+    ["the provider never greeted", failure("Greeting never received", { code: "ETIMEDOUT", command: "CONN" })],
+    ["the sender was refused, with no code kept", failure("Mail command failed", { code: "EENVELOPE", command: "MAIL FROM" })],
+  ];
+  const UNKNOWN = [
+    ["the conversation timed out part way", failure("Timeout", { code: "ETIMEDOUT", command: "CONN" })],
+    ["the connection dropped part way", failure("Connection closed unexpectedly", { code: "ECONNECTION", command: "CONN" })],
+    ["the connection was reset part way", failure("read ECONNRESET", { code: "ESOCKET", syscall: "read", command: "CONN" })],
+    ["the provider's reply could not be read", failure("Unexpected Response", { code: "EPROTOCOL", command: "CONN" })],
+    ["the message stream broke", failure("stream error", { code: "ESTREAM", command: "API" })],
+    ["a message failure with no reply code", failure("Message failed", { code: "EMESSAGE", command: "DATA" })],
+    ["a reply code that is not a refusal", failure("odd", { responseCode: 250 })],
+    ["a timeout whose words are not the two recognised", failure("Timeout while connecting", { code: "ETIMEDOUT" })],
+    ["an error with nothing on it", new Error("something went wrong")],
+    ["an error from the site's own code", new TypeError("cannot read properties of undefined")],
+    ["a reply code typed as text", failure("refused", { responseCode: "550" })],
+    ["not an error at all", "ECONNREFUSED"],
+    ["nothing", undefined],
+    ["null", null],
+    ["a number", 550],
+  ];
+
+  for (const [what, err] of NOT_HANDED_OVER) {
+    test(`${what}: nothing was handed over, so it may be tried again`, () => {
+      assert.equal(emailState.handoverAfter(err), "not-handed-over");
+    });
+  }
+  for (const [what, err] of UNKNOWN) {
+    test(`${what}: nobody can say, so it is left alone`, () => {
+      assert.equal(emailState.handoverAfter(err), "unknown");
+    });
+  }
+});
+
+describe("who a later press takes up", () => {
+  const told = (kind, programmeId, email, over = {}) => ({
+    status: kind,
+    result: { kind, programmeId, publishedAt: WHEN, emailClaimedAt: null, ...email },
+    ...over,
+  });
+  const form = makeForm();
+  const rows = [
+    ["amara", "Amara Okafor", [AGI], { [AGI]: "accept" }, null, told("accepted", AGI, { email: "owed" })],
+    ["ben", "Ben Hartley", [AGI], { [AGI]: "accept" }, null, told("accepted", AGI, { email: "owed" }, { email: null })],
+    ["chloe", "Chloe Tan", [AGI], { [AGI]: "accept" }, null, told("accepted", AGI, { email: "owed" }, { email: "   " })],
+    ["dev", "Dev Patel", [AGI], { [AGI]: "accept" }, null, told("accepted", AGI, { email: "sent" })],
+    ["farah", "Farah Malik", [AGI], { [AGI]: "accept" }, null, told("accepted", AGI, { email: "sending", emailClaimedAt: DECISION_DAY })],
+    ["george", "George Hall", [AGI], { [AGI]: "accept" }, null, told("accepted", AGI, { email: "unconfirmed" })],
+    ["hannah", "Hannah Lee", [AGI], { [AGI]: "accept" }, null, told("accepted", AGI, { email: "held" })],
+    ["isaac", "Isaac Young", [AGI], { [AGI]: "accept" }, null],
+  ];
+  const term = termOf(form, rows);
+  const names = (people) => people.map((p) => p.name);
+
+  test("only somebody owed an email, with an address to send it to", () => {
+    assert.deepEqual(names(plan.owedEmails(term, DECISION_DAY)), ["Amara Okafor"]);
+    // Owed with nowhere to send it: on the page by name, in no press.
+    assert.deepEqual(names(plan.toldWithEmail(term, "owed", DECISION_DAY)), ["Amara Okafor", "Ben Hartley", "Chloe Tan"]);
+  });
+
+  test("somebody not told yet is owed nothing: they are told, and emailed, by the send itself", () => {
+    assert.deepEqual(names(plan.unpublished(term)), ["Isaac Young"]);
+    for (const standing of ["owed", "in-flight", "sent", "not-sent", "held", "suppressed", "unconfirmed"]) {
+      assert.ok(!names(plan.toldWithEmail(term, standing, DECISION_DAY)).includes("Isaac Young"), standing);
+    }
+  });
+
+  test("an email a press holds moves from in flight to unconfirmed, and is never owed", () => {
+    assert.deepEqual(names(plan.toldWithEmail(term, "in-flight", DECISION_DAY)), ["Farah Malik"]);
+    const afterwards = new Date(DECISION_DAY.getTime() + 6 * 60_000);
+    assert.deepEqual(names(plan.toldWithEmail(term, "in-flight", afterwards)), []);
+    assert.deepEqual(names(plan.toldWithEmail(term, "unconfirmed", afterwards)), ["Farah Malik", "George Hall"]);
+    assert.deepEqual(names(plan.owedEmails(term, afterwards)), ["Amara Okafor"]);
+  });
+
+  test("an owed email waits for much less than the term does", () => {
+    const blockers = (over) => plan.owedBlockers({ form: makeForm(undefined, { form: over }), appUrl: "https://staging.example.com" });
+    // A term that is sent, still open, or not ready does not hold an owed email.
+    assert.deepEqual(blockers({ decisionsSentAt: WHEN }), []);
+    assert.deepEqual(blockers({ status: "open", closesAt: new Date("2026-10-25T23:59:00Z") }), []);
+    assert.deepEqual(blockers({ invitationReplyBy: null }), []);
+    assert.deepEqual(blockers({ archived: true }), ["This application form is archived, so nothing can be sent from it."]);
+    assert.deepEqual(blockers({ status: "cancelled" }), ["This application form was cancelled, so nothing can be sent from it."]);
+    assert.deepEqual(plan.owedBlockers({ form, appUrl: " " }), [
+      "This copy of the site doesn’t know its own address, so the buttons in the emails would lead nowhere.",
+    ]);
   });
 });

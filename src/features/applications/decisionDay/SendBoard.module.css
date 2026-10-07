@@ -439,6 +439,25 @@
   white-space: nowrap;
 }
 
+/* === Emails that did not follow their result === */
+
+.owed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4) var(--space-6);
+  margin-top: 20px;
+  padding: 20px var(--space-6);
+  border-color: var(--color-warning);
+}
+
+.owedTitle {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
 /* === What a press did === */
 
 .report {
@@ -472,6 +491,7 @@
   .ready,
   .group,
   .declined,
+  .owed,
   .send {
     padding: var(--space-4);
   }

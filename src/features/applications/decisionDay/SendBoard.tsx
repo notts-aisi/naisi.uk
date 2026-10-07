@@ -10,8 +10,14 @@ import {
   applicationsLabel,
   declinedLine,
   emailsLabel,
+  inFlightLine,
+  noAddressLine,
+  owedButtonLabel,
+  owedLine,
+  reportLines,
   sendButtonLabel,
   sendTotalsLine,
+  unconfirmedLine,
 } from "@/lib/applications/decisionDay/boardWords";
 import {
   INVITATIONS_ARE_REMINDED_DAILY,
@@ -22,6 +28,7 @@ import type {
   EmailPreview,
   SendBoard as Board,
   SendGroup,
+  SendPerson,
   SendReport,
 } from "@/lib/applications/decisionDay/views";
 import shared from "./decisionDay.module.css";
@@ -51,6 +58,15 @@ import styles from "./SendBoard.module.css";
  * After a press the page says what the server did, in counts that add up:
  * who was told, who was emailed, whose email was held because this copy of
  * the site may not write to them, and whose email failed, by name.
+ *
+ * ## An email that did not follow its result stays on the page
+ *
+ * Somebody who has their result and not their email is named in a card of
+ * their own for as long as that is true, whether or not the term is marked as
+ * sent. The Send button takes those emails up along with everybody not yet
+ * told. When that button cannot be pressed (the term is sent, or is not
+ * ready), the card has its own, which sends the owed emails and tells nobody
+ * new. An email nobody can vouch for is named too, and is never sent again.
  */
 
 /** How many people a group lists before the rest fold behind "+N more". */
@@ -195,46 +211,20 @@ function Group({
   );
 }
 
-/** What one press did, in sentences whose numbers add up to the people it looked at. */
-function reportLines(report: SendReport): string[] {
-  const lines: string[] = [];
-  const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
-  if (report.published > 0) {
-    const parts = [`${report.emailed} emailed`];
-    if (report.held > 0) parts.push(`${report.held} held`);
-    if (report.suppressed > 0) parts.push(`${report.suppressed} on the do-not-email list`);
-    if (report.failed > 0) parts.push(`${report.failed} failed`);
-    if (report.notEmailed > 0) parts.push(`${report.notEmailed} declined and not emailed`);
-    lines.push(`${people(report.published)} told: ${parts.join(", ")}.`);
-  } else {
-    lines.push("Nobody new was told.");
-  }
-  if (report.held > 0) {
-    lines.push(
-      "Held means this copy of the site may not write to that address, so nothing was sent to it. That is how a rehearsal works.",
-    );
-  }
-  if (report.failed > 0) {
-    lines.push(
-      `The email could not be sent to ${report.failedNames.join(", ")}. Their result is on their application page, so write to them yourself.`,
-    );
-  }
-  if (report.skipped > 0) {
-    lines.push(`${people(report.skipped)} already had their result, so nothing went to them again.`);
-  }
-  if (report.changed > 0) {
-    lines.push(
-      `${people(report.changed)} ${report.changed === 1 ? "was" : "were"} left out because their decision changed after you pressed Send. Check the page and send again.`,
-    );
-  }
-  if (report.stopped === "emails-failing") {
-    lines.push("The send stopped because emails were failing. Nobody else was told. Press Send again once the mail is working.");
-  } else if (report.notReached > 0) {
-    lines.push(`${people(report.notReached)} still to be told. Press Send again for the rest.`);
-  }
-  if (report.complete) lines.push("Everybody in the term now has their result.");
-  return lines;
+function Report({ report }: { report: SendReport }) {
+  return (
+    <div className={styles.report} role="status">
+      <h2 className={styles.reportTitle}>What that send did</h2>
+      <ul className={styles.reportLines}>
+        {reportLines(report).map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+    </div>
+  );
 }
+
+const namesOf = (people: readonly SendPerson[]) => people.map((person) => person.name);
 
 const TEST_KINDS: { kind: DecisionEmailKind; group: "accepted" | "invited" | "noOffer" }[] = [
   { kind: "accepted", group: "accepted" },
@@ -254,14 +244,18 @@ export default function SendBoard({ initial }: { initial: Board }) {
 
   const sent = board.sentOn !== null;
   const ready = board.blockers.length === 0;
-  const emails = board.pending.emails + (emailDeclined ? board.pending.declined : 0);
+  const owed = board.owed.people.length;
+  // The button's number is everything a press sends: the people not yet told,
+  // and the emails still owed to people who were.
+  const emails = board.pending.emails + (emailDeclined ? board.pending.declined : 0) + owed;
   const left = board.pending.people;
   const canSend =
     hydrated && ready && !sent && !sending && !testing && (left > 0 || board.published > 0);
   const hasEmail = TEST_KINDS.some(({ group }) => board[group].preview !== null);
   const base = `/api/admissions/forms/${encodeURIComponent(board.roundId)}/send`;
 
-  async function send() {
+  /** `owedOnly` is the press that tells nobody new and sends only what is owed. */
+  async function send(owedOnly = false) {
     setSending(true);
     setProblem(null);
     setReport(null);
@@ -269,7 +263,9 @@ export default function SendBoard({ initial }: { initial: Board }) {
       const response = await fetch(base, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ emails, emailDeclined }),
+        body: JSON.stringify(
+          owedOnly ? { emails: owed, emailDeclined: false, owedOnly: true } : { emails, emailDeclined },
+        ),
       });
       const answer = (await response.json().catch(() => null)) as
         | { board?: Board; report?: SendReport; error?: string }
@@ -337,6 +333,13 @@ export default function SendBoard({ initial }: { initial: Board }) {
   const waiting = board.accountsWaiting;
   const pool = `/admin/admissions/forms/${encodeURIComponent(board.roundId)}/pool`;
 
+  // The main button takes the owed emails up too whenever it can be pressed.
+  const mainSends = ready && !sent;
+  const owedShown =
+    owed + board.owed.noAddress.length + board.owed.unconfirmed.length + board.owed.inFlight > 0 ||
+    report?.owedOnly === true;
+  const owedHeld = board.owed.blockers;
+
   return (
     <Page
       title={`Send decisions · ${board.termLabel}`}
@@ -398,6 +401,70 @@ export default function SendBoard({ initial }: { initial: Board }) {
           </div>
         </div>
       </section>
+
+      {owedShown ? (
+        <section className={`${shared.card} ${styles.owed}`} aria-label="Emails still owed">
+          <div className={styles.sendWords}>
+            <h2 className={styles.owedTitle}>Emails still owed</h2>
+            {owed > 0 ? (
+              <p className={styles.sendWarning}>
+                <Icon name="warning" size={16} className={styles.sendWarningIcon} />
+                <span>{owedLine(namesOf(board.owed.people), mainSends)}</span>
+              </p>
+            ) : null}
+            {owed > 0 && !mainSends
+              ? owedHeld.map((blocker) => (
+                  <p key={blocker} className={styles.sendWarning}>
+                    <Icon name="warning" size={16} className={styles.sendWarningIcon} />
+                    <span>{blocker}</span>
+                  </p>
+                ))
+              : null}
+            {board.owed.noAddress.length > 0 ? (
+              <p className={styles.sendWarning}>
+                <Icon name="warning" size={16} className={styles.sendWarningIcon} />
+                <span>{noAddressLine(namesOf(board.owed.noAddress))}</span>
+              </p>
+            ) : null}
+            {board.owed.unconfirmed.length > 0 ? (
+              <p className={styles.sendWarning}>
+                <Icon name="warning" size={16} className={styles.sendWarningIcon} />
+                <span>
+                  {unconfirmedLine(namesOf(board.owed.unconfirmed))}{" "}
+                  <Link className={styles.checkLink} href="/admin/deliverability">
+                    Open Deliverability
+                  </Link>
+                </span>
+              </p>
+            ) : null}
+            {board.owed.inFlight > 0 ? (
+              <p className={styles.sendWarning}>
+                <Icon name="info" size={16} className={shared.noteIcon} />
+                <span>{inFlightLine(board.owed.inFlight)}</span>
+              </p>
+            ) : null}
+            {problem && !mainSends ? (
+              <p className={shared.problem} role="alert">
+                {problem}
+              </p>
+            ) : null}
+          </div>
+          {owed > 0 && !mainSends ? (
+            <div className={styles.sendActions}>
+              <button
+                type="button"
+                className={kit.primary}
+                disabled={!hydrated || sending || testing || owedHeld.length > 0}
+                onClick={() => void send(true)}
+              >
+                <Icon name="send" />
+                <span>{sending ? "Sending…" : owedButtonLabel(owed)}</span>
+              </button>
+            </div>
+          ) : null}
+          {report?.owedOnly ? <Report report={report} /> : null}
+        </section>
+      ) : null}
 
       <Group board={board} group={board.accepted} title="You’re in" tone="ok" first editable={!sent}>
         <p className={styles.groupText}>A presumed yes. They don’t have to reply.</p>
@@ -504,7 +571,7 @@ export default function SendBoard({ initial }: { initial: Board }) {
               {testNote}
             </p>
           ) : null}
-          {problem ? (
+          {problem && (mainSends || !owedShown) ? (
             <p className={shared.problem} role="alert">
               {problem}
             </p>
@@ -531,21 +598,12 @@ export default function SendBoard({ initial }: { initial: Board }) {
               <span>
                 {sending
                   ? "Sending…"
-                  : sendButtonLabel(emails, left, board.pending.perPress, board.published)}
+                  : sendButtonLabel(emails, left, board.pending.perPress, board.published, owed)}
               </span>
             </button>
           </div>
         )}
-        {report ? (
-          <div className={styles.report} role="status">
-            <h2 className={styles.reportTitle}>What that send did</h2>
-            <ul className={styles.reportLines}>
-              {reportLines(report).map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
+        {report && !report.owedOnly ? <Report report={report} /> : null}
       </section>
     </Page>
   );

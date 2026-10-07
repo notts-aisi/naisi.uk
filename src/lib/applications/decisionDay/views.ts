@@ -151,30 +151,61 @@ export type SendBoard = {
     /** The most people one press reaches. */
     perPress: number;
   };
+  /**
+   * People who have their result and whose email did not follow it. Shown
+   * whether or not the term is marked as sent.
+   */
+  owed: {
+    /** Their email is still to send: a press takes these up. */
+    people: SendPerson[];
+    /** Owed an email, with no address on their application to send it to. */
+    noAddress: SendPerson[];
+    /** Nobody can say whether their email went. It is never sent again. */
+    unconfirmed: SendPerson[];
+    /** Emails a press is sending right now. */
+    inFlight: number;
+    /** Why the owed emails cannot be sent, a sentence each. Empty when they can. */
+    blockers: string[];
+  };
 };
 
-/** What one press of Send did. Every person it looked at is in exactly one count. */
+/**
+ * What one press of Send did. Two sums hold, every time:
+ *
+ *  - everybody in the term is in exactly one of `published`, `retried`,
+ *    `skipped`, `changed` and `notReached`;
+ *  - everybody in `published` or `retried` is in exactly one of `emailed`,
+ *    `held`, `suppressed`, `failed`, `unconfirmed` and `notEmailed`.
+ */
 export type SendReport = {
+  /** True for the press that only sends emails still owed. It tells nobody new. */
+  owedOnly: boolean;
   /** Results written by this press. */
   published: number;
-  /** Of those: an email went out. */
+  /** People told by an earlier press whose owed email this press took up. */
+  retried: number;
+  /** An email went out. */
   emailed: number;
-  /** Of those: this copy of the site may not write to them, so nothing went. */
+  /** This copy of the site may not write to them, so nothing went. */
   held: number;
-  /** Of those: the address is on the do-not-email list, so nothing went. */
+  /** The address is on the do-not-email list, so nothing went. */
   suppressed: number;
-  /** Of those: the email could not be sent. Their result is still published. */
+  /** The email did not go, for certain. It is still owed, and a later press sends it. */
   failed: number;
-  /** Of those: declined, and not emailed. */
+  /** Nobody can say whether the email went. It is not sent again. */
+  unconfirmed: number;
+  /** Declined, and not emailed. */
   notEmailed: number;
-  /** Already had a result, so nothing was written or sent. */
+  /** Nothing was written or sent: already told with no email owed, or not this press's to tell. */
   skipped: number;
   /** Their decision changed after the press began, so nothing was written. */
   changed: number;
   /** Left for the next press. */
   notReached: number;
-  /** The names of the people whose email could not be sent. */
+  /** The names of the people whose email is still owed after this press. */
   failedNames: string[];
+  /** The names of the people whose email nobody can vouch for. */
+  unconfirmedNames: string[];
   /** Why the press stopped early, when it did. */
   stopped: "emails-failing" | "out-of-time" | null;
   /** True when everybody in the term now has their result. */
