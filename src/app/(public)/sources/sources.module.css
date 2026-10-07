@@ -139,6 +139,10 @@
 }
 
 /* === Mobile === */
-@media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+@media (max-width: 36rem) { /* --bp-sm */
+  /* A phone has no room for the picture beside the words. The sheet itself
+     shows it. */
+  .thumb {
+    display: none;
+  }
 }

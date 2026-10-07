@@ -350,5 +350,8 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* TODO: mobile pass */
+  /* The material fills the column under the list, as the list does. */
+  .material {
+    max-width: none;
+  }
 }
