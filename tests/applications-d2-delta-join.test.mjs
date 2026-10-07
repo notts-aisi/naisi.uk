@@ -21,16 +21,22 @@
  *     been checked, and an account with no join request at all.
  *  5. WHERE THE EMAILED LINK MAY RETURN TO. This form, and nothing that only
  *     looks like it.
+ *  6. WHERE SIGNING IN RETURNS TO. An account with no join request that goes
+ *     to the sign-in page from a form comes back to the form's first step and
+ *     is never left on the register page's own profile form.
  *
- * The last section reads the files that use these rules, so the rules cannot
- * be kept by the module and broken by its callers.
+ * The last sections read the files that use these rules, so the rules cannot
+ * be kept by the module and broken by its callers, and walk everything the
+ * form's page draws, so a new way off the form to the sign-in page or the
+ * register page is one somebody had to write down.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createLoader } from "./lib/tsLoader.mjs";
+import { stripSource } from "./lib/stripSource.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FORM_DIR = join(REPO_ROOT, "src", "features", "applications", "apply");
@@ -41,6 +47,7 @@ const validate = await loadTs(join("lib", "applications", "validate.ts"));
 const notifications = await loadTs(join("lib", "firestore", "notifications.ts"));
 const users = await loadTs(join("lib", "firestore", "users.ts"));
 const authReturn = await loadTs(join("lib", "authReturn.ts"));
+const joinClient = await loadTs(join("features", "applications", "apply", "joinClient.ts"));
 
 const sourceOf = (file) => readFileSync(join(FORM_DIR, file), "utf8");
 /** Comments out, so a rule written in prose is not a use. */
@@ -516,7 +523,310 @@ describe("where the emailed link may return to", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 6. The files that use the rules
+// 6. Where signing in returns to
+// ---------------------------------------------------------------------------
+
+describe("where signing in returns to", () => {
+  const ID = "autumn-2026__k3f9a2b1";
+  const BARE = `/apply/${ID}`;
+  const MARKED = `/apply/${ID}?join=1`;
+  const FORM_ROUTE = `/api/admissions/forms/${ID}/application`;
+
+  /** The sign-in page's own guard on `?next=`, as `AuthEntry.tsx` writes it. A test below holds the two together. */
+  const guarded = (next) => {
+    const given = next ?? "/dashboard";
+    return given.startsWith("/") && !given.startsWith("//") ? given : "/dashboard";
+  };
+
+  /**
+   * Run `work` with the page's `fetch` replaced by `answer`, and say what was
+   * asked for. Nothing here reaches a network.
+   */
+  async function asking(answer, work) {
+    const real = globalThis.fetch;
+    const asked = [];
+    globalThis.fetch = async (url, init) => {
+      asked.push({ url: String(url), init: init ?? {} });
+      return answer();
+    };
+    try {
+      return { went: await work(), asked };
+    } finally {
+      globalThis.fetch = real;
+    }
+  }
+  const says = (body, status = 200) => () =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  const OPEN_AND_NOT_JOINED = { joined: false, account: { universityEmailVerified: false }, form: { windowState: "open" } };
+
+  test("the step's way to the sign-in page is one address, made from the form's id, carrying the mark", () => {
+    const href = rules.signInHrefFor(ID);
+    assert.equal(href, `/login?next=${encodeURIComponent(MARKED)}`);
+    // What the sign-in page reads back out of it is the address the form
+    // marks, which the site's own return list accepts.
+    const carried = new URL(href, "https://naisi.test").searchParams.get("next");
+    assert.equal(carried, rules.joinReturnFor(ID));
+    assert.equal(rules.formJoinReturn(carried), MARKED);
+    assert.equal(authReturn.isFunnelReturn(carried), true);
+    assert.deepEqual(rules.newAccountReturn(guarded(carried)), { to: "form", href: MARKED });
+  });
+
+  test("an address the step marked goes straight back to the step", () => {
+    assert.deepEqual(rules.newAccountReturn(MARKED), { to: "form", href: MARKED });
+  });
+
+  test("an address with a form's shape and no mark is asked about, and never taken on trust", () => {
+    // An older round lives at the same kind of address and needs the register
+    // page's profile form first, so the address alone cannot send anybody to
+    // a form. What is handed back to ask with is the id, and the address to
+    // go to if the answer is yes is the marked one, built from that id.
+    assert.deepEqual(rules.newAccountReturn(BARE), { to: "ask", roundId: ID, href: MARKED });
+    for (const id of ["a", "A_b-9", "sample-term__seed0001", "x".repeat(200)]) {
+      assert.deepEqual(rules.newAccountReturn(`/apply/${id}`), {
+        to: "ask",
+        roundId: id,
+        href: rules.joinReturnFor(id),
+      });
+    }
+  });
+
+  test("every other address, and no address, is the register page as it always was", () => {
+    for (const other of [
+      // No return address at all, and the sign-in page's own default.
+      null,
+      undefined,
+      "",
+      "/dashboard",
+      // Something after the form's address.
+      `${BARE}/something-else`,
+      `${BARE}/`,
+      `${BARE}?join=0`,
+      `${BARE}?join=1&next=https://example.com`,
+      `${BARE}?step=choose`,
+      `${BARE}#account`,
+      `${MARKED}#account`,
+      // Another site, however it is spelt.
+      "//evil.example",
+      `//evil.example${BARE}`,
+      `https://evil.example${BARE}`,
+      `/\\evil.example${BARE}`,
+      "javascript:alert(1)",
+      // A path that climbs out of the form's folder, plain or encoded.
+      "/apply/../admin",
+      "/apply/..",
+      "/apply/%2e%2e",
+      "/apply/a%2Fb",
+      "/apply/",
+      "/apply",
+      // The other funnel, and an address that only begins like this one.
+      "/courses/intro/apply",
+      `/applications/${ID}`,
+      `/applyx/${ID}`,
+      // An id longer than any the site makes, and stray characters round a good one.
+      `/apply/${"a".repeat(201)}`,
+      ` ${BARE}`,
+      `${BARE} `,
+      `${BARE}\n`,
+      `${BARE}\u0000`,
+      // Not text.
+      42,
+      [BARE],
+      { toString: () => BARE },
+    ]) {
+      assert.deepEqual(rules.newAccountReturn(other), { to: "register" }, `not the register page: ${String(other)}`);
+    }
+  });
+
+  test("the address handed back never carries anything of the address handed in", () => {
+    // Both answers that lead to a form are an address `joinReturnFor` makes,
+    // whole. So whatever a return address was dressed in, the only thing that
+    // survives is an id the pattern has already matched from end to end.
+    for (const given of [MARKED, BARE, `/apply/sample-term__seed0001`, `/apply/Z9_-`]) {
+      const where = rules.newAccountReturn(given);
+      assert.notEqual(where.to, "register");
+      assert.match(where.href, /^\/apply\/[A-Za-z0-9_-]{1,200}\?join=1$/);
+      assert.equal(rules.formJoinReturn(where.href), where.href);
+      assert.equal(authReturn.safeFunnelReturn(where.href), where.href);
+    }
+  });
+
+  test("what the sign-in page's own guard lets through, this rule still sorts", () => {
+    // `AuthEntry.tsx` holds `?next=` to a path on this site before anything
+    // reads it. The two together, for each address a person could arrive with.
+    const lands = (next) => rules.newAccountReturn(guarded(next));
+    assert.deepEqual(lands(BARE), { to: "ask", roundId: ID, href: MARKED });
+    assert.deepEqual(lands(MARKED), { to: "form", href: MARKED });
+    assert.deepEqual(lands(`${BARE}/something-else`), { to: "register" });
+    assert.deepEqual(lands("//evil"), { to: "register" });
+    assert.deepEqual(lands("/apply/../admin"), { to: "register" });
+    assert.deepEqual(lands(null), { to: "register" });
+    // And the guard written here is the one the page has. Read from the file,
+    // because the page is a component and nothing here can run it.
+    const entry = stripSource(readFileSync(join(REPO_ROOT, "src", "app", "(auth)", "AuthEntry.tsx"), "utf8"), {
+      keepStrings: true,
+    });
+    assert.match(entry, /const \[next\] = useState\(\(\) => params\.get\("next"\) \?\? "\/dashboard"\);/);
+    assert.match(entry, /const safeNext = next\.startsWith\("\/"\) && !next\.startsWith\("\/\/"\) \? next : "\/dashboard";/);
+  });
+
+  test("a marked address is answered without asking anybody", async () => {
+    const { went, asked } = await asking(says(OPEN_AND_NOT_JOINED), () => joinClient.joinStepForNewAccount(MARKED));
+    assert.equal(went, MARKED);
+    assert.deepEqual(asked, [], "the form's route was asked about an address the form itself marked");
+  });
+
+  test("a bare form address is answered by the form's own route, asked once", async () => {
+    const { went, asked } = await asking(says(OPEN_AND_NOT_JOINED), () => joinClient.joinStepForNewAccount(BARE));
+    assert.equal(went, MARKED);
+    // The one route, read and never written, and never from a cache: the
+    // sign-in that is asking is seconds old.
+    assert.equal(asked.length, 1);
+    assert.equal(asked[0].url, FORM_ROUTE);
+    assert.deepEqual(asked[0].init, { cache: "no-store" });
+  });
+
+  test("only a form that is open, with no join request from this account, takes the person back", async () => {
+    const cases = [
+      ["the account already has a join request", says({ ...OPEN_AND_NOT_JOINED, joined: true })],
+      ["the form has not opened yet", says({ ...OPEN_AND_NOT_JOINED, form: { windowState: "not-yet" } })],
+      ["the form has closed", says({ ...OPEN_AND_NOT_JOINED, form: { windowState: "closed" } })],
+      ["the answer does not say whether the form is open", says({ joined: false })],
+      ["an older round, or a round that is not there", says({ error: "Not found." }, 404)],
+      ["no session reached the route", says({ error: "Not signed in." }, 401)],
+      ["an account that cannot apply", says({ error: "This account cannot apply." }, 403)],
+      ["the route failed", says({ error: "Could not load your application." }, 500)],
+      ["an answer that is not JSON", () => new Response("<html>", { status: 200 })],
+      ["the site could not be reached", () => Promise.reject(new TypeError("fetch failed"))],
+    ];
+    for (const [what, answer] of cases) {
+      const { went, asked } = await asking(answer, () => joinClient.joinStepForNewAccount(BARE));
+      assert.equal(went, null, what);
+      assert.equal(asked.length, 1, what);
+    }
+  });
+
+  test("a route that never answers is not waited for", async () => {
+    // A sign-in is finishing when this is asked. A person is not left on the
+    // sign-in page for it: after the limit the answer is "the register page",
+    // which is where they went before this rule existed.
+    // Raced against a clock of this test's own, so a limit that has gone
+    // missing fails here by name and does not hang the suite.
+    const real = globalThis.fetch;
+    let clock;
+    globalThis.fetch = () => new Promise(() => {});
+    try {
+      const went = await Promise.race([
+        joinClient.joinStepForNewAccount(BARE, 40),
+        new Promise((resolve) => {
+          clock = setTimeout(() => resolve("still waiting"), 2000);
+        }),
+      ]);
+      assert.equal(went, null, "the limit handed in was not the limit kept");
+    } finally {
+      clearTimeout(clock);
+      globalThis.fetch = real;
+    }
+    assert.ok(joinClient.ASK_THE_FORM_MS > 0 && joinClient.ASK_THE_FORM_MS <= 5000, "the wait a person can be kept is over five seconds");
+    const client = codeOf("joinClient.ts");
+    assert.match(client, /limitMs: number = ASK_THE_FORM_MS\b/);
+  });
+
+  test("an address that is not a form's is answered without asking, and is nowhere of the form's", async () => {
+    for (const other of ["/dashboard", "", `${BARE}/something-else`, "//evil", "/apply/../admin", "/courses/intro/apply"]) {
+      const { went, asked } = await asking(says(OPEN_AND_NOT_JOINED), () => joinClient.joinStepForNewAccount(other));
+      assert.equal(went, null, other);
+      assert.deepEqual(asked, [], `asked the form's route about ${other}`);
+    }
+  });
+
+  test("the sign-in page asks before it sends a new Google account anywhere", () => {
+    // HELD BY READING THE FILE. This branch runs after a sign-in with Google
+    // that found no account, and nothing in this suite can make one.
+    const entry = stripSource(readFileSync(join(REPO_ROOT, "src", "app", "(auth)", "AuthEntry.tsx"), "utf8"), {
+      keepStrings: true,
+    });
+    assert.match(entry, /import \{ joinStepForNewAccount \} from "@\/features\/applications\/apply\/joinClient";/);
+    const from = entry.indexOf("if (result.isNew) {");
+    assert.ok(from !== -1, "the branch for a new account is gone");
+    const body = entry.slice(from, entry.indexOf("return;", from));
+    // The collaborator route is never asked and keeps its own branch; anybody
+    // else is asked with the address the page's own guard has already held
+    // to this site.
+    assert.match(
+      body,
+      /const onTheForm =\s*mode === "register" && audience === "collaborator"\s*\? null\s*: await joinStepForNewAccount\(safeNext\);/,
+    );
+    // The form comes before the register page, and the register page is still
+    // what everything else gets, with a funnel's return address or bare.
+    assert.match(
+      body,
+      /const funnelNext = isFunnelReturn\(safeNext\)\s*\? `\/register\?next=\$\{encodeURIComponent\(safeNext\)\}`\s*: "\/register";/,
+    );
+    assert.match(
+      body,
+      /router\.replace\(\s*mode === "register" && audience === "collaborator"\s*\? "\/register\?type=collaborator"\s*: \(onTheForm \?\? funnelNext\),\s*\);/,
+    );
+    // One way out of the branch, and it is that one.
+    assert.equal((body.match(/router\.(?:replace|push)\(|hardNavigate\(/g) ?? []).length, 1, "a second way out of the branch for a new account");
+    // Asked while the sign-in is still marked as in hand, so the page's other
+    // effects do not start moving it somewhere in the meantime.
+    assert.ok(
+      body.indexOf("await joinStepForNewAccount(safeNext)") < body.indexOf("credentialReceivedRef.current = false;"),
+      "the sign-in is marked finished before the form has been asked",
+    );
+  });
+
+  test("the sign-in page asks before it sends an email account with no join request anywhere", () => {
+    // HELD BY READING THE FILE, for the same reason: the branch runs after a
+    // real sign-in. Somebody who made an account by email, chose a password
+    // and never sent a join request has neither kind of record. From a form,
+    // that person belongs on the form's first step; from anywhere else the
+    // sign-in page still offers the collaborator application.
+    const entry = stripSource(readFileSync(join(REPO_ROOT, "src", "app", "(auth)", "AuthEntry.tsx"), "utf8"), {
+      keepStrings: true,
+    });
+    const from = entry.indexOf("const result = await signInWithEmailPassword(trimmed, password);");
+    assert.ok(from !== -1, "the email sign-in is gone");
+    const body = entry.slice(from, entry.indexOf("} catch (err) {", from));
+    // An account that has a record goes where it always went, and is not asked about.
+    assert.match(body, /if \(result\.kind === "collaborator" \|\| result\.kind === "member"\) \{/);
+    assert.match(body, /const dest =\s*result\.kind === "collaborator" \? "\/collaborator" : safeNext;/);
+    const known = body.slice(0, body.indexOf("} else {"));
+    assert.equal(/joinStepForNewAccount/.test(known), false, "an account with a record is asked about");
+    // One with neither is asked, and the collaborator application is what is left.
+    assert.match(body, /\} else \{\s*router\.push\(\(await joinStepForNewAccount\(safeNext\)\) \?\? "\/register\?type=collaborator"\);\s*\}/);
+    assert.equal((body.match(/router\.(?:replace|push)\(/g) ?? []).length, 1);
+    // The function is called from these two branches of the page and nowhere else on it.
+    assert.equal((entry.match(/joinStepForNewAccount\(/g) ?? []).length, 2);
+  });
+
+  test("the step's three links to the sign-in page are that one address", () => {
+    const step = codeOf("JoinStep.tsx");
+    assert.match(step, /const signInHref = signInHrefFor\(roundId\);/);
+    assert.match(step, /<JoinAccount\s+signInHref=\{signInHref\}/);
+    const account = codeOf("JoinAccount.tsx");
+    // Somebody who has an account, the same from the screen that says to
+    // check an inbox, and the route to Google where its own button cannot be
+    // drawn. No other link on either half leaves the form for a page that
+    // asks who somebody is.
+    assert.equal((account.match(/<Link href=\{signInHref\}/g) ?? []).length, 3);
+    assert.deepEqual([...new Set(account.match(/href=(?:"[^"]*"|\{[^}]*\})/g) ?? [])], ["href={signInHref}"]);
+    for (const file of ["JoinStep.tsx", "JoinAccount.tsx"]) {
+      assert.equal(/["'`]\/(?:login|register)\b/.test(codeOf(file)), false, `${file} spells out a way off the form`);
+    }
+  });
+
+  test("the step does not tell somebody new they will be asked the questions somewhere else", () => {
+    // True while the sign-in page sent a new account on to the register page.
+    // It brings one back here now, so the sentence under the link says that.
+    const account = sourceOf("JoinAccount.tsx").replace(/\s+/g, " ");
+    assert.ok(account.includes("Google opens its own page and brings you back to this form."));
+    assert.equal(/asked these questions there/.test(account), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. The files that use the rules
 // ---------------------------------------------------------------------------
 
 describe("the join step keeps to them", () => {
@@ -694,10 +1004,315 @@ describe("the join step keeps to them", () => {
     assert.equal((step.match(/<RecaptchaLine \/>/g) ?? []).length, 2);
   });
 
-  test("inside the installed app the Google button is not drawn, because its return goes elsewhere", () => {
+  test("the box Google's button is drawn in is a plain block, because the button measures it", () => {
+    // The button asks Google for a width once, from the box it is drawn in:
+    // 320px where there is room, the box's own width where there is not, and
+    // never under 200px. The step's box is the column's width only while the
+    // stylesheet leaves it alone.
+    const button = stripSource(readFileSync(join(REPO_ROOT, "src", "components", "GoogleSignInButton.tsx"), "utf8"), {
+      keepStrings: true,
+    });
+    assert.match(button, /const room = Math\.floor\(buttonRef\.current\.parentElement\?\.clientWidth \?\? 0\);/);
+    assert.match(button, /const width = room > 0 \? Math\.max\(200, Math\.min\(320, room\)\) : 320;/);
+    const sheet = sourceOf("join.module.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    const rules = [...sheet.matchAll(/(?<![\w-])\.google(?![\w-])(\[[^\]]*\])?\s*\{([^}]*)\}/g)].map((match) => [
+      match[1] ?? "",
+      match[2].trim().replace(/\s+/g, " "),
+    ]);
+    assert.deepEqual(rules, [
+      ["", "min-height: 2.75rem;"],
+      ['[aria-busy="true"]', "opacity: 0.55; pointer-events: none;"],
+    ]);
+    // Nothing between that box and the button: the step hands the box the script and the button and nothing else.
+    const account = codeOf("JoinAccount.tsx");
+    assert.match(
+      account,
+      /<div className=\{styles\.google\} aria-busy=\{busy === "google"\}>\s*<Script src=\{GOOGLE_SCRIPT\} strategy="afterInteractive" \/>\s*<GoogleSignInButton onCredential=\{onGoogle\} onScriptError=\{scriptProblem\} \/>\s*<\/div>/,
+    );
+    // And the column it sits in gives its children the column's whole width.
+    assert.match(sheet, /\.ways \{[^}]*align-items: stretch;[^}]*\}/);
+  });
+
+  test("Google's button is drawn when its script arrives late, and the message it put up comes down", () => {
+    // HELD BY READING THE FILE. The button waits on another site's script
+    // and a clock in a browser, and nothing here can stand in for either.
+    //
+    // On a slow connection the script is late, not blocked. The button tells
+    // the caller once that sign-in could not load, and then goes on looking:
+    // more slowly, and not for ever, because a blocked script never comes.
+    const button = stripSource(readFileSync(join(REPO_ROOT, "src", "components", "GoogleSignInButton.tsx"), "utf8"), {
+      keepStrings: true,
+    });
+    const from = button.indexOf("if (!window.google?.accounts?.id) {");
+    const upTo = button.indexOf('mark("[gsi] script loaded, initializing");');
+    assert.ok(from !== -1 && upTo > from, "the wait for Google's script is gone");
+    const wait = button.slice(from, upTo);
+    // Told once, and telling is not the end of the wait.
+    assert.match(wait, /if \(!reported && performance\.now\(\) - startedAt > SCRIPT_LOAD_TIMEOUT_MS\) \{/);
+    assert.match(wait, /setStatus\("error"\);\s*onReadyRef\.current\?\.\(\);\s*reported = true;\s*\}/);
+    assert.equal((wait.match(/onScriptError\?\.\(\s*"Sign-in couldn't load\./g) ?? []).length, 1);
+    // The only way out of the wait without the script is the limit.
+    assert.match(
+      wait,
+      /if \(performance\.now\(\) - startedAt > SCRIPT_LATE_LIMIT_MS\) return;\s*setTimeout\(tryInit, reported \? SCRIPT_LATE_POLL_MS : 50\);\s*return;\s*\}/,
+    );
+    assert.equal((wait.match(/\breturn;/g) ?? []).length, 2, "a way out of the wait that is neither the limit nor the next look");
+    // When it comes after the report, the caller is handed an empty message
+    // before the button is drawn, and that is the whole of the recovery: the
+    // same lines draw the button whenever the script arrives.
+    assert.match(wait, /\}\s*if \(reported\) onScriptError\?\.\(""\);\s*$/);
+    const number = (name) => Number((new RegExp(`const ${name} = ([\\d_]+);`).exec(button)?.[1] ?? "").replaceAll("_", ""));
+    assert.equal(number("SCRIPT_LOAD_TIMEOUT_MS"), 5000);
+    assert.ok(number("SCRIPT_LATE_POLL_MS") >= 250 && number("SCRIPT_LATE_POLL_MS") <= 5000, "the later looks are not between four a second and one every five");
+    assert.ok(
+      number("SCRIPT_LATE_LIMIT_MS") > number("SCRIPT_LOAD_TIMEOUT_MS") && number("SCRIPT_LATE_LIMIT_MS") <= 10 * 60 * 1000,
+      "the looking has no end, or ends before it starts",
+    );
+    // The step shows other messages in the same place (an email address that
+    // was not typed, a sign-in that failed), so it takes down only the one
+    // the button gave it, and only while that is still the one showing.
+    const account = codeOf("JoinAccount.tsx");
+    assert.match(account, /if \(message\) \{\s*fromGoogle\.current = message;\s*onProblem\(message\);\s*\}/);
+    assert.match(
+      account,
+      /else if \(fromGoogle\.current !== null && showing\.current === fromGoogle\.current\) \{\s*onProblem\(null\);\s*\}/,
+    );
+    assert.match(account, /<GoogleSignInButton onCredential=\{onGoogle\} onScriptError=\{scriptProblem\} \/>/);
+  });
+
+  test("inside the installed app the Google button is not drawn, because its return is received by the sign-in page", () => {
     const account = codeOf("JoinAccount.tsx");
     const branch = account.slice(account.indexOf("{standalone ? ("), account.indexOf("</div>\n        )}"));
     assert.ok(branch.includes("<Link href={signInHref}"), "the installed app has no way to sign in with Google");
     assert.ok(branch.indexOf("<Link href={signInHref}") < branch.indexOf("<GoogleSignInButton"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. Every way off the form to the sign-in page or the register page
+// ---------------------------------------------------------------------------
+
+/**
+ * A WALK, NOT A LIST OF FILES. It starts at the form's page and the two
+ * layouts drawn round it, follows every import that carries code, and reads
+ * every file it reaches for an address of the sign-in page or the register
+ * page: a link's `href`, or what a router call is handed. Somebody on the
+ * form's first step has no join request, and either page would send a new
+ * account to the register page's own profile form unless the address it was
+ * handed says otherwise. So each address found has to be one somebody
+ * decided, written down below with the reason, and a new one fails here until
+ * it is.
+ *
+ * WHAT IT CANNOT SEE: an address put together out of pieces (`"/" + "login"`)
+ * and one that arrives as data. The first is not how this site writes an
+ * address. The second is listed where the data is written: the header draws
+ * its entries from a list, and the list is one of the files read.
+ */
+describe("every way off the form to the sign-in page or the register page is one somebody decided", () => {
+  const SRC = join(REPO_ROOT, "src");
+  const ROOTS = [
+    // The form's own page: the form, and the older apply flow at the same address.
+    "app/(public)/apply/[roundId]/page.tsx",
+    // The header and footer drawn round it on anything wider than a phone.
+    "app/(public)/layout.tsx",
+    // What every page of the site is drawn inside.
+    "app/layout.tsx",
+  ];
+  /** A local import that is not code: nothing in one can be a link. */
+  const NOT_CODE = /\.(?:css|json|png|jpe?g|svg|gif|webp|ico|woff2?|md)$/;
+
+  /** What a file imports that carries code. `import type` carries none. */
+  function imported(code) {
+    const found = [];
+    for (const match of code.matchAll(/(?:^|[\n;])\s*(import|export)\s+(type\s+)?([^"';]*?\s+from\s+)?(["'])([^"']+)\4/g)) {
+      if (match[2]) continue;
+      if (match[1] === "export" && !match[3]) continue;
+      found.push(match[5]);
+    }
+    for (const match of code.matchAll(/\bimport\(\s*(["'])([^"']+)\1\s*\)/g)) found.push(match[2]);
+    return found;
+  }
+
+  function resolveLocal(specifier, fromFile) {
+    const base = specifier.startsWith("@/")
+      ? join(SRC, specifier.slice(2))
+      : specifier.startsWith(".")
+        ? join(dirname(fromFile), specifier)
+        : null;
+    if (base === null) return { is: "package" };
+    if (NOT_CODE.test(base)) return { is: "not code" };
+    for (const candidate of [base, `${base}.ts`, `${base}.tsx`, join(base, "index.ts"), join(base, "index.tsx")]) {
+      if (existsSync(candidate) && statSync(candidate).isFile()) return { is: "file", file: candidate };
+    }
+    return { is: "missing" };
+  }
+
+  const walked = new Map();
+  const unresolved = [];
+  const queue = ROOTS.map((root) => join(SRC, root));
+  while (queue.length > 0) {
+    const file = queue.pop();
+    if (walked.has(file)) continue;
+    const code = stripSource(readFileSync(file, "utf8"), { keepStrings: true });
+    walked.set(file, code);
+    for (const specifier of imported(code)) {
+      const found = resolveLocal(specifier, file);
+      if (found.is === "file") queue.push(found.file);
+      if (found.is === "missing") unresolved.push(`${relative(SRC, file)} imports ${specifier}`);
+    }
+  }
+  const reached = new Map([...walked].map(([file, code]) => [relative(SRC, file).split("\\").join("/"), code]));
+
+  /**
+   * An address of the sign-in page or the register page, as it is written: a
+   * quote, then the path. Read up to the first thing that is not fixed text
+   * (a `${`, or the closing quote), so `/login?next=${...}` reads as
+   * `/login?next=` however the rest of it is built.
+   */
+  const ADDRESS = /(["'`])(\/(?:login|register)(?:[?#/][^"'`$\\]*)?)(?=["'`$])/g;
+  const addressesIn = (code) => [...code.matchAll(ADDRESS)].map((match) => match[2]).sort();
+
+  /**
+   * Every address the walk may find, by file, each with why it is there and
+   * what a brand-new account that takes it meets. An entry with no reason, an
+   * entry the walk no longer finds, and an address that is not here all fail.
+   */
+  const DECIDED = new Map([
+    [
+      "lib/applications/applicant/join.ts",
+      [
+        [
+          "/login?next=",
+          "`signInHrefFor`, the one way the form's first step makes an address of the sign-in page. It carries the form's marked address, which brings a new account back to the step.",
+        ],
+      ],
+    ],
+    [
+      "features/applications/apply/ApplyScreen.tsx",
+      [
+        [
+          "/login?next=",
+          "The card for a form that has closed. Nobody can join on a closed form, so there is no first step to come back to; somebody who applied signs in to see where it stands.",
+        ],
+        [
+          "/register?next=",
+          "The card for a form that has not opened yet. It has no first step to join on, so an account is made on the register page, which hands the person back here when it is done.",
+        ],
+      ],
+    ],
+    [
+      "features/applications/apply/ApplicationForm.tsx",
+      [
+        [
+          "/login?next=",
+          "Drawn only inside the form itself, for an account that has a join request and whose session has lapsed. It opens in a new tab and signs that account in again.",
+        ],
+      ],
+    ],
+    [
+      "app/(public)/apply/[roundId]/page.tsx",
+      [
+        [
+          "/login?next=",
+          "The older apply flow's card, drawn only for a round that is not an application form. Those rounds have no first step that takes a join request, and rely on the register page's profile form.",
+        ],
+        ["/register?next=", "The same card's link to make an account, for the same rounds and the same reason."],
+      ],
+    ],
+    [
+      "layout/publicNav.ts",
+      [
+        [
+          "/login",
+          "The site's own Sign in, which the header draws in its bar and in the menu a narrow window opens instead. It carries no return address: it is the way in to the whole site, on every public page, and the header is hidden on a phone while the form is on the page.",
+        ],
+        [
+          "/register",
+          "Where the header's Join entry leads while the Join page is switched off. Joining the society is what the register page is for.",
+        ],
+      ],
+    ],
+    [
+      "layout/TransitionLink.tsx",
+      [
+        ["/login", "Not a link. One of the two addresses whose links start fetching Google's script a moment early."],
+        ["/register", "Not a link either: the other of those two addresses, in the same list."],
+      ],
+    ],
+  ]);
+
+  test("the walk reached the form, its first step and the frame round them, and lost nothing on the way", () => {
+    assert.deepEqual(unresolved, [], "an import the walk could not follow, so a file it never read");
+    for (const file of [
+      "features/applications/apply/ApplyScreen.tsx",
+      "features/applications/apply/JoinStep.tsx",
+      "features/applications/apply/JoinAccount.tsx",
+      "features/applications/apply/ApplicationForm.tsx",
+      "lib/applications/applicant/join.ts",
+      "components/GoogleSignInButton.tsx",
+      "layout/PublicHeader.tsx",
+      "layout/PublicFooter.tsx",
+      "layout/publicNav.ts",
+      "auth/AuthProvider.tsx",
+    ]) {
+      assert.ok(reached.has(file), `the walk no longer reaches ${file}`);
+    }
+    // The reader finds an address where one is known to be, in each way one is written.
+    assert.deepEqual(addressesIn('<a href="/login">x</a>'), ["/login"]);
+    assert.deepEqual(addressesIn("router.push('/register?type=collaborator')"), ["/register?type=collaborator"]);
+    assert.deepEqual(addressesIn("href={`/login?next=${encodeURIComponent(`/apply/${id}`)}`}"), ["/login?next="]);
+    assert.deepEqual(addressesIn('post("/api/register/resend", { email })'), []);
+    assert.deepEqual(addressesIn('"/logins" + "/registered" + "/registrations"'), []);
+  });
+
+  test("every address found is written down with its reason, and every one written down is found", () => {
+    const found = new Map();
+    for (const [file, code] of reached) {
+      const addresses = addressesIn(code);
+      if (addresses.length > 0) found.set(file, addresses);
+    }
+    for (const [file, addresses] of found) {
+      assert.ok(
+        DECIDED.has(file),
+        `${file} holds ${addresses.join(", ")}: a way off the form to the sign-in page or the register page that nobody has decided. ` +
+          "From the form's first step the way is `signInHrefFor`. Anywhere else, write it down here with what a new account that takes it meets.",
+      );
+      assert.deepEqual(
+        addresses,
+        DECIDED.get(file).map(([address]) => address).sort(),
+        `${file} does not hold the addresses written down for it`,
+      );
+    }
+    for (const [file, entries] of DECIDED) {
+      assert.ok(found.has(file), `${file} is written down and the walk finds no address in it: take the entry out`);
+      for (const [address, reason] of entries) {
+        assert.ok(typeof reason === "string" && reason.length > 40, `${file} ${address} has no reason beside it`);
+      }
+    }
+  });
+
+  test("the first step itself holds none: its only way to the sign-in page is the one function", () => {
+    for (const file of ["features/applications/apply/JoinStep.tsx", "features/applications/apply/JoinAccount.tsx"]) {
+      assert.deepEqual(addressesIn(reached.get(file)), [], `${file} spells out a way off the form`);
+    }
+    // And the function makes one address, with the mark on it.
+    const helper = reached.get("lib/applications/applicant/join.ts");
+    assert.match(helper, /return `\/login\?next=\$\{encodeURIComponent\(joinReturnFor\(roundId\)\)\}`;/);
+    assert.equal((helper.match(/\/login\b/g) ?? []).length, 1);
+    assert.equal(/["'`]\/register\b/.test(helper), false);
+  });
+
+  test("no file in the form's folder is outside the walk with an address of its own", () => {
+    // The walk follows imports, so a file nothing imports yet is not on it.
+    // The form's folder is read whole as well, for the day one is added.
+    for (const name of readdirSync(FORM_DIR).filter((each) => /\.tsx?$/.test(each))) {
+      const file = `features/applications/apply/${name}`;
+      const addresses = addressesIn(stripSource(sourceOf(name), { keepStrings: true }));
+      assert.deepEqual(
+        addresses,
+        (DECIDED.get(file) ?? []).map(([address]) => address).sort(),
+        `${file} holds an address of the sign-in page or the register page that is not written down`,
+      );
+    }
   });
 });

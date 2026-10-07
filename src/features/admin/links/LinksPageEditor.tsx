@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
+import Notice from "@/components/ui/Notice";
 import Switch from "@/components/ui/Switch";
 import { AdminLoadingBar } from "@/features/admin/adminList";
+import { AdminPanel, AdminProblem } from "@/features/admin/adminPanels";
 import { LINK_INTERESTS, type LinkInterest } from "@/lib/campaign/attribution";
 import {
   LINKS_PAGE_LIMITS,
@@ -66,11 +68,7 @@ export function LinksPageEditor() {
   }, []);
 
   if (loadError) {
-    return (
-      <Card padding="md">
-        <p className={styles.error}>Couldn&apos;t load: {loadError}</p>
-      </Card>
-    );
+    return <AdminProblem>Couldn&apos;t load: {loadError}</AdminProblem>;
   }
   if (!loaded) {
     return (
@@ -133,20 +131,26 @@ export function LinksPageForm({
 
   return (
     <div className={styles.editorPage}>
-      <p className={styles.intro}>
-        What people see at <strong>/links</strong>, which is where most printed QR codes land. A
-        change shows on the page within a minute of saving. The mailing list form and the upcoming
-        events are always there and are not edited here.
-        {!stored && " Nothing has been saved yet, so this is the built-in page."}
+      <p className={styles.hint}>
+        A change shows on the page within a minute of saving. The mailing list form and the
+        upcoming events are always there and are not edited here.
       </p>
+      {!stored && (
+        <Notice tone="neutral" role="note">
+          Nothing has been saved yet, so this is the built-in page.
+        </Notice>
+      )}
 
-      <Card padding="lg">
-        <h2 className={styles.editorHeading}>Applications</h2>
-        <p className={styles.hint}>
-          While one is closed its button says &quot;Opens soon&quot; and leads to the mailing list
-          form, recording which one the person is waiting for. Mark it open and give it an address,
-          and the button becomes a link to the application.
-        </p>
+      <AdminPanel
+        title="Applications"
+        description={
+          <>
+            While one is closed its button says &quot;Opens soon&quot; and leads to the mailing
+            list form, recording which one the person is waiting for. Mark it open and give it an
+            address, and the button becomes a link to the application.
+          </>
+        }
+      >
         <div className={styles.applicationList}>
           {LINK_INTERESTS.map((id) => {
             const application = content.applications[id];
@@ -162,8 +166,11 @@ export function LinksPageForm({
                     })
                   }
                   label={APPLICATION_NAMES[id]}
-                  description={application.open ? "Open: the button is a link." : "Opens soon: the button leads to the mailing list form."}
-                  tone="success"
+                  description={
+                    application.open
+                      ? "Open: the button is a link."
+                      : "Opens soon: the button leads to the mailing list form."
+                  }
                 />
                 {application.open && (
                   <label className={styles.field}>
@@ -193,21 +200,14 @@ export function LinksPageForm({
             );
           })}
         </div>
-      </Card>
+      </AdminPanel>
 
       {content.groups.map((group, g) => (
-        <Card key={group.id} padding="lg">
-          <div className={styles.sectionHead}>
-            <label className={styles.field}>
-              <span className={styles.label}>Section heading</span>
-              <Input
-                value={group.heading}
-                maxLength={LINKS_PAGE_LIMITS.heading}
-                onChange={(e) => editGroup(g, { heading: e.target.value })}
-                placeholder="Get involved"
-              />
-            </label>
-            <div className={styles.rowTools}>
+        <AdminPanel
+          key={group.id}
+          title={group.heading.trim() || "A section with no heading yet"}
+          actions={
+            <>
               <Button
                 size="sm"
                 variant="ghost"
@@ -233,8 +233,18 @@ export function LinksPageForm({
               >
                 Remove section
               </Button>
-            </div>
-          </div>
+            </>
+          }
+        >
+          <label className={styles.field}>
+            <span className={styles.label}>Section heading</span>
+            <Input
+              value={group.heading}
+              maxLength={LINKS_PAGE_LIMITS.heading}
+              onChange={(e) => editGroup(g, { heading: e.target.value })}
+              placeholder="Get involved"
+            />
+          </label>
 
           <ol className={styles.editRows}>
             {group.rows.map((row, r) => {
@@ -248,7 +258,7 @@ export function LinksPageForm({
                         value={row.label}
                         maxLength={LINKS_PAGE_LIMITS.label}
                         onChange={(e) => editRow(g, r, { label: e.target.value })}
-                        placeholder="Our courses"
+                        placeholder="Our fellowships"
                       />
                     </label>
                     <label className={styles.field}>
@@ -272,7 +282,7 @@ export function LinksPageForm({
                       value={row.sub}
                       maxLength={LINKS_PAGE_LIMITS.sub}
                       onChange={(e) => editRow(g, r, { sub: e.target.value })}
-                      placeholder="Termly AI safety courses. See what is running and apply."
+                      placeholder="Six weeks, in person, in small groups. See what is running and apply."
                     />
                   </label>
                   <div className={styles.rowSwitches}>
@@ -319,22 +329,24 @@ export function LinksPageForm({
             })}
           </ol>
 
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={group.rows.length >= LINKS_PAGE_LIMITS.rowsPerGroup}
-            onClick={() =>
-              editGroup(g, {
-                rows: [
-                  ...group.rows,
-                  { id: newLinksPageId("row"), label: "", sub: "", href: "", soon: false, hidden: false },
-                ],
-              })
-            }
-          >
-            Add a row
-          </Button>
-        </Card>
+          <div className={styles.formActions}>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={group.rows.length >= LINKS_PAGE_LIMITS.rowsPerGroup}
+              onClick={() =>
+                editGroup(g, {
+                  rows: [
+                    ...group.rows,
+                    { id: newLinksPageId("row"), label: "", sub: "", href: "", soon: false, hidden: false },
+                  ],
+                })
+              }
+            >
+              Add a row
+            </Button>
+          </div>
+        </AdminPanel>
       ))}
 
       <div className={styles.formActions}>

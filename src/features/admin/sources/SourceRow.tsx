@@ -93,7 +93,7 @@ export default function SourceRow({
           />
         </label>
 
-        <label className={styles.field}>
+        <label className={`${styles.field} ${styles.noteField}`}>
           <span className={styles.label}>Note (optional, shown publicly)</span>
           <Textarea
             value={item.comment ?? ""}

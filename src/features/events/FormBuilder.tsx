@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import OptionRow from "@/components/ui/OptionRow";
 import ResponsiveSelect from "@/components/ui/ResponsiveSelect";
 import {
   DEFAULT_ANSWER_MAX_LENGTH,
@@ -35,7 +37,7 @@ const TYPE_LABEL: Record<FormQuestionType, string> = {
   longText: "Long text",
   singleSelect: "Single choice",
   multiSelect: "Multiple choice",
-  yesNo: "Yes / No",
+  yesNo: "Yes or no",
   dietaryAllergies: "Allergies checklist",
 };
 
@@ -74,7 +76,7 @@ const ADD_MENU: Array<{ type: FormQuestionType; hint: string }> = [
   { type: "longText", hint: "Multi-line text" },
   { type: "singleSelect", hint: "Pick one option" },
   { type: "multiSelect", hint: "Pick any number" },
-  { type: "yesNo", hint: "Yes / No toggle" },
+  { type: "yesNo", hint: "A yes or a no" },
   { type: "dietaryAllergies", hint: "Checkbox list of common allergies" },
 ];
 
@@ -131,12 +133,11 @@ export default function FormBuilder({
   return (
     <div className={styles.wrap}>
       {showPresets && (
-      <Card padding="md">
-        <div className={styles.presetRow}>
-          <label className={styles.presetLabel} htmlFor="form-preset">
+        <div className={styles.preset}>
+          <div className={styles.presetWords}>
             <strong>Start from a preset</strong>
-            <span>Pick a template, then tweak the questions. You can always add or remove.</span>
-          </label>
+            <span>Pick a set of questions, then change them. You can always add or remove one.</span>
+          </div>
           <ResponsiveSelect
             value=""
             onChange={(next) => {
@@ -146,30 +147,27 @@ export default function FormBuilder({
               { value: "", label: "Choose a preset…", disabled: true },
               ...FORM_PRESETS.map((p) => ({
                 value: p.id,
-                label: `${p.label} — ${p.description}`,
+                label: `${p.label}: ${p.description}`,
               })),
             ]}
             disabled={disabled}
             ariaLabel="Form preset"
           />
+          {presetWarning && <p className={styles.warn}>{presetWarning}</p>}
         </div>
-        {presetWarning && <p className={styles.warn}>{presetWarning}</p>}
-      </Card>
       )}
 
       {questions.length === 0 && (
-        <Card padding="md">
-          <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
-            {emptyStateHint ??
-              "No signup questions yet. Pick a preset above or add a question below. Attendees will always be asked their name and email — you only need questions for the extras."}
-          </p>
-        </Card>
+        <p className={styles.none}>
+          {emptyStateHint ??
+            "No questions yet. Everyone is asked their name and email, so you only need questions for anything else."}
+        </p>
       )}
 
       {questions.map((q, i) => (
-        <Card key={q.id} padding="md">
+        <div key={q.id} className={styles.question}>
           <div className={styles.qHeader}>
-            <span className={styles.qType}>{TYPE_LABEL[q.type]}</span>
+            <span className={`meta ${styles.qType}`}>{TYPE_LABEL[q.type]}</span>
             <div className={styles.qControls}>
               <button
                 type="button"
@@ -179,7 +177,7 @@ export default function FormBuilder({
                 aria-label="Move up"
                 title="Move up"
               >
-                ▲
+                <ArrowIcon up />
               </button>
               <button
                 type="button"
@@ -189,25 +187,24 @@ export default function FormBuilder({
                 aria-label="Move down"
                 title="Move down"
               >
-                ▼
+                <ArrowIcon />
               </button>
-              <button
-                type="button"
-                className={styles.deleteBtn}
+              <Button type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => removeQuestion(i)}
                 disabled={disabled}
               >
-                Delete
-              </button>
+                Remove
+              </Button>
             </div>
           </div>
 
           <div className={styles.qBody}>
             <label className={styles.fieldLabel}>
               <span>Question</span>
-              <input
+              <Input
                 type="text"
-                className={styles.fieldInput}
                 value={q.label}
                 onChange={(e) => patch(i, { label: e.target.value } as Partial<FormQuestion>)}
                 disabled={disabled}
@@ -218,15 +215,14 @@ export default function FormBuilder({
             {(q.type === "shortText" || q.type === "longText") && (
               <label className={styles.fieldLabel}>
                 <span>Placeholder (optional)</span>
-                <input
+                <Input
                   type="text"
-                  className={styles.fieldInput}
                   value={q.placeholder ?? ""}
                   onChange={(e) =>
                     patch(i, { placeholder: e.target.value } as Partial<FormQuestion>)
                   }
                   disabled={disabled}
-                  placeholder="e.g. e.g. vegan, halal, nut allergy"
+                  placeholder="e.g. vegan, halal, nut allergy"
                 />
               </label>
             )}
@@ -243,22 +239,20 @@ export default function FormBuilder({
 
             {q.type === "multiSelect" && (
               <>
-                <label className={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(q.allowOther)}
-                    onChange={(e) =>
-                      patch(i, { allowOther: e.target.checked } as Partial<FormQuestion>)
-                    }
-                    disabled={disabled}
-                  />
-                  Include an &quot;Other&quot; box people can type into
-                </label>
+                <OptionRow
+                  plain
+                  checked={Boolean(q.allowOther)}
+                  onChange={(e) =>
+                    patch(i, { allowOther: e.target.checked } as Partial<FormQuestion>)
+                  }
+                  disabled={disabled}
+                >
+                  Include an “Other” box people can type into
+                </OptionRow>
                 <label className={styles.fieldLabel}>
-                  <span>&quot;None of these&quot; option (optional)</span>
-                  <input
+                  <span>“None of these” option (optional)</span>
+                  <Input
                     type="text"
-                    className={styles.fieldInput}
                     value={q.noneOption ?? ""}
                     onChange={(e) =>
                       patch(i, {
@@ -274,18 +268,16 @@ export default function FormBuilder({
 
             {q.type === "dietaryAllergies" && (
               <p className={styles.helper}>
-                Attendees see a checklist of common allergies and dietary
-                requirements (vegetarian, vegan, and the major allergens), a
-                &quot;no requirements&quot; option, and a free-text box for
-                anything else.
+                People see a checklist of common allergies and dietary
+                requirements (vegetarian, vegan and the major allergens), a
+                “no requirements” option, and a box to type anything else.
               </p>
             )}
 
             <label className={styles.fieldLabel}>
               <span>Help text (optional)</span>
-              <input
+              <Input
                 type="text"
-                className={styles.fieldInput}
                 value={q.helpText ?? ""}
                 onChange={(e) =>
                   patch(i, {
@@ -304,9 +296,9 @@ export default function FormBuilder({
             {acceptsFreeText(q) && (
               <label className={styles.fieldLabel}>
                 <span>Character limit (optional)</span>
-                <input
+                <Input
                   type="number"
-                  className={styles.fieldInput}
+                  className={styles.narrow}
                   value={q.maxLength ?? ""}
                   min={QUESTION_MAX_LENGTH_MIN}
                   max={QUESTION_MAX_LENGTH_MAX}
@@ -341,32 +333,27 @@ export default function FormBuilder({
               </label>
             )}
 
-            <label className={styles.checkboxLabel}>
-              <input
-                type="checkbox"
-                checked={q.required}
-                onChange={(e) =>
-                  patch(i, { required: e.target.checked } as Partial<FormQuestion>)
-                }
-                disabled={disabled}
-              />
+            <OptionRow
+              plain
+              checked={q.required}
+              onChange={(e) =>
+                patch(i, { required: e.target.checked } as Partial<FormQuestion>)
+              }
+              disabled={disabled}
+            >
               Required
-            </label>
+            </OptionRow>
           </div>
-        </Card>
+        </div>
       ))}
 
       {adding ? (
-        <Card padding="md">
+        <div className={styles.addMenu}>
           <div className={styles.addMenuHeader}>
-            <strong>Add a question</strong>
-            <button
-              type="button"
-              onClick={() => setAdding(false)}
-              className={styles.ghostBtn}
-            >
+            <strong>What kind of question?</strong>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setAdding(false)}>
               Cancel
-            </button>
+            </Button>
           </div>
           <div className={styles.addMenuGrid}>
             {addMenu.map((item) => (
@@ -381,18 +368,35 @@ export default function FormBuilder({
               </button>
             ))}
           </div>
-        </Card>
+        </div>
       ) : (
-        <button
-          type="button"
-          className={styles.addBigBtn}
-          onClick={() => setAdding(true)}
-          disabled={disabled}
-        >
-          + Add question
-        </button>
+        <div>
+          <Button type="button" variant="secondary" onClick={() => setAdding(true)} disabled={disabled}>
+            + Add question
+          </Button>
+        </div>
       )}
     </div>
+  );
+}
+
+/** An arrow for moving a question: down, or up. */
+function ArrowIcon({ up = false }: { up?: boolean }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d={up ? "M12 19V5M6 11l6-6 6 6" : "M12 5v14M6 13l6 6 6-6"} />
+    </svg>
   );
 }
 
@@ -425,33 +429,30 @@ function OptionsEditor({
       </span>
       {options.map((opt, i) => (
         <div key={i} className={styles.optionRow}>
-          <input
+          <Input
             type="text"
-            className={styles.fieldInput}
             value={opt}
             onChange={(e) => patch(i, e.target.value)}
             disabled={disabled}
             placeholder={`Option ${i + 1}`}
+            aria-label={`Option ${i + 1}`}
           />
-          <button
-            type="button"
-            className={styles.ghostBtn}
+          <Button type="button"
+            variant="ghost"
+            size="sm"
             onClick={() => remove(i)}
             disabled={disabled || options.length <= 1}
             aria-label={`Remove option ${i + 1}`}
           >
             Remove
-          </button>
+          </Button>
         </div>
       ))}
-      <button
-        type="button"
-        className={styles.ghostBtn}
-        onClick={add}
-        disabled={disabled}
-      >
-        + Add option
-      </button>
+      <div>
+        <Button type="button" variant="ghost" size="sm" onClick={add} disabled={disabled}>
+          + Add option
+        </Button>
+      </div>
     </div>
   );
 }

@@ -3,13 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { doc, onSnapshot } from "firebase/firestore";
-import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
 import DateTimePopover from "@/components/ui/DateTimePopover";
 import { Field, Input, Textarea } from "@/components/ui/Input";
+import MemberName from "@/components/ui/MemberName";
+import Notice from "@/components/ui/Notice";
+import OptionRow from "@/components/ui/OptionRow";
+import PageHead from "@/components/ui/PageHead";
 import Link from "next/link";
 import ResponsiveSelect from "@/components/ui/ResponsiveSelect";
+import Switch from "@/components/ui/Switch";
 import { useAuth } from "@/auth/AuthProvider";
 import { getClientDb } from "@/lib/firebase/client";
 import {
@@ -18,7 +23,6 @@ import {
   COVER_LOGO_X_DEFAULT,
   COVER_LOGO_Y_DEFAULT,
   COVER_STRIP_SIZE_DEFAULT,
-  EVENT_STATUS_LABEL,
   FOOD_TAGS,
   FOOD_TAG_LABEL,
   FOOD_TEXT_MAX,
@@ -31,13 +35,13 @@ import {
   type CoverLogoColor,
   type CoverLogoPosition,
   type EventDoc,
-  type EventStatus,
   type EventVisibility,
   type FoodTag,
   type FormQuestion,
 } from "@/lib/firestore/events";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
 import type { EventChange } from "@/lib/events/changeSummary";
+import { publicLocationText } from "@/lib/events/location";
 import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
 import BlockEditor from "@/components/blocks/BlockEditor";
 import ImageUpload from "@/components/blocks/ImageUpload";
@@ -52,6 +56,13 @@ import {
 import CollaboratorPicker from "./CollaboratorPicker";
 import CoverBrandingModal from "./CoverBrandingModal";
 import FormBuilder from "./FormBuilder";
+import {
+  STATUS_WORDS,
+  dayWords,
+  stampWords,
+  statusTone,
+  whenWords,
+} from "./manageWords";
 import styles from "./EventEditor.module.css";
 
 type Props = {
@@ -227,24 +238,7 @@ function queuedAnnouncementLine(event: EventDoc): string | null {
   return trailer ? `${line} ${trailer}${tail}` : `${line}${tail}`;
 }
 
-function statusTone(status: EventStatus): "neutral" | "accent" | "success" | "danger" | "warning" {
-  switch (status) {
-    case "draft":
-      return "neutral";
-    case "pending":
-      return "warning";
-    case "approved":
-      return "accent";
-    case "published":
-      return "success";
-    case "rejected":
-      return "danger";
-    case "cancelled":
-      return "danger";
-  }
-}
-
-/** Local YYYY-MM-DD — used to keep the end-date picker on or after the start day. */
+/** Local YYYY-MM-DD, used to keep the end-date picker on or after the start day. */
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
     d.getDate(),
@@ -444,7 +438,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
   }, [event, status, canApprove, isAuthor, isCollaborator]);
 
   // An event can't end before (or exactly when) it starts. This blocks Save and
-  // Submit, but never the date fields themselves — an event that somehow holds
+  // Submit, but never the date fields themselves: an event that somehow holds
   // an invalid end must always be editable back to valid.
   const endBeforeStart = !!(
     startAt &&
@@ -508,7 +502,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
       coverLogoShadow,
     };
     if (status === "published") {
-      // Firestore rules block client writes to published events — go through
+      // Firestore rules block client writes to published events, so go through
       // the server route, which also reports what changed.
       const res = await fetch(`/api/events/${event.id}/update`, {
         method: "POST",
@@ -602,22 +596,22 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
   }
 
   function validateBeforeSubmit(): string | null {
-    if (!title.trim()) return "Give the event a title before submitting.";
-    if (blocks.length === 0) return "Add a description block before submitting.";
-    if (!startAt) return "Pick a start date/time.";
+    if (!title.trim()) return "Give the event a title before you send it for approval.";
+    if (blocks.length === 0) return "Add a description before you send it for approval.";
+    if (!startAt) return "Pick a start date and time.";
     if (endAt && endAt.getTime() <= startAt.getTime()) {
-      return "An event can't end before it starts.";
+      return "An event can’t end before it starts.";
     }
-    if (!location.trim()) return "Add a location (room, venue, or link).";
+    if (!location.trim()) return "Add a location: a room, a venue or a link.";
     if (locationHidden && !locationPublicText.trim()) {
-      return "You've hidden the exact location — add a fuzzy label to show publicly (e.g. 'somewhere on campus').";
+      return "You’ve hidden the exact location. Say what everyone else sees instead, for example “somewhere on campus”.";
     }
-    if (capacity !== null && capacity <= 0) return "Capacity must be at least 1 (or blank for unlimited).";
+    if (capacity !== null && capacity <= 0) return "Places must be at least 1, or empty for no limit.";
     for (const q of signupForm) {
-      if (!q.label.trim()) return "Every signup question needs a label.";
+      if (!q.label.trim()) return "Every sign-up question needs its question written in.";
       if ((q.type === "singleSelect" || q.type === "multiSelect")) {
         const cleaned = q.options.map((o) => o.trim()).filter(Boolean);
-        if (cleaned.length < 2) return `"${q.label}" needs at least two options.`;
+        if (cleaned.length < 2) return `“${q.label}” needs at least two options.`;
       }
     }
     const limitProblem = signupFormLimitError();
@@ -663,7 +657,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
   async function onReject() {
     if (!event) return;
     if (!rejectNote.trim()) {
-      setError("Leave a note so the author knows what to change.");
+      setError("Say what needs changing, so the person running the event knows.");
       return;
     }
     setBusy(true);
@@ -803,7 +797,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
 
   async function onDelete() {
     if (!event) return;
-    if (!window.confirm("Permanently delete this event? This can't be undone.")) return;
+    if (!window.confirm("Delete this event for good? Every sign-up and its images go too. This can’t be undone.")) return;
     setBusy(true);
     try {
       // deleteEvent now routes through /api/events/[id]/delete, which removes
@@ -819,102 +813,166 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     }
   }
 
+  const crumb = (
+    <Link href="/events/manage" className={styles.crumbLink}>
+      Manage events
+    </Link>
+  );
+
   if (loading) {
     return (
-      <Card padding="md">
-        <p style={{ color: "var(--color-text-muted)" }}>Loading event…</p>
-      </Card>
+      <div className={styles.editor}>
+        <PageHead crumb={crumb} title="Event" description="Loading event…" />
+      </div>
     );
   }
 
   if (notFound || !event) {
     return (
-      <Card padding="md">
-        <p style={{ color: "var(--color-text-muted)" }}>Event not found. It may have been deleted.</p>
-      </Card>
+      <div className={styles.editor}>
+        <PageHead
+          crumb={crumb}
+          title="Event not found"
+          description="It may have been deleted."
+        />
+      </div>
     );
   }
 
+  const locked = !editable || busy;
+  const pendingSignups = event.rsvpCountPending ?? 0;
+  // What the public page says for the place, worked out where every other
+  // surface works it out, from what is in the form right now.
+  const where = publicLocationText({ location, locationHidden, locationPublicText });
+  const showApprove = canApprove && status === "pending";
+  const showPublish = canApprove && status === "approved";
+  const showSubmit =
+    canDraft && (status === "draft" || status === "rejected") && isAuthor;
+  const showCancel = canApprove && status === "published";
+  const showArchive = isAuthor || role === "admin";
+  const showDelete = (isAuthor || role === "admin") && status !== "published";
+
   return (
     <div className={styles.editor}>
-      <div className={styles.statusBar}>
-        <div className={styles.statusMeta}>
-          <Badge tone={statusTone(status)}>{EVENT_STATUS_LABEL[status]}</Badge>
-          {event.archived && <Badge tone="neutral">Archived</Badge>}
-          <span className={styles.muted}>by {event.authorDisplayName ?? "unknown"}</span>
-          {event.publishedAt && (
-            <span className={styles.muted}>
-              · published {event.publishedAt.toLocaleDateString()}
+      <PageHead
+        crumb={crumb}
+        title={title.trim() || "Untitled event"}
+        badges={
+          <>
+            <Chip tone={statusTone(status)} dot>
+              {STATUS_WORDS[status]}
+            </Chip>
+            {event.archived && <Chip tone="neutral">Archived</Chip>}
+          </>
+        }
+        meta={
+          <>
+            {dirty && editable ? (
+              <span className={styles.unsaved}>Unsaved changes</span>
+            ) : (
+              event.updatedAt && (
+                <span className={styles.saved}>
+                  <TickIcon />
+                  Saved {stampWords(event.updatedAt)}
+                </span>
+              )
+            )}
+            <span>
+              {whenWords(startAt)}
+              {where ? ` · ${where}` : ""}
             </span>
-          )}
-        </div>
-        <div className={styles.spacer} />
-        {dirty && editable && <span className={styles.muted}>Unsaved changes</span>}
-        <Link
-          href={`/events/manage/${event.id}/preview`}
-          target="_blank"
-          rel="noopener"
-        >
-          <Button variant="ghost">Preview ↗</Button>
-        </Link>
-        {canSeeAttendees && (
-          <Link href={`/events/manage/${event.id}/attendees`}>
-            <Button variant="ghost">
-              Attendees
-              {(event.rsvpCountPending ?? 0) > 0 && ` · ${event.rsvpCountPending} pending`}
-            </Button>
-          </Link>
-        )}
-      </div>
-
-      {(status === "pending" || status === "approved") && (
-        <Card padding="md">
-          <strong>
-            {status === "pending"
-              ? "Submitted for review."
-              : "Approved — ready to publish."}
-          </strong>
-          <p style={{ marginTop: "var(--space-2)", color: "var(--color-text-muted)" }}>
-            Want to test the signup flow end-to-end?{" "}
+            <span>
+              Run by <MemberName name={event.authorDisplayName} />
+            </span>
+            {event.publishedAt && <span>Published {dayWords(event.publishedAt)}</span>}
+          </>
+        }
+        actions={
+          <>
             <Link
               href={`/events/manage/${event.id}/preview`}
               target="_blank"
               rel="noopener"
-              style={{ color: "var(--color-accent)" }}
+              className={styles.buttonLink}
             >
-              Open the preview
-            </Link>{" "}
-            and submit a test RSVP — it&apos;ll land in Firestore so you can verify the
-            data shape. Cancel it before the event goes live.
-          </p>
-        </Card>
+              <Button variant="secondary" tabIndex={-1} trailing={<ExternalIcon />}>
+                Preview
+              </Button>
+            </Link>
+            {canSeeAttendees && (
+              <Link
+                href={`/events/manage/${event.id}/attendees`}
+                className={styles.buttonLink}
+              >
+                <Button variant="secondary" tabIndex={-1}>
+                  Attendees
+                  {pendingSignups > 0 && ` · ${pendingSignups} waiting`}
+                </Button>
+              </Link>
+            )}
+          </>
+        }
+      />
+
+      {(status === "pending" || status === "approved") && (
+        <Notice
+          title={status === "pending" ? "Sent for approval." : "Approved. Ready to publish."}
+        >
+          To try the sign-up from start to finish,{" "}
+          <Link
+            href={`/events/manage/${event.id}/preview`}
+            target="_blank"
+            rel="noopener"
+            className={styles.inlineLink}
+          >
+            open the preview
+          </Link>{" "}
+          and send a test sign-up. It is saved like a real one, so you can check
+          what the attendee list shows. Cancel it before the event goes live.
+        </Notice>
       )}
 
       {status === "published" && (
-        <Card padding="md">
-          <strong>Published.</strong>
-          <p style={{ marginTop: "var(--space-2)", color: "var(--color-text-muted)" }}>
-            Live at{" "}
-            <Link
-              href={`/events/${event.id}`}
-              target="_blank"
-              rel="noopener"
-              style={{ color: "var(--color-accent)" }}
-            >
-              /events/{event.id}
-            </Link>
-            . Share the link. Edits you save here go live immediately.
-          </p>
-        </Card>
+        <Notice title="Published.">
+          Live at{" "}
+          <Link
+            href={`/events/${event.id}`}
+            target="_blank"
+            rel="noopener"
+            className={styles.inlineLink}
+          >
+            /events/{event.id}
+          </Link>
+          . Share the link.{editable ? " Changes you save here go live at once." : ""}
+        </Notice>
+      )}
+
+      {status === "cancelled" && (
+        <Notice tone="neutral" title="This event is cancelled.">
+          It stays at its link, marked as cancelled, and can no longer be changed.
+        </Notice>
+      )}
+
+      {status === "rejected" && event.reviewerNotes && (
+        <Notice tone="warning" title="Sent back for changes">
+          {event.reviewerNotes}
+        </Notice>
+      )}
+
+      {!editable && status !== "cancelled" && (
+        <Notice tone="neutral" role="note">
+          {status === "draft" || status === "rejected"
+            ? "You can look at this event. The person running it, the people added to it and approvers can change it."
+            : "You can look at this event. Once an event has been sent for approval, only an approver can change it."}
+        </Notice>
       )}
 
       {notifyDraft && (
-        <Card padding="lg">
-          <h2 className={styles.sectionTitle}>Notify attendees</h2>
+        <Card as="section" padding="lg">
+          <h2 className={styles.sectionTitle}>Tell the people coming</h2>
           <p className={styles.sectionHint}>
-            You changed details on a published event. The summary below is
-            included in the email automatically; the message is your own note
-            alongside it.
+            You changed a published event. The summary below goes in the email
+            as it is; the message is your own note beside it.
           </p>
           {(notifyDraft.changes.length > 0 || notifyDraft.descriptionChanged) && (
             <div className={styles.changeSummary}>
@@ -962,50 +1020,40 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
             </Field>
           </div>
           {notifyState.kind === "error" && (
-            <p className={styles.danger} style={{ marginTop: "var(--space-2)" }}>
+            <p className={styles.problem} role="alert">
               {notifyState.message}
             </p>
           )}
           {notifyState.kind === "sent" && (
-            <p className={styles.muted} style={{ marginTop: "var(--space-2)" }}>
+            <p className={styles.done} role="status">
               Sent to {notifyState.sent} attendee{notifyState.sent === 1 ? "" : "s"}.
             </p>
           )}
-          <div
-            className={styles.editorActions}
-            style={{ marginTop: "var(--space-3)" }}
-          >
+          <div className={styles.actions}>
             {notifyState.kind !== "sent" && (
               <Button onClick={onSendNotify} disabled={notifyState.kind === "sending"}>
                 {notifyState.kind === "sending" ? "Sending…" : "Send to attendees"}
               </Button>
             )}
             <Button
-              variant="ghost"
+              variant="secondary"
               onClick={() => {
                 setNotifyDraft(null);
                 setNotifyState({ kind: "idle" });
               }}
               disabled={notifyState.kind === "sending"}
             >
-              {notifyState.kind === "sent" ? "Close" : "Dismiss"}
+              {notifyState.kind === "sent" ? "Close" : "Don’t send"}
             </Button>
           </div>
         </Card>
       )}
 
-      {status === "rejected" && event.reviewerNotes && (
-        <Card padding="md">
-          <strong style={{ color: "var(--color-danger)" }}>Returned for revisions</strong>
-          <p style={{ marginTop: "var(--space-2)", color: "var(--color-text)" }}>
-            {event.reviewerNotes}
-          </p>
-        </Card>
-      )}
-
-      <Card padding="lg">
+      <Card as="section" padding="lg">
+        <h2 className={styles.sectionTitle}>Basics</h2>
+        <p className={styles.sectionHint}>What it is, when and where.</p>
         <div className={styles.fields}>
-          <Field id="title" label="Event title" hint="Shown on the events list and booking page.">
+          <Field id="title" label="Event title" hint="Shown on the events list and the event page.">
             <Input
               id="title"
               value={title}
@@ -1014,28 +1062,28 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                 markDirty();
               }}
               maxLength={TITLE_MAX}
-              disabled={!editable || busy}
-              placeholder="e.g. April fellowship social"
+              disabled={locked}
+              placeholder="e.g. Board games and pizza"
             />
           </Field>
 
           <div className={styles.twoCol}>
-            <Field id="start" label="Starts" hint="Local time. You can adjust after creation.">
+            <Field id="start" label="Starts" hint="In your own local time.">
               <DateTimePopover
                 value={startAt}
                 onChange={(next) => {
                   setStartAt(next);
                   markDirty();
                 }}
-                disabled={!editable || busy}
-                placeholder="Pick a start date & time…"
+                disabled={locked}
+                placeholder="Pick a start date and time…"
               />
             </Field>
             <Field
               id="end"
               label="Ends (optional)"
-              hint="Leave blank if you're not sure yet."
-              error={endBeforeStart ? "An event can't end before it starts" : undefined}
+              hint="Leave it empty if you’re not sure yet."
+              error={endBeforeStart ? "An event can’t end before it starts" : undefined}
             >
               <DateTimePopover
                 value={endAt}
@@ -1043,8 +1091,8 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                   setEndAt(next);
                   markDirty();
                 }}
-                disabled={!editable || busy}
-                placeholder="Pick an end date & time…"
+                disabled={locked}
+                placeholder="Pick an end date and time…"
                 minDate={startAt ? ymd(startAt) : undefined}
                 invalid={endBeforeStart}
               />
@@ -1053,8 +1101,8 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
 
           <Field
             id="location"
-            label="Location (exact)"
-            hint="Room, venue, or Zoom URL. Only shared publicly unless you hide it below."
+            label="Location"
+            hint="The room, the venue or a link. Everyone sees it unless you hide it below."
           >
             <Input
               id="location"
@@ -1064,29 +1112,27 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                 markDirty();
               }}
               maxLength={LOCATION_MAX}
-              disabled={!editable || busy}
+              disabled={locked}
               placeholder="e.g. Pope A17, Jubilee Campus"
             />
           </Field>
 
-          <label className={styles.checkboxLabel}>
-            <input
-              type="checkbox"
-              checked={locationHidden}
-              onChange={(e) => {
-                setLocationHidden(e.target.checked);
-                markDirty();
-              }}
-              disabled={!editable || busy}
-            />
-            Hide the exact location publicly until an RSVP is approved
-          </label>
+          <Switch
+            checked={locationHidden}
+            onChange={(next) => {
+              setLocationHidden(next);
+              markDirty();
+            }}
+            disabled={locked}
+            label="Hide the exact location"
+            description="Only people with a confirmed place are shown it. Everyone else sees the wording you give below."
+          />
 
           {locationHidden && (
             <Field
               id="location-public-text"
-              label="Public placeholder"
-              hint="What visitors see until they're approved. Day and time still show."
+              label="What everyone else sees"
+              hint="The day and time still show."
             >
               <Input
                 id="location-public-text"
@@ -1096,14 +1142,14 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                   markDirty();
                 }}
                 maxLength={LOCATION_MAX}
-                disabled={!editable || busy}
+                disabled={locked}
                 placeholder="e.g. somewhere on University Park campus"
               />
             </Field>
           )}
 
           <div className={styles.twoCol}>
-            <Field id="visibility" label="Who can RSVP?">
+            <Field id="visibility" label="Who can sign up?">
               <ResponsiveSelect<EventVisibility>
                 value={visibility}
                 onChange={(next) => {
@@ -1111,30 +1157,27 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                   markDirty();
                 }}
                 options={[
-                  {
-                    value: "public",
-                    label: "Public — anyone with the link (email only)",
-                  },
-                  { value: "members", label: "Members only — must sign in" },
+                  { value: "public", label: "Anyone with the link" },
+                  { value: "members", label: "Only people with a naisi.uk account" },
                 ]}
-                disabled={!editable || busy}
-                ariaLabel="Who can RSVP?"
+                disabled={locked}
+                ariaLabel="Who can sign up?"
               />
             </Field>
 
-            <Field id="capacity" label="Capacity (optional)" hint="Leave blank for unlimited.">
-              <input
+            <Field id="capacity" label="Places (optional)" hint="Leave it empty for no limit.">
+              <Input
                 id="capacity"
                 type="number"
                 min={1}
-                className={styles.fieldInput}
+                inputMode="numeric"
                 value={capacity ?? ""}
                 onChange={(e) => {
                   const n = Number(e.target.value);
                   setCapacity(e.target.value === "" || Number.isNaN(n) ? null : Math.floor(n));
                   markDirty();
                 }}
-                disabled={!editable || busy}
+                disabled={locked}
                 placeholder="e.g. 30"
               />
             </Field>
@@ -1143,41 +1186,36 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
           {/* For a drop-in: a social, a screening, a stall. The sign-up
               settings around this are kept as they are and simply not used, so
               switching back loses nothing. */}
-          <label className={styles.checkboxLabel}>
-            <input
-              type="checkbox"
-              checked={noSignup}
-              onChange={(e) => {
-                setNoSignup(e.target.checked);
-                markDirty();
-              }}
-              disabled={!editable || busy}
-            />
-            No sign-up needed: people just turn up. The event page shows no form and offers add to
-            calendar. Capacity, the waitlist and the sign-up questions are ignored while this is on.
-          </label>
+          <Switch
+            checked={noSignup}
+            onChange={(next) => {
+              setNoSignup(next);
+              markDirty();
+            }}
+            disabled={locked}
+            label="No sign-up needed"
+            description="People just turn up. The event page shows no form and offers add to calendar. The places, the waiting list and the questions are kept, and not used while this is on."
+          />
 
           {capacity !== null && (
-            <label className={styles.checkboxLabel}>
-              <input
-                type="checkbox"
-                checked={waitlistEnabled}
-                onChange={(e) => {
-                  setWaitlistEnabled(e.target.checked);
-                  markDirty();
-                }}
-                disabled={!editable || busy}
-              />
-              Once full, let people join a waitlist (auto-promoted on cancellations)
-            </label>
+            <Switch
+              checked={waitlistEnabled}
+              onChange={(next) => {
+                setWaitlistEnabled(next);
+                markDirty();
+              }}
+              disabled={locked}
+              label="Waiting list when it’s full"
+              description="If someone cancels, the next person on the list gets their place and an email."
+            />
           )}
         </div>
       </Card>
 
-      <section>
+      <Card as="section" padding="lg">
         <h2 className={styles.sectionTitle}>Cover image</h2>
         <p className={styles.sectionHint}>
-          Optional. Shown as a banner across the top of the public event page.
+          Optional. A banner across the top of the public event page.
         </p>
         <ImageUpload
           draftId={event.id}
@@ -1186,29 +1224,31 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
           currentUrl={posterUrl ?? undefined}
           onChange={({ url }) => {
             const next = url || null;
-            // A freshly uploaded or replaced cover — open the branding picker.
+            // A freshly uploaded or replaced cover: open the branding picker.
             if (next && next !== posterUrl) setBrandingModalOpen(true);
             setPosterUrl(next);
             markDirty();
           }}
-          disabled={!editable || busy}
+          disabled={locked}
         />
         {posterUrl && (
           <button
             type="button"
-            className={styles.coverBrandingChip}
+            className={styles.brandingChip}
             onClick={() => setBrandingModalOpen(true)}
-            disabled={!editable || busy}
+            disabled={locked}
           >
-            NAISI logo:{" "}
-            <strong>{COVER_BRANDING_LABEL[coverBranding]}</strong>
-            <span className={styles.coverBrandingChange}>Change</span>
+            <span>
+              NAISI logo: <strong>{COVER_BRANDING_LABEL[coverBranding]}</strong>
+            </span>
+            <span className={styles.brandingChange}>Change</span>
           </button>
         )}
-      </section>
+      </Card>
 
-      <section>
+      <Card as="section" padding="lg">
         <h2 className={styles.sectionTitle}>Description</h2>
+        <p className={styles.sectionHint}>What happens, and anything people should bring or know.</p>
         <BlockEditor
           draftId={event.id}
           storagePrefix="event-images"
@@ -1217,72 +1257,67 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
             setBlocks(next);
             markDirty();
           }}
-          disabled={!editable || busy}
+          disabled={locked}
         />
-      </section>
+      </Card>
 
-      <section>
+      <Card as="section" padding="lg">
         <h2 className={styles.sectionTitle}>Food</h2>
         <p className={styles.sectionHint}>
-          If there&apos;s food, say what it is in plain language. This shows
-          prominently on the public event page so attendees can&apos;t miss it.
+          If there&apos;s food, say what it is in plain words. It shows in its
+          own box on the event page, so nobody misses it.
         </p>
-        <Card padding="lg">
-          <div className={styles.fields}>
-            <Field
+        <div className={styles.fields}>
+          <Field
+            id="food-text"
+            label="What’s the food?"
+            hint="Leave it empty if there’s no food at this event."
+          >
+            <Textarea
               id="food-text"
-              label="What's the food?"
-              hint="Leave blank if there's no food at this event."
-            >
-              <Textarea
-                id="food-text"
-                value={foodText}
-                onChange={(e) => {
-                  setFoodText(e.target.value);
-                  markDirty();
-                }}
-                rows={2}
-                maxLength={FOOD_TEXT_MAX}
-                disabled={!editable || busy}
-                placeholder="e.g. Pizza ordered from Domino's Beeston, collected at 6pm"
-              />
-            </Field>
+              value={foodText}
+              onChange={(e) => {
+                setFoodText(e.target.value);
+                markDirty();
+              }}
+              rows={2}
+              maxLength={FOOD_TEXT_MAX}
+              disabled={locked}
+              placeholder="e.g. Pizza from the Portland Building, with vegan and halal options"
+            />
+          </Field>
 
-            <div>
-              <span className={styles.checkboxGroupLabel}>Dietary tags (optional)</span>
-              <p className={styles.checkboxGroupHint}>
-                Tick any that genuinely apply. Shown as badges on the event page.
-              </p>
-              <div className={styles.tagRow}>
-                {FOOD_TAGS.map((tag) => (
-                  <label key={tag} className={styles.checkboxLabel}>
-                    <input
-                      type="checkbox"
-                      checked={dietaryTags.includes(tag)}
-                      onChange={(e) => {
-                        setDietaryTags((cur) =>
-                          e.target.checked
-                            ? [...cur, tag]
-                            : cur.filter((t) => t !== tag),
-                        );
-                        markDirty();
-                      }}
-                      disabled={!editable || busy}
-                    />
-                    {FOOD_TAG_LABEL[tag]}
-                  </label>
-                ))}
-              </div>
+          <fieldset className={styles.group}>
+            <legend className={styles.groupLabel}>Dietary tags (optional)</legend>
+            <p className={styles.groupHint}>
+              Tick the ones that are true of the food. They show as labels on the event page.
+            </p>
+            <div className={styles.tagRow}>
+              {FOOD_TAGS.map((tag) => (
+                <OptionRow
+                  key={tag}
+                  checked={dietaryTags.includes(tag)}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setDietaryTags((cur) =>
+                      on ? [...cur, tag] : cur.filter((t) => t !== tag),
+                    );
+                    markDirty();
+                  }}
+                  disabled={locked}
+                >
+                  {FOOD_TAG_LABEL[tag]}
+                </OptionRow>
+              ))}
             </div>
-          </div>
-        </Card>
-      </section>
+          </fieldset>
+        </div>
+      </Card>
 
-      <section>
-        <h2 className={styles.sectionTitle}>Signup questions</h2>
+      <Card as="section" padding="lg">
+        <h2 className={styles.sectionTitle}>Sign-up questions</h2>
         <p className={styles.sectionHint}>
-          Build the booking form for this event. Attendees are always asked their name and
-          email — add questions below for everything else (dietary, t-shirt size, etc.).
+          Everyone gives their name and email. Ask anything else here.
         </p>
         <FormBuilder
           questions={signupForm}
@@ -1290,146 +1325,188 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
             setSignupForm(next);
             markDirty();
           }}
-          disabled={!editable || busy}
+          disabled={locked}
         />
-      </section>
+      </Card>
 
       {canManageCollaborators && (
-        <section>
+        <Card as="section" padding="lg">
           <h2 className={styles.sectionTitle}>Who can edit this</h2>
           <p className={styles.sectionHint}>
-            Add committee members as collaborators so they can help plan and
-            edit this event. They can edit it up until it&apos;s published;
-            after that only approvers manage it.
+            Add committee members so they can help plan and edit this event.
+            They can change it until it has been sent for approval; after that
+            only approvers can.
           </p>
-          <Card padding="lg">
-            <CollaboratorPicker eventId={event.id} />
-          </Card>
-        </section>
+          <CollaboratorPicker eventId={event.id} />
+        </Card>
       )}
 
-      {error && <p className={styles.danger}>{error}</p>}
+      {error && (
+        <Notice tone="warning" role="alert">
+          {error}
+        </Notice>
+      )}
       {publishStatus.kind === "error" && (
-        <Card padding="md">
-          <p className={styles.danger}>Publish failed: {publishStatus.message}</p>
-        </Card>
+        <Notice tone="warning" role="alert" title="It wasn’t published.">
+          {publishStatus.message}
+        </Notice>
       )}
-      {publishStatus.kind === "announced" && (
-        <Card padding="md">
-          <p className={styles.muted}>{publishStatus.message}</p>
-        </Card>
-      )}
+      {publishStatus.kind === "announced" && <Notice>{publishStatus.message}</Notice>}
       {queuedAnnouncement !== null && (
         // The QUEUED announcement's own state, off the event document rather
         // than out of a publish response: the job finishes minutes after the
         // request that queued it, and an approver who comes back tomorrow
         // still needs to be able to see whether it went.
-        <Card padding="md">
-          <p className={styles.muted}>{queuedAnnouncement}</p>
-        </Card>
+        <Notice tone="neutral">{queuedAnnouncement}</Notice>
       )}
 
-      <div className={styles.editorActions}>
-        {editable && (
-          <Button onClick={onSave} disabled={busy || !dirty || endBeforeStart}>
-            {busy ? "Saving…" : "Save"}
-          </Button>
-        )}
+      {(editable || showSubmit || showApprove || showPublish) && (
+        <div className={styles.actionBar}>
+          <div className={styles.actions}>
+            {editable && (
+              <Button
+                variant={showApprove || showPublish ? "secondary" : "primary"}
+                onClick={onSave}
+                disabled={busy || !dirty || endBeforeStart}
+              >
+                {busy ? "Saving…" : "Save"}
+              </Button>
+            )}
 
-        {editable && status === "published" && (
-          <label className={styles.checkboxLabel}>
-            <input
-              type="checkbox"
+            {showSubmit && (
+              <Button
+                variant="secondary"
+                onClick={onSubmitForReview}
+                disabled={busy || endBeforeStart}
+              >
+                Send for approval
+              </Button>
+            )}
+
+            {showApprove && (
+              <Button onClick={onApprove} disabled={busy}>
+                Approve
+              </Button>
+            )}
+
+            {showPublish && (
+              <Button onClick={onPublish} disabled={publishStatus.kind === "publishing"}>
+                {publishStatus.kind === "publishing" ? "Publishing…" : "Publish"}
+              </Button>
+            )}
+
+            {canApprove && (status === "pending" || status === "approved") && (
+              <Button variant="ghost" onClick={onRevertToDraft} disabled={busy}>
+                Move back to draft
+              </Button>
+            )}
+          </div>
+
+          {editable && status === "published" && (
+            <OptionRow
+              plain
               checked={notifyOnSave}
               onChange={(e) => setNotifyOnSave(e.target.checked)}
               disabled={busy}
-            />
-            Email confirmed attendees about this change
-          </label>
-        )}
+              description="If you changed the date, the time, the place or the description, you’re shown the email to check before it goes."
+            >
+              Email confirmed attendees about this change
+            </OptionRow>
+          )}
 
-        {canDraft && (status === "draft" || status === "rejected") && isAuthor && (
-          <Button
-            variant="ghost"
-            onClick={onSubmitForReview}
-            disabled={busy || endBeforeStart}
-          >
-            Submit for review
-          </Button>
-        )}
-
-        {canApprove && status === "pending" && (
-          <>
-            <Button onClick={onApprove} disabled={busy}>
-              Approve
-            </Button>
-            <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
-              <Input
+          {showApprove && (
+            <div className={styles.sendBack}>
+              <Field
                 id="rejectNote"
-                placeholder="Reason to send back for revisions…"
-                value={rejectNote}
-                onChange={(e) => setRejectNote(e.target.value)}
-                style={{ minWidth: "16rem" }}
-              />
-              <Button variant="ghost" onClick={onReject} disabled={busy}>
+                label="Send it back with a note"
+                hint="Say what needs changing. The person running the event sees it."
+              >
+                <Input
+                  id="rejectNote"
+                  placeholder="e.g. Add the room, and say whether there’s food"
+                  value={rejectNote}
+                  onChange={(e) => setRejectNote(e.target.value)}
+                />
+              </Field>
+              <Button variant="secondary" onClick={onReject} disabled={busy}>
                 Send back
               </Button>
             </div>
-          </>
-        )}
+          )}
+        </div>
+      )}
 
-        {canApprove && status === "approved" && (
-          <Button onClick={onPublish} disabled={publishStatus.kind === "publishing"}>
-            {publishStatus.kind === "publishing" ? "Publishing…" : "Publish"}
-          </Button>
-        )}
-
-        {canApprove && (status === "pending" || status === "approved") && (
-          <Button variant="ghost" onClick={onRevertToDraft} disabled={busy}>
-            Move back to draft
-          </Button>
-        )}
-
-        {canApprove && status === "published" && (
-          <Button variant="ghost" onClick={openCancelModal} disabled={busy}>
-            Mark cancelled
-          </Button>
-        )}
-
-        <div className={styles.spacer} />
-
-        {(isAuthor || role === "admin") && (
-          <Button variant="ghost" onClick={onArchive} disabled={busy}>
-            {event.archived ? "Unarchive" : "Archive"}
-          </Button>
-        )}
-
-        {(isAuthor || role === "admin") && status !== "published" && (
-          <button
-            type="button"
-            onClick={onDelete}
-            disabled={busy}
-            className={styles.deleteBtn}
-          >
-            Delete event
-          </button>
-        )}
-      </div>
+      {(showCancel || showArchive || showDelete) && (
+        <Card as="section" padding="lg" className={styles.careful}>
+          <h2 className={styles.sectionTitle}>Careful</h2>
+          <ul className={styles.carefulList}>
+            {showCancel && (
+              <li className={styles.carefulRow}>
+                <div className={styles.carefulWords}>
+                  <strong>Cancel this event</strong>
+                  <span>
+                    It stays at its link, marked as cancelled. You choose whether the people coming
+                    are emailed.
+                  </span>
+                </div>
+                <Button variant="danger" onClick={openCancelModal} disabled={busy}>
+                  Cancel event…
+                </Button>
+              </li>
+            )}
+            {showArchive && (
+              <li className={styles.carefulRow}>
+                <div className={styles.carefulWords}>
+                  <strong>{event.archived ? "Bring this event back" : "Archive this event"}</strong>
+                  <span>
+                    {event.archived
+                      ? "It goes back to where it was in Manage events."
+                      : "It moves to the Archived tab in Manage events. Nothing is deleted, and you can bring it back."}
+                  </span>
+                </div>
+                <Button variant="secondary" onClick={onArchive} disabled={busy}>
+                  {event.archived ? "Unarchive" : "Archive"}
+                </Button>
+              </li>
+            )}
+            {showDelete && (
+              <li className={styles.carefulRow}>
+                <div className={styles.carefulWords}>
+                  <strong>Delete this event</strong>
+                  <span>
+                    The event, every sign-up and its images go for good. This can’t be undone.
+                  </span>
+                </div>
+                <Button variant="danger" onClick={onDelete} disabled={busy}>
+                  Delete event…
+                </Button>
+              </li>
+            )}
+          </ul>
+        </Card>
+      )}
 
       {cancelOpen && (
-        <div className={styles.modalOverlay} role="dialog" aria-modal="true">
+        <div
+          className={styles.modalOverlay}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cancel-event-title"
+        >
           <div className={styles.modal}>
             {cancelState.kind === "done" ? (
               <>
-                <p className={styles.modalTitle}>Event cancelled</p>
+                <h2 id="cancel-event-title" className={styles.modalTitle}>
+                  Event cancelled
+                </h2>
                 <p className={styles.modalHint}>
                   {cancelState.notified
                     ? cancelState.sent > 0
                       ? `Emailed ${cancelState.sent} attendee${
                           cancelState.sent === 1 ? "" : "s"
                         } about the cancellation.`
-                      : "No confirmed or waitlisted attendees to email."
-                    : "Attendees were not emailed."}
+                      : "Nobody had a confirmed place or was on the waiting list, so nobody was emailed."
+                    : "Nobody was emailed."}
                 </p>
                 <div className={styles.modalActions}>
                   <Button onClick={() => setCancelOpen(false)}>Close</Button>
@@ -1437,28 +1514,27 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
               </>
             ) : (
               <>
-                <p className={styles.modalTitle}>Cancel this event?</p>
+                <h2 id="cancel-event-title" className={styles.modalTitle}>
+                  Cancel this event?
+                </h2>
                 <p className={styles.modalHint}>
-                  This marks the event as cancelled. It stays visible at its
-                  link, clearly labelled as cancelled.
+                  The event is marked as cancelled. It stays at its link, with
+                  “Cancelled” on it, and nobody can sign up.
                 </p>
-                <label className={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    checked={cancelNotify}
-                    onChange={(e) => setCancelNotify(e.target.checked)}
-                    disabled={cancelState.kind === "cancelling"}
-                  />
-                  Email confirmed and waitlisted attendees that it&apos;s
-                  cancelled
-                </label>
+                <OptionRow
+                  checked={cancelNotify}
+                  onChange={(e) => setCancelNotify(e.target.checked)}
+                  disabled={cancelState.kind === "cancelling"}
+                >
+                  Email everyone with a confirmed place or on the waiting list
+                </OptionRow>
                 <Field
                   id="cancel-note"
-                  label="Note to attendees (optional)"
+                  label="Note to them (optional)"
                   hint={
                     cancelNotify
-                      ? "Included in the cancellation email - e.g. why it's off, or whether it'll be rescheduled."
-                      : "Only sent if you email attendees above."
+                      ? "It goes in the cancellation email: why it’s off, or whether it will run another day."
+                      : "Only sent if you tick the box above."
                   }
                 >
                   <Textarea
@@ -1468,23 +1544,24 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                     rows={3}
                     maxLength={1000}
                     disabled={cancelState.kind === "cancelling"}
-                    placeholder="e.g. The venue fell through. We're sorry, and we'll try to reschedule soon."
+                    placeholder="e.g. The room fell through. We’re sorry, and we’ll try to run it another day."
                   />
                 </Field>
                 {cancelState.kind === "error" && (
-                  <p className={styles.danger}>{cancelState.message}</p>
+                  <p className={styles.problem} role="alert">
+                    {cancelState.message}
+                  </p>
                 )}
                 <div className={styles.modalActions}>
                   <Button
+                    variant="danger"
                     onClick={onConfirmCancel}
                     disabled={cancelState.kind === "cancelling"}
                   >
-                    {cancelState.kind === "cancelling"
-                      ? "Cancelling…"
-                      : "Cancel event"}
+                    {cancelState.kind === "cancelling" ? "Cancelling…" : "Cancel event"}
                   </Button>
                   <Button
-                    variant="ghost"
+                    variant="secondary"
                     onClick={() => setCancelOpen(false)}
                     disabled={cancelState.kind === "cancelling"}
                   >
@@ -1525,5 +1602,43 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
         />
       )}
     </div>
+  );
+}
+
+function TickIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  );
+}
+
+function ExternalIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M8 16L17 7M9 7h8v8" />
+    </svg>
   );
 }
