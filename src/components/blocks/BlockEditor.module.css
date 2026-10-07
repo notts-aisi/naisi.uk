@@ -4,10 +4,12 @@
   gap: var(--space-3);
 }
 
+/* A block is a dark well with a hairline: the same ground as the inside of
+   an input, so it reads as "this part is yours to fill in" on a card. */
 .block {
-  background: var(--color-surface);
+  background: var(--color-bg);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-row);
   overflow: hidden;
 }
 
@@ -15,17 +17,19 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-2) var(--space-3);
-  background: var(--color-bg-elevated);
+  gap: var(--space-2);
+  padding: var(--space-1) 0.375rem var(--space-1) 0.875rem;
   border-bottom: 1px solid var(--color-border);
 }
 
+/* What kind of block it is, in the metadata style (mono capitals). */
 .blockType {
+  font-family: var(--font-meta);
   font-size: var(--text-xs);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   color: var(--color-text-muted);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .blockControls {
@@ -34,23 +38,29 @@
   gap: var(--space-1);
 }
 
+/* The two arrows are icon buttons: no edge until they are pointed at. */
 .moveBtn {
-  width: 1.75rem;
-  height: 1.75rem;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 2.25rem;
+  height: 2.25rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm, 4px);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
   color: var(--color-text-muted);
   cursor: pointer;
-  font-size: 10px;
+  font-size: 0.6875rem;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .moveBtn:hover:not(:disabled) {
   color: var(--color-text);
-  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
 }
 
 .moveBtn:disabled {
@@ -58,24 +68,40 @@
   cursor: not-allowed;
 }
 
+/* Removing a block is quiet until it is pointed at, then reads as careful. */
 .deleteBtn {
-  padding: 0.25rem 0.6rem;
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 2.25rem;
+  padding: 0 0.75rem;
   background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm, 4px);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
   color: var(--color-text-muted);
-  font-size: var(--text-xs);
+  font: inherit;
+  font-size: var(--text-caption);
+  font-weight: 600;
   cursor: pointer;
   margin-left: var(--space-1);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .deleteBtn:hover:not(:disabled) {
-  color: var(--color-danger);
-  border-color: var(--color-danger);
+  color: var(--color-danger-text);
+  border-color: var(--color-danger-line);
+  background: var(--color-danger-soft);
+}
+
+.deleteBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .blockBody {
-  padding: var(--space-4);
+  padding: 0.875rem var(--space-4) var(--space-2);
 }
 
 .fields {
@@ -87,23 +113,42 @@
 .fieldLabel {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 0.375rem;
   font-size: var(--text-sm);
+  font-weight: 600;
   color: var(--color-text);
 }
 
+/* The shared Input's recipe: 44px, the strong edge, the dark ground. */
 .fieldInput {
-  padding: 0.5rem 0.7rem;
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
+  min-height: 2.75rem;
+  padding: 0 0.875rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   color: var(--color-text);
+  font: inherit;
   font-size: var(--text-md, 1rem);
+  font-weight: 400;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.fieldInput::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
 }
 
 .fieldInput:focus {
   outline: none;
-  border-color: var(--color-accent);
+  border-color: var(--color-live);
+  box-shadow: var(--focus-ring);
+}
+
+.fieldInput:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .dividerPreview hr {
@@ -115,17 +160,19 @@
 .insertRow {
   display: flex;
   justify-content: center;
-  padding: var(--space-1) 0;
+  padding: 0 0 0.375rem;
 }
 
 .insertBtn {
-  width: 2rem;
-  height: 2rem;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1.75rem;
+  height: 1.75rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-bg-elevated);
-  border: 1px dashed var(--color-border);
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border-strong);
   border-radius: 50%;
   color: var(--color-text-muted);
   font-size: var(--text-lg);
@@ -134,11 +181,13 @@
   transition: opacity var(--transition-fast), border-color var(--transition-fast);
 }
 
+/* Reached by keyboard, it has to be seen: hover alone would hide it. */
 .block:hover + .insertRow .insertBtn,
-.insertRow:hover .insertBtn {
+.insertRow:hover .insertBtn,
+.insertBtn:focus-visible {
   opacity: 1;
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  border-color: var(--color-accent-line);
+  color: var(--color-accent-text);
 }
 
 .insertBtn:disabled {
@@ -146,22 +195,33 @@
   opacity: 0.3;
 }
 
+/* "Add block": a dashed row the width of the editor, where the next block
+   will go, with the words in the accent's text colour. */
 .addBigBtn {
-  align-self: flex-start;
-  padding: 0.55rem 1rem;
-  background: var(--color-accent-soft);
-  color: var(--color-accent);
-  border: 1px dashed var(--color-accent);
-  border-radius: var(--radius-md);
+  appearance: none;
+  -webkit-appearance: none;
+  align-self: stretch;
+  min-height: 2.75rem;
+  padding: var(--space-2) 0.875rem;
+  background: transparent;
+  color: var(--color-accent-text);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-row);
+  font: inherit;
   font-size: var(--text-sm);
-  font-weight: 500;
+  font-weight: 600;
+  text-align: left;
   cursor: pointer;
-  transition: background var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .addBigBtn:hover:not(:disabled) {
-  background: var(--color-accent);
-  color: var(--color-on-accent);
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-line);
+  color: var(--color-accent-text-hover);
 }
 
 .addBigBtn:disabled {
@@ -170,10 +230,10 @@
 }
 
 .addMenu {
-  padding: var(--space-4);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  padding: var(--space-3) 0.875rem 0.875rem;
+  background: transparent;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-row);
   width: 100%;
 }
 
@@ -181,17 +241,34 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--space-3);
-}
-
-.addMenuClose {
-  padding: 0.25rem 0.6rem;
-  background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm, 4px);
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
   color: var(--color-text-muted);
   font-size: var(--text-sm);
+}
+
+.addMenuHeader strong {
+  font-weight: 500;
+}
+
+/* "Cancel": a text action. */
+.addMenuClose {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 2.25rem;
+  padding: 0 var(--space-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-accent-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
   cursor: pointer;
+}
+
+.addMenuClose:hover {
+  color: var(--color-accent-text-hover);
 }
 
 .addMenuGrid {
@@ -201,14 +278,19 @@
 }
 
 .addMenuItem {
+  appearance: none;
+  -webkit-appearance: none;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--space-1);
-  padding: var(--space-3);
-  background: var(--color-bg-elevated);
+  gap: 0.125rem;
+  min-height: 2.75rem;
+  padding: 0.625rem var(--space-3);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-row);
+  font: inherit;
+  text-align: left;
   cursor: pointer;
   transition:
     border-color var(--transition-fast),
@@ -216,17 +298,18 @@
 }
 
 .addMenuItem strong {
-  font-size: var(--text-md, 1rem);
-  color: var(--color-text);
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-accent-text);
 }
 
 .addMenuItem span {
-  font-size: var(--text-xs);
+  font-size: var(--text-caption);
   color: var(--color-text-muted);
 }
 
 .addMenuItem:hover {
-  border-color: var(--color-accent);
+  border-color: var(--color-accent-line);
   background: var(--color-accent-soft);
 }
 
@@ -268,11 +351,14 @@
 }
 
 .addChip {
+  appearance: none;
+  -webkit-appearance: none;
   padding: 0.3rem 0.6rem;
-  background: var(--color-bg-elevated);
-  border: 1px dashed var(--color-border);
+  background: transparent;
+  border: 1px dashed var(--color-border-strong);
   border-radius: var(--radius-pill);
   color: var(--color-text-muted);
+  font: inherit;
   font-size: var(--text-xs);
   cursor: pointer;
   transition:
@@ -282,8 +368,8 @@
 }
 
 .addChip:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  border-color: var(--color-accent-line);
+  color: var(--color-accent-text);
   background: var(--color-accent-soft);
 }
 

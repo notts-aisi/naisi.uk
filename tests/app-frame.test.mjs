@@ -32,11 +32,19 @@
  *    bar to the bottom of the window. Anything else stuck or fixed there has
  *    to add `--app-bottom-inset` to its own `bottom`, or it is drawn under the
  *    bar where nobody can press it. Every stylesheet is walked for one.
+ *
+ * 7. EVERY ADMIN PAGE HAS ONE HEADING. An admin page is headed by its own
+ *    name, as the page's one <h1>, with the section as a crumb above it. A
+ *    page marked `ownHead` draws that head itself and the shared head stands
+ *    down; any other page is given it by the shared head. So a page marked
+ *    and drawing nothing has no heading, and a page not marked that draws one
+ *    has two. Every admin page file is walked, with what it imports, both
+ *    ways.
  */
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, join, relative, sep } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createLoader } from "./lib/tsLoader.mjs";
 
@@ -537,5 +545,213 @@ describe("nothing is stuck to the bottom of the window under the bottom bar", ()
       .filter((file) => /position:\s*["'](fixed|sticky)["']/.test(readFileSync(file, "utf8")))
       .map((file) => posix(relative(SRC, file)));
     assert.deepEqual(found.sort(), Object.keys(INLINE).sort(), "an inline fixed or sticky position is not registered here, or an entry is stale");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. Every admin page has one heading
+// ---------------------------------------------------------------------------
+
+/**
+ * A head: the shared component being USED, or an <h1> written out. The
+ * component's own file has an <h1> in it and is reached by every page that
+ * uses the component, so the two spellings find the same pages.
+ */
+const DRAWS_A_HEAD = /<PageHead\b|<h1\b/;
+
+const ADMIN_DIR = join(APP, "admin");
+
+/** Source with its comments gone, so a head written about is not a head drawn. */
+function codeOf(file) {
+  return readFileSync(file, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+}
+
+/** Every module a file pulls VALUES from. A type-only import draws nothing. */
+function valueSpecifiers(code) {
+  const out = [];
+  const statement = /(?:^|\n)[ \t]*((?:import|export)\b[^;]*?\bfrom\s*["']([^"']+)["'])/g;
+  for (const match of code.matchAll(statement)) {
+    if (/^(?:import|export)\s+type\b/.test(match[1])) continue;
+    out.push(match[2]);
+  }
+  for (const match of code.matchAll(/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g)) out.push(match[1]);
+  return out;
+}
+
+function resolveLocal(specifier, fromFile) {
+  let base;
+  if (specifier.startsWith("@/")) base = join(SRC, specifier.slice(2));
+  else if (specifier.startsWith(".")) base = resolve(dirname(fromFile), specifier);
+  else return null;
+  for (const candidate of [base, `${base}.ts`, `${base}.tsx`, join(base, "index.ts"), join(base, "index.tsx")]) {
+    if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
+  }
+  return null;
+}
+
+let headEdgesFollowed = 0;
+
+/**
+ * The files that draw a head, out of everything one admin page puts on the
+ * screen: the page file, every layout between it and the admin area's own
+ * layout, and whatever those import from `src`, all the way down.
+ *
+ * The admin area's own layout is left out on purpose. It mounts the shared
+ * head for every page alike, which is the thing this section is checking the
+ * pages against.
+ */
+function headsDrawnBy(pageFile) {
+  const roots = [pageFile];
+  for (let dir = dirname(pageFile); dir !== ADMIN_DIR; dir = dirname(dir)) {
+    const layout = join(dir, "layout.tsx");
+    if (existsSync(layout)) roots.push(layout);
+  }
+  const seen = new Set(roots);
+  const queue = [...roots];
+  const found = [];
+  while (queue.length > 0) {
+    const file = queue.shift();
+    const code = codeOf(file);
+    if (DRAWS_A_HEAD.test(code)) found.push(posix(relative(SRC, file)));
+    for (const specifier of valueSpecifiers(code)) {
+      const target = resolveLocal(specifier, file);
+      if (!target || seen.has(target)) continue;
+      headEdgesFollowed += 1;
+      seen.add(target);
+      queue.push(target);
+    }
+  }
+  return found;
+}
+
+/**
+ * Admin pages that draw a heading of their own and are NOT marked `ownHead`,
+ * so they stand under the shared head with a second <h1>. Each was like that
+ * before the shared head and the mark existed. An entry here is a page still
+ * owed one of two things: its own heading stepped down a level, or a head of
+ * its own in the agreed shape and the mark.
+ *
+ * A page cannot be marked by itself: the mark is on a section's entry and
+ * covers every page under its address, and each of these shares its entry
+ * with pages that draw no head.
+ *
+ * Checked both ways. A page here that stops drawing a head, or whose entry
+ * gains the mark, makes its line stale and fails.
+ */
+const SECOND_HEADING_STILL_DRAWN = {
+  "/admin/registrations":
+    "The sign-up tracker writes its own <h1> in the page file. Its section is redrawn with the publicity and settings pages, which is when it takes the mark.",
+  "/admin/sources/[slug]":
+    "The source sheet editor names the sheet in an <h1>, while the list beside it under the same entry draws no head. Redrawn with the publicity and settings pages.",
+  "/admin/admissions/[roundId]":
+    "The older round editor names the round in an <h1>, while the list of older rounds under the same entry draws no head. No redesign covers the older rounds.",
+  "/admin/admissions/[roundId]/appointments":
+    "The appointments queue of an older round writes its own <h1>, under the same entry as the list of older rounds, which draws none.",
+  "/admin/courses/[courseId]":
+    "The course editor names the course in an <h1>, while the list of courses under the same entry draws no head. No redesign covers the course editors.",
+  "/admin/courses/[courseId]/page":
+    "The editor of a course's public page writes its own <h1>, under the same entry as the list of courses.",
+  "/admin/courses/[courseId]/runs/[runId]/retrospective":
+    "A run's retrospective writes its own <h1>, under the same entry as the list of courses and the run pages that draw none.",
+};
+
+describe("every admin page has one heading: its own, or the shared one", () => {
+  const adminPageFiles = PAGE_FILES.filter((file) => {
+    const route = routeOf(file);
+    return route === "/admin" || route.startsWith("/admin/");
+  });
+  // route -> { marked, heads }
+  const pages = new Map();
+  for (const file of adminPageFiles) {
+    const route = routeOf(file);
+    const sample = route.replace(/\[[^\]]+\]/g, "sample");
+    const entry = ADMIN_PAGES.find((p) => p.match(sample)) ?? null;
+    pages.set(route, { entry, marked: entry?.ownHead === true, heads: headsDrawnBy(file) });
+  }
+
+  test("the admin pages were walked, and the walk sees a head where there is one", () => {
+    assert.ok(pages.size >= 30, "expected the admin pages: was the tree moved?");
+    assert.ok(headEdgesFollowed > 400, `only ${headEdgesFollowed} imports were followed from the admin pages: the resolver is broken`);
+    assert.ok(ADMIN_PAGES.some((p) => p.ownHead === true), "no admin page is marked ownHead, so one direction below is about nothing");
+    assert.ok(ADMIN_PAGES.some((p) => p.ownHead !== true), "every admin page is marked ownHead, so the other direction is about nothing");
+    // A head two files down from its page (the page mounts a component that
+    // draws it) is found, and so is one a nested layout draws for its pages.
+    assert.ok(pages.get("/admin/membership")?.heads.includes("features/admin/MembershipConsole.tsx"));
+    assert.ok(
+      pages
+        .get("/admin/admissions/forms/[roundId]/programmes/[programmeId]/setup")
+        ?.heads.some((file) => file.endsWith("(tabs)/layout.tsx")),
+      "a head drawn by a layout beneath the admin area's own was not found for a page inside it",
+    );
+    // And a head that is only written about, in a comment, is not one.
+    assert.ok(!DRAWS_A_HEAD.test(codeOf(join(SRC, "layout", "appNav.ts"))), "appNav.ts names <h1> in a comment only");
+  });
+
+  test("a page marked ownHead draws a head, or it would have no heading at all", () => {
+    const headless = [...pages]
+      .filter(([, page]) => page.marked && page.heads.length === 0)
+      .map(([route, page]) => `${route} (under "${page.entry.label}")`);
+    assert.deepEqual(
+      headless,
+      [],
+      "these admin pages sit under an entry marked `ownHead` in src/layout/appNav.ts, so the shared " +
+        "head draws no heading for them, and nothing they put on the screen draws one either " +
+        "(no <PageHead and no <h1 in the page, its layouts or what they import). Give the page a " +
+        "head with PageHead (its own name as the title, the section as the crumb), or take the " +
+        "mark off its entry:\n  " + headless.join("\n  "),
+    );
+  });
+
+  test("a page not marked draws no head, or it would have two", () => {
+    const doubled = [...pages]
+      .filter(([route, page]) => !page.marked && page.heads.length > 0 && !(route in SECOND_HEADING_STILL_DRAWN))
+      .map(([route, page]) => `${route} (under "${page.entry?.label ?? "no entry"}") draws one in ${page.heads.join(", ")}`);
+    assert.deepEqual(
+      doubled,
+      [],
+      "these admin pages draw a head of their own (a <PageHead or an <h1 in the page, its layouts " +
+        "or what they import), and their entry in src/layout/appNav.ts is not marked `ownHead`, so " +
+        "the shared head draws a second <h1> above it. Mark the entry `ownHead: true` if every " +
+        "page under its address draws its own head, or step this page's heading down a level:\n  " +
+        doubled.join("\n  "),
+    );
+  });
+
+  test("every page still listed with a second heading is one, and says why", () => {
+    const stale = Object.keys(SECOND_HEADING_STILL_DRAWN).filter((route) => {
+      const page = pages.get(route);
+      return !page || page.marked || page.heads.length === 0;
+    });
+    assert.deepEqual(
+      stale,
+      [],
+      "these SECOND_HEADING_STILL_DRAWN entries are no longer true (the page is gone, its entry is " +
+        "marked, or it stopped drawing a head). Delete them:\n  " + stale.join("\n  "),
+    );
+    for (const [route, why] of Object.entries(SECOND_HEADING_STILL_DRAWN)) {
+      assert.ok(typeof why === "string" && why.length > 40, `${route}: needs a written reason`);
+    }
+  });
+
+  test("the shared head stands down only for a marked page, and draws the page's own name", () => {
+    const tabs = codeOf(join(ADMIN_DIR, "AdminTabs.tsx"));
+    assert.match(
+      tabs,
+      /const pageDrawsHead = !closed && activePage\?\.ownHead === true;/,
+      "the shared head decides whether to draw from the active page's `ownHead` mark, and never stands down while the page beneath is not drawn",
+    );
+    assert.match(
+      tabs,
+      /\{!pageDrawsHead && \(\s*<PageHead\s+className=\{styles\.sharedHead\}\s+crumb=\{section\.label\}\s+title=\{activePage\?\.label \?\? single\?\.label \?\? section\.label\}\s*\/>\s*\)\}/,
+      "the shared head is the section as the crumb and the page's own name as the heading",
+    );
+    assert.equal((tabs.match(/<h1\b/g) ?? []).length, 0, "the shared head draws its heading with PageHead, and no <h1> of its own beside it");
+    assert.equal((tabs.match(/<PageHead\b/g) ?? []).length, 1, "the shared head draws one head");
+    // The one screen where the page beneath is not drawn says so to the head.
+    const layout = codeOf(join(ADMIN_DIR, "layout.tsx"));
+    assert.match(layout, /if \(viewingAs\) \{[\s\S]*?<AdminTabs access=\{access\} closed \/>/, "the closed admin area still has a heading");
+    assert.equal((layout.match(/<AdminTabs access=\{access\} \/>/g) ?? []).length, 1, "the open admin area leaves the head to the page that is marked");
   });
 });

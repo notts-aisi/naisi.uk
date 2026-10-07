@@ -185,6 +185,14 @@ const CALL_SITES = new Map([
     },
   ],
   [
+    "useMembers in src/features/admin/MemberPage.tsx",
+    {
+      kind: "page-tree",
+      reason:
+        "One person's page finds the account on the same roster the list reads. Mounted only by /admin/members/[uid], inside the `(admin-only)` group, so a full admin and nobody else; the import walk below is what proves nothing else mounts it.",
+    },
+  ],
+  [
     "useMembers in src/features/courses/RunEditor.tsx",
     {
       kind: "mounted-child",

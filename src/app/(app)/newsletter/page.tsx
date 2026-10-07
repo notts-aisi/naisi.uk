@@ -1,48 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import Badge from "@/components/ui/Badge";
-import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
+import Notice from "@/components/ui/Notice";
 import { useAuth } from "@/auth/AuthProvider";
+import DraftRail, { type RailGroup, type RailRow } from "@/features/newsletter/DraftRail";
 import { deleteDraft } from "@/features/newsletter/draftMutations";
 import { useDrafts } from "@/features/newsletter/useDrafts";
-import {
-  DRAFT_STATUS_LABEL,
-  type DraftStatus,
-  type NewsletterDraft,
-} from "@/lib/firestore/newsletterDrafts";
+import { dayOf, momentOf, reachOf, statusTone } from "@/features/newsletter/draftWords";
+import { DRAFT_STATUS_LABEL, type NewsletterDraft } from "@/lib/firestore/newsletterDrafts";
 import {
   canApproveNewsletter,
   canDraftNewsletter,
 } from "@/lib/firestore/users";
 import styles from "./newsletter.module.css";
-
-function statusTone(status: DraftStatus): "neutral" | "accent" | "success" | "danger" | "warning" {
-  switch (status) {
-    case "draft":
-      return "neutral";
-    case "pending":
-      return "warning";
-    case "approved":
-      return "accent";
-    case "sent":
-      return "success";
-    case "rejected":
-      return "danger";
-  }
-}
-
-function formatDate(d: Date | null | undefined): string {
-  if (!d) return "—";
-  return d.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 export default function NewsletterListPage() {
   const { user, role, permissions } = useAuth();
@@ -79,69 +49,62 @@ export default function NewsletterListPage() {
     [activeDrafts, user],
   );
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-      <div className={styles.header}>
-        <div>
-          <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
-            {canApprove
-              ? "You can draft, review, and send newsletters."
-              : canDraft
-                ? "You can draft newsletters and submit them for admin review."
-                : "Read-only view."}
-          </p>
-        </div>
-        {canDraft && (
-          <Link href="/newsletter/new">
-            <Button>New draft</Button>
-          </Link>
-        )}
-      </div>
+  const groups: RailGroup[] = [];
+  if (canApprove && pendingDrafts.length > 0) {
+    groups.push({
+      key: "pending",
+      label: "Pending your review",
+      count: pendingDrafts.length,
+      tone: "warning",
+      rows: pendingDrafts.map(rowOf),
+    });
+  }
+  groups.push({
+    key: "mine",
+    label: "Your drafts",
+    count: mine.length,
+    rows: mine.map(rowOf),
+    empty: canDraft
+      ? "You haven't started any drafts yet."
+      : "You don't have permission to draft newsletters.",
+  });
+  if (othersActive.length > 0) {
+    groups.push({
+      key: "others",
+      label: canApprove ? "Other drafts in progress" : "Committee drafts in progress",
+      count: othersActive.length,
+      rows: othersActive.map(rowOf),
+    });
+  }
 
+  return (
+    <div className={styles.stack}>
       {error && (
-        <Card padding="md">
-          <p style={{ color: "var(--color-danger)" }}>Couldn&apos;t load drafts: {error.message}</p>
-        </Card>
+        <Notice tone="warning" role="alert">
+          Couldn&apos;t load drafts: {error.message}
+        </Notice>
       )}
 
       {deleteError && (
-        <Card padding="md">
-          <p style={{ color: "var(--color-danger)", margin: 0 }}>Delete failed: {deleteError}</p>
-        </Card>
+        <Notice tone="warning" role="alert">
+          Delete failed: {deleteError}
+        </Notice>
       )}
 
       {loading ? (
-        <Card padding="md">
-          <p style={{ color: "var(--color-text-muted)" }}>Loading drafts…</p>
-        </Card>
+        <p className={styles.muted}>Loading drafts…</p>
       ) : (
-        <>
-          {canApprove && pendingDrafts.length > 0 && (
-            <Section title={`Pending your review (${pendingDrafts.length})`} tone="warning">
-              <DraftList drafts={pendingDrafts} />
-            </Section>
-          )}
-
-          <Section title="Your drafts">
-            {mine.length === 0 ? (
-              <EmptyCard message={canDraft ? "You haven't started any drafts yet." : "You don't have permission to draft newsletters."} />
-            ) : (
-              <DraftList drafts={mine} />
-            )}
-          </Section>
-
-          {othersActive.length > 0 && (
-            <Section title={canApprove ? "Other drafts in progress" : "Committee drafts in progress"}>
-              <DraftList drafts={othersActive} />
-            </Section>
-          )}
-
+        <div className={styles.listGrid}>
+          <DraftRail ariaLabel="Drafts" groups={groups} />
           {sentDrafts.length > 0 && (
-            <Section title="Recently sent">
-              <DraftList drafts={sentDrafts.slice(0, 10)} />
-            </Section>
+            <DraftRail
+              ariaLabel="Sent newsletters"
+              groups={[
+                { key: "sent", label: "Recently sent", rows: sentDrafts.slice(0, 10).map(rowOf) },
+              ]}
+            />
           )}
-        </>
+        </div>
       )}
     </div>
   );
@@ -166,81 +129,52 @@ export default function NewsletterListPage() {
     }
   }
 
-  function DraftList({ drafts: rows }: { drafts: NewsletterDraft[] }) {
-    return (
-      <div className={styles.list}>
-        {rows.map((d) => {
-          const canDeleteSent =
-            d.status === "sent" && (role === "admin" || d.authorUid === user?.uid);
-          return (
-            <div key={d.id} className={styles.row}>
-              <Link href={`/newsletter/${d.id}`} className={styles.rowLink}>
-                <div className={styles.rowMain}>
-                  <div className={styles.subject}>
-                    {d.subject || <span className={styles.muted}>(no subject)</span>}
-                  </div>
-                  <div className={styles.meta}>
-                    <Badge tone={statusTone(d.status)}>{DRAFT_STATUS_LABEL[d.status]}</Badge>
-                    <span className={styles.author}>
-                      {d.authorUid === user?.uid ? "You" : d.authorDisplayName ?? "Someone"}
-                    </span>
-                    <span className={styles.muted}>· updated {formatDate(d.updatedAt)}</span>
-                    {d.status === "sent" && d.sentCount != null && (
-                      <span className={styles.muted}>
-                        ·{" "}
-                        {d.subscribersReached != null
-                          ? `${d.subscribersReached} subscriber${d.subscribersReached === 1 ? "" : "s"} (${d.sentCount} email${d.sentCount === 1 ? "" : "s"})`
-                          : `${d.sentCount} email${d.sentCount === 1 ? "" : "s"}`}
-                      </span>
-                    )}
-                  </div>
-                  {d.status === "rejected" && d.reviewerNotes && (
-                    <p className={styles.rejectNote}>Reviewer note: {d.reviewerNotes}</p>
-                  )}
-                </div>
-              </Link>
-              {canDeleteSent && (
-                <button
-                  type="button"
-                  onClick={() => void onDeleteSent(d)}
-                  disabled={deletingId === d.id}
-                  className={styles.rowDelete}
-                  aria-label={`Delete sent edition: ${d.subject || "no subject"}`}
-                >
-                  {deletingId === d.id ? "Deleting…" : "Delete"}
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    );
+  /** One draft as a row of the list: its words, its chip and, for a sent edition, its delete button. */
+  function rowOf(d: NewsletterDraft): RailRow {
+    const canDeleteSent =
+      d.status === "sent" && (role === "admin" || d.authorUid === user?.uid);
+    const own = d.authorUid === user?.uid;
+    const who = own ? "You" : d.authorDisplayName ?? "Someone";
+    const sent = d.status === "sent";
+    const when = sent ? d.sentAt ?? d.updatedAt : d.updatedAt;
+    const reach = reachOf(d);
+    return {
+      id: d.id,
+      href: `/newsletter/${d.id}`,
+      title: d.subject || <span className={styles.muted}>(no subject)</span>,
+      chip:
+        d.status === "draft" || sent
+          ? undefined
+          : { tone: statusTone(d.status), label: DRAFT_STATUS_LABEL[d.status] },
+      line: sent ? (
+        <>
+          {when && (
+            <span className="meta" title={momentOf(when)}>
+              {dayOf(when)}
+            </span>
+          )}
+          {reach && <span>{reach}</span>}
+          <span>· by {own ? "you" : who}</span>
+        </>
+      ) : (
+        <>
+          <span>{who}</span>
+          {when && <span title={momentOf(when)}>· edited {dayOf(when)}</span>}
+        </>
+      ),
+      note:
+        d.status === "rejected" && d.reviewerNotes ? <>Reviewer note: {d.reviewerNotes}</> : undefined,
+      action: canDeleteSent ? (
+        <button
+          type="button"
+          onClick={() => void onDeleteSent(d)}
+          disabled={deletingId === d.id}
+          className={styles.rowDelete}
+          aria-label={`Delete sent edition: ${d.subject || "no subject"}`}
+        >
+          {deletingId === d.id ? "Deleting…" : "Delete"}
+        </button>
+      ) : undefined,
+    };
   }
-}
-
-function Section({
-  title,
-  tone,
-  children,
-}: {
-  title: string;
-  tone?: "warning";
-  children: React.ReactNode;
-}) {
-  return (
-    <section>
-      <h2 className={`${styles.sectionTitle} ${tone === "warning" ? styles.sectionWarn : ""}`}>
-        {title}
-      </h2>
-      {children}
-    </section>
-  );
-}
-
-function EmptyCard({ message }: { message: string }) {
-  return (
-    <Card padding="md">
-      <p style={{ color: "var(--color-text-muted)", margin: 0 }}>{message}</p>
-    </Card>
-  );
 }

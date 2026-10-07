@@ -1,17 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import ResponsiveSelect, {
-  type ResponsiveSelectOption,
-} from "@/components/ui/ResponsiveSelect";
+import Chip from "@/components/ui/Chip";
+import InitialsChip from "@/components/ui/InitialsChip";
+import SegmentedControl, { type SegmentedOption } from "@/components/ui/SegmentedControl";
 import Switch from "@/components/ui/Switch";
+import { formatSiteDate } from "@/lib/datetime/siteTime";
 import {
+  ALL_MEMBERSHIP_TIERS,
   MEMBERSHIP_TIER_LABELS,
   type MembershipTier,
 } from "@/lib/firestore/memberships";
+import { AdminSearch, AdminTable } from "./adminList";
 import TierControl from "./TierControl";
 import {
   deriveCounts,
@@ -41,19 +42,25 @@ import styles from "./MembershipTable.module.css";
  *
  * ## Wide content scrolls inside itself
  *
- * The authed shell must never scroll horizontally, so the table has its own
- * `overflow-x: auto` container. Six columns of names and addresses do not fit
- * a phone and are not meant to.
+ * The signed-in frame must never scroll sideways, so the table sits in a card
+ * that scrolls inside itself. On a phone each row is a small card instead.
  */
 
-const TIER_FILTERS: ResponsiveSelectOption<MembershipTier | "all" | "untagged">[] = [
-  { value: "all", label: "Every tier" },
-  { value: "paid", label: "Paid" },
-  { value: "comped", label: "Comped" },
-  { value: "alumni", label: "Alumni" },
-  { value: "staff", label: "Staff" },
-  { value: "untagged", label: "Not recorded" },
-];
+/** Which rows the pills above the table show. One choice, because the two
+ *  things it replaces could never both narrow the list: an account that has
+ *  lapsed has nothing recorded, so "lapsed" and a tier never overlap. */
+type Show = MembershipTier | "all" | "untagged" | "lapsed";
+
+/** What the Account column says for each role. A role this build does not
+ *  know is shown as it is stored: the table renders it and never branches on
+ *  it. */
+const ROLE_WORDS: Record<string, string | undefined> = {
+  member: "Member",
+  committee: "Committee",
+  admin: "Admin",
+  pending: "Join request pending",
+  rejected: "Join request turned down",
+};
 
 export default function MembershipTable({
   rows,
@@ -69,95 +76,125 @@ export default function MembershipTable({
   onRowChanged: (uid: string, tier: MembershipTier | null) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [tier, setTier] = useState<MembershipTier | "all" | "untagged">("all");
-  const [onlyLapsed, setOnlyLapsed] = useState(false);
+  const [show, setShow] = useState<Show>("all");
   // Named for the switch: it hides every account that is not approved, which
   // is `pending` AND `rejected`. "Include pending" said half of that.
   const [includeUnapproved, setIncludeUnapproved] = useState(true);
 
   const visible = useMemo(
-    () => filterMembershipRows(rows, { query, tier, onlyLapsed, includeUnapproved }),
-    [rows, query, tier, onlyLapsed, includeUnapproved],
+    () =>
+      filterMembershipRows(rows, {
+        query,
+        tier: show === "lapsed" ? "all" : show,
+        onlyLapsed: show === "lapsed",
+        includeUnapproved,
+      }),
+    [rows, query, show, includeUnapproved],
   );
-  const derived = useMemo(() => deriveCounts(rows), [rows]);
+
+  // What each pill would show, counted from the accounts loaded here and the
+  // switch below, and never from the search box: a count that moved as
+  // somebody typed would be a count of nothing in particular.
+  const options = useMemo(() => {
+    const pool = filterMembershipRows(rows, { includeUnapproved });
+    const derived = deriveCounts(pool);
+    const count = (tier: MembershipTier) => pool.filter((row) => row.tier === tier).length;
+    const list: SegmentedOption<Show>[] = [
+      { value: "all", label: `All · ${pool.length}` },
+      ...ALL_MEMBERSHIP_TIERS.map<SegmentedOption<Show>>((tier) => ({
+        value: tier,
+        label: `${MEMBERSHIP_TIER_LABELS[tier]} · ${count(tier)}`,
+      })),
+      { value: "untagged", label: `Not recorded · ${derived.untagged}` },
+      {
+        value: "lapsed",
+        label: `Lapsed · ${derived.lapsed}`,
+        title: "Recorded for the year before this one, and not for this one",
+      },
+    ];
+    return list;
+  }, [rows, includeUnapproved]);
 
   return (
     <div className={styles.wrap}>
       <div className={styles.filters}>
-        <label className={styles.field} htmlFor="membership-search">
-          <span className={styles.fieldLabel}>Search</span>
-          <Input
-            id="membership-search"
-            data-testid="membership-search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Name or email"
-          />
-        </label>
-        <label className={styles.field} htmlFor="membership-tier">
-          <span className={styles.fieldLabel}>Tier</span>
-          <ResponsiveSelect<MembershipTier | "all" | "untagged">
-            id="membership-tier"
-            value={tier}
-            onChange={setTier}
-            options={TIER_FILTERS}
-            ariaLabel="Filter by tier"
-          />
-        </label>
-        <div className={styles.toggles}>
-          <Switch
-            checked={onlyLapsed}
-            onChange={setOnlyLapsed}
-            label="Lapsed only"
-            description="Recorded last period, not this one"
-          />
-          <Switch
-            checked={includeUnapproved}
-            onChange={setIncludeUnapproved}
-            label="Include unapproved accounts"
-            description="People waiting for approval, and people turned down"
-          />
-        </div>
+        <SegmentedControl<Show>
+          ariaLabel="Which members to show"
+          value={show}
+          onChange={setShow}
+          options={options}
+          size="sm"
+        />
+        <AdminSearch
+          id="membership-search"
+          data-testid="membership-search"
+          label="Search members"
+          className={styles.search}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
       </div>
 
-      <p className={styles.counts}>
-        {visible.length} of {rows.length} accounts shown. {derived.untagged} with
-        nothing recorded for this period, {derived.lapsed} lapsed since the period
-        before it.
-      </p>
+      <Switch
+        checked={includeUnapproved}
+        onChange={setIncludeUnapproved}
+        label="Include accounts that aren’t approved"
+        description="People waiting on a join request, and people turned down"
+      />
+
       {truncated && (
         <p className={styles.warning}>
-          There are more accounts than this page will load. The counts above
-          describe what is loaded, not the whole society.
+          There are more accounts than this page will load. The counts on the pills describe what
+          is loaded, not the whole society.
         </p>
       )}
 
-      <div className={styles.tableScroll}>
-        <div className={styles.table}>
-          <div className={styles.headRow}>
-            <span>Name</span>
-            <span>Email</span>
-            <span>University email</span>
-            <span>Role</span>
-            <span>Membership</span>
-            <span>Recorded</span>
-          </div>
-          {loading && rows.length === 0 ? (
-            <p className={styles.muted}>Loading accounts…</p>
-          ) : visible.length === 0 ? (
-            <p className={styles.muted}>No accounts match that.</p>
-          ) : (
-            visible.map((row) => (
+      {loading && rows.length === 0 ? (
+        <p className={styles.muted}>Loading accounts…</p>
+      ) : visible.length === 0 ? (
+        <p className={styles.muted}>No accounts match that.</p>
+      ) : (
+        <AdminTable caption="Members" minWidth="56rem" stackOnPhone>
+          <thead>
+            <tr>
+              <th scope="col" style={{ width: "23%" }}>
+                Name
+              </th>
+              <th scope="col" style={{ width: "25%" }}>
+                Email
+              </th>
+              <th scope="col" style={{ width: "13%" }}>
+                Account
+              </th>
+              <th scope="col" style={{ width: "10%" }}>
+                Type
+              </th>
+              <th scope="col">Recorded</th>
+              <th scope="col">
+                <span className={styles.srOnly}>Change</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((row) => (
               <Row
                 key={row.uid}
                 row={row}
                 periodId={periodId}
                 onChanged={(next) => onRowChanged(row.uid, next)}
               />
-            ))
-          )}
-        </div>
-      </div>
+            ))}
+          </tbody>
+        </AdminTable>
+      )}
+
+      <p className={styles.counts}>
+        Showing {visible.length} of {rows.length} accounts, counted from the accounts loaded here.
+        Lapsed means recorded for the year before this one and not for this one.
+      </p>
+      <p className={styles.counts}>
+        Downloading the CSV is recorded: who took it, which year, and how many people were in it.
+      </p>
     </div>
   );
 }
@@ -172,71 +209,97 @@ function Row({
   onChanged: (next: MembershipTier | null) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const name = row.displayName || "No name";
   return (
-    <div className={styles.row} data-testid="membership-row">
-      <div className={styles.cell}>
-        {/* A display name is member-authored text and is rendered as a text
-            node, never as markup. */}
-        <span className={styles.name}>{row.displayName || "No name"}</span>
-        {row.preferredName && row.preferredName !== row.displayName && (
-          <span className={styles.sub}>Goes by {row.preferredName}</span>
-        )}
-      </div>
-      <span className={styles.cellText}>{row.email || "none"}</span>
-      <span className={styles.cellText}>
-        {row.universityEmail || "none"}
-        {row.universityEmail && !row.uniEmailVerified && (
-          <span className={styles.sub}>not verified</span>
-        )}
-      </span>
-      <span className={styles.cellText}>{row.role}</span>
-      <div className={styles.cell} data-testid="membership-row-tier">
+    <tr data-testid="membership-row">
+      <td>
+        <div className={styles.person}>
+          <InitialsChip name={name} uid={row.uid} size="lg" />
+          <div className={styles.personText}>
+            {/* A display name is member-authored text and is rendered as a text
+                node, never as markup. */}
+            <span className={styles.name}>{name}</span>
+            {/* Said only when it tells somebody something: not when it is the
+                first word of the name above it. */}
+            {row.preferredName && !row.displayName.startsWith(row.preferredName) && (
+              <span className={styles.sub}>Goes by {row.preferredName}</span>
+            )}
+          </div>
+        </div>
+      </td>
+      <td data-label="Email">
+        <div className={styles.emails}>
+          <span>{row.email || "No sign-in email"}</span>
+          {row.universityEmail && row.universityEmail !== row.email && (
+            <span className={styles.sub}>
+              {row.universityEmail}
+              {!row.uniEmailVerified && ", not verified"}
+            </span>
+          )}
+        </div>
+      </td>
+      <td data-label="Account">
+        <span className={styles.cellText}>{ROLE_WORDS[row.role] ?? row.role}</span>
+      </td>
+      <td data-label="Type" data-testid="membership-row-tier">
         {row.tier ? (
-          <Badge tone={row.tier === "alumni" ? "neutral" : "success"}>
+          <Chip tone={row.tier === "alumni" ? "neutral" : "success"}>
             {MEMBERSHIP_TIER_LABELS[row.tier]}
-          </Badge>
+          </Chip>
         ) : row.lapsed ? (
-          <Badge tone="warning" title="Recorded for the period before this one">
+          <Chip tone="warning" title="Recorded for the year before this one">
             Lapsed
-          </Badge>
+          </Chip>
         ) : (
-          <Badge tone="neutral">Not recorded</Badge>
+          <Chip tone="neutral">Not recorded</Chip>
         )}
-      </div>
-      <div className={styles.cell}>
-        <span className={styles.cellText} title={provenanceTitle(row)}>
-          {provenanceLine(row)}
-        </span>
-        <Button
-          size="sm"
-          variant="ghost"
-          data-testid="membership-row-change"
-          onClick={() => setOpen((v) => !v)}
-        >
-          {open ? "Close" : "Change"}
-        </Button>
-        {open && (
-          <TierControl
-            uid={row.uid}
-            periodId={periodId}
-            tier={row.tier}
-            onChanged={(next) => {
-              onChanged(next);
-              setOpen(false);
-            }}
-          />
+      </td>
+      <td data-label="Recorded">
+        {/* Nothing at all when nothing is recorded, so the cell is empty and a
+            phone's card leaves the line out. */}
+        {row.tier && (
+          <span className={styles.cellText} title={provenanceTitle(row)}>
+            {provenanceLine(row)}
+          </span>
         )}
-      </div>
-    </div>
+      </td>
+      <td className={styles.changeCell}>
+        <div className={styles.change}>
+          <Button
+            size="sm"
+            variant="ghost"
+            data-testid="membership-row-change"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
+            {open ? "Close" : "Change"}
+          </Button>
+          {open && (
+            <TierControl
+              uid={row.uid}
+              periodId={periodId}
+              tier={row.tier}
+              onChanged={(next) => {
+                onChanged(next);
+                setOpen(false);
+              }}
+            />
+          )}
+        </div>
+      </td>
+    </tr>
   );
 }
 
-/** The short line under the membership: where it came from and when. */
+/** The short line beside the membership: where it came from, who recorded it and when. */
 function provenanceLine(row: MembershipListRow): string {
   if (!row.tier) return "";
-  const when = row.recordedAt ? new Date(row.recordedAt).toLocaleDateString("en-GB") : "";
-  const how = row.source === "su-import" ? "SU import" : "recorded by hand";
-  return when ? `${how}, ${when}` : how;
+  const when = row.recordedAt
+    ? formatSiteDate(new Date(row.recordedAt), { weekday: "short", day: "numeric", month: "short" })
+    : "";
+  const how =
+    row.source === "su-import" ? "SU list" : ["By hand", row.recordedByName].filter(Boolean).join(" · ");
+  return when ? `${how} · ${when}` : how;
 }
 
 /**

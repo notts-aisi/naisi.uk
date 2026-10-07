@@ -1,36 +1,28 @@
+/* The year an admin is looking at: a label and a select, at the right of the
+   year card's head. */
+
 .wrap {
   display: flex;
-  align-items: flex-end;
-  gap: var(--space-3);
-  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .field {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 16rem;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .fieldLabel {
+  flex: none;
   color: var(--color-text-muted);
   font-size: var(--text-sm);
 }
 
-.note {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  max-width: 32rem;
-  padding-bottom: var(--space-2);
-}
-
-@media (max-width: 48rem) {
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .wrap,
   .field {
-    min-width: 0;
     width: 100%;
-  }
-
-  .note {
-    padding-bottom: 0;
   }
 }

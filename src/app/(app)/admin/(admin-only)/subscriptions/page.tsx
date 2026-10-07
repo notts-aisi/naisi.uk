@@ -1,18 +1,15 @@
 import { AdminPage } from "@/features/admin/adminList";
 import SubscriptionsTable from "@/features/admin/SubscriptionsTable";
 
+/**
+ * The mailing list: who gets which emails. The table of every row, and the
+ * head of the page with its counts, are the client component's, because both
+ * are drawn from the rows it reads.
+ */
 export default function SubscriptionsAdminPage() {
   return (
-    <AdminPage>
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
-        <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
-          Every subscription row in the junction collection: members and
-          homepage guests, all channels. Confirmation status, audience type,
-          and source are all visible here. Use the filters to scope the list,
-          the CSV export to grab whatever&apos;s currently filtered.
-        </p>
-        <SubscriptionsTable />
-      </div>
+    <AdminPage wide>
+      <SubscriptionsTable />
     </AdminPage>
   );
 }
