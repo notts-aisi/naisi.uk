@@ -7,7 +7,9 @@ import type { SessionUser } from "@/lib/firebase/session";
 import { projectFormForApplicant } from "@/lib/applications/applicant/project";
 import { loadApplicantView, loadVisibleForm } from "@/lib/applications/applicant/store";
 import type { ApplicantApplication, ApplicantForm } from "@/lib/applications/applicant/types";
+import { loadForm } from "@/lib/applications/repo";
 import ApplicationForm from "./ApplicationForm";
+import { closedOnLabel } from "./closedOn";
 import JoinFirst from "./JoinFirst";
 import { isStepId } from "./steps";
 import styles from "./form.module.css";
@@ -78,11 +80,14 @@ function NotYet({ form, signedIn, returnTo }: { form: ApplicantForm; signedIn: b
 
 function Closed({
   form,
+  closedOn,
   application,
   signedIn,
   returnTo,
 }: {
   form: ApplicantForm;
+  /** The day applications closed, or null when an admin closed them before the day on the form. */
+  closedOn: string | null;
   application: ApplicantApplication | null;
   signedIn: boolean;
   returnTo: string;
@@ -99,9 +104,9 @@ function Closed({
       }
     >
       <p className={styles.stateBody}>
-        {form.closesLabel ? (
+        {closedOn ? (
           <>
-            {form.label} applications closed on <span className={styles.together}>{form.closesLabel}</span>.
+            {form.label} applications closed on <span className={styles.together}>{closedOn}</span>.
           </>
         ) : (
           `${form.label} applications have closed.`
@@ -164,7 +169,13 @@ export async function renderApplicationForm({
         ) : form.windowState === "not-yet" ? (
           <NotYet form={form} signedIn={false} returnTo={returnTo} />
         ) : (
-          <Closed form={form} application={null} signedIn={false} returnTo={returnTo} />
+          <Closed
+            form={form}
+            closedOn={closedOnLabel(loaded.form.round.closesAt, form.closesLabel, now)}
+            application={null}
+            signedIn={false}
+            returnTo={returnTo}
+          />
         )}
       </ApplicationsRoot>
     );
@@ -191,6 +202,9 @@ export async function renderApplicationForm({
 
   const view = await loadApplicantView(db, roundId, user.uid, now);
   if (!view) return null;
+  // Only a closed form asks when it closed, so only a closed form reads its time.
+  const stored = view.form.windowState === "closed" ? await loadForm(db, roundId) : null;
+  const closedOn = closedOnLabel(stored?.round.closesAt ?? null, view.form.closesLabel, now);
 
   return (
     <ApplicationsRoot className={`${styles.tokens} ${styles.root}`}>
@@ -207,7 +221,13 @@ export async function renderApplicationForm({
       ) : view.form.windowState === "not-yet" ? (
         <NotYet form={view.form} signedIn returnTo={returnTo} />
       ) : (
-        <Closed form={view.form} application={view.application} signedIn returnTo={returnTo} />
+        <Closed
+          form={view.form}
+          closedOn={closedOn}
+          application={view.application}
+          signedIn
+          returnTo={returnTo}
+        />
       )}
     </ApplicationsRoot>
   );
