@@ -295,6 +295,16 @@ export default function JoinStep({
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
+  // A page drawn afresh always opens on the answers: agreeing is never
+  // restored, and only Continue opens the second half. Somebody who comes
+  // Back to this page from the sign-in page arrives at an address that still
+  // says the second half, so the address is put right, in the same history
+  // entry, and the address and the view agree.
+  useEffect(() => {
+    if (window.location.hash !== ACCOUNT_HASH) return;
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+  }, []);
+
   const openAccount = useCallback(() => {
     if (window.location.hash !== ACCOUNT_HASH) {
       window.history.pushState(null, "", `${window.location.pathname}${window.location.search}${ACCOUNT_HASH}`);

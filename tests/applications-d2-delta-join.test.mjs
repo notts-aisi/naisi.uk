@@ -1006,6 +1006,33 @@ describe("the join step keeps to them", () => {
     assert.match(step, /router\.replace\(`\$\{formUrl\}\?\$\{STEP_PARAM\}=choose`\)/);
   });
 
+  test("a page drawn afresh opens on the answers, and its address is made to say so", () => {
+    // HELD BY READING THE FILE. The step is a component in a browser's
+    // history, and nothing here can press Back.
+    //
+    // The second half is one step forward of the first in the browser's own
+    // history, at an address ending `#account`. The view is never restored
+    // from that address (agreeing is a fresh act, and only Continue opens the
+    // second half), so somebody who comes Back to the page from the sign-in
+    // page is drawn the answers. The address is put right to match, in the
+    // same history entry: nothing is added to the history and no document is
+    // loaded.
+    const step = codeOf("JoinStep.tsx");
+    assert.match(step, /const ACCOUNT_HASH = "#account";/);
+    assert.match(step, /const \[view, setView\] = useState<View>\("questions"\);/);
+    assert.match(
+      step,
+      /useEffect\(\(\) => \{\s*if \(window\.location\.hash !== ACCOUNT_HASH\) return;\s*window\.history\.replaceState\(null, "", `\$\{window\.location\.pathname\}\$\{window\.location\.search\}`\);\s*\}, \[\]\);/,
+    );
+    // The one entry the step adds is the second half's, and the one it
+    // rewrites is this.
+    assert.equal((step.match(/history\.pushState\(/g) ?? []).length, 1);
+    assert.equal((step.match(/history\.replaceState\(/g) ?? []).length, 1);
+    // The view is opened in one place and closed in two, and none of them reads the address to decide.
+    assert.equal((step.match(/setView\("account"\)/g) ?? []).length, 1);
+    assert.equal((step.match(/setView\("questions"\)/g) ?? []).length, 2);
+  });
+
   test("Google's script and the reCAPTCHA check load with the second half, not with the page", () => {
     const account = codeOf("JoinAccount.tsx");
     assert.match(account, /<Script src=\{GOOGLE_SCRIPT\} strategy="afterInteractive" \/>/);
