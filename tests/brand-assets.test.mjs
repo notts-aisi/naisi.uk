@@ -24,7 +24,9 @@
  *     it;
  *   - an email logo or a link-preview card wired in a way that cannot work:
  *     an SVG in an email, a logo on the wrong ground, a root layout that
- *     overrides the generated card.
+ *     overrides the generated card;
+ *   - an email that does not tell a mail app it is light, so that dark mode
+ *     darkens the card under the logo's navy ink.
  *
  * Each of those reaches a real device silently. None of them fails a build.
  */
@@ -694,6 +696,10 @@ test("the email logo is the picture made for email: a PNG, sharp at the width it
   );
   // 600px is the card's widest; its padding is 32px a side.
   assert.ok(logoWidth <= 600 - 2 * 32, "the logo is wider than the card's content");
+  // The two checks above say what the width may be. What it IS was decided:
+  // 220, where the README beside the artwork suggests 300. A change to it is
+  // a change of mind, made here as well as in the chrome.
+  assert.equal(logoWidth, 220, `the email logo is shown ${logoWidth}px wide, and the width decided for it is 220`);
 });
 
 test("the email logo is the lockup made for the ground the card gives it", async () => {
@@ -729,9 +735,61 @@ test("the chrome shows the logo by absolute address, at its declared width, with
   assert.match(source, /const APP_URL = process\.env\.NEXT_PUBLIC_APP_URL \?\? "https:\/\/naisi\.uk";/);
   assert.match(logo, /width=\{LOGO_WIDTH\}/, "the width a mail client is told is the one the picture is checked against above");
   assert.match(logo, /alt="Nottingham AI Safety Initiative"/, "with pictures off, the name is what a reader sees");
-  // The picture is 600 by 261: at 300 wide its height is 130.5, and either
+  // The picture is 600 by 261: at 220 wide its height is 95.7, and either
   // whole number squeezes it. Left out, a mail client works it out.
   assert.doesNotMatch(logo, /\bheight=/, "a height attribute on the logo squeezes it");
+});
+
+test("the chrome tells a mail app the email is light, under both names mail apps read", () => {
+  // The logo is navy ink on a white card. A mail app in dark mode that
+  // darkened the card and left the picture alone would put that ink on a
+  // dark ground, where it does not read. Declaring the email light, and only
+  // light, asks the app to leave the card as it is.
+  const source = strip(readFileSync(at("src/emails/EmailChrome.tsx"), "utf8"));
+  const heads = [...source.matchAll(/<Head\b[^>]*?(?:\/>|>([\s\S]*?)<\/Head>)/g)];
+  assert.equal(heads.length, 1, "the chrome builds one head, which every email on it gets");
+  const tags = [...(heads[0][1] ?? "").matchAll(/<meta\b([^>]*?)\/>/g)].map((m) => m[1]);
+  for (const name of ["color-scheme", "supported-color-schemes"]) {
+    const named = tags.filter((attributes) => attributes.includes(`name="${name}"`));
+    assert.equal(named.length, 1, `the chrome's head should carry one <meta name="${name}">, and carries ${named.length}`);
+    assert.match(named[0], /\bcontent="light"/, `<meta name="${name}"> does not say the email is light`);
+  }
+});
+
+/*
+ * Emails that build a document of their own and are not on the chrome, each
+ * with the reason. They carry no logo and do not tell a mail app they are
+ * light. A new email is built on the chrome, which gives it both; one is
+ * listed here only by a decision about that email.
+ */
+const EMAILS_WITH_THEIR_OWN_DOCUMENT = {
+  "src/emails/EventRsvpEmail.tsx":
+    "Every email about one person's RSVP. Headed by the event's title, in a layout of its own; left as it is when the chrome took the logo.",
+  "src/emails/EventUpdateEmail.tsx":
+    "An organiser's message to the people coming to an event. Headed by the event's title, in a layout of its own; left as it is when the chrome took the logo.",
+  "src/emails/EventCancelledEmail.tsx":
+    "The notice that an event is cancelled. Headed by the event's title, in a layout of its own; left as it is when the chrome took the logo.",
+  "src/emails/TestEmail.tsx":
+    "The admin's test of the sending pipeline: a heading and three lines, addressed to the admin who pressed the button.",
+};
+
+test("every email is built on the chrome, or is listed as building a document of its own", () => {
+  const chrome = "src/emails/EmailChrome.tsx";
+  // An email document is whatever renders the mail library's <Html>.
+  const builders = walk("src")
+    .filter((file) => /\.(?:tsx|jsx)$/.test(file))
+    .filter((file) => /<Html\b/.test(strip(readFileSync(at(file), "utf8"))));
+  assert.ok(builders.includes(chrome), `${chrome} no longer builds the document: this check has lost the thing it holds the others to`);
+  assert.deepEqual(
+    builders.filter((file) => file !== chrome && !(file in EMAILS_WITH_THEIR_OWN_DOCUMENT)),
+    [],
+    "These build an email document of their own. Build the email on EmailChrome, which carries the logo and tells a mail app " +
+      "the email is light, or list the file in EMAILS_WITH_THEIR_OWN_DOCUMENT with the reason.",
+  );
+  for (const [file, reason] of Object.entries(EMAILS_WITH_THEIR_OWN_DOCUMENT)) {
+    assert.ok(builders.includes(file), `${file} is listed as building a document of its own and does not. Remove the entry.`);
+    assert.ok(typeof reason === "string" && reason.length > 20, `${file}: say why it is not on the chrome.`);
+  }
 });
 
 // ---------------------------------------------------------------------------

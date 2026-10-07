@@ -106,7 +106,7 @@ export const OUTPUTS = [
     copy: true,
     why:
       "The logo at the top of every email that uses src/emails/EmailChrome.tsx. A PNG because mail " +
-      "clients do not show SVG; 600px wide and shown at 300 so it is sharp on a dense screen.",
+      "clients do not show SVG; 600px wide and shown at 220, so it is sharp on a dense screen.",
   },
 
   // --- Link previews -------------------------------------------------------
