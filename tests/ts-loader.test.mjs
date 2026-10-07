@@ -405,6 +405,12 @@ const USERS = new Map([
       "each is worked out from stored data and only running it shows the words match",
   ],
   [
+    "applications-roles-in-transaction.test.mjs",
+    "executes the route that names a programme's lead and reviewers against an in-memory " +
+      "store whose documents change before the transaction opens and while it runs, because " +
+      "whether a refusal is decided from what the transaction read is only shown by running it",
+  ],
+  [
     "applications-versions.test.mjs",
     "executes the rules for what a send keeps of the application it replaces " +
       "(src/lib/applications/versions/kept.ts), then the review loaders and builders, the " +

@@ -296,6 +296,15 @@ again every time the role is used (`isNamedWithStanding`), because nothing
 takes a name off a form when its owner's standing changes. Only an admin
 changes a lead. A lead can add and remove their own programme's reviewers.
 
+Naming somebody is an access grant, so both of its questions (is the caller
+this programme's lead, or an admin; is each person named eligible) are asked
+inside the transaction that writes, of the form and the user documents that
+transaction read. A lead who was replaced, or somebody named who stopped
+being eligible, after the request began makes the transaction run again and
+meet the refusal. The same two questions are asked once before it, to answer
+a request that is plainly not allowed without opening a transaction, and that
+earlier answer decides nothing by itself.
+
 The round's `reviewerUids` is kept as the union of every lead and reviewer on
 the form, with the `users.admissionsReviewer` flag that draws the sidebar
 entry, so every existing gate keeps working without knowing about programmes.
@@ -879,6 +888,15 @@ All in `src/lib/applications/`.
 - **A route that serves staff** takes its answer from `access.ts`, after
   `getCurrentUser()` and before any read. A mutating route calls
   `assertNotImpersonating()` first.
+- **A writer asks who may inside the transaction that writes.** A role on a
+  form, a right to read an application and somebody's standing are all read
+  off stored documents, which can change between a read and a write. So a
+  function that writes in a transaction asks them of the documents that
+  transaction read, as `editor/write.ts`, `roles.ts` and `review/decide.ts`
+  do. `tests/applications-roles-in-transaction.test.mjs` walks every function
+  in the library that reaches a transaction and fails one that asks on the
+  way there and not inside. `canRunTerm` is asked of the session alone, so
+  it is not one of them.
 - **A function that is handed an applicant's id asks who may read the
   application before it answers about it.** A right to act on a programme is
   not a right to be told about a person. A new function under `review/` or
