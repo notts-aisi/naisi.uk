@@ -2616,6 +2616,235 @@ describe("every older handler, called with an application form", () => {
   });
 });
 
+/**
+ * NOBODY DECIDES THEIR OWN APPLICATION ON A ROUND OF THE OLDER KIND EITHER.
+ *
+ * The rule is the application form's (`OWN_APPLICATION` in
+ * `src/lib/applications/review/refusals.ts`), and the older decide route
+ * keeps it: an appointment puts the applicant on a run's facilitator list,
+ * and that is somebody else's to give. The route is run here as the round's
+ * decider and as an admin, each with an application of their own on the
+ * round, beside somebody else's.
+ *
+ * Three things are held. The caller's own application is refused and nothing
+ * is written or sent. The refusal is said before anything about the
+ * application is read, so it is the same wherever that application stands.
+ * And it comes after the answers for somebody who may not see the round and
+ * for somebody who may not decide on it, so neither of them is told anything
+ * by it.
+ */
+describe("the decide route never decides the caller's own application", () => {
+  const decide = OLDER_HANDLERS.find((entry) => entry.key === "/api/admissions/rounds/[roundId]/decide");
+  const DECIDER = { uid: "decider-1", role: "committee", suRecognised: true, email: "decider-1@example.com", displayName: "Dee" };
+  const REVIEWER = { uid: "reviewer-1", role: "committee", suRecognised: true, email: "reviewer-1@example.com", displayName: "Rae" };
+  const OUTSIDER = { uid: "outsider-1", role: "member", email: "outsider-1@example.com", displayName: "Oz" };
+  const RUN = "courseRuns/run-1";
+  const OWN_SENTENCE = "You can’t decide your own application. Another decider or an admin has to decide it.";
+  const NOT_THE_DECIDER =
+    "Only this round's final decider or an admin can appoint a facilitator. Reviewers can read the queue.";
+
+  const idOf = (uid) => `${OLDER_ID}__${uid}`;
+  const pathOf = (uid) => `admissionApplications/${idOf(uid)}`;
+  const round = (over = {}) =>
+    roundDoc({
+      kind: "appointment",
+      status: "closed",
+      finalDeciderUid: DECIDER.uid,
+      reviewerUids: [REVIEWER.uid],
+      applicationCounts: { draft: 0, submitted: 4 },
+      ...over,
+    });
+  const application = (uid, over = {}) => ({
+    roundId: OLDER_ID,
+    uid,
+    email: `${uid}@example.com`,
+    displayName: `Applicant ${uid}`,
+    status: "submitted",
+    ...over,
+  });
+  /** An appointment round with a run to appoint onto, and four people who applied to it. */
+  const seeded = (over = {}) => ({
+    [`admissionRounds/${OLDER_ID}`]: round(),
+    [RUN]: { courseTitle: "AI Safety Fundamentals", label: "Autumn 2026", status: "draft", startDate: "2026-10-26", runFacilitatorUids: [] },
+    [pathOf(DECIDER.uid)]: application(DECIDER.uid),
+    [pathOf(ADMIN.uid)]: application(ADMIN.uid),
+    [pathOf(REVIEWER.uid)]: application(REVIEWER.uid),
+    [pathOf("applicant-9")]: application("applicant-9"),
+    ...over,
+  });
+  const appoint = (uid) => ({ applicationId: idOf(uid), decision: "appoint", runId: "run-1", note: "Training is on the 5th." });
+  const decline = (uid) => ({ applicationId: idOf(uid), decision: "decline", note: "Not this time.", reasonShared: true });
+  async function post(user, body, seed = seeded()) {
+    const db = stage({ user, seed });
+    const response = await call({ ...decide, body }, OLDER_ID);
+    return { db, seed, response, sends: globalThis.__fence.sends };
+  }
+  /** Refused in the one sentence, with every document as it was and nothing sent. */
+  function assertRefusedUntouched({ db, seed, response, sends }, what) {
+    assert.deepEqual([response.status, response.body], [403, { error: OWN_SENTENCE }], what);
+    assert.deepEqual(db.writes, [], `${what}: a refused decision wrote something`);
+    assert.deepEqual(sends, [], `${what}: a refused decision sent something`);
+    for (const path of Object.keys(seed)) assert.deepEqual(db.read(path), seed[path], `${what}: ${path} changed`);
+  }
+
+  test("the sentence is the application form's own, and then says who can decide it", async () => {
+    const { OWN_APPLICATION } = await loadTs("lib/applications/review/refusals.ts");
+    assert.ok(OWN_SENTENCE.startsWith(`${OWN_APPLICATION} `), "the first sentence is the one every decision writer answers with");
+    assert.match(OWN_SENTENCE, /Another decider or an admin has to decide it\.$/);
+    assert.ok(!/[\u2013\u2014]/.test(OWN_SENTENCE), "the sentence carries a dash");
+  });
+
+  test("the round's decider is refused their own application, to appoint it and to decline it, and nothing is written", async () => {
+    for (const body of [appoint(DECIDER.uid), decline(DECIDER.uid)]) {
+      assertRefusedUntouched(await post(DECIDER, body), `the decider, ${body.decision}`);
+    }
+  });
+
+  test("an admin is refused their own likewise", async () => {
+    for (const body of [appoint(ADMIN.uid), decline(ADMIN.uid)]) {
+      assertRefusedUntouched(await post(ADMIN, body), `an admin, ${body.decision}`);
+    }
+  });
+
+  test("it is said before anything about the application is read: the same wherever their own application stands", async () => {
+    const stands = {
+      "sent, and undecided": application(DECIDER.uid),
+      "appointed already": application(DECIDER.uid, { status: "appointed", outcome: { decision: "appoint", targetRunId: "run-1" } }),
+      "declined already": application(DECIDER.uid, { status: "rejected", outcome: { decision: "decline" } }),
+      "withdrawn": application(DECIDER.uid, { status: "withdrawn" }),
+      "still a draft": application(DECIDER.uid, { status: "draft" }),
+      "on another round": application(DECIDER.uid, { roundId: "another-round" }),
+    };
+    const answers = new Set();
+    for (const [what, own] of Object.entries(stands)) {
+      for (const body of [appoint(DECIDER.uid), decline(DECIDER.uid)]) {
+        const result = await post(DECIDER, body, seeded({ [pathOf(DECIDER.uid)]: own }));
+        assertRefusedUntouched(result, `${what}, ${body.decision}`);
+        answers.add(JSON.stringify([result.response.status, result.response.body]));
+      }
+    }
+    // And with no application of theirs on the round at all.
+    const none = seeded();
+    delete none[pathOf(DECIDER.uid)];
+    const result = await post(DECIDER, appoint(DECIDER.uid), none);
+    assertRefusedUntouched(result, "no application of their own");
+    answers.add(JSON.stringify([result.response.status, result.response.body]));
+    assert.equal(answers.size, 1, `the answer depends on where their application stands: ${[...answers].join(" | ")}`);
+  });
+
+  test("and before the round's kind or its state is said", async () => {
+    for (const [what, doc] of [
+      ["an enrolment round", round({ kind: "enrolment" })],
+      ["an archived round", round({ archived: true })],
+      ["a cancelled round", round({ status: "cancelled" })],
+      ["a round still in draft", round({ status: "draft" })],
+    ]) {
+      const seed = seeded({ [`admissionRounds/${OLDER_ID}`]: doc });
+      assertRefusedUntouched(await post(ADMIN, appoint(ADMIN.uid), seed), what);
+      assertRefusedUntouched(await post(DECIDER, decline(DECIDER.uid), seed), what);
+    }
+  });
+
+  test("somebody who may not decide, or may not see the round, is told what they were always told", async () => {
+    // A reviewer may read the queue and may not decide. Naming their own
+    // application changes nothing about what they are told.
+    const reviewer = await post(REVIEWER, appoint(REVIEWER.uid));
+    assert.deepEqual([reviewer.response.status, reviewer.response.body], [403, { error: NOT_THE_DECIDER }]);
+    assert.deepEqual(reviewer.db.writes, []);
+    // Somebody the round does not name is told the round is not there,
+    // whoever's application they name: their own would be at this id.
+    const own = seeded({ [pathOf(OUTSIDER.uid)]: application(OUTSIDER.uid) });
+    for (const body of [appoint(OUTSIDER.uid), decline(OUTSIDER.uid), appoint("applicant-9")]) {
+      const outsider = await post(OUTSIDER, body, own);
+      assert.deepEqual([outsider.response.status, outsider.response.body], [404, { error: "Round not found" }]);
+      assert.deepEqual(outsider.db.writes, []);
+    }
+    // And on an application form the fence still answers first.
+    stage({ user: DECIDER, seed: { [`admissionRounds/${FORM_ID}`]: formDoc({ finalDeciderUid: DECIDER.uid }) } });
+    const onAForm = await call({ ...decide, body: { applicationId: `${FORM_ID}__${DECIDER.uid}`, decision: "decline" } }, FORM_ID);
+    assert.deepEqual([onAForm.status, onAForm.body], [409, { error: fence.EDITED_IN_THE_APPLICATION_FORM }]);
+  });
+
+  test("a row of the caller's kept under another id is refused by what the row says, whatever its state", async () => {
+    for (const [what, own] of [
+      ["undecided", application(DECIDER.uid)],
+      ["appointed already", application(DECIDER.uid, { status: "appointed", outcome: { decision: "appoint", targetRunId: "run-1" } })],
+      ["withdrawn", application(DECIDER.uid, { status: "withdrawn" })],
+    ]) {
+      const seed = seeded({ "admissionApplications/kept-under-another-id": own });
+      for (const decision of ["appoint", "decline"]) {
+        const body = { applicationId: "kept-under-another-id", decision, runId: "run-1" };
+        assertRefusedUntouched(await post(DECIDER, body, seed), `${what}, ${decision}`);
+      }
+    }
+  });
+
+  test("somebody else's application is decided as before: the decider appoints, and everything that goes with it is written", async () => {
+    const { db, response, sends } = await post(DECIDER, appoint("applicant-9"));
+    assert.deepEqual(
+      [response.status, response.body],
+      [200, { ok: true, alreadyDecided: false, decision: "appoint", status: "appointed", runId: "run-1" }],
+    );
+    assert.deepEqual(db.read(RUN).runFacilitatorUids, ["applicant-9"]);
+    const decided = db.read(pathOf("applicant-9"));
+    assert.deepEqual(
+      [decided.status, decided.outcome.decision, decided.outcome.targetRunId, decided.outcome.decidedByUid],
+      ["appointed", "appoint", "run-1", DECIDER.uid],
+    );
+    assert.deepEqual(db.read(`admissionRounds/${OLDER_ID}`).applicationCounts, { draft: 0, submitted: 3, appointed: 1 });
+    const logged = db.writes.filter(([op, path]) => op === "create" && path.startsWith("courseAudit/"));
+    assert.equal(logged.length, 1, "one line in the log for one appointment");
+    const line = db.read(logged[0][1]);
+    assert.deepEqual([line.kind, line.subjectUid, line.actorUid, line.runId], ["facilitator-appointed", "applicant-9", DECIDER.uid, "run-1"]);
+    assert.deepEqual(sends, [["email", "appointed"], ["push"]]);
+    // Nobody else's application moved, the decider's own least of all.
+    for (const uid of [DECIDER.uid, ADMIN.uid, REVIEWER.uid]) assert.equal(db.read(pathOf(uid)).status, "submitted", uid);
+  });
+
+  test("and an admin declines it, and can decide the decider's own", async () => {
+    const declined = await post(ADMIN, decline("applicant-9"));
+    assert.deepEqual(
+      [declined.response.status, declined.response.body],
+      [200, { ok: true, alreadyDecided: false, decision: "decline", status: "rejected", runId: null }],
+    );
+    assert.equal(declined.db.read(pathOf("applicant-9")).outcome.decidedByUid, ADMIN.uid);
+    assert.deepEqual(declined.db.read(RUN).runFacilitatorUids, [], "a decline names no run");
+    assert.deepEqual(declined.sends, [["email", "declined"], ["push"]]);
+
+    // The decider's own application is another decider's or an admin's to
+    // decide, and an admin's own is the decider's.
+    const byAdmin = await post(ADMIN, appoint(DECIDER.uid));
+    assert.equal(byAdmin.response.status, 200, JSON.stringify(byAdmin.response.body));
+    assert.deepEqual(byAdmin.db.read(RUN).runFacilitatorUids, [DECIDER.uid]);
+    assert.equal(byAdmin.db.read(pathOf(DECIDER.uid)).outcome.decidedByUid, ADMIN.uid);
+    const byDecider = await post(DECIDER, appoint(ADMIN.uid));
+    assert.equal(byDecider.response.status, 200, JSON.stringify(byDecider.response.body));
+    assert.equal(byDecider.db.read(pathOf(ADMIN.uid)).outcome.decidedByUid, DECIDER.uid);
+  });
+
+  test("in the source, each asking comes before anything it has to come before", () => {
+    const { bare } = read(join(SRC, decide.file));
+    const handler = bare.slice(bare.indexOf("export async function POST("));
+    const where = (pattern) => {
+      const found = pattern.exec(handler);
+      return found ? found.index : -1;
+    };
+    const mayDecide = where(/\bcanDecideAppointments\s*\(/);
+    const ofTheRequest = where(/applicationId\s*===\s*admissionApplicationId\s*\(\s*roundId\s*,\s*user\.uid\s*\)/);
+    const kind = where(/round\.kind\s*!==/);
+    const transaction = where(/\.runTransaction\s*\(/);
+    const ofTheRow = where(/application\.uid\s*===\s*user\.uid/);
+    const state = where(/\bappointmentDecideDisposition\s*\(/);
+    const firstWrite = where(/\btx\.(update|set|create|delete)\s*\(/);
+    for (const [name, index] of Object.entries({ mayDecide, ofTheRequest, kind, transaction, ofTheRow, state, firstWrite })) {
+      assert.ok(index !== -1, `the decide route has lost \`${name}\``);
+    }
+    assert.ok(mayDecide < ofTheRequest, "whose application it is comes after who may decide");
+    assert.ok(ofTheRequest < kind && ofTheRequest < transaction, "and before the round's kind, and before anything is read of the application");
+    assert.ok(transaction < ofTheRow && ofTheRow < state && ofTheRow < firstWrite, "the stored row is asked before its state, and before any write");
+  });
+});
+
 describe("the two routes that serve both kinds, called with an application form", () => {
   test("the destroy gets as far as checking the typed name, so a form can be destroyed here", async () => {
     const db = stage({ user: ADMIN, seed: { [`admissionRounds/${FORM_ID}`]: formDoc() } });
