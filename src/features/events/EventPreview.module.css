@@ -1,0 +1,172 @@
+/*
+  The editor's live preview: the event's card and its sign-up form, in a
+  dashed frame that says "this is a picture of the page, not the page".
+*/
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 var(--space-4);
+}
+
+.eyebrow {
+  color: var(--color-live);
+}
+
+.full {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 2.75rem;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-accent-text);
+}
+
+.full:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.full svg {
+  flex: none;
+}
+
+.frame {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: var(--space-4);
+  background: var(--color-bg);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: 0.875rem;
+  min-width: 0;
+}
+
+/* === The event's card: the date at the left, the words beside it === */
+
+.card {
+  display: flex;
+  align-items: stretch;
+  min-height: 8.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* The date tile's footprint, for an event with no date yet. */
+.noDate {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 5.25rem;
+  border-right: 2px dashed var(--color-border-strong);
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.cardWords {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-4) 1.125rem;
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.1875rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.cardLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* === The sign-up form === */
+
+.panel {
+  padding: var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  min-width: 0;
+}
+
+.panelTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+.panelNote {
+  margin: 0.625rem 0 0;
+  font-size: var(--text-caption);
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  margin-top: 0.875rem;
+  min-width: 0;
+}
+
+.send {
+  margin-top: var(--space-4);
+}
+
+.foot {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .frame {
+    padding: var(--space-3);
+  }
+
+  .panel {
+    padding: var(--space-4);
+  }
+}

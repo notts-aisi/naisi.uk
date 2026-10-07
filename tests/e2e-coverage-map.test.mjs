@@ -1302,7 +1302,13 @@ const NOT_COVERED = {
   },
   "/(app)/admin/(admin-only)/members": {
     reason:
-      "The admin members screen is used by one admin: role changes, permission grants and the view-as button, each read back on the same page.",
+      "The Accounts list is read by one admin: a table of accounts, each row a link to that person's page. It changes nothing.",
+    coverWhen:
+      "When a permission grant is next handed to somebody other than the admin who makes it.",
+  },
+  "/(app)/admin/(admin-only)/members/[uid]": {
+    reason:
+      "One person's admin page is used by one admin: role changes, permission grants, the view-as button and deleting an account, each read back on the same page.",
     coverWhen:
       "When a permission grant is next handed to somebody other than the admin who makes it.",
   },

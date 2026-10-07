@@ -26,6 +26,7 @@ import {
 import { fetchCoursePage } from "@/features/courses/fetchCoursePage";
 import type { PublicCoursePage } from "@/lib/firestore/coursePages";
 import { cohortLabel } from "@/lib/courses/cohortLabel";
+import { linkPreviewImages } from "@/lib/linkPreviewCard";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import {
   formatPastWindowDate,
@@ -120,15 +121,15 @@ import styles from "./course.module.css";
 // a deploy, so the page is rendered per request rather than cached at build.
 export const dynamic = "force-dynamic";
 
-/**
- * The social card. No generated OG image route: `next/og`'s `ImageResponse`
- * would be this repo's first, it needs a font shipped with it to render
- * anything but a system fallback, and the win over the brand lockup on a page
- * whose share is almost always a link in a group chat is small. The per-track
- * difference lives in the TITLE and the DESCRIPTION, which is the part a
- * reader actually reads.
+/*
+ * The social card is the course's cover, or the site's own card for a course
+ * with none (`linkPreviewImages`). No generated OG image route: `next/og`'s
+ * `ImageResponse` would be this repo's first, it needs a font shipped with it
+ * to render anything but a system fallback, and the win over the site's card
+ * on a page whose share is almost always a link in a group chat is small. The
+ * per-track difference lives in the TITLE and the DESCRIPTION, which is the
+ * part a reader actually reads.
  */
-const OG_IMAGE = "/opengraph-image.png";
 
 /** The one-line pitch under the title, per track, when nothing is authored. */
 const TRACK_BLURB: Record<CourseTrack, string> = {
@@ -161,13 +162,13 @@ export async function generateMetadata({
       title,
       description,
       type: "website",
-      images: [{ url: page.coverImageUrl || OG_IMAGE }],
+      images: linkPreviewImages(page.coverImageUrl),
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: [page.coverImageUrl || OG_IMAGE],
+      images: linkPreviewImages(page.coverImageUrl),
     },
   };
 }

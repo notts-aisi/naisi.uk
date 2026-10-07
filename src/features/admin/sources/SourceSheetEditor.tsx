@@ -6,8 +6,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ImageUpload from "@/components/blocks/ImageUpload";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
 import { Input, Textarea } from "@/components/ui/Input";
-import { AdminLoadingBar, AdminPage } from "@/features/admin/adminList";
+import Notice from "@/components/ui/Notice";
+import PageHead from "@/components/ui/PageHead";
+import { AdminLoadingBar } from "@/features/admin/adminList";
+import { AdminActionRow, AdminPanel, AdminProblem } from "@/features/admin/adminPanels";
 import { formatSiteDate } from "@/lib/datetime/siteTime";
 import {
   appendSourceItem,
@@ -252,8 +256,8 @@ export default function SourceSheetEditor({ slug }: { slug: string }) {
     if (!sheet) return;
     const hasUploads = Boolean(sheet.image || sheet.file);
     const warning = hasUploads
-      ? "Unpublish this entry?\n\nThe page comes down, and the image and the PDF are DELETED from storage. The list of sources is kept, so you can publish it again later, but the files would have to be uploaded again.\n\nAnyone already holding a direct file link, or the printed material itself, still has what they have."
-      : "Unpublish this entry?\n\nThe page comes down and the list of sources is kept, so you can publish it again later.";
+      ? "Unpublish this source sheet?\n\nThe page comes down, and the image and the PDF are DELETED from storage. The list of sources is kept, so you can publish it again later, but the files would have to be uploaded again.\n\nAnyone already holding a direct file link, or the printed material itself, still has what they have."
+      : "Unpublish this source sheet?\n\nThe page comes down and the list of sources is kept, so you can publish it again later.";
     if (!window.confirm(warning)) return;
 
     setBusy(true);
@@ -274,7 +278,7 @@ export default function SourceSheetEditor({ slug }: { slug: string }) {
     if (!sheet) return;
     if (
       !window.confirm(
-        `Delete "${sheet.title}" for good?\n\nThe entry, the image and the PDF are all deleted. Any QR code printed with /sources/${slug} on it will land on a page saying the sources are not published yet.`,
+        `Delete "${sheet.title}" for good?\n\nThe source sheet, the image and the PDF are all deleted. Any QR code printed with /sources/${slug} on it will land on a page saying the sources are not published yet.`,
       )
     ) {
       return;
@@ -295,51 +299,60 @@ export default function SourceSheetEditor({ slug }: { slug: string }) {
 
   if (loading) {
     return (
-      <AdminPage>
+      <div className={styles.editor}>
+        <PageHead crumb={<SheetCrumb />} title="Source sheet" />
         <Card padding="md">
-          <AdminLoadingBar label="Loading entry…" />
+          <AdminLoadingBar label="Loading the source sheet…" />
         </Card>
-      </AdminPage>
+      </div>
     );
   }
 
   if (missing || !sheet) {
     return (
-      <AdminPage>
-        <Card padding="lg">
-          <p className={styles.hint}>
-            There is no entry at <strong>/sources/{slug}</strong>.
-          </p>
-          <div className={styles.actions}>
-            <Link href="/admin/sources">
-              <Button size="sm" variant="secondary">
-                Back to all entries
-              </Button>
-            </Link>
-          </div>
-        </Card>
-      </AdminPage>
+      <div className={styles.editor}>
+        <PageHead
+          crumb={<SheetCrumb />}
+          title={missing ? "No source sheet here" : "Source sheet"}
+          description={
+            missing ? (
+              <>
+                There is no source sheet at <strong>/sources/{slug}</strong>.
+              </>
+            ) : undefined
+          }
+          meta={<Link href="/admin/sources">Back to Source sheets</Link>}
+        />
+        {error && <AdminProblem>Couldn&apos;t load: {error}</AdminProblem>}
+      </div>
     );
   }
 
   return (
-    <AdminPage>
-      <div className={styles.head}>
-        <div>
-          <Link href="/admin/sources" className={styles.back}>
-            ← All entries
-          </Link>
-          <h1 className={styles.heading}>{sheet.title}</h1>
-          <p className={styles.slugLine}>
+    <div className={styles.editor}>
+      <PageHead
+        crumb={<SheetCrumb />}
+        title={sheet.title}
+        badges={
+          published ? (
+            <Chip tone="success">Published</Chip>
+          ) : everPublished ? (
+            <Chip
+              tone="warning"
+              title="It was published once, so copies of the material may be in circulation"
+            >
+              Unpublished
+            </Chip>
+          ) : (
+            <Chip tone="neutral">Draft</Chip>
+          )
+        }
+        meta={
+          <>
             <span className={styles.slug}>/sources/{slug}</span>
-            {published ? (
-              <span className={`${styles.state} ${styles.statePublished}`}>Published</span>
-            ) : (
-              <span className={`${styles.state} ${styles.stateDraft}`}>Draft</span>
-            )}
             {sheet.publishedAt && (
-              <span className={styles.hintInline}>
-                since{" "}
+              <span>
+                Published since{" "}
                 {formatSiteDate(sheet.publishedAt, {
                   day: "numeric",
                   month: "short",
@@ -347,22 +360,16 @@ export default function SourceSheetEditor({ slug }: { slug: string }) {
                 })}
               </span>
             )}
-          </p>
-        </div>
-        {published && (
-          <a
-            className={styles.viewLink}
-            href={`/sources/${slug}`}
-            target="_blank"
-            rel="noreferrer noopener"
-          >
-            View the public page
-          </a>
-        )}
-      </div>
+            {published && (
+              <a href={`/sources/${slug}`} target="_blank" rel="noreferrer noopener">
+                View the public page
+              </a>
+            )}
+          </>
+        }
+      />
 
-      <Card padding="lg">
-        <h2 className={styles.sectionTitle}>Details</h2>
+      <AdminPanel title="Details">
         <div className={styles.fields}>
           <label className={styles.field}>
             <span className={styles.label}>Title</span>
@@ -400,18 +407,14 @@ export default function SourceSheetEditor({ slug }: { slug: string }) {
         <p className={styles.hint}>
           The address <strong>/sources/{slug}</strong> is fixed. It is what goes
           under the QR code, so changing it would orphan anything already
-          printed. A different address means a new entry.
+          printed. A different address means a new source sheet.
         </p>
-      </Card>
+      </AdminPanel>
 
-      <Card padding="lg">
-        <h2 className={styles.sectionTitle}>The material</h2>
-        <p className={styles.hint}>
-          Both are optional: an entry can be published with its sources alone,
-          and either file can be added, swapped or removed afterwards without
-          taking the page down.
-        </p>
-
+      <AdminPanel
+        title="The material"
+        description="Both are optional: a source sheet can be published with its sources alone, and either file can be added, swapped or removed afterwards without taking the page down."
+      >
         <div className={styles.fields}>
           <div className={styles.field}>
             <span className={styles.label}>Image of the material</span>
@@ -473,22 +476,18 @@ export default function SourceSheetEditor({ slug }: { slug: string }) {
             />
           </div>
         </div>
-      </Card>
+      </AdminPanel>
 
-      <Card padding="lg">
-        <h2 className={styles.sectionTitle}>Sources</h2>
-        <p className={styles.hint}>
-          The number is what appears in superscript on the material. It is
-          stored against the source, so removing one leaves a gap rather than
-          renumbering everything below it.
-        </p>
-
+      <AdminPanel
+        title="Sources"
+        description="The number is what appears in superscript on the material. It is stored against the source, so removing one leaves a gap rather than renumbering everything below it."
+      >
         {everPublished && numbersTouched && (
-          <p className={styles.warning}>
-            This entry has been published, so copies of the material may already
-            be in circulation. Changing a number here will not change the
-            numbers printed on them.
-          </p>
+          <Notice tone="warning">
+            This source sheet has been published, so copies of the material may
+            already be in circulation. Changing a number here will not change
+            the numbers printed on them.
+          </Notice>
         )}
 
         {items.length === 0 ? (
@@ -521,33 +520,63 @@ export default function SourceSheetEditor({ slug }: { slug: string }) {
             Add a source
           </Button>
         </div>
-      </Card>
+      </AdminPanel>
 
-      {warning && (
-        <p className={styles.error} role="alert">
-          {warning}
-        </p>
-      )}
-      {error && <p className={styles.error}>{error}</p>}
-      {message && <p className={styles.message}>{message}</p>}
+      {warning && <AdminProblem>{warning}</AdminProblem>}
+      {error && <AdminProblem>{error}</AdminProblem>}
 
       <div className={styles.footer}>
         <Button onClick={onSave} disabled={saving || busy}>
           {saving ? "Saving…" : "Save"}
         </Button>
-        {published ? (
-          <Button variant="secondary" onClick={onUnpublish} disabled={saving || busy}>
-            Unpublish
-          </Button>
-        ) : (
+        {!published && (
           <Button variant="secondary" onClick={onPublish} disabled={saving || busy}>
             Save and publish
           </Button>
         )}
-        <Button variant="danger" onClick={onDelete} disabled={saving || busy}>
-          Delete entry
-        </Button>
+        {message && (
+          <span className={styles.message} role="status">
+            {message}
+          </span>
+        )}
       </div>
-    </AdminPage>
+
+      <AdminPanel title="Careful" tone="careful">
+        {published && (
+          <AdminActionRow
+            name="Unpublish"
+            note="The page comes down, and the image and the PDF are deleted from storage. The list of sources is kept, so it can be published again."
+          >
+            <Button variant="danger" onClick={onUnpublish} disabled={saving || busy}>
+              Unpublish…
+            </Button>
+          </AdminActionRow>
+        )}
+        <AdminActionRow
+          name="Delete this source sheet"
+          note={
+            <>
+              The sheet, the image and the PDF are all deleted. A QR code printed with /sources/
+              {slug} on it will land on a page saying the sources are not published yet.
+            </>
+          }
+        >
+          <Button variant="danger" onClick={onDelete} disabled={saving || busy}>
+            Delete source sheet…
+          </Button>
+        </AdminActionRow>
+      </AdminPanel>
+    </div>
+  );
+}
+
+/** The way back, above the sheet's name. */
+function SheetCrumb() {
+  return (
+    <>
+      <span>Publicity</span>
+      <span aria-hidden="true">/</span>
+      <Link href="/admin/sources">Source sheets</Link>
+    </>
   );
 }

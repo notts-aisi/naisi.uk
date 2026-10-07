@@ -1,20 +1,27 @@
 "use client";
 
 /**
- * TEMPORARY admin page — fire-once data-wipe controls. After both
+ * TEMPORARY admin page: fire-once data-wipe controls. After both
  * environments (dev + prod) have been reset, remove:
- *   - this directory: `src/app/(app)/admin/danger-zone/`
+ *   - this directory: `src/app/(app)/admin/(admin-only)/danger-zone/`
  *   - the API route: `src/app/api/admin/nuke-tasks/`
- *   - the "Danger zone" entry in `src/app/(app)/admin/AdminTabs.tsx`
+ *   - the "Danger zone" entry in `src/layout/appNav.ts`
  *
- * Tracking PR for the cleanup is implied — no Firestore docs to clean,
- * just file deletions.
+ * There are no Firestore documents to clean up afterwards, only these files.
+ *
+ * What has to be typed, in what order, and what stays disabled until then is
+ * the page's whole safety: the wipe button only opens the box, the box asks
+ * for the phrase, and Confirm wipe is disabled until the phrase is exact.
  */
 
 import { useState } from "react";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import Notice from "@/components/ui/Notice";
+import PageHead from "@/components/ui/PageHead";
 import { AdminPage } from "@/features/admin/adminList";
+import { AdminColumn, AdminPanel } from "@/features/admin/adminPanels";
+import styles from "@/features/admin/DangerZone.module.css";
 import { useTasks } from "@/features/tasks/hooks/useTasks";
 
 const REQUIRED_CONFIRM = "DELETE ALL TASKS";
@@ -27,7 +34,7 @@ type DeletionReport = {
   storageDeleted: number;
   storageFailed: number;
   /** Storage blobs swept from the `tasks/` prefix that weren't
-   *  referenced by any attachment doc — orphans from pre-cascade
+   *  referenced by any attachment doc: orphans from pre-cascade
    *  deletes. */
   prefixSwept: number;
 };
@@ -73,70 +80,47 @@ export default function DangerZonePage() {
   }
 
   return (
-    <AdminPage>
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
-      <div>
-        <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
-          Temporary admin tools — these run irreversible operations against
-          this environment&apos;s Firestore. Targets whichever project this
-          backend is wired to (dev wipes dev; prod wipes prod). The whole
-          page + its API route will be removed in a follow-up PR once
-          you&apos;ve used them.
-        </p>
-      </div>
+    <AdminPage wide>
+      <PageHead
+        crumb="Site settings"
+        title="Danger zone"
+        description="Temporary tools that cannot be undone. Each runs against whichever database this copy of the site is wired to: the practice site wipes the practice data, and the live site wipes the live data."
+      />
 
-      <Card>
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-          <div>
-            <h2
-              style={{
-                fontSize: "var(--text-lg)",
-                fontWeight: 600,
-                margin: 0,
-                color: "var(--color-danger, #dc2626)",
-              }}
-            >
-              Wipe all tasks
-            </h2>
-            <p
-              style={{
-                color: "var(--color-text-muted)",
-                fontSize: "var(--text-sm)",
-                marginTop: "var(--space-2)",
-              }}
-            >
-              Wipes every doc under <code>tasks/</code> in this project,
-              including <strong>ghost parents</strong> (italicised paths in
-              the Firebase Console where the task doc is gone but legacy
-              comment / activity / attachment subcollection docs survived
-              from pre-cascade deletes). Storage runs a prefix-sweep on{" "}
-              <code>tasks/</code> to catch orphan blobs that no longer have
-              an attachment doc pointing at them. Cannot be undone. Task
-              templates, users, projects, and email-deliverability data
-              are NOT touched.
-            </p>
-            <p
-              style={{
-                fontSize: "var(--text-sm)",
-                marginTop: "var(--space-2)",
-              }}
-            >
-              Live task count:{" "}
-              <strong>
-                {loading
-                  ? "counting…"
-                  : `${tasks.length} task${tasks.length === 1 ? "" : "s"}`}
-              </strong>{" "}
-              <span style={{ color: "var(--color-text-muted)" }}>
-                (the report after wipe will surface ghost-parent + orphan-
-                blob counts too; those don&apos;t show up in this in-app
-                count)
-              </span>
-            </p>
-          </div>
+      <AdminColumn>
+        <Notice tone="warning" role="note">
+          This page and its route are to be removed once both copies of the site have been reset.
+        </Notice>
+
+        <AdminPanel
+          tone="careful"
+          title="Wipe all tasks"
+          description={
+            <>
+              Wipes every document under <code>tasks/</code> in this project, including{" "}
+              <strong>ghost parents</strong> (paths shown in italics in the Firebase console,
+              where the task is gone and its old comments, activity or attachments survived an
+              earlier delete). Storage is swept under <code>tasks/</code> as well, to catch files
+              that no attachment points at any more. Cannot be undone. Task templates, accounts,
+              projects and the email delivery records are NOT touched.
+            </>
+          }
+        >
+          <p className={styles.count}>
+            Live task count:{" "}
+            <strong>
+              {loading
+                ? "counting…"
+                : `${tasks.length} task${tasks.length === 1 ? "" : "s"}`}
+            </strong>{" "}
+            <span className={styles.aside}>
+              (the report after a wipe also counts ghost parents and stray files, which this
+              number cannot see)
+            </span>
+          </p>
 
           {stage === "idle" && (
-            <div>
+            <div className={styles.actions}>
               <Button
                 variant="danger"
                 onClick={() => {
@@ -149,39 +133,22 @@ export default function DangerZonePage() {
                 Wipe every task path in this project
               </Button>
               {!loading && tasks.length === 0 && (
-                <p
-                  style={{
-                    fontSize: "var(--text-xs)",
-                    color: "var(--color-text-muted)",
-                    marginTop: "var(--space-2)",
-                  }}
-                >
-                  Note: the in-app count says zero, but ghost parents and
-                  orphan blobs may still be hiding in Firestore + Storage.
-                  Pressing the wipe is still useful; the report will tell
-                  you whether anything was actually swept.
+                <p className={styles.note}>
+                  The count says zero, but ghost parents and stray files may still be in
+                  Firestore and Storage. Pressing the wipe is still useful: the report will say
+                  whether anything was swept.
                 </p>
               )}
             </div>
           )}
 
           {stage === "confirming" && (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "var(--space-2)",
-                padding: "var(--space-3)",
-                background: "var(--color-danger-soft, rgba(220, 38, 38, 0.08))",
-                border: "1px solid var(--color-danger, #dc2626)",
-                borderRadius: "var(--radius-md)",
-              }}
-            >
-              <p style={{ margin: 0, fontSize: "var(--text-sm)" }}>
+            <div className={styles.confirm}>
+              <p className={styles.confirmText}>
                 Type <code>{REQUIRED_CONFIRM}</code> below to enable the wipe.
                 There is no undo.
               </p>
-              <input
+              <Input
                 type="text"
                 autoFocus
                 value={confirmText}
@@ -190,31 +157,17 @@ export default function DangerZonePage() {
                   if (error) setError(null);
                 }}
                 placeholder={REQUIRED_CONFIRM}
-                style={{
-                  padding: "0.55rem 0.75rem",
-                  background: "var(--color-bg)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-sm, 4px)",
-                  color: "var(--color-text)",
-                  fontSize: "var(--text-sm)",
-                  fontFamily: "ui-monospace, SFMono-Regular, monospace",
-                  outline: "none",
-                }}
+                aria-label={`Type ${REQUIRED_CONFIRM} to enable the wipe`}
+                className={styles.confirmInput}
                 spellCheck={false}
                 autoComplete="off"
               />
               {error && (
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: "var(--text-xs)",
-                    color: "var(--color-danger, #dc2626)",
-                  }}
-                >
+                <p className={styles.error} role="alert">
                   {error}
                 </p>
               )}
-              <div style={{ display: "flex", gap: "var(--space-2)" }}>
+              <div className={styles.confirmActions}>
                 <Button
                   variant="danger"
                   onClick={handleNuke}
@@ -237,38 +190,29 @@ export default function DangerZonePage() {
           )}
 
           {stage === "wiping" && (
-            <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
+            <p className={styles.note} role="status">
               Wiping… don&apos;t close this tab. This can take a moment if
               there are many tasks with attachments.
             </p>
           )}
 
           {stage === "done" && report && (
-            <div
-              style={{
-                padding: "var(--space-3)",
-                background: "var(--color-success-soft, rgba(22, 163, 74, 0.08))",
-                border: "1px solid var(--color-success, #16a34a)",
-                borderRadius: "var(--radius-md)",
-                fontSize: "var(--text-sm)",
-              }}
-            >
+            <div className={styles.done} role="status">
               <strong>Done.</strong> Deleted {report.tasks} task path
               {report.tasks === 1 ? "" : "s"} (including ghost parents),{" "}
               {report.comments} comments, {report.activity} activity entries,{" "}
               {report.attachments} attachments. Storage:{" "}
-              {report.storageDeleted} referenced blob
+              {report.storageDeleted} referenced file
               {report.storageDeleted === 1 ? "" : "s"} cleaned,{" "}
               {report.storageFailed} failed,{" "}
-              {report.prefixSwept} additional orphan blob
-              {report.prefixSwept === 1 ? "" : "s"} swept from the{" "}
-              <code>tasks/</code> prefix. Refresh the task board + the
-              Firebase Console to confirm the empty state.
+              {report.prefixSwept} more stray file
+              {report.prefixSwept === 1 ? "" : "s"} swept from under{" "}
+              <code>tasks/</code>. Refresh the task board and the
+              Firebase console to confirm the empty state.
             </div>
           )}
-        </div>
-      </Card>
-      </div>
+        </AdminPanel>
+      </AdminColumn>
     </AdminPage>
   );
 }

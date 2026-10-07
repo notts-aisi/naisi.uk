@@ -15,8 +15,10 @@ type Props = {
 };
 
 /**
- * Minimalist SVG pie chart. Each slice shows a styled tooltip on hover; the
- * whole chart carries an aria-label listing every slice for screen readers.
+ * A small SVG pie with its key beside it. The key lists every slice with its
+ * count and its share, so the chart reads on a phone, where nothing hovers;
+ * with a mouse, a slice also shows the same line as a tooltip. The drawing is
+ * decorative to a screen reader, which reads the key.
  * Renders nothing when there is no data; callers show their own empty state.
  */
 export default function Pie({ slices, size = 140 }: Props) {
@@ -71,40 +73,52 @@ export default function Pie({ slices, size = 140 }: Props) {
   const active = hover ? arcs[hover.index] : null;
 
   return (
-    <div ref={wrapRef} className={styles.wrap}>
-      <svg
-        width={size}
-        height={size}
-        viewBox={`0 0 ${size} ${size}`}
-        role="img"
-        aria-label={arcs
-          .map((a) => `${a.label}: ${a.count} (${a.pct}%)`)
-          .join(", ")}
-        className={styles.pie}
-        onMouseLeave={() => setHover(null)}
-      >
-        {arcs.map((a, i) => (
-          <path
-            key={a.label}
-            d={a.d}
-            fill={a.color}
-            className={styles.slice}
-            onMouseMove={(e) => trackHover(i, e)}
-          />
+    <div className={styles.chart}>
+      <div ref={wrapRef} className={styles.wrap}>
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          aria-hidden="true"
+          focusable="false"
+          className={styles.pie}
+          onMouseLeave={() => setHover(null)}
+        >
+          {arcs.map((a, i) => (
+            <path
+              key={a.label}
+              d={a.d}
+              fill={a.color}
+              className={styles.slice}
+              onMouseMove={(e) => trackHover(i, e)}
+            />
+          ))}
+        </svg>
+        {hover && active && (
+          <div className={styles.tooltip} style={{ left: hover.x, top: hover.y }}>
+            {`${active.label}: ${active.count} (${active.pct}%)`}
+          </div>
+        )}
+      </div>
+      <ul className={styles.key}>
+        {arcs.map((a) => (
+          <li key={a.label} className={styles.keyRow}>
+            <span className={styles.swatch} style={{ background: a.color }} aria-hidden="true" />
+            <span className={styles.keyLabel}>{a.label}</span>
+            <span className={styles.keyCount}>
+              {a.count} <span className={styles.keyShare}>({a.pct}%)</span>
+            </span>
+          </li>
         ))}
-      </svg>
-      {hover && active && (
-        <div className={styles.tooltip} style={{ left: hover.x, top: hover.y }}>
-          {`${active.label}: ${active.count} (${active.pct}%)`}
-        </div>
-      )}
+      </ul>
     </div>
   );
 }
 
 /**
- * Deterministic color palette for pie slices. Cycles through a small set of
- * theme-friendly hues so repeated renders stay stable.
+ * The colours of the slices, in order. Eight hues far enough apart to tell
+ * neighbours from each other on the card's ground; a ninth slice starts the
+ * set again. A colour never stands alone: the key names every slice.
  */
 export const PIE_PALETTE = [
   "#4f46e5", // indigo

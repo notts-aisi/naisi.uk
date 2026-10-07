@@ -5,15 +5,15 @@ import { useRouter } from "next/navigation";
 import { doc, onSnapshot } from "firebase/firestore";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
 import { Field, Input } from "@/components/ui/Input";
+import Notice from "@/components/ui/Notice";
+import SectionTabs from "@/components/ui/SectionTabs";
 import { useAuth } from "@/auth/AuthProvider";
 import { getClientDb } from "@/lib/firebase/client";
 import {
   DRAFT_STATUS_LABEL,
   SUBJECT_MAX,
   normalizeDraft,
-  type DraftStatus,
   type NewsletterDraft,
 } from "@/lib/firestore/newsletterDrafts";
 import {
@@ -33,6 +33,7 @@ import {
   updateDraft,
 } from "./draftMutations";
 import BlockEditor from "@/components/blocks/BlockEditor";
+import { momentOf, reachOf, statusTone } from "./draftWords";
 import EmailPreview from "./editor/EmailPreview";
 import styles from "../../app/(app)/newsletter/newsletter.module.css";
 
@@ -41,21 +42,6 @@ type Props = {
 };
 
 type Tab = "compose" | "preview";
-
-function statusTone(status: DraftStatus): "neutral" | "accent" | "success" | "danger" | "warning" {
-  switch (status) {
-    case "draft":
-      return "neutral";
-    case "pending":
-      return "warning";
-    case "approved":
-      return "accent";
-    case "sent":
-      return "success";
-    case "rejected":
-      return "danger";
-  }
-}
 
 export default function DraftEditor({ draftId }: Props) {
   const router = useRouter();
@@ -290,7 +276,7 @@ export default function DraftEditor({ draftId }: Props) {
       const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
       const win = window.open(url, "_blank", "noopener,noreferrer");
       if (!win) {
-        setError("Couldn't open preview — check your browser's popup blocker.");
+        setError("Couldn't open the preview. Check your browser's popup blocker.");
       }
       // Revoke the URL after the new tab has had a chance to load it.
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -353,62 +339,57 @@ export default function DraftEditor({ draftId }: Props) {
 
   if (loading) {
     return (
-      <Card padding="md">
-        <p style={{ color: "var(--color-text-muted)" }}>Loading draft…</p>
-      </Card>
+      <div className={styles.card}>
+        <p className={styles.muted}>Loading draft…</p>
+      </div>
     );
   }
   if (notFound || !draft) {
     return (
-      <Card padding="md">
-        <p style={{ color: "var(--color-text-muted)" }}>
-          Draft not found. It may have been deleted.
-        </p>
-      </Card>
+      <div className={styles.card}>
+        <p className={styles.muted}>Draft not found. It may have been deleted.</p>
+      </div>
     );
   }
 
+  const author = draft.authorDisplayName ?? "unknown";
+  const title = subject.trim() || "(no subject)";
+
   if (status === "sent") {
     const canDelete = isAuthor || role === "admin";
+    const reach = reachOf(draft);
     return (
-      <div className={styles.editor}>
-        <div className={styles.statusBar}>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
-            <Badge tone={statusTone(status)}>{DRAFT_STATUS_LABEL[status]}</Badge>
-            <span className={styles.saveHint}>
-              by {draft.authorDisplayName ?? "unknown"}
-            </span>
-            {draft.sentAt && (
-              <span className={styles.saveHint}>
-                · sent {draft.sentAt.toLocaleDateString(undefined, {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                })}
-              </span>
-            )}
-            {draft.sentCount != null && (
-              <span className={styles.saveHint}>
-                ·{" "}
-                {draft.subscribersReached != null
-                  ? `${draft.subscribersReached} subscriber${draft.subscribersReached === 1 ? "" : "s"} (${draft.sentCount} email${draft.sentCount === 1 ? "" : "s"})`
-                  : `${draft.sentCount} email${draft.sentCount === 1 ? "" : "s"}`}
-              </span>
-            )}
-            {/*
-              Shown only when somebody was actually notified. Every draft sent
-              before the push producer existed has no `pushedCount` at all, and
-              a send where nobody has the cell on has a real zero: either way
-              "0 by push" would sit beside a successful send reading as a
-              failure of something the sender never asked for.
-            */}
-            {draft.pushedCount != null && draft.pushedCount > 0 && (
-              <span className={styles.saveHint}>
-                · {draft.pushedCount} notified by push
-              </span>
-            )}
+      <div className={styles.card}>
+        <header className={styles.cardHead}>
+          <div className={styles.cardHeadMain}>
+            <p className="meta">Edition by {author}</p>
+            <h2 className={styles.cardTitle}>{title}</h2>
           </div>
-        </div>
+          <div className={styles.cardHeadSide}>
+            <Badge tone={statusTone(status)}>{DRAFT_STATUS_LABEL[status]}</Badge>
+          </div>
+        </header>
+
+        <p className={styles.facts}>
+          {draft.sentAt && <span className="meta">{momentOf(draft.sentAt)}</span>}
+          {draft.sentCount != null && (
+            <span>
+              {draft.subscribersReached != null
+                ? `${reach} (${draft.sentCount} email${draft.sentCount === 1 ? "" : "s"})`
+                : reach}
+            </span>
+          )}
+          {/*
+            Shown only when somebody was actually notified. Every draft sent
+            before the push producer existed has no `pushedCount` at all, and
+            a send where nobody has the cell on has a real zero: either way
+            "0 by push" would sit beside a successful send reading as a
+            failure of something the sender never asked for.
+          */}
+          {draft.pushedCount != null && draft.pushedCount > 0 && (
+            <span>{draft.pushedCount} notified by push</span>
+          )}
+        </p>
 
         <EmailPreview subject={subject} blocks={blocks} previewName={previewName} />
 
@@ -416,52 +397,47 @@ export default function DraftEditor({ draftId }: Props) {
 
         {error && <p className={styles.danger}>{error}</p>}
 
-        <div className={styles.editorActions}>
-          <Button variant="ghost" onClick={onSendTest} disabled={testStatus.kind === "sending"}>
-            {testStatus.kind === "sending" ? "Sending test…" : "Send test to me"}
-          </Button>
-          <Button variant="ghost" onClick={onOpenPreview} disabled={previewBusy}>
-            {previewBusy ? "Opening…" : "Open preview in new tab"}
-          </Button>
-          <div className={styles.spacer} />
-          {canDelete && (
-            <button
-              type="button"
-              onClick={onDelete}
-              disabled={busy}
-              style={{
-                padding: "0.45rem 0.75rem",
-                fontSize: "var(--text-sm)",
-                color: "var(--color-text-muted)",
-                background: "transparent",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-md)",
-                cursor: "pointer",
-              }}
+        <div className={styles.actions}>
+          <div className={styles.actionsGroup}>
+            <Button
+              variant="secondary"
+              onClick={onSendTest}
+              disabled={testStatus.kind === "sending"}
             >
-              {busy ? "Deleting…" : "Delete edition"}
-            </button>
-          )}
+              {testStatus.kind === "sending" ? "Sending test…" : "Send test to me"}
+            </Button>
+            <Button variant="ghost" onClick={onOpenPreview} disabled={previewBusy}>
+              {previewBusy ? "Opening…" : "Open preview in new tab"}
+            </Button>
+          </div>
         </div>
+
+        {canDelete && (
+          <div className={styles.careful}>
+            <Button variant="danger" onClick={onDelete} disabled={busy}>
+              {busy ? "Deleting…" : "Delete edition"}
+            </Button>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <div className={styles.editor}>
-      <div className={styles.statusBar}>
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
-          <Badge tone={statusTone(status)}>{DRAFT_STATUS_LABEL[status]}</Badge>
-          <span className={styles.saveHint}>
-            by {draft.authorDisplayName ?? "unknown"}
-          </span>
-          {draft.approvedBy && status !== "draft" && status !== "pending" && (
-            <span className={styles.saveHint}>· approved</span>
-          )}
+    <div className={styles.card}>
+      <header className={styles.cardHead}>
+        <div className={styles.cardHeadMain}>
+          <p className="meta">
+            Draft by {author}
+            {draft.approvedBy && status !== "draft" && status !== "pending" && " · approved"}
+          </p>
+          <h2 className={styles.cardTitle}>{title}</h2>
         </div>
-        <div className={styles.spacer} />
-        {dirty && editable && <span className={styles.saveHint}>Unsaved changes</span>}
-      </div>
+        <div className={styles.cardHeadSide}>
+          {dirty && editable && <span className={styles.saveHint}>Unsaved changes</span>}
+          <Badge tone={statusTone(status)}>{DRAFT_STATUS_LABEL[status]}</Badge>
+        </div>
+      </header>
 
       {/*
         A STANDING SEND CLAIM, SHOWN WHERE THE SEND BUTTON IS. The route stamps
@@ -474,7 +450,7 @@ export default function DraftEditor({ draftId }: Props) {
         pressed, rather than leaving the 409 to be the first anybody hears of it.
       */}
       {status === "approved" && draft.sendClaimedAt && (
-        <p className={styles.saveHint} style={{ margin: 0 }}>
+        <Notice tone="warning" role="note">
           A send of this draft started at{" "}
           {draft.sendClaimedAt.toLocaleString(undefined, {
             month: "short",
@@ -483,66 +459,57 @@ export default function DraftEditor({ draftId }: Props) {
             minute: "2-digit",
           })}{" "}
           and did not finish. An admin can clear it once the send log has been read.
-        </p>
+        </Notice>
       )}
 
       {status === "rejected" && draft.reviewerNotes && (
-        <Card padding="md">
-          <strong style={{ color: "var(--color-danger)" }}>Returned for revisions</strong>
-          <p style={{ marginTop: "var(--space-2)", color: "var(--color-text)" }}>
-            {draft.reviewerNotes}
-          </p>
-        </Card>
+        <Notice tone="warning" role="note" title="Returned for revisions">
+          {draft.reviewerNotes}
+        </Notice>
       )}
 
-      <div className={styles.tabBar}>
-        <button
-          type="button"
-          className={`${styles.tab} ${tab === "compose" ? styles.tabActive : ""}`}
-          onClick={() => setTab("compose")}
-        >
-          Compose
-        </button>
-        <button
-          type="button"
-          className={`${styles.tab} ${tab === "preview" ? styles.tabActive : ""}`}
-          onClick={() => setTab("preview")}
-        >
-          Preview
-        </button>
-      </div>
+      <SectionTabs
+        ariaLabel="Editor view"
+        current={tab}
+        onSelect={(key) => setTab(key === "preview" ? "preview" : "compose")}
+        tabs={[
+          { key: "compose", label: "Compose" },
+          { key: "preview", label: "Preview" },
+        ]}
+      />
 
       {tab === "compose" ? (
         <>
-          <Card padding="lg">
-            <Field id="subject" label="Subject line" hint="Shown in the recipient's inbox preview.">
-              <Input
-                id="subject"
-                value={subject}
-                onChange={(e) => {
-                  setSubject(e.target.value);
-                  setDirty(true);
-                }}
-                maxLength={SUBJECT_MAX}
-                disabled={!editable || busy}
-                placeholder="e.g. NAISI April update"
-              />
-            </Field>
-          </Card>
+          <Field id="subject" label="Subject line" hint="Shown in the recipient's inbox preview.">
+            <Input
+              id="subject"
+              value={subject}
+              onChange={(e) => {
+                setSubject(e.target.value);
+                setDirty(true);
+              }}
+              maxLength={SUBJECT_MAX}
+              disabled={!editable || busy}
+              placeholder="e.g. NAISI April update"
+            />
+          </Field>
 
-          <BlockEditor
-            draftId={draft.id}
-            blocks={blocks}
-            onChange={(next) => {
-              setBlocks(next);
-              setDirty(true);
-            }}
-            disabled={!editable || busy}
-          />
+          <div>
+            <h3 className={styles.fieldTitle}>Email</h3>
+            <BlockEditor
+              draftId={draft.id}
+              blocks={blocks}
+              onChange={(next) => {
+                setBlocks(next);
+                setDirty(true);
+              }}
+              disabled={!editable || busy}
+            />
+          </div>
 
-          <p style={{ color: "var(--color-text-muted)", fontSize: "var(--text-sm)", margin: 0 }}>
-            Tip: you can personalise text anywhere by typing <code>{"{preferredName}"}</code> — it&apos;s
-            replaced with each recipient&apos;s name at send time.
+          <p className={styles.tip}>
+            Tip: you can personalise text anywhere by typing <code>{"{preferredName}"}</code>. It
+            is replaced with each recipient&apos;s name at send time.
           </p>
         </>
       ) : (
@@ -553,89 +520,84 @@ export default function DraftEditor({ draftId }: Props) {
 
       {error && <p className={styles.danger}>{error}</p>}
 
-      <div className={styles.editorActions}>
-        <Button variant="ghost" onClick={onSendTest} disabled={testStatus.kind === "sending"}>
-          {testStatus.kind === "sending" ? "Sending test…" : "Send test to me"}
-        </Button>
-        <Button variant="ghost" onClick={onOpenPreview} disabled={previewBusy}>
-          {previewBusy ? "Opening…" : "Open preview in new tab"}
-        </Button>
-
-        {editable && (
-          <Button onClick={onSave} disabled={busy || !dirty}>
-            {busy ? "Saving…" : "Save draft"}
+      <div className={styles.actions}>
+        <div className={styles.actionsGroup}>
+          <Button
+            variant="secondary"
+            onClick={onSendTest}
+            disabled={testStatus.kind === "sending"}
+          >
+            {testStatus.kind === "sending" ? "Sending test…" : "Send test to me"}
           </Button>
-        )}
-
-        {canDraft && (status === "draft" || status === "rejected") && isAuthor && (
-          <Button variant="ghost" onClick={onSubmitForReview} disabled={busy}>
-            Submit for review
+          <Button variant="ghost" onClick={onOpenPreview} disabled={previewBusy}>
+            {previewBusy ? "Opening…" : "Open preview in new tab"}
           </Button>
-        )}
+        </div>
 
-        {canApprove && status === "pending" && (
-          <>
+        <div className={styles.actionsGroup}>
+          {canApprove && (status === "approved" || status === "pending") && (
+            <Button variant="ghost" onClick={onRevertToDraft} disabled={busy}>
+              Move back to draft
+            </Button>
+          )}
+
+          {editable && (
+            <Button
+              variant={
+                canApprove && (status === "pending" || status === "approved")
+                  ? "secondary"
+                  : "primary"
+              }
+              onClick={onSave}
+              disabled={busy || !dirty}
+            >
+              {busy ? "Saving…" : "Save draft"}
+            </Button>
+          )}
+
+          {canDraft && (status === "draft" || status === "rejected") && isAuthor && (
+            <Button variant="secondary" onClick={onSubmitForReview} disabled={busy}>
+              Submit for review
+            </Button>
+          )}
+
+          {canApprove && status === "pending" && (
             <Button onClick={onApprove} disabled={busy}>
               Approve
             </Button>
-            <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
-              <Input
-                id="rejectNote"
-                placeholder="Reason to send back for revisions…"
-                value={rejectNote}
-                onChange={(e) => setRejectNote(e.target.value)}
-                style={{ minWidth: "16rem" }}
-              />
-              <Button variant="ghost" onClick={onReject} disabled={busy}>
-                Send back
-              </Button>
-            </div>
-          </>
-        )}
+          )}
 
-        {canApprove && status === "approved" && (
-          <Button onClick={onSend} disabled={sendStatus.kind === "sending"}>
-            {sendStatus.kind === "sending" ? "Sending…" : "Send now"}
-          </Button>
-        )}
-
-        {canApprove && (status === "approved" || status === "pending") && (
-          <Button variant="ghost" onClick={onRevertToDraft} disabled={busy}>
-            Move back to draft
-          </Button>
-        )}
-
-        <div className={styles.spacer} />
-
-        {(isAuthor || role === "admin") && (
-          <button
-            type="button"
-            onClick={onDelete}
-            disabled={busy}
-            style={{
-              padding: "0.45rem 0.75rem",
-              fontSize: "var(--text-sm)",
-              color: "var(--color-text-muted)",
-              background: "transparent",
-              border: "1px solid var(--color-border)",
-              borderRadius: "var(--radius-md)",
-              cursor: "pointer",
-            }}
-          >
-            Delete draft
-          </button>
-        )}
+          {canApprove && status === "approved" && (
+            <Button onClick={onSend} disabled={sendStatus.kind === "sending"}>
+              {sendStatus.kind === "sending" ? "Sending…" : "Send now"}
+            </Button>
+          )}
+        </div>
       </div>
 
+      {canApprove && status === "pending" && (
+        <div className={styles.sendBack}>
+          <div className={styles.sendBackField}>
+            <Input
+              id="rejectNote"
+              aria-label="Reason to send back for revisions…"
+              placeholder="Reason to send back for revisions…"
+              value={rejectNote}
+              onChange={(e) => setRejectNote(e.target.value)}
+            />
+          </div>
+          <Button variant="secondary" onClick={onReject} disabled={busy}>
+            Send back
+          </Button>
+        </div>
+      )}
+
       {sendStatus.kind === "sent" && (
-        <Card padding="md">
-          <p style={{ color: "var(--color-success)" }}>
-            Sent to {sendStatus.subscribers} subscriber
-            {sendStatus.subscribers === 1 ? "" : "s"} across {sendStatus.emails} email
-            address{sendStatus.emails === 1 ? "" : "es"}.
-            {sendStatus.pushed > 0 &&
-              ` ${sendStatus.pushed} notified by push.`}
-          </p>
+        <Notice tone="info">
+          Sent to {sendStatus.subscribers} subscriber
+          {sendStatus.subscribers === 1 ? "" : "s"} across {sendStatus.emails} email
+          address{sendStatus.emails === 1 ? "" : "es"}.
+          {sendStatus.pushed > 0 && ` ${sendStatus.pushed} notified by push.`}
           {/*
             Shown whatever the count is, because it is the case where the count
             of zero means something went wrong rather than nobody being opted
@@ -643,16 +605,22 @@ export default function DraftEditor({ draftId }: Props) {
             and the sender should read this as a note rather than a failure.
           */}
           {sendStatus.pushRefusal && (
-            <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-2)" }}>
-              {sendStatus.pushRefusal}
-            </p>
+            <span className={styles.noticeNote}>{sendStatus.pushRefusal}</span>
           )}
-        </Card>
+        </Notice>
       )}
       {sendStatus.kind === "error" && (
-        <Card padding="md">
-          <p className={styles.danger}>Send failed: {sendStatus.message}</p>
-        </Card>
+        <Notice tone="warning" role="alert">
+          Send failed: {sendStatus.message}
+        </Notice>
+      )}
+
+      {(isAuthor || role === "admin") && (
+        <div className={styles.careful}>
+          <Button variant="danger" onClick={onDelete} disabled={busy}>
+            Delete draft
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -660,19 +628,17 @@ export default function DraftEditor({ draftId }: Props) {
   function TestAndPreviewBanner() {
     if (testStatus.kind === "sent") {
       return (
-        <Card padding="md">
-          <p style={{ color: "var(--color-success)", margin: 0 }}>
-            Test email sent to {testStatus.addresses.join(" and ")}. Check your inbox
-            (and spam folder).
-          </p>
-        </Card>
+        <Notice tone="info">
+          Test email sent to {testStatus.addresses.join(" and ")}. Check your inbox (and spam
+          folder).
+        </Notice>
       );
     }
     if (testStatus.kind === "error") {
       return (
-        <Card padding="md">
-          <p className={styles.danger}>Test send failed: {testStatus.message}</p>
-        </Card>
+        <Notice tone="warning" role="alert">
+          Test send failed: {testStatus.message}
+        </Notice>
       );
     }
     return null;

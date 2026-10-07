@@ -2,8 +2,8 @@
  * Runs the hero's scene on a page.
  *
  * scene.ts starts and stops the engine. This file decides everything around
- * it: which of the three forms the screen calls for, when to start over, how
- * the typed headline reaches the page, and when a drag on the hero is held.
+ * it: which of the three forms the screen calls for, when to start over, and
+ * how the typed headline reaches the page.
  * It is loaded after the first paint by HeroScene, so none of it is in the
  * page's first script.
  *
@@ -11,7 +11,6 @@
  *
  *   data-form     "desktop" | "tablet" | "phone", the form the scene runs in
  *   data-scene    "running", or "still" under reduced motion
- *   data-hold     present while a drag on the hero moves the network
  *   data-typing   present once the scene has taken over the accent's words
  *   data-ul       the accent's underline: none | grow | full | shrink
  *   data-caret    on | off
@@ -22,10 +21,10 @@
  *  - The two media conditions below are the ones HeroScene.module.css lays
  *    the hero out on. Change them in both places or the scene and the layout
  *    disagree about the form.
- *  - A drag is held only on the phone and tablet forms, never under reduced
- *    motion, never while the page is zoomed in, never when the hero does not
- *    end on the first screen (the words would be out of reach), and never
- *    again once a link or button inside the hero has been pressed.
+ *  - A finger on the hero scrolls the page, on every form. Nothing here may
+ *    set `touch-action` or stop a touch: the hero is one screen high, so a
+ *    visitor on a phone has nowhere else to put a finger, and a hero that
+ *    kept the swipe for itself would be a page that does not scroll.
  */
 import { maxWidth } from "@/theme/breakpoints";
 import { startScene, type HeroForm, type SceneHeadline } from "./scene";
@@ -47,19 +46,11 @@ const CONTROLS = 'a[href], button, input, select, textarea, summary, [role="butt
 const STATE_ATTRIBUTES = [
   "data-form",
   "data-scene",
-  "data-hold",
   "data-typing",
   "data-ul",
   "data-caret",
   "data-replay",
 ];
-
-/**
- * True once a link or button inside the hero has been pressed. It lives as
- * long as the page's script does, so it outlasts a move to another page and
- * back, and a full reload starts again.
- */
-let letGo = false;
 
 /**
  * Start the scene on `canvas` inside `root` and keep it right for the screen.
@@ -75,8 +66,6 @@ export function mountHero(root: HTMLElement, canvas: HTMLCanvasElement): () => v
   const phone = win.matchMedia(PHONE_QUERY);
   const stacked = win.matchMedia(STACKED_QUERY);
   const reduced = win.matchMedia(REDUCED_QUERY);
-  /** Absent in old browsers; where it exists it says how far the page is zoomed. */
-  const zoom = win.visualViewport;
 
   const accentEl = root.querySelector<HTMLElement>("[data-accent-text]");
   const accent = accentEl?.textContent ?? "";
@@ -137,46 +126,13 @@ export function mountHero(root: HTMLElement, canvas: HTMLCanvasElement): () => v
     set("data-caret", null);
   }
 
-  // ------------------------------------------------------------- the hold
-
-  /**
-   * Where the hero ends on the page with nothing scrolled. Read from the
-   * layout, so an entrance that is still sliding the page into place does
-   * not count, and a notice above the header (which pushes the hero's foot
-   * off the first screen) does.
-   */
-  function footOnPage(): number {
-    let top = 0;
-    for (let el: HTMLElement | null = root; el; el = el.offsetParent as HTMLElement | null) {
-      top += el.offsetTop || 0;
-    }
-    return top + root.offsetHeight;
-  }
-
-  function fitsOneScreen(): boolean {
-    // Zoomed in, one finger has to be able to move the page.
-    if (zoom && zoom.scale > 1.01) return false;
-    const screen = Math.max(win.innerHeight, doc.documentElement.clientHeight);
-    return footOnPage() <= screen + 2;
-  }
-
-  function syncHold() {
-    const hold =
-      stopScene !== null && form !== "desktop" && !reduced.matches && !letGo && fitsOneScreen();
-    set("data-hold", hold ? "" : null);
-  }
+  // --------------------------------------------------- a finger on a link
 
   function controlAt(target: EventTarget | null): Element | null {
     const el = target as Element | null;
     if (!el || typeof el.closest !== "function") return null;
     const control = el.closest(CONTROLS);
     return control && control !== root && root.contains(control) ? control : null;
-  }
-
-  function onClick(event: Event) {
-    if (letGo || !controlAt(event.target)) return;
-    letGo = true;
-    syncHold();
   }
 
   /*
@@ -245,7 +201,6 @@ export function mountHero(root: HTMLElement, canvas: HTMLCanvasElement): () => v
     }
     set("data-form", form);
     set("data-scene", stopScene ? (reduced.matches ? "still" : "running") : null);
-    syncHold();
   }
 
   function halt() {
@@ -263,10 +218,8 @@ export function mountHero(root: HTMLElement, canvas: HTMLCanvasElement): () => v
 
   function onReducedChange() {
     set("data-scene", stopScene ? (reduced.matches ? "still" : "running") : null);
-    syncHold();
   }
 
-  root.addEventListener("click", onClick, true);
   root.addEventListener("dblclick", onDoubleClick, true);
   doc.addEventListener("pointerdown", afterPointerDown);
   doc.addEventListener("pointerup", afterPointerEnd);
@@ -274,15 +227,6 @@ export function mountHero(root: HTMLElement, canvas: HTMLCanvasElement): () => v
   phone.addEventListener("change", onFormChange);
   stacked.addEventListener("change", onFormChange);
   reduced.addEventListener("change", onReducedChange);
-  win.addEventListener("resize", syncHold);
-  if (zoom) zoom.addEventListener("resize", syncHold);
-  // The hero's own size, and the page's: a notice arriving above the header
-  // moves the hero without resizing it.
-  const sizes = typeof win.ResizeObserver === "function" ? new win.ResizeObserver(syncHold) : null;
-  if (sizes) {
-    sizes.observe(root);
-    if (doc.body) sizes.observe(doc.body);
-  }
 
   start();
 
@@ -291,7 +235,6 @@ export function mountHero(root: HTMLElement, canvas: HTMLCanvasElement): () => v
     if (unmounted) return;
     unmounted = true;
     halt();
-    root.removeEventListener("click", onClick, true);
     root.removeEventListener("dblclick", onDoubleClick, true);
     doc.removeEventListener("pointerdown", afterPointerDown);
     doc.removeEventListener("pointerup", afterPointerEnd);
@@ -299,9 +242,6 @@ export function mountHero(root: HTMLElement, canvas: HTMLCanvasElement): () => v
     phone.removeEventListener("change", onFormChange);
     stacked.removeEventListener("change", onFormChange);
     reduced.removeEventListener("change", onReducedChange);
-    win.removeEventListener("resize", syncHold);
-    if (zoom) zoom.removeEventListener("resize", syncHold);
-    if (sizes) sizes.disconnect();
     for (const name of STATE_ATTRIBUTES) root.removeAttribute(name);
   };
 }

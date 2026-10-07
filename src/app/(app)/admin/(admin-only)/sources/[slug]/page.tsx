@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { AdminPage } from "@/features/admin/adminList";
 import SourceSheetEditor from "@/features/admin/sources/SourceSheetEditor";
 import { SOURCE_SLUG_PATTERN } from "@/lib/firestore/sourceSheets";
 
@@ -12,6 +13,10 @@ export const dynamic = "force-dynamic";
  * under the admin-only rule. `requireAdminPage()` in the `(admin-only)`
  * group's layout is the gate; nothing here repeats it.
  *
+ * The page fills the frame like every other admin page, and the editor keeps
+ * itself to a reading width inside it. The editor draws the page's head: the
+ * sheet's own name, which is only known once it has been read.
+ *
  * `params` is a Promise in this version of Next and has to be awaited.
  */
 export default async function SourceSheetAdminPage({
@@ -24,5 +29,9 @@ export default async function SourceSheetAdminPage({
   // is a 404 here rather than a client-side read that would be refused.
   if (!SOURCE_SLUG_PATTERN.test(slug)) notFound();
 
-  return <SourceSheetEditor slug={slug} />;
+  return (
+    <AdminPage wide>
+      <SourceSheetEditor slug={slug} />
+    </AdminPage>
+  );
 }

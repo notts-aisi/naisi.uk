@@ -22,13 +22,15 @@ import AdminTabs, { type AdminTabAccess } from "./AdminTabs";
  * behind `requireAdminPage()`, and `/admin/courses` repeats its own predicate
  * in `courses/layout.tsx`.
  *
- * The head of the page follows the caller and the address. `AdminTabs` draws
- * the name of the section the address belongs to (People, Programmes,
- * Publicity, Site settings) and a strip of the pages of that section the
- * caller may open, so a course drafter gets "Courses" and nothing else, not a
- * console of sections they would only be redirected out of. It is a client
- * component because a layout is not told the address; what it may show still
- * comes from the `access` object resolved here, on the server.
+ * The top of the page follows the caller and the address. `AdminTabs` draws a
+ * strip of the pages of the section the address belongs to (People,
+ * Programmes, Publicity, Site settings) that the caller may open, so a course
+ * drafter gets "Courses" and nothing else, not a console of sections they
+ * would only be redirected out of. It also draws the page's head (the section
+ * as a crumb, the page's own name as the heading) for every page that does not
+ * draw one itself. It is a client component because a layout is not told the
+ * address; what it may show still comes from the `access` object resolved
+ * here, on the server.
  *
  * CLOSED DURING A VIEW-AS SESSION. The course editors under `/admin/courses`
  * write to Firestore CLIENT-DIRECT (`courseMutations.ts` setDoc/updateDoc from
@@ -43,7 +45,9 @@ import AdminTabs, { type AdminTabAccess } from "./AdminTabs";
  * The notice rather than a redirect is deliberate: view-as exists to answer
  * "what does this member see", and bouncing to /dashboard would answer that
  * question wrongly by implying the member cannot reach the admin area at all.
- * The head and its strip still render for the same reason.
+ * The strip and the head still render for the same reason, and the head is
+ * drawn by `AdminTabs` here whatever the page says (`closed`): the page that
+ * would have drawn its own is not on the screen.
  */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
@@ -89,7 +93,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (viewingAs) {
     return (
       <div>
-        <AdminTabs access={access} />
+        <AdminTabs access={access} closed />
         <div
           style={{
             marginTop: "var(--space-6)",

@@ -22,11 +22,18 @@
  *          picture of a picture.
  *
  * What this script never does is change the mark. The emblem's outlines and
- * its two inks come from the files as they are, and the cyan copy set behind
- * the emblem is part of the mark, so there is no one-colour emblem to make.
- * An earlier version of this script painted the emblem white and dropped the
- * cyan; `public/brand/naisi-emblem-white.png` keeps its name because pages
- * point at it, and is now the Night emblem (white over cyan).
+ * its inks come from the files as they are; nothing here repaints or redraws
+ * it. An earlier version of this script made a white emblem by painting the
+ * body white and dropping the cyan copy. `public/brand/naisi-emblem-white.png`
+ * keeps its name because pages point at it, and is the Night emblem: white
+ * over its cyan copy, which is what an event cover shows. The masters also
+ * hold the emblem in one ink, for single-colour uses; nothing served takes
+ * those yet (`MASTERS_NOT_SERVED` below).
+ *
+ * The masters hold two cuts of the emblem: the full one, which everything
+ * here is drawn from, and the header cut, for small sizes. No file is made
+ * from the header cut: `src/components/BrandMark.tsx` draws it in place, and
+ * the test holds what that component draws to the master.
  *
  * The tab icon and the home-screen icon are different pictures on purpose: a
  * tower cut for 16 pixels in the tab, the whole emblem on the home screen.
@@ -99,7 +106,7 @@ export const OUTPUTS = [
     copy: true,
     why:
       "The logo at the top of every email that uses src/emails/EmailChrome.tsx. A PNG because mail " +
-      "clients do not show SVG; 600px wide and shown at 300 so it is sharp on a dense screen.",
+      "clients do not show SVG; 600px wide and shown at 220, so it is sharp on a dense screen.",
   },
 
   // --- Link previews -------------------------------------------------------
@@ -137,6 +144,9 @@ export const OUTPUTS = [
   },
 
   // --- The home screen and the installed app -------------------------------
+  // The emblem on the site's page floor, the colour the manifest fills the
+  // installed app's opening screen with, so the icon and that screen are one
+  // field. The test holds the corners of all three to that colour.
   {
     to: "src/app/apple-icon.png",
     from: "3-app-icon/apple-touch-icon.png",
@@ -180,6 +190,14 @@ export const MASTERS_NOT_SERVED = {
   "README.md": "The owner's notes on what each file is for.",
   "1-emblem/naisi-emblem.png": "His PNG export of the colour emblem. The SVG beside it is the master.",
   "1-emblem/naisi-emblem-night.png": "His PNG export of the Night emblem. The SVG beside it is the master.",
+  "1-emblem/naisi-emblem-header-night.svg":
+    "The header cut, Night: the emblem for 64px and under. No page shows it from a file: src/components/BrandMark.tsx draws it in place in every header and sidebar, and tests/brand-assets.test.mjs holds those outlines to this file.",
+  "1-emblem/naisi-emblem-header.svg":
+    "The header cut in colour, for light grounds. Every header on the site sits on the dark ground, so nothing draws it.",
+  "1-emblem/naisi-emblem-white.svg":
+    "The emblem in one ink, white, with no cyan copy: for single-colour uses; covers use the offset mark. Nothing served takes it yet.",
+  "1-emblem/naisi-emblem-navy.svg":
+    "The emblem in one ink, navy, with no cyan copy: for single-colour uses; covers use the offset mark. Nothing served takes it yet.",
   "2-lockup/naisi-lockup.png": "His PNG export of the colour lockup. The SVG beside it is the master.",
   "2-lockup/naisi-lockup-night.svg":
     "The Night lockup. No page or email shows it from a file: on the site's dark ground the lockup is drawn in place by src/components/BrandMark.tsx.",

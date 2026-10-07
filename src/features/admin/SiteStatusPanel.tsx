@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import Chip, { type ChipTone } from "@/components/ui/Chip";
 import CountedTextarea from "@/components/ui/CountedTextarea";
 import Select from "@/components/ui/Select";
 import Switch from "@/components/ui/Switch";
 import { Field } from "@/components/ui/Input";
+import { AdminPanel, AdminProblem } from "./adminPanels";
 import { useSiteNoticeState } from "@/features/maintenance/useSiteNotice";
 import bannerStyles from "@/features/maintenance/SiteNoticeBanner.module.css";
 import {
@@ -22,16 +23,16 @@ import {
 import styles from "./SiteStatusPanel.module.css";
 
 /**
- * Admin control for the site-wide maintenance notice (publicConfig/siteNotice
- * — see src/lib/siteNotice.ts). The live section streams the same
+ * Admin control for the site-wide maintenance notice (publicConfig/siteNotice:
+ * see src/lib/siteNotice.ts). The live section streams the same
  * useSiteNotice listener every visitor gets, so what it shows IS what the
  * site shows; edits go through /api/admin/site-notice.
  */
 
 const LEVEL_LABELS: Record<SiteNoticeLevel, string> = {
-  info: "Info — subtle, visitors can dismiss it",
-  warn: "Warning — amber, not dismissible",
-  critical: "Critical — red, not dismissible",
+  info: "Info: subtle, visitors can dismiss it",
+  warn: "Warning: amber, not dismissible",
+  critical: "Critical: red, not dismissible",
 };
 
 const SURFACE_LABELS: Record<SiteNoticeSurface, { label: string; description: string }> = {
@@ -124,7 +125,7 @@ function formatRemaining(ms: number): string {
 
 export default function SiteStatusPanel() {
   // What every visitor's banner currently shows, live. Before the first
-  // snapshot answers, say "checking" — never a premature "No notice".
+  // snapshot answers, say "checking", never a premature "No notice".
   const { notice: live, connection } = useSiteNoticeState();
 
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
@@ -262,35 +263,40 @@ export default function SiteStatusPanel() {
   const consoleUrl = `https://console.firebase.google.com/project/${projectId}/firestore/data/~2F${SITE_NOTICE_PATH.collection}~2F${SITE_NOTICE_PATH.doc}`;
   const pausedLive = SITE_NOTICE_SURFACES.filter((s) => live.paused[s]);
 
+  // What visitors are being told right now, in a word.
+  const liveChip: { tone: ChipTone; label: string } =
+    connection === "loading"
+      ? { tone: "neutral", label: "Checking…" }
+      : connection === "error"
+        ? { tone: "neutral", label: "Feed unreachable" }
+        : live.bannerVisible
+          ? { tone: "warning", label: `Notice up: ${live.level}` }
+          : { tone: "success", label: "No notice" };
+
   return (
     <div className={styles.stack}>
       {/* ===== Live status ===== */}
-      <Card padding="lg">
-        <div className={styles.liveHead}>
-          <h2 className={styles.sectionTitle}>Live status</h2>
-          <span
-            className={`${styles.statusPill} ${
-              connection !== "live"
-                ? styles.statusChecking
-                : live.bannerVisible
-                  ? styles.statusOn
-                  : styles.statusOff
-            }`}
-          >
-            {connection === "loading"
-              ? "Checking…"
-              : connection === "error"
-                ? "Feed unreachable"
-                : live.bannerVisible
-                  ? `NOTICE UP — ${live.level}`
-                  : "No notice"}
-          </span>
-        </div>
+      <AdminPanel
+        id="site-notice"
+        title="Live status"
+        badges={
+          <Chip tone={liveChip.tone} dot={connection === "live" && live.bannerVisible}>
+            {liveChip.label}
+          </Chip>
+        }
+        actions={
+          connection === "live" && live.bannerVisible ? (
+            <Button onClick={handleSwitchOff} disabled={saving}>
+              {saving ? "Working…" : "Switch everything off now"}
+            </Button>
+          ) : undefined
+        }
+      >
         {connection === "loading" ? (
           <p className={styles.liveMeta}>Waiting for the live feed…</p>
         ) : connection === "error" ? (
           <p className={styles.liveMeta}>
-            Can&apos;t reach the live notice feed from this browser — what
+            Can&apos;t reach the live notice feed from this browser, so what
             visitors see cannot be confirmed right now. Saves below still go
             through the server.
           </p>
@@ -302,17 +308,17 @@ export default function SiteStatusPanel() {
                 ? `Paused: ${pausedLive
                     .map((s) => SURFACE_LABELS[s].label.replace(/^Pause /, ""))
                     .join(", ")}. `
-                : "Banner only — nothing paused. "}
+                : "Banner only, nothing paused. "}
               {expiresAtMs !== null
                 ? `Auto-clears in ${formatRemaining(expiresAtMs - nowMs)} (${new Date(
                     expiresAtMs,
                   ).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}).`
-                : "No auto-clear time — switch it off manually."}
+                : "No auto-clear time, so switch it off by hand."}
             </p>
           </>
         ) : (
           <p className={styles.liveMeta}>
-            Visitors see nothing. This section is realtime — it streams the same
+            Visitors see nothing. This card is live: it streams the same
             listener every visitor&apos;s banner uses.
           </p>
         )}
@@ -326,27 +332,19 @@ export default function SiteStatusPanel() {
           Visitors can follow the banner&apos;s Details link to the public{" "}
           <a href="/status#log" target="_blank" rel="noopener noreferrer">
             status page
-          </a>{" "}
-          — availability lights plus the maintenance log (log entries are
-          written on saves from this panel; break-glass console flips don&apos;t
-          appear there, though the lights stay correct).
+          </a>
+          : availability lights and the maintenance log. Log entries are
+          written on saves from this page; a change made by hand in the
+          console does not appear there, though the lights stay correct.
         </p>
-        {connection === "live" && live.bannerVisible && (
-          <div className={styles.actionsRow}>
-            <Button onClick={handleSwitchOff} disabled={saving}>
-              {saving ? "Working…" : "Switch everything off now"}
-            </Button>
-          </div>
-        )}
-      </Card>
+      </AdminPanel>
 
       {/* ===== Compose / edit ===== */}
-      <Card padding="lg">
-        <h2 className={styles.sectionTitle}>Set the notice</h2>
+      <AdminPanel title="Set the notice">
         {!loaded ? (
           <p className={styles.liveMeta}>Loading…</p>
         ) : loadError ? (
-          <p className={styles.errorText}>{loadError}</p>
+          <AdminProblem>{loadError}</AdminProblem>
         ) : (
           <div className={styles.form}>
             <Switch
@@ -354,7 +352,7 @@ export default function SiteStatusPanel() {
               checked={draft.active}
               onChange={(next) => setDraft((d) => ({ ...d, active: next }))}
               label="Show the banner"
-              description="Warn without pausing anything. Pausing a surface below always shows the banner too — a pause is never silent."
+              description="Warn without pausing anything. Pausing something below always shows the banner too: a pause is never silent."
             />
 
             <div className={styles.switchGroup}>
@@ -401,14 +399,14 @@ export default function SiteStatusPanel() {
                 max={SITE_NOTICE_LIMITS.message}
                 rows={3}
                 onChange={(e) => setDraft((d) => ({ ...d, message: e.target.value }))}
-                placeholder="Registrations are failing to save. We're on it — back around 6pm."
+                placeholder="Registrations are failing to save. We're on it, back around 6pm."
               />
             </Field>
 
             <Field
               id="site-notice-details"
               label="Log details (optional)"
-              hint="Longer write-up for the public status page and its popup — not shown in the banner, which links there automatically. Plain text; blank lines make paragraphs."
+              hint="A longer write-up for the public status page and its popup. It is not shown in the banner, which links there by itself. Plain text; blank lines make paragraphs."
             >
               <CountedTextarea
                 id="site-notice-details"
@@ -423,7 +421,7 @@ export default function SiteStatusPanel() {
             <Field
               id="site-notice-expiry"
               label="Auto-clear after"
-              hint="Applied from the moment you save. Banner and pauses clear together — a forgotten pause silently suppressing signups is worse than a lapsed one."
+              hint="Applied from the moment you save. Banner and pauses clear together: a forgotten pause quietly holding back sign-ups is worse than one that lapsed."
             >
               <Select
                 id="site-notice-expiry"
@@ -440,8 +438,8 @@ export default function SiteStatusPanel() {
               </Select>
             </Field>
 
-            <div>
-              <div className={styles.previewLabel}>Exact preview</div>
+            <div className={styles.preview}>
+              <div className="meta">Exact preview</div>
               {preview.bannerVisible ? (
                 <div
                   className={`${bannerStyles.banner} ${bannerStyles[preview.level]} ${styles.previewFrame}`}
@@ -451,63 +449,61 @@ export default function SiteStatusPanel() {
                 </div>
               ) : (
                 <p className={styles.liveMeta}>
-                  Nothing on and nothing paused — visitors would see no banner.
+                  Nothing on and nothing paused, so visitors would see no banner.
                 </p>
               )}
             </div>
 
-            {saveError && <p className={styles.errorText}>{saveError}</p>}
+            {saveError && <AdminProblem>{saveError}</AdminProblem>}
             <div className={styles.actionsRow}>
               <Button onClick={handleSave} disabled={saving}>
-                {saving ? "Saving…" : savedFlash ? "Saved ✓" : "Save & publish"}
+                {saving ? "Saving…" : savedFlash ? "Saved" : "Save and publish"}
               </Button>
             </div>
           </div>
         )}
-      </Card>
+      </AdminPanel>
 
       {/* ===== Honest limits ===== */}
-      <Card padding="lg">
-        <h2 className={styles.sectionTitle}>What this can and cannot do</h2>
+      <AdminPanel title="What this can and cannot do">
         <ul className={styles.limitsList}>
           <li>
             Sign-in and password reset <strong>cannot be gated by this app at
-            all</strong> — they go straight from the browser to Firebase. The
+            all</strong>: they go straight from the browser to Firebase. The
             banner is the entire mitigation there, and the real sign-in kill
             switch is disabling the provider in the Firebase console.
           </li>
           <li>
-            Browser→Firestore writes (how member registration completes today)
-            are reachable <strong>only by Firestore rules, never by a flag
-            here</strong>. These switches pause the submit UI — they do not
-            stop writes. Anything that genuinely must not happen during an
-            incident needs a rules deploy.
+            Writes that go from the browser to Firestore (how member
+            registration completes today) are reachable <strong>only by
+            Firestore rules, never by a flag here</strong>. These switches
+            pause the submit button; they do not stop writes. Anything that
+            truly must not happen during an incident needs a rules deploy.
           </li>
         </ul>
-      </Card>
+      </AdminPanel>
 
       {/* ===== Break-glass ===== */}
-      <Card padding="lg">
-        <h2 className={styles.sectionTitle}>Break-glass: flip it without this panel</h2>
+      <AdminPanel title="Break-glass: change it without this page">
         <p className={styles.liveMeta}>
-          If the app itself is down, edit the doc directly in the{" "}
+          If the app itself is down, edit the document directly in the{" "}
           <a href={consoleUrl} target="_blank" rel="noopener noreferrer">
             Firebase console
-          </a>{" "}
-          — collection <code>{SITE_NOTICE_PATH.collection}</code>, document{" "}
+          </a>
+          : collection <code>{SITE_NOTICE_PATH.collection}</code>, document{" "}
           <code>{SITE_NOTICE_PATH.doc}</code>. The banner updates on every open
           tab within seconds; it works even while the app server is down.
         </p>
         <ul className={styles.fieldList}>
-          <li><code>active</code> (boolean) — show the banner</li>
-          <li><code>level</code> (string) — <code>info</code> | <code>warn</code> | <code>critical</code></li>
-          <li><code>message</code> (string) — plain text</li>
-          <li><code>details</code> (string) — longer status-page copy, plain text</li>
+          <li><code>active</code> (boolean): show the banner</li>
+          <li><code>level</code> (string): <code>info</code> | <code>warn</code> | <code>critical</code></li>
+          <li><code>message</code> (string): plain text</li>
+          <li><code>details</code> (string): longer status-page copy, plain text</li>
           <li>
-            <code>endsAt</code> (timestamp) — <strong>always set this to a
-            future time when flipping by hand.</strong> The doc may hold stale
-            past timestamps from an earlier notice, which read as
-            &ldquo;expired&rdquo; and make your flip silently do nothing.
+            <code>endsAt</code> (timestamp): <strong>always set this to a
+            future time when changing it by hand.</strong> The document may
+            hold stale past timestamps from an earlier notice, which read as
+            &ldquo;expired&rdquo; and make your change silently do nothing.
             Setting a future <code>endsAt</code> overrides that (and is the
             auto-clear time; absent, the notice clears 24h after{" "}
             <code>updatedAt</code>).
@@ -520,10 +516,10 @@ export default function SiteStatusPanel() {
         </ul>
         <p className={styles.liveMeta}>
           Anything missing or mistyped fails <em>open</em>: that field (or the
-          whole notice) simply switches off — a malformed doc can never
+          whole notice) simply switches off. A malformed document can never
           fabricate an outage or crash a page.
         </p>
-      </Card>
+      </AdminPanel>
     </div>
   );
 }

@@ -5,7 +5,6 @@ import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import SegmentedControl from "@/components/ui/SegmentedControl";
 import Switch from "@/components/ui/Switch";
-import { isPrintedSlug } from "@/lib/campaign/printedLinks";
 import {
   TRACKED_LINK_LIMITS,
   TRACKED_LINK_TYPES,
@@ -30,6 +29,10 @@ type Props = {
  * Create and edit share this form. The one difference is the slug: it can be
  * typed when creating and is fixed for good afterwards, because it is the part
  * that gets printed.
+ *
+ * Whether a link is live is not a field here. A new link starts live, and an
+ * existing one is switched on and off in its row of the list; a save from
+ * this form passes the link's own state through untouched.
  */
 export function TrackedLinkForm({ link, campaigns, origin, onSubmit, onCancel }: Props) {
   const listId = useId();
@@ -38,7 +41,6 @@ export function TrackedLinkForm({ link, campaigns, origin, onSubmit, onCancel }:
   const [type, setType] = useState(link?.type ?? "qr");
   const [campaign, setCampaign] = useState(link?.campaign ?? "");
   const [destination, setDestination] = useState(link?.destination ?? "/links");
-  const [active, setActive] = useState(link?.active ?? true);
   const [countOffsite, setCountOffsite] = useState(link?.countOffsite ?? false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -46,7 +48,6 @@ export function TrackedLinkForm({ link, campaigns, origin, onSubmit, onCancel }:
   // Read live, so the form can say what will happen before anything is saved.
   const parsed = parseDestination(destination, [origin]);
   const offsite = parsed.ok && parsed.kind === "external";
-  const printed = link ? isPrintedSlug(link.slug) : false;
   const host = new URL(origin).host;
 
   async function submit() {
@@ -58,7 +59,7 @@ export function TrackedLinkForm({ link, campaigns, origin, onSubmit, onCancel }:
         destination,
         type,
         campaign,
-        active,
+        active: link?.active ?? true,
         countOffsite,
       });
     } catch (err) {
@@ -109,7 +110,7 @@ export function TrackedLinkForm({ link, campaigns, origin, onSubmit, onCancel }:
       )}
 
       <div className={styles.formGrid}>
-        <div className={styles.field}>
+        <div className={`${styles.field} ${styles.fieldStart}`}>
           <span className={styles.label}>Kind</span>
           <SegmentedControl
             value={type}
@@ -165,24 +166,11 @@ export function TrackedLinkForm({ link, campaigns, origin, onSubmit, onCancel }:
         />
       )}
 
-      {link && (
-        <Switch
-          checked={active}
-          onChange={setActive}
-          label="Live"
-          description={
-            printed
-              ? "This code is on printed material. Switched off, it lands on the links page: it never breaks, and it cannot be deleted."
-              : "Switched off, the address lands on the links page. A link is never deleted, so the address can never be given to something else by mistake."
-          }
-        />
-      )}
-
       {error && <p className={styles.error}>{error}</p>}
 
       <div className={styles.formActions}>
         <Button onClick={submit} disabled={busy || !parsed.ok}>
-          {busy ? "Saving…" : link ? "Save" : "Create link"}
+          {busy ? "Saving…" : link ? "Save" : "Create short link"}
         </Button>
         <Button variant="ghost" onClick={onCancel} disabled={busy}>
           Cancel

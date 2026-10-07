@@ -376,16 +376,6 @@
   50% { opacity: 0; }
 }
 
-/* A drag on the hero moves the network and not the page. Two fingers still
-   zoom. The script sets data-hold only where the hold applies, and this
-   condition keeps it off for a reader who asked for less motion whatever the
-   script says. */
-@media (prefers-reduced-motion: no-preference) {
-  .root[data-hold] {
-    touch-action: pinch-zoom;
-  }
-}
-
 /* Less motion: everything is in place from the first paint and stays there. */
 @media (prefers-reduced-motion: reduce) {
   .word,

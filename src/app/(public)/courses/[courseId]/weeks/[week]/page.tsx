@@ -8,6 +8,7 @@ import {
   getPublicWeek,
   getPublishedCourse,
 } from "@/features/courses/fetchCourses";
+import { linkPreviewImages } from "@/lib/linkPreviewCard";
 import styles from "./week.module.css";
 
 /**
@@ -63,8 +64,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title,
     description,
-    openGraph: { title, description, type: "article" },
-    twitter: { card: "summary_large_image", title, description },
+    // A week has no picture of its own, so the card.
+    openGraph: { title, description, type: "article", images: linkPreviewImages() },
+    twitter: { card: "summary_large_image", title, description, images: linkPreviewImages() },
   };
 }
 

@@ -1,6 +1,6 @@
-import Badge from "@/components/ui/Badge";
-import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
 import { EMAIL_AUDIENCE_ENV, EVERYONE, resolveEmailAudience } from "@/lib/email/audience";
+import { AdminPanel, AdminProblem } from "./adminPanels";
 
 /**
  * Who this copy of the site can email, said out loud.
@@ -40,38 +40,24 @@ export default function EmailAudiencePanel() {
   } else if (audience.allow.size > 0) {
     const listed = Array.from(audience.allow).sort().join(", ");
     badge = { tone: "neutral", label: audience.allow.size === 1 ? "1 address" : `${audience.allow.size} addresses` };
-    sentence = `Only ${listed}. An email to anyone else is held, and shows as Held on the Deliverability tab.`;
+    sentence = `Only ${listed}. An email to anyone else is held, and shows as Held on Email delivery.`;
   } else {
     badge = { tone: "neutral", label: "Nobody" };
     sentence =
       "This copy of the site has no audience setting, so every email is held. " +
-      "Held emails show on the Deliverability tab.";
+      "Held emails show on Email delivery.";
   }
 
+  // Held on the live site is the one answer that has to interrupt: members
+  // are getting nothing. Every other answer is a plain line under the title.
   return (
-    <Card padding="md">
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--space-2)",
-          marginBottom: "var(--space-1)",
-          flexWrap: "wrap",
-        }}
-      >
-        <h3 style={{ fontSize: "var(--text-lg)" }}>Who this site can email</h3>
-        <Badge tone={badge.tone}>{badge.label}</Badge>
-      </div>
-      <p
-        style={{
-          color: badge.tone === "danger" ? "var(--color-danger)" : "var(--color-text-muted)",
-          fontSize: "var(--text-sm)",
-          margin: 0,
-          overflowWrap: "anywhere",
-        }}
-      >
-        {sentence}
-      </p>
-    </Card>
+    <AdminPanel
+      id="email-audience"
+      title="Who this site can email"
+      badges={<Chip tone={badge.tone}>{badge.label}</Chip>}
+      description={badge.tone === "danger" ? undefined : sentence}
+    >
+      {badge.tone === "danger" && <AdminProblem>{sentence}</AdminProblem>}
+    </AdminPanel>
   );
 }

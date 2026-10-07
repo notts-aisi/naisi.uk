@@ -1,6 +1,16 @@
+/* A pie with its key: the answers to one sign-up question. */
+
+.chart {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-5);
+  margin-top: var(--space-3);
+}
+
 .wrap {
   position: relative;
-  display: inline-block;
+  flex: none;
 }
 
 .pie {
@@ -8,7 +18,9 @@
 }
 
 .slice {
-  cursor: pointer;
+  /* The card's colour between slices, so two neighbours never run together. */
+  stroke: var(--color-surface);
+  stroke-width: 1.5;
   transition: opacity var(--transition-fast);
 }
 
@@ -16,19 +28,70 @@
   opacity: 0.82;
 }
 
-/* Hover tooltip: floats just above the cursor, centred on it. */
+/* The key: a swatch, the answer, how many gave it. */
+.key {
+  display: flex;
+  flex: 1 1 11rem;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.keyRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--color-text);
+}
+
+.swatch {
+  flex: none;
+  align-self: center;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 2px;
+}
+
+.keyLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.keyCount {
+  flex: none;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.keyShare {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+/* The tooltip floats just above the cursor, centred on it. */
 .tooltip {
   position: absolute;
+  z-index: 5;
   transform: translate(-50%, calc(-100% - 10px));
-  pointer-events: none;
-  white-space: nowrap;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-  font-size: var(--text-xs);
-  font-weight: 600;
   padding: var(--space-1) var(--space-2);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
-  z-index: 5;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* Nothing: the pie and its key already drop one under the other. */
 }

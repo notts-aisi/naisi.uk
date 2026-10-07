@@ -1,125 +1,272 @@
+/*
+  The event editor, and the small "new event" form that shares its shell.
+
+  A head, a strip of four steps, and the step that is showing in a card.
+  Inputs, switches, chips and buttons are the shared ones; this file sets
+  only what sits between them.
+*/
+
 .editor {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+  min-width: 0;
 }
 
-.statusBar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+/* The head brings its own space underneath; the column's gap would double it. */
+.editor > header {
+  margin-bottom: var(--space-1);
+}
+
+/* A link drawn as the shared Button. The button inside is out of the tab
+   order, so the link is the one stop and carries the ring. */
+.buttonLink {
+  display: inline-flex;
   border-radius: var(--radius-md);
 }
 
-.statusMeta {
-  display: flex;
+.buttonLink:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+.inlineLink {
+  color: var(--color-accent-text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.inlineLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+/* === The head's line of facts === */
+
+.saved {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 0.375rem;
+}
+
+.saved svg {
+  flex: none;
+  color: var(--color-ok);
+}
+
+.unsaved {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+/* === The step that is showing, and the preview beside it ===
+   Two columns that fold to one when there is not room for both: the step
+   needs 32.5rem and the preview 21.25rem, so the preview drops under the
+   step by itself, by the width the editor has and not by the window's. */
+
+.columns {
+  display: flex;
   flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-6);
+  min-width: 0;
 }
 
-.spacer {
-  margin-left: auto;
+.stepColumn {
+  display: flex;
+  flex: 3 1 32.5rem;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
 }
 
-.muted {
-  color: var(--color-text-muted);
+.stepCard {
+  min-width: 0;
+}
+
+.previewColumn {
+  flex: 2 1 21.25rem;
+  min-width: 0;
+}
+
+/* A heading takes focus when its step opens. It is not a control, so it
+   draws no ring, and it stops clear of the phone's top bar. */
+.stepCard h2 {
+  scroll-margin-top: 5rem;
+}
+
+.stepCard h2:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+/* A part of a step with a name of its own, under a hairline. */
+.part {
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border);
+}
+
+.sectionHint + .part {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.partTitle {
+  margin: 0;
+  font-family: var(--font-body);
   font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0;
+  color: var(--color-text);
+}
+
+.partHint {
+  margin: 2px 0 var(--space-3);
+  font-size: var(--text-caption);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+/* === A card of the form === */
+
+.sectionTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.sectionHint {
+  margin: var(--space-1) 0 var(--space-6);
+  font-size: var(--text-ui);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
 }
 
 .fields {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
+  min-width: 0;
 }
 
 .twoCol {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-5) var(--space-4);
 }
 
-@media (max-width: 48rem) { /* --bp-md (normalised from 640px) */
-  .twoCol {
-    grid-template-columns: 1fr;
-  }
-}
-
-.fieldInput {
-  padding: 0.55rem 0.7rem;
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  color: var(--color-text);
-  font-size: var(--text-md, 1rem);
-  width: 100%;
-}
-
-.fieldInput:focus {
-  outline: none;
-  border-color: var(--color-accent);
-}
-
-.checkboxLabel {
-  display: inline-flex;
-  align-items: center;
+/* A question with two answers: its words, then the two segments. */
+.choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--color-text);
-  cursor: pointer;
 }
 
-.checkboxGroupLabel {
-  display: block;
+/* A number of places needs a short box. */
+.places {
+  max-width: 13.75rem;
+}
+
+/* The two switches at the foot of the sign-up step, under a hairline. */
+.switches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+/* A set of ticks with one name: the dietary tags. */
+.group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.groupLabel {
+  padding: 0;
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--color-text);
-  margin-bottom: var(--space-1);
 }
 
-.checkboxGroupHint {
-  color: var(--color-text-muted);
+.groupHint {
+  margin: var(--space-1) 0 var(--space-3);
   font-size: var(--text-sm);
-  margin: 0 0 var(--space-2);
+  color: var(--color-text-muted);
 }
 
 .tagRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-2);
 }
 
-.sectionTitle {
-  font-size: var(--text-lg);
-  font-weight: 600;
-  margin: 0 0 var(--space-3);
-  color: var(--color-text);
-}
+/* === The cover image's logo setting === */
 
-.sectionHint {
+.brandingChip {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 2.75rem;
+  margin-top: var(--space-4);
+  padding: 0 var(--space-3) 0 var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
   color: var(--color-text-muted);
+  font: inherit;
   font-size: var(--text-sm);
-  margin: 0 0 var(--space-3);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
 }
+
+.brandingChip strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.brandingChip:hover:not(:disabled) {
+  border-color: var(--color-control-border);
+}
+
+.brandingChip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.brandingChange {
+  color: var(--color-accent-text);
+  font-weight: 600;
+}
+
+/* === What changed, before the email about it goes === */
 
 .changeSummary {
-  margin: var(--space-3) 0;
-  padding: var(--space-3);
-  background: var(--color-bg-elevated);
+  margin: 0 0 var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-row);
 }
 
 .changeRow {
   margin: var(--space-1) 0;
   font-size: var(--text-sm);
-  color: var(--color-text);
   line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
 }
 
 .changeOld {
@@ -133,118 +280,300 @@
 
 .changeNew {
   font-weight: 600;
-  color: var(--color-text);
 }
 
-.editorActions {
+.problem {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger-text);
+}
+
+.done {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-ok);
+}
+
+/* === Buttons === */
+
+.actions {
   display: flex;
-  gap: var(--space-3);
   flex-wrap: wrap;
   align-items: center;
+  gap: 0.625rem;
 }
 
-.danger {
-  color: var(--color-danger);
-  font-size: var(--text-sm);
+.fields + .actions,
+.problem + .actions,
+.done + .actions {
+  margin-top: var(--space-5);
+}
+
+/* The foot of a step: Back at the left, Save and the way on at the right. */
+.stepFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+
+.stepFootEnd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.625rem;
+  margin-left: auto;
+}
+
+.stepMessage {
+  margin-top: var(--space-5);
+}
+
+/* The choice that goes with Save sits close above the foot's line. */
+.stepMessage + .stepFoot {
+  margin-top: var(--space-4);
+}
+
+/* === The last step: what is being sent, and what is still missing === */
+
+.summary {
+  display: grid;
+  gap: var(--space-3);
   margin: 0;
 }
 
-.deleteBtn {
-  padding: 0.45rem 0.75rem;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
+.summary > div {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: var(--space-3);
 }
 
-.deleteBtn:hover:not(:disabled) {
-  color: var(--color-danger);
-  border-color: var(--color-danger);
-}
-
-.deleteBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.coverBrandingChip {
-  margin-top: var(--space-3);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0.4rem 0.55rem 0.4rem 0.8rem;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-elevated);
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  cursor: pointer;
-}
-
-.coverBrandingChip:hover:not(:disabled) {
-  border-color: var(--color-border-strong);
-  color: var(--color-text);
-}
-
-.coverBrandingChip:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.coverBrandingChip strong {
-  color: var(--color-text);
-  font-weight: 600;
-}
-
-.coverBrandingChange {
-  padding: 0.1rem 0.5rem;
-  border-radius: var(--radius-pill);
-  background: var(--color-accent-soft);
-  color: var(--color-accent);
+.summary dt {
+  font-family: var(--font-meta);
   font-size: var(--text-xs);
+  line-height: 1.6;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
 }
+
+.summary dd {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.summaryNote {
+  display: block;
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+}
+
+.summaryAside {
+  margin: var(--space-5) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.todo {
+  margin-top: var(--space-6);
+  padding: var(--space-4);
+  background: var(--color-warning-soft);
+  border: 1px solid var(--color-warning-line);
+  border-radius: var(--radius-row);
+}
+
+.todoList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.todoRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.todoRow > span {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+/* Sending an event back: the note, then its button under it. */
+.sendBack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.sendBack > :first-child {
+  width: 100%;
+  max-width: 36rem;
+}
+
+/* === Careful: the actions that are hard to take back === */
+
+.careful .sectionTitle {
+  margin-bottom: var(--space-2);
+}
+
+.carefulList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.carefulRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.carefulRow:first-child {
+  border-top: 0;
+}
+
+.carefulRow:last-child {
+  padding-bottom: 0;
+}
+
+.carefulWords {
+  display: flex;
+  flex: 1 1 18rem;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.carefulWords strong {
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.carefulWords span {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* === The cancel dialog ===
+   It covers the whole window, the phone's bottom bar included. */
 
 .modalOverlay {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(0, 0, 0, 0.65);
   display: grid;
   place-items: center;
   padding: var(--space-4);
+  background: rgba(5, 8, 16, 0.72);
 }
 
 .modal {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
-  width: min(34rem, 100%);
-  max-height: 90vh;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  width: min(34rem, 100%);
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow-y: auto;
+  padding: var(--space-6);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
 }
 
 .modalTitle {
   margin: 0;
-  font-size: var(--text-lg);
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
   font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
   color: var(--color-text);
 }
 
 .modalHint {
   margin: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-ui);
+  line-height: var(--leading-normal);
   color: var(--color-text-muted);
-  line-height: 1.5;
+}
+
+.modal .problem {
+  margin: 0;
 }
 
 .modalActions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: 0.625rem;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .twoCol {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* The way back above the event's name takes a thumb. */
+  .crumbLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+  }
+
+  /* The foot's buttons fill their row, so none is a small target at the
+     end of a wrapped line. */
+  .stepFootEnd {
+    flex: 1 1 100%;
+    justify-content: stretch;
+  }
+
+  .stepFoot > button,
+  .stepFootEnd > button {
+    flex: 1 1 auto;
+  }
+
+  .summary > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .sendBack > button,
+  .carefulRow > button {
+    width: 100%;
+  }
+
+  .modal {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .modalActions > button {
+    flex: 1 1 auto;
+  }
 }

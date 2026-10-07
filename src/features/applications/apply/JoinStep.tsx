@@ -19,6 +19,7 @@ import {
   joinIssues,
   joinRequestFrom,
   joinReturnFor,
+  signInHrefFor,
   withKept,
 } from "@/lib/applications/applicant/join";
 import { getClientAuth } from "@/lib/firebase/client";
@@ -186,7 +187,11 @@ export default function JoinStep({
   // Somebody who is signed in has no account to make.
   const shown: View = signedIn ? "questions" : view;
   const formUrl = `/apply/${encodeURIComponent(roundId)}`;
-  const signInHref = `/login?next=${encodeURIComponent(formUrl)}`;
+  // Every way from this step to the sign-in page carries the address the form
+  // marks for the way back, so an account with no join request that signs in
+  // there is sent back to this step and never to the register page's own
+  // profile form. An account that has one lands on the form either way.
+  const signInHref = signInHrefFor(roundId);
   const title = `Apply · ${label}`;
 
   // --- the answers, and what this tab keeps of them ---------------------------
