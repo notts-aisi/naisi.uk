@@ -8,11 +8,14 @@
      to shrink. */
   min-width: 0;
   padding: 0.55rem 2.25rem 0.55rem 0.7rem;
-  background: var(--color-bg-elevated)
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path fill='%238b94ac' d='M6 8.5 1.5 4h9z'/></svg>")
-    no-repeat calc(100% - 0.85rem) center;
-  background-size: 12px 12px;
-  border: 1px solid var(--color-border);
+  /* The same ground, edge and chevron as Input. The chevron is drawn in
+     --color-text-muted; a data URL cannot read a custom property, so the
+     value is written out. */
+  background: var(--color-bg)
+    url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%238b94ac' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")
+    no-repeat calc(100% - 0.6rem) center;
+  background-size: 1.125rem 1.125rem;
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   color: var(--color-text);
   font-size: var(--text-md, 1rem);
@@ -25,9 +28,15 @@
   transition: border-color var(--transition-fast);
 }
 
+.select:hover:not(:disabled) {
+  border-color: var(--color-control-border);
+}
+
+/* The border takes the ring's colour, so the two read as one solid edge. */
 .select:focus {
   outline: none;
-  border-color: var(--color-accent);
+  border-color: var(--color-live);
+  box-shadow: var(--focus-ring);
 }
 
 .select:disabled {

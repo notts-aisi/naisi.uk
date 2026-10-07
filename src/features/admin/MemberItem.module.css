@@ -199,12 +199,12 @@
 
 .trackPillOn {
   background: var(--color-accent);
-  color: white;
+  color: var(--color-on-accent);
   border-color: var(--color-accent);
 }
 
 .trackPillOn:hover:not(:disabled) {
-  color: white;
+  color: var(--color-on-accent);
   border-color: var(--color-accent-hover);
   background: var(--color-accent-hover);
 }

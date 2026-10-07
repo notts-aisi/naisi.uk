@@ -998,7 +998,7 @@ function routeFilesUnder(dir, out = []) {
 }
 
 const REACHES_PRIVATE =
-  /["'`]admissionApplicationPrivate["'`]|admissionApplicationPrivateId\b|admissions\/applyContext/;
+  /["'`]admissionApplicationPrivate["'`]|admissionApplicationPrivateId\b|admissions\/applyContext|applications\/(?:applicant|review)\/accessRequirements/;
 const NAMES_AUDIT_KIND = /access-requirements-read/;
 
 /**
@@ -1017,6 +1017,10 @@ const OWNER_LANE = [
   [
     "src/app/api/admissions/rounds/[roundId]/apply/stage/[stageId]/route.ts",
     "same, for one later-released stage, and refuses during a view-as session",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/application/access-requirements/route.ts",
+    "the application form's own box: reads and saves the caller's own answer, addressed by their own uid, and both handlers, the GET included, refuse while a view-as session is live",
   ],
 ];
 

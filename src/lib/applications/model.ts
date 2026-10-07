@@ -49,6 +49,11 @@ import type { AdmissionApplicationStatus } from "@/lib/firestore/admissionApplic
  * An applicant can change their answers until the close, and a half-made
  * change must never unseat the application they already sent, so reviewers
  * read `sent` and nothing else.
+ *
+ * What a send replaces is not lost. When the new `sent` differs from the old
+ * one, the old one is kept in `sentHistory` on the same document, with when
+ * it was sent, and the review screens show it beside the current answers.
+ * See {@link SentVersion}.
  */
 
 /** The value of `formVersion` on a round that is an application form. */
@@ -99,6 +104,7 @@ export const APPLICATION_LIMITS = {
   poolNote: 300,
   exceptionReason: 500,
   revokeReason: 500,
+  releaseReasonOther: 300,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -161,6 +167,18 @@ export type ProgrammeSettings = {
   closed: boolean;
   /** The course run accepted people are placed on, once one exists. */
   runId: string | null;
+  /**
+   * The course this programme is for, or null for a programme with no course
+   * page. While it is set, that course's public page offers the application
+   * form: its Apply button leads to the one form, whichever course's button
+   * somebody presses. Something else than `runId`: a course is the evergreen
+   * page, a run is one term of it that people are placed on.
+   *
+   * A course's id as it was when somebody picked it. A course can be
+   * unpublished or deleted afterwards, and nothing here follows that, so
+   * whatever reads this treats a course that is not there as no course.
+   */
+  courseId: string | null;
   /** The programme's own wording for its decision-day emails. */
   emailWording: Partial<Record<ProgrammeEmailKind, EmailWording>>;
 };
@@ -236,6 +254,25 @@ export type QuestionSetDoc = {
   updatedAt: Date | null;
 };
 
+/**
+ * The last test of the decision-day emails an admin sent to their own
+ * address.
+ *
+ * Decision day cannot be sent until one has gone, and a test stops counting
+ * the moment any decision email's wording changes. `wording` is a fingerprint
+ * of all of that wording as it stood when the test went, and the send compares
+ * it with the form as it stands now (`decisionDay/tested.ts`). Nothing stamps
+ * a "wording changed" time: the comparison is made where it is used, so no
+ * writer of wording has to remember to.
+ */
+export type DecisionEmailTest = {
+  /** The admin who sent it. */
+  byUid: string;
+  at: Date | null;
+  /** `wordingFingerprint(form)` at the moment the test went. */
+  wording: string;
+};
+
 /** The fields an admission round carries when it is an application form. */
 export type ApplicationFormFields = {
   formVersion: typeof FORM_VERSION;
@@ -252,6 +289,8 @@ export type ApplicationFormFields = {
   revealOtherReviews: boolean;
   /** The "No offer this time" email, the same for every programme. */
   noOfferWording: EmailWording | null;
+  /** The last test of the decision-day emails. Null until an admin sends one. */
+  decisionEmailTest: DecisionEmailTest | null;
   /** Stamped once, by the send. Null until decision day. */
   decisionsSentAt: Date | null;
   decisionsSentByUid: string | null;
@@ -301,6 +340,45 @@ export type ApplicationContent = {
   /** Asked on the last step. Expected, never a barrier. */
   suMembership: SuMembershipAnswer | null;
 };
+
+// ---------------------------------------------------------------------------
+// What is kept when they send again
+// ---------------------------------------------------------------------------
+
+/**
+ * One EARLIER application of record: what `sent` held, whole, and when that
+ * version became the application of record.
+ *
+ * `sent` is replaced each time somebody presses Send. When the new one
+ * differs from the one it replaces, the one it replaces is kept here, so the
+ * people reviewing the application can see what it said before. A send that
+ * changes nothing keeps nothing.
+ *
+ * Kept on the application document itself and nowhere else, so whatever
+ * deletes the application deletes these with it. Never sent to the applicant:
+ * their own routes build what they answer field by field and name none of
+ * this (`applicant/project.ts`).
+ */
+export type SentVersion = {
+  content: ApplicationContent;
+  /** When THIS version became the application of record. */
+  sentAt: Date | null;
+};
+
+/**
+ * How much history one application may carry. A document has a size limit,
+ * and the draft and the application of record must always fit beside it.
+ *
+ * Beyond either limit the oldest version THAT IS NOT THE FIRST is dropped,
+ * and counted (`sentHistoryDropped`). The first version sent is never
+ * dropped. The rule is `keepVersion` in `versions/kept.ts`.
+ */
+export const SENT_HISTORY_LIMITS = {
+  /** Earlier versions kept: the first one sent, and the most recent after it. */
+  maxVersions: 10,
+  /** What the kept versions may weigh together, as the bytes of their JSON. */
+  maxBytes: 300_000,
+} as const;
 
 /** What decision day told this person. */
 export type ApplicationResultKind = "accepted" | "invited" | "no-offer" | "declined";
@@ -381,6 +459,26 @@ export type Attendance = {
   answeredAt: Date | null;
 };
 
+/**
+ * Why somebody did not take a place. Asked when they say "I can't make it"
+ * (to a place) or "No thanks" (to an invitation), and shown to the committee,
+ * who may be able to offer something that works.
+ */
+export type ReleaseReasonKind = "times" | "too-much-on" | "something-else" | "other";
+
+export const RELEASE_REASON_KINDS: readonly ReleaseReasonKind[] = [
+  "times",
+  "too-much-on",
+  "something-else",
+  "other",
+];
+
+export type ReleaseReason = {
+  kind: ReleaseReasonKind;
+  /** Their own words. Never empty for `other`, and always empty otherwise. */
+  other: string;
+};
+
 /** The fields an application carries on a form of this version. */
 export type ApplicationFields = {
   formVersion: typeof FORM_VERSION;
@@ -390,9 +488,25 @@ export type ApplicationFields = {
   submittedAt: Date | null;
   /** The most recent time. */
   sentAt: Date | null;
+  /**
+   * When `sent` became what it is now: the first send, or the latest send
+   * that changed something. `sentAt` moves on a send that changes nothing and
+   * this does not, so this is the date of the current version.
+   */
+  sentChangedAt: Date | null;
+  /** The earlier applications of record, oldest first. Empty until a send changes something. */
+  sentHistory: SentVersion[];
+  /** Earlier versions that are no longer kept. See {@link SENT_HISTORY_LIMITS}. */
+  sentHistoryDropped: number;
   result: ApplicationResult | null;
   invitation: Invitation | null;
   attendance: Attendance | null;
+  /**
+   * The reason given with the reply that gave a place or an invitation back,
+   * written by that reply and by nothing else. Null until then, and for a
+   * reply made before the question was asked.
+   */
+  releaseReason: ReleaseReason | null;
 };
 
 /** An application as the rest of this system reads it. */

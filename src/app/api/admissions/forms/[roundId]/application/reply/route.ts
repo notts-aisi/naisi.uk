@@ -15,7 +15,7 @@ import {
 import { ApplicantError, FORM_NOT_FOUND } from "@/lib/applications/applicant/store";
 import { isFormVisible } from "@/lib/applications/applicant/window";
 import { recordReply } from "@/lib/applications/status/record";
-import { isReply } from "@/lib/applications/status/replies";
+import { parseReplyRequest } from "@/lib/applications/status/replies";
 
 /**
  * An applicant's reply to what decision day told them.
@@ -25,6 +25,13 @@ import { isReply } from "@/lib/applications/status/replies";
  * from somebody who was invited. What each does, and every refusal, is
  * decided in `src/lib/applications/status/replies.ts` against the caller's
  * own application as it stands inside the transaction that writes it.
+ *
+ * The two replies that give something back (`cant-make-it`,
+ * `decline-invitation`) also carry `reason: { kind, other }`: one of a short
+ * list, with a few words of the person's own for "Other"
+ * (`src/lib/applications/status/reasons.ts`). It is required, it is checked
+ * with the rest of the body before any document is read, and it is stored on
+ * the caller's own application with the reply, for the committee to read.
  *
  * ## What it touches
  *
@@ -80,14 +87,9 @@ export async function POST(req: Request, ctx: Ctx) {
   if (!uidHit.ok) return tooManyAttempts(uidHit.retryAfterSeconds);
 
   // The body is checked before any document is read.
-  const body = await readJsonBody(req);
-  const reply = body?.reply;
-  if (!isReply(reply)) {
-    return NextResponse.json(
-      { error: "That reply was not one this page sends. Reload the page and try again." },
-      { status: 400 },
-    );
-  }
+  const parsed = parseReplyRequest(await readJsonBody(req));
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  const { request } = parsed;
 
   // Set once the form is in hand: whether a caller with no application on it
   // may be told that it exists.
@@ -98,7 +100,7 @@ export async function POST(req: Request, ctx: Ctx) {
     if (!form) return NextResponse.json({ error: FORM_NOT_FOUND }, { status: 404 });
     hidden = !isFormVisible(form, now);
 
-    const recorded = await recordReply(db, form, user.uid, reply, now);
+    const recorded = await recordReply(db, form, user.uid, request, now);
     // After the reply has committed. It answers, and never throws.
     if (recorded.tookPlace) await approveAfterAcceptedInvitation(db, form, user.uid);
 

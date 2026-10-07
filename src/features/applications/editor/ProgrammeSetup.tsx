@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import InitialsChip from "@/components/ui/InitialsChip";
+import Select from "@/components/ui/Select";
 import kit from "@/features/applications/kit/kit.module.css";
 import { useHydrated } from "@/hooks/useHydrated";
 import { APPLICATION_LIMITS, type ProgrammeEmailKind } from "@/lib/applications/model";
 import { questionCountLabel } from "@/lib/applications/editor/sets";
 import type {
+  CourseChoiceView,
   EmailView,
   PersonView,
   ProgrammeSetupView,
@@ -73,6 +75,26 @@ function countIn(text: string): number | null | "bad" {
   return /^\d{1,5}$/.test(trimmed) ? Number(trimmed) : "bad";
 }
 
+/**
+ * What the line under "Course page" says about the course that is chosen.
+ * Only a published course has a page, so only that one promises a button.
+ */
+function courseHint(chosen: CourseChoiceView | null): string {
+  if (!chosen) {
+    return "Pick the course this programme is for. That course’s Apply button then opens the application form.";
+  }
+  if (chosen.standing === "published") {
+    return "The Apply button on this course’s page opens the application form while applications are open.";
+  }
+  if (chosen.standing === "draft") {
+    return "This course is not published yet, so it has no page. Once it is published, its Apply button opens the application form.";
+  }
+  if (chosen.standing === "archived") {
+    return "This course has been archived, so it has no page. Pick another course, or No course page.";
+  }
+  return "This course has been deleted. Pick another course, or No course page.";
+}
+
 /** What has been typed and not yet stored, and what stops it being sent. */
 function changesIn(draft: Draft, view: ProgrammeSetupView): { patch: ProgrammePatch; problem: string | null } {
   const patch: ProgrammePatch = {};
@@ -112,6 +134,13 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
   const shown = useRef(0);
   /** The scores switch as it was just pressed, until the server has answered. */
   const [scoresPressed, setScoresPressed] = useState<boolean | null>(null);
+  /** The course just picked, until the server has answered. `undefined` is nothing pending. */
+  const [coursePicked, setCoursePicked] = useState<string | null | undefined>(undefined);
+  /** The latest course picked and not yet sent. `undefined` is nothing waiting. */
+  const courseWaiting = useRef<string | null | undefined>(undefined);
+  /** True while the course's saves are being sent: the ref decides, the state draws. */
+  const courseSending = useRef(false);
+  const [courseSaving, setCourseSaving] = useState(false);
   const [dialog, setDialog] = useState<
     { kind: "wording"; email: ProgrammeEmailKind } | { kind: "close" } | null
   >(null);
@@ -245,6 +274,35 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
   const setLead = (uid: string | null) =>
     act(() => putProgrammeRoles(view.roundId, view.id, { leadUid: uid }));
 
+  // The course is sent the moment it is picked, like a switch. Until the
+  // server answers the box shows what was picked, and after a refusal it goes
+  // back to what is stored, with the reason at the top of the page.
+  //
+  // THE BOX STAYS USABLE WHILE ITS OWN SAVE IS ON ITS WAY. A box that
+  // switched itself off for the length of a save would drop the keyboard's
+  // place on the page every time somebody chose from it. So one save goes at
+  // a time, and a choice made meanwhile waits and is sent next: the last
+  // thing picked is the last thing saved, whatever order answers come in.
+  const courseId = coursePicked === undefined ? view.courseId : coursePicked;
+  const chosenCourse = view.courses.find((course) => course.id === courseId) ?? null;
+  const pickCourse = (next: string | null) => {
+    setCoursePicked(next);
+    courseWaiting.current = next;
+    if (courseSending.current) return;
+    courseSending.current = true;
+    setCourseSaving(true);
+    void (async () => {
+      while (courseWaiting.current !== undefined) {
+        const wanted = courseWaiting.current;
+        courseWaiting.current = undefined;
+        await act(() => patchProgramme(view.roundId, view.id, { courseId: wanted }));
+      }
+      courseSending.current = false;
+      setCourseSaving(false);
+      setCoursePicked(undefined);
+    })();
+  };
+
   const streamSetId = view.questionSets.find((set) => set.scored)?.id ?? view.questionSets[0]?.id;
   const everyone = [view.lead, ...view.reviewers].filter((person): person is PersonView => person !== null);
 
@@ -327,6 +385,47 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
               onChange={(event) => type("facts")(event.target.value)}
             />
             <p className={shared.hint}>Under the name where applicants choose, like 6 weeks · ~5 hrs a week.</p>
+          </div>
+        </div>
+        <div className={`${styles.basics} ${styles.basicsSecond}`}>
+          <div className={`${shared.field} ${styles.basicsCourse}`}>
+            <label htmlFor={`${ids}-course`} className={shared.label}>
+              Course page
+            </label>
+            {/* Needs the page to be live to save, and waits for the answer to
+                a change made elsewhere on the page, like the people below it.
+                It does not wait for its own: see `pickCourse`. */}
+            <Select
+              id={`${ids}-course`}
+              className={shared.select}
+              value={courseId ?? ""}
+              disabled={!live || (busy && !courseSaving)}
+              aria-describedby={`${ids}-course-hint`}
+              onChange={(event) => pickCourse(event.target.value || null)}
+            >
+              <option value="">No course page</option>
+              {view.courses.map((course) => (
+                <option key={course.id} value={course.id} disabled={!course.selectable}>
+                  {course.label}
+                </option>
+              ))}
+            </Select>
+            <p id={`${ids}-course-hint`} className={shared.hint}>
+              {courseHint(chosenCourse)}
+              {chosenCourse?.standing === "published" && (
+                <>
+                  {" "}
+                  <Link
+                    href={`/courses/${encodeURIComponent(chosenCourse.id)}`}
+                    className={styles.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    See the page
+                  </Link>
+                </>
+              )}
+            </p>
           </div>
         </div>
       </section>

@@ -82,7 +82,7 @@ const MUTATION_HELPERS = {
   // made in `src/lib/applications/decisionDay/`.
   setPooledOutcome: "picks what a pooled applicant hears on decision day, and logs it",
   runDecisionDay: "publishes every applicant's outcome onto their own application and emails them",
-  sendTestEmail: "mails one decision-day email to the admin who asked for it",
+  sendTestEmail: "mails one decision-day email to the admin who asked for it, and records on the form who tested and when",
   sendDecisionEmail: "sends a decision-day email, a side effect a prefetch must not fire",
   sendProgrammeTestEmail: "mails one of a programme's decision emails to whoever asked for the test",
   approveWaitingAccount: "makes a waiting account a member's, the change the Approvals tab makes",

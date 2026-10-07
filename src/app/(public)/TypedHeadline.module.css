@@ -107,7 +107,7 @@
 .caret {
   display: inline-block;
   margin-left: 0.04em;
-  color: #22d3ee;
+  color: var(--color-live);
   font-weight: 400;
   /* Caret sits as a sibling of .accentText, not inside it, so
      the gradient text-clip doesn't affect it. */

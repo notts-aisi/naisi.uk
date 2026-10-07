@@ -1,13 +1,10 @@
-/* InitialsChip — the avatar stand-in for cohort surfaces. Sizing follows
-   PersonSelector's chips so a roster row and a picker row read as the same
-   family.
+/* InitialsChip: the avatar stand-in for surfaces that list people. Sizing
+   follows PersonSelector's chips so a roster row and a picker row read as the
+   same family; `lg` is the 32px circle of a list row or a page's user block.
 
-   Colour: hue varies per member, saturation and lightness never do. That is
-   the whole contrast argument — the fixed L pairs (22/78 dark, 91/27 light)
-   hold ≥4.5:1 at every hue in the set, where a random-lightness hash would
-   drift under it on the light end. Worst cases measured: hue 90 in light
-   theme 5.6:1, hue 232 in dark theme 6.6:1. Keep the L/S values if you add
-   hues; only add hue numbers. */
+   Colour: seven muted fills, each carrying white initials. White on them
+   measures between 5.77:1 (the teal) and 7.51:1 (the blue). Add a fill only
+   with its ratio measured: 4.5:1 is the floor for initials this small. */
 
 .chip {
   display: inline-flex;
@@ -18,17 +15,16 @@
   font-size: var(--text-xs);
   font-weight: 600;
   line-height: 1;
+  letter-spacing: 0.02em;
   user-select: none;
-  background: hsl(var(--initials-hue) 55% 22%);
-  color: hsl(var(--initials-hue) 78% 78%);
+  background: var(--initials-fill);
+  color: white;
 }
 
-/* Light theme flips the pair rather than tinting the dark one: tokens.css
-   treats dark as the default and [data-theme="light"] as the override, so the
-   same shape holds here. */
-:global(html[data-theme="light"]) .chip {
-  background: hsl(var(--initials-hue) 72% 91%);
-  color: hsl(var(--initials-hue) 55% 27%);
+.lg {
+  width: 2rem;
+  height: 2rem;
+  font-size: var(--text-caption);
 }
 
 .md {
@@ -41,17 +37,16 @@
   height: 1.375rem;
 }
 
-/* Eight hues, spread far enough apart that two people in the same group read
-   as different at a glance. Indexed by the uid hash in InitialsChip.tsx —
-   the count there (HUES) must match the number of classes here. */
-.hue0 { --initials-hue: 200; }
-.hue1 { --initials-hue: 232; }
-.hue2 { --initials-hue: 268; }
-.hue3 { --initials-hue: 305; }
-.hue4 { --initials-hue: 340; }
-.hue5 { --initials-hue: 20; }
-.hue6 { --initials-hue: 90; }
-.hue7 { --initials-hue: 158; }
+/* Seven fills, far enough apart that two people in the same group read as
+   different at a glance. Indexed by the uid hash in InitialsChip.tsx: the
+   count there (FILLS) must match the number of classes here. */
+.fill0 { --initials-fill: #8a3b55; }
+.fill1 { --initials-fill: #3d6b4f; }
+.fill2 { --initials-fill: #2f6f73; }
+.fill3 { --initials-fill: #3b4f9e; }
+.fill4 { --initials-fill: #8a5a2b; }
+.fill5 { --initials-fill: #5a6b2f; }
+.fill6 { --initials-fill: #2f5d8a; }
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */

@@ -23,6 +23,7 @@ import {
   PROGRAMME_KINDS,
   QUESTION_SET_ROLES,
   QUESTION_TYPES,
+  RELEASE_REASON_KINDS,
   RESULT_EMAIL_STATES,
   type AboutYou,
   type AnswerValue,
@@ -35,6 +36,7 @@ import {
   type ApplicationResultKind,
   type Attendance,
   type DecisionDoc,
+  type DecisionEmailTest,
   type EmailWording,
   type Invitation,
   type PlacementException,
@@ -49,10 +51,13 @@ import {
   type QuestionSetRole,
   type QuestionSetScope,
   type QuestionType,
+  type ReleaseReason,
+  type ReleaseReasonKind,
   type ResultEmailState,
   type ReviewComment,
   type ReviewDoc,
 } from "./model";
+import { SENT_HISTORY_LIMITS, type SentVersion } from "./model";
 
 /**
  * Reading the application system's documents.
@@ -152,6 +157,18 @@ function asWording(v: unknown): EmailWording | null {
   return subject || body ? { subject, body } : null;
 }
 
+/**
+ * The record of a test of the decision-day emails. One that does not say who
+ * sent it, or carries no fingerprint, reads as no test at all: the send is
+ * never unlocked by half a record.
+ */
+function asDecisionEmailTest(v: unknown): DecisionEmailTest | null {
+  const raw = asRecord(v);
+  if (typeof raw.byUid !== "string" || !raw.byUid) return null;
+  if (typeof raw.wording !== "string" || !raw.wording) return null;
+  return { byUid: str(raw.byUid, 128), at: tsToDate(raw.at), wording: str(raw.wording, 128) };
+}
+
 export function normaliseProgramme(id: string, v: unknown): ProgrammeSettings {
   const raw = asRecord(v);
   const L = APPLICATION_LIMITS;
@@ -179,6 +196,7 @@ export function normaliseProgramme(id: string, v: unknown): ProgrammeSettings {
     useScores: bool(raw.useScores),
     closed: bool(raw.closed),
     runId: isId(raw.runId) ? raw.runId : null,
+    courseId: isId(raw.courseId) ? raw.courseId : null,
     emailWording,
   };
 }
@@ -222,6 +240,7 @@ export function normaliseFormFields(data: unknown): ApplicationFormFields {
     invitationReplyBy: dateKey(raw.invitationReplyBy),
     revealOtherReviews: bool(raw.revealOtherReviews),
     noOfferWording: asWording(raw.noOfferWording),
+    decisionEmailTest: asDecisionEmailTest(raw.decisionEmailTest),
     decisionsSentAt: tsToDate(raw.decisionsSentAt),
     decisionsSentByUid:
       typeof raw.decisionsSentByUid === "string" && raw.decisionsSentByUid
@@ -422,6 +441,26 @@ export function normaliseContent(
   };
 }
 
+/**
+ * The earlier applications of record, oldest first, each read the way `sent`
+ * is. An entry with no content of its own is not a version and is dropped.
+ *
+ * A list longer than the cap keeps what the cap's own rule keeps (the first,
+ * and the most recent after it), so reading a document never loses the first
+ * version sent. Only a document somebody edited by hand can be that long.
+ */
+function asSentHistory(v: unknown, grid: AvailabilityGrid): SentVersion[] {
+  if (!Array.isArray(v)) return [];
+  const out: SentVersion[] = [];
+  for (const entry of v) {
+    const raw = asRecord(entry);
+    if (!raw.content || typeof raw.content !== "object" || Array.isArray(raw.content)) continue;
+    out.push({ content: normaliseContent(raw.content, grid), sentAt: tsToDate(raw.sentAt) });
+  }
+  const cap = SENT_HISTORY_LIMITS.maxVersions;
+  return out.length > cap ? [out[0], ...out.slice(out.length - (cap - 1))] : out;
+}
+
 function asResult(v: unknown): ApplicationResult | null {
   const raw = asRecord(v);
   const kind = raw.kind as ApplicationResultKind;
@@ -459,6 +498,20 @@ function asAttendance(v: unknown): Attendance | null {
 }
 
 /**
+ * Why somebody gave a place or an invitation back. A reason this build does
+ * not know reads as none. `other` is the person's own words: kept only for
+ * the kind that asks for them, and that kind with no words is no reason.
+ */
+function asReleaseReason(v: unknown): ReleaseReason | null {
+  const raw = asRecord(v);
+  const kind = raw.kind as ReleaseReasonKind;
+  if (!RELEASE_REASON_KINDS.includes(kind)) return null;
+  if (kind !== "other") return { kind, other: "" };
+  const other = str(raw.other, APPLICATION_LIMITS.releaseReasonOther).trim();
+  return other ? { kind, other } : null;
+}
+
+/**
  * An application on a form of this version. Returns null for a document that
  * is not one (an application to an older round shares the collection), so a
  * caller cannot read the wrong kind of row as an empty application.
@@ -484,10 +537,15 @@ export function normaliseApplication(
     status: ADMISSION_APPLICATION_STATUSES.includes(status) ? status : "draft",
     submittedAt: tsToDate(raw.submittedAt),
     sentAt: tsToDate(raw.sentAt),
+    sentChangedAt: tsToDate(raw.sentChangedAt),
+    // An application never sent has no earlier version, whatever is stored.
+    sentHistory: sent ? asSentHistory(raw.sentHistory, grid) : [],
+    sentHistoryDropped: sent ? (intIn(raw.sentHistoryDropped, 0, 1_000_000) ?? 0) : 0,
     withdrawnAt: tsToDate(raw.withdrawnAt),
     result: asResult(raw.result),
     invitation: asInvitation(raw.invitation),
     attendance: asAttendance(raw.attendance),
+    releaseReason: asReleaseReason(raw.releaseReason),
     createdAt: tsToDate(raw.createdAt),
     updatedAt: tsToDate(raw.updatedAt),
   };
