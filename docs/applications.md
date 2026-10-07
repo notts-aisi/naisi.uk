@@ -112,11 +112,18 @@ of the last reminder for an invitation nobody has answered. The reminder job
 into it before it sends, so a day sends at most one. It reads no decision
 document and changes nothing the person was told.
 
-**2. There are two copies of what the applicant wrote.** `draft` is what the
-form is showing and is saved as they type. `sent` is the application of record
-and is replaced whole each time they press Send. Reviewers read `sent` and
-nothing else. An applicant can change their answers until the close, and a
-half-made change never unseats the application they already sent.
+**2. There are two copies of what the applicant wrote, and what a send
+replaces is kept.** `draft` is what the form is showing and is saved as they
+type. `sent` is the application of record and is replaced whole each time
+they press Send. Reviewers read `sent` and nothing else. An applicant can
+change their answers until the close, and a half-made change never unseats
+the application they already sent.
+
+When they do send again and something is different, the application of
+record that send replaces is kept on the same document (`sentHistory`), with
+when it was sent, and the people reviewing the application are shown what
+each part said before. A send that changes nothing keeps nothing. See "What
+an application said before".
 
 **3. One place a term.** A person is placed on the highest programme in their
 own ranking that accepted them (`placementFor`). A second place exists only as
@@ -181,6 +188,99 @@ else.
   the form (`revealOtherReviews`).
 - **Names are shown.** Reviewers see who they are reading, and the form has to
   tell applicants so.
+
+## What an application said before
+
+An edit counts only once the applicant presses Send again. What that send
+replaces is not lost: it is kept, and shown to whoever reviews the
+application.
+
+### What is stored
+
+Three fields on the application document, beside `sent`. None is on a
+document that has never needed it.
+
+| Field | Means |
+| --- | --- |
+| `sentHistory` | The earlier applications of record, oldest first. Each is `{ content, sentAt }`: a whole content, exactly what `sent` held, and when THAT version became the application of record. |
+| `sentHistoryDropped` | How many earlier versions are no longer kept. |
+| `sentChangedAt` | When `sent` became what it is now: the first send, or the latest send that changed something. |
+
+`sentAt` is the last press of Send and moves even when nothing changed, so it
+cannot say when the current version began. `sentChangedAt` can, and the date
+under an earlier answer and the line about a score both need it.
+
+`sendApplication` (`applicant/store.ts`) is the one writer, inside the
+transaction that replaces `sent`. It compares the new content with the stored
+one, both read through `normaliseContent` (`sameContent`, in
+`versions/kept.ts`). ANY difference is a change: an answer, About you, the
+ranking, facilitating, availability, the SU membership answer, the university
+address the account held at that moment. The comparison does not ask what a
+screen shows, because what is kept must not depend on how it is drawn.
+
+It is on the application document so that whatever deletes an application
+deletes its history in the same write, and so that it needs no collection,
+rule or index of its own.
+
+### How much is kept
+
+A document has a size limit, and the draft and the application of record have
+to fit beside the history. `SENT_HISTORY_LIMITS` (`model.ts`) holds it to 10
+earlier versions and 300,000 bytes. Beyond either, the oldest version THAT IS
+NOT THE FIRST is dropped, and counted in `sentHistoryDropped`, so a screen
+can say "Changed 14 times" truthfully when only 10 can be opened. **The first
+version sent is never dropped** (`keepVersion`): with the first alone over
+the weight, the history is the first, alone.
+
+The cap only ever drops from between the first version kept and the next, so
+that is the one place the kept versions are not consecutive (`hasGap`).
+
+### Who is shown it
+
+Whoever may read the application: an admin, and the lead and reviewers of a
+programme the person ranked or joined by invitation. Nobody else, and never
+the applicant. Their own routes build what they answer field by field
+(`applicant/project.ts`) and name none of the three fields.
+`tests/applications-versions.test.mjs` lists every file under `src` that
+does name one, both ways, so a new reader is written down from the change
+that adds it.
+
+The record the committee keeps about a person (`memberRecords`) holds none of
+the applicant's writing, from the version on record or from one before it.
+
+### How the review screens show it
+
+`review/earlier.ts` reads the versions PART BY PART, not as whole earlier
+applications. A part is one thing the screen draws: one answer, one About
+you fact, the ranking, whether they would facilitate, when they are free.
+For each, the versions are collapsed into runs in which the part said the
+same thing. The last run is what the screen already shows. The runs before
+it are what it said before, newest first, each with the day the first
+version of that run was sent. A part that never changed shows nothing extra.
+
+- **Only what the screen shows is a part.** The SU membership answer is kept
+  with every version and is not read there: the form tells applicants it
+  does not affect their application, and reviewers are not shown it. An
+  answer to a programme the person has since unticked is kept too and is not
+  shown; the ranking's own history says the programme went. A university
+  address in an earlier version is an admin's to read, as the one on record
+  is.
+- **So a change can be counted and have nothing to open.** The line under
+  the applicant's name counts every change to the application of record, and
+  says so plainly when none of it is on the screen.
+- **A score and a comment stay on the question, not on a version.** Where a
+  score was given before the answer last changed, one line under the answer
+  says so (`changedSinceScoredLine`). A review row records when it was last
+  saved, not when each score was given, so the line is said only when it is
+  certain: the reviewer has saved nothing since before the change. It names
+  nobody whose review the reader is not shown.
+- **When a part last changed is said only when it is known.** A value first
+  seen right after the gap the cap leaves may have arrived in a version that
+  is gone. Its day is still shown, and nothing is claimed about a score
+  against it.
+
+The words these screens use for all of it are in
+`src/features/applications/review/changesWords.ts`.
 
 ## Decisions and decision day
 
@@ -416,6 +516,9 @@ every kind of reply has been made, through each of them.
 - **A programme's `runId` can name a run that has since been destroyed.** The
   run destroy writes no round. Whatever reads a programme's `runId` treats a
   run that is not there as no run.
+- **An application's earlier versions go with the application.** They are
+  fields of its own document, so every delete above takes them in the same
+  write, and nothing else holds a copy.
 
 ## The modules
 
@@ -428,6 +531,7 @@ All in `src/lib/applications/`.
 | `normalise.ts` | Reads stored documents into the model's shapes. Never throws. | anywhere |
 | `sections.ts` | Which steps and question sets one person sees | anywhere |
 | `validate.ts` | What stops a send; what is copied into `sent`; word counts | anywhere |
+| `versions/kept.ts` | What a send keeps of the application it replaces: what counts as a change, the cap, how the versions are read | anywhere |
 | `scoring.ts` | Scored questions, section scores, first-review blindness | anywhere |
 | `decisions.ts` | Placement, outcomes, who is in the term, who holds a place, tallies, readiness, recommendations | anywhere |
 | `words.ts` | Labels, ordinals, the words applicants never see | anywhere |
@@ -483,6 +587,12 @@ All in `src/lib/applications/`.
   after decision day they do not know who accepted an invitation.
 - **Questions lock once somebody has sent an application.** Editing a question
   set after that would change what an answer already given was an answer to.
+- **An earlier version is for the people reviewing the application.** A new
+  reader of `sentHistory` is added to the list in
+  `tests/applications-versions.test.mjs` with what it does with it, and
+  nothing that builds an applicant's page belongs on that list. On a review
+  screen, compare versions a part at a time through `review/earlier.ts`, so
+  that what is shown before is held to the same rules as what is shown now.
 - **Email** goes through `sendEmail()` with reply-to set to the society's
   contact address, and nowhere else. See "Who a copy of the site may email" in
   `docs/notifications.md` for what staging does with it.
