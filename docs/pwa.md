@@ -108,7 +108,15 @@ iOS gives an installed app its own storage partition. The `__session` cookie and
 - Cookie without client user: `SessionSanityGuard` clears the cookie through `POST /api/auth/session/clear` (never the token-revoking DELETE) and returns to login.
 - Client user without cookie: the pre-existing self-heal in `AuthEntry` re-mints.
 
-Google sign-in: `window.open()` returns null inside an installed iOS app, so GIS popup mode cannot work there. The button detects the refusal (a `window.open` wrapper scoped to accounts.google.com) and the auth card reorders on iOS standalone so email and password lead. Redirect mode for mobile and standalone is the durable fix and is tracked as its own PR; note that accounts created through the Google button have no password until they set one via the reset email.
+Google sign-in: `window.open()` returns null inside an installed iOS app, so GIS popup mode cannot work there. Inside the installed app the button therefore runs in redirect mode: the whole window leaves for Google, and Google hands the person back with a form POST from its own site to `/api/auth/google/callback`, which checks the credential and sends them on to the sign-in page. The button still watches for a refused pop-up (a `window.open` wrapper scoped to accounts.google.com), and the auth card reorders on iOS standalone so email and password lead. Accounts created through the Google button have no password until they set one via the reset email.
+
+Where the person was going survives that trip three ways, and the first to arrive is used (`src/lib/signInReturn.ts`):
+
+- in the `state` Google's button is handed, which Google posts back beside the credential;
+- in the `__auth_next` cookie, written `SameSite=None; Secure` over https, because the POST comes from Google's site and a `Lax` cookie is not sent on one;
+- in the tab's own session storage (`naisi.auth.next`, believed for the ten minutes the cookie lives), which the sign-in page reads when the callback route sent the person back with no address.
+
+One guard, `safeReturnPath`, decides whether any copy is a path on this site, and the callback route never clears a cookie it was not sent. `tests/sign-in-return.test.mjs` runs the rules and the route. An application form uses the same trip: in the installed app its first step links to the sign-in page with the form as the return address, and a new account comes back to that step.
 
 Every link in every email this site sends opens in the default browser, not the installed app. That is an iOS platform property; changing it would require Universal Links and a native App ID. Do not file it as a bug.
 

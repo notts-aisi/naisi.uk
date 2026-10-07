@@ -814,6 +814,14 @@ const USERS = new Map([
       "runs src/app/manifest.ts for the display mode the rule relies on; nothing is stubbed",
   ],
   [
+    "sign-in-return.test.mjs",
+    "it executes src/lib/signInReturn.ts (the guard on a return address, the cookie's text, the " +
+      "tab's copy, what each end of a trip to Google takes) and the Google callback route's POST " +
+      "handler. `next/server` is stubbed only to re-export the framework's real request and " +
+      "response, so cookies are read and written by the code production runs; " +
+      "`google-auth-library` is stood in for, because nobody but Google can sign a credential",
+  ],
+  [
     "slug-id.test.mjs",
     "it executes `slugId`, with the platform's random source replaced, because where the suffix " +
       "comes from and what happens to a byte that would bias it are both about the shipping code; " +

@@ -1,15 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { OAuth2Client } from "google-auth-library";
+import { CAME_BACK_FROM_GOOGLE, RETURN_COOKIE, returnFromTrip } from "@/lib/signInReturn";
 
 /*
- * GIS redirect-mode landing. On phones and installed apps the Google button
- * runs ux_mode: "redirect" (popup mode stays for desktop; see
+ * GIS redirect-mode landing. Inside the installed app the Google button runs
+ * ux_mode: "redirect" (every browser window keeps the pop-up; see
  * GoogleSignInButton.tsx), and Google form-POSTs the result HERE instead of
  * handing it to client JavaScript:
  *
- *     credential=<google id token>&g_csrf_token=<random>
+ *     credential=<google id token>&g_csrf_token=<random>&state=<return address>
  *
- * with the same g_csrf_token in a cookie. This route verifies and then hands
+ * with the same g_csrf_token in a cookie. `state` is there when the button
+ * was handed one, and is what the sign-in page gave it: the page the person
+ * was on their way to (src/lib/signInReturn.ts). This route verifies and then hands
  * the credential straight back to the client through a short-lived cookie,
  * redirecting to /login where AuthEntry consumes it and runs the EXACT same
  * exchangeGoogleCredential path popup mode uses. Deliberately no custom-token
@@ -36,6 +39,20 @@ import { OAuth2Client } from "google-auth-library";
  * call signInWithCredential. Scoped to /login, 60 second lifetime, consumed
  * and deleted on first read.
  *
+ * THE RETURN ADDRESS. The sign-in page left it in two places this route can
+ * read: `state`, which Google posts back, and the `__auth_next` cookie.
+ * Whichever arrives is put back on the sign-in page's address as `next`,
+ * through the one guard every copy of it passes (`returnFromTrip`). Two
+ * things a maintainer has to keep:
+ *
+ *   - NEVER DELETE A COOKIE THIS REQUEST DID NOT CARRY. The POST comes from
+ *     Google's site, and a browser may hold the cookie without sending it on
+ *     one. Clearing it then throws away a copy the sign-in page could still
+ *     have used. A cookie that DID arrive has been read, and is cleared.
+ *   - When neither arrives, the address carries no `next`, and the sign-in
+ *     page falls back to the copy it kept in the tab. Do not put a default
+ *     here: an address made up by this route would hide that copy.
+ *
  * The redirect Location must be built from NEXT_PUBLIC_APP_URL, never from
  * request.url: on App Hosting the incoming Host header is the internal Cloud
  * Run revision URL, and a Location built from it would bounce the user off
@@ -47,9 +64,6 @@ const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
 /** Where AuthEntry looks for the credential. Mirrored in AuthEntry.tsx. */
 const HANDOFF_COOKIE = "__google_credential";
-/** Set by AuthEntry before redirect so the ?next= destination survives the
- *  round trip through Google. Mirrored in AuthEntry.tsx. */
-const NEXT_COOKIE = "__auth_next";
 
 function loginRedirect(request: NextRequest, params: Record<string, string>) {
   const base = process.env.NEXT_PUBLIC_APP_URL || request.url;
@@ -60,11 +74,12 @@ function loginRedirect(request: NextRequest, params: Record<string, string>) {
 }
 
 export async function POST(request: NextRequest) {
-  let credential: unknown, bodyCsrf: unknown;
+  let credential: unknown, bodyCsrf: unknown, state: unknown;
   try {
     const form = await request.formData();
     credential = form.get("credential");
     bodyCsrf = form.get("g_csrf_token");
+    state = form.get("state");
   } catch {
     return loginRedirect(request, { google_error: "bad-request" });
   }
@@ -98,13 +113,12 @@ export async function POST(request: NextRequest) {
     return loginRedirect(request, { google_error: "invalid-token" });
   }
 
-  // Restore the pre-redirect ?next= destination, with the same open-redirect
-  // guard AuthEntry applies: same-origin path only, no protocol-relative.
-  const params: Record<string, string> = { from: "google-redirect" };
-  const next = request.cookies.get(NEXT_COOKIE)?.value;
-  if (next && next.startsWith("/") && !next.startsWith("//")) {
-    params.next = next;
-  }
+  // Put the return address back on the sign-in page's address, from whichever
+  // copy made the trip. See THE RETURN ADDRESS above.
+  const params: Record<string, string> = { from: CAME_BACK_FROM_GOOGLE };
+  const carried = request.cookies.get(RETURN_COOKIE);
+  const next = returnFromTrip({ state, cookie: carried?.value });
+  if (next) params.next = next;
 
   const res = loginRedirect(request, params);
   res.cookies.set(HANDOFF_COOKIE, credential, {
@@ -114,6 +128,7 @@ export async function POST(request: NextRequest) {
     path: "/login",
     maxAge: 60,
   });
-  res.cookies.set(NEXT_COOKIE, "", { path: "/", maxAge: 0 });
+  // Only a cookie this request carried. One the browser kept back is left be.
+  if (carried) res.cookies.set(RETURN_COOKIE, "", { path: "/", maxAge: 0 });
   return res;
 }

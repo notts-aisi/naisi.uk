@@ -48,6 +48,7 @@ const notifications = await loadTs(join("lib", "firestore", "notifications.ts"))
 const users = await loadTs(join("lib", "firestore", "users.ts"));
 const authReturn = await loadTs(join("lib", "authReturn.ts"));
 const joinClient = await loadTs(join("features", "applications", "apply", "joinClient.ts"));
+const signInReturn = await loadTs(join("lib", "signInReturn.ts"));
 
 const sourceOf = (file) => readFileSync(join(FORM_DIR, file), "utf8");
 /** Comments out, so a rule written in prose is not a use. */
@@ -532,11 +533,13 @@ describe("where signing in returns to", () => {
   const MARKED = `/apply/${ID}?join=1`;
   const FORM_ROUTE = `/api/admissions/forms/${ID}/application`;
 
-  /** The sign-in page's own guard on `?next=`, as `AuthEntry.tsx` writes it. A test below holds the two together. */
-  const guarded = (next) => {
-    const given = next ?? "/dashboard";
-    return given.startsWith("/") && !given.startsWith("//") ? given : "/dashboard";
-  };
+  /**
+   * The sign-in page's own guard on its return address, with the page's own
+   * fallback. The guard is `safeReturnPath` (`src/lib/signInReturn.ts`), the
+   * one every copy of the address passes, and it is RUN here, not copied. A
+   * test below holds the page to calling it.
+   */
+  const guarded = (next) => signInReturn.safeReturnPath(next) ?? "/dashboard";
 
   /**
    * Run `work` with the page's `fetch` replaced by `answer`, and say what was
@@ -660,13 +663,21 @@ describe("where signing in returns to", () => {
     assert.deepEqual(lands("//evil"), { to: "register" });
     assert.deepEqual(lands("/apply/../admin"), { to: "register" });
     assert.deepEqual(lands(null), { to: "register" });
-    // And the guard written here is the one the page has. Read from the file,
-    // because the page is a component and nothing here can run it.
+    // An address a browser reads as another site's never reaches the rule:
+    // the page's own fallback does.
+    assert.equal(guarded("/\\evil.example"), "/dashboard");
+    assert.equal(guarded(`${MARKED}\n`), "/dashboard");
+    assert.deepEqual(lands("/\\evil.example"), { to: "register" });
+    // And the guard run here is the one the page has. Read from the file,
+    // because the page is a component and nothing here can run it. The page
+    // takes its address from `returnOnArrival`, which reads `?next=` and, for
+    // somebody the callback route sent back with none, the tab's own copy;
+    // tests/sign-in-return.test.mjs runs that function and the guard.
     const entry = stripSource(readFileSync(join(REPO_ROOT, "src", "app", "(auth)", "AuthEntry.tsx"), "utf8"), {
       keepStrings: true,
     });
-    assert.match(entry, /const \[next\] = useState\(\(\) => params\.get\("next"\) \?\? "\/dashboard"\);/);
-    assert.match(entry, /const safeNext = next\.startsWith\("\/"\) && !next\.startsWith\("\/\/"\) \? next : "\/dashboard";/);
+    assert.match(entry, /const \[next\] = useState\(\(\) => returnOnArrival\(params, tabReturn\)\);/);
+    assert.match(entry, /const safeNext = safeReturnPath\(next\) \?\? "\/dashboard";/);
   });
 
   test("a marked address is answered without asking anybody", async () => {
