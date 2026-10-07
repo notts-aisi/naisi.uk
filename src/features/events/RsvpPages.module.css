@@ -1,0 +1,80 @@
+/*
+  The small pages around a sign-up: "Your RSVP is in", changing your answers,
+  cancelling, and the cards those pages show when a link no longer works.
+
+  One narrow card on the page floor. Each is reached from a button or from a
+  link in an email, mostly on a phone, so the card is the whole page.
+*/
+
+.shell {
+  padding: clamp(2rem, 5vw, 4rem) 0 clamp(3rem, 7vw, 6rem);
+}
+
+/* The card's column. `.wide` is for the page that holds a form. */
+.column {
+  max-width: 34rem;
+  margin-inline: auto;
+}
+
+.wide {
+  max-width: 40rem;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.text {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--color-text);
+}
+
+.muted {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  margin-top: var(--space-2);
+}
+
+.danger {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger-text);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* TODO: mobile pass */
+}

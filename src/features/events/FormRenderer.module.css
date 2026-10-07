@@ -1,13 +1,30 @@
+/*
+  FormRenderer: a set of questions somebody wrote, as form fields.
+
+  Shared. The same renderer draws an event's sign-up questions, the
+  change-request form, the older application flow and the course application
+  form, and the worksheets respond page imports this stylesheet's classes
+  directly. Every class name here is in use somewhere: restyle, never rename.
+
+  The look is the site's form look, so a question sits beside a Field from
+  src/components/ui/Input without a seam: a 44px box a shade darker than its
+  card, the strong border, and an option as a row that takes the accent edge
+  and a soft accent ground when ticked (the recipe of OptionRow, on the native
+  box this markup has).
+*/
+
 .wrap {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  min-width: 0;
 }
 
 .field {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  min-width: 0;
   border: 0;
   margin: 0;
   padding: 0;
@@ -30,96 +47,112 @@
 .legend {
   font-size: var(--text-sm);
   color: var(--color-text);
-  font-weight: 500;
+  font-weight: 600;
+  line-height: 1.4;
   padding: 0;
+  overflow-wrap: anywhere;
 }
 
 .required {
-  color: var(--color-danger);
+  color: var(--color-danger-text);
 }
 
+/* 16px, not the 15px a card is otherwise set in: iOS zooms the page when a
+   field under 16px takes focus. */
 .input {
-  padding: 0.55rem 0.7rem;
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.875rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   color: var(--color-text);
   font-size: var(--text-md, 1rem);
-  width: 100%;
+  line-height: 1.4;
 }
 
+.input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+/* The border takes the ring's colour, so the two read as one solid edge. */
 .input:focus {
   outline: none;
-  border-color: var(--color-accent);
+  border-color: var(--color-live);
+  box-shadow: var(--focus-ring);
 }
 
 .input:disabled {
   cursor: not-allowed;
 }
 
-/* Long text now renders through CountedTextarea, which brings Input.module.css
+/* Long text renders through CountedTextarea, which brings Input.module.css
    `.control` + `.textarea` with it. Those are single-class selectors, and which
    of two CSS modules wins a specificity tie depends on bundle order, so the
    long-text look would be decided by something nobody controls. Descendant
-   selectors (0,2,0) pin it here instead and keep the frozen events RSVP
-   baseline exactly as it was. See docs/mobile-baseline-events.md.
+   selectors (0,2,0) pin it here instead.
 
-   Every property `.control` sets has to be answered here, including the ones
-   this box never declared. A property left out is not "unchanged", it is
-   inherited from a module this box was never styled by: line-height, the
-   focus transition and the placeholder colour all arrived that way, and
-   line-height in particular changes how many lines of a long answer are
-   visible on a phone. */
+   The box is the short-text box above, grown: the same ground, edge, type
+   and focus state. Two things are held on purpose, because they decide how
+   much of a phone screen one answer takes while the keyboard is up: the
+   starting height stays 5rem, not the 7rem a textarea has elsewhere, and the
+   line height is the short box's. See docs/mobile-baseline-events.md. */
 .wrap .textarea {
-  padding: 0.55rem 0.7rem;
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 5rem;
+  padding: 0.65rem 0.875rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   color: var(--color-text);
-  font-size: var(--text-md, 1rem);
-  width: 100%;
   font-family: inherit;
+  font-size: var(--text-md, 1rem);
+  line-height: 1.4;
   resize: vertical;
-  min-height: 5rem;
-  /* The box never set line-height, so it took the browser default that comes
-     with a textarea. `--leading-normal` off `.control` is looser and would
-     retune the height of every answer on the frozen flow. */
-  line-height: normal;
-  /* And it never animated its border, so its focus was instant and matched
-     the short-text `.input` sitting directly above it in the same form. */
+  /* The short box does not animate its edge, so neither does this one. */
   transition: none;
 }
 
-/* Same reasoning: `.control::placeholder` paints `--color-text-subtle`, which
-   this box never had, and which its `.input` sibling still does not have.
-   `revert` drops back to the browser's own placeholder colour, the one the
-   frozen baseline was verified against. */
 .wrap .textarea::placeholder {
-  color: revert;
+  color: var(--color-text-muted);
+  opacity: 1;
 }
 
 .wrap .textarea:focus {
   outline: none;
-  border-color: var(--color-accent);
-  box-shadow: none;
+  border-color: var(--color-live);
+  box-shadow: var(--focus-ring);
 }
 
+/* The column never asks for more than the form has, so a narrow panel gets
+   one option to a row and never a sideways scroll. */
 .checkGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr));
   gap: var(--space-2);
 }
 
 .checkRow {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
+  gap: var(--space-3);
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: var(--space-2) 0.875rem;
+  background: var(--color-bg);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-row);
   font-size: var(--text-sm);
+  line-height: 1.4;
   color: var(--color-text);
   cursor: pointer;
+  overflow-wrap: anywhere;
   transition: border-color var(--transition-fast), background var(--transition-fast);
 }
 
@@ -127,10 +160,11 @@
   border-color: var(--color-border-strong);
 }
 
+/* Ticked: the accent edge and a soft accent ground. The words keep the text
+   colour, which holds its contrast on the tint; the accent itself does not. */
 .checkRow:has(input:checked) {
   border-color: var(--color-accent);
   background: var(--color-accent-soft);
-  color: var(--color-accent);
 }
 
 .checkRow:has(input:disabled) {
@@ -139,30 +173,75 @@
 }
 
 .checkRow input,
-.noneRow input {
-  accent-color: var(--color-accent);
+.noneRow input,
+.radioChoice input {
   flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  accent-color: var(--color-accent);
 }
 
+/* The ring goes round the whole row: the row is the target, not the box. */
+.checkRow:has(input:focus-visible),
+.noneRow:has(input:focus-visible),
+.radioChoice:has(input:focus-visible) {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+.checkRow input:focus-visible,
+.noneRow input:focus-visible,
+.radioChoice input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Yes or no: two rows side by side, each a full 44px target. */
 .radioChoice {
   display: inline-flex;
+  flex: 1 1 0;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  padding: var(--space-2) 0.875rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
   font-size: var(--text-sm);
   color: var(--color-text);
   cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.radioChoice:hover:not(:has(input:disabled)) {
+  border-color: var(--color-border-strong);
+}
+
+.radioChoice:has(input:checked) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.radioChoice:has(input:disabled) {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .noneRow {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  box-sizing: border-box;
   width: 100%;
+  min-height: 2.75rem;
   margin-top: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3) 0.875rem;
+  background: var(--color-bg);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: var(--text-md, 1rem);
+  border-radius: var(--radius-row);
+  font-size: var(--text-ui);
   font-weight: 500;
   color: var(--color-text);
   cursor: pointer;
@@ -176,7 +255,6 @@
 .noneRow:has(input:checked) {
   border-color: var(--color-accent);
   background: var(--color-accent-soft);
-  color: var(--color-accent);
 }
 
 .noneRow:has(input:disabled) {
@@ -184,14 +262,9 @@
   cursor: not-allowed;
 }
 
-.noneRow input {
-  width: 1.05rem;
-  height: 1.05rem;
-}
-
 .radioRow {
   display: flex;
-  gap: var(--space-4);
+  gap: var(--space-2);
 }
 
 .subBlock {
@@ -217,15 +290,16 @@
   margin: 0;
 }
 
+/* A plain note: a tint and a hairline, no coloured edge down one side. */
 .accommodationNote {
   font-size: var(--text-sm);
   color: var(--color-text-muted);
   line-height: 1.5;
   margin: 0;
-  padding: var(--space-3);
-  background: var(--color-bg-elevated);
-  border-left: 3px solid var(--color-accent);
-  border-radius: var(--radius-md);
+  padding: var(--space-3) 0.875rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
 }
 
 .helper {
@@ -249,7 +323,12 @@
    by the control's aria-describedby, so it is announced rather than only seen. */
 .error {
   font-size: var(--text-sm);
-  color: var(--color-danger);
+  color: var(--color-danger-text);
   line-height: 1.5;
   margin: 0;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* TODO: mobile pass */
 }

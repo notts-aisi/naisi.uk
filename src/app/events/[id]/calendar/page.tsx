@@ -3,6 +3,7 @@ import Link from "next/link";
 import BrandMark from "@/components/BrandMark";
 import BlockView from "@/features/events/BlockView";
 import CoverImage from "@/features/events/CoverImage";
+import { clockTime } from "@/features/events/eventWhen";
 import { getPublishedEvent } from "@/features/events/fetchEvents";
 import { publicFoodLine } from "@/features/events/foodLine";
 import { formatSiteDate, isSameSiteDay } from "@/lib/datetime/siteTime";
@@ -125,7 +126,7 @@ export default async function AddEventToCalendarPage({
           <BrandMark size={32} />
         </Link>
         <div className={styles.sheet}>
-          <p className={styles.kicker}>Add to calendar</p>
+          <p className={`meta ${styles.kicker}`}>Add to calendar</p>
           <h1 className={styles.title}>{title}</h1>
           {/* The event page says this with a badge. It matters here too:
               somebody about to put this in their calendar should know who it
@@ -136,7 +137,7 @@ export default async function AddEventToCalendarPage({
 
           <dl className={styles.facts}>
             <div className={styles.fact}>
-              <dt className={styles.factLabel}>When</dt>
+              <dt className={`meta ${styles.factLabel}`}>When</dt>
               <dd className={styles.factValue}>
                 {event.startAt ? (
                   <time dateTime={event.startAt.toISOString()}>
@@ -148,7 +149,7 @@ export default async function AddEventToCalendarPage({
               </dd>
             </div>
             <div className={styles.fact}>
-              <dt className={styles.factLabel}>Where</dt>
+              <dt className={`meta ${styles.factLabel}`}>Where</dt>
               <dd className={styles.factValue}>{publicLocationLine(event)}</dd>
             </div>
           </dl>
@@ -252,7 +253,7 @@ export default async function AddEventToCalendarPage({
 
               {foodLine && (
                 <div className={styles.food}>
-                  <span className={styles.foodLabel}>Food</span>
+                  <span className={`meta ${styles.foodLabel}`}>Food</span>
                   <p className={styles.foodText}>{foodLine}</p>
                   {dietaryTags.length > 0 && (
                     <p className={styles.foodTags}>
@@ -292,32 +293,25 @@ function titleOf(event: EventDoc): string {
 }
 
 /**
- * The when line. An end on the same London day is a time; an end on another
- * day repeats the date, because "until 14:00" on a two-day event says the
+ * The when line. The date is written out in full, year included, because a
+ * screenshot of this page has to stand on its own; the time is said the way
+ * the event page says it. An end on the same London day is a time; an end on
+ * another day repeats the date, because "to 2pm" on a two-day event says the
  * wrong thing. London civil time either way: `isSameSiteDay` compares civil
  * dates rather than `getDate()`, which would read the container's zone.
  */
 function whenLine(startAt: Date, endAt: Date | null): string {
-  const base = formatSiteDate(startAt, {
+  const day = formatSiteDate(startAt, {
     weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
   });
+  const base = `${day}, ${clockTime(startAt)}`;
   if (!endAt) return base;
-  if (isSameSiteDay(startAt, endAt)) {
-    return `${base} until ${formatSiteDate(endAt, { hour: "2-digit", minute: "2-digit" })}`;
-  }
-  const endFull = formatSiteDate(endAt, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  return `${base} until ${endFull}`;
+  if (isSameSiteDay(startAt, endAt)) return `${base} to ${clockTime(endAt)}`;
+  const endDay = formatSiteDate(endAt, { weekday: "long", day: "numeric", month: "long" });
+  return `${base} to ${endDay}, ${clockTime(endAt)}`;
 }
 
 /** What the calendar entry's notes carry: the food line, then a link back. */
