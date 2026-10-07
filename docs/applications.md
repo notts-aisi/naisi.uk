@@ -534,6 +534,14 @@ anything was decided) there are no words, and the list keeps its own.
 `tests/applications-wave-h-list-words.test.mjs` holds that function and the
 page to the same words.
 
+The way back to that list is a card on the dashboard, "Your applications"
+(`src/features/applications/home/YourApplications.tsx`), drawn for somebody
+who has applied to anything. It names each application and links to it, and
+it states no outcome at all: a summary card is a third place the words could
+come to disagree, and nobody should learn a decision from one. A waiting
+account, which the dashboard does not admit, has the same link on the page
+it is held on.
+
 ### Who is in the term
 
 A reply cannot touch the decision documents, so they go on saying Accept for
