@@ -1,0 +1,50 @@
+/* "What you can do here": a chip for the role, a sentence, and a short list
+   for anybody who can do more than a member. */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.lead {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--color-text);
+  text-wrap: pretty;
+}
+
+.alsoTitle {
+  margin: var(--space-5) 0 0;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text);
+}
+
+.also {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: var(--space-2) 0 0;
+  padding-left: 1.25rem;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.missing {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .lead {
+    font-size: var(--text-ui);
+  }
+}

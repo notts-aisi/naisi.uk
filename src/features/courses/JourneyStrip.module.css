@@ -1,142 +1,123 @@
 /* ============================================================
    JourneyStrip: the term's shape, with the reader's position.
 
-   A horizontal rail on wide screens, a vertical one on a
-   phone. The connecting line is drawn per step (a ::before on
-   each marker) rather than as one absolutely positioned rule,
-   so it survives a step wrapping to a second line.
+   Drawn as the page's numbered steps: a number and a dashed
+   rule, the step, its day in a pill, a line about it. The
+   number comes from the list's own order (a counter), so the
+   markup carries no digits of its own.
    ============================================================ */
 
-.section {
-  padding-block: var(--space-10);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.heading {
-  margin: 0 0 var(--space-6);
-  font-size: clamp(1.35rem, 2.6vw, 1.75rem);
-  line-height: 1.2;
-  letter-spacing: -0.015em;
-  font-weight: 700;
-}
-
 .strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr));
+  gap: 2.25rem 1.75rem;
   margin: 0;
   padding: 0;
   list-style: none;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
-  gap: var(--space-4);
+  counter-reset: journey;
 }
 
 .step {
-  position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  padding-top: var(--space-5);
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+  counter-increment: journey;
 }
 
-/* The rail: a line from this step's marker to the next one. */
-.step::before {
-  content: "";
-  position: absolute;
-  top: 0.34rem;
-  left: 0.6rem;
-  right: calc(var(--space-4) * -1);
-  height: 1px;
-  background: var(--color-border);
-}
-
-.step:last-child::before {
-  display: none;
-}
-
+/* The number, then a dashed rule out to the next step. */
 .marker {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 0.7rem;
-  height: 0.7rem;
-  border-radius: var(--radius-pill);
-  border: 2px solid var(--color-border-strong);
-  background: var(--color-bg);
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  gap: 0.875rem;
+  margin-bottom: var(--space-2);
+  font-family: var(--font-meta);
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--color-accent-text);
+}
+
+.marker::before {
+  content: counter(journey, decimal-leading-zero);
+}
+
+.marker::after {
+  content: "";
+  flex: 1 1 auto;
+  border-top: 1px dashed var(--color-border-strong);
 }
 
 .label {
-  font-size: var(--text-sm);
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
   font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
   color: var(--color-text);
+  overflow-wrap: anywhere;
 }
 
+/* The day, in a pill, set as metadata. */
 .date {
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0.125rem 0.625rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-hover);
+  color: var(--color-text-body);
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
 }
 
 .detail {
-  font-size: var(--text-xs);
-  color: var(--color-text-subtle);
-  line-height: var(--leading-snug);
+  font-size: var(--text-ui);
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
 }
 
+/* "You are here": a small live mark, with its words. */
 .here {
-  margin-top: var(--space-1);
-  align-self: flex-start;
-  padding: 0.15rem var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0.125rem 0.625rem;
+  border: 1px solid var(--color-live-line);
   border-radius: var(--radius-pill);
-  background: var(--color-accent-soft);
-  color: var(--color-accent);
+  background: var(--color-live-soft);
+  color: var(--color-live);
   font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
 }
 
 /* === States === */
 
-.past .marker {
-  border-color: var(--color-accent);
-  background: var(--color-accent);
-}
-
+/* A step that has passed steps back: its number and its name go quiet. */
+.past .marker,
 .past .label {
   color: var(--color-text-muted);
 }
 
 .current .marker {
-  border-color: var(--color-accent);
-  background: var(--color-bg);
-  box-shadow: 0 0 0 4px var(--color-accent-soft);
-}
-
-.upcoming .label {
-  color: var(--color-text);
+  color: var(--color-live);
 }
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  .section {
-    padding-block: var(--space-8);
-  }
+  /* One step under the other, a little closer together than side by side. */
   .strip {
-    grid-template-columns: 1fr;
-    gap: var(--space-5);
-  }
-  /* Vertical rail: the line runs down the left gutter instead of across. */
-  .step {
-    padding-top: 0;
-    padding-left: var(--space-6);
-  }
-  .step::before {
-    top: 1rem;
-    bottom: calc(var(--space-5) * -1);
-    left: 0.3rem;
-    right: auto;
-    width: 1px;
-    height: auto;
-  }
-  .marker {
-    top: 0.25rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-8);
   }
 }

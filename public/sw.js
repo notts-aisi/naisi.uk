@@ -45,7 +45,7 @@
  * scripts/pwa/sw-kill.js as public/sw.js. See docs/pwa.md.
  */
 
-const SW_VERSION = "v2";
+const SW_VERSION = "v3";
 const CACHE_NAME = `naisi-${SW_VERSION}`;
 const OFFLINE_URL = "/offline.html";
 

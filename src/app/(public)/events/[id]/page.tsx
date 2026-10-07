@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import EventDetailView from "@/features/events/EventDetailView";
 import { getPublishedEvent } from "@/features/events/fetchEvents";
+import styles from "../events.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export default async function PublicEventPage({
   if (!event) notFound();
 
   return (
-    <section style={{ padding: "var(--space-12) 0" }}>
+    <section className={styles.eventSection}>
       <div className="container">
         <EventDetailView event={event} />
       </div>

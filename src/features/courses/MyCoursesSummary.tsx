@@ -2,17 +2,21 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import Card from "@/components/ui/Card";
 import type { MyRunEntry } from "@/app/api/courses/me/route";
-import { useMyRuns } from "./useMyRuns";
 import { SyncTasksTrigger } from "./useSyncTasks";
 import styles from "./MyCoursesSummary.module.css";
 
 /**
- * The courses line on the dashboard, above My Work. Self-fetching, and
- * renders NOTHING until it has something worth saying — MyWorkSummary's
- * shape: a member with no live course sees no empty card, because a
- * dashboard full of "you have none of these" is worse than a short one.
+ * The programmes list on Home. It is handed the member's runs by Home, which
+ * has already asked for them to decide which form of itself to draw, and it
+ * renders NOTHING until it has something worth saying: a member with no live
+ * programme sees no empty card, because a Home full of "you have none of
+ * these" is worse than a short one.
+ *
+ * Home shows one programme in full (the next session, the reading). That one
+ * is `featuredRunId` and is left out of the list here, so the card appears
+ * only for somebody on a second live programme, or for an admin, whose Home
+ * is about the society and shows no programme in full.
  *
  * "Live" is narrower than the hub's list on purpose. The hub answers "every
  * run I touch, ever"; the dashboard answers "what is running now":
@@ -116,40 +120,54 @@ function shouldMirror(entry: MyRunEntry): boolean {
   return week?.phase === "running" && week.anchorWeekNumber > 0;
 }
 
-export default function MyCoursesSummary() {
-  const { runs, loading, error } = useMyRuns();
-
-  const live = useMemo(
-    () =>
-      runs
-        .filter(
-          (entry) =>
-            entry.membership === "enrolled" &&
-            (entry.roles.includes("learner") || entry.roles.includes("facilitator")) &&
-            !entry.archived &&
-            entry.status !== "completed" &&
-            entry.status !== "cancelled" &&
-            entry.status !== "draft",
-        )
-        .slice(0, MAX_ROWS),
-    [runs],
+/** The runs that count as live for Home. See the four rules at the top. */
+export function liveRunsOf(runs: MyRunEntry[]): MyRunEntry[] {
+  return runs.filter(
+    (entry) =>
+      entry.membership === "enrolled" &&
+      (entry.roles.includes("learner") || entry.roles.includes("facilitator")) &&
+      !entry.archived &&
+      entry.status !== "completed" &&
+      entry.status !== "cancelled" &&
+      entry.status !== "draft",
   );
+}
 
-  // Nothing to say, or nothing said yet. No skeleton either: this card sits
-  // above My Work, and a placeholder that resolves to nothing would push the
-  // rest of the dashboard down and then yank it back.
+type Summary = {
+  runs: MyRunEntry[];
+  loading: boolean;
+  error: Error | null;
+  /** The run Home already shows in full, left out of the list. */
+  featuredRunId?: string | null;
+};
+
+export default function MyCoursesSummary({
+  runs,
+  loading,
+  error,
+  featuredRunId = null,
+}: Summary) {
+  const live = useMemo(() => liveRunsOf(runs).slice(0, MAX_ROWS), [runs]);
+
+  // Nothing to say, or nothing said yet. No skeleton either: a placeholder
+  // that resolves to nothing would push the rest of Home down and then yank
+  // it back.
   if (loading || error || live.length === 0) return null;
 
+  const listed = live.filter((entry) => entry.runId !== featuredRunId);
+
   return (
-    <Card padding="md" className={styles.card}>
-      {/* Renders nothing — one instance per run so each gets its own hook and
+    <>
+      {/* Renders nothing: one instance per run so each gets its own hook and
           its own lifecycle (see SyncTasksTrigger). Mounted below the early
-          return above, so a still-loading dashboard never fires.
+          return above, so a still-loading Home never fires, and for EVERY
+          live run, the featured one included: the list leaving a run out
+          must not stop its week's tasks reaching My work.
 
           The once-per-(run, anchor week) claim these share is MODULE-scoped,
-          which is what makes this card affordable on the busiest page in the
-          app: the four triggers cost four POSTs on the first dashboard visit
-          of a cohort week and nothing on every visit after it — including
+          which is what makes this affordable on the busiest page in the
+          app: the four triggers cost four POSTs on the first visit to Home
+          of a cohort week and nothing on every visit after it, including
           every soft navigation back here from a course page. `shouldMirror`
           has already guaranteed a `currentWeek` with a started taught week, so
           the anchor is a real number here, never the null fallback. */}
@@ -161,26 +179,29 @@ export default function MyCoursesSummary() {
         />
       ))}
 
-      <div className={styles.head}>
-        <h3 className={styles.title}>Your courses</h3>
-        <Link href="/learn" className={styles.viewAll}>
-          View all →
-        </Link>
-      </div>
-
-      <ul className={styles.list}>
-        {live.map((entry) => (
-          <li key={entry.runId}>
-            <Link
-              href={`/learn/${encodeURIComponent(entry.runId)}`}
-              className={styles.row}
-            >
-              <span className={styles.name}>{entry.courseTitle}</span>
-              <span className={styles.week}>{weekLine(entry)}</span>
+      {listed.length > 0 && (
+        <section className={styles.card} aria-labelledby="home-programmes">
+          <div className={styles.head}>
+            <h2 id="home-programmes" className={styles.title}>
+              {featuredRunId ? "Your other programmes" : "Your programmes"}
+            </h2>
+            <Link href="/learn" className={styles.viewAll}>
+              My programmes
             </Link>
-          </li>
-        ))}
-      </ul>
-    </Card>
+          </div>
+
+          <ul className={styles.list} role="list">
+            {listed.map((entry) => (
+              <li key={entry.runId}>
+                <Link href={`/learn/${encodeURIComponent(entry.runId)}`} className={styles.row}>
+                  <span className={styles.name}>{entry.courseTitle}</span>
+                  <span className={styles.week}>{weekLine(entry)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </>
   );
 }
