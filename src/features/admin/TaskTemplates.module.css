@@ -1,0 +1,129 @@
+/* Task templates (/admin/task-templates): a card of rows, one a template,
+   and each row opens its editor under the page's head. */
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 52rem;
+  min-width: 0;
+}
+
+.muted {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.muted code {
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  font-family: var(--font-meta);
+  font-size: 0.85em;
+  color: var(--color-text-body);
+}
+
+/* A card of rows, with a hairline between one row and the next. */
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.list > li + li {
+  border-top: 1px solid var(--color-border);
+}
+
+/* A row is a button as wide as the card. Safari paints its own grey face
+   over a bare button, so the reset and the colours both live on the class. */
+.row {
+  appearance: none;
+  -webkit-appearance: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  width: 100%;
+  min-height: 3.5rem;
+  margin: 0;
+  padding: var(--space-3) 0.875rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.row:hover {
+  background: var(--color-surface-hover);
+}
+
+.rowMain {
+  display: flex;
+  flex: 1 1 16rem;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.rowTitle {
+  font-size: var(--text-ui);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.row:hover .rowTitle {
+  color: var(--color-accent-text);
+}
+
+.rowSub {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.rowMeta {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2) var(--space-3);
+}
+
+.rowCount {
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.chevron {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* The chip and the count drop under the template's name. */
+  .row {
+    flex-wrap: wrap;
+  }
+  .rowMain {
+    flex-basis: calc(100% - 2.5rem);
+  }
+  .rowMeta {
+    order: 3;
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
+}
