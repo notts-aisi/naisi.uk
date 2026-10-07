@@ -251,6 +251,8 @@ export default function SendBoard({ initial }: { initial: Board }) {
   const [testing, setTesting] = useState(false);
   const [testNote, setTestNote] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  /** What went wrong with the press that only sends owed emails, said beside its own button. */
+  const [owedProblem, setOwedProblem] = useState<string | null>(null);
   const [report, setReport] = useState<SendReport | null>(null);
   const hydrated = useHydrated();
 
@@ -268,8 +270,11 @@ export default function SendBoard({ initial }: { initial: Board }) {
 
   /** `owedOnly` is the press that tells nobody new and sends only what is owed. */
   async function send(owedOnly = false) {
+    // Each press reports beside the button that was pressed.
+    const fail = owedOnly ? setOwedProblem : setProblem;
     setSending(true);
     setProblem(null);
+    setOwedProblem(null);
     setReport(null);
     try {
       const response = await fetch(base, {
@@ -283,13 +288,13 @@ export default function SendBoard({ initial }: { initial: Board }) {
         | { board?: Board; report?: SendReport; error?: string }
         | null;
       if (!response.ok || !answer?.board || !answer.report) {
-        setProblem(answer?.error ?? "The send did not go through. Reload the page before trying again.");
+        fail(answer?.error ?? "The send did not go through. Reload the page before trying again.");
         return;
       }
       setBoard(answer.board);
       setReport(answer.report);
     } catch {
-      setProblem(
+      fail(
         "Could not reach the site. Reload the page to see who has been told before pressing Send again.",
       );
     } finally {
@@ -349,7 +354,8 @@ export default function SendBoard({ initial }: { initial: Board }) {
   const mainSends = ready && !sent;
   const owedShown =
     owed + board.owed.noAddress.length + board.owed.unconfirmed.length + board.owed.inFlight > 0 ||
-    report?.owedOnly === true;
+    report?.owedOnly === true ||
+    owedProblem !== null;
   const owedHeld = board.owed.blockers;
 
   return (
@@ -455,9 +461,9 @@ export default function SendBoard({ initial }: { initial: Board }) {
                 <span>{inFlightLine(board.owed.inFlight)}</span>
               </p>
             ) : null}
-            {problem && !mainSends ? (
+            {owedProblem ? (
               <p className={shared.problem} role="alert">
-                {problem}
+                {owedProblem}
               </p>
             ) : null}
           </div>
@@ -588,7 +594,7 @@ export default function SendBoard({ initial }: { initial: Board }) {
               {testNote}
             </p>
           ) : null}
-          {problem && (mainSends || !owedShown) ? (
+          {problem ? (
             <p className={shared.problem} role="alert">
               {problem}
             </p>
