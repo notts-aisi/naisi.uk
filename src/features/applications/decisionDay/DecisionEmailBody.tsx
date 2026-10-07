@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { Button, Section, Text } from "@react-email/components";
 import EmailChrome from "@/emails/EmailChrome";
 import type {
@@ -31,10 +32,19 @@ export default function DecisionEmailBody({ email }: { email: DecisionEmail }) {
         ))}
         {email.buttons.length > 0 ? (
           <Section style={buttonRowStyle}>
-            {email.buttons.map((button) => (
-              <Button key={button.label} href={button.href} style={BUTTON_STYLE[button.look]}>
-                {button.label}
-              </Button>
+            {email.buttons.map((button, at) => (
+              <Fragment key={button.label}>
+                {/*
+                  A space between two buttons. In the text alternative each
+                  button is its words and then its address, so without the
+                  space the first address runs into the next button's words
+                  and a reader who taps it is sent to a page that is not there.
+                */}
+                {at > 0 ? " " : null}
+                <Button href={button.href} style={BUTTON_STYLE[button.look]}>
+                  {button.label}
+                </Button>
+              </Fragment>
             ))}
           </Section>
         ) : null}
