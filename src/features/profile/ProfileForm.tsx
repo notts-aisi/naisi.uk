@@ -61,6 +61,14 @@ import styles from "./ProfileForm.module.css";
 
 const UNI_EMAIL_LOCK_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * The ids a signed-in session gives for the two ways into the site. They are
+ * the sign-in providers' names (Google's happens to look like a web address)
+ * and are compared whole.
+ */
+const GOOGLE_PROVIDER_ID = "google.com";
+const PASSWORD_PROVIDER_ID = "password";
+
 const LOCK_MESSAGE =
   "To prevent abuse, we've temporarily locked email changes on this account. If you need to update your university email before it unlocks, email ai-safety@uonsu.com from the address you'd like us to use and we'll verify and make the change manually.";
 
@@ -368,13 +376,15 @@ export default function ProfileForm() {
   const storedYear = Number((me?.profile?.expectedGraduation ?? "").slice(0, 4));
   const firstYear = storedYear > 0 && storedYear < thisYear ? storedYear : thisYear;
 
-  // How this account signs in, as the browser's own session reports it.
+  // How this account signs in, as the browser's own session reports it. A
+  // provider is matched by its whole id, never by part of one.
   const providers = Array.isArray(user?.providerData)
     ? user.providerData.map((provider) => provider.providerId)
     : [];
-  const signInLine = providers.includes("google.com")
+  const signsInWith = (id: string) => providers.some((provider) => provider === id);
+  const signInLine = signsInWith(GOOGLE_PROVIDER_ID)
     ? "You sign in with Google."
-    : providers.includes("password")
+    : signsInWith(PASSWORD_PROVIDER_ID)
       ? "You sign in with your email and a password."
       : null;
 
