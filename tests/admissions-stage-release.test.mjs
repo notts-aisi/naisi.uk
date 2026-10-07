@@ -945,6 +945,72 @@ describe("the stage release job", () => {
 // 3b. The push leg
 // ---------------------------------------------------------------------------
 
+/**
+ * AN APPLICATION FORM IS AN ADMISSION ROUND TOO, so an open one turns up in
+ * this job's walk of open rounds. It is left out: a form has no stages, and
+ * the email and the push this job sends are the older apply flow's own
+ * (`src/lib/admissions/formFence.ts`).
+ * The form below is given a released stage and three live applications on
+ * purpose, everything that would make a round of the older kind announce, so
+ * the one thing that differs is the field that says what it is.
+ */
+describe("an application form among the open rounds", () => {
+  const form = { formVersion: 2 };
+
+  test("nobody live on a form is mailed, pushed to, claimed or even read", async () => {
+    const db = makeDb(world({ apps: 3, roundOverrides: form }));
+    reset(db);
+    const queried = [];
+    globalThis.__queryHook = (name) => queried.push(name);
+
+    const { result, summary } = await runAdmissionsStageRelease(context().ctx);
+
+    assert.deepEqual(globalThis.__sends, [], "somebody on a form was mailed by the older job");
+    assert.deepEqual(globalThis.__pushes, [], "somebody on a form was pushed to by the older job");
+    assert.deepEqual(db.ids("schedulerMarkers"), [], "a marker was claimed for somebody on a form");
+    assert.equal(summary.forms, 1);
+    assert.equal(summary.rounds, 0);
+    assert.equal(summary.stages, 0);
+    assert.equal(summary.audience, 0);
+    assert.equal(result.processed, 0);
+    // The walk of open rounds, and nothing after it: neither the form's
+    // stages nor an application on it was fetched.
+    assert.deepEqual(queried, ["admissionRounds"]);
+    assert.match(result.note, /application forms left alone 1$/);
+  });
+
+  test("the very same round without the field announces, so the field is what decides", async () => {
+    const db = makeDb(world({ apps: 3 }));
+    reset(db);
+
+    const { result, summary } = await runAdmissionsStageRelease(context().ctx);
+
+    assert.equal(summary.sent, 3);
+    assert.equal(summary.forms, 0);
+    assert.equal(summary.rounds, 1);
+    // A run that met no form says nothing about forms.
+    assert.ok(!/application form/.test(result.note), result.note);
+  });
+
+  test("a run scoped to a form's stage announces nothing and gives no verdict", async () => {
+    // The release route refuses a form before it gets this far. This is the
+    // job holding the same line by itself, whoever calls it.
+    const db = makeDb(world({ apps: 3, roundOverrides: form }));
+    reset(db);
+
+    const { summary, reason } = await runAdmissionsStageRelease(context().ctx, {
+      roundId: ROUND_ID,
+      stageId: STAGE_ID,
+    });
+
+    assert.deepEqual(globalThis.__sends, []);
+    assert.deepEqual(globalThis.__pushes, []);
+    assert.deepEqual(db.ids("schedulerMarkers"), []);
+    assert.equal(summary.forms, 1);
+    assert.equal(reason, null);
+  });
+});
+
 describe("the announcement also pushes", () => {
   test("one push per email, naming the round and the stage, landing on the form", async () => {
     const db = makeDb(world({ apps: 2 }));

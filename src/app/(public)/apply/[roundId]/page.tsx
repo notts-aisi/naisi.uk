@@ -31,6 +31,8 @@ import { normalizeAdmissionApplicationPrivate } from "@/lib/firestore/admissionA
 import { applyCopy } from "@/lib/admissions/applyCopy";
 import { formatRoundDate, formatRoundDeadline } from "@/lib/admissions/window";
 import ApplyFlow from "@/features/admissions/ApplyFlow";
+import ApplicationFormNotice from "@/features/admissions/ApplicationFormNotice";
+import { isApplicationForm } from "@/lib/applications/normalise";
 import styles from "./apply.module.css";
 
 /**
@@ -85,11 +87,26 @@ type Loaded = {
 };
 
 /**
+ * What `loadRound` answers for a round that is an APPLICATION FORM.
+ *
+ * A form is not filled in through the flow below: that flow saves and submits
+ * through the older apply routes, every one of which refuses a form. So the
+ * loader stops at the round document, before it reads stages or anybody's
+ * application in the older shape, and the page returns a notice in the
+ * flow's place. See `src/lib/admissions/formFence.ts`.
+ */
+const APPLICATION_FORM = "application-form";
+
+/**
  * The round, its stages and (when signed in) the caller's own row.
  *
  * Returns null for a round that does not exist, is still a draft, or has been
  * archived. All three answer the same way: which of them it is says something
  * about NAISI's plans that a visitor has no business reading off a page.
+ *
+ * Returns `APPLICATION_FORM` for a round that is an application form, asked
+ * AFTER those three, so a form nobody has opened is as absent as any other
+ * draft.
  *
  * `joinPrivate` is the view-as switch. Impersonation swaps the session cookie
  * for the TARGET's, so `uid` here is the member's during a view-as session and
@@ -103,7 +120,7 @@ async function loadRound(
   roundId: string,
   uid: string | null,
   joinPrivate: boolean,
-): Promise<Loaded | null> {
+): Promise<Loaded | typeof APPLICATION_FORM | null> {
   const db = getAdminDb();
   if (!db) return null;
 
@@ -112,6 +129,7 @@ async function loadRound(
   if (!roundSnap.exists) return null;
   const round = normalizeAdmissionRound(roundSnap.id, roundSnap.data() ?? {});
   if (round.archived || round.status === "draft") return null;
+  if (isApplicationForm(roundSnap.data())) return APPLICATION_FORM;
 
   const now = new Date();
   const stagesSnap = await roundRef.collection(STAGES_SUBCOLLECTION).get();
@@ -159,7 +177,9 @@ async function loadRound(
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { roundId } = await params;
   const loaded = await loadRound(roundId, null, false);
-  if (!loaded) return { title: "Applications", robots: { index: false, follow: true } };
+  if (!loaded || loaded === APPLICATION_FORM) {
+    return { title: "Applications", robots: { index: false, follow: true } };
+  }
   const { round } = loaded;
   const state = round.windowState;
   const facilitator = round.kind === "appointment";
@@ -189,6 +209,9 @@ export default async function ApplyPage({ params }: Params) {
   // course, whose curriculum stays up between runs, a round nobody has opened
   // is not a public object at all.
   if (!loaded) notFound();
+  // An application form is applied to on its own pages. Ordinary HTML, and
+  // never `notFound()`: the round is there, and this says where to apply.
+  if (loaded === APPLICATION_FORM) return <ApplicationFormNotice />;
 
   const { round, stages, application, closesAt, opensAt } = loaded;
   // The kind decides what this form is CALLED on every surface of the page.

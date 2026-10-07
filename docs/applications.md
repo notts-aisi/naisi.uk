@@ -48,6 +48,43 @@ A round with `formVersion: 2` is an application form and is edited only by the
 application form's own routes. The older round editor and its routes belong to
 rounds without it.
 
+### The fence
+
+A form sits in the same collection as the rounds that came before it, so every
+route, page, job and lookup written for those rounds can be pointed at one.
+None of them knows a form's programmes, its question sets or decision day, and
+none may treat a form as a round. Each asks `isApplicationForm` of the stored
+document and then does one of three things.
+
+- **It refuses.** Every older route answers 409 with one sentence
+  (`refuseApplicationForm` in `src/lib/admissions/formFence.ts`), after its own
+  "not found" answers and before it writes, sends or serves anything. The
+  older applicant routes do it through `loadRound`. The older pages stand
+  aside the same way: the round page shows that sentence and keeps only the
+  danger zone, the two applicant pages return a notice, and the appointment
+  queue answers as it does for a round that is not there.
+- **It leaves the form alone.** The two scheduler jobs that walk open rounds
+  skip a form and count it, so nothing older emails an applicant on one. The
+  lookup behind the course pages drops a form, so one is never offered as a
+  single course's own intake.
+- **It serves both**, on purpose: destroying a round, deleting an account, the
+  member record, and the list of one person's applications.
+
+The refusal comes after a route's "not found" answers, never before them. A
+form nobody has opened reads to an applicant as a round that is not there, and
+somebody who may not see a round is not told it is a form.
+
+`tests/admissions-form-fence.test.mjs` walks the tree for every route, page and
+layout with a round id in its address, and for every other file that can
+address a round. Each is listed with what it does about a form, and what its
+entry says is read out of the source and then executed. A new one fails until
+somebody decides what it does.
+
+The routes under `/api/admissions/forms` are the form's own, and the routes
+under `/api/admissions/rounds` are the older ones. A form's own route reaches a
+round only through `src/lib/applications/`, whose loader answers null for a
+round that is not a form, so the fence holds in the other direction too.
+
 ## The four rules everything else follows from
 
 **1. An applicant's own document changes only when the applicant acts, or when
@@ -147,6 +184,37 @@ Nothing is emailed before decision day. The send is one action by an admin: it
 publishes each outcome onto the applicant's own document (`result`, and
 `invitation` where there is one) and sends the emails. Until it runs, every
 applicant's status stays "sent".
+
+## What deletes what
+
+| When | What goes | What stays |
+| --- | --- | --- |
+| A form is destroyed | The form, its question sets, every application with the access-requirements row beside it, every review, every decision document, and the log lines about the form's decisions | Each applicant's member record, the delivery log, the download log, the course runs |
+| An account is deleted | Each of its applications with the access-requirements row and the decision document beside it, the reviews about it, the reviews it wrote, and its name wherever a round carries it: the reviewer list, the final decider, and the lead and reviewers of each programme | Its member record, the log lines |
+| A course run is destroyed | Nothing on a form | The form, with any programme whose `runId` named that run |
+
+- **A form is destroyed through the round destroy**
+  (`src/lib/admissions/destroy.ts`), the one older action a form shares. It
+  writes the member record for every applicant before it deletes anything, and
+  refuses outright if one cannot be written.
+- **Whatever deletes an application deletes the decision at its id in the same
+  batch.** A decision is a judgement about a named applicant, and it never
+  outlives the application it is about.
+  `tests/application-decision-lifetime.test.mjs` lists every file that could
+  delete an application and holds each to it. An applicant never deletes their
+  own application: withdrawing is a status.
+- **The destroy finds decisions two ways**: by the round they name, and at each
+  application's id in that application's batch. A decision document still
+  carries `roundId` and `uid`, because the staff screens list by them.
+- **A log line about a decision carries `roundId`**, the form's id, and
+  `runId: ""`. The destroy finds the lines by `roundId`, and one written
+  without it is never found again.
+- **Deleting an account takes its name off every programme that names it**, and
+  out of the round's `reviewerUids` in the same update, so the two lists never
+  disagree about somebody who has gone.
+- **A programme's `runId` can name a run that has since been destroyed.** The
+  run destroy writes no round. Whatever reads a programme's `runId` treats a
+  run that is not there as no run.
 
 ## The modules
 

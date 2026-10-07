@@ -1,5 +1,11 @@
+import ApplicationFormStaffNotice from "@/features/admissions/ApplicationFormStaffNotice";
 import RoundEditor from "@/features/admissions/RoundEditor";
+import { ROUNDS_COLLECTION, canSeeRound } from "@/lib/admissions/roundRoutes";
+import { isApplicationForm } from "@/lib/applications/normalise";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
+import type { SessionUser } from "@/lib/firebase/session";
+import { normalizeAdmissionRound } from "@/lib/firestore/admissionRounds";
 
 /**
  * One round's console.
@@ -17,6 +23,15 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  *
  * Both are rendering decisions. The roles route and the two destroy routes
  * enforce the same bar for themselves, whatever this page draws.
+ *
+ * ## An application form is not edited here
+ *
+ * A form is an admission round too, so this address can be asked for one. The
+ * older editor is for rounds of the older kind, and every route behind it
+ * refuses a form, so for a form the page renders a notice in the editor's
+ * place: the form's name, where a form is edited, and the danger zone for an
+ * admin, because destroying is the one thing the two kinds share. Nothing else
+ * of the older editor renders. See `src/lib/admissions/formFence.ts`.
  */
 export default async function RoundPage({
   params,
@@ -24,5 +39,52 @@ export default async function RoundPage({
   params: Promise<{ roundId: string }>;
 }) {
   const [{ roundId }, user] = await Promise.all([params, requireAdmissionsPage()]);
-  return <RoundEditor roundId={roundId} isAdmin={user.role === "admin"} />;
+  const isAdmin = user.role === "admin";
+
+  const form = await applicationFormHere(user, roundId);
+  if (form) {
+    return (
+      <ApplicationFormStaffNotice
+        roundId={roundId}
+        label={form.label}
+        academicYear={form.academicYear}
+        isAdmin={isAdmin}
+      />
+    );
+  }
+
+  return <RoundEditor roundId={roundId} isAdmin={isAdmin} />;
+}
+
+/**
+ * The application form at this address, as far as this caller may know of it,
+ * or null.
+ *
+ * Null covers every case the older editor already answers for itself: no
+ * round, a round of the older kind, and a round this caller may not see. The
+ * last one matters. `canSeeRound` is the same question the round's own route
+ * asks before it says a round exists, so somebody who is in the console for a
+ * different round learns nothing here: they get the editor, and its route
+ * tells them there is no such round.
+ *
+ * A read that fails is null as well. The editor then renders and reports
+ * whatever its own route says, which is a better answer than this page
+ * throwing over a notice.
+ */
+async function applicationFormHere(
+  user: SessionUser,
+  roundId: string,
+): Promise<{ label: string; academicYear: string } | null> {
+  const db = getAdminDb();
+  if (!db) return null;
+  try {
+    const snap = await db.collection(ROUNDS_COLLECTION).doc(roundId).get();
+    if (!snap.exists || !isApplicationForm(snap.data())) return null;
+    const round = normalizeAdmissionRound(snap.id, snap.data() ?? {});
+    if (!canSeeRound(user, round)) return null;
+    return { label: round.label, academicYear: round.academicYear };
+  } catch (err) {
+    console.error("[admissions round page] could not read the round", roundId, err);
+    return null;
+  }
 }

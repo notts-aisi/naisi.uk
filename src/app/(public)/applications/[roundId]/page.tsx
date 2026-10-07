@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import Badge from "@/components/ui/Badge";
 import Card from "@/components/ui/Card";
 import MemberText from "@/components/ui/MemberText";
+import ApplicationFormNotice from "@/features/admissions/ApplicationFormNotice";
 import {
   APPLICATION_STATUS_TONE,
   applicationStatusBlurb,
@@ -120,6 +121,14 @@ export default async function ApplicationDetailPage({ params }: Params) {
   // apply to it learns nothing from this page, not even that it exists.
   // Somebody who DID apply still reads their own row below.
   if (!row && !loaded.roundPublic) notFound();
+
+  // An application made on an application form is read back on the form's
+  // own pages: everything below reads stages and answers in the older shape,
+  // which a form does not have. Asked after the two "not found" answers
+  // above, so a form nobody has opened tells a stranger nothing. Ordinary
+  // HTML, never `notFound()`: the round is there. See
+  // `src/lib/admissions/formFence.ts`.
+  if (loaded.applicationForm) return <ApplicationFormNotice />;
 
   if (!row) {
     return (

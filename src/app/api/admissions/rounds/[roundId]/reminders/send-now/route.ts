@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { refuseApplicationForm } from "@/lib/admissions/formFence";
 import { canAuthorRounds, ROUNDS_COLLECTION } from "@/lib/admissions/roundRoutes";
 import { normalizeAdmissionRound } from "@/lib/firestore/admissionRounds";
 import {
@@ -89,6 +90,10 @@ export async function POST(
   if (!snap.exists) {
     return NextResponse.json({ error: "Round not found" }, { status: 404 });
   }
+  // An application form's reminders are its own to send. This one is the
+  // older apply flow's, written about a draft that flow saves and submits.
+  const fenced = refuseApplicationForm(snap.data());
+  if (fenced) return fenced;
   const round = normalizeAdmissionRound(snap.id, snap.data() ?? {});
 
   if (round.archived || round.status !== "open") {
