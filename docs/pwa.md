@@ -116,7 +116,7 @@ Where the person was going survives that trip three ways, and the first to arriv
 - in the `__auth_next` cookie, written `SameSite=None; Secure` over https, because the POST comes from Google's site and a `Lax` cookie is not sent on one;
 - in the tab's own session storage (`naisi.auth.next`, believed for the ten minutes the cookie lives), which the sign-in page reads when the callback route sent the person back with no address.
 
-One guard, `safeReturnPath`, decides whether any copy is a path on this site, and the callback route never clears a cookie it was not sent. `tests/sign-in-return.test.mjs` runs the rules and the route. An application form uses the same trip: in the installed app its first step links to the sign-in page with the form as the return address, and a new account comes back to that step.
+One guard, `safeReturnPath` (`src/lib/safeReturnPath.ts`), decides whether any copy is a path on this site, and the callback route never clears a cookie it was not sent. That function is the one place the question is decided for the whole codebase: the relaunch restore and the page a notification opens ask it too, and `tests/site-path.test.mjs` fails a file that decides it by hand. `tests/sign-in-return.test.mjs` runs the rules and the route. An application form uses the same trip: in the installed app its first step links to the sign-in page with the form as the return address, and a new account comes back to that step.
 
 Every link in every email this site sends opens in the default browser, not the installed app. That is an iOS platform property; changing it would require Universal Links and a native App ID. Do not file it as a bug.
 

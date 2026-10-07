@@ -1,5 +1,6 @@
 import "server-only";
 
+import { safeReturnPath } from "@/lib/safeReturnPath";
 import { isPushConfigured } from "./config";
 import { wantsPushFor } from "./preferences";
 import { sendPushToUid } from "./send";
@@ -52,17 +53,15 @@ import { sendPushToUid } from "./send";
  * else's page is the worst thing this file could do, so the shape is checked
  * here rather than promised in a comment.
  *
- * `//elsewhere.example` is refused alongside the obvious absolute forms: it
- * starts with "/" and is still an off-origin URL, which is exactly the case a
- * `startsWith("/")` check on its own waves through. Every caller today is
- * server-side and passes a literal, so this costs nothing and is here for the
- * caller that is not. A refused override falls back to the board rather than
- * dropping the push: the member still hears about their task.
+ * What counts as a path on this site is decided in one place for the whole
+ * codebase, `safeReturnPath` (`src/lib/safeReturnPath.ts`), and asked here, never
+ * tested by hand. Every caller today is server-side and passes a literal, so
+ * this costs nothing and is here for the caller that is not. A refused
+ * override falls back to the board rather than dropping the push: the member
+ * still hears about their task.
  */
 function taskPushPath(url: string | undefined): string | null {
-  if (typeof url !== "string" || url === "") return null;
-  if (!url.startsWith("/") || url.startsWith("//")) return null;
-  return url;
+  return safeReturnPath(url);
 }
 
 export async function mirrorTaskEmailToPush(

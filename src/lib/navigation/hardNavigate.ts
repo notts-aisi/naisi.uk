@@ -1,6 +1,6 @@
 "use client";
 
-import { safeReturnPath } from "@/lib/signInReturn";
+import { safeReturnPath } from "@/lib/safeReturnPath";
 
 /**
  * Full document navigation. Use ONLY after the server-side `__session` cookie

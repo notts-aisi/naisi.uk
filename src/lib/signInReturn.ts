@@ -30,7 +30,9 @@
  * the page was opened with, what Google posts back as `state`, the cookie,
  * the tab's copy, and the address a document load is finally asked for
  * (`hardNavigate`). Nothing that reads a return address tests it any other
- * way.
+ * way. The decision itself lives in `src/lib/safeReturnPath.ts`, the one
+ * place it is made for the whole codebase, and is handed on from here so
+ * the sign-in code has one module to read.
  *
  * ## What this does NOT decide
  *
@@ -43,6 +45,10 @@
  * route, the sign-in page, the Google button and the tests read one module.
  */
 
+import { RETURN_MAX_LENGTH, safeReturnPath } from "./safeReturnPath";
+
+export { RETURN_MAX_LENGTH, safeReturnPath };
+
 /** The cookie the callback route reads. The privacy page lists it by this name. */
 export const RETURN_COOKIE = "__auth_next";
 
@@ -52,43 +58,8 @@ export const RETURN_TAB_KEY = "naisi.auth.next";
 /** How long a carried address is believed, in seconds. The cookie's life, and the tab's copy keeps to it. */
 export const RETURN_MAX_AGE_SECONDS = 600;
 
-/** The longest address that is carried or followed. Far longer than any path this site makes. */
-export const RETURN_MAX_LENGTH = 1024;
-
 /** What the callback route puts on the sign-in page's address when Google has handed somebody back. */
 export const CAME_BACK_FROM_GOOGLE = "google-redirect";
-
-// ---------------------------------------------------------------------------
-// The guard
-// ---------------------------------------------------------------------------
-
-/**
- * `raw` when it is a path on this site, otherwise null.
- *
- * A path on this site starts with ONE slash. Three things a browser reads as
- * the start of another site's address are refused, and the test of this
- * function asks a URL parser the same question of every string it accepts:
- *
- *  - a second slash (`//host`);
- *  - a backslash, which a browser reads as a slash (`/\host`), refused
- *    wherever it stands;
- *  - a tab, a line break or any other control character, which a browser
- *    drops before it reads the address, so that `/<tab>/host` is `//host`.
- *
- * No path this site makes holds a backslash or a control character, so
- * nothing real is lost by refusing them.
- */
-export function safeReturnPath(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
-  if (raw.length === 0 || raw.length > RETURN_MAX_LENGTH) return null;
-  if (raw[0] !== "/" || raw[1] === "/") return null;
-  // By code point, so this file carries no control character of its own.
-  for (const ch of raw) {
-    const code = ch.codePointAt(0) ?? 0;
-    if (code < 0x20 || code === 0x7f || ch === "\\") return null;
-  }
-  return raw;
-}
 
 // ---------------------------------------------------------------------------
 // The cookie

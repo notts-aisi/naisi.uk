@@ -822,6 +822,14 @@ const USERS = new Map([
       "`google-auth-library` is stood in for, because nobody but Google can sign a credential",
   ],
   [
+    "site-path.test.mjs",
+    "it executes the three askers of `safeReturnPath` that are not about signing in (the last page " +
+      "an installed app had open, and the two modules that hand a destination to a notification), " +
+      "because what each does with an address it is refused is only real when the module runs; " +
+      "the notification modules' three doors (`./config`, `./preferences`, `./send`) are stubbed " +
+      "so nothing is sent, and what would have been sent is kept to be looked at",
+  ],
+  [
     "slug-id.test.mjs",
     "it executes `slugId`, with the platform's random source replaced, because where the suffix " +
       "comes from and what happens to a byte that would bias it are both about the shipping code; " +
