@@ -1,5 +1,5 @@
 import type { DecisionEmailButtonLook, DecisionEmailKind, DecisionEmailSignOff } from "./emailCopy";
-import type { PoolChoice, TestState } from "./plan";
+import type { OwnApplication, PoolChoice, TestState } from "./plan";
 
 /**
  * WHAT THE TWO SCREENS ARE SENT.
@@ -11,6 +11,11 @@ import type { PoolChoice, TestState } from "./plan";
  *
  * NO EMAIL ADDRESS IS IN EITHER. A preview says who an email is to by name,
  * and the address it goes to never leaves the server.
+ *
+ * NOTHING OF THE VIEWER'S OWN APPLICATION IS IN EITHER. Each object is built
+ * for whoever is looking, from the term with their own application left out
+ * of every list and every number. `ownApplication` says only that they have
+ * one, so the page can say in a line that it is not shown.
  */
 
 // ---------------------------------------------------------------------------
@@ -90,6 +95,11 @@ export type PoolBoard = {
   /** The day decisions went out, once they all have. */
   sentOn: string | null;
   counts: { pooled: number; invitations: number; noOffer: number; needsOutcome: number };
+  /**
+   * Whether the viewer has an application of their own on this form. It is
+   * in no row and no number on this page, wherever it stands.
+   */
+  ownApplication: OwnApplication;
   programmes: PoolProgramme[];
   rows: PoolRow[];
   /**
@@ -156,6 +166,11 @@ export type SendBoard = {
    * does not shrink when somebody replies.
    */
   applied: number;
+  /**
+   * Whether the viewer has an application of their own on this form. It is
+   * in no group and no number on this page, and the send still tells them.
+   */
+  ownApplication: OwnApplication;
   /**
    * Once the term is sent, each row's detail is the record of what people
    * were told, not who holds a place today.

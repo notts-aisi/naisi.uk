@@ -255,3 +255,98 @@ export function resolveImport(fromFile, specifier, srcRoot) {
   }
   return null;
 }
+
+/** The top-level functions of a file, as syntax nodes by name, and the file's own node. */
+function parseFunctions(file) {
+  const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const found = [];
+  for (const statement of source.statements) {
+    if (ts.isFunctionDeclaration(statement) && statement.name) {
+      found.push({ name: statement.name.text, node: statement });
+    } else if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        const value = declaration.initializer;
+        if (value && (ts.isArrowFunction(value) || ts.isFunctionExpression(value))) {
+          found.push({ name: declaration.name.getText(source), node: value });
+        }
+      }
+    }
+  }
+  return { source, found };
+}
+
+/**
+ * Every call of `callee(...)` in a file: the function of the file it is in
+ * (null at the top of the module), its arguments as written, and its line.
+ * A call is the bare name followed by its arguments, so a method of the same
+ * name on some object is not one.
+ */
+export function callsOf(file, callee) {
+  const { source, found } = parseFunctions(file);
+  const out = [];
+  const visit = (node, inFunction) => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === callee) {
+      out.push({
+        inFunction,
+        args: node.arguments.map((argument) => ({
+          text: argument.getText(source),
+          // A name, or a property of one: `viewerUid`, `user.uid`. Not a
+          // value written out where the call is.
+          named: ts.isIdentifier(argument) || ts.isPropertyAccessExpression(argument),
+        })),
+        line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
+      });
+    }
+    ts.forEachChild(node, (child) => visit(child, inFunction));
+  };
+  const owned = new Set(found.map((fn) => fn.node));
+  for (const fn of found) visit(fn.node, fn.name);
+  // Anything outside every function: a call made as the module loads.
+  for (const statement of source.statements) {
+    const inner = ts.isVariableStatement(statement)
+      ? statement.declarationList.declarations.map((declaration) => declaration.initializer).filter(Boolean)
+      : [statement];
+    for (const node of inner) if (!owned.has(node)) visit(node, null);
+  }
+  return out;
+}
+
+/**
+ * Every use of the name `identifier` inside one function of a file, each
+ * with how it is used:
+ *
+ *  - `taken`: bound out of something by destructuring under its own name
+ *    (`const { whole } = x`), which is where a function receives it;
+ *  - `taken-as:<name>`: bound out under another name (`{ whole: term }`), so
+ *    what the function does with it afterwards is done under that name;
+ *  - `handed:<callee>`: written inside the arguments of a call to `callee`,
+ *    the nearest call around it;
+ *  - `read`: anything else, a property read (`x.whole`) included.
+ */
+export function usesOf(file, functionName, identifier) {
+  const { source, found } = parseFunctions(file);
+  const fn = found.find((entry) => entry.name === functionName);
+  if (!fn) return null;
+  const out = [];
+  const visit = (node) => {
+    if (ts.isIdentifier(node) && node.text === identifier) {
+      const parent = node.parent;
+      let how = "read";
+      if (ts.isBindingElement(parent)) {
+        how =
+          parent.propertyName === node ? `taken-as:${parent.name.getText(source)}` : "taken";
+      } else {
+        for (let up = parent; up && up !== fn.node; up = up.parent) {
+          if (ts.isCallExpression(up) && up.arguments.some((argument) => argument.pos <= node.pos && node.end <= argument.end)) {
+            how = `handed:${up.expression.getText(source)}`;
+            break;
+          }
+        }
+      }
+      out.push({ how, line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1 });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(fn.node);
+  return out;
+}

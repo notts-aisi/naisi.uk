@@ -99,34 +99,47 @@ const FOLDERS = ["review", "decisionDay"];
  *  - `internal`: handed ids by this library's own loaders, which chose them.
  *    Nothing outside `src/lib/applications` can call it.
  *  - `no-applicant`: handed nobody's id but the caller's own.
+ *
+ * NOBODY IS ANSWERED ABOUT THEIR OWN APPLICATION. A function that a route or
+ * a page hands an id to (`asks` and `admin`) compares it with the caller's
+ * own before it reads an application, and `own` says which way it answers:
+ * `refuses`, in a sentence, for something that would have written, and
+ * `not-found` for something that would have shown.
  */
 const HANDED = {
   "review/load.ts#loadReview": {
     kind: "asks",
+    own: "not-found",
     why: "the review screen's read of one application: the predicate decides, and everybody else is told Not found",
   },
   "review/saveReview.ts#saveReview": {
     kind: "asks",
+    own: "refuses",
     why: "a reviewer writes a row about an application only where they may read it",
   },
   "review/decide.ts#decideApplication": {
     kind: "asks",
+    own: "refuses",
     why: "a refusal to decide says no more about an application than the review screen would",
   },
   "review/decide.ts#decideMany": {
     kind: "asks",
+    own: "refuses",
     why: "each id in the list is decided by the same function as a single decision, under the same rule",
   },
   "review/decide.ts#revokeAcceptance": {
     kind: "admin",
+    own: "refuses",
     why: "taking an acceptance back is part of running the term, and an admin reads every application",
   },
   "review/accessRequirements.ts#openAccessRequirements": {
     kind: "admin",
+    own: "not-found",
     why: "only an admin opens an access-requirements answer, and is refused before anything is read",
   },
   "decisionDay/pool.ts#setPooledOutcome": {
     kind: "admin",
+    own: "refuses",
     gatedIn: ["app/api/admissions/forms/[roundId]/pool/route.ts"],
     why: "what a pooled applicant hears is picked by an admin: the one route that calls this refuses everybody else first",
   },
@@ -196,6 +209,10 @@ const THE_CALLER = ["user", "actor", "viewer", "viewerUid"];
 const ID_PROPERTY = /(?<![A-Za-z0-9_$])(uid|uids|applicantUids?)\??\s*:/;
 /** What names an applicant, or says whether they have been told. */
 const SAYS_SOMETHING = ["applicantName", "applicantFirstName", "firstNameOf", "hasBeenTold", "alreadyTold", "alreadyToldTheyAreIn"];
+/** The id a function was handed, compared with the caller's own. */
+const IS_THEIR_OWN = /\b(applicantUid|request\.uid)\s*===\s*(user|actor)\.uid\b/;
+/** What reads somebody's application, or what the committee wrote about it. */
+const READS_AN_APPLICATION = ["loadApplication", "loadTerm", "listSentApplications", "listDecisions", "listReviews", "applicationRef", "decisionRef", "accessRequirementsRef"];
 /** Types the language supplies, which hold no account id. */
 const BUILT_IN = new Set(["Date", "Promise", "Map", "Set", "ReadonlyMap", "ReadonlySet", "Record", "Readonly", "Pick", "Omit", "Partial", "Array", "ReadonlyArray"]);
 
@@ -389,6 +406,31 @@ describe("every function that is handed an applicant's id says what holds it", (
               gate >= 0 && gate < firstCall(other.body, fn.name),
               `${other.name} in ${posix(relative(SRC, file))} calls ${fn.name} before it has asked canRunTerm`,
             );
+          }
+        }
+      });
+    }
+
+    if (entry.kind === "asks" || entry.kind === "admin") {
+      test(`${key} does not answer about the caller's own application`, () => {
+        assert.ok(["refuses", "not-found"].includes(entry.own), `${key} needs to say how it answers the caller's own id`);
+        const comparing = reachOf(mod, fn.name).filter((reached) => IS_THEIR_OWN.test(reached.body));
+        assert.ok(comparing.length > 0, `${key} never compares the id it is handed with the caller's own`);
+        for (const reached of comparing) {
+          const compared = reached.body.search(IS_THEIR_OWN);
+          const reads = [
+            ...READS_AN_APPLICATION.map((name) => firstCall(reached.body, name)),
+            reached.body.search(/\.runTransaction\s*\(/),
+          ].filter((at) => at >= 0);
+          assert.ok(
+            reads.every((at) => compared < at),
+            `${reached.name} reads an application before it has asked whether the id is the caller's own`,
+          );
+          const answer = reached.body.slice(compared, compared + 160);
+          if (entry.own === "refuses") {
+            assert.match(answer, /\b403\b/, `${reached.name} refuses the caller's own id`);
+          } else {
+            assert.match(answer, /return NOT_FOUND/, `${reached.name} answers Not found for the caller's own id`);
           }
         }
       });

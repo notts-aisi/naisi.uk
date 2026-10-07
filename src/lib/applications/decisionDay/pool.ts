@@ -13,6 +13,7 @@ import {
   type ApplicationForm,
 } from "../normalise";
 import { applicationRef, formRef, loadForm } from "../repo";
+import { OWN_APPLICATION } from "../review/refusals";
 import { decisionRef, listReviews, listSentApplications } from "../staffRepo";
 import { gaveBackOf } from "../status/reasons";
 import { standingOf } from "../status/standing";
@@ -41,6 +42,15 @@ import type { PoolBoard, PoolComment, PoolLeftRow, PoolProgramme, PoolRow } from
  * Two things live here. {@link buildPoolBoard} is everything the page shows,
  * built field by field. {@link setPooledOutcome} is the one writer of a
  * pooled applicant's outcome.
+ *
+ * NOBODY READS OR DECIDES THEIR OWN APPLICATION HERE. The page is an admin's,
+ * and an admin can have applied and been pooled. The page is built for
+ * whoever is looking (`loadTerm` takes them) from the term with their own
+ * application left out: it is in no row, no count and no number of places,
+ * and the page says so in one line. The writer refuses the caller's own id
+ * before it reads anything, and "everybody who has nothing picked" is
+ * everybody but the caller, so their own outcome is another admin's to
+ * choose.
  *
  * NOBODY DISAPPEARS FROM THE PAGE. Somebody pooled who gives a place or an
  * invitation back after they were told leaves the term, and so leaves every
@@ -156,12 +166,12 @@ function leftRowFor(
 export async function buildPoolBoard(
   db: Firestore,
   form: ApplicationForm,
+  /** Whoever the page is for. Their own application is left out of it. */
+  viewerUid: string,
   now: Date,
 ): Promise<PoolBoard> {
-  const [{ term, applications, leftApplications }, reviews] = await Promise.all([
-    loadTerm(db, form),
-    listReviews(db, form.round.id),
-  ]);
+  const [{ shown: term, shownApplications: applications, leftApplications, own: ownApplication }, reviews] =
+    await Promise.all([loadTerm(db, form, viewerUid), listReviews(db, form.round.id)]);
   const pooled = term.people.filter((person) => isPooled(person.outcome));
   const pooledUids = new Set(pooled.map((person) => person.uid));
 
@@ -215,6 +225,7 @@ export async function buildPoolBoard(
       noOffer: outcomes.noOffer,
       needsOutcome: outcomes.needsOutcome,
     },
+    ownApplication,
     programmes,
     rows: pooled.map((person) =>
       rowFor(form, term, person, applications.get(person.uid), commentsOf(person.uid)),
@@ -238,9 +249,9 @@ export type PoolRequest =
 
 export type PoolWrite =
   | { ok: true; changed: number }
-  | { ok: false; status: 400 | 404 | 409; error: string };
+  | { ok: false; status: 400 | 403 | 404 | 409; error: string };
 
-function refuse(status: 400 | 404 | 409, error: string): PoolWrite {
+function refuse(status: 400 | 403 | 404 | 409, error: string): PoolWrite {
   return { ok: false, status, error };
 }
 
@@ -272,6 +283,9 @@ export async function setPooledOutcome(
   roundId: string,
   request: PoolRequest,
 ): Promise<PoolWrite> {
+  // Before anything is read, so the answer is the same wherever the caller's
+  // own application stands, pooled or not.
+  if ("uid" in request && request.uid === actor.uid) return refuse(403, OWN_APPLICATION);
   const form = await loadForm(db, roundId);
   if (!form) return refuse(404, "There is no application form here.");
 
@@ -313,6 +327,9 @@ export async function setPooledOutcome(
         decisions.set(uid, normaliseDecision(decisionSnap.id, decisionSnap.data()));
       }
     });
+    // EVERYBODY, the caller's own application included: an invitation needs
+    // a place that is really free, and a place somebody holds is taken
+    // whoever is asking. Nothing here is listed or counted for a screen.
     const term = planTerm(live, applications, decisions);
 
     const write = (uid: string, choice: PoolChoice) =>
@@ -369,9 +386,12 @@ export async function setPooledOutcome(
       return { ok: true, changed: 1 } satisfies PoolWrite;
     }
 
-    // Everybody pooled with nothing picked yet, and nobody else.
+    // Everybody pooled with nothing picked yet, and nobody else. Never the
+    // caller's own application: that outcome is another admin's to choose,
+    // and the number the page offered this for did not count it.
     let changed = 0;
     for (const person of term.people) {
+      if (person.uid === actor.uid) continue;
       if (person.result || person.outcome.kind !== "needs-outcome") continue;
       write(person.uid, request.choice);
       changed += 1;

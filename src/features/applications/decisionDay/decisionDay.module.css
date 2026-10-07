@@ -93,6 +93,18 @@
   text-wrap: pretty;
 }
 
+/* A second line under the lede, about the person looking: quieter than it. */
+.aside {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
 /* === Pills: a status, always with its word === */
 
 .pill {

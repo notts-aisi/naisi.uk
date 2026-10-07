@@ -35,6 +35,7 @@ import {
   DECISIONS_SENT,
   NOT_FOUND,
   NO_SENT_APPLICATION,
+  OWN_APPLICATION,
   alreadyTold,
   alreadyToldTheyAreIn,
   closedToStaffWrites,
@@ -64,7 +65,9 @@ import type { BulkDecisionResult, DecisionChange, Refusal } from "./types";
  *    `tests/applications-readable-before-answering.test.mjs` holds every
  *    function here that is handed an applicant's id to that.
  *  - THE APPLICANT RANKED THE PROGRAMME, in the application they sent.
- *  - NOBODY DECIDES THEIR OWN APPLICATION.
+ *  - NOBODY DECIDES THEIR OWN APPLICATION, and nobody takes back an
+ *    acceptance of their own. Both are refused in the same words, before
+ *    anything is read.
  *  - UNTIL DECISION DAY. Once the form's decisions have been sent a decision
  *    cannot change. That is read again inside the transaction, so a decision
  *    and the send cannot both win.
@@ -179,7 +182,7 @@ async function applyDecision(
   several = false,
 ): Promise<Applied> {
   if (applicantUid === user.uid) {
-    return { outcome: "refused", status: 403, reason: "You can’t decide your own application.", name: "" };
+    return { outcome: "refused", status: 403, reason: OWN_APPLICATION, name: "" };
   }
   const roundRef = formRef(db, roundId);
   const appRef = applicationRef(db, roundId, applicantUid);
@@ -411,6 +414,9 @@ export async function revokeAcceptance(
   input: { programmeId: string; reason: string },
 ): Promise<RevokeResult> {
   if (!canRunTerm(user)) return refuse(403, "Only an admin can revoke an acceptance.");
+  // Before anything is read, so the answer does not depend on whether a
+  // programme has accepted the caller.
+  if (applicantUid === user.uid) return refuse(403, OWN_APPLICATION);
   const form = await loadForm(db, roundId);
   if (!form || !programmeOn(form, input.programmeId)) return NOT_FOUND;
   const closed = closedToStaffWrites(form);

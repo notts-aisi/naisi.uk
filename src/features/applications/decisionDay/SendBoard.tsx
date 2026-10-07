@@ -16,6 +16,7 @@ import {
   noAddressLine,
   owedButtonLabel,
   owedLine,
+  ownApplicationLine,
   reportLines,
   sendButtonLabel,
   sendTotalsLine,
@@ -400,6 +401,7 @@ export default function SendBoard({ initial }: { initial: Board }) {
       title={`Send decisions · ${board.termLabel}`}
       chips={<Pill tone="live">{board.today}</Pill>}
       lede={`Every decision for the term goes out together. ${board.applied} ${board.applied === 1 ? "person" : "people"} applied.`}
+      aside={ownApplicationLine(board.ownApplication, "send")}
     >
       <section className={`${shared.card} ${styles.ready}`}>
         <div className={styles.readyHead}>

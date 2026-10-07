@@ -28,6 +28,14 @@ export function refuse(status: Refusal["status"], error: string): Refusal {
  */
 export const NO_SENT_APPLICATION = "There is no sent application here.";
 
+/**
+ * What every writer answers when the application it was asked about is the
+ * caller's own: a decision, an acceptance taken back, the outcome a pooled
+ * applicant hears. Said before anything is read, so the answer is the same
+ * wherever the caller's own application stands.
+ */
+export const OWN_APPLICATION = "You can’t decide your own application.";
+
 /** What a decision is answered with once decision day has run. */
 export const DECISIONS_SENT = "Decisions for this term have been sent, so they can’t be changed here.";
 

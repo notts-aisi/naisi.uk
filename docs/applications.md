@@ -213,6 +213,44 @@ every function under `review/` and `decisionDay/` that takes the database,
 with what it is handed and what holds it, and reads each entry's claim out
 of the source.
 
+**Nobody reads or decides their own application on a committee screen.**
+Anybody on the committee can apply, an admin included, and what is scored
+and decided about a person is not theirs to see before decision day. So
+every committee screen is built for whoever is looking, with their own
+application left out before anything is listed or counted: the review list
+and the review screen (`termPictureFor()` in `review/term.ts`), and pooled
+applicants, decision day and the term page's pooled numbers (`termsFor()` in
+`decisionDay/plan.ts`, read as `shown`). A number that counted it, beside a
+list that did not show it, would say where it stands, so it is in no number
+either: not a count of people, and not a programme's places. The two pages
+an admin runs the term from say so in one line whenever the viewer has
+applied, wherever their application stands.
+
+Every writer refuses the caller's own id in one sentence (`OWN_APPLICATION`
+in `review/refusals.ts`), before anything is read: a decision, an acceptance
+taken back, and the outcome a pooled applicant hears. "Everybody with nothing
+picked" is everybody but the caller. Their own outcome is another admin's to
+choose. The writer of a pooled outcome still counts free places over the
+whole term, whoever is asking, so an invitation always has a real place
+behind it.
+
+**The send still tells them.** Decision day is one send for the whole term,
+and an admin who applied hears on it like everybody else. `termsFor()` hands
+back the whole term beside the one the viewer is shown, and the whole term is
+read for two things only: the send itself, and whether it may go
+(`sendBlockersFor()`). An application of the viewer's with no outcome holds
+the send like anybody's, a press publishes their result and emails them, and
+the term is marked as sent only when they have one. What holds the send is
+said in the words of what the viewer is shown, and when the only thing in
+the way is their own application, one sentence says that and nothing about
+what it needs. The number a press sends back is the number the page showed,
+so it is counted the way the page counted it.
+
+`tests/applications-own-application.test.mjs` lists every function that
+reads the committee's lists of applications, decisions or reviews, with
+whether it leaves the viewer's own out or why it reads everybody, and every
+function that holds the whole term, with what it does with it.
+
 **Somebody who joins by invitation is read from the moment they accept, and
 not before.** An invitation is to a programme the person did not pick, so
 while it is only picked, or sent and not yet answered, that programme's lead
@@ -480,8 +518,10 @@ applicant's status stays "sent".
 
 No press of Send is taken until an admin has sent themselves a test of the
 emails as they are worded now. The test is the page's "Send a test to me":
-the first person's real email in a group, to the admin's own address. Each
-one that is handed to the mail provider is recorded on the form as
+the first person's real email in a group, to the admin's own address. It is
+never the admin's own: an application of theirs is not in the group a test
+is taken from, as it is not on the page. Each one that is handed to the mail
+provider is recorded on the form as
 `decisionEmailTest`: who sent it, when, and a fingerprint of every decision
 email's wording at that moment (each programme's own `emailWording`, and the
 form's `noOfferWording`). A test this copy of the site held, or one to an
@@ -782,6 +822,13 @@ All in `src/lib/applications/`.
   `tests/applications-readable-before-answering.test.mjs` with what it is
   handed: it asks `canReadApplication()`, or it is for an admin alone, or
   nothing outside this library can call it.
+- **A committee screen is built for somebody.** A function that reads
+  everybody's applications, decisions or reviews takes the viewer and leaves
+  their own application out through `termPictureFor()` or `termsFor()`, or
+  it is on the list in `tests/applications-own-application.test.mjs` with
+  why it reads everybody. A term is never planned from a raw list anywhere
+  else. A writer that is handed an applicant's id refuses the caller's own
+  before it reads.
 - **No query that sorts or ranges on the server.** Every read here is one or
   two equalities, which need no composite index. A term is a few hundred
   documents: filter and sort in memory.

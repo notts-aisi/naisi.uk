@@ -357,6 +357,13 @@ const USERS = new Map([
       "templates behind it are compiled for real",
   ],
   [
+    "applications-own-application.test.mjs",
+    "executes the pooled applicants, decision day, test email and decision handlers for an " +
+      "admin who has applied, beside what a second admin is sent, against an in-memory term, " +
+      "because whether a page lists or counts the viewer's own application, and whether the " +
+      "send still tells them, are decided by the code that runs",
+  ],
+  [
     "applications-public-term.test.mjs",
     "executes the lookup a public page asks what a visitor may be told about this term, against a " +
       "database that records its queries, and renders the three components a page draws the term " +

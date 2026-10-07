@@ -46,7 +46,7 @@ export async function GET(_req: Request, ctx: Ctx) {
   if (!form) {
     return NextResponse.json({ error: "There is no application form here." }, { status: 404 });
   }
-  const board = await buildSendBoard(db, form, new Date());
+  const board = await buildSendBoard(db, form, user.uid, new Date());
   return NextResponse.json({ board });
 }
 
@@ -111,7 +111,7 @@ export async function POST(req: Request, ctx: Ctx) {
   if (!form) {
     return NextResponse.json({ error: "There is no application form here." }, { status: 404 });
   }
-  const board = await buildSendBoard(db, form, new Date());
+  const board = await buildSendBoard(db, form, user.uid, new Date());
   const { report } = sent;
   return NextResponse.json({
     ok: true,
