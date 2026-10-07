@@ -59,8 +59,10 @@
   font-weight: 600;
 }
 
-/* === The step that is showing ===
-   One column for now; the second is the preview's. */
+/* === The step that is showing, and the preview beside it ===
+   Two columns that fold to one when there is not room for both: the step
+   needs 32.5rem and the preview 21.25rem, so the preview drops under the
+   step by itself, by the width the editor has and not by the window's. */
 
 .columns {
   display: flex;
@@ -79,6 +81,11 @@
 }
 
 .stepCard {
+  min-width: 0;
+}
+
+.previewColumn {
+  flex: 2 1 21.25rem;
   min-width: 0;
 }
 

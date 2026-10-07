@@ -60,6 +60,7 @@ import {
 import CollaboratorPicker from "./CollaboratorPicker";
 import CoverBrandingModal from "./CoverBrandingModal";
 import StepRail, { type EditorStep } from "./EditorSteps";
+import EventPreview from "./EventPreview";
 import FormBuilder from "./FormBuilder";
 import {
   STATUS_WORDS,
@@ -906,6 +907,24 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
   const showArchive = isAuthor || role === "admin";
   const showDelete = (isAuthor || role === "admin") && status !== "published";
 
+  // What the preview prints. The place is asked of the one module that words
+  // it, here, and handed over as a finished line: the preview is given
+  // sentences and no fields.
+  const previewLine = [
+    startAt ? timeRangeWords(startAt, endAt) : "No date yet",
+    publicLocationLine({ location, locationHidden, locationPublicText }),
+  ].join(" · ");
+  const previewFacts = [
+    capacity !== null && !noSignup ? `${capacity} place${capacity === 1 ? "" : "s"}` : null,
+    visibility === "members" ? "Members only" : null,
+  ].filter((fact): fact is string => fact !== null);
+  const previewClosed =
+    status === "cancelled"
+      ? { title: "This event has been cancelled.", words: "Nobody can sign up." }
+      : noSignup
+        ? { title: "No sign-up needed.", words: "People just turn up. There is nothing to fill in." }
+        : undefined;
+
   // The four steps. The last one is named for what happens to the event next.
   const problems = problemsBeforeSubmit();
   const missing = (key: StepKey) => problems.some((p) => p.step === key);
@@ -1718,6 +1737,23 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
               </ul>
             </Card>
           )}
+        </div>
+
+        <div className={styles.previewColumn}>
+          <EventPreview
+            eventId={event.id}
+            title={title.trim() || "Untitled event"}
+            startAt={startAt}
+            line={previewLine}
+            facts={previewFacts}
+            closed={previewClosed}
+            questions={signupForm}
+            formNote={
+              visibility === "members"
+                ? "People sign in to their naisi.uk account first."
+                : undefined
+            }
+          />
         </div>
       </div>
 
