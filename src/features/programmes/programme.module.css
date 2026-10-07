@@ -325,7 +325,9 @@
 }
 
 .rowValue {
-  flex: 1 1 11rem;
+  /* How much room an answer wants beside its label before it drops under it.
+     A narrow card asks for less, so its rows stay side by side on a phone. */
+  flex: 1 1 var(--row-value, 11rem);
   min-width: 0;
   margin: 0;
   font-size: var(--text-ui);
@@ -512,6 +514,37 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* The phone pass fills this in. Until then the page relies on the rows
-     above wrapping on their own. */
+  /* A page's main buttons share the row and fill it between them. Two that
+     do not fit side by side take a row each, and each fills its row. */
+  .heroActions,
+  .bandActions {
+    width: 100%;
+  }
+
+  .heroActions > .btn,
+  .bandActions > .btn {
+    flex: 1 1 auto;
+  }
+
+  /* The band's words take a row of their own, with the buttons under them. */
+  .bandWords {
+    flex-basis: 100%;
+  }
+
+  /* A band whose first child hands its own lines and button to this row
+     (the course's call to action does, on a phone). The lines keep their own
+     margins, so the row adds none, and the link that follows sits beside the
+     button and fills what is left. */
+  .bandRowJoined {
+    row-gap: 0;
+  }
+
+  .bandRowJoined > .btn {
+    flex: 1 1 auto;
+    margin-top: var(--space-6);
+  }
+
+  .callout {
+    padding: var(--space-5);
+  }
 }

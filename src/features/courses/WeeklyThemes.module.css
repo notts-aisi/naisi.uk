@@ -106,5 +106,15 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* The phone pass fills this in. */
+  /* The week sits over its title: the row wraps on its own. A title that is
+     a link gets a target tall enough for a thumb. */
+  .item {
+    padding: var(--space-4) 0;
+  }
+
+  .titleLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+  }
 }

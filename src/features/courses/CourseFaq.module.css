@@ -144,5 +144,9 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* The phone pass fills this in. */
+  /* The head sits over the questions: the row wraps on its own. An answer
+     keeps a little of its right margin, so it does not run under the ring. */
+  .answer {
+    padding-right: var(--space-8);
+  }
 }

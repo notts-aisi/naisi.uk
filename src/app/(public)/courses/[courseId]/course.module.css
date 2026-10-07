@@ -51,8 +51,14 @@
 
 /* === Mobile === */
 @media (max-width: 60rem) { /* --bp-lg */
-  /* The card drops under the words once the two no longer fit side by side. */
+  /* The card drops under the words once the two no longer fit side by side,
+     and sits a little closer to them than it did beside them. */
   .hero {
     grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-8);
+  }
+
+  .second {
+    margin-top: var(--space-10);
   }
 }

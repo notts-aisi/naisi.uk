@@ -251,5 +251,35 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* The phone pass fills this in. */
+  /* Under the title the button fills the row: it is the page's one action. */
+  .hero > .button {
+    width: 100%;
+  }
+
+  /* In the closing band the block steps aside: its lines and its button
+     become rows of the band's own wrapping row, so the button can sit beside
+     the link the page draws after it ("Apply", then "All fellowships"), and
+     each fills what the other leaves. A line takes a whole row. The band's
+     row adds no gap of its own here (programme.module.css), so the room
+     between lines stays each line's own margin. */
+  .foot {
+    display: contents;
+  }
+
+  .foot > * {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .foot > .button {
+    flex: 1 1 auto;
+    margin-top: var(--space-6);
+  }
+}
+
+/* Small phones. The dots between dates give up room before the dates do. */
+@media (max-width: 36rem) { /* --bp-sm */
+  .dot {
+    margin: 0 var(--space-1);
+  }
 }

@@ -115,5 +115,9 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* The phone pass fills this in. */
+  /* One step under the other, a little closer together than side by side. */
+  .strip {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-8);
+  }
 }

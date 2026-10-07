@@ -4,6 +4,9 @@
    ============================================================ */
 
 .rail {
+  /* The card is narrow, so an answer asks for less room beside its label. */
+  --row-value: 9rem;
+
   min-width: 0;
   padding: var(--space-6) var(--space-6) var(--space-3);
   border: 1px solid var(--color-border);
@@ -36,5 +39,10 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  /* The phone pass fills this in. */
+  /* On a phone the card is the width of the page and sits under the title.
+     It gives up a little padding so its rows keep a label and its answer
+     side by side. */
+  .rail {
+    padding: var(--space-5) var(--space-5) var(--space-2);
+  }
 }
