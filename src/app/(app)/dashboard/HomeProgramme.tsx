@@ -15,7 +15,7 @@ import { useRunProgress } from "@/features/courses/useRunProgress";
 import { useWeek } from "@/features/courses/useWeek";
 import { weekDocId, type Material } from "@/lib/firestore/courses";
 import { ArrowRight, Check, External } from "./icons";
-import { aboutMinutes, nameList } from "./homeWords";
+import { aboutMinutes, nameList, safeHttpUrl } from "./homeWords";
 import NextSession, { sessionFacts } from "./NextSession";
 import styles from "./home.module.css";
 
@@ -242,6 +242,8 @@ export default function HomeProgramme({
                 {materials.map((material) => {
                   const done = ticksKnown && isDone(material.id);
                   const source = material.type === "reading" ? material.author : undefined;
+                  // Only an address that parses as a web address is a link.
+                  const href = material.type === "note" ? null : safeHttpUrl(material.url);
                   return (
                     <li key={material.id} className={styles.readingRow}>
                       <span
@@ -264,10 +266,10 @@ export default function HomeProgramme({
                           {source && <span>{source}</span>}
                         </p>
                       </div>
-                      {material.type !== "note" && (
+                      {href && (
                         <a
                           className={styles.textLink}
-                          href={material.url}
+                          href={href}
                           target="_blank"
                           rel="noopener noreferrer"
                         >

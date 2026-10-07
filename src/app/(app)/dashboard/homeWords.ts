@@ -96,3 +96,22 @@ export function aboutMinutes(total: number): string {
   const rest = Math.round(total % 60);
   return rest === 0 ? `about ${hours} hr` : `about ${hours} hr ${rest} min`;
 }
+
+/**
+ * A stored address, as something safe to put behind a link, or null.
+ *
+ * The people who write a week's reading are trusted, but a link is the one
+ * place a bad string becomes something that runs, so an address is checked
+ * again where it is drawn: only one that parses as http or https is a link.
+ * The week's own page makes the same check.
+ */
+export function safeHttpUrl(raw: string | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
