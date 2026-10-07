@@ -106,10 +106,11 @@ export async function loadEditor(
 }
 
 /**
- * How many people have applied to one programme: everybody in the term
- * (`isInTerm`) whose sent application ranks it. Counted with the same
- * function, over the same people, as the manager's tallies, so the number
- * beside a tab is the number the list behind it shows on its own "All".
+ * How many people are on one programme's list: everybody in the term
+ * (`isInTerm`) whose sent application ranks it, and anybody who joined it by
+ * accepting an invitation. Counted with the same function, over the same
+ * people, as the manager's tallies, so the number beside a tab is the number
+ * the list behind it shows on its own "All".
  */
 export async function countApplicationsTo(
   db: Firestore,
@@ -123,9 +124,11 @@ export async function countApplicationsTo(
       uid: application.uid,
       ranked: rankedProgrammes(form, application.sent).map((programme) => programme.id),
       decision: null,
+      application,
     });
   }
-  return own(tallyTerm(form, applicants).programmes, programmeId)?.applications ?? 0;
+  const counted = own(tallyTerm(form, applicants).programmes, programmeId);
+  return counted ? counted.applications + counted.joined : 0;
 }
 
 /**
@@ -146,6 +149,7 @@ export async function loadTermTally(db: Firestore, form: ApplicationForm): Promi
       uid: application.uid,
       ranked: rankedProgrammes(form, application.sent).map((programme) => programme.id),
       decision: decisions.get(application.uid) ?? null,
+      application,
     });
   }
   return tallyTerm(form, applicants);

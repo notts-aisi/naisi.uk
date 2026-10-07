@@ -968,7 +968,13 @@ describe("one application, for review", () => {
       [amara.decision.standing, amara.decision.owesDecision, amara.decision.kind, amara.viewer.canDecide],
       ["to-review", true, null, true],
     );
-    assert.deepEqual(amara.decision.couldSuitOptions, [{ programmeId: TAIS, shortName: "Technical AI Safety" }]);
+    // "Could suit" is a hint for an invitation, which never names a programme
+    // the person ranked. Amara ranked both programmes, so nothing is offered
+    // for her; Dev ranked AGI Strategy alone, so the other one is.
+    assert.deepEqual(amara.decision.couldSuitOptions, []);
+    assert.deepEqual((await review(db, "claudia", "dev")).review.decision.couldSuitOptions, [
+      { programmeId: TAIS, shortName: "Technical AI Safety" },
+    ]);
     assert.deepEqual([amara.programme.places, amara.programme.placesLeft], [3, 3]);
     const ben = (await review(db, "claudia", "ben")).review;
     assert.deepEqual(
@@ -1280,12 +1286,13 @@ describe("a lead deciding for their programme", () => {
   });
 
   test("a lead can change their mind, and the log says what it replaced", async () => {
+    // Dev ranked AGI Strategy alone, so another programme can be named as one he could suit.
     const db = makeDb(seed());
-    await decideAs(db, "claudia", "amara", { programmeId: AGI, decision: "accept" });
-    const again = await decideAs(db, "claudia", "amara", { programmeId: AGI, decision: "accept" });
+    await decideAs(db, "claudia", "dev", { programmeId: AGI, decision: "accept" });
+    const again = await decideAs(db, "claudia", "dev", { programmeId: AGI, decision: "accept" });
     assert.deepEqual(again, { ok: true, changed: false }, "the same decision twice is one decision");
-    await decideAs(db, "claudia", "amara", { programmeId: AGI, decision: "pool", poolReason: "better-fit", couldSuitProgrammeId: TAIS });
-    const entry = db.read(`admissionDecisions/${ROUND}__amara`).programmes[AGI];
+    await decideAs(db, "claudia", "dev", { programmeId: AGI, decision: "pool", poolReason: "better-fit", couldSuitProgrammeId: TAIS });
+    const entry = db.read(`admissionDecisions/${ROUND}__dev`).programmes[AGI];
     assert.deepEqual(
       [entry.decision, entry.poolReason, entry.couldSuitProgrammeId],
       ["pool", "better-fit", TAIS],
@@ -1293,12 +1300,12 @@ describe("a lead deciding for their programme", () => {
     assert.deepEqual(
       auditRows(db).map((row) => row.detail),
       [
-        "Claudia accepted Amara Okafor for AGI Strategy.",
-        "Claudia pooled Amara Okafor for AGI Strategy. It was accepted before.",
+        "Claudia accepted Dev Patel for AGI Strategy.",
+        "Claudia pooled Dev Patel for AGI Strategy. It was accepted before.",
       ],
     );
-    await decideAs(db, "claudia", "amara", { programmeId: AGI, decision: "decline" });
-    assert.equal(db.read(`admissionDecisions/${ROUND}__amara`).programmes[AGI].poolReason, null);
+    await decideAs(db, "claudia", "dev", { programmeId: AGI, decision: "decline" });
+    assert.equal(db.read(`admissionDecisions/${ROUND}__dev`).programmes[AGI].poolReason, null);
   });
 
   test("an admin decides for any programme", async () => {
@@ -1339,6 +1346,10 @@ describe("a lead deciding for their programme", () => {
       (await decideAs(db, "claudia", "amara", { programmeId: AGI, decision: "pool", couldSuitProgrammeId: "gone" })).status,
       400,
     );
+    // Nor a programme the person ranked themselves: its own lead decides for
+    // it, and the review screen does not offer it. Amara ranked both.
+    const ranked = await decideAs(db, "claudia", "amara", { programmeId: AGI, decision: "pool", couldSuitProgrammeId: TAIS });
+    assert.deepEqual([ranked.status, ranked.error], [400, "Pick a different programme they could suit."]);
     assert.deepEqual(db.writes, []);
   });
 
@@ -1506,32 +1517,32 @@ describe("accepting or pooling several at once", () => {
 
   test("pooling several at once leaves the reason a lead already gave for one of them", async () => {
     const db = makeDb(seed());
-    // Amara is pooled on her own, with why and where she could suit.
-    const single = await decideAs(db, "claudia", "amara", {
+    // Dev is pooled on his own, with why and where he could suit.
+    const single = await decideAs(db, "claudia", "dev", {
       programmeId: AGI,
       decision: "pool",
       poolReason: "better-fit",
       couldSuitProgrammeId: TAIS,
     });
     assert.equal(single.changed, true);
-    const before = JSON.stringify(db.read(`admissionDecisions/${ROUND}__amara`));
+    const before = JSON.stringify(db.read(`admissionDecisions/${ROUND}__dev`));
     const audited = auditRows(db).length;
 
-    // Then she is among several pooled at once, which carries no reason.
-    const outcome = await decide.decideMany(db, CAST.claudia, ROUND, AGI, { decision: "pool", uids: ["amara", "dev"] });
+    // Then he is among several pooled at once, which carries no reason.
+    const outcome = await decide.decideMany(db, CAST.claudia, ROUND, AGI, { decision: "pool", uids: ["dev", "amara"] });
     assert.deepEqual([outcome.result.changed, outcome.result.unchanged], [1, 1]);
-    assert.equal(JSON.stringify(db.read(`admissionDecisions/${ROUND}__amara`)), before);
+    assert.equal(JSON.stringify(db.read(`admissionDecisions/${ROUND}__dev`)), before);
     assert.deepEqual(
-      [db.read(`admissionDecisions/${ROUND}__amara`).programmes[AGI].poolReason, db.read(`admissionDecisions/${ROUND}__amara`).programmes[AGI].couldSuitProgrammeId],
+      [db.read(`admissionDecisions/${ROUND}__dev`).programmes[AGI].poolReason, db.read(`admissionDecisions/${ROUND}__dev`).programmes[AGI].couldSuitProgrammeId],
       ["better-fit", TAIS],
     );
-    assert.equal(db.read(`admissionDecisions/${ROUND}__dev`).programmes[AGI].poolReason, null);
-    assert.equal(auditRows(db).length, audited + 1, "one line for Dev, none for Amara");
-
-    // On her own, the reason can still be changed or cleared.
-    const cleared = await decideAs(db, "claudia", "amara", { programmeId: AGI, decision: "pool" });
-    assert.equal(cleared.changed, true);
     assert.equal(db.read(`admissionDecisions/${ROUND}__amara`).programmes[AGI].poolReason, null);
+    assert.equal(auditRows(db).length, audited + 1, "one line for Amara, none for Dev");
+
+    // On his own, the reason can still be changed or cleared.
+    const cleared = await decideAs(db, "claudia", "dev", { programmeId: AGI, decision: "pool" });
+    assert.equal(cleared.changed, true);
+    assert.equal(db.read(`admissionDecisions/${ROUND}__dev`).programmes[AGI].poolReason, null);
   });
 
   test("the same people who cannot decide one cannot decide many", async () => {

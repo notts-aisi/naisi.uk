@@ -165,7 +165,12 @@ export function buildReview(input: {
   const role = own(viewer.roles, programmeId);
   if (!sent || !programme || !role) return null;
   const ranked = term.ranked.get(application.uid) ?? [];
-  if (!ranked.includes(programmeId)) return null;
+  // Opened under the programme they joined by accepting an invitation: read
+  // as if they had ranked it, with nothing of its own to score and no
+  // decision to make.
+  const byInvitation =
+    !ranked.includes(programmeId) && term.joined.get(application.uid) === programmeId;
+  if (!ranked.includes(programmeId) && !byInvitation) return null;
 
   const staffName = (uid: string) => staffNames.get(uid) ?? UNNAMED_STAFF;
   const reviews = term.reviews.get(application.uid) ?? [];
@@ -320,7 +325,8 @@ export function buildReview(input: {
 
   const decision = term.decisions.get(application.uid) ?? null;
   const entry = own(decision?.programmes, programmeId) ?? null;
-  const standing = standingWith(decision, programmeId);
+  // An invitation accepted is a place accepted: nobody decided it here.
+  const standing = byInvitation ? "accepted" : standingWith(decision, programmeId);
   const owes = owesDecision(ranked, decision, programmeId);
   // Somebody who has left the term holds no place, whatever was decided.
   const placement = isInTerm(application) ? placementFor(ranked, decision) : null;
@@ -382,6 +388,7 @@ export function buildReview(input: {
       choice: at + 1,
       focus: id === programmeId,
     })),
+    invitedTo: byInvitation ? { programmeId: programme.id, shortName: programme.shortName } : null,
     wantsToFacilitate: sent.wantsToFacilitate === true,
     about: {
       status: statusLabel(about),
@@ -438,6 +445,7 @@ export function buildReview(input: {
       standing,
       owesDecision: owes,
       told: hasBeenTold(application),
+      byInvitation,
       kind: entry?.decision ?? null,
       poolReason: entry?.poolReason ?? null,
       couldSuitProgrammeId: entry?.couldSuitProgrammeId ?? null,
@@ -447,8 +455,11 @@ export function buildReview(input: {
         standing === "to-review" && !owes && placement
           ? (programmeOn(form, placement)?.shortName ?? null)
           : null,
+      // "Could suit" is a hint for an invitation, and an invitation never
+      // names a programme the person ranked: that programme's own lead
+      // decides for it. So only what they did not rank is offered.
       couldSuitOptions: form.programmeIds
-        .filter((id) => id !== programmeId)
+        .filter((id) => id !== programmeId && !ranked.includes(id))
         .map((id) => programmeOn(form, id))
         .filter((other): other is NonNullable<typeof other> => other !== null && !other.closed)
         .map((other) => ({ programmeId: other.id, shortName: other.shortName })),

@@ -460,6 +460,33 @@ const CONTRACT = {
       assert.deepEqual(decisions.placesHeld([AGI], withException), [AGI]);
       assert.deepEqual(decisions.placesHeld([name], decided({})), []);
     },
+    holdingOf: (name) => {
+      const all = new Set(FORM.programmeIds);
+      const nothing = { places: [], byInvitation: null, heldFor: null };
+      // "Accepted" under such a name is not a place.
+      assert.deepEqual(
+        decisions.holdingOf({ uid: "u", ranked: [name], decision: decided(holding(name, accept())) }, all),
+        nothing,
+      );
+      // A pick that invites to it keeps nothing before the person is told...
+      const invitedTo = decided({ [AGI]: pool() }, { kind: "invite", programmeId: name, setByUid: "admin", setAt: null });
+      assert.deepEqual(decisions.holdingOf({ uid: "u", ranked: [AGI], decision: invitedTo }, all), nothing);
+      // ...and nothing after, answered or not.
+      for (const response of [null, "accepted"]) {
+        const application = {
+          sent: {},
+          status: response ? "accepted" : "invited",
+          result: { kind: "invited", programmeId: name },
+          invitation: { programmeId: name, replyBy: "2026-10-25", response },
+          attendance: null,
+        };
+        assert.deepEqual(
+          decisions.holdingOf({ uid: "u", ranked: [AGI], decision: invitedTo, application }, all),
+          nothing,
+        );
+      }
+    },
+    joinedByInvitation: "reads the invitation on the application it is handed, and takes no id from its caller",
     owesDecision: (name) => {
       assert.equal(decisions.owesDecision([name], null, name), false, `${name} is owed a decision nobody can make`);
       assert.equal(decisions.owesDecision([name, AGI], null, name), false);

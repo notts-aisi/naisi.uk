@@ -52,9 +52,21 @@ export type HomeProgramme = {
   lead: { name: string; you: boolean } | null;
 };
 
+/**
+ * A programme's places, as its own list's head states them: who holds one
+ * now, how many are kept for an invitation nobody has answered, and how many
+ * are left. `left` is null until the lead has said how many places there are.
+ */
+export type ProgrammePlaces = {
+  placed: number;
+  invited: number;
+  left: number | null;
+};
+
 /** One programme's numbers, for a caller with a role on it. */
 export type ProgrammeWork = {
   counts: ProgrammeCounts;
+  places: ProgrammePlaces;
   /** How many applications that programme's list would walk for this caller. */
   waiting: number;
 };
@@ -87,6 +99,8 @@ export type NeedsYouRow = {
 
 export type ProgrammeCardView = {
   counts: ProgrammeCounts;
+  /** The places line under the counts. */
+  places: ProgrammePlaces;
   /** The card's one button: review what is waiting, or see the list. */
   action: { label: string; href: string };
 };
@@ -147,11 +161,12 @@ export function buildTermHome(input: TermHomeInput): TermHomeView {
     // No role, or no numbers handed in: no row and no card for this caller.
     const numbers = programme.role === null ? undefined : own(work, programme.id);
     if (!numbers) continue;
-    const { counts, waiting } = numbers;
+    const { counts, places, waiting } = numbers;
     const theirs = isTheirs(programme);
     const href = applicationsPath(home, programme.id);
     cards[programme.id] = {
       counts,
+      places,
       action: theirs && waiting > 0 ? { label: `Review ${waiting}`, href } : { label: "See applications", href },
     };
     if (waiting === 0) continue;

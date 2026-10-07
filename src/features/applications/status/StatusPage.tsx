@@ -448,6 +448,16 @@ export default function StatusPage({
                 "Accept your invitation to let us know you’re coming."
               )}
             </p>
+            {view.canAccept ? (
+              // What accepting does, said before they press: from that moment
+              // the programme's own lead and reviewers read the application
+              // (`canReadApplication`, `joinedByInvitation`). Until then they
+              // are shown nothing about this person.
+              <p>
+                If you accept, the lead and reviewers of {programme ? programme.shortName : "this programme"}{" "}
+                can read your application.
+              </p>
+            ) : null}
           </div>
           <InvitationReply roundId={roundId} canAccept={view.canAccept} locked={viewingAs} />
         </div>

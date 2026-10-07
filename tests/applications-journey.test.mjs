@@ -385,6 +385,7 @@ async function census(label) {
             waiting: board.queue.length,
             rows: board.rows.map((row) => row.uid).sort(),
             withdrawn: board.rows.filter((row) => row.withdrawn).map((row) => row.uid).sort(),
+            byInvitation: board.rows.filter((row) => row.byInvitation).map((row) => row.uid).sort(),
           }
         : { refused: list.status };
     }
@@ -433,6 +434,14 @@ async function census(label) {
         invited: sendBoard.invited.people.map((person) => person.uid).sort(),
         noOffer: sendBoard.noOffer.people.map((person) => person.uid).sort(),
         declined: sendBoard.declined.count,
+        // The readiness rows, by programme: [ready, what it says, its detail].
+        readiness: Object.fromEntries(
+          sendBoard.readiness.map((row) => [
+            PROGRAMMES.find((name) => P[name] === row.key) ?? row.key,
+            [row.ready, row.status, row.detail],
+          ]),
+        ),
+        sentOn: sendBoard.sentOn,
         pending: { people: sendBoard.pending.people, emails: sendBoard.pending.emails },
         owed: sendBoard.owed.people.map((person) => person.uid).sort(),
         accountsWaiting: sendBoard.accountsWaiting,
@@ -445,27 +454,43 @@ async function census(label) {
   // the decision documents the screens above are worked out from.
   const inTerm = applicationDocs().filter((application) => application.sent && application.status !== "withdrawn");
   const places = roundDoc().programmes;
+  // WHAT WAS SENT, from the results themselves: everybody decision day told,
+  // under what it told them, whether or not they have since left the term.
+  const toldSoFar = applicationDocs().filter((application) => application.result);
+  const toldWas = (kind) => toldSoFar.filter((a) => a.result.kind === kind).map((a) => a.uid).sort();
   numbers.recount = {
     inTerm: inTerm.length,
-    accepted: inTerm.filter((a) => a.result?.kind === "accepted").map((a) => a.uid).sort(),
-    invited: inTerm.filter((a) => a.result?.kind === "invited").map((a) => a.uid).sort(),
-    noOffer: inTerm.filter((a) => a.result?.kind === "no-offer").map((a) => a.uid).sort(),
-    declined: inTerm.filter((a) => a.result?.kind === "declined").length,
-    told: inTerm.filter((a) => a.result).length,
+    sent: {
+      // Everybody the send addresses: in the term, or told and since left.
+      addressed: new Set([...inTerm, ...toldSoFar].map((a) => a.uid)).size,
+      told: toldSoFar.length,
+      accepted: toldWas("accepted"),
+      invited: toldWas("invited"),
+      noOffer: toldWas("no-offer"),
+      declined: toldWas("declined").length,
+    },
+    // Who is on each programme's list: the people who ranked it, and anybody
+    // who joined it by accepting an invitation.
     ranking: Object.fromEntries(
-      PROGRAMMES.map((name) => [name, inTerm.filter((a) => a.sent.rankedProgrammeIds.includes(P[name])).length]),
+      PROGRAMMES.map((name) => [
+        name,
+        inTerm.filter(
+          (a) =>
+            a.sent.rankedProgrammeIds.includes(P[name]) ||
+            (a.result?.kind === "invited" && a.invitation?.response === "accepted" && a.invitation.programmeId === P[name]),
+        ).length,
+      ]),
     ),
+    // Who holds a place on each programme now: somebody told they are in it
+    // who is still in the term, and somebody invited to it who accepted. A
+    // place is kept for an invitation only until it is answered.
     holding: Object.fromEntries(
       PROGRAMMES.map((name) => {
-        const held = inTerm.filter((a) => a.result?.programmeId === P[name]);
-        return [
-          name,
-          {
-            placed: held.filter((a) => a.result.kind === "accepted").length,
-            invited: held.filter((a) => a.result.kind === "invited").length,
-            left: places[P[name]].places - held.length,
-          },
-        ];
+        const here = inTerm.filter((a) => a.result?.programmeId === P[name]);
+        const joined = here.filter((a) => a.result.kind === "invited" && a.invitation?.response === "accepted");
+        const placed = here.filter((a) => a.result.kind === "accepted").length + joined.length;
+        const invited = here.filter((a) => a.result.kind === "invited" && !a.invitation?.response).length;
+        return [name, { placed, invited, left: places[P[name]].places - placed - invited }];
       }),
     ),
   };
@@ -851,7 +876,9 @@ async function outcomes(label) {
   for (const who of [...APPLICANTS, "dev"]) {
     const own = await call(who, routes.application.GET, params());
     const page = await statusLoad.loadStatus(world.db, ROUND, who, new Date());
-    heard[who] = { status: own.status, application: own.body?.application ?? null, page: page?.view ?? null };
+    // What the list of their applications says for this one, or null where it keeps its own words.
+    const listed = (await statusLoad.loadListWords(world.db, who, [ROUND], new Date())).get(ROUND) ?? null;
+    heard[who] = { status: own.status, application: own.body?.application ?? null, page: page?.view ?? null, listed };
   }
   seen.outcomes[label] = heard;
 }
@@ -949,6 +976,11 @@ async function decisionDay() {
     amaraSaves: await save("amara", applicationDoc("amara").draft),
     amaraSends: await sendIt("amara"),
     nellSaves: await save("nell", applicationDoc("dev").draft),
+    // A programme added now could take no applications and would never be decided.
+    addAProgramme: await call("zach", routes.form.PATCH, params(), {
+      body: { addProgramme: { name: "Governance Fellowship", shortName: "Governance", kind: "fellowship" } },
+    }),
+    programmes: [...roundDoc().programmeIds],
   };
 }
 
@@ -984,6 +1016,16 @@ async function peopleReply() {
   seen.refusedRepliesWroteNothing = everything() === before;
   seen.remindersBeforeReplies = await dueAReminder();
 
+  // Two people are invited to a programme they did not pick and have not
+  // answered. Its staff are shown a place kept, and never the person.
+  seen.invitedNotAnswered = {
+    taisLeadOpensOliver: await reviewOf("tess", "oliver", "tais"),
+    taisLeadComments: await score("tess", "oliver", "tais", {}, "Welcome."),
+    agiLeadOpensAbel: await reviewOf("claudia", "abel", "agi"),
+    agiReviewerOpensAbel: await reviewOf("lloyd", "abel", "agi"),
+    wroteNothing: everything() === before,
+  };
+
   for (const [who, reply, label] of [
     ["amara", "coming", "Amara is coming"],
     ["jasmine", "cant-make-it", "Jasmine gave her place back"],
@@ -1001,6 +1043,32 @@ async function peopleReply() {
     };
     await census(label);
   }
+  // Oliver accepted his invitation to Technical AI Safety, so he is on its
+  // list now, and its lead reads him as if he had ranked it. Abel said no
+  // thanks to AGI Strategy, so nobody there ever reads him.
+  later();
+  const reviewsBefore = world.db.paths().filter((path) => path.startsWith("admissionReviews/")).length;
+  seen.joinedByInvitation = {
+    lead: await reviewOf("tess", "oliver", "tais"),
+    leadWithNoProgrammeNamed: await call("tess", routes.review.GET, { roundId: ROUND, uid: "oliver" }),
+    admin: await reviewOf("zach", "oliver", "tais"),
+    adminUnderWhatHeRanked: await reviewOf("zach", "oliver", "inc"),
+    adminUnderNeither: await reviewOf("zach", "oliver", "agi"),
+    leadOfAnother: await reviewOf("claudia", "oliver", "tais"),
+    reviewerOfAnother: await reviewOf("lloyd", "oliver", "tais"),
+    namedOnNothing: await reviewOf("yusuf", "oliver", "tais"),
+    himself: await reviewOf("oliver", "oliver", "tais"),
+    // The lead cannot decide about him, or score answers he gave another programme.
+    leadDecides: await decide("tess", "oliver", "tais", "pool", { poolReason: "capacity" }),
+    leadScoresAnotherStream: await score("tess", "oliver", "tais", { [key("incubator", "idea")]: 4 }),
+    // She can comment, like anybody who reads an application.
+    leadComments: await score("tess", "oliver", "tais", {}, "Glad he is joining us."),
+    reviewsWritten: world.db.paths().filter((path) => path.startsWith("admissionReviews/")).length - reviewsBefore,
+    abelToAgiLead: await reviewOf("claudia", "abel", "agi"),
+    abelToAgiReviewer: await reviewOf("lloyd", "abel", "agi"),
+    abelToAgiLeadWrites: await score("claudia", "abel", "agi", {}, "A pity."),
+  };
+
   // A place given back cannot be taken again from the page.
   later();
   seen.takesItBack = await replyAs("jasmine", "coming");
@@ -1015,6 +1083,10 @@ async function theTermSettles() {
   seen.leadSettles = await call("claudia", routes.status.POST, params(), { body: { status: "settled" } });
   seen.settled = await step("settle the term", 200, "zach", routes.status.POST, params(), { body: { status: "settled" } });
   seen.roundWhenSettled = structuredClone(roundDoc());
+  seen.addAProgrammeOnceSettled = await call("zach", routes.form.PATCH, params(), {
+    body: { addProgramme: { name: "Governance Fellowship", shortName: "Governance", kind: "fellowship" } },
+  });
+  seen.programmesAtTheEnd = [...roundDoc().programmeIds];
   seen.records = Object.fromEntries(
     world.db
       .paths()
@@ -1336,6 +1408,7 @@ describe("one term, from nothing to settled", () => {
         waiting: 3,
         rows: ["amara", "hannah", "jasmine"],
         withdrawn: [],
+        byInvitation: [],
       });
       assert.deepEqual(nothing.tab, { agi: 3, tais: 3, inc: 2 });
       assert.deepEqual(nothing.pool.counts, { pooled: 0, invitations: 0, noOffer: 0, needsOutcome: 0 });
@@ -1630,10 +1703,10 @@ describe("one term, from nothing to settled", () => {
         numbers.send.accepted.length + numbers.send.invited.length + numbers.send.noOffer.length + numbers.send.declined,
         numbers.send.applied,
       );
-      assert.deepEqual(numbers.send.accepted, numbers.recount.accepted);
-      assert.deepEqual(numbers.send.invited, numbers.recount.invited);
-      assert.deepEqual(numbers.send.noOffer, numbers.recount.noOffer);
-      assert.equal(numbers.send.declined, numbers.recount.declined);
+      assert.deepEqual(numbers.send.accepted, numbers.recount.sent.accepted);
+      assert.deepEqual(numbers.send.invited, numbers.recount.sent.invited);
+      assert.deepEqual(numbers.send.noOffer, numbers.recount.sent.noOffer);
+      assert.equal(numbers.send.declined, numbers.recount.sent.declined);
     });
 
     test("once the term is sent no decision changes, and the dates cannot be used to take applications again", () => {
@@ -1657,6 +1730,21 @@ describe("one term, from nothing to settled", () => {
   });
 
   // -------------------------------------------------------------------------
+  describe("a term that is over takes no new programme", () => {
+    test("not once decisions have been sent, and not once it is settled", () => {
+      assert.deepEqual(short(seen.afterTheSend.addAProgramme), [
+        409,
+        "Decisions for this term have been sent, so a programme can no longer be added to it.",
+      ]);
+      assert.deepEqual(short(seen.addAProgrammeOnceSettled), [
+        409,
+        "This term is settled, so a programme can no longer be added to it.",
+      ]);
+      assert.deepEqual(seen.afterTheSend.programmes, [P.agi, P.tais, P.inc]);
+      assert.deepEqual(seen.programmesAtTheEnd, [P.agi, P.tais, P.inc]);
+    });
+  });
+
   describe("6. each person sees their own outcome, and replies", () => {
     test("each sees what they were told, on their own route and on their own page", () => {
       const heard = seen.outcomes["everybody has been told"];
@@ -1794,6 +1882,11 @@ describe("one term, from nothing to settled", () => {
           // The term page, for whoever has a role there.
           assert.deepEqual(numbers.term.zach.work[name].counts, list.counts, `${name}: the term page's counts`);
           assert.equal(numbers.term.zach.work[name].waiting, list.waiting, `${name}: the term page's button`);
+          assert.deepEqual(
+            numbers.term.zach.work[name].places,
+            { placed: list.placed, invited: list.invited, left: list.placesLeft },
+            `${name}: the places line on the term page's card`,
+          );
           // The number beside the programme's Applications tab.
           assert.equal(numbers.tab[name], list.counts.all, `${name}: the tab`);
           // Pooled applicants.
@@ -1813,19 +1906,128 @@ describe("one term, from nothing to settled", () => {
           assert.equal(list.rows.length, list.counts.all + list.withdrawn.length, `${name}: rows`);
         }
         assert.deepEqual(numbers.term.claudia.work.agi.counts, numbers.list.agi.counts);
+        assert.deepEqual(numbers.term.claudia.work.agi.places, numbers.term.zach.work.agi.places);
         assert.deepEqual(Object.keys(numbers.term.claudia.work), ["agi"]);
         assert.equal(numbers.term.claudia.pool, null);
         // Decision day.
-        assert.equal(numbers.send.applied, numbers.recount.inTerm);
-        assert.equal(numbers.send.published, numbers.recount.told);
-        assert.deepEqual(numbers.send.accepted, numbers.recount.accepted);
-        assert.deepEqual(numbers.send.invited, numbers.recount.invited);
-        assert.deepEqual(numbers.send.noOffer, numbers.recount.noOffer);
-        assert.equal(numbers.send.declined, numbers.recount.declined);
+        // Decision day reports what was sent, from the results themselves.
+        // Somebody who has left since is still somebody it told.
+        assert.equal(numbers.send.applied, numbers.recount.sent.addressed);
+        assert.equal(numbers.send.published, numbers.recount.sent.told);
+        assert.deepEqual(numbers.send.accepted, numbers.recount.sent.accepted);
+        assert.deepEqual(numbers.send.invited, numbers.recount.sent.invited);
+        assert.deepEqual(numbers.send.noOffer, numbers.recount.sent.noOffer);
+        assert.equal(numbers.send.declined, numbers.recount.sent.declined);
         assert.equal(numbers.term.zach.pool.pooled, numbers.pool.counts.pooled);
         assert.equal(numbers.pool.counts.pooled, numbers.pool.rows.length);
       });
     }
+
+    test("after each reply, every programme it touches reads the same on every screen, and it is a recount", () => {
+      // Each reply, the programmes it touches (the one the person was told
+      // about and the ones they ranked), and what each then reads:
+      // [who holds a place, places kept for an invitation, places left].
+      // AGI Strategy has three places, Technical AI Safety two, the incubator one.
+      const TOUCHED = {
+        // Amara ranked both fellowships and is in AGI Strategy. Nothing moves.
+        "Amara is coming": { agi: [2, 1, 0], tais: [0, 1, 1] },
+        // Jasmine was in AGI Strategy. Her place is free again.
+        "Jasmine gave her place back": { agi: [1, 1, 1] },
+        // Oliver ranked the incubator and was invited to Technical AI Safety.
+        // The place kept for him there is now his.
+        "Oliver accepted his invitation": { tais: [1, 0, 1], inc: [0, 0, 1] },
+        // Abel ranked Technical AI Safety and the incubator and was invited
+        // to AGI Strategy. The place kept for him there is free.
+        "Abel said no thanks": { agi: [1, 0, 2], tais: [1, 0, 1], inc: [0, 0, 1] },
+      };
+      for (const [label, programmes] of Object.entries(TOUCHED)) {
+        const numbers = censusAt(label);
+        for (const [name, [placed, invited, left]] of Object.entries(programmes)) {
+          const expected = { placed, invited, left };
+          const head = (list) => ({ placed: list.placed, invited: list.invited, left: list.placesLeft });
+          assert.deepEqual(head(numbers.list[name]), expected, `${label}, ${name}: the list's head, to an admin`);
+          assert.deepEqual(head(numbers.listAsLead[name]), expected, `${label}, ${name}: the list's head, to its lead`);
+          assert.deepEqual(numbers.term.zach.work[name].places, expected, `${label}, ${name}: the term page's card`);
+          assert.deepEqual(numbers.pool.programmes[name], expected, `${label}, ${name}: pooled applicants`);
+          assert.deepEqual(numbers.recount.holding[name], expected, `${label}, ${name}: the applications, recounted`);
+        }
+      }
+    });
+
+    test("an invitation nobody has answered shows the programme's staff a place kept, and never the person", () => {
+      const asked = seen.invitedNotAnswered;
+      for (const name of ["taisLeadOpensOliver", "taisLeadComments", "agiLeadOpensAbel", "agiReviewerOpensAbel"]) {
+        assert.deepEqual(short(asked[name]), [404, "Not found"], name);
+      }
+      assert.equal(asked.wroteNothing, true);
+      const before = censusAt("sent, nothing owed");
+      // The count is there, on the list's head, to its own lead...
+      assert.deepEqual([before.listAsLead.tais.invited, before.listAsLead.agi.invited], [1, 1]);
+      // ...and neither person has a row on the programme they were invited to.
+      assert.ok(!before.listAsLead.tais.rows.includes("oliver"));
+      assert.ok(!before.listAsLead.agi.rows.includes("abel"));
+      assert.deepEqual([before.list.tais.byInvitation, before.list.agi.byInvitation], [[], []]);
+    });
+
+    test("once the invitation is accepted, that programme's lead reads the application and has a row for it", () => {
+      const joined = seen.joinedByInvitation;
+      for (const name of ["lead", "leadWithNoProgrammeNamed", "admin"]) {
+        assert.equal(joined[name].status, 200, name);
+        const { applicant, decision, programme, review } = joined[name].body.review;
+        assert.equal(applicant.uid, "oliver");
+        assert.equal(programme.id, P.tais);
+        assert.deepEqual(applicant.invitedTo, { programmeId: P.tais, shortName: "Technical AI Safety" });
+        // No decision was made here and none can be: it is a record.
+        assert.deepEqual(
+          [decision.byInvitation, decision.standing, decision.kind, decision.owesDecision, decision.told],
+          [true, "accepted", null, false, true],
+        );
+        assert.deepEqual(review.scorableKeys, []);
+      }
+      // An address is still an admin's alone.
+      assert.ok(!("email" in joined.lead.body.review.applicant));
+      assert.equal(joined.admin.body.review.applicant.email, address("oliver"));
+      // Under the programme he ranked he is read as before, and under one he is on in neither way not at all.
+      assert.equal(joined.adminUnderWhatHeRanked.body.review.decision.byInvitation, false);
+      assert.deepEqual(short(joined.adminUnderNeither), [404, "Not found"]);
+
+      // The list: listed, marked, counted as accepted, with nothing owed.
+      const list = censusAt("Oliver accepted his invitation").listAsLead.tais;
+      assert.deepEqual(list.byInvitation, ["oliver"]);
+      assert.deepEqual(list.rows, ["abel", "amara", "oliver", "priya"]);
+      assert.deepEqual(list.counts, { all: 4, toReview: 0, accepted: 1, pooled: 1, declined: 1 });
+      assert.equal(list.waiting, 0);
+      // And the incubator, which he ranked, still lists him as one of its own.
+      assert.deepEqual(censusAt("Oliver accepted his invitation").list.inc.byInvitation, []);
+      assert.ok(censusAt("Oliver accepted his invitation").list.inc.rows.includes("oliver"));
+    });
+
+    test("nobody else gains anything by it: another lead, another reviewer, somebody named on nothing, or he himself", () => {
+      const joined = seen.joinedByInvitation;
+      for (const name of ["leadOfAnother", "reviewerOfAnother", "namedOnNothing", "himself"]) {
+        assert.deepEqual(short(joined[name]), [404, "Not found"], name);
+      }
+    });
+
+    test("his new lead can comment, and cannot decide about him or score what he wrote for another programme", () => {
+      const joined = seen.joinedByInvitation;
+      assert.equal(joined.leadComments.status, 200);
+      assert.equal(joined.reviewsWritten, 1, "her comment, and nothing else");
+      assert.equal(joined.leadDecides.status, 409);
+      assert.deepEqual(short(joined.leadScoresAnotherStream), [400, "You can only score the answers of a programme you review."]);
+      // Nothing about what he was told moved.
+      assert.deepEqual([seen.replies.oliver.stored.result.kind, applicationDoc("oliver").result.kind], ["invited", "invited"]);
+    });
+
+    test("somebody who said no thanks is never read by the programme they turned down", () => {
+      const joined = seen.joinedByInvitation;
+      for (const name of ["abelToAgiLead", "abelToAgiReviewer", "abelToAgiLeadWrites"]) {
+        assert.deepEqual(short(joined[name]), [404, "Not found"], name);
+      }
+      const after = censusAt("Abel said no thanks");
+      assert.ok(!after.listAsLead.agi.rows.includes("abel"));
+      assert.deepEqual(after.listAsLead.agi.byInvitation, []);
+    });
 
     test("the numbers themselves, so a wrong answer every screen agreed on would still be seen", () => {
       const gaveBack = censusAt("Jasmine gave her place back");
@@ -1839,30 +2041,105 @@ describe("one term, from nothing to settled", () => {
         waiting: 0,
         rows: ["amara", "hannah", "jasmine"],
         withdrawn: ["jasmine"],
+        byInvitation: [],
       });
-      assert.equal(gaveBack.send.applied, 5);
-      assert.deepEqual(gaveBack.send.accepted, ["amara"]);
+      // The send is a record: six people applied and two were told they are
+      // in, and Jasmine giving her place back changes neither.
+      assert.equal(gaveBack.send.applied, 6);
+      assert.deepEqual(gaveBack.send.accepted, ["amara", "jasmine"]);
 
       const accepted = censusAt("Oliver accepted his invitation");
       assert.deepEqual(accepted.counters, { draft: 1, accepted: 2, invited: 1, "no-offer": 1, declined: 1, withdrawn: 1 });
-      // His place on Technical AI Safety is his, and is still one of its two.
-      assert.deepEqual([accepted.list.tais.placed, accepted.list.tais.invited, accepted.list.tais.placesLeft], [0, 1, 1]);
+      // His place on Technical AI Safety is his: one of its two is taken, and
+      // nothing is kept for an invitation any more.
+      assert.deepEqual([accepted.list.tais.placed, accepted.list.tais.invited, accepted.list.tais.placesLeft], [1, 0, 1]);
 
       const noThanks = censusAt("Abel said no thanks");
       assert.deepEqual(noThanks.counters, { draft: 1, accepted: 2, "no-offer": 1, declined: 1, withdrawn: 2 });
       assert.deepEqual([noThanks.list.agi.placed, noThanks.list.agi.invited, noThanks.list.agi.placesLeft], [1, 0, 2]);
-      assert.deepEqual(noThanks.list.tais.counts, { all: 2, toReview: 0, accepted: 0, pooled: 0, declined: 1 });
+      // Technical AI Safety's list: Amara (placed on her first choice), Priya
+      // (declined) and Oliver, who is there by his invitation. Abel has left.
+      assert.deepEqual(noThanks.list.tais.counts, { all: 3, toReview: 0, accepted: 1, pooled: 0, declined: 1 });
+      assert.deepEqual(noThanks.list.tais.byInvitation, ["oliver"]);
       assert.deepEqual(noThanks.list.tais.withdrawn, ["abel"]);
       assert.deepEqual(noThanks.list.inc.counts, { all: 1, toReview: 0, accepted: 0, pooled: 1, declined: 0 });
       assert.deepEqual(noThanks.pool.counts, { pooled: 2, invitations: 1, noOffer: 1, needsOutcome: 0 });
-      assert.deepEqual(noThanks.send.invited, ["oliver"]);
-      assert.equal(noThanks.send.applied, 4);
+      assert.deepEqual(noThanks.send.invited, ["abel", "oliver"]);
+      assert.equal(noThanks.send.applied, 6);
+    });
+
+    test("what was sent is a record: the send page says the same thing after every reply, and once the term settles", () => {
+      const sent = censusAt("sent, nothing owed").send;
+      // Six applied. Two were told they are in, two were invited, one got no
+      // offer, and one was declined and not emailed.
+      assert.deepEqual(
+        [sent.applied, sent.published, sent.accepted, sent.invited, sent.noOffer, sent.declined],
+        [6, 6, ["amara", "jasmine"], ["abel", "oliver"], ["hannah"], 1],
+      );
+      assert.deepEqual(sent.readiness, {
+        agi: [true, "Every application has a decision", "2 of 3 places, and 1 invitation"],
+        tais: [true, "Every application has a decision", "0 of 2 places, and 1 invitation"],
+        inc: [true, "Every application has a decision", "0 of 1 places"],
+        pooled: [true, "Every pooled person has an outcome", "2 invitations, 1 no offer"],
+      });
+      assert.ok(sent.sentOn, "the term is marked as sent");
+      for (const label of [...AFTER_EACH_REPLY, "settled"]) {
+        assert.deepEqual(censusAt(label).send, sent, label);
+      }
+      // While the place numbers, which are of today, did move.
+      assert.notDeepEqual(censusAt("Abel said no thanks").pool.programmes, censusAt("sent, nothing owed").pool.programmes);
     });
 
     test("the daily reminder is for an invitation nobody has answered, and stops with the reply", () => {
       // The day after they were told, and before their reply-by day.
       assert.deepEqual(seen.remindersBeforeReplies, ["abel", "oliver"]);
       assert.deepEqual(seen.remindersAfterReplies, []);
+    });
+
+    test("the list of their applications says what their own page says, for every way an application can stand", () => {
+      const partWay = seen.outcomes["the send stopped after one person"];
+      const told = seen.outcomes["everybody has been told"];
+      const replied = seen.outcomes["everybody has replied"];
+      const row = (words) => (words ? [words.chip, words.tone, words.sentence] : null);
+      const NO = ["No place this term", "neutral", "We can’t offer you a place this term."];
+      assert.deepEqual(
+        {
+          // Nothing to state yet, so the list keeps its own words.
+          "started, not sent": row(told.dev.listed),
+          "sent, waiting": row(partWay.hannah.listed),
+          accepted: row(told.amara.listed),
+          "invited, not answered": row(told.oliver.listed),
+          "invitation accepted": row(replied.oliver.listed),
+          "invitation turned down": row(replied.abel.listed),
+          "gave the place back": row(replied.jasmine.listed),
+          "no offer": row(told.hannah.listed),
+          "every programme declined": row(told.priya.listed),
+        },
+        {
+          "started, not sent": null,
+          "sent, waiting": null,
+          accepted: ["Accepted", "success", "You’re in AGI Strategy."],
+          "invited, not answered": ["Invitation", "accent", "You’re invited to Technical AI Safety."],
+          "invitation accepted": ["Accepted", "success", "You’re in Technical AI Safety."],
+          "invitation turned down": ["Invitation turned down", "neutral", "You said no thanks to AGI Strategy."],
+          "gave the place back": ["Place given back", "neutral", "You’ve told us you can’t make it."],
+          "no offer": NO,
+          // Declined by the committee: word for word what somebody with no offer reads.
+          "every programme declined": NO,
+        },
+      );
+      // The page's own view is the one each row was read from.
+      assert.deepEqual(
+        [partWay.hannah.page.kind, told.dev.page.kind, replied.abel.page.kind, replied.jasmine.page.kind, told.priya.page.kind],
+        ["sent", "draft", "released", "released", "no-place"],
+      );
+      // Nobody is told they withdrew an application they did not withdraw, and nobody reads "Declined".
+      for (const heard of [partWay, told, replied, seen.outcomes.settled]) {
+        for (const who of APPLICANTS) {
+          const text = stringsIn(heard[who].listed ?? {}).join(" ");
+          assert.ok(!/withdr[ae]w|Declined|declined/.test(text), `${who}: ${text}`);
+        }
+      }
     });
 
     test("each sees their own page afterwards", () => {

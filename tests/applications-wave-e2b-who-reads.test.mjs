@@ -6,8 +6,8 @@
  * on a programme's Settings tab. Both used to name every SU-recognised
  * committee member. The gate has never let that many in: an application is
  * read by an admin, and by the lead and the reviewers of a programme the
- * applicant ranked, and by nobody else (`canReadApplication` in
- * `src/lib/applications/access.ts`).
+ * applicant ranked or of the one they joined by accepting an invitation, and
+ * by nobody else (`canReadApplication` in `src/lib/applications/access.ts`).
  *
  * A sentence about who can read is a promise made to the person typing. This
  * holds the two sentences and the predicate together: change who the gate
@@ -29,12 +29,14 @@ const setup = flat("features", "applications", "editor", "ProgrammeSetup.tsx");
 
 /** The gate, as the two sentences describe it. */
 const THE_GATE =
-  "export function canReadApplication( user: SessionUser, form: Form, ranked: readonly string[], ): boolean { " +
+  "export function canReadApplication( user: SessionUser, form: Form, ranked: readonly string[], " +
+  "joined: string | null = null, ): boolean { " +
   'if (user.role === "admin") return true; ' +
+  "if (joined !== null && roleOnProgramme(user, form, joined) !== null) return true; " +
   "return ranked.some((programmeId) => roleOnProgramme(user, form, programmeId) !== null); }";
 
 describe("who can see comments and scores", () => {
-  test("the gate is an admin, or a role on a programme the applicant ranked, and a role is lead or reviewer", () => {
+  test("the gate is an admin, or a role on a programme the applicant ranked or joined by invitation, and a role is lead or reviewer", () => {
     assert.ok(
       access.includes(THE_GATE),
       "canReadApplication no longer reads as the screens describe it. Read it, then put right the sentence under " +
@@ -46,16 +48,16 @@ describe("who can see comments and scores", () => {
   test("the review screen names exactly those people, beside a comment that names the gate", () => {
     assert.match(
       review,
-      /Only you, admins, and the lead and reviewers of each programme \{applicant\.firstName\}\{" "\} ranked can see comments and scores\./,
+      /Only you, admins, and the lead and reviewers of each programme \{applicant\.firstName\}\{" "\} ranked, or joined by invitation, can see comments and scores\./,
     );
     const at = review.indexOf("Only you, admins, and the lead and reviewers");
     assert.match(review.slice(Math.max(0, at - 600), at), /WHO THIS NAMES IS WHO `canReadApplication` LETS IN/);
   });
 
   test("the Settings tab names exactly those people, beside a comment that names the gate", () => {
-    assert.match(setup, /Admins, and the lead and reviewers of each programme an applicant ranked/);
+    assert.match(setup, /Admins, and the lead and reviewers of each programme an applicant ranked, or joined by invitation </);
     const at = setup.indexOf("Admins, and the lead and reviewers of each programme an applicant ranked");
-    assert.match(setup.slice(Math.max(0, at - 500), at), /WHO THIS NAMES IS WHO `canReadApplication` LETS IN/);
+    assert.match(setup.slice(Math.max(0, at - 600), at), /WHO THIS NAMES IS WHO `canReadApplication` LETS IN/);
   });
 
   test("neither screen promises every SU-recognised committee member, who the gate does not let in", () => {

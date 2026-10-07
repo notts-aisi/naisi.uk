@@ -8,6 +8,7 @@ import {
   applicationStatusBlurb,
 } from "@/features/admissions/applicationStatus";
 import { loadStatusRows } from "@/lib/admissions/statusHubData";
+import { loadListWords } from "@/lib/applications/status/load";
 import type { ApplicationStatusRow } from "@/lib/admissions/statusTypes";
 import { formatRoundDate, formatRoundDeadline } from "@/lib/admissions/window";
 import { formatRunStartShort } from "@/lib/courses/window";
@@ -140,6 +141,10 @@ export default async function ApplicationsPage() {
   if (!db) return <Unavailable />;
 
   const rows = await loadStatusRows(db, user.uid, new Date());
+  // An application made on an application form says here what its own page
+  // says: the same chip and the same title, from the one place they are
+  // written. A row with no entry keeps the words below.
+  const formWords = await loadListWords(db, user.uid, rows.map((row) => row.round.id), new Date());
 
   return (
     <section className={styles.page}>
@@ -174,6 +179,7 @@ export default async function ApplicationsPage() {
                 opensLine(row),
                 decisionsLine(row),
               ].filter((line): line is string => Boolean(line));
+              const said = formWords.get(row.round.id);
               return (
                 <li key={row.application.id}>
                   <Card padding="lg" className={styles.row}>
@@ -184,17 +190,18 @@ export default async function ApplicationsPage() {
                           <p className={styles.rowYear}>{row.round.academicYear}</p>
                         ) : null}
                       </div>
-                      <Badge tone={APPLICATION_STATUS_TONE[row.application.status]}>
-                        {ADMISSION_APPLICATION_STATUS_LABEL[row.application.status]}
+                      <Badge tone={said?.tone ?? APPLICATION_STATUS_TONE[row.application.status]}>
+                        {said?.chip ?? ADMISSION_APPLICATION_STATUS_LABEL[row.application.status]}
                       </Badge>
                     </div>
 
                     <p className={styles.rowBlurb}>
-                      {applicationStatusBlurb(
-                        row.application.status,
-                        row.round.windowState,
-                        row.round.kind,
-                      )}
+                      {said?.sentence ??
+                        applicationStatusBlurb(
+                          row.application.status,
+                          row.round.windowState,
+                          row.round.kind,
+                        )}
                     </p>
 
                     {facts.length > 0 ? (

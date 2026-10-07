@@ -13,6 +13,7 @@ import {
 import { slugify } from "@/lib/firestore/slugId";
 import { canEditProgramme, canRunTerm, roleOnProgramme } from "../access";
 import { decisionDayHasBegun } from "../decisions";
+import { closedToNewProgrammes } from "../lifecycle/status";
 import {
   APPLICATION_LIMITS,
   FORM_VERSION,
@@ -407,6 +408,14 @@ export async function changeForm(
 
     let addedProgrammeId: string | null = null;
     if (change.addProgramme !== undefined) {
+      // Refused on the terms the term page stops offering the button on, read
+      // inside the transaction that would have written.
+      const closed = closedToNewProgrammes({
+        status: round.status,
+        archived: round.archived,
+        decisionsSentAt: form.decisionsSentAt,
+      });
+      if (closed) return refuse(409, closed);
       const input = change.addProgramme;
       if (form.programmeIds.length >= L.maxProgrammes) {
         return refuse(400, `A form takes at most ${L.maxProgrammes} programmes.`);

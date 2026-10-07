@@ -228,6 +228,17 @@ async function applyDecision(
         name,
       };
     }
+    // The review screen offers only programmes the person did not rank, and
+    // this holds a request to the same list: an invitation never names one
+    // they ranked, so "could suit" has nothing to say about it.
+    if (change.couldSuitProgrammeId && ranked.includes(change.couldSuitProgrammeId)) {
+      return {
+        outcome: "refused",
+        status: 400,
+        reason: "Pick a different programme they could suit.",
+        name,
+      };
+    }
 
     const existing = decSnap.exists ? normaliseDecision(decSnap.id, decSnap.data()) : null;
     const before = own(existing?.programmes, change.programmeId) ?? null;

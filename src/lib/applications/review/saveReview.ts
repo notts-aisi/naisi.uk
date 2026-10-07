@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import type { SessionUser } from "@/lib/firebase/session";
 import { canReadApplication, canSeeForm, programmeRolesFor, type ProgrammeRole } from "../access";
+import { joinedByInvitation } from "../decisions";
 import { APPLICATION_LIMITS, type ReviewComment } from "../model";
 import { isId, isQuestionKey, normaliseReview } from "../normalise";
 import { loadForm, loadQuestionSets } from "../repo";
@@ -138,7 +139,10 @@ export async function saveReview(
   const application = await loadApplication(db, form, applicantUid);
   if (!application?.sent) return NOT_FOUND;
   const ranked = rankedProgrammes(form, application.sent).map((programme) => programme.id);
-  if (!canReadApplication(user, form, ranked)) return NOT_FOUND;
+  // Somebody who joined a programme by accepting an invitation is read by
+  // its lead and reviewers too. They can comment; a score is still only for
+  // the answers of a programme the applicant ranked.
+  if (!canReadApplication(user, form, ranked, joinedByInvitation(application))) return NOT_FOUND;
 
   const sets = await loadQuestionSets(db, roundId);
   const roles = emptyMap<ProgrammeRole>();

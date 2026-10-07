@@ -618,6 +618,16 @@ describe("a programme's numbers are the ones its own list works out", () => {
         assert.equal(list.ok, true);
         assert.deepEqual(mine.work[programmeId].counts, list.board.counts, programmeId);
         assert.equal(mine.work[programmeId].waiting, list.board.queue.length, programmeId);
+        // The places line is the head of that list, number for number.
+        assert.deepEqual(
+          mine.work[programmeId].places,
+          {
+            placed: list.board.progress.placed,
+            invited: list.board.progress.invited,
+            left: list.board.progress.placesLeft,
+          },
+          programmeId,
+        );
         // And it is the number of rows that list would walk.
         assert.ok(list.board.queue.every((uid) => list.board.rows.some((row) => row.uid === uid)));
       }
@@ -632,7 +642,14 @@ describe("a programme's numbers are the ones its own list works out", () => {
     // in the term. George ranked it too and has withdrawn, so he is counted
     // nowhere. Ben accepted; dev and rosa pooled; wen has a place at her first
     // choice; amara and claudia are still owed a decision.
-    assert.deepEqual(admin.work[AGI], { counts: { all: 6, toReview: 2, accepted: 1, pooled: 2, declined: 0 }, waiting: 2 });
+    assert.deepEqual(admin.work[AGI].counts, { all: 6, toReview: 2, accepted: 1, pooled: 2, declined: 0 });
+    assert.equal(admin.work[AGI].waiting, 2);
+    assert.deepEqual(Object.keys(admin.work[AGI]).sort(), ["counts", "places", "waiting"]);
+    // Places: Ben holds one of AGI Strategy's four, Wen one of Technical AI
+    // Safety's, and nobody holds one on the incubator.
+    assert.deepEqual(admin.work[AGI].places, { placed: 1, invited: 0, left: 3 });
+    assert.deepEqual(admin.work[TAIS].places, { placed: 1, invited: 0, left: 3 });
+    assert.deepEqual(admin.work[INC].places, { placed: 0, invited: 0, left: 4 });
     assert.deepEqual(admin.work[TAIS].counts, { all: 5, toReview: 3, accepted: 1, pooled: 0, declined: 1 });
     assert.deepEqual(admin.work[INC].counts, { all: 3, toReview: 2, accepted: 0, pooled: 1, declined: 0 });
   });

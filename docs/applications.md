@@ -134,11 +134,27 @@ their mind needs no recount.
 | | Reads an application | Scores and comments | Decides | Edits the programme | Runs the term |
 | --- | --- | --- | --- | --- | --- |
 | Admin | every one | every programme | every programme | every programme | yes |
-| Lead of a programme | those that ranked it | that programme | that programme | that programme | no |
-| Reviewer of a programme | those that ranked it | that programme | no | no | no |
+| Lead of a programme | those that ranked it, and anybody who joined it by invitation | that programme | that programme | that programme | no |
+| Reviewer of a programme | those that ranked it, and anybody who joined it by invitation | that programme | no | no | no |
 
 "Runs the term" is the form itself, the outcome each pooled applicant hears,
 revoking an acceptance, an exception, and the decision-day send.
+
+**Somebody who joins by invitation is read from the moment they accept, and
+not before.** An invitation is to a programme the person did not pick, so
+while it is only picked, or sent and not yet answered, that programme's lead
+and reviewers are shown a number of places kept for invitations and never
+the person. Once the person accepts (`joinedByInvitation()` in
+`decisions.ts`), the programme's lead and reviewers read the application as
+if it had ranked the programme (`canReadApplication()` takes the joined
+programme beside the ranking), and it has a row in the programme's list,
+marked `byInvitation`, standing as accepted, with no decision to make and
+nothing of that programme's to score. The invitation card tells the person
+so before they press Accept. If they later cannot make it, the row stays,
+marked withdrawn, like anybody else's who left after applying. Somebody who
+says no thanks is never read by the programme they turned down.
+`tests/applications-wave-h-joined.test.mjs` runs every kind of account
+against every way an invitation can stand.
 
 A lead or a reviewer has to be an admin or SU-recognised committee, because
 applications are personal. That is checked against their live user document
@@ -234,6 +250,20 @@ The term is marked as sent (`decisionsSentAt`) once everybody has a result. An
 email still owed does not hold that back, and stays listed on the decision-day
 page until it goes.
 
+### What was sent is a record
+
+A person's `result`, and what became of its email, are written once by the
+send and no reply changes them. A reply does take its owner out of the term.
+So the decision-day page reports the send from everybody it addressed
+(`everybodyAddressed()` in `decisionDay/plan.ts`): the people in the term,
+and anybody already told who has since left it (`left` on the plan), each
+read through what they were told (`toldTo()`). "6 people applied" and each
+group's list stay as they were when somebody gives a place back, and once
+the term is marked as sent each readiness row's detail is counted from the
+results too. What a press can still do (who is left to tell, which emails
+are owed, whose account is waiting) is of the people in the term, as is
+every count of places.
+
 ### Once somebody has been told
 
 The send publishes one person at a time and can stop part way: a mail server
@@ -301,6 +331,21 @@ above). `result` is what decision day said and no reply changes it. A place give
 `status/standing.ts` reads all of that off the document, and `decideReply()`
 in `status/replies.ts` is the whole table.
 
+### One set of words for an outcome
+
+Somebody reads where they stand on their own page and, one line each, on the
+list of everything they have applied to (`/applications`), which is older
+than application forms and words a row from the stored status. The status
+does not say enough: a place given back and an invitation turned down are
+both `withdrawn`, and a declined application must read exactly as no offer
+does. So for an application made on a form the list takes its chip and its
+sentence from `outcomeWords()` in `status/words.ts`, read with the view the
+person's own page is drawn from (`loadListWords()` in `status/load.ts`).
+With no outcome to state (a draft, sent and waiting, withdrawn before
+anything was decided) there are no words, and the list keeps its own.
+`tests/applications-wave-h-list-words.test.mjs` holds that function and the
+page to the same words.
+
 ### Who is in the term
 
 A reply cannot touch the decision documents, so they go on saying Accept for
@@ -314,6 +359,32 @@ pooled applicants screen and the send in the same moment. A screen may still
 list somebody who has left (the review list keeps the row, marked as
 withdrawn). It may not count them.
 `tests/applications-journey-in-term.test.mjs` walks the tree for callers.
+
+### Who holds a place
+
+`holdingOf()` in `decisions.ts` is the one answer to who holds a place on a
+programme now. `tallyTerm()` counts `placed`, `joined` and `invited` from it
+and from nothing else, and `freePlaces()` is worked out from those, so every
+screen that shows a place shows the same one.
+
+- **A place is held** by somebody the programme's lead accepted who is still
+  in the term (the place their ranking gives them, and any second place an
+  exception names), and by somebody invited to it who accepted.
+- **A place is kept for an invitation** only while that invitation is
+  unanswered and its person is still in the term.
+
+It reads both halves of the record, because neither is enough: only the
+decision documents know a lead's Accept and an exception, and only the
+application knows a reply. Until a person is told, the committee's pick is
+all there is, so before decision day every number is what the decisions
+alone give. Once they are told, only their own document is asked about their
+invitation, through `standingOf()`, the reading their own page is drawn
+from. So the committee's screens and the person's page cannot disagree about
+whether they are in.
+
+Every caller of `tallyTerm()` hands each applicant over with its application.
+`tests/applications-wave-h-places.test.mjs` runs one stored term, in which
+every kind of reply has been made, through each of them.
 
 ## What deletes what
 
@@ -358,13 +429,13 @@ All in `src/lib/applications/`.
 | `sections.ts` | Which steps and question sets one person sees | anywhere |
 | `validate.ts` | What stops a send; what is copied into `sent`; word counts | anywhere |
 | `scoring.ts` | Scored questions, section scores, first-review blindness | anywhere |
-| `decisions.ts` | Placement, outcomes, who is in the term, tallies, readiness, recommendations | anywhere |
+| `decisions.ts` | Placement, outcomes, who is in the term, who holds a place, tallies, readiness, recommendations | anywhere |
 | `words.ts` | Labels, ordinals, the words applicants never see | anywhere |
 | `access.ts` | Staff predicates | server |
 | `roles.ts` | `setProgrammeRoles`, the one writer of leads and reviewers | server |
 | `repo.ts` | The form, its sets, the caller's own application | server, applicant-safe |
 | `staffRepo.ts` | Everybody's applications, reviews, decisions | server, staff only |
-| `status/standing.ts`, `status/replies.ts`, `status/view.ts` | Where one person stands after sending, what each reply does, what their page says | anywhere |
+| `status/standing.ts`, `status/replies.ts`, `status/view.ts`, `status/words.ts` | Where one person stands after sending, what each reply does, what their page says, the chip and title of an outcome | anywhere |
 | `status/load.ts`, `status/record.ts` | The page's read, and the one transaction a reply writes | server, applicant-safe |
 | `accounts/approve.ts`, `accounts/afterReply.ts` | Approving a waiting account on an acceptance, and the call an accepted invitation makes | server, applicant-safe |
 
@@ -407,6 +478,10 @@ All in `src/lib/applications/`.
   `tallyTerm()`, and before any other count of places, decisions owed or
   people to be told. Listing somebody who has left is fine; counting them is
   how two screens come to disagree about a place.
+- **A place is counted one way.** Hand `tallyTerm()` each applicant with its
+  application, and read places from its `placed`, `joined` and `invited`, or
+  from `freePlaces()`. Never count a place from the decisions on their own:
+  after decision day they do not know who accepted an invitation.
 - **Questions lock once somebody has sent an application.** Editing a question
   set after that would change what an answer already given was an answer to.
 - **Email** goes through `sendEmail()` with reply-to set to the society's

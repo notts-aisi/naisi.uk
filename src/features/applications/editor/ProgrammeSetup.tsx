@@ -564,12 +564,14 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
               {/*
                 WHO THIS NAMES IS WHO `canReadApplication` LETS IN
                 (src/lib/applications/access.ts): an admin, or the lead or a
-                reviewer of a programme the applicant ranked. If that
-                predicate changes, this line changes with it: a test holds
-                the two together.
+                reviewer of a programme the applicant ranked or of the one
+                they joined by accepting an invitation. If that predicate
+                changes, this line changes with it: a test holds the two
+                together.
               */}
               <div className={styles.factWho}>
-                Admins, and the lead and reviewers of each programme an applicant ranked
+                Admins, and the lead and reviewers of each programme an applicant ranked, or
+                joined by invitation
               </div>
               <div className={styles.factText}>
                 Nobody else sees them. A first review is blind to other scores.

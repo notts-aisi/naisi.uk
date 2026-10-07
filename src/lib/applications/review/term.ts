@@ -1,5 +1,13 @@
 import type { ProgrammeRole } from "../access";
-import { freePlaces, isInTerm, tallyTerm, type Applicant, type TermTally } from "../decisions";
+import {
+  freePlaces,
+  isInTerm,
+  joinedByInvitation,
+  tallyTerm,
+  type Applicant,
+  type TermTally,
+} from "../decisions";
+import { own } from "../keys";
 import type { ApplicationDoc, DecisionDoc, ReviewDoc } from "../model";
 import type { ApplicationForm } from "../normalise";
 import { rankedProgrammes } from "../sections";
@@ -25,6 +33,12 @@ import { rankedProgrammes } from "../sections";
  * the same people the pooled applicants and decision-day screens count, so a
  * place given back is free here in the same moment it is free there.
  *
+ * SOMEBODY WHO ACCEPTED AN INVITATION IS ON THAT PROGRAMME'S LIST, though
+ * they did not rank it: `joined` names the programme, and the list and the
+ * review screen treat it as theirs from the moment they accept
+ * (`joinedByInvitation`). Before that the programme's staff are shown only
+ * the number of places kept for invitations.
+ *
  * Pure, with no server import.
  */
 
@@ -45,6 +59,11 @@ export type TermPicture = {
   applications: ApplicationDoc[];
   /** Each applicant's ranking, as the form knows it. */
   ranked: Map<string, string[]>;
+  /**
+   * The programme each applicant joined by accepting an invitation, for those
+   * who did. Always a programme on the form that they did not rank.
+   */
+  joined: Map<string, string>;
   decisions: ReadonlyMap<string, DecisionDoc>;
   /** Every reviewer's row, by applicant. */
   reviews: Map<string, ReviewDoc[]>;
@@ -64,18 +83,25 @@ export function termPictureFor(input: {
     (application) => application.sent !== null && application.uid !== viewerUid,
   );
   const ranked = new Map<string, string[]>();
+  const joined = new Map<string, string>();
   const applicants: Applicant[] = [];
   for (const application of applications) {
     const order = application.sent
       ? rankedProgrammes(form, application.sent).map((programme) => programme.id)
       : [];
     ranked.set(application.uid, order);
+    const invitedTo = joinedByInvitation(application);
+    if (invitedTo !== null && own(form.programmes, invitedTo) && !order.includes(invitedTo)) {
+      joined.set(application.uid, invitedTo);
+    }
     // Listed, and not counted: see the note at the top.
     if (!isInTerm(application)) continue;
     applicants.push({
       uid: application.uid,
       ranked: order,
       decision: decisions.get(application.uid) ?? null,
+      // With the application, so a place taken or given up by a reply is counted.
+      application,
     });
   }
   const reviews = new Map<string, ReviewDoc[]>();
@@ -85,7 +111,17 @@ export function termPictureFor(input: {
     if (rows) rows.push(review);
     else reviews.set(review.applicantUid, [review]);
   }
-  return { applications, ranked, decisions, reviews, tally: tallyTerm(form, applicants) };
+  return { applications, ranked, joined, decisions, reviews, tally: tallyTerm(form, applicants) };
+}
+
+/**
+ * The programmes whose list this applicant is on, in order: the ones they
+ * ranked, then the one they joined by accepting an invitation.
+ */
+export function listedOn(term: TermPicture, uid: string): string[] {
+  const order = term.ranked.get(uid) ?? [];
+  const invitedTo = term.joined.get(uid);
+  return invitedTo === undefined ? order : [...order, invitedTo];
 }
 
 /** Places a programme still has, from the term's own tally. */

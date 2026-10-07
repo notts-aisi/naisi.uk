@@ -431,6 +431,27 @@ const USERS = new Map([
       "template, and what was handed to the door is rendered and read",
   ],
   [
+    "applications-wave-h-joined.test.mjs",
+    "executes src/lib/applications/access.ts, decisions.ts and the review loaders against one stored " +
+      "term in which an invitation stands every way it can, as every kind of account, because who " +
+      "may read somebody invited is decided by the code that runs",
+  ],
+  [
+    "applications-wave-h-list-words.test.mjs",
+    "executes src/lib/applications/status/words.ts for every way an application can stand, because " +
+      "the list of somebody's applications and their own page have to say the same words",
+  ],
+  [
+    "applications-wave-h-places.test.mjs",
+    "executes src/lib/applications/decisions.ts and every caller of its arithmetic over one stored " +
+      "term in which every kind of reply has been made, because each screen has to count the same place",
+  ],
+  [
+    "applications-wave-h-small.test.mjs",
+    "executes src/lib/applications/lifecycle/status.ts against a form in every stage, because the " +
+      "term page and the route that adds a programme have to stop on the same answer",
+  ],
+  [
     "applications-own-keys.test.mjs",
     "executes every exported function of every module under src/lib/applications against " +
       "each name Object.prototype carries, with the real eligibility bar and the real roles " +

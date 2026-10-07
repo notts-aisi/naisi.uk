@@ -87,8 +87,8 @@ describe("a withdrawn application on a programme's list", () => {
     const board = flat("features", "applications", "review", "ApplicationsBoard.tsx");
     assert.match(board, /\{row\.withdrawn \? \( .*?<Chip dot>Withdrawn<\/Chip>/);
     assert.match(board, /Was \{PROGRAMME_STANDING_LABEL\[row\.standing\]\.toLowerCase\(\)\}/);
-    assert.match(board, /\{row\.withdrawn \? null : \( <Checkbox label=\{`Select \$\{row\.name\}`\}/);
-    assert.match(board, /const choosable = visible\.filter\(\(row\) => !row\.withdrawn\);/);
+    assert.match(board, /\{row\.withdrawn \|\| row\.byInvitation \? null : \( <Checkbox label=\{`Select \$\{row\.name\}`\}/);
+    assert.match(board, /const choosable = visible\.filter\(\(row\) => !row\.withdrawn && !row\.byInvitation\);/);
     assert.doesNotMatch(board, /styles\.flag\}>Withdrawn</, "said once, in the status, not twice");
   });
 });
@@ -96,10 +96,19 @@ describe("a withdrawn application on a programme's list", () => {
 describe("the review screen once a person has been told", () => {
   const screen = flat("features", "applications", "review", "ReviewScreen.tsx");
 
-  test("the flag is optional, on the screen's own type, and true only when sent as true", () => {
-    assert.match(screen, /type Review = ReviewPayload & \{ told\?: boolean \};/);
+  test("the flag is the one the server sends, on the decision, and true only when sent as true", () => {
+    // The payload carries it as `decision.told` (`ReviewPayload` in
+    // src/lib/applications/review/types.ts, set by `hasBeenTold`). The screen
+    // reads that field and no other, so the record is drawn for a real reply.
+    assert.match(screen, /type Review = ReviewPayload;/);
     assert.match(screen, /initial: Review;/);
-    assert.match(screen, /const told = review\.told === true;/);
+    assert.match(screen, /const \{ applicant, programme, viewer, round, decision, queue \} = review;/);
+    assert.match(screen, /const told = decision\.told === true;/);
+    assert.doesNotMatch(screen, /review\.told/);
+    const types = flat("lib", "applications", "review", "types.ts");
+    assert.match(types, /decision: \{ standing: ProgrammeStanding; owesDecision: boolean; \/\*\*[^/]*\*\/ told: boolean;/);
+    const detail = flat("lib", "applications", "review", "detail.ts");
+    assert.match(detail, /told: hasBeenTold\(application\),/);
   });
 
   test("nothing can be decided for somebody who has been told: not by button, key or bar", () => {

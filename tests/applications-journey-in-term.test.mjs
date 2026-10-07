@@ -332,7 +332,7 @@ describe("a place given back is free on every screen at once", () => {
     assert.equal(before.applicants, 6);
     assert.deepEqual(
       { ...before.programmes[AGI] },
-      { applications: 4, firstChoice: 4, toReview: 2, accepted: 2, pooled: 0, declined: 0, placed: 2, invited: 2 },
+      { applications: 4, firstChoice: 4, toReview: 2, accepted: 2, pooled: 0, declined: 0, placed: 2, joined: 0, invited: 2 },
     );
     assert.equal(decisions.freePlaces(FORM, before, AGI), 0);
 
@@ -340,7 +340,7 @@ describe("a place given back is free on every screen at once", () => {
     assert.equal(after.applicants, 3);
     assert.deepEqual(
       { ...after.programmes[AGI] },
-      { applications: 2, firstChoice: 2, toReview: 1, accepted: 1, pooled: 0, declined: 0, placed: 1, invited: 1 },
+      { applications: 2, firstChoice: 2, toReview: 1, accepted: 1, pooled: 0, declined: 0, placed: 1, joined: 0, invited: 1 },
     );
     assert.equal(decisions.freePlaces(FORM, after, AGI), 2, "two of AGI Strategy's four places came back");
     assert.deepEqual(after.outcomes, { accepted: 1, invited: 1, noOffer: 0, declined: 0, needsOutcome: 0, undecided: 1 });

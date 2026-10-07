@@ -16,7 +16,10 @@ import { projectFormForStaff, type FormStaffView } from "@/lib/applications/edit
 import { own } from "@/lib/applications/keys";
 import { loadReadiness } from "@/lib/applications/lifecycle/load";
 import { loadTermNumbers } from "@/lib/applications/lifecycle/loadTermHome";
-import type { TermSteps as TermStepStates } from "@/lib/applications/lifecycle/status";
+import {
+  closedToNewProgrammes,
+  type TermSteps as TermStepStates,
+} from "@/lib/applications/lifecycle/status";
 import { buildTermHome, type ProgrammeCounts as Counts } from "@/lib/applications/lifecycle/termHome";
 import {
   buildLifecycleView,
@@ -116,12 +119,14 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
             {/*
               Offered until decision day has gone out. After that a new
               programme could take no applications and would never be
-              decided, so the term's page stops offering one.
+              decided, so the term's page stops offering one. The route that
+              adds a programme refuses on the same answer.
             */}
-            {(lifecycle.stage === "draft" ||
-              lifecycle.stage === "opens-later" ||
-              lifecycle.stage === "open" ||
-              lifecycle.stage === "deciding") && <NewProgrammeButton roundId={form.id} />}
+            {closedToNewProgrammes({
+              status: loaded.form.round.status,
+              archived: loaded.form.round.archived,
+              decisionsSentAt: loaded.form.decisionsSentAt,
+            }) === null && <NewProgrammeButton roundId={form.id} />}
           </div>
         )}
       </header>
@@ -169,7 +174,7 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
                 {card ? (
                   <>
                     <ProgrammeCounts counts={card.counts} />
-                    <PlacesBar accepted={card.counts.accepted} places={programme.places} />
+                    <PlacesBar held={card.places} places={programme.places} />
                   </>
                 ) : (
                   <p className={styles.programmeNote}>
@@ -285,19 +290,39 @@ function ProgrammeCounts({ counts }: { counts: Counts }) {
   );
 }
 
-function PlacesBar({ accepted, places }: { accepted: number; places: number | null }) {
+/**
+ * A programme's places, in the numbers its own list's head shows: who holds a
+ * place now (accepted by its lead and still in the term, or here by an
+ * invitation they accepted), how many are left, and how many are kept for an
+ * invitation nobody has answered yet. Nothing is worked out here.
+ */
+function PlacesBar({
+  held,
+  places,
+}: {
+  held: { placed: number; invited: number; left: number | null };
+  places: number | null;
+}) {
   if (places === null || places === 0) {
     return <p className={styles.programmeNote}>Its lead has not said how many places it has.</p>;
   }
-  const left = Math.max(0, places - accepted);
+  const accepted = held.placed;
+  const left = held.left ?? 0;
   const share = Math.min(100, Math.round((accepted / places) * 100));
+  const kept =
+    held.invited > 0
+      ? ` · ${held.invited} held for ${held.invited === 1 ? "an invitation" : "invitations"}`
+      : "";
   return (
     <div>
       <div className={styles.placesLine}>
         <span>
           {accepted} of {places} places accepted
         </span>
-        <span className={styles.placesLeft}>{left === 0 ? "Full" : `${left} left`}</span>
+        <span className={styles.placesLeft}>
+          {left === 0 && held.invited === 0 ? "Full" : `${left} left`}
+          {kept}
+        </span>
       </div>
       <div
         className={styles.bar}

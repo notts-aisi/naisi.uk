@@ -9,8 +9,9 @@ import type { ApplicationFormFields } from "./model";
  *
  * Three kinds of people read applications, and each is scoped to a programme:
  *
- *  - the programme's LEAD reads every application that ranked it, scores and
- *    comments on its answers, and decides for it;
+ *  - the programme's LEAD reads every application that ranked it, and that of
+ *    anybody who joined it by accepting an invitation, scores and comments on
+ *    its answers, and decides for it;
  *  - a programme's REVIEWERS read, score and comment the same way, and cannot
  *    decide;
  *  - an ADMIN does everything, on every programme, and is the only one who
@@ -73,15 +74,24 @@ export function canSeeForm(user: SessionUser, form: Form): boolean {
 
 /**
  * May this caller read an application? Only when they have a role on a
- * programme the applicant ranked. `ranked` is the SENT ranking: a draft is
- * nobody's to read but its author's.
+ * programme the applicant ranked, or on the one the applicant joined by
+ * accepting an invitation. `ranked` is the SENT ranking: a draft is nobody's
+ * to read but its author's.
+ *
+ * `joined` is `joinedByInvitation(application)` from `./decisions`: the
+ * programme whose invitation the applicant ACCEPTED, or null. An invitation
+ * that is only picked, or sent and not yet answered, gives that programme's
+ * staff nothing to read: the applicant did not choose the programme, and has
+ * not said yes to it.
  */
 export function canReadApplication(
   user: SessionUser,
   form: Form,
   ranked: readonly string[],
+  joined: string | null = null,
 ): boolean {
   if (user.role === "admin") return true;
+  if (joined !== null && roleOnProgramme(user, form, joined) !== null) return true;
   return ranked.some((programmeId) => roleOnProgramme(user, form, programmeId) !== null);
 }
 

@@ -22,9 +22,9 @@ export type PoolProgramme = {
   shortName: string;
   /** How many people it can take. Null until its lead has said. */
   places: number | null;
-  /** People whose place is here. */
+  /** People who hold a place here now, an accepted invitation included. */
   placed: number;
-  /** Pooled applicants invited here. */
+  /** Places kept here for an invitation: picked and not yet told, or sent and not yet answered. */
   invited: number;
   /** Places not yet taken by an acceptance: what the card's number shows. */
   open: number | null;
@@ -122,16 +122,29 @@ export type SendBoard = {
   termLabel: string;
   /** Today in London: "Fri 23 Oct". */
   today: string;
-  /** How many people applied. */
+  /**
+   * How many people the send addresses: everybody in the term, and anybody
+   * already told who has since given a place or an invitation back. So it
+   * does not shrink when somebody replies.
+   */
   applied: number;
+  /**
+   * Once the term is sent, each row's detail is the record of what people
+   * were told, not who holds a place today.
+   */
   readiness: ReadinessRow[];
   /** Why the send cannot go, a sentence each. Empty when it can. */
   blockers: string[];
   /** The day decisions went out, and who sent them, once they all have. */
   sentOn: string | null;
   sentBy: string | null;
-  /** People who already have their result, out of everybody in the term. */
+  /** People who already have their result, out of everybody counted in `applied`. */
   published: number;
+  /**
+   * The three groups are of everybody counted in `applied`, each under what
+   * they were told (or, until they are told, would be told now). Somebody who
+   * has replied since stays in the group their result put them in.
+   */
   accepted: SendGroup;
   invited: SendGroup;
   noOffer: SendGroup;
@@ -143,7 +156,7 @@ export type SendBoard = {
    * this copy of the site. The page promises a reminder only then.
    */
   remindsDaily: boolean;
-  /** Accepted people whose account is still waiting to be approved. */
+  /** Accepted people still holding their place whose account is waiting to be approved. */
   accountsWaiting: number;
   /**
    * Accepted people whose join request was refused earlier. Sending leaves
