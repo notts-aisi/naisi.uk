@@ -477,8 +477,9 @@ export default function PrivacyContentV6({
                   or no thanks, gives the place back and marks your application
                   as withdrawn. To do either you choose a reason from a short
                   list, or write a few words of your own. Your reason is kept
-                  with your application and the committee can read it, because
-                  we may be able to offer something that works for you.
+                  with your application, where the people who can read your
+                  application can see it, because we may be able to offer
+                  something that works for you.
                 </li>
                 <li>
                   <strong>Your account.</strong> You can apply while your
