@@ -1030,6 +1030,24 @@ const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 describe("the application form passage", () => {
   const formWriter = read("src/lib/applications/editor/write.ts");
 
+  /** A stand-in for one of the browser's two stores, which remembers each write. */
+  const standInStore = (initial = {}) => {
+    const items = new Map(Object.entries(initial));
+    const written = [];
+    return {
+      items,
+      written,
+      getItem: (key) => (items.has(key) ? items.get(key) : null),
+      setItem: (key, value) => {
+        written.push(key);
+        items.set(key, String(value));
+      },
+      removeItem: (key) => {
+        items.delete(key);
+      },
+    };
+  };
+
   test("the frozen v5 carries none of these sentences, so the move was a version and not an edit", () => {
     for (const pattern of [
       /Nothing hides who you are from the people who read, score and decide/i,
@@ -1551,6 +1569,75 @@ describe("the application form passage", () => {
     );
   });
 
+  test("what is typed on the form's first step is kept in the tab it was typed in, for a day, until the join request is sent", (t) => {
+    // The step keeps what somebody types in the tab's own session storage,
+    // for every way of making an account. The paragraph says so in a
+    // sentence of its own, ahead of the one about the copy that crosses
+    // tabs, so that each copy's limits are said once and are its own. This
+    // test is that one sentence's pin and nothing else's: the sentence and
+    // the test come out together.
+    assert.match(
+      PAGE_FLAT,
+      // The JSX keeps the space before the key with `{" "}`, so allow for it.
+      /If you start an application before you have an account, what you type on the form&apos;s first step is kept in that browser tab, in its session storage under a key beginning(?:\{" "\})? <code>naisi\.apply\.join<\/code>: the copy in the tab is removed when your request to join is sent, it is ignored once it is a day old, and it goes when you close the tab\./i,
+    );
+    assert.ok(
+      PAGE_FLAT.indexOf("is kept in that browser tab") < PAGE_FLAT.indexOf("is kept in your browser&apos;s local storage"),
+      "the sentence about the tab's own copy has to come before the one about " +
+        "the copy that crosses tabs: the second one's own words (\"also there\", " +
+        "\"The copy in your browser\") are read against it.",
+    );
+
+    // "In that browser tab, in its session storage", which is also why "it
+    // goes when you close the tab": the keeper's own store is session
+    // storage, and every change to the answers is written there, whichever
+    // way of making an account the person goes on to choose.
+    const keeperCode = read("src/features/applications/apply/keptAnswers.ts")
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+    assert.match(keeperCode, /return typeof window === "undefined" \? null : window\.sessionStorage;/);
+    assert.match(keeperCode, /store\.setItem\(keptKey\(roundId\), packKept\(about, Date\.now\(\)\)\)/);
+    const tab = standInStore();
+    const shared = standInStore();
+    globalThis.window = { sessionStorage: tab, localStorage: shared };
+    t.after(() => {
+      delete globalThis.window;
+    });
+    const typed = {
+      preferredName: "Ada",
+      universityEmail: "ada@nottingham.ac.uk",
+      universityEmailVerified: false,
+      status: "undergraduate",
+      statusOther: "",
+      subject: "Mathematics",
+      expectedGraduation: "2028-07",
+      motivation: "Because it matters.",
+      interests: "",
+    };
+    keptAnswers.keepAnswers("the-tabs-own", typed);
+    // "Under a key beginning naisi.apply.join".
+    assert.deepEqual([...tab.items.keys()], ["naisi.apply.join:the-tabs-own"]);
+    assert.deepEqual(keptAnswers.loadKept("the-tabs-own"), typed, "the tab was not given back what was typed in it");
+
+    // "It is ignored once it is a day old."
+    const now = Date.UTC(2026, 9, 7, 12);
+    const packed = joinRules.packKept(typed, now);
+    assert.equal(joinRules.KEPT_MAX_AGE_MS, 24 * 3_600_000);
+    assert.ok(joinRules.readKept(packed, now + 24 * 3_600_000), "the tab's own answers are no longer read back within the day");
+    assert.equal(joinRules.readKept(packed, now + 24 * 3_600_000 + 1), null, "the tab's own answers were believed for more than a day");
+
+    // "The copy in the tab is removed when your request to join is sent."
+    assert.match(
+      read("src/features/applications/apply/JoinStep.tsx"),
+      /await completeRegistration\(joinRequestFrom\(answers\)\);[\s\S]{0,400}?forgetAnswers\(roundId\);/,
+      "the join step no longer throws away what the tab kept once the join " +
+        "request has gone.",
+    );
+    keptAnswers.forgetAnswers("the-tabs-own");
+    assert.equal(tab.items.size, 0, "the join request has gone and the tab still holds what was typed");
+    assert.deepEqual(shared.written, [], "the tab's own copy was written somewhere that outlives the tab");
+  });
+
   test("somebody with no account joins on the form, and what is kept in the browser is what the page says", (t) => {
     assert.match(PAGE_FLAT, /You can start the form without an account/i);
     // OWNER DECISION, 7 October 2026: what is typed before there is an
@@ -1563,11 +1650,6 @@ describe("the application form passage", () => {
       PAGE_FLAT,
       // The JSX keeps the space before the key with `{" "}`, so allow for it.
       /If you start an application before you have an account and choose to continue with an email address, what you typed on the form&apos;s first step is kept in your browser&apos;s local storage, under a key beginning(?:\{" "\})? <code>naisi\.apply\.join<\/code>, so that it is also there in the tab our emailed link opens/i,
-    );
-    assert.ok(
-      !/in its session storage under a key beginning/i.test(PAGE_FLAT),
-      "v6 says again that what is typed is kept in the tab alone. A copy " +
-        "crosses tabs for somebody who continues with an email address.",
     );
     assert.equal(joinRules.keptKey("autumn-2026"), "naisi.apply.join:autumn-2026");
 
@@ -1591,25 +1673,8 @@ describe("the application form passage", () => {
     );
     assert.match(oneFunction, /const shared = window\.localStorage;/);
 
-    /** A stand-in for one of the browser's two stores, which remembers each write. */
-    const store = (initial = {}) => {
-      const items = new Map(Object.entries(initial));
-      const written = [];
-      return {
-        items,
-        written,
-        getItem: (key) => (items.has(key) ? items.get(key) : null),
-        setItem: (key, value) => {
-          written.push(key);
-          items.set(key, String(value));
-        },
-        removeItem: (key) => {
-          items.delete(key);
-        },
-      };
-    };
-    const tab = store();
-    const shared = store();
+    const tab = standInStore();
+    const shared = standInStore();
     globalThis.window = { sessionStorage: tab, localStorage: shared };
     t.after(() => {
       delete globalThis.window;
@@ -1692,7 +1757,7 @@ describe("the application form passage", () => {
     assert.equal(shared.items.get("naisi.apply.join:link-asked"), packed);
     assert.deepEqual([...shared.items.keys()], ["naisi.apply.join:link-asked"]);
     // The link's tab has a session store of its own, with nothing in it.
-    const linksTab = store();
+    const linksTab = standInStore();
     globalThis.window = { sessionStorage: linksTab, localStorage: shared };
     assert.equal(
       keptAnswers.acrossTabs("link-asked", "read", now + 120_000)?.preferredName,
@@ -1706,10 +1771,9 @@ describe("the application form passage", () => {
 
     // LIMIT 2, "it is ignored once it is an hour old". The rule, run at the
     // hour and a millisecond past it, and then the function itself.
-    assert.match(PAGE_FLAT, /and it is ignored once it is an hour old/i);
-    assert.ok(
-      !/ignored once it is a day old/i.test(PAGE_FLAT),
-      "v6 says the copy is believed for a day. The copy that crosses tabs is believed for an hour.",
+    assert.match(
+      PAGE_FLAT,
+      /The copy in your browser is removed when your request to join is sent, and it is ignored once it is an hour old\./i,
     );
     assert.equal(joinRules.ACROSS_TABS_MAX_AGE_MS, 3_600_000);
     assert.ok(joinRules.readKept(packed, now + 3_600_000, joinRules.ACROSS_TABS_MAX_AGE_MS));
@@ -1717,14 +1781,9 @@ describe("the application form passage", () => {
     assert.ok(keptAnswers.acrossTabs("link-asked", "read", now + 3_600_000), "the copy was not believed within its hour");
     assert.equal(keptAnswers.acrossTabs("link-asked", "read", now + 3_600_001), null, "a copy more than an hour old was believed");
     assert.equal(shared.items.size, 0, "a copy past its hour was left in local storage");
-    // The tab's own copy is the step's as it always was: session storage, and
-    // believed for a day.
-    assert.ok(joinRules.readKept(packed, now + 23 * 3_600_000), "the tab's own answers are no longer read back within the day");
-    assert.equal(joinRules.readKept(packed, now + 24 * 3_600_000 + 1), null);
 
     // LIMIT 3, "removed when your request to join is sent": the step forgets
     // straight after the join request, and forgetting is both copies.
-    assert.match(PAGE_FLAT, /The copy in your browser is removed when your request to join is sent/i);
     assert.match(
       stepCode,
       /await completeRegistration\(joinRequestFrom\(answers\)\);\s*\} catch \(err\) \{[^}]*return false;\s*\}\s*forgetAnswers\(roundId\);/,

@@ -933,6 +933,12 @@ export default function PrivacyContentV6({
                 site-data settings at any time.
               </p>
               <p>
+                If you start an application before you have an account, what
+                you type on the form&apos;s first step is kept in that browser
+                tab, in its session storage under a key beginning{" "}
+                <code>naisi.apply.join</code>: the copy in the tab is removed
+                when your request to join is sent, it is ignored once it is a
+                day old, and it goes when you close the tab.
                 If you start an application before you have an account and
                 choose to continue with an email address, what you typed on the
                 form&apos;s first step is kept in your browser&apos;s local
