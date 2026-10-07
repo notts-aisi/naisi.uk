@@ -84,6 +84,10 @@ const MUTATION_HELPERS = {
   runDecisionDay: "publishes every applicant's outcome onto their own application and emails them",
   sendTestEmail: "mails one decision-day email to the admin who asked for it",
   sendDecisionEmail: "sends a decision-day email, a side effect a prefetch must not fire",
+  // The form's lifecycle. The status route holds no GET today, and the write
+  // and the member records are made in `src/lib/applications/lifecycle/move.ts`,
+  // so a GET added beside it later could call this and show nothing in its body.
+  moveFormStatus: "opens, closes, reopens or settles an application form, and on settling writes every applicant's member record",
 };
 
 /**

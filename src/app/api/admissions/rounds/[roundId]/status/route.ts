@@ -20,16 +20,19 @@ import {
 
 /**
  * Move a round along its lifecycle. THE only writer of
- * `admissionRounds.status`, and the only place the transition table is
- * enforced.
+ * `admissionRounds.status` for a round that is not an application form, and
+ * the only place the transition table is enforced for one. A form's status is
+ * moved by `src/app/api/admissions/forms/[roundId]/status/route.ts`, by this
+ * same table.
  *
  * The table itself is `ADMISSION_ROUND_TRANSITIONS` in the data layer and is
  * interpreted by `planStatusChange`, which the console's status control calls
  * too, so the moves a button offers and the moves this route accepts are the
  * same list read from the same array. That is safe only because
- * `admissionRounds` is `allow write: if false`: this handler is the sole
- * writer. If a client-direct write is ever allowed onto the round document,
- * the table has to be duplicated into `firestore.rules` in the same change.
+ * `admissionRounds` is `allow write: if false`: this handler and the form's
+ * own are the only writers, both on the Admin SDK. If a client-direct write is
+ * ever allowed onto the round document, the table has to be duplicated into
+ * `firestore.rules` in the same change.
  *
  * Four refusals sit on top of the table:
  *

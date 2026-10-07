@@ -8,9 +8,9 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 /**
  * One programme's Settings tab.
  *
- * For the programme's lead and for admins. The layout above has already
- * turned away anybody with no role on the programme, and this page asks its
- * own question on top of that, because the layout also admits reviewers and
+ * For the programme's lead and for admins. The layout of the `(tabs)` group
+ * this page is in has already turned away anybody with no role on the
+ * programme, and this page asks its own question on top of that, because the layout also admits reviewers and
  * the settings are not theirs: a reviewer is told so, with the way back to
  * the applications they are here to read.
  */

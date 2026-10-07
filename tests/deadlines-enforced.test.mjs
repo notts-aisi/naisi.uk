@@ -601,6 +601,20 @@ const DEADLINE_PREDICATES = new Map([
             why: "`formStateFor`, the one chip on the committee's screens that says where a form is in its term: opens on a day, open, or closed",
           },
         ],
+        [
+          "src/lib/applications/lifecycle/status.ts",
+          {
+            role: "enforces",
+            why: "`planFormMove` refuses to settle a form that is still taking applications, in the sentence the status route answers with; `termStageFor` reads the same window to say where the form is",
+          },
+        ],
+        [
+          "src/lib/applications/lifecycle/openForm.ts",
+          {
+            role: "tells",
+            why: "`findOpenForm`: which application form a public page's Apply button leads to, and the close it prints; the form's own routes refuse on the same predicate",
+          },
+        ],
       ]),
     },
   ],

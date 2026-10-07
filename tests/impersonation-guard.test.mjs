@@ -145,6 +145,13 @@ const MUST_GUARD = [
   ["src/app/api/admissions/forms/[roundId]/sets/[setId]/route.ts", "writes and deletes the questions applicants are asked"],
   ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/route.ts", "changes what applicants are shown about a programme, the wording of its emails, and closes it"],
   ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/roles/route.ts", "names a programme's lead and reviewers, which grants access to applications"],
+  // The application form's lifecycle. Opening a form lets real applicants
+  // reach it, and settling writes every applicant's member record in the
+  // caller's name. An admin viewing as somebody else must not do either.
+  [
+    "src/app/api/admissions/forms/[roundId]/status/route.ts",
+    "opens, closes, reopens or settles an application form, and on settling writes each applicant's member record under the caller's name",
+  ],
   // Admissions: the applicant's own lane. Every write here is recorded by
   // Firestore as the MEMBER performing it, and each one is a fact about their
   // intake: an application starting, an answer changing, a submission going in

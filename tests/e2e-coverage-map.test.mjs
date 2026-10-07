@@ -664,6 +664,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the first application form is opened to applicants, because from then on what an admin saves here is what real people are asked.",
   },
+  "/api/admissions/forms/[roundId]/status": {
+    reason:
+      "The application form's lifecycle: every move, every refusal and the readiness list behind this route are executed by tests/applications-wave-e1-status-route.test.mjs against an in-memory database, and no end-to-end fixture seeds an application form yet.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an application form, which the first spec for the new applicant form needs: that spec has to open a form before anybody can apply to it.",
+  },
   "/api/admissions/rounds/[roundId]/apply/stage/[stageId]": {
     reason:
       "Admissions: /api/admissions/rounds/[roundId]/apply/stage/[stageId] is pressed by a reviewer or an admin who reads the outcome on the console.",
@@ -1366,11 +1372,11 @@ const NOT_COVERED = {
     coverWhen:
       "When the first application form has closed on dev and a whole decision day is rehearsed there, because that rehearsal is the journey a spec would drive.",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications": {
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/applications": {
     reason:
-      "Application review: the list screen is reached by address only until the programme pages link to it, and was checked by hand at 1440 and 390 as a lead, a reviewer and an admin.",
+      "Application review: the list screen is reached from the term page, by each programme's card and by the rows under Needs you, and was checked by hand at 1440 and 390 as a lead, a reviewer and an admin.",
     coverWhen:
-      "When the programme's own page links here and the end-to-end fixtures can seed an application form for a lead to open.",
+      "When the end-to-end fixtures can seed an application form with sent applications for a lead to open from the term page.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
     reason:
@@ -1378,9 +1384,9 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed an application form with a sent application for a lead to score and decide.",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/setup": {
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     reason:
-      "Application forms: /(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/setup is a programme's settings, and a fault in it is seen by the lead or admin using it.",
+      "Application forms: /(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup is a programme's settings, and a fault in it is seen by the lead or admin using it.",
     coverWhen:
       "When the first application form is opened to applicants, alongside the spec that walks an applicant through it.",
   },
