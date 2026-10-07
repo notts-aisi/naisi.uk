@@ -59,6 +59,12 @@ export default function HomeMember({
   const facilitated = live.find((entry) => entry.roles.includes("facilitator")) ?? null;
   const learning = live.find((entry) => entry.roles.includes("learner")) ?? null;
   const featured = facilitated ?? learning;
+  // Somebody with an offer, or who leads or reviews a programme, is not on
+  // one in the sense this page means, and is not somebody to tell "You're not
+  // on a programme yet" either. For them the line is left out.
+  const involved = runs.some(
+    (entry) => !entry.archived && (entry.roles.length > 0 || entry.membership !== "none"),
+  );
   const greeting = given ? `Hi ${given}.` : "Hi.";
 
   if (loading) {
@@ -118,7 +124,7 @@ export default function HomeMember({
       <PageHead
         title={greeting}
         // A failed read is not "not on a programme": the line is left out.
-        description={error ? undefined : "You’re not on a programme yet."}
+        description={error || involved ? undefined : "You’re not on a programme yet."}
       />
       {termCard}
       <div className={styles.columns}>

@@ -158,12 +158,13 @@
    contents`, so their cells become items of the outer grid and the three
    columns line up across every row.
 
-   Below 60rem: the wrappers become cards and the rows stack, with each cell
-   labelled by `.notifCellName` (hidden on the wide layout, where the column
-   header says the same thing once). The rows are NOT duplicated for small
-   screens the way the old per-address matrix duplicated them: two copies of
-   a control under one accessible label is ambiguous to a screen reader and
-   to the browser suite, which finds every cell by its label. */
+   Below 60rem: each row is its own small grid, the label across the top and
+   the two cells side by side under it, with a rule between rows. Each cell
+   is labelled by `.notifCellName` (hidden on the wide layout, where the
+   column header says the same thing once). The rows are NOT duplicated for
+   small screens the way the old per-address matrix duplicated them: two
+   copies of a control under one accessible label is ambiguous to a screen
+   reader and to the browser suite, which finds every cell by its label. */
 
 .addressLine,
 .always {
@@ -474,21 +475,21 @@
 
 /* === A narrow grid: the push note moves under the row description ===
    The three-column layout fits everywhere it is drawn (the track minimums are
-   sized for the 561px card interior at a 961px window, above), but fitting is
-   not reading: in that band the Push track is 133 to 155px, and a 12px
+   sized for the 575px card interior at a 961px window, above), but fitting is
+   not reading: in that band the Push track is 137 to 157px, and a 12px
    sentence of 170 characters wraps there into eight lines of two or three
    words, with the row growing to 240px to hold it. So when the GRID is narrow
    the note leaves the Push cell, which keeps only its switch, and is drawn
    under the row description in the label column, which is twice as wide.
 
    A CONTAINER query, not a media query, because the variable is the grid's
-   width and not the window's. The sidebar collapses per user, so a 961px
-   window can hold a 561px grid or an 817px one, and a media query would move
-   the note in the wide case for nothing. 48rem is the same value as --bp-md,
-   chosen so the codebase keeps its four numbers: the grid is 48rem wide at a
-   1168px window with the sidebar open, and 878px at 1280px, which stays on
-   the wide layout. The stacked layout below 60rem puts the note back in the
-   Push cell; its block comes after this one, so its rule wins there. */
+   width and not the window's. The sidebar collapses per user and the page
+   puts a heading beside the card only when it has room, so one window width
+   can hold a narrow grid or a wide one, and a media query would move the
+   note in the wide case for nothing. 48rem is the same value as --bp-md,
+   chosen so the codebase keeps its four numbers. The layout below 60rem
+   keeps the note under the description too, and says so itself, because a
+   tablet's grid can be wider than this rule looks for. */
 @container (max-width: 48rem) {
   .notifCellNote {
     display: none;
@@ -499,39 +500,39 @@
   }
 }
 
-/* === Mobile: the grid stacks into one card per row === */
+/* === Mobile: a row is its label over its two cells === */
 @media (max-width: 60rem) { /* --bp-lg */
   .notifGrid {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
   }
 
   .notifHead,
   .notifRow {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    padding: var(--space-4);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2) var(--space-4);
+    padding: var(--space-4) 0;
+    border-top: 1px solid var(--color-border);
   }
 
   .notifHead {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: var(--space-5);
+    padding-top: 0;
+    border-top: 0;
   }
 
-  /* The row label column's heading is the card's own title on this layout. */
+  /* The row label column's heading has nothing under it on this layout. */
   .notifHeadCorner {
     display: none;
   }
 
   .notifHeadCell {
-    flex: 1 1 10rem;
     padding: 0;
     border-bottom: 0;
+  }
+
+  .notifRowLabel {
+    grid-column: 1 / -1;
   }
 
   .notifRowLabel,
@@ -540,16 +541,19 @@
     border-bottom: 0;
   }
 
+  /* Still locked without relying on colour: the word beside the title, the
+     words beside each switch, and a dashed rule over the row. */
+  .notifRowLocked {
+    border-top-style: dashed;
+    border-top-color: var(--color-border-strong);
+  }
+
   .notifRowLocked .notifRowLabel,
   .notifRowLocked .notifCell {
     border-bottom: 0;
   }
 
-  .notifRowLocked {
-    border-style: dashed;
-  }
-
-  /* Each cell has a row to itself here, so its words are drawn again. */
+  /* Each cell names its own column here, so its words are drawn again. */
   .notifRow:not(.notifRowLocked) .notifCell > label:only-of-type > .notifCheckText {
     position: static;
     width: auto;
@@ -564,24 +568,31 @@
     display: block;
   }
 
-  /* On a stacked card each cell is full width, so the note belongs with its
-     switch again. The container rule above also matches a phone (a 390px
-     card is a narrow grid); this block is later in the file, so it wins. */
+  /* A cell is half the row's width here, which is no place for a sentence:
+     the push note is drawn under the row's description, the whole width.
+     Said again here because a tablet's grid is wider than the container
+     rule above looks for. */
   .notifCellNote {
-    display: block;
+    display: none;
   }
 
   .notifRowPushNote {
-    display: none;
+    display: block;
   }
 
   /* The touch floor, on the controls a member actually presses. The master is
      a label with `cursor: pointer` like the cells are, and docs/touch-targets
      lists /profile under Enforced, so it gets the same floor: its own content
-     is a 1.1rem box beside 12px of text, which lands at about 18px without
-     one. */
+     is a switch beside 12px of text, which lands at about 24px without one. */
   .notifCheck,
   .notifMaster {
     min-height: 2.75rem;
+  }
+
+  /* The one button a member is looking for: the width of a phone, and no
+     wider than that on a tablet. */
+  .saveActions > button {
+    flex: 1 1 100%;
+    max-width: 24rem;
   }
 }
