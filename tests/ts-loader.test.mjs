@@ -784,6 +784,13 @@ const USERS = new Map([
       "nothing is stubbed",
   ],
   [
+    "home-words.test.mjs",
+    "it executes `homeWords.ts`, the pure functions that say what the homepage's two buttons, " +
+      "the chip on a programme and the sentence under This term read at each stage of the term, " +
+      "in a time zone far from London, because the promise is the words a visitor is given and " +
+      "a copy of the table would prove nothing; nothing is stubbed",
+  ],
+  [
     "hero-scene.test.mjs",
     "it executes `mountHero` and `startScene` against a page made of plain objects, because what " +
       "the homepage's scene gives back when it stops, whether it asks for a frame under reduced " +

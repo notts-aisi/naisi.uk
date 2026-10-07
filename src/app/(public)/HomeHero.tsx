@@ -4,7 +4,7 @@ import type { PublicTermStage } from "@/lib/applications/lifecycle/publicTerm";
 import TermApplyLink from "@/features/term/TermApplyLink";
 import TermStatusLine from "@/features/term/TermStatusLine";
 import ArrowIcon from "./ArrowIcon";
-import HeroFrame from "./HeroFrame";
+import HeroFrame from "@/features/hero/HeroScene";
 import HeroMark from "./HeroMark";
 import { heroActions, type HeroAction } from "./homeWords";
 import styles from "./HomeHero.module.css";
