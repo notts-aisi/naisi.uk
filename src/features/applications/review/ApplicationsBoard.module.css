@@ -536,6 +536,13 @@
   color: var(--color-warning);
   white-space: nowrap;
 }
+/* The application changed after it was first sent. A mark, not a warning. */
+.changedMark {
+  margin: 2px 0 0 44px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
 .lowerChoice {
   font-weight: 600;
   color: var(--color-warning);

@@ -19,8 +19,20 @@ import {
   sectionScore,
 } from "../scoring";
 import { applicableSets } from "../sections";
-import { isAnswered, optionsFor } from "../validate";
+import { changeCount } from "../versions/kept";
 import { availabilityViewFor } from "./availabilityView";
+import {
+  aboutFactsHistory,
+  answerBody,
+  answerHistory,
+  availabilityHistory,
+  changedSinceScoredLine,
+  dayOf,
+  facilitatingHistory,
+  motivationHistory,
+  rankingHistory,
+  timelineOf,
+} from "./earlier";
 import { own, programmeOn } from "./own";
 import {
   UNNAMED_STAFF,
@@ -36,6 +48,7 @@ import { placesLeftOn, type TermPicture, type Viewer } from "./term";
 import type {
   AnswerView,
   CommentView,
+  EarlierAnswer,
   OtherReview,
   ReviewPayload,
   ReviewSection,
@@ -60,6 +73,11 @@ import type {
  *  - EVERYTHING IS DERIVED: the standing, what is owed, the places left and
  *    the caller's own score are worked out here from the stored scores and
  *    decisions.
+ *  - WHAT IT SAID BEFORE COMES WITH IT. When the applicant has sent again
+ *    with something different, each part that changed carries what it said
+ *    in the versions sent before (`./earlier.ts`), under the same rules as
+ *    the part itself: an address only for an admin, and nothing about a
+ *    review this caller is not shown.
  *
  * Pure, with no server import: the route gates the caller and loads the
  * documents, and hands them here.
@@ -112,26 +130,23 @@ function answerView(
   value: AnswerValue | undefined,
   ranking: { rankedProgrammeIds: string[] },
   scorable: boolean,
+  earlier: EarlierAnswer[],
 ): AnswerView {
-  const answered = isAnswered(value);
-  const view: AnswerView = {
+  const body = answerBody(form, question, value, ranking);
+  return {
     key: questionKey(set.id, question.id),
     question: question.text,
     optional: !question.required,
     type: question.type,
-    answered,
-    text: null,
-    items: null,
-    scale: null,
+    answered: body.answered,
+    text: body.text,
+    items: body.items,
+    scale: body.scale,
     scorable,
+    earlier,
+    // Said further down, once it is known whose reviews this caller is shown.
+    changedSinceScored: null,
   };
-  if (!answered) return view;
-  if (typeof value === "string") view.text = value;
-  else if (Array.isArray(value)) view.items = [...value];
-  else if (typeof value === "number") {
-    view.scale = { options: optionsFor(question, form, ranking), index: value };
-  }
-  return view;
 }
 
 /** "4" or "3.5": a reviewer's own score inside a sentence. */
@@ -196,6 +211,20 @@ export function buildReview(input: {
   const streamOf = new Map<string, string>();
   const commentKeys = new Set<string>([ABOUT_MOTIVATION_KEY]);
 
+  // What they sent before, when they have sent again with something
+  // different. `changedCards` is the cards with something earlier to open, in
+  // the order the screen draws them, and `lastChanged` is when each answer
+  // last changed, where that is known exactly.
+  const timeline = timelineOf(application);
+  const changedCards: string[] = [];
+  const lastChanged = new Map<string, Date>();
+  const earlierFacts = aboutFactsHistory(timeline, degreeLabel(sent.aboutYou), viewer.isAdmin);
+  const earlierMotivation = motivationHistory(timeline).earlier.map((entry) => ({
+    sentOn: entry.sentOn,
+    text: entry.value,
+  }));
+  if (earlierFacts.length > 0 || earlierMotivation.length > 0) changedCards.push("about");
+
   const sections: ReviewSection[] = [];
   for (const set of applicableSets(form, sets, sent)) {
     const streamProgramme =
@@ -235,6 +264,8 @@ export function buildReview(input: {
       const key = questionKey(set.id, question.id);
       commentKeys.add(key);
       if (streamProgramme) streamOf.set(key, streamProgramme);
+      const history = answerHistory(timeline, form, set, question);
+      if (history.changedAt) lastChanged.set(key, history.changedAt);
       return answerView(
         form,
         set,
@@ -242,8 +273,13 @@ export function buildReview(input: {
         own(given, question.id),
         sent,
         focus && keys.includes(key),
+        history.earlier,
       );
     });
+    if (answers.some((answer) => answer.earlier.length > 0)) {
+      chips.push({ text: "Changed", tone: "neutral" });
+      changedCards.push(set.id);
+    }
     sections.push({
       id: set.id,
       title: sectionTitle(set),
@@ -319,6 +355,22 @@ export function buildReview(input: {
   }
   const ownMean = mine ? reviewerScore(mine, keys) : null;
 
+  // A score stays on the question, not on a version. Where this caller's
+  // score, or one they are shown, was given before the answer last changed,
+  // the answer says so.
+  const shownOthers = visible.map((review) => ({ name: staffName(review.reviewerUid), review }));
+  for (const section of sections) {
+    for (const answer of section.answers) {
+      if (!answer.scorable) continue;
+      answer.changedSinceScored = changedSinceScoredLine({
+        key: answer.key,
+        changedAt: lastChanged.get(answer.key) ?? null,
+        mine,
+        others: shownOthers,
+      });
+    }
+  }
+
   // -------------------------------------------------------------------------
   // The decision
   // -------------------------------------------------------------------------
@@ -390,6 +442,8 @@ export function buildReview(input: {
     })),
     invitedTo: byInvitation ? { programmeId: programme.id, shortName: programme.shortName } : null,
     wantsToFacilitate: sent.wantsToFacilitate === true,
+    earlierRankings: rankingHistory(timeline, form),
+    earlierFacilitating: facilitatingHistory(timeline),
     about: {
       status: statusLabel(about),
       subjectLabel: degreeLabel(about),
@@ -398,6 +452,8 @@ export function buildReview(input: {
       interests: about.interests,
       motivation: about.motivation,
       motivationKey: ABOUT_MOTIVATION_KEY,
+      earlierFacts,
+      earlierMotivation,
     },
   };
   // An address is added for an admin, and is otherwise not on the object.
@@ -405,6 +461,10 @@ export function buildReview(input: {
     applicant.email = application.email;
     applicant.universityEmail = about.universityEmail || null;
   }
+
+  const earlierAvailability = availabilityHistory(timeline);
+  if (earlierAvailability.length > 0) changedCards.push("availability");
+  const changes = changeCount(application);
 
   return {
     round: {
@@ -428,6 +488,16 @@ export function buildReview(input: {
     applicant,
     sections,
     availability: availabilityViewFor(sent.availability),
+    earlierAvailability,
+    changes:
+      changes > 0
+        ? {
+            count: changes,
+            lastOn: dayOf(timeline.versions[timeline.versions.length - 1]?.sentAt),
+            dropped: application.sentHistoryDropped ?? 0,
+            where: changedCards,
+          }
+        : null,
     queue: queuePlaceFor(input.order, input.queue, application.uid),
     review: {
       scorableKeys: keys,
