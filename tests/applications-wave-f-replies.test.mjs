@@ -48,6 +48,7 @@ const validate = await loadTs(join("lib", "applications", "validate.ts"));
 const decisions = await loadTs(join("lib", "applications", "decisions.ts"));
 const plan = await loadTs(join("lib", "applications", "decisionDay", "plan.ts"));
 const words = await loadTs(join("lib", "applications", "words.ts"));
+const emailCopy = await loadTs(join("lib", "applications", "decisionDay", "emailCopy.ts"));
 
 const AGI = "agi-strategy";
 const TAIS = "technical-ai-safety";
@@ -551,12 +552,17 @@ describe("what an applicant reads on decision day", () => {
     for (const fixed of [
       "<span>Your application</span>",
       "<Chip tone=\"ok\">Accepted</Chip>",
-      "`You’re in ${programme.shortName}.`",
       "You’ll be in a small group with a facilitator, on campus. Before you start, we’ll email you your group and when it meets.",
       "Questions? <Contact />",
     ]) {
       assert.ok(page.includes(fixed), `missing: ${fixed}`);
     }
+    // The heading is the sentence the decision email's standard subject says,
+    // with a full stop. It is written in one place, so the page takes it from
+    // there and these are the words that place gives.
+    assert.ok(page.includes('return programme ? `${standardSubject("accepted", programme.shortName)}.` : "You’re in.";'));
+    assert.equal((page.match(/\{youAreIn\(programme\)\}/g) ?? []).length, 2, "the screen and the card both use it");
+    assert.equal(`${emailCopy.standardSubject("accepted", "AGI Strategy")}.`, "You’re in AGI Strategy.");
     for (const fixed of ["\"I’m coming\"", "Optional. It helps us plan groups.", "I can’t make it", "This frees your place for someone else."]) {
       assert.ok(buttons.includes(fixed), `missing: ${fixed}`);
     }
