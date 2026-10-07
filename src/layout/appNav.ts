@@ -240,7 +240,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     pages: [
       { label: "Short links", href: "/admin/links", match: underBut("/admin/links", "/admin/links/page-content"), visible: ADMIN_ONLY, ownHead: true },
       { label: "The /links page", href: "/admin/links/page-content", match: under("/admin/links/page-content"), visible: ADMIN_ONLY, ownHead: true },
-      { label: "Source sheets", href: "/admin/sources", match: under("/admin/sources"), visible: ADMIN_ONLY },
+      { label: "Source sheets", href: "/admin/sources", match: under("/admin/sources"), visible: ADMIN_ONLY, ownHead: true },
     ],
   },
   {

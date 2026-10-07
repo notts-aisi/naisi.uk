@@ -5,13 +5,17 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
 import { Input } from "@/components/ui/Input";
+import PageHead from "@/components/ui/PageHead";
 import {
   AdminPage,
   AdminLoadingBar,
   AdminListFooter,
+  AdminTable,
   useClientPagination,
 } from "@/features/admin/adminList";
+import { AdminPanel, AdminProblem } from "@/features/admin/adminPanels";
 import { loadSourceSheet } from "@/features/admin/sources/sourceSheetData";
 import { createSourceSheet } from "@/features/admin/sources/sourceSheetMutations";
 import { useSourceSheets } from "@/features/admin/sources/useSourceSheets";
@@ -21,10 +25,28 @@ import {
   suggestSourceSlug,
   validateSourceSlug,
   SOURCE_SHEET_LIMITS,
+  type SourceSheetDoc,
 } from "@/lib/firestore/sourceSheets";
 
 /**
- * The library of source sheets: one entry per piece of produced material.
+ * Whether a sheet's page is up, in a word. A sheet that was published and
+ * then taken down is told apart from one that never was: copies of the
+ * material may still be in people's hands.
+ */
+function StateChip({ sheet }: { sheet: SourceSheetDoc }) {
+  if (sheet.publishedAt) return <Chip tone="success">Published</Chip>;
+  if (sheet.firstPublishedAt) {
+    return (
+      <Chip tone="warning" title="It was published once, so copies of the material may be in circulation">
+        Unpublished
+      </Chip>
+    );
+  }
+  return <Chip tone="neutral">Draft</Chip>;
+}
+
+/**
+ * The library of source sheets: one for each piece of produced material.
  *
  * Under `(admin-only)`, so `requireAdminPage()` in that group's layout is the
  * gate and this page writes none of its own. Reads and writes go client-direct
@@ -54,7 +76,7 @@ export default function SourcesAdminPage() {
     const cleanTitle = title.trim();
     const cleanSlug = slug.trim();
     if (!cleanTitle) {
-      setFormError("Give this entry a title.");
+      setFormError("Give this source sheet a title.");
       return;
     }
     const slugError = validateSourceSlug(cleanSlug);
@@ -76,27 +98,33 @@ export default function SourcesAdminPage() {
       await createSourceSheet(cleanSlug, cleanTitle);
       router.push(`/admin/sources/${cleanSlug}`);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Could not create the entry.");
+      setFormError(err instanceof Error ? err.message : "Could not create the source sheet.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <AdminPage>
-      <div className={styles.head}>
-        <p className={styles.count}>
-          {loading
-            ? "Loading source sheets…"
-            : `${sheets.length} ${sheets.length === 1 ? "entry" : "entries"}`}
-        </p>
-        <Button size="sm" onClick={() => setCreating((v) => !v)}>
-          {creating ? "Cancel" : "New entry"}
-        </Button>
-      </div>
+    <AdminPage wide>
+      <PageHead
+        crumb="Publicity"
+        title="Source sheets"
+        description="The sources behind a poster, a flyer or a carousel. The material carries the numbers and a QR code, and the sheet carries the list."
+        actions={
+          creating ? (
+            <Button variant="secondary" onClick={() => setCreating(false)}>
+              Cancel
+            </Button>
+          ) : (
+            <Button leading={<PlusMark />} onClick={() => setCreating(true)}>
+              New source sheet
+            </Button>
+          )
+        }
+      />
 
       {creating && (
-        <Card padding="lg">
+        <AdminPanel title="New source sheet">
           <div className={styles.createGrid}>
             <label className={styles.field}>
               <span className={styles.label}>Title</span>
@@ -128,19 +156,13 @@ export default function SourcesAdminPage() {
           {formError && <p className={styles.error}>{formError}</p>}
           <div className={styles.formActions}>
             <Button onClick={onCreate} disabled={busy}>
-              {busy ? "Creating…" : "Create entry"}
+              {busy ? "Creating…" : "Create source sheet"}
             </Button>
           </div>
-        </Card>
+        </AdminPanel>
       )}
 
-      {error && (
-        <Card padding="md">
-          <p style={{ color: "var(--color-danger)" }}>
-            Couldn&apos;t load: {error.message}
-          </p>
-        </Card>
-      )}
+      {error && <AdminProblem>Couldn&apos;t load: {error.message}</AdminProblem>}
 
       {loading && (
         <Card padding="md">
@@ -150,7 +172,7 @@ export default function SourcesAdminPage() {
 
       {!loading && !error && sheets.length === 0 && !creating && (
         <Card padding="md">
-          <p className={styles.count}>
+          <p className={styles.hint}>
             No source sheets yet. Create one for the next poster or carousel,
             publish it before the material goes to print, then put
             naisi.uk/sources/&lt;address&gt; behind the QR code.
@@ -158,27 +180,56 @@ export default function SourcesAdminPage() {
         </Card>
       )}
 
-      <div className={styles.list}>
-        {shown.map((sheet) => (
-          <Link
-            key={sheet.slug}
-            href={`/admin/sources/${sheet.slug}`}
-            className={styles.rowLink}
-          >
-            <Card padding="md" interactive>
-              <div className={styles.row}>
-                <div className={styles.rowBody}>
-                  <h2 className={styles.rowTitle}>{sheet.title}</h2>
-                  <div className={styles.rowMeta}>
+      {shown.length > 0 && (
+        <AdminTable caption="Source sheets" minWidth="44rem">
+          <thead>
+            <tr>
+              <th scope="col" style={{ width: "46%" }}>
+                Source sheet
+              </th>
+              <th scope="col">Sources</th>
+              <th scope="col">Files</th>
+              <th scope="col">Edited</th>
+              <th scope="col">Page</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((sheet) => {
+              const href = `/admin/sources/${sheet.slug}`;
+              return (
+                <tr
+                  key={sheet.slug}
+                  className={styles.row}
+                  onClick={(e) => {
+                    // A click on the link, or with a key held to open it
+                    // elsewhere, is the link's own business.
+                    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                    if ((e.target as HTMLElement).closest("a, button")) return;
+                    router.push(href);
+                  }}
+                >
+                  <td className={styles.titleCell}>
+                    <Link href={href} className={styles.title}>
+                      {sheet.title}
+                    </Link>
                     <span className={styles.slug}>/sources/{sheet.slug}</span>
-                    <span>
-                      {sheet.items.length}{" "}
-                      {sheet.items.length === 1 ? "source" : "sources"}
-                    </span>
-                    {sheet.file && <span>PDF</span>}
+                  </td>
+                  <td data-label="Sources" className={styles.number}>
+                    {sheet.items.length}
+                  </td>
+                  <td data-label="Files">
+                    {sheet.image || sheet.file ? (
+                      <span className={styles.chips}>
+                        {sheet.image && <Chip tone="neutral">Image</Chip>}
+                        {sheet.file && <Chip tone="neutral">PDF</Chip>}
+                      </span>
+                    ) : (
+                      <span className={styles.muted}>None</span>
+                    )}
+                  </td>
+                  <td data-label="Edited">
                     {sheet.updatedAt && (
-                      <span>
-                        Edited{" "}
+                      <span className={`meta ${styles.date}`}>
                         {formatSiteDate(sheet.updatedAt, {
                           day: "numeric",
                           month: "short",
@@ -186,20 +237,16 @@ export default function SourcesAdminPage() {
                         })}
                       </span>
                     )}
-                  </div>
-                </div>
-                <span
-                  className={`${styles.state} ${
-                    sheet.publishedAt ? styles.statePublished : styles.stateDraft
-                  }`}
-                >
-                  {sheet.publishedAt ? "Published" : "Draft"}
-                </span>
-              </div>
-            </Card>
-          </Link>
-        ))}
-      </div>
+                  </td>
+                  <td data-label="Page" className={styles.stateCell}>
+                    <StateChip sheet={sheet} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </AdminTable>
+      )}
 
       {!loading && !error && total > 0 && (
         <AdminListFooter
@@ -209,9 +256,27 @@ export default function SourcesAdminPage() {
           onLoadMore={loadMore}
           onRefresh={reload}
           refreshing={refreshing}
-          noun="entries"
+          noun="source sheets"
         />
       )}
     </AdminPage>
+  );
+}
+
+function PlusMark() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M12 5v14M5 12h14" />
+    </svg>
   );
 }
