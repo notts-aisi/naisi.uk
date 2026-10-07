@@ -1,0 +1,13 @@
+/* The profile page: a head, then a column of sections. Each section draws
+   its own rule and spacing (src/features/profile/ProfileSection). */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* Nothing: the sections stack on their own once the page is narrow. */
+}
