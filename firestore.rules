@@ -2748,13 +2748,32 @@ service cloud.firestore {
     // ONE append-only log for every course operational action that has to
     // stay answerable after the fact: a register pushed or edited after the
     // lock, a facilitator appointed or removed, a member dropping out, a run
-    // settled, a run's enrolment mode changed, a week unlocked early, and an
-    // applicant's access-requirements answer being read.
+    // settled, a run's enrolment mode changed, a week unlocked early, an
+    // applicant's access-requirements answer being read, and each decision
+    // made about an application.
     //
-    // The posture is `courseDeletions`', verbatim and for its reason: reads
-    // are admin-only and writes are shut to EVERY client, admins included.
-    // An append-only log its own actor can amend is not an audit trail. Every
-    // writer is an Admin SDK route.
+    // SHUT TO EVERY CLIENT, ADMINS INCLUDED, on both axes. Every writer is an
+    // Admin SDK route and every reader is server code.
+    //
+    // WRITE. An append-only log its own actor can amend is not an audit
+    // trail, and the actors here are admins. That is the `courseDeletions`
+    // posture, for its reason.
+    //
+    // READ. Not `isAdmin()`, and it has to stay that way. A line about a
+    // decision on an application carries the applicant's account id, the
+    // programme and the outcome. That is a copy of what `admissionDecisions`
+    // below keeps from every browser, so that nobody reads what was decided
+    // about them before decision day. An admin can be an applicant, and a
+    // browser reads a collection directly, past every screen that leaves a
+    // viewer's own application out. So the copy is closed the way the
+    // decision documents are. Nothing in the site reads this log from a
+    // browser. Whatever shows a line to a person is server code, which
+    // decides what that person may see: today that is the review screen's
+    // loader (src/lib/applications/review/load.ts), for somebody who may
+    // decide for a programme, and never about the reader's own application.
+    // tests/applications-own-application.test.mjs finds every collection a
+    // decision is written to and fails when a rule here lets a client read
+    // one of them.
     //
     // Rows are staff-action METADATA, never member content: `detail` is a
     // route-written sentence, and nothing here holds an applicant's answers,
@@ -2763,8 +2782,7 @@ service cloud.firestore {
     // .ts for the retention decision (audits survive account deletion, as
     // impersonations and courseDeletions already do) and the kind union.
     match /courseAudit/{auditId} {
-      allow read:  if isAdmin();
-      allow write: if false;
+      allow read, write: if false;
     }
 
     // === config ===

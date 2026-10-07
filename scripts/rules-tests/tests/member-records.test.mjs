@@ -34,10 +34,10 @@
  *
  * ## destroyAudits
  *
- * The `courseDeletions` and `courseAudit` posture verbatim: admin read, no
- * client write at all. This log is the only surviving evidence of a destroy,
- * because the rows it describes are gone, so a client able to touch it could
- * rewrite the record of its own cascade.
+ * The `courseDeletions` posture verbatim: admin read, no client write at all.
+ * This log is the only surviving evidence of a destroy, because the rows it
+ * describes are gone, so a client able to touch it could rewrite the record
+ * of its own cascade.
  *
  * ## worksheets delete
  *

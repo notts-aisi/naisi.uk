@@ -17,13 +17,13 @@
  * APPEND-ONLY, AND SHUT TO EVERY CLIENT INCLUDING ADMINS. On the WRITE axis
  * that is the `courseAudit` and `courseDeletions` posture verbatim,
  * `allow write: if false`: an audit its own actor can amend is not an audit,
- * and the actor here is usually an admin. On the READ axis this collection
- * goes FURTHER than either of them. Both are `allow read: if isAdmin()`;
- * this one is `allow read: if false`, so no client reaches a row at all. The
- * whole thing sits in an EXPLICIT match block, so a later wildcard cannot
- * open the collection by accident, and the admin Exports tab reads it
- * through GET /api/admin/deliverability/exports on the Admin SDK, the same
- * shape the deliverability send log already uses.
+ * and the actor here is usually an admin. On the READ axis it is
+ * `courseAudit`'s posture too, and goes further than `courseDeletions`, which
+ * an admin's browser may read: `allow read: if false`, so no client reaches a
+ * row at all. The whole thing sits in an EXPLICIT match block, so a later
+ * wildcard cannot open the collection by accident, and the admin Exports tab
+ * reads it through GET /api/admin/deliverability/exports on the Admin SDK,
+ * the same shape the deliverability send log already uses.
  *
  * RETAINED BY BOTH CASCADES, ON PURPOSE. Neither `deleteAccountCascade` nor
  * the run/course DESTROY cascade deletes anything here, and that is a
