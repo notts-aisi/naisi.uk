@@ -136,6 +136,11 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
   const [scoresPressed, setScoresPressed] = useState<boolean | null>(null);
   /** The course just picked, until the server has answered. `undefined` is nothing pending. */
   const [coursePicked, setCoursePicked] = useState<string | null | undefined>(undefined);
+  /** The latest course picked and not yet sent. `undefined` is nothing waiting. */
+  const courseWaiting = useRef<string | null | undefined>(undefined);
+  /** True while the course's saves are being sent: the ref decides, the state draws. */
+  const courseSending = useRef(false);
+  const [courseSaving, setCourseSaving] = useState(false);
   const [dialog, setDialog] = useState<
     { kind: "wording"; email: ProgrammeEmailKind } | { kind: "close" } | null
   >(null);
@@ -272,13 +277,30 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
   // The course is sent the moment it is picked, like a switch. Until the
   // server answers the box shows what was picked, and after a refusal it goes
   // back to what is stored, with the reason at the top of the page.
+  //
+  // THE BOX STAYS USABLE WHILE ITS OWN SAVE IS ON ITS WAY. A box that
+  // switched itself off for the length of a save would drop the keyboard's
+  // place on the page every time somebody chose from it. So one save goes at
+  // a time, and a choice made meanwhile waits and is sent next: the last
+  // thing picked is the last thing saved, whatever order answers come in.
   const courseId = coursePicked === undefined ? view.courseId : coursePicked;
   const chosenCourse = view.courses.find((course) => course.id === courseId) ?? null;
   const pickCourse = (next: string | null) => {
     setCoursePicked(next);
-    void act(() => patchProgramme(view.roundId, view.id, { courseId: next })).finally(() =>
-      setCoursePicked(undefined),
-    );
+    courseWaiting.current = next;
+    if (courseSending.current) return;
+    courseSending.current = true;
+    setCourseSaving(true);
+    void (async () => {
+      while (courseWaiting.current !== undefined) {
+        const wanted = courseWaiting.current;
+        courseWaiting.current = undefined;
+        await act(() => patchProgramme(view.roundId, view.id, { courseId: wanted }));
+      }
+      courseSending.current = false;
+      setCourseSaving(false);
+      setCoursePicked(undefined);
+    })();
   };
 
   const streamSetId = view.questionSets.find((set) => set.scored)?.id ?? view.questionSets[0]?.id;
@@ -371,12 +393,13 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
               Course page
             </label>
             {/* Needs the page to be live to save, and waits for the answer to
-                the last change, like the people it sits above. */}
+                a change made elsewhere on the page, like the people below it.
+                It does not wait for its own: see `pickCourse`. */}
             <Select
               id={`${ids}-course`}
               className={shared.select}
               value={courseId ?? ""}
-              disabled={!live || busy}
+              disabled={!live || (busy && !courseSaving)}
               aria-describedby={`${ids}-course-hint`}
               onChange={(event) => pickCourse(event.target.value || null)}
             >
