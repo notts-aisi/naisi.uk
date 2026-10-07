@@ -3,7 +3,9 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type InputHTMLAttributes,
@@ -235,6 +237,83 @@ export function AdminFilterPill({
       )}
       {children}
     </button>
+  );
+}
+
+export type AdminMoreItem = {
+  key: string;
+  label: ReactNode;
+  /** A second, muted line: what the item does. */
+  note?: ReactNode;
+  /** A careful action: drawn in the careful colour. */
+  careful?: boolean;
+  disabled?: boolean;
+  onSelect: () => void;
+};
+
+/**
+ * The "more" button on a card: three dots that open a short list of the
+ * things done rarely. A careful action lives here, never beside Approve.
+ *
+ * A disclosure, not an ARIA menu: a button that shows and hides a list of
+ * buttons, which is what it is and what a keyboard already handles. Escape
+ * and a press anywhere else close it.
+ */
+export function AdminMoreMenu({ label, items }: { label: string; items: AdminMoreItem[] }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (e: PointerEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrapRef} className={styles.more}>
+      <button
+        type="button"
+        className={styles.moreButton}
+        aria-label={label}
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="6" cy="12" r="1.6" fill="currentColor" />
+          <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+          <circle cx="18" cy="12" r="1.6" fill="currentColor" />
+        </svg>
+      </button>
+      <div id={listId} className={styles.moreList} hidden={!open}>
+        {items.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            className={item.careful ? `${styles.moreItem} ${styles.moreItemCareful}` : styles.moreItem}
+            disabled={item.disabled}
+            onClick={() => {
+              setOpen(false);
+              item.onSelect();
+            }}
+          >
+            <span className={styles.moreItemLabel}>{item.label}</span>
+            {item.note && <span className={styles.moreItemNote}>{item.note}</span>}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

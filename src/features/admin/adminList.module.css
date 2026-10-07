@@ -307,6 +307,104 @@
   color: var(--color-accent-text);
 }
 
+/* === The "more" button and its short list === */
+.more {
+  position: relative;
+  display: inline-flex;
+}
+
+.moreButton {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.moreButton:hover,
+.moreButton[aria-expanded="true"] {
+  border-color: var(--color-control-border);
+  color: var(--color-text);
+}
+
+.moreList {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + var(--space-2));
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  max-width: min(18rem, 80vw);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-lg);
+}
+
+.moreList[hidden] {
+  display: none;
+}
+
+.moreItem {
+  appearance: none;
+  -webkit-appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+  min-height: 2.75rem;
+  padding: 0.625rem 0.75rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.moreItem:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.moreItem:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.moreItem + .moreItem {
+  margin-top: var(--space-1);
+  border-top: 1px solid var(--color-border);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  padding-top: 0.75rem;
+}
+
+.moreItemCareful .moreItemLabel {
+  color: var(--color-danger-text);
+}
+
+.moreItemNote {
+  font-size: var(--text-caption);
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
 /* === Loading bar (shared with the registrations tab) === */
 .loadingRow {
   display: flex;
