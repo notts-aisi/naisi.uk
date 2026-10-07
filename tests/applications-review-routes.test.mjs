@@ -769,6 +769,33 @@ describe("one programme's applications", () => {
     ]);
   });
 
+  // The form's switch used to be shown working on the list with an admin as
+  // the reader. An admin is never blind now, so it is shown with somebody it
+  // is for: a reviewer part way through a first review, who reads only their
+  // own score until the switch is on, and then reads what an admin reads.
+  test("the form's switch lifts the blind on the list for a reviewer who has not finished", async () => {
+    const scores = (result) => result.board.rows.map((row) => [row.uid, row.score]);
+    const blind = await board(makeDb(seed()), "lloyd");
+    assert.deepEqual(
+      scores(blind),
+      [["amara", "3.0"], ["ben", null], ["dev", null], ["wen", null], ["claudia", null]],
+      "his own 3 on Amara and nothing of Claudia's: her 4.5 on Amara and her 2 on Ben are held back",
+    );
+    assert.equal(blind.board.recommendations.scoredCount, 1);
+    assert.deepEqual(blind.board.recommendations.top, ["amara"]);
+    const open = await board(
+      makeDb(seed({ [`admissionRounds/${ROUND}`]: roundDoc({ revealOtherReviews: true }) })),
+      "lloyd",
+    );
+    assert.deepEqual(
+      scores(open),
+      [["amara", "3.8"], ["ben", "2.0"], ["dev", null], ["wen", null], ["claudia", null]],
+      "the section scores an admin reads, on every row he is shown",
+    );
+    assert.equal(open.board.recommendations.scoredCount, 2);
+    assert.deepEqual(open.board.recommendations.top, ["amara", "ben"]);
+  });
+
   test("what is left to review is the lead's undecided, and a reviewer's unscored", async () => {
     const db = makeDb(seed());
     assert.deepEqual((await board(db, "claudia")).board.queue, ["amara", "dev", "lloyd"]);
