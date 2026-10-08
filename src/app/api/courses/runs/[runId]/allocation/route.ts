@@ -2,8 +2,15 @@ import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import {
+  formPlaceFactsFor,
+  type FormPlaceFacts,
+} from "@/lib/applications/handover/board";
 import type { WeekPlanEntry } from "@/lib/courses/weekPlan";
-import { normalizeCourseApplication } from "@/lib/firestore/courseApplications";
+import {
+  normalizeCourseApplication,
+  rowIsServedTo,
+} from "@/lib/firestore/courseApplications";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
@@ -37,6 +44,16 @@ import { hasPaidMembership, normalizeUser } from "@/lib/firestore/users";
  * on the board exactly once and can be in at most one group by construction.
  * "Everyone placed" is a count of rows with a null/inactive placement — the
  * publish route refuses while that count is non-zero.
+ *
+ * SOMEBODY THE APPLICATION FORM PLACED HERE IS AN ADMIN'S TO SEE. A row an
+ * admin's hand-over wrote (`fromForm`) is for a person who applied on the
+ * term's form, where who may read an application is decided programme by
+ * programme, and being this run's track lead gives nobody that right. So
+ * such a row is listed for an admin and for nobody else (`rowIsServedTo`).
+ * A track lead still opens the board and still sees everybody who applied to
+ * the run itself. For those rows the payload also carries which groups the
+ * person can make, worked out from the week they painted on the form when
+ * the board is read: see `AllocRow.fromForm`.
  */
 
 // ---------------------------------------------------------------------------
@@ -92,6 +109,21 @@ export type AllocRow = {
   enrolmentStatus: "none" | "active" | "withdrawn" | "removed";
   /** ISO 8601 — when the placement email for the current group was sent. */
   allocatedEmailAt: string | null;
+  /**
+   * Set for somebody the application form placed on this run, null for
+   * somebody who applied to the run itself (whose `availability` above is
+   * the session labels they ticked).
+   *
+   * The form asks for a painted week, not for ticks against this run's
+   * sessions, so `availability` is empty for these people and this says
+   * instead, group by group, whether their week covers the group's whole
+   * session. `none-given` means they painted nothing, which is not the same
+   * as being able to make none; `not-on-file` means their application is no
+   * longer there to read. `holdsPlace` is false once they have given the
+   * place back on the form: nothing takes them off this board, so the card
+   * says so.
+   */
+  fromForm: FormPlaceFacts | null;
 };
 
 export type AllocationPayload = {
@@ -247,9 +279,11 @@ export async function GET(
     db.collection("courseGroups").where("runId", "==", runId).limit(50).get(),
   ]);
 
+  // A row the application form put here is listed for an admin only: see the
+  // note at the top.
   const accepted = appSnap.docs
     .map((d) => normalizeCourseApplication(d.id, d.data() ?? {}))
-    .filter((a) => a.status === "accepted");
+    .filter((a) => a.status === "accepted" && rowIsServedTo(a, { isAdmin }));
 
   // Archived groups are dropped: the board must not offer a column that no
   // longer runs (the allocate route refuses them independently).
@@ -338,8 +372,19 @@ export async function GET(
     );
   }
 
+  // Which groups each person from the form can make, and whether they still
+  // hold their place there. Asked of the application system, which reads the
+  // week they painted and hands back only the answer.
+  const formFacts = await formPlaceFactsFor(
+    db,
+    { isAdmin },
+    accepted.filter((a) => a.fromForm !== null),
+    groups.map((g) => ({ id: g.id, session: g.session })),
+  );
+
   const people: AllocRow[] = accepted.map((app) => {
     const enrolment = enrolmentByUid.get(app.uid) ?? null;
+    const fromForm = app.fromForm !== null ? (formFacts.get(app.uid) ?? null) : null;
     return {
       uid: app.uid,
       displayName: nameByUid.get(app.uid) ?? app.displayName ?? "NAISI member",
@@ -353,6 +398,15 @@ export async function GET(
       groupId: enrolment?.groupId ?? null,
       enrolmentStatus: boardStatus(enrolment),
       allocatedEmailAt: iso(enrolment?.allocatedEmailAt),
+      // Field by field, so nothing the application system adds later rides
+      // along to a browser.
+      fromForm: fromForm
+        ? {
+            availability: fromForm.availability,
+            canMakeGroupIds: fromForm.canMakeGroupIds,
+            holdsPlace: fromForm.holdsPlace,
+          }
+        : null,
     };
   });
   // Unplaced first (the work), then alphabetical — the board reads as a queue.

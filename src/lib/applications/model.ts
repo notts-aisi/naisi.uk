@@ -166,7 +166,17 @@ export type ProgrammeSettings = {
   useScores: boolean;
   /** Off the site and out of the form. Its applications are kept. */
   closed: boolean;
-  /** The course run accepted people are placed on, once one exists. */
+  /**
+   * The course run this term's accepted people are placed on, or null until
+   * an admin names one. A run of the course in `courseId`, written only by
+   * `setProgrammeRun` (`handover/run.ts`). While it is set, that run's own
+   * apply page refuses, and after decision day an admin's hand-over puts the
+   * people who hold a place here on that run's allocation board.
+   *
+   * A run's id as it was when somebody named it. A run can be archived or
+   * destroyed afterwards and nothing here follows that, so whatever reads
+   * this treats a run that is not there as no run.
+   */
   runId: string | null;
   /**
    * The course this programme is for, or null for a programme with no course

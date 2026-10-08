@@ -355,7 +355,8 @@ a reviewer and a view-as session.
 A programme is for a course, and `programmes.<id>.courseId` says which: the
 id of a course on the site, or null for a programme with no course page. It
 is something else than `runId`. A course is the evergreen page; a run is one
-term of it, and `runId` is the run accepted people are placed on.
+term of it, and `runId` is the run accepted people are placed on: see "From
+the form onto a course run".
 
 **One writer.** The programme's `PATCH`
 (`/api/admissions/forms/[roundId]/programmes/[programmeId]`) is the only
@@ -1121,8 +1122,76 @@ every kind of reply has been made, through each of them.
 
 ## From the form onto a course run
 
-A programme names the course run its accepted people go onto
-(`programmes.<id>.runId`). This section is what follows from that.
+Decision day tells everybody where they stand. What happens next happens on
+a course run: groups with a time, a room and facilitators, a placement
+email, and the member area. That is the course system, which was built
+before application forms and keeps a list of its own of who may be placed:
+the accepted rows in `courseApplications` for a run. Everything there (the
+allocation board, a placement, Publish, the cohort's mailing list, the
+member area) starts from such a row.
+
+So the two are joined at that list and nowhere else, in three steps, each
+taken by an admin.
+
+| Step | When | The one function | What it writes |
+| --- | --- | --- | --- |
+| Name the run a programme places people on | any time | `setProgrammeRun` (`handover/run.ts`) | `programmes.<id>.runId` on the form |
+| Hand over the people who hold a place | after decisions have been sent | `handOverProgramme` (`handover/handOver.ts`) | a row for each of them on the run's own list, the run's count, one line in the log |
+| Put them into groups | after that | the allocation board's own routes, as they were | the place on the run, when a person is first put in a group |
+
+Nothing in this section emails anybody, and decision day is unchanged. The
+first email after decision day is the placement email Publish sends from
+the board, as it always was.
+
+### The run a programme names
+
+`programmes.<id>.runId` is the course run this term's accepted people go
+onto. It is something else than `courseId`: the course is the evergreen
+page, and the run is one term of it.
+
+**One writer, and it is an admin's.** `setProgrammeRun` stores it, through
+`PUT /api/admissions/forms/[roundId]/programmes/[programmeId]/run`.
+Placing people on a run is part of running the term, so a programme's lead
+is refused like anybody else, before anything is read. The programme's own
+`PATCH` goes on refusing the field, and says where it is set.
+
+**Which run.** A programme can name a run that:
+
+1. is a run of the course the programme is tied to. So a programme needs
+   its course tie before it can name a run;
+2. is not archived, not being destroyed, not cancelled and not completed;
+3. takes people by placement. A run in open enrolment hands out its own
+   seats from a session picker and has no allocation board;
+4. holds no application of its own;
+5. is named by no other programme, on any form.
+
+`runStanding` holds the first three, and is asked again at every hand-over,
+because nothing follows a run around: it can be archived or moved to
+another course after a programme names it. The last two are read inside
+the transaction that writes, so a run that takes an application or is named
+elsewhere while the request runs is refused.
+
+Rule 4 is what makes the board's list a fact about the data. From the
+moment a programme names a run, the run's own apply page refuses (below).
+A run that starts with no application of its own therefore only ever holds
+the rows a hand-over wrote, and the people on its board are the people who
+hold a place on the programme.
+
+**A draft run can be named.** That is the order to do it in: name the run
+while it is a draft, and its own apply page is shut before the run passes
+through "applications open".
+
+**The picker offers what the writer accepts.** `loadRunPanel`
+(`handover/load.ts`) lists the runs of the tied course by the same rules. A
+run that cannot be picked for a reason an admin can act on (it has
+applications of its own, another programme names it) is listed and not
+pickable, with the reason. The run already named is always shown, whatever
+has become of it.
+
+**Once anybody has been handed over, the run stays.** It can no longer be
+changed or cleared here. The rows a hand-over wrote sit on that run, and a
+programme pointed somewhere else would leave them behind, on a run whose
+own apply page had just opened again.
 
 ### A run the form places people on takes no application of its own
 
@@ -1157,13 +1226,147 @@ read by nobody. So the question is asked of the forms, and not of the run:
 The run's status machine is unchanged. `tests/applications-handover-older-way-in.test.mjs`
 runs the route and renders the page for every way a run can stand.
 
+### The hand-over
+
+An admin presses it once for each programme, after decisions have been
+sent (`POST .../programmes/[programmeId]/run/hand-over`).
+
+**Who is handed over** is who holds a place on the programme now, and has
+been told. That is `holdingOf()` and nothing else (`placeHoldersOn` in
+`handover/holders.ts`), asked of the people `isInTerm` admits, so the
+hand-over cannot disagree with any other screen about a place:
+
+- somebody the programme's lead accepted, placed there by their own
+  ranking;
+- NOT somebody a higher choice took: one place a term;
+- somebody invited who has ACCEPTED, and not before;
+- NOT somebody who gave their place back.
+
+**When.** Only once the term is marked as sent (`decisionsSentAt`), and
+only for somebody decision day has reached (`hasBeenTold`). A row on a run
+shows on its owner's own page, so one written early would tell them early.
+The run has to pass `runStanding` still, and has to have left draft: a
+draft run's own members cannot open it, and nothing in the member area is
+written for one. `handOverBlocker` is the one answer, for the panel that
+draws the button and for the writer, which asks it again inside each
+transaction of what that transaction read.
+
+**What a press writes, and all it writes.**
+
+| Document | What |
+| --- | --- |
+| `courseApplications/{runId}__{uid}`, for each holder with no row | `runId`, `courseId`, `uid`, `displayName`, `status: "accepted"`, `fromForm: { roundId, programmeId }` and two timestamps (`buildFormPlaceRow`) |
+| `courseRuns/{runId}` | `applicationCounts.accepted` moves by the number of rows made, in the same transaction |
+| `courseAudit/{auto}` | one line of kind `run-hand-over`: who pressed, the programme, how many. It is keyed to the run and names nobody |
+
+It puts nobody in a group: the board's first placement goes on making the
+place on the run. It emails nobody. It writes no subscription.
+
+**Nothing of the application crosses over.** A row carries who the person
+is and where the place came from. No address, no answer, no score, no
+comment, no ranking, and not their availability either: the board asks for
+what it needs when it is drawn (below). So there is one copy of everything
+a person wrote, the one on their application, and whatever deletes that
+application leaves nothing of it behind on a run.
+
+**Pressed again, and twice at once.** A row's id is the run and the
+person, so there is one place it can be. Each transaction reads the rows it
+is about to write and creates only the ones that are missing. A second
+press finds them all and writes nothing at all. Two presses at once read
+the same gaps; the one that commits second has read rows that changed,
+runs again and creates none, so the count moves once. So pressing again is
+how somebody new is added (somebody who has since accepted an invitation),
+and it is always safe.
+
+**It only ever creates.** A row that is already there is left exactly as
+it is, whatever it says, and nobody is ever taken off a run from here.
+
+`tests/applications-handover.test.mjs` runs the press as every kind of
+caller, against every way a term and a run can stand.
+
+### A row from the form is an admin's
+
+The course routes were written for people who applied to a run itself,
+and the people a run names read those rows: its track leads open the
+board, and its admissions reviewers and track leads open its queue. A row
+a hand-over wrote is different. Its person applied on the form, where who
+may read an application is decided programme by programme, and being named
+on a run gives nobody that right.
+
+So `rowIsServedTo()` (`src/lib/firestore/courseApplications.ts`) gives a
+row with `fromForm` to an admin and to nobody else, on every staff route
+that reads or acts on rows:
+
+| Route | For somebody who is not an admin |
+| --- | --- |
+| the allocation board | such a row is not listed |
+| a placement | answered `not-accepted`, exactly as for a uid with no accepted row |
+| Publish | such a person is not emailed, and not named in the refusal |
+| the run's own queue | such a row is not listed. The run's counters still count it, as a number |
+| decide, and reviewer notes | answered "Application not found", as for a row that is not there |
+
+The gates of those routes are unchanged. A track lead still opens the
+board, and still sees, places and publishes everybody who applied to the
+run itself.
+
+**A browser reads no more than the routes serve.** `firestore.rules` gives
+a `courseApplications` document to an admin and to the person it is about,
+and to nobody else, and shuts every write. The rules suite holds that for
+a row with `fromForm`, as the run's track lead, its reviewer, a course
+approver and SU-recognised committee.
+
+**The person reads their own row**, as they always could. It holds their
+name, that they hold a place, and which form and programme it came from:
+nothing they have not been told.
+
+`tests/applications-handover-row-readers.test.mjs` lists every file under
+`src` that addresses the collection, with what it does about such a row,
+and a new reader fails it until somebody decides.
+`tests/applications-handover-board.test.mjs` runs each staff route as an
+admin, as the run's track lead and as its reviewer.
+
+### What the board is told
+
+The form asks for a painted week, and the board's own availability chips
+compare session labels ticked on the run's older form. So for a row from
+the form the board's read carries `fromForm` on the row, worked out when
+the board is drawn (`formPlaceFactsFor` in `handover/board.ts`):
+
+| Field | Means |
+| --- | --- |
+| `availability: "given"` | they painted a week, and `canMakeGroupIds` is each group whose WHOLE weekly session that week covers (`maskCoversSession`). It can be none of them |
+| `availability: "none-given"` | they sent the form with nothing painted. Said in words, because "can make none" and "never said" are different |
+| `availability: "not-on-file"` | their application is no longer there to read. They keep their place on the run, and nothing is claimed about when they are free |
+| `holdsPlace` | false once they have given the place back on the form |
+
+The painted week itself never leaves the application system: the board is
+handed the outcome of the comparison and nothing else. A group with no
+session time set is never one somebody can make. The read is an admin's
+(`rowIsServedTo`), and an admin may read every application.
+
+### A place given back
+
+- **Before the hand-over**: they hold no place, so they are not handed
+  over, and no list names them.
+- **Afterwards**: nothing removes them. Their row stays on the run, and so
+  does their group if they are in one. The programme's own read
+  (`GET .../programmes/[programmeId]/run`) names them under `gaveBack`, and
+  the board's read carries `holdsPlace: false` on their row, so that an
+  admin can act: take them out of their group on the board, then take their
+  row off the run's own list (its applications page). A row from the form
+  carries no address, so the run's own decide route emails nobody about it.
+
+Nothing in this system takes anybody off a run. That is a person's act, made
+on the run, and the hand-over, the panel and the board only ever say who it
+concerns.
+
 ## What deletes what
 
 | When | What goes | What stays |
 | --- | --- | --- |
-| A form is destroyed | The form, its question sets, every application with the access-requirements row beside it, every review, every decision document, and the log lines about the form's decisions | Each applicant's member record, the delivery log, the download log, the course runs |
+| A form is destroyed | The form, its question sets, every application with the access-requirements row beside it, every review, every decision document, and the log lines about the form's decisions | Each applicant's member record, the delivery log, the download log, the course runs, and on those runs the rows a hand-over wrote |
 | An account is deleted | Each of its applications with the access-requirements row and the decision document beside it, the reviews about it, the reviews it wrote, and its name wherever a round carries it: the reviewer list, the final decider, and the lead and reviewers of each programme | Its member record, the log lines |
-| A course run is destroyed | Nothing on a form | The form, with any programme whose `runId` named that run |
+| A course run is destroyed | Nothing on a form. The run's own rows go with it, the ones a hand-over wrote included | The form, with any programme whose `runId` named that run |
 | A course is destroyed | Nothing on a form | The form, with any programme whose `courseId` named that course |
 
 - **A form is destroyed through the round destroy**
@@ -1188,6 +1391,13 @@ runs the route and renders the page for every way a run can stand.
 - **A programme's `runId` can name a run that has since been destroyed.** The
   run destroy writes no round. Whatever reads a programme's `runId` treats a
   run that is not there as no run.
+- **A row a hand-over wrote belongs to the run, not to the form.** It is
+  deleted with the run, or with its person's account, by the course
+  system's own cascades, which delete a run's rows and an account's rows
+  wherever they came from. Destroying a form removes no row and takes
+  nobody off a run. What a row holds then is a name, that its person has a
+  place, and the two ids in `fromForm`, which lead nowhere once the form
+  has gone. Nothing a person wrote on the form was ever on it.
 - **A programme's `courseId` can name a course that has since been
   destroyed**, for the same reason: the course destroy writes no round. The
   Settings tab shows such a tie as a course that is no longer on the site,
@@ -1223,6 +1433,11 @@ All in `src/lib/applications/`.
 | `lifecycle/openForm.ts` | Which form is open, which form speaks for each course, and whether a form places people on a course run, for a page that offers Apply | server, safe for a page any visitor can load |
 | `lifecycle/publicTerm.ts` | Where the term is (`none`, `before`, `open`, `closed`, `running`) and what is on it, for a page that draws the term | server, safe for a page any visitor can load |
 | `editor/courses.ts` | The courses a programme can be tied to, and the one rule the box and the route share | server, staff |
+| `handover/run.ts` | The course run a programme names: which run it can name, and `setProgrammeRun`, the one writer | server, staff |
+| `handover/holders.ts` | Who holds a place on a programme and has been told, and how that compares with a run's own list | anywhere |
+| `handover/handOver.ts` | `handOverProgramme`, the one writer of a place holder's row on a course run, and what stops a press | server, staff |
+| `handover/load.ts`, `handover/views.ts` | The read behind naming a run and handing people over, for an admin | server, staff; the shapes anywhere |
+| `handover/board.ts` | What the allocation board is told about somebody the form placed: which groups they can make, and whether they still hold the place | server, staff |
 
 ## Rules for anything built on this
 
@@ -1278,6 +1493,24 @@ All in `src/lib/applications/`.
   applicant. Nothing that builds what an applicant is sent, and nothing the
   form draws, reads `intro` or falls back on it. A new line or label for
   applicants gets a field of its own.
+- **A row the form puts on a course run is an admin's.** A staff route that
+  reads or acts on `courseApplications` asks `rowIsServedTo()` before it
+  lists, places, publishes, decides or annotates a row, so that a row with
+  `fromForm` goes to an admin and to nobody a run names. A new reader of
+  the collection is added to the list in
+  `tests/applications-handover-row-readers.test.mjs` with what it does about
+  such a row.
+- **Nothing of an application is stored on the course side.** A hand-over
+  writes who somebody is and where their place came from. Whatever the
+  course side needs to know about what they wrote, it asks for when it is
+  drawn and is handed the answer, as the board is handed which groups a
+  person can make and never the week they painted.
+- **The hand-over only creates.** It never changes a row that is there and
+  never takes anybody off a run, so pressing it again is always safe. A
+  person is handed over only once decision day has reached them.
+- **Who is handed over is `holdingOf()`.** Like every other count of
+  places. A second test for "holds a place" is how the board and the
+  programme's own screens would come to disagree.
 - **No query that sorts or ranges on the server.** Every read here is one or
   two equalities, which need no composite index. A term is a few hundred
   documents: filter and sort in memory.

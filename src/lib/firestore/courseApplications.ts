@@ -1,3 +1,4 @@
+import { isId } from "@/lib/applications/keys";
 import type { RsvpAnswer } from "./events";
 
 /**
@@ -53,12 +54,39 @@ export const APPLICATION_FIELD_LIMITS = {
   maxFacilitatorPreferences: 3,
 } as const;
 
+/**
+ * Where a row came from, when it did not come from this run's own form.
+ *
+ * The term's application form (`src/lib/applications/`) decides who holds a
+ * place on each programme, and a programme names the run its people go onto.
+ * An admin's hand-over then writes one ACCEPTED row here for each of those
+ * people, so that the allocation board, the allocate route and Publish find
+ * them exactly where they find anybody else. `fromForm` is how such a row
+ * says so: the form it came from and the programme on it.
+ *
+ * A ROW WITH `fromForm` CARRIES NOTHING OF THE APPLICATION. No address, no
+ * answer, no availability: the board asks the application system for what it
+ * needs when it draws (`src/lib/applications/handover/board.ts`). So nothing
+ * a person wrote on the form is stored a second time on the course side.
+ */
+export type CourseApplicationFromForm = {
+  /** The application form's round id. */
+  roundId: string;
+  /** The programme on that form whose place this is. */
+  programmeId: string;
+};
+
 export type CourseApplicationDoc = {
   /** Firestore doc id: `courseApplicationId(runId, uid)`. */
   id: string;
   runId: string;
   courseId: string;
   uid: string;
+  /**
+   * Set on a row the application form's hand-over wrote, null on a row made
+   * by this run's own form. See {@link CourseApplicationFromForm}.
+   */
+  fromForm: CourseApplicationFromForm | null;
   /**
    * Server-sourced from the session user — never client-supplied, so an
    * applicant can't plant someone else's address. PII: own-row + admin read
@@ -123,6 +151,20 @@ function asUidList(v: unknown): string[] {
   return Array.from(seen);
 }
 
+/**
+ * A stored `fromForm`, or null. BOTH ids have to be there and be ids as the
+ * application form means one (`isId`, which is pure and imports nothing, so
+ * the browser bundle that reads a member's own row stays free of the rest of
+ * the application system). A row is from the form whole, or it is a row of
+ * the run's own: half a pointer reads as none.
+ */
+function asFromForm(v: unknown): CourseApplicationFromForm | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const { roundId, programmeId } = v as { roundId?: unknown; programmeId?: unknown };
+  if (!isId(roundId) || !isId(programmeId)) return null;
+  return { roundId, programmeId };
+}
+
 export function normalizeCourseApplication(id: string, data: Raw): CourseApplicationDoc {
   const status = data.status as CourseApplicationStatus;
   const doc: CourseApplicationDoc = {
@@ -130,6 +172,7 @@ export function normalizeCourseApplication(id: string, data: Raw): CourseApplica
     runId: str(data.runId),
     courseId: str(data.courseId),
     uid: str(data.uid),
+    fromForm: asFromForm(data.fromForm),
     email: (data.email as string | null | undefined) ?? null,
     displayName: str(data.displayName),
     answers: (data.answers as Record<string, RsvpAnswer>) ?? {},
@@ -237,4 +280,64 @@ export function buildApplication(
     doc.availability = availability.slice(0, APPLICATION_FIELD_LIMITS.availability);
   }
   return doc;
+}
+
+// ---------------------------------------------------------------------------
+// A place the application form gave
+// ---------------------------------------------------------------------------
+
+/**
+ * WHO A ROW IS SERVED TO, AMONG STAFF.
+ *
+ * A row from this run's own form is read by the people the run names: its
+ * admissions reviewers decide it and its track leads place it. A row the
+ * application form put here is different. The person applied on the form,
+ * where who may read an application is decided programme by programme, and
+ * being named on a run gives nobody that right. So such a row is an ADMIN'S,
+ * on every staff route that reads or acts on rows: nobody else is listed it,
+ * may place it, is named it in a refusal, or may decide or annotate it.
+ *
+ * The run's own gates are unchanged. A track lead still opens the board and
+ * still sees and places everybody who applied to the run itself.
+ *
+ * Every staff reader of this collection asks here, and
+ * `tests/applications-handover-row-readers.test.mjs` walks the tree for one
+ * that does not.
+ */
+export function rowIsServedTo(
+  row: Pick<CourseApplicationDoc, "fromForm">,
+  viewer: { isAdmin: boolean },
+): boolean {
+  return row.fromForm === null || viewer.isAdmin;
+}
+
+/**
+ * The whole of a row the application form's hand-over creates: who the
+ * person is, that they hold a place, and where the place came from. Nothing
+ * else is written, and nothing here is ever updated by the hand-over.
+ *
+ * `status` is `accepted` because that is the one status the board, the
+ * allocate route and Publish read. No `email`: the placement email goes to
+ * the account's own address (`users.email`), and a row with no address is a
+ * row the run's own decide route can never email about. Timestamps are the
+ * caller's (server timestamps, in the transaction that creates the row).
+ */
+export function buildFormPlaceRow(input: {
+  runId: string;
+  courseId: string;
+  uid: string;
+  displayName: string;
+  fromForm: CourseApplicationFromForm;
+}): Record<string, unknown> {
+  return {
+    runId: input.runId,
+    courseId: input.courseId,
+    uid: input.uid,
+    displayName: input.displayName,
+    status: "accepted" satisfies CourseApplicationStatus,
+    fromForm: {
+      roundId: input.fromForm.roundId,
+      programmeId: input.fromForm.programmeId,
+    },
+  };
 }

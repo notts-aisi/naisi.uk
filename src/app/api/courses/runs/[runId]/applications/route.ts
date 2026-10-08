@@ -4,6 +4,7 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
 import {
   normalizeCourseApplication,
+  rowIsServedTo,
   type CourseApplicationStatus,
 } from "@/lib/firestore/courseApplications";
 import {
@@ -231,9 +232,13 @@ export async function GET(
     db.collection("courseGroups").where("runId", "==", runId).limit(50).get(),
   ]);
 
-  const applications = appSnap.docs.map((d) =>
-    normalizeCourseApplication(d.id, d.data() ?? {}),
-  );
+  // A row the application form put on this run is an admin's to see
+  // (`rowIsServedTo`): the run's reviewers and track leads are listed the
+  // people who applied to the run itself, and nobody else. The run's own
+  // counters above still count every row, as numbers.
+  const applications = appSnap.docs
+    .map((d) => normalizeCourseApplication(d.id, d.data() ?? {}))
+    .filter((a) => rowIsServedTo(a, { isAdmin }));
 
   // Archived groups are dropped: a reviewer must not be able to record a
   // preference for a group that no longer runs.
