@@ -11,7 +11,7 @@ import {
 } from "../applicant/project";
 import { isFormVisible } from "../applicant/window";
 import { statusViewFor, type StatusView } from "./view";
-import { listWordsFor, placeWordsFor, type ListWords, type PlaceWords } from "./words";
+import { listWordsFor, type ListWords } from "./words";
 
 /**
  * Reading what "Your application" shows one person, on the server.
@@ -87,32 +87,32 @@ export async function loadListWords(
 }
 
 /**
- * The places this person holds, by round id: for each form decision day gave
- * them a place on, the title and the sentence their own page shows
- * (`placeWordsFor`).
+ * Whether this person holds a place on any of these rounds: whether, for one
+ * of them, their own page is the page of somebody with a place.
  *
  * For the two pages of the member area that would otherwise tell somebody
- * with a place and no run that they are on nothing. A round that is not an
- * application form has no entry, and neither has an application that holds
- * no place. Read through {@link loadStatus}, the page's own read, exactly as
- * {@link loadListWords} is: one view of one document, the caller's own, so
- * these pages can say nothing the person's own page does not.
+ * with a place and no run that they are on nothing. THE ANSWER IS ONE BIT.
+ * Which round, which programme and how the place was come by stay with the
+ * person's own page, which is where an outcome is said, so a caller of this
+ * can state none. Read through {@link loadStatus}, the page's own read,
+ * exactly as {@link loadListWords} is: one view of one document, the caller's
+ * own, so this is true exactly when that page says they have a place. A
+ * round that is not an application form, and an application that holds no
+ * place, count for nothing.
  */
-export async function loadPlaceWords(
+export async function loadHoldsPlace(
   db: Firestore,
   uid: string,
   roundIds: readonly string[],
   now: Date,
-): Promise<Map<string, PlaceWords>> {
-  const held = new Map<string, PlaceWords>();
-  await Promise.all(
+): Promise<boolean> {
+  const held = await Promise.all(
     [...new Set(roundIds)].map(async (roundId) => {
       const loaded = await loadStatus(db, roundId, uid, now);
-      const words = loaded ? placeWordsFor(loaded.view) : null;
-      if (words) held.set(roundId, words);
+      return loaded !== null && loaded.view.kind === "place";
     }),
   );
-  return held;
+  return held.includes(true);
 }
 
 /** True when there is a form here that an applicant may be told about. */

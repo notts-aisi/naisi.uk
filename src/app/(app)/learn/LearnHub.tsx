@@ -39,12 +39,13 @@ import styles from "./page.module.css";
  * ── A PLACE IS NOT A RUN ────────────────────────────────────────────────────
  * Decision day gives somebody a place on a programme, and they have no run
  * until they are put on one, so the list of runs has nothing of theirs. The
- * page reads what their own application page says and hands in what to draw
+ * page asks whether the member holds a place and hands in what to draw
  * (`instead`) while the member is on no live run: in the stead of the empty
  * state, or above their archived runs. So "You're not on a course yet" is
- * said only to a member the page knows holds no place. Once they are on a
- * live run, that run's own card says where they are, and `instead` is not
- * drawn.
+ * said only to a member the page knows holds no place. `instead` is the way
+ * to the member's applications and states no outcome: this hub never says
+ * what became of an application. Once they are on a live run, that run's own
+ * card says where they are, and `instead` is not drawn.
  */
 
 /** Enough cards to fill the fold at the widest main column (64rem cap). */
@@ -52,9 +53,9 @@ const SKELETON_COUNT = 3;
 
 type Props = {
   /**
-   * What stands where the hub would say the member is on no course: the place
-   * they hold, or the way to their applications when their places could not
-   * be read. Null when they are known to hold none.
+   * What stands where the hub would say the member is on no course: the way
+   * to their applications, for a member who holds a place and for one whose
+   * place could not be read alike. Null when they are known to hold none.
    */
   instead: ReactNode;
 };
@@ -106,7 +107,8 @@ export default function LearnHub({ instead }: Props) {
         </Card>
       ) : runs.length === 0 ? (
         // Holding a place is not being on nothing, and neither is a place
-        // the page could not read: either stands where the empty state would.
+        // the page could not read: for both, the way to the member's
+        // applications stands where the empty state would.
         instead ? (
           instead
         ) : (

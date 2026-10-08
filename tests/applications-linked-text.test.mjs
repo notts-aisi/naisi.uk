@@ -920,13 +920,6 @@ const BUILT = new Map([
     },
   ],
   [
-    "src/features/applications/home/YourPlace.tsx",
-    {
-      built: ["`${LIST_PATH}/${encodeURIComponent(place.roundId)}`"],
-      from: "one of somebody's own applications, by the id of the form their place was given on",
-    },
-  ],
-  [
     "src/features/applications/lifecycle/TermHome.tsx",
     { built: ["pooled.link.href", "row.link.href"], from: "pages of this term, as `lifecycle/termHome.ts` built them" },
   ],

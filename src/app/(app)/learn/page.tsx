@@ -1,6 +1,5 @@
 import YourApplications from "@/features/applications/home/YourApplications";
-import YourPlace from "@/features/applications/home/YourPlace";
-import { placesHeldBy } from "@/features/applications/home/places";
+import { holdsPlace } from "@/features/applications/home/holdsPlace";
 import { getCurrentUser } from "@/lib/firebase/session";
 import LearnHub from "./LearnHub";
 
@@ -10,27 +9,25 @@ import LearnHub from "./LearnHub";
  *
  * A Server Component for one read the browser cannot make. Somebody decision
  * day gave a place has no run until they are put on one, so the hub would
- * tell them they are not on a course. The page asks `placesHeldBy`, which
- * asks what "Your application" shows this person, and hands the hub what to
- * draw instead:
+ * tell them they are not on a course. The page asks `holdsPlace` (yes, no, or
+ * could not tell) and hands the hub what to draw where it would say so:
  *
- *  - a place they hold: a card that says what their own page says, and links
- *    to it;
- *  - places that could not be read (a view-as session, or a read that
- *    failed): the way to their applications, which names nothing. The hub
- *    then makes no claim either way;
- *  - no place: nothing, and the hub says what it always has.
+ *  - "no": nothing, and the hub says what it always has;
+ *  - "yes", and "could not tell" (a view-as session, or a read that failed):
+ *    the way to the member's applications, which names none of them. The hub
+ *    then makes no claim either way.
+ *
+ * THIS PAGE STATES NO OUTCOME. It does one thing for a place and for a place
+ * it could not read, so nothing drawn here says which, and what became of an
+ * application is said on the person's own page, which that card leads to.
  *
  * What a maintainer has to keep: the read is by the session's own uid and by
  * nothing a request carries, it is not made in a view-as session (the check
- * is `placesHeldBy`'s own, before it reads), and nothing in this file looks
- * at an application or a decision. A place is said here exactly when the
- * person's own page says it.
+ * is `holdsPlace`'s own, before it reads), and nothing in this file looks at
+ * an application or a decision.
  */
 export default async function LearnPage() {
   const user = await getCurrentUser();
-  const places = user ? await placesHeldBy(user.uid) : null;
-  const instead =
-    places === null ? <YourApplications rows={null} /> : places.length > 0 ? <YourPlace places={places} /> : null;
-  return <LearnHub instead={instead} />;
+  const held = user ? await holdsPlace(user.uid) : "unknown";
+  return <LearnHub instead={held === "no" ? null : <YourApplications rows={null} />} />;
 }

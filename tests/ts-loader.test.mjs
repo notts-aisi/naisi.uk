@@ -946,11 +946,12 @@ const USERS = new Map([
   ],
   [
     "applications-place-in-the-member-area.test.mjs",
-    "it runs every way an application can stand through the status page's own reader and draws " +
-      "Home and the list of programmes for a member with and without a place, because what " +
-      "each says is only real when the components run. The hook that lists a member's runs, " +
-      "the Home forms for somebody on a run, two summary cards, a run's card, `next/link`, the " +
-      "entrance wrapper and the stylesheets are stubbed",
+    "it stores every way an application can stand and runs Home and the list of programmes " +
+      "for each, on the server and drawn to HTML, because that neither page states an outcome " +
+      "is only real when the pages run. `server-only`, three `next` modules, `next/link`, the " +
+      "Admin SDK handle, the session, the hook that lists a member's runs, the public term, the " +
+      "parts of Home that are not about an application, a run's card, the entrance wrapper and " +
+      "the stylesheets are stubbed",
   ],
   [
     "email-unfilled-tokens.test.mjs",

@@ -1,6 +1,6 @@
 /**
- * A place somebody holds, said in the member area while they are on no run:
- * on Home and on the list of their programmes (`/learn`).
+ * Home and the list of a member's programmes (`/learn`) state no outcome,
+ * and tell nobody who holds a place that they are on nothing.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -8,40 +8,56 @@
  *
  * Both pages say "not on a programme yet" to a member with no run. Decision
  * day gives somebody a place, and they have no run until they are put on
- * one. So both pages ask what the person's own application page says, and
- * say that. Six things have to hold:
+ * one, so of them the sentence is untrue. What became of an application is
+ * said in two places only, the person's own page and the list of their
+ * applications (`docs/applications.md`, "One set of words for an outcome"):
+ * a summary page is a third place the words could come to disagree, and
+ * nobody should learn a decision from one. So both pages ask one thing,
+ * whether the member holds a place, and do one thing with the answer. Six
+ * things have to hold:
  *
- *  1. A PLACE IS SAID ONLY ONCE IT IS PUBLISHED, AND UNTIL IT IS GIVEN BACK.
- *     Every way an application can stand is run through the page's own
- *     reader, and `placeWordsFor` answers for a held place and for nothing
- *     else: not for a stored status with no result behind it, not for an
- *     invitation nobody has answered, not for a place given back.
- *  2. THE WORDS ARE THE PERSON'S OWN PAGE'S: its title and its sentence about
- *     what comes next, so an incubator's people are promised no group here
- *     either.
- *  3. THE CARD draws those words and a link to that page, and nothing else.
- *  4. HOME: with a place and no run, the place stands where "You’re not on a
- *     programme yet." would. With no place it reads as it always has. When
- *     the places could not be read, the claim is not made.
- *  5. THE LIST OF PROGRAMMES: with a place and no live run, the place stands
- *     where the empty state would, or above the archived runs. With no place
- *     it reads as it always has. When the places could not be read, the way
- *     to the member's applications stands there and no claim is made. On a
- *     live run, the run's own card speaks.
- *  6. NOTHING IN THESE PAGES READS AN APPLICATION ITSELF. They hand the
- *     session's own uid to one function, which asks the reader behind "Your
- *     application". And nowhere in the tree is somebody told they are on
- *     nothing by a file that has not asked about a place first.
+ *  1. THE ANSWER IS YES EXACTLY WHEN THE PERSON'S OWN PAGE IS THE PAGE OF
+ *     SOMEBODY WITH A PLACE. Every way an application can stand is stored and
+ *     asked about: not a stored status with no result behind it, not an
+ *     invitation nobody has answered, not a place given back. What cannot be
+ *     read is "could not tell", and never "no".
+ *  2. NEITHER PAGE STATES AN OUTCOME. Both pages are run for real against
+ *     each of those applications and drawn to HTML. What each draws carries
+ *     none of the words the person's own page uses for that outcome, no
+ *     programme's name and no programme's id.
+ *  3. EACH IS ONE OF TWO PAGES, AND NOTHING ELSE. The page of a member known
+ *     to hold no place, which reads as it always has, and the page of
+ *     everybody else, which leaves the sentence out and has the way to the
+ *     member's applications on it. Which programme, how the place was come
+ *     by and whether its email went change nothing in what is drawn.
+ *  4. A PLACE AND A PLACE THAT COULD NOT BE READ ARE DRAWN ALIKE, so an admin
+ *     viewing the site as a member is told nothing either way.
+ *  5. THE TWO COMPONENTS, on their own: Home says the sentence only when it
+ *     is handed that the member holds no place, and the list of programmes
+ *     draws what it is handed where its empty state would be, and not beside
+ *     a live run.
+ *  6. THE SOURCE. The pages hand the session's own uid to one function, which
+ *     asks the reader behind "Your application", and nothing in them looks
+ *     at an application. No file of these pages imports the words for an
+ *     outcome. And nowhere in the tree is somebody told they are on nothing
+ *     by a file that has not asked about a place first.
  *
- * Who is shown a place and who is not (the member, an admin viewing the site
- * as them, another member), and that an unpublished decision is never read,
- * is run against a stored term in
+ * Who is asked and what is read (the member, an admin viewing the site as
+ * them, another member, an unpublished decision) is held in
  * `tests/applications-view-as-own-application.test.mjs`.
  *
- * Stubbed: the hook that lists a member's runs (it returns what a test
- * sets), the two Home forms for somebody on a run, the task and course
- * summary cards, a run's card, `next/link`, the page's entrance wrapper and
- * the stylesheets.
+ * Real: the two server pages, the function they ask, the loaders behind the
+ * person's own page and the list of their applications, the view-as module,
+ * Home's form for a member, the list of programmes and the applications
+ * card. Stubbed: `server-only`, `next/server`, `next/headers`,
+ * `next/navigation`, `next/link`, the sentinels `firebase-admin/firestore`
+ * supplies, the session, the Admin SDK handle
+ * (`tests/lib/applicationsStore.mjs`), the hook that lists a member's runs
+ * (it returns what a test sets), the public term, the admin's Home, the two
+ * Home forms for somebody on a run, and the parts of Home that are not about
+ * an application (the term, the events, the profile and task cards, the
+ * install invitation), each of which draws a mark with its name. So are a
+ * run's card, the page's entrance wrapper and the stylesheets.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -50,18 +66,39 @@ import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { FIELD_VALUE_STUB, makeDb } from "./lib/applicationsStore.mjs";
+import {
+  AGI,
+  CAST,
+  INCUBATOR,
+  ROUND,
+  ROUND_LABEL,
+  TAIS,
+  WHILE_OPEN,
+  applicationDoc,
+  applicationPath,
+  roundDoc,
+  seedTerm,
+} from "./lib/applicationsSmallTerm.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(REPO_ROOT, "src");
 
-const world = { h: createElement, runs: { runs: [], loading: false, error: null } };
+const world = {
+  h: createElement,
+  runs: { runs: [], loading: false, error: null },
+  db: null,
+  user: null,
+  cookie: null,
+  touched: [],
+};
 globalThis.__memberArea = world;
 
 const h = "globalThis.__memberArea.h";
 const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(name) });";
-/** A piece of the page that is not about a place: it draws a mark with its name. */
+/** A piece of the page that is not about an application: it draws a mark with its name. */
 const MARK = (name) => `export default function ${name}() { return ${h}("div", null, "[${name}]"); }`;
 /** One of Home's forms for somebody on a run: its name, and what it is handed about applications. */
 const RUN_FORM = (name) =>
@@ -70,18 +107,71 @@ const RUN_FORM = (name) =>
 const { loadTs } = createLoader({
   stubs: new Map([
     ["server-only", "export {};"],
+    [
+      "next/server",
+      "export class NextResponse {\n" +
+        "  constructor(body, init) { this.body = body; this.status = (init && init.status) || 200; }\n" +
+        "  static json(body, init) { return new NextResponse(body, init); }\n" +
+        "}",
+    ],
+    [
+      // The cookie jar of one request: the view-as marker is the one cookie in it.
+      "next/headers",
+      "export async function cookies() {\n" +
+        "  const w = globalThis.__memberArea;\n" +
+        "  return {\n" +
+        "    get: (name) => (w.cookie === null ? undefined : { name, value: w.cookie }),\n" +
+        "    set: (name, value) => { w.cookie = value; },\n" +
+        "    delete: () => { w.cookie = null; },\n" +
+        "  };\n" +
+        "}",
+    ],
+    [
+      "next/navigation",
+      "export function redirect(to) { throw new Error('redirect to ' + to); }\n" +
+        "export function notFound() { throw new Error('not found'); }",
+    ],
     ["next/link", `export default ({ href, className, children }) => ${h}("a", { href, className }, children);`],
+    ["firebase-admin/firestore", FIELD_VALUE_STUB],
+    ["@/lib/firebase/admin", "export function getAdminDb() { return globalThis.__memberArea.db; }"],
+    [
+      "@/lib/firebase/session",
+      "export async function getCurrentUser() { return globalThis.__memberArea.user; }\n" +
+        "export async function getCurrentCollaborator() { return null; }",
+    ],
+    // The view-as module's own import of the session, by the name it writes.
+    ["./session", "export async function getCurrentUser() { return globalThis.__memberArea.user; }"],
     ["@/features/courses/useMyRuns", "export const useMyRuns = () => globalThis.__memberArea.runs;"],
     ["./useSyncTasks", "export const SyncTasksTrigger = () => null;"],
     ["@/features/tasks/components/MyWorkSummary", MARK("MyWorkSummary")],
     ["./HomeFacilitator", RUN_FORM("HomeFacilitator")],
     ["./HomeProgramme", RUN_FORM("HomeProgramme")],
+    ["./HomeAdmin", MARK("HomeAdmin")],
+    ["./TermCard", MARK("term")],
+    ["./ComingUp", MARK("events")],
+    [
+      "./HomeAside",
+      `export function FinishProfile() { return ${h}("div", null, "[profile]"); }\n` +
+        `export function NoApplicationsYet() { return ${h}("div", null, "[nothing yet]"); }`,
+    ],
+    ["@/features/pwa/InstallCard", `export function InstallCard() { return ${h}("div", null, "[install]"); }`],
+    [
+      "./homeData",
+      "export async function homeEvents() {\n" +
+        "  return { upcoming: [], week: { range: null, events: [], startsAt: null, endsAt: null } };\n" +
+        "}\n" +
+        "export async function profileSteps() { return null; }",
+    ],
+    [
+      // Applications are open, which is when Home says "Nothing yet" to a member who has not applied.
+      "@/features/term/fetchPublicTerm",
+      "export async function fetchPublicTerm() { return { stage: 'open', closesAt: null, decisionsByDate: null }; }",
+    ],
     ["@/features/courses/RunCard", `export default ({ entry }) => ${h}("div", null, "[run " + entry.runId + "]");`],
     ["@/components/motion/PageEnter", `export default ({ children }) => ${h}("div", null, children);`],
     ["./home.module.css", CLASS_NAMES],
     ["./page.module.css", CLASS_NAMES],
     ["./MyCoursesSummary.module.css", CLASS_NAMES],
-    ["./YourPlace.module.css", CLASS_NAMES],
     ["./YourApplications.module.css", CLASS_NAMES],
     ["./PageHead.module.css", CLASS_NAMES],
     ["./Skeleton.module.css", CLASS_NAMES],
@@ -91,13 +181,14 @@ const { loadTs } = createLoader({
   ]),
 });
 
-const view = await loadTs(join("lib", "applications", "status", "view.ts"));
+const load = await loadTs(join("lib", "applications", "status", "load.ts"));
 const words = await loadTs(join("lib", "applications", "status", "words.ts"));
-const copy = await loadTs(join("lib", "applications", "decisionDay", "emailCopy.ts"));
-const { default: YourPlace } = await loadTs(join("features", "applications", "home", "YourPlace.tsx"));
+const { holdsPlace } = await loadTs(join("features", "applications", "home", "holdsPlace.ts"));
 const { default: YourApplications } = await loadTs(join("features", "applications", "home", "YourApplications.tsx"));
 const { default: HomeMember } = await loadTs(join("app", "(app)", "dashboard", "HomeMember.tsx"));
 const { default: LearnHub } = await loadTs(join("app", "(app)", "learn", "LearnHub.tsx"));
+const { default: DashboardPage } = await loadTs(join("app", "(app)", "dashboard", "page.tsx"));
+const { default: LearnPage } = await loadTs(join("app", "(app)", "learn", "page.tsx"));
 
 const textOf = (html) =>
   html
@@ -106,77 +197,21 @@ const textOf = (html) =>
     .replace(/&amp;/g, "&")
     .replace(/\s+/g, " ")
     .trim();
-const hrefsOf = (html) => [...html.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
 
 // ---------------------------------------------------------------------------
-// One form, as an applicant is told about it, and every way an application can stand
+// A stored term, and every way one person's application on it can stand
 // ---------------------------------------------------------------------------
 
-const ROUND = "autumn-2026__m3mb3r4r3a";
-const FELLOWSHIP = "agi-strategy";
-const INCUBATOR = "research-incubator";
-const TODAY = "2026-10-23";
+/** A form whose window no test machine's clock is outside of. */
+const ALWAYS_OPEN = { opensAt: new Date("2020-01-01T00:00:00Z"), closesAt: new Date("2099-01-01T00:00:00Z") };
+const TOLD_AT = new Date("2026-10-23T11:00:00+01:00");
 
-const programme = (id, kind, name, shortName) => ({ id, kind, name, shortName, pitch: "", facts: "6 WEEKS", starts: "w/c 26 Oct", closed: false });
-const FORM = {
-  id: ROUND,
-  label: "Autumn 2026",
-  windowState: "closed",
-  opensLabel: "Tue 6 Oct",
-  closesLabel: "Sun 18 Oct, 23:59",
-  decisionsLabel: "Fri 23 Oct",
-  programmes: [
-    programme(FELLOWSHIP, "fellowship", "AGI Strategy Fellowship", "AGI Strategy"),
-    programme(INCUBATOR, "incubator", "Research Incubator", "Research incubator"),
-  ],
-  questionSetIds: [],
-  asksFacilitating: false,
-  availabilityGrid: { version: 1, startMinute: 540, endMinute: 1260, slotMinutes: 15 },
-};
-
-/** Somebody's own application, in the state given. `sent: null` is a draft nobody has sent. */
-function application(state, { sent = true } = {}) {
-  const content = {
-    aboutYou: {
-      preferredName: "Chloe",
-      universityEmail: "ada@nottingham.ac.uk",
-      universityEmailVerified: true,
-      status: "undergraduate",
-      statusOther: "",
-      subject: "BA Philosophy",
-      expectedGraduation: "2028-07",
-      motivation: "",
-      interests: "",
-    },
-    rankedProgrammeIds: [FELLOWSHIP],
-    wantsToFacilitate: null,
-    answers: {},
-    availability: { ...FORM.availabilityGrid, days: [] },
-    suMembership: "yes",
-  };
-  return {
-    id: `${ROUND}__chloe`,
-    roundId: ROUND,
-    draft: content,
-    sent: sent ? content : null,
-    createdAt: null,
-    updatedAt: null,
-    submittedAt: null,
-    sentAt: null,
-    sentLabel: sent ? "Sat 17 Oct" : null,
-    status: "submitted",
-    result: null,
-    invitation: null,
-    attendance: null,
-    ...state,
-  };
-}
-
-const published = (result) => ({ ...result, publishedAt: "2026-10-23T11:00:00.000Z" });
+const result = (kind, programmeId, email = "sent") => ({ kind, programmeId, publishedAt: TOLD_AT, email });
 const invitedTo = (programmeId, response) => ({
-  result: published({ kind: "invited", programmeId }),
-  invitation: { programmeId, replyBy: "2026-10-25", response, respondedAt: null },
+  result: result("invited", programmeId),
+  invitation: { programmeId, replyBy: "2026-10-25", response, respondedAt: response ? TOLD_AT : null, lastReminderOn: null },
 });
+const reply = (answer) => ({ attendance: { answer, answeredAt: TOLD_AT } });
 
 /** Every status an application can be stored under. None of them is a result. */
 const STATUSES = [
@@ -193,137 +228,80 @@ const STATUSES = [
   "declined",
 ];
 
-/** Every way a published application can stand, and whether it is a held place. */
-const PUBLISHED = {
-  "placed by their own ranking": { held: true, state: { status: "accepted", result: published({ kind: "accepted", programmeId: FELLOWSHIP }) } },
-  "placed, and said they are coming": {
+/**
+ * EVERY WAY AN APPLICATION CAN STAND, as stored on the person's own
+ * document, and whether it is a place they hold. `over` is laid over a sent
+ * application that ranked AGI Strategy and then Technical AI Safety.
+ */
+const WAYS = {
+  ...Object.fromEntries(STATUSES.map((status) => [`stored as ${status}, with nothing published`, { held: false, over: { status } }])),
+  "a draft nobody has sent": { held: false, draft: true },
+  "placed by their own ranking": { held: true, over: { status: "accepted", result: result("accepted", AGI) } },
+  "placed on their second choice": { held: true, over: { status: "accepted", result: result("accepted", TAIS) } },
+  "placed on an incubator": { held: true, over: { status: "accepted", result: result("accepted", INCUBATOR) } },
+  "placed, and the email about it has not gone": { held: true, over: { status: "accepted", result: result("accepted", AGI, "owed") } },
+  "placed, and nothing can say whether the email went": {
     held: true,
-    state: { status: "accepted", result: published({ kind: "accepted", programmeId: FELLOWSHIP }), attendance: { answer: "coming", answeredAt: null } },
+    over: { status: "accepted", result: result("accepted", AGI, "unconfirmed") },
+  },
+  "placed, and said they are coming": { held: true, over: { status: "accepted", result: result("accepted", AGI), ...reply("coming") } },
+  "placed on a programme the form no longer carries": {
+    held: true,
+    over: { status: "accepted", result: result("accepted", "left-the-form") },
   },
   "placed, then said they can’t make it": {
     held: false,
-    state: { status: "withdrawn", result: published({ kind: "accepted", programmeId: FELLOWSHIP }), attendance: { answer: "cant-make-it", answeredAt: null } },
+    over: { status: "withdrawn", result: result("accepted", AGI), ...reply("cant-make-it") },
   },
-  "placed, then withdrawn by somebody else": { held: false, state: { status: "withdrawn", result: published({ kind: "accepted", programmeId: FELLOWSHIP }) } },
-  "invited, not answered": { held: false, state: { status: "invited", ...invitedTo(FELLOWSHIP, null) } },
-  "invited, and accepted": { held: true, state: { status: "accepted", ...invitedTo(FELLOWSHIP, "accepted") } },
-  "invited, and said no thanks": { held: false, state: { status: "withdrawn", ...invitedTo(FELLOWSHIP, "declined") } },
+  "placed, then withdrawn by somebody else": { held: false, over: { status: "withdrawn", result: result("accepted", AGI) } },
+  "invited, not answered": { held: false, over: { status: "invited", ...invitedTo(INCUBATOR, null) } },
+  "invited, and accepted": { held: true, over: { status: "accepted", ...invitedTo(INCUBATOR, "accepted") } },
+  "invited, and said no thanks": { held: false, over: { status: "withdrawn", ...invitedTo(INCUBATOR, "declined") } },
   "invited, accepted, then can’t make it": {
     held: false,
-    state: { status: "withdrawn", ...invitedTo(FELLOWSHIP, "accepted"), attendance: { answer: "cant-make-it", answeredAt: null } },
+    over: { status: "withdrawn", ...invitedTo(INCUBATOR, "accepted"), ...reply("cant-make-it") },
   },
-  "invited, with no invitation beside it": { held: false, state: { status: "invited", result: published({ kind: "invited", programmeId: FELLOWSHIP }) } },
-  "no offer": { held: false, state: { status: "no-offer", result: published({ kind: "no-offer", programmeId: null }) } },
-  "every programme declined": { held: false, state: { status: "declined", result: published({ kind: "declined", programmeId: null }) } },
+  "invited, with no invitation beside it": { held: false, over: { status: "invited", result: result("invited", INCUBATOR) } },
+  "no offer": { held: false, over: { status: "no-offer", result: result("no-offer", null) } },
+  "every programme declined": { held: false, over: { status: "declined", result: result("declined", null) } },
 };
+const WAY_NAMES = Object.keys(WAYS);
 
-const viewOf = (app) => view.statusViewFor(FORM, [], app, TODAY);
-const placeOf = (app) => words.placeWordsFor(viewOf(app));
+/** The stored application of one way. */
+function stored(way) {
+  if (way.draft) return applicationDoc("amara", [AGI, TAIS], { sent: false });
+  return { ...applicationDoc("amara", [AGI, TAIS]), ...way.over };
+}
 
-const FELLOWSHIP_PAGE =
-  "You’ll be in a small group with a facilitator, on campus. Before you start, we’ll email you your group and when it meets.";
-const FELLOWSHIP_CARD = "You’ll be in a small group with a facilitator, on campus.";
-const INCUBATOR_SENTENCE = "We’ll email you before you start with how the first week works.";
+/** The store, with `limit` on a query, which the list's loader asks for. */
+function withLimit(query) {
+  return { ...query, where: (...filter) => withLimit(query.where(...filter)), limit: () => withLimit(query) };
+}
 
-// ---------------------------------------------------------------------------
-// 1 and 2. Who holds a place, and the words for it
-// ---------------------------------------------------------------------------
-
-describe("a place is said once it is published, and until it is given back", () => {
-  test("nobody who has not applied, and nobody with a draft, holds one", () => {
-    assert.equal(placeOf(null), null);
-    assert.equal(placeOf(application({ status: "draft" }, { sent: false })), null);
+/** A term in which Amara's application stands the given way. `fails` names a collection whose reads throw. */
+function term(way, { fails = null } = {}) {
+  const db = makeDb(seedTerm({ round: ALWAYS_OPEN, over: way ? { [applicationPath("amara")]: stored(way) } : {} }), {
+    now: WHILE_OPEN,
   });
+  const collection = db.collection;
+  db.collection = (name) => {
+    world.touched.push(name);
+    if (name === fails) throw new Error(`${name} could not be read`);
+    return withLimit(collection(name));
+  };
+  world.db = db;
+  world.touched = [];
+  return db;
+}
 
-  test("no stored status is a place while nothing is published onto the application", () => {
-    for (const status of STATUSES) {
-      assert.equal(placeOf(application({ status })), null, `status ${status} with no result reads as a place`);
-    }
-  });
-
-  test("of every way a published application can stand, only a place somebody holds is one", () => {
-    for (const [name, { held, state }] of Object.entries(PUBLISHED)) {
-      assert.equal(placeOf(application(state)) !== null, held, name);
-    }
-    // The table runs both answers, and more than one of each.
-    const answers = Object.values(PUBLISHED).map((row) => row.held);
-    assert.ok(answers.filter(Boolean).length >= 3 && answers.filter((held) => !held).length >= 6);
-  });
-
-  test("it is exactly the applications whose own page is the place page", () => {
-    for (const [name, { state }] of Object.entries(PUBLISHED)) {
-      const shown = viewOf(application(state));
-      assert.equal(placeOf(application(state)) !== null, shown.kind === "place", name);
-    }
-  });
-});
-
-describe("the words are the person's own page's", () => {
-  test("a place by their own ranking: the page's title and its whole sentence", () => {
-    const shown = viewOf(application(PUBLISHED["placed by their own ranking"].state));
-    assert.deepEqual(words.placeWordsFor(shown), { title: "You’re in AGI Strategy.", next: FELLOWSHIP_PAGE });
-    assert.equal(words.placeWordsFor(shown).title, words.outcomeWords(shown).title);
-    assert.equal(words.placeWordsFor(shown).title, `${copy.standardSubject("accepted", "AGI Strategy")}.`);
-    assert.equal(words.placeWordsFor(shown).next, shown.next);
-  });
-
-  test("an invitation they accepted: the page's title and the card's line", () => {
-    const shown = viewOf(application(PUBLISHED["invited, and accepted"].state));
-    assert.deepEqual(words.placeWordsFor(shown), { title: "You’re in AGI Strategy.", next: FELLOWSHIP_CARD });
-  });
-
-  test("a place on an incubator promises no group here either", () => {
-    const state = { status: "accepted", result: published({ kind: "accepted", programmeId: INCUBATOR }) };
-    const said = placeOf(application(state));
-    assert.deepEqual(said, { title: "You’re in Research incubator.", next: INCUBATOR_SENTENCE });
-    assert.doesNotMatch(`${said.title} ${said.next}`, /small group|facilitator|campus|your group|when it meets/i);
-  });
-
-  test("a place on a programme the form no longer carries is still said, as its page says it", () => {
-    const state = { status: "accepted", result: published({ kind: "accepted", programmeId: "left-the-form" }) };
-    assert.deepEqual(placeOf(application(state)), { title: "You’re in.", next: FELLOWSHIP_PAGE });
-  });
-
-  test("the words hold nothing but a title and a sentence", () => {
-    const said = placeOf(application(PUBLISHED["placed by their own ranking"].state));
-    assert.deepEqual(Object.keys(said).sort(), ["next", "title"]);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 3. The card
-// ---------------------------------------------------------------------------
-
-const PLACE = { roundId: ROUND, title: "You’re in AGI Strategy.", next: FELLOWSHIP_PAGE };
-const CARD_TEXT = `You’re in AGI Strategy. ${FELLOWSHIP_PAGE} See your application →`;
-const card = (places) => renderToStaticMarkup(createElement(YourPlace, { places }));
-
-describe("the card", () => {
-  test("it says the title and the sentence it is handed, and links to the person's own page", () => {
-    const html = card([PLACE]);
-    assert.equal(textOf(html), CARD_TEXT);
-    assert.deepEqual(hrefsOf(html), [`/applications/${ROUND}`]);
-    assert.match(html, /<h2 class="title">You’re in AGI Strategy\.<\/h2>/);
-  });
-
-  test("with no place it draws nothing", () => {
-    assert.equal(card([]), "");
-  });
-
-  test("an id is escaped into its address, and never trusted to be a tidy one", () => {
-    assert.deepEqual(hrefsOf(card([{ ...PLACE, roundId: "a round/with?odd#parts" }])), ["/applications/a%20round%2Fwith%3Fodd%23parts"]);
-  });
-
-  test("two places are two cards, each with its own link", () => {
-    const html = card([PLACE, { roundId: "spring-2027__0th3r", title: "You’re in Research incubator.", next: INCUBATOR_SENTENCE }]);
-    assert.deepEqual(hrefsOf(html), [`/applications/${ROUND}`, "/applications/spring-2027__0th3r"]);
-    assert.ok(textOf(html).includes(`You’re in Research incubator. ${INCUBATOR_SENTENCE} See your application →`));
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 4. Home
-// ---------------------------------------------------------------------------
+/** Who the session says is signed in, and the view-as marker in the request's cookies. */
+function signedIn(uid, marker = null) {
+  world.user = CAST[uid];
+  world.cookie = marker === null ? null : JSON.stringify(marker);
+  world.touched = [];
+}
+const VIEWING = { actorUid: "zach", actorName: "Zach Levin", actorEmail: "zach@example.com", auditId: "audit-1" };
+const viewingAs = (uid) => signedIn(uid, VIEWING);
 
 const run = (runId, over = {}) => ({
   runId,
@@ -343,58 +321,351 @@ const runsAre = (runs, more = {}) => {
   world.runs = { runs, loading: false, error: null, ...more };
 };
 
+/** The two pages, run on the server and drawn, for whoever is signed in. */
+async function drawn() {
+  const home = renderToStaticMarkup(await DashboardPage());
+  const learn = renderToStaticMarkup(await LearnPage());
+  return { home, learn, homeText: textOf(home), learnText: textOf(learn) };
+}
+
+// ---------------------------------------------------------------------------
+// The two pages each page can be
+// ---------------------------------------------------------------------------
+
 const NOT_ON_A_PROGRAMME = "You’re not on a programme yet.";
+/** Home's card for somebody who has applied: the name of each application, and no more. */
+const APPLICATIONS_CARD = `Your applications View all → ${ROUND_LABEL} Open`;
+/** The same card when it names nothing: the way to the list. */
+const WAY_TO_APPLICATIONS = "Your applications View all → Everything you have applied to, and where each one has got to.";
+
+const HOME = {
+  /** A member the page knows holds no place: as Home has always read. */
+  noPlace: `Hi Amara. ${NOT_ON_A_PROGRAMME} [install] [term] [events] ${APPLICATIONS_CARD} [profile] [MyWorkSummary]`,
+  /** Everybody else: the sentence is left out, and nothing is put in its place. */
+  other: `Hi Amara. [install] [term] [events] ${APPLICATIONS_CARD} [profile] [MyWorkSummary]`,
+  /** The applications could not be read at all: the card names nothing. */
+  unread: `Hi Amara. [install] [term] [events] ${WAY_TO_APPLICATIONS} [profile] [MyWorkSummary]`,
+};
+
+const HUB_HEAD =
+  "Courses Your courses Every fellowship and reading group you're on: the week your cohort is on, the materials for it, " +
+  "and the exercises you owe. A place you've been offered shows here too, until your group is confirmed.";
+const HUB_EMPTY =
+  "You're not on a course yet NAISI runs fellowships and reading groups each term. The catalogue lists what's open and what's coming. Browse courses";
+const LEARN = {
+  noPlace: `${HUB_HEAD} ${HUB_EMPTY}`,
+  other: `${HUB_HEAD} ${WAY_TO_APPLICATIONS}`,
+};
+
+/** Every name and id a programme on the form goes by. None belongs on either page. */
+const PROGRAMMES = Object.entries(roundDoc().programmes).flatMap(([id, programme]) => [id, programme.name, programme.shortName]);
+
+/**
+ * Words for an outcome that neither page has any other reason to print. The
+ * list of programmes speaks, to everybody, of "a place you've been offered",
+ * so the bare words place and offered are not on this list.
+ */
+const OUTCOME_WORDS =
+  /you[’']re in\b|accepted|invit|no place|can[’']t offer|given back|no thanks|turned down|can[’']t make it|waitlist|declin|reject|withdr[ae]w|unsuccessful|congratulations/i;
+
+/** What the person's own page says of this application: its chip, its title, and what comes next. */
+async function saidOnTheirOwnPage(uid) {
+  const loaded = await load.loadStatus(world.db, ROUND, uid, new Date());
+  if (!loaded) return { kind: "none", said: [] };
+  const outcome = words.outcomeWords(loaded.view);
+  const list = words.listWordsFor(loaded.view);
+  const said = [outcome?.chip, outcome?.title, list?.sentence, loaded.view.next, loaded.view.programme?.name, loaded.view.programme?.shortName];
+  return { kind: loaded.view.kind, said: said.filter((text) => typeof text === "string" && text.trim() !== "") };
+}
+
+// ---------------------------------------------------------------------------
+// 1. The answer
+// ---------------------------------------------------------------------------
+
+describe("whether a member holds a place", () => {
+  test("it is yes exactly when their own page is the page of somebody with a place", async () => {
+    for (const name of WAY_NAMES) {
+      term(WAYS[name]);
+      signedIn("amara");
+      const own = await saidOnTheirOwnPage("amara");
+      assert.equal(await holdsPlace("amara"), WAYS[name].held ? "yes" : "no", name);
+      assert.equal(own.kind === "place", WAYS[name].held, `${name}: their own page is the ${own.kind} page`);
+    }
+    // The table runs both answers, and more than one of each.
+    const answers = Object.values(WAYS).map((way) => way.held);
+    assert.ok(answers.filter(Boolean).length >= 7 && answers.filter((held) => !held).length >= 18);
+  });
+
+  test("no stored status is a place while nothing is published onto the application", async () => {
+    for (const status of STATUSES) {
+      term({ over: { status } });
+      signedIn("amara");
+      assert.equal(await holdsPlace("amara"), "no", `status ${status} with no result reads as a place`);
+    }
+  });
+
+  test("somebody who has not applied holds none, and neither does anybody asked about no round", async () => {
+    term(null);
+    signedIn("nina");
+    assert.equal(await holdsPlace("nina"), "no");
+    term(WAYS["placed by their own ranking"]);
+    signedIn("amara");
+    assert.equal(await holdsPlace("amara", []), "no", "a page that listed no application asks about none");
+    assert.equal(await holdsPlace("amara", [ROUND]), "yes");
+    assert.equal(await holdsPlace("amara", ["older-round", "no-such-round"]), "no", "a round that is not an application form counts for nothing");
+  });
+
+  test("what cannot be read is could not tell, and never no", async (t) => {
+    // The function says what it could not read. That is its to say, and not this run's to print.
+    t.mock.method(console, "warn", () => {});
+    term(WAYS["placed by their own ranking"]);
+    signedIn("amara");
+    world.db = null;
+    assert.equal(await holdsPlace("amara"), "unknown", "with no database");
+    for (const fails of ["admissionApplications", "admissionRounds"]) {
+      term(WAYS["no offer"], { fails });
+      signedIn("amara");
+      assert.equal(await holdsPlace("amara", [ROUND]), "unknown", `when ${fails} cannot be read`);
+    }
+  });
+
+  test("in a view-as session it is could not tell, for somebody with a place and for somebody without, and nothing is read", async () => {
+    for (const name of ["placed by their own ranking", "no offer"]) {
+      term(WAYS[name]);
+      viewingAs("amara");
+      assert.equal(await holdsPlace("amara"), "unknown", name);
+      assert.deepEqual(world.touched, [], `${name}: something was read`);
+    }
+  });
+
+  test("the answer is one of three words and carries nothing else", async () => {
+    term(WAYS["placed on an incubator"]);
+    signedIn("amara");
+    const answer = await holdsPlace("amara");
+    assert.equal(typeof answer, "string");
+    assert.ok(["yes", "no", "unknown"].includes(answer));
+    assert.equal(await load.loadHoldsPlace(world.db, "amara", [ROUND], new Date()), true, "the loader's answer is one bit");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2, 3 and 4. What the two pages draw
+// ---------------------------------------------------------------------------
+
+describe("neither page states an outcome, however the application stands", () => {
+  test("the two pages are drawn, and each is the page this file says it is", async () => {
+    runsAre([]);
+    term(WAYS["stored as submitted, with nothing published"]);
+    signedIn("amara");
+    const waiting = await drawn();
+    assert.equal(waiting.homeText, HOME.noPlace);
+    assert.equal(waiting.learnText, LEARN.noPlace);
+    term(WAYS["placed by their own ranking"]);
+    signedIn("amara");
+    const placed = await drawn();
+    assert.equal(placed.homeText, HOME.other);
+    assert.equal(placed.learnText, LEARN.other);
+  });
+
+  for (const name of WAY_NAMES) {
+    test(`${name}: no word of the outcome, and no programme, on Home or on the list of programmes`, async () => {
+      runsAre([]);
+      term(WAYS[name]);
+      signedIn("amara");
+      const own = await saidOnTheirOwnPage("amara");
+      signedIn("amara");
+      const pages = await drawn();
+      for (const [page, html, text] of [["Home", pages.home, pages.homeText], ["the list of programmes", pages.learn, pages.learnText]]) {
+        for (const said of own.said) {
+          assert.ok(!text.includes(said), `${page} says what their own page says: ${said}`);
+        }
+        for (const programme of PROGRAMMES) {
+          assert.ok(!html.includes(programme), `${page} carries a programme: ${programme}`);
+        }
+        assert.doesNotMatch(text, OUTCOME_WORDS, `${page} carries a word for an outcome`);
+      }
+      // One of two pages, to the character, and which one follows from one bit.
+      assert.equal(pages.homeText, WAYS[name].held ? HOME.other : HOME.noPlace);
+      assert.equal(pages.learnText, WAYS[name].held ? LEARN.other : LEARN.noPlace);
+    });
+  }
+
+  test("the words this file looks for are the ones the person's own page uses, so the search is not empty", async () => {
+    const seen = new Set();
+    for (const name of WAY_NAMES) {
+      term(WAYS[name]);
+      signedIn("amara");
+      for (const said of (await saidOnTheirOwnPage("amara")).said) seen.add(said);
+    }
+    for (const said of [
+      "Accepted",
+      "You’re in AGI Strategy.",
+      "You’re in Research incubator.",
+      "We’ll email you before you start with how the first week works.",
+      "Invitation",
+      "You’re invited to Research incubator.",
+      "Place given back",
+      "No place this term",
+      "AGI Strategy Fellowship",
+    ]) {
+      assert.ok(seen.has(said), `their own page no longer says: ${said}`);
+    }
+    for (const said of seen) assert.match(said, /\p{L}{2}/u);
+    // And the fixed list of words catches each of those pages' chips and titles.
+    for (const said of ["Accepted", "You’re in AGI Strategy.", "Invitation", "Place given back", "No place this term", "You said no thanks to Research incubator."]) {
+      assert.match(said, OUTCOME_WORDS);
+    }
+    assert.doesNotMatch(`${HOME.noPlace} ${HOME.other} ${HOME.unread} ${LEARN.noPlace} ${LEARN.other}`, OUTCOME_WORDS);
+  });
+
+  test("every page drawn for a place is the same page, to the byte, whichever programme and however it was come by", async () => {
+    runsAre([]);
+    const held = WAY_NAMES.filter((name) => WAYS[name].held);
+    const pages = [];
+    for (const name of held) {
+      term(WAYS[name]);
+      signedIn("amara");
+      pages.push(await drawn());
+    }
+    for (const [index, page] of pages.entries()) {
+      assert.equal(page.home, pages[0].home, `Home differs for: ${held[index]}`);
+      assert.equal(page.learn, pages[0].learn, `the list of programmes differs for: ${held[index]}`);
+    }
+  });
+
+  test("and every page drawn for no place is the same page, whatever the application came to", async () => {
+    runsAre([]);
+    const none = WAY_NAMES.filter((name) => !WAYS[name].held);
+    const pages = [];
+    for (const name of none) {
+      term(WAYS[name]);
+      signedIn("amara");
+      pages.push(await drawn());
+    }
+    for (const [index, page] of pages.entries()) {
+      assert.equal(page.home, pages[0].home, `Home differs for: ${none[index]}`);
+      assert.equal(page.learn, pages[0].learn, `the list of programmes differs for: ${none[index]}`);
+    }
+  });
+
+  test("somebody who has not applied reads what they always have", async () => {
+    runsAre([]);
+    term(null);
+    signedIn("nina");
+    const pages = await drawn();
+    assert.equal(pages.homeText, `Hi Nina. ${NOT_ON_A_PROGRAMME} [install] [term] [events] [nothing yet] [profile] [MyWorkSummary]`);
+    assert.equal(pages.learnText, LEARN.noPlace);
+  });
+
+  test("with a place, the way to their applications is on each page, and is the only thing there about them", async () => {
+    runsAre([]);
+    term(WAYS["placed on an incubator"]);
+    signedIn("amara");
+    const pages = await drawn();
+    const hrefs = (html) => [...html.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
+    assert.deepEqual(hrefs(pages.home), ["/applications", `/applications/${ROUND}`]);
+    assert.deepEqual(hrefs(pages.learn), ["/applications"]);
+  });
+});
+
+describe("a place and a place that could not be read are drawn alike", () => {
+  test("in a view-as session both pages are the same, to the byte, for every way the member's application can stand", async () => {
+    runsAre([]);
+    const pages = [];
+    for (const name of WAY_NAMES) {
+      term(WAYS[name]);
+      viewingAs("amara");
+      pages.push(await drawn());
+      assert.deepEqual(
+        world.touched.filter((collection) => collection.startsWith("admissionApplication")),
+        [],
+        `${name}: an application was read in a view-as session`,
+      );
+    }
+    for (const [index, page] of pages.entries()) {
+      assert.equal(page.home, pages[0].home, `Home differs for: ${WAY_NAMES[index]}`);
+      assert.equal(page.learn, pages[0].learn, `the list of programmes differs for: ${WAY_NAMES[index]}`);
+    }
+    assert.equal(pages[0].homeText, HOME.unread);
+    assert.equal(pages[0].learnText, LEARN.other);
+  });
+
+  test("the list of programmes of somebody with a place is the page an admin viewing as anybody is shown", async () => {
+    runsAre([]);
+    term(WAYS["placed by their own ranking"]);
+    signedIn("amara");
+    const hers = await drawn();
+    term(WAYS["no offer"]);
+    viewingAs("amara");
+    const borrowed = await drawn();
+    assert.equal(hers.learn, borrowed.learn);
+  });
+
+  test("when the applications cannot be read, neither page says the member is on nothing, and neither names anything", async (t) => {
+    t.mock.method(console, "warn", () => {});
+    runsAre([]);
+    for (const name of ["placed by their own ranking", "no offer"]) {
+      term(WAYS[name], { fails: "admissionApplications" });
+      signedIn("amara");
+      const pages = await drawn();
+      assert.equal(pages.homeText, HOME.unread, name);
+      assert.equal(pages.learnText, LEARN.other, name);
+    }
+  });
+
+  test("when the form cannot be read, neither page says the member is on nothing either", async (t) => {
+    t.mock.method(console, "warn", () => {});
+    runsAre([]);
+    // The list of applications is read first, and reads the form too: so this
+    // is the list failing, and the card names nothing.
+    term(WAYS["placed by their own ranking"], { fails: "admissionRounds" });
+    signedIn("amara");
+    const pages = await drawn();
+    assert.equal(pages.homeText, HOME.unread);
+    assert.equal(pages.learnText, LEARN.other);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. The two components, on their own
+// ---------------------------------------------------------------------------
+
 const slot = (name) => createElement("div", null, `[${name}]`);
 
-function home({ place = null, placesRead = true } = {}) {
+function home({ holdsNoPlace = true } = {}) {
   return textOf(
     renderToStaticMarkup(
       createElement(HomeMember, {
         given: "Chloe",
-        invite: slot("invite"),
+        invite: slot("install"),
         termCard: slot("term"),
         comingUpRows: slot("events"),
         comingUpCards: slot("event cards"),
         applications: slot("applications"),
         nothingYet: null,
-        place,
-        placesRead,
+        holdsNoPlace,
         finishProfile: slot("profile"),
       }),
     ),
   );
 }
-const placeCard = createElement(YourPlace, { places: [PLACE] });
 
 describe("Home, for a member on no run", () => {
-  test("with no place it reads as it always has", () => {
+  test("handed that the member holds no place, it reads as it always has", () => {
     runsAre([]);
-    assert.equal(
-      home(),
-      `Hi Chloe. ${NOT_ON_A_PROGRAMME} [invite] [term] [events] [applications] [profile] [MyWorkSummary]`,
-    );
+    assert.equal(home(), `Hi Chloe. ${NOT_ON_A_PROGRAMME} [install] [term] [events] [applications] [profile] [MyWorkSummary]`);
   });
 
-  test("with a place, the place stands where the claim would, above the term", () => {
+  test("otherwise the sentence is left out, and nothing is put in its place", () => {
     runsAre([]);
-    assert.equal(
-      home({ place: placeCard }),
-      `Hi Chloe. [invite] ${CARD_TEXT} [term] [events] [applications] [profile] [MyWorkSummary]`,
-    );
+    assert.equal(home({ holdsNoPlace: false }), "Hi Chloe. [install] [term] [events] [applications] [profile] [MyWorkSummary]");
   });
 
-  test("somebody holding a place is never told they are on no programme", () => {
+  test("somebody who may hold a place is never told they are on no programme, whatever runs they have had", () => {
     for (const runs of [[], [run("old", { archived: true })], [run("offer", { roles: [], membership: "offered" })]]) {
       runsAre(runs);
-      const text = home({ place: placeCard });
-      assert.ok(!text.includes(NOT_ON_A_PROGRAMME), JSON.stringify(runs.map((entry) => entry.runId)));
-      assert.ok(text.includes(CARD_TEXT));
+      assert.ok(!home({ holdsNoPlace: false }).includes(NOT_ON_A_PROGRAMME), JSON.stringify(runs.map((entry) => entry.runId)));
     }
-  });
-
-  test("when the places could not be read, the claim is not made and no place is drawn", () => {
-    runsAre([]);
-    assert.equal(home({ placesRead: false }), "Hi Chloe. [invite] [term] [events] [applications] [profile] [MyWorkSummary]");
   });
 
   test("the claim still waits for the runs, and is still left out when they could not be read or the member is involved", () => {
@@ -405,128 +676,190 @@ describe("Home, for a member on no run", () => {
     runsAre([run("led", { roles: ["lead"], membership: "none" })]);
     assert.ok(!home().includes(NOT_ON_A_PROGRAMME), "said to somebody who leads a programme");
   });
+
+  test("it takes nothing about a place but that one answer", () => {
+    const code = stripSource(readFileSync(join(SRC, "app", "(app)", "dashboard", "HomeMember.tsx"), "utf8"), { keepStrings: true });
+    const slots = code.slice(code.indexOf("type Slots = {"), code.indexOf("};", code.indexOf("type Slots = {")));
+    assert.deepEqual(
+      [...slots.matchAll(/^\s*(\w+)\??:/gm)].map((match) => match[1]),
+      ["given", "invite", "termCard", "comingUpRows", "comingUpCards", "applications", "nothingYet", "holdsNoPlace", "finishProfile"],
+    );
+    assert.match(slots, /holdsNoPlace: boolean;/);
+  });
 });
 
 describe("Home, for a member on a live run", () => {
-  test("the run's own Home is drawn, and the place card is not", () => {
-    runsAre([run("live")]);
-    const learner = home({ place: placeCard });
-    assert.ok(learner.startsWith("[HomeProgramme]"), learner);
-    assert.ok(!learner.includes("You’re in AGI Strategy."));
-    runsAre([run("led", { roles: ["facilitator"] })]);
-    const facilitator = home({ place: placeCard });
-    assert.ok(facilitator.startsWith("[HomeFacilitator]"), facilitator);
-    assert.ok(!facilitator.includes("You’re in AGI Strategy."));
+  test("the run's own Home is drawn, whatever was answered about a place", () => {
+    for (const holdsNoPlace of [true, false]) {
+      runsAre([run("live")]);
+      const learner = home({ holdsNoPlace });
+      assert.ok(learner.startsWith("[HomeProgramme]"), learner);
+      runsAre([run("led", { roles: ["facilitator"] })]);
+      const facilitator = home({ holdsNoPlace });
+      assert.ok(facilitator.startsWith("[HomeFacilitator]"), facilitator);
+      assert.ok(!learner.includes(NOT_ON_A_PROGRAMME) && !facilitator.includes(NOT_ON_A_PROGRAMME));
+    }
   });
 });
 
-// ---------------------------------------------------------------------------
-// 5. The list of programmes
-// ---------------------------------------------------------------------------
-
-const HUB_HEAD =
-  "Courses Your courses Every fellowship and reading group you're on: the week your cohort is on, the materials for it, " +
-  "and the exercises you owe. A place you've been offered shows here too, until your group is confirmed.";
-const HUB_EMPTY =
-  "You're not on a course yet NAISI runs fellowships and reading groups each term. The catalogue lists what's open and what's coming. Browse courses";
 const hub = (instead = null) => textOf(renderToStaticMarkup(createElement(LearnHub, { instead })));
-/** What the page hands the hub when the member's places could not be read. */
-const unreadCard = createElement(YourApplications, { rows: null });
-const UNREAD_TEXT = "Your applications View all → Everything you have applied to, and where each one has got to.";
+/** What the page hands the hub for everybody but a member known to hold no place. */
+const wayIn = createElement(YourApplications, { rows: null });
 
 describe("the list of programmes", () => {
-  test("with no run and no place it reads as it always has", () => {
+  test("with no run, handed nothing, it reads as it always has", () => {
     runsAre([]);
-    assert.equal(hub(), `${HUB_HEAD} ${HUB_EMPTY}`);
+    assert.equal(hub(), LEARN.noPlace);
   });
 
-  test("with no run and a place, the place stands where the empty state would", () => {
+  test("with no run, the way to the member's applications stands where the empty state would", () => {
     runsAre([]);
-    assert.equal(hub(placeCard), `${HUB_HEAD} ${CARD_TEXT}`);
+    assert.equal(hub(wayIn), LEARN.other);
   });
 
-  test("with only archived runs and a place, the place is above them", () => {
+  test("with only archived runs, it is above them, and no claim is made", () => {
     runsAre([run("old", { archived: true })]);
-    const text = hub(placeCard);
-    assert.ok(text.startsWith(`${HUB_HEAD} ${CARD_TEXT} Archived `), text);
+    const text = hub(wayIn);
+    assert.ok(text.startsWith(`${HUB_HEAD} ${WAY_TO_APPLICATIONS} Archived `), text);
     assert.ok(text.endsWith("[run old]"));
     assert.ok(!text.includes("not on a course yet"));
   });
 
-  test("with only archived runs and no place it reads as it always has", () => {
+  test("with only archived runs, handed nothing, it reads as it always has", () => {
     runsAre([run("old", { archived: true })]);
     const text = hub();
     assert.ok(text.startsWith(`${HUB_HEAD} Archived `), text);
     assert.ok(text.endsWith("[run old]"));
   });
 
-  test("when the places could not be read, the way to the applications stands there and no claim is made", () => {
-    runsAre([]);
-    assert.equal(hub(unreadCard), `${HUB_HEAD} ${UNREAD_TEXT}`);
-    runsAre([run("old", { archived: true })]);
-    const text = hub(unreadCard);
-    assert.ok(text.startsWith(`${HUB_HEAD} ${UNREAD_TEXT} Archived `), text);
-    assert.ok(!text.includes("not on a course yet"));
-  });
-
-  test("on a live run the run's own card speaks, and the place card is not drawn", () => {
+  test("on a live run the run's own card speaks, and what was handed in is not drawn", () => {
     runsAre([run("live"), run("old", { archived: true })]);
-    const text = hub(placeCard);
+    const text = hub(wayIn);
     assert.ok(text.startsWith(`${HUB_HEAD} [run live] Archived `), text);
-    assert.ok(!text.includes("You’re in AGI Strategy."));
+    assert.ok(!text.includes("Your applications"));
   });
 
-  test("while the runs are loading, or could not be read, nothing is said about a place or about being on nothing", () => {
+  test("while the runs are loading, or could not be read, nothing is said about applications or about being on nothing", () => {
     for (const state of [{ loading: true }, { error: new Error("Your account is still pending.") }]) {
       runsAre([], state);
-      const text = hub(placeCard);
-      assert.ok(!text.includes("not on a course yet") && !text.includes("You’re in AGI Strategy."), text);
+      const text = hub(wayIn);
+      assert.ok(!text.includes("not on a course yet") && !text.includes("Your applications"), text);
     }
   });
 });
 
 // ---------------------------------------------------------------------------
-// 6. Nothing in these pages reads an application itself
+// 6. The source
 // ---------------------------------------------------------------------------
 
 const codeOf = (...parts) => stripSource(readFileSync(join(SRC, ...parts), "utf8"), { keepStrings: true }).replace(/\s+/g, " ");
 
+function* sourceFiles(dir) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) yield* sourceFiles(path);
+    else if (/\.tsx?$/.test(entry.name)) yield path;
+  }
+}
+const inRepo = (file) => relative(REPO_ROOT, file).split(sep).join("/");
+
 describe("the pages ask one function, and it asks the reader behind the person's own page", () => {
   const DASHBOARD = codeOf("app", "(app)", "dashboard", "page.tsx");
-  const LEARN = codeOf("app", "(app)", "learn", "page.tsx");
-  const PLACES = codeOf("features", "applications", "home", "places.ts");
+  const LEARN_PAGE = codeOf("app", "(app)", "learn", "page.tsx");
+  const ASKED = codeOf("features", "applications", "home", "holdsPlace.ts");
   const LOAD = codeOf("lib", "applications", "status", "load.ts");
-  const WORDS = codeOf("lib", "applications", "status", "words.ts");
 
   test("neither page looks at what became of an application", () => {
-    for (const [name, page] of [["the dashboard", DASHBOARD], ["the list of programmes", LEARN]]) {
+    for (const [name, page] of [["the dashboard", DASHBOARD], ["the list of programmes", LEARN_PAGE]]) {
       assert.ok(!/row\.application\b|\.status\b|\.result\b|\.invitation\b|\.attendance\b|standingOf|statusViewFor/.test(page), `${name} reads an application itself`);
       assert.ok(!/admissionDecisions|staffRepo|decisionDay/.test(page), `${name} reaches a decision`);
     }
   });
 
-  test("each hands on a card only when there is a place, so an empty card is never mistaken for one", () => {
-    assert.ok(DASHBOARD.includes("place={places && places.length > 0 ? <YourPlace places={places} /> : null}"));
-    assert.ok(DASHBOARD.includes("placesRead={places !== null}"));
+  test("each page uses the answer for one thing: whether it is a no", () => {
+    assert.ok(DASHBOARD.includes("user && applications ? holdsPlace(user.uid, applications.map((row) => row.roundId)) : COULD_NOT_TELL,"));
+    assert.ok(DASHBOARD.includes('const COULD_NOT_TELL: HoldsPlace = "unknown";'));
+    assert.ok(DASHBOARD.includes('holdsNoPlace={held === "no"}'));
+    assert.equal(DASHBOARD.split("held").length - 1, 2, "the dashboard uses the answer somewhere else");
     assert.ok(
-      LEARN.includes(
-        "const instead = places === null ? <YourApplications rows={null} /> : places.length > 0 ? <YourPlace places={places} /> : null; return <LearnHub instead={instead} />;",
+      LEARN_PAGE.includes(
+        'const held = user ? await holdsPlace(user.uid) : "unknown"; return <LearnHub instead={held === "no" ? null : <YourApplications rows={null} />} />;',
       ),
+    );
+    assert.equal(LEARN_PAGE.split("held").length - 1, 2, "the list of programmes uses the answer somewhere else");
+  });
+
+  test("the one function reads the list of applications and the page's own read, and answers in three words", () => {
+    assert.ok(ASKED.includes('export type HoldsPlace = "yes" | "no" | "unknown";'));
+    assert.ok(ASKED.includes("const roundIds = appliedTo ?? (await loadStatusRows(db, uid, now)).map((row) => row.round.id);"));
+    assert.ok(ASKED.includes('return (await loadHoldsPlace(db, uid, roundIds, now)) ? "yes" : "no";'));
+    assert.ok(!/\.collection\(|\.doc\(|\.where\(|admissionDecisions|staffRepo|standingOf|\.result\b|\.status\b/.test(ASKED));
+    // What it cannot read is "could not tell", never "holds no place".
+    assert.ok(ASKED.includes('if (!db) return "unknown";'));
+    assert.match(ASKED, /catch \(err\) \{ console\.warn\([^)]*\); return "unknown"; \}/);
+    // Every way out of it is one of the three words.
+    const body = ASKED.slice(ASKED.indexOf("export async function holdsPlace("));
+    assert.deepEqual(
+      [...body.matchAll(/return ([^;]+);/g)].map((match) => match[1]),
+      ['"unknown"', '"unknown"', '(await loadHoldsPlace(db, uid, roundIds, now)) ? "yes" : "no"', '"unknown"'],
     );
   });
 
-  test("the one function reads the list of applications and the page's own read, and nothing else", () => {
-    assert.ok(PLACES.includes("const roundIds = appliedTo ?? (await loadStatusRows(db, uid, now)).map((row) => row.round.id);"));
-    assert.ok(PLACES.includes("const words = await loadPlaceWords(db, uid, roundIds, now);"));
-    assert.ok(!/\.collection\(|\.doc\(|\.where\(|admissionDecisions|staffRepo|standingOf|\.result\b|\.status\b/.test(PLACES));
-    // What it cannot read is "could not be read", never "holds no place".
-    assert.ok(PLACES.includes("if (!db) return null;"));
-    assert.match(PLACES, /catch \(err\) \{ console\.warn\([^)]*\); return null; \}/);
+  test("the loader goes through the page's own read, and keeps one bit of it", () => {
+    assert.ok(LOAD.includes('const loaded = await loadStatus(db, roundId, uid, now); return loaded !== null && loaded.view.kind === "place";'));
+    assert.ok(LOAD.includes("): Promise<boolean> { const held = await Promise.all("));
+  });
+});
+
+/**
+ * THE FILES OF THESE TWO PAGES, AND THE CARDS THEY DRAW ABOUT APPLICATIONS.
+ * None of them may import the words for an outcome, or the view they are
+ * read from: a file that could not word an outcome cannot state one.
+ */
+const PAGE_FILES = [
+  join(SRC, "app", "(app)", "dashboard"),
+  join(SRC, "app", "(app)", "learn", "page.tsx"),
+  join(SRC, "app", "(app)", "learn", "LearnHub.tsx"),
+  join(SRC, "features", "applications", "home"),
+];
+/** Where an outcome is worded, or read into words. */
+const OUTCOME_MODULES = /applications\/status\/(?:words|view|standing)|applications\/decisionDay\/|features\/applications\/status\//;
+/** Functions that word an outcome, whatever they were imported as. */
+const OUTCOME_FUNCTIONS = /\b(?:outcomeWords|listWordsFor|loadListWords|statusViewFor|standingOf|placeNextWords|standardSubject|loadStatus)\b/;
+
+describe("no file of these pages can word an outcome", () => {
+  const files = PAGE_FILES.flatMap((path) => (/\.tsx?$/.test(path) ? [path] : [...sourceFiles(path)]));
+
+  test("the walk reads the pages' files", () => {
+    const names = files.map(inRepo);
+    assert.ok(names.length >= 12, `only ${names.length} files were read`);
+    for (const expected of [
+      "src/app/(app)/dashboard/page.tsx",
+      "src/app/(app)/dashboard/HomeMember.tsx",
+      "src/app/(app)/learn/page.tsx",
+      "src/app/(app)/learn/LearnHub.tsx",
+      "src/features/applications/home/YourApplications.tsx",
+      "src/features/applications/home/holdsPlace.ts",
+    ]) {
+      assert.ok(names.includes(expected), `${expected} was not read`);
+    }
+    assert.match('import { outcomeWords } from "@/lib/applications/status/words";', OUTCOME_MODULES);
+    assert.match("const words = outcomeWords(view);", OUTCOME_FUNCTIONS);
   });
 
-  test("the loader goes through the page's own read, and the words through the page's own title", () => {
-    assert.ok(LOAD.includes("const loaded = await loadStatus(db, roundId, uid, now); const words = loaded ? placeWordsFor(loaded.view) : null;"));
-    assert.ok(WORDS.includes('if (view.kind !== "place") return null; const words = outcomeWords(view); return words ? { title: words.title, next: view.next } : null;'));
+  test("none imports the words for an outcome, the view they are read from, or a function that makes them", () => {
+    for (const file of files) {
+      const code = stripSource(readFileSync(file, "utf8"), { keepStrings: true });
+      const imports = [...code.matchAll(/from\s+["']([^"']+)["']/g)].map((match) => match[1]);
+      assert.deepEqual(imports.filter((from) => OUTCOME_MODULES.test(from)), [], `${inRepo(file)} imports where an outcome is worded`);
+      assert.doesNotMatch(code, OUTCOME_FUNCTIONS, `${inRepo(file)} calls a function that words an outcome`);
+    }
+  });
+
+  test("the one read they share is of one bit, from the loader of the person's own page", () => {
+    const asked = files.filter((file) => /applications\/status\/load/.test(readFileSync(file, "utf8")));
+    assert.deepEqual(asked.map(inRepo), ["src/features/applications/home/holdsPlace.ts"]);
+    assert.ok(codeOf("features", "applications", "home", "holdsPlace.ts").includes('import { loadHoldsPlace } from "@/lib/applications/status/load";'));
   });
 });
 
@@ -537,25 +870,17 @@ describe("the pages ask one function, and it asks the reader behind the person's
 const ON_NOTHING = {
   "not on a programme yet": {
     "src/app/(app)/dashboard/HomeMember.tsx": {
-      asks: "const onNothing = !error && !involved && placesRead && !place;",
-      why: "Home says it only when the member's places were read and there are none",
+      asks: "const onNothing = !error && !involved && holdsNoPlace;",
+      why: "Home says it only when the server read that the member holds no place",
     },
   },
   "not on a course yet": {
     "src/app/(app)/learn/LearnHub.tsx": {
       asks: "instead ? ( instead ) : ( <EmptyState",
-      why: "the list of programmes draws a held place, or the way to the applications it could not read, in the stead of the empty state",
+      why: "the list of programmes draws the way to the member's applications in the stead of the empty state, for a place and for one it could not read",
     },
   },
 };
-
-function* sourceFiles(dir) {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) yield* sourceFiles(path);
-    else if (/\.tsx?$/.test(entry.name)) yield path;
-  }
-}
 
 describe("nobody is told they are on nothing by a file that has not asked about a place", () => {
   const found = Object.fromEntries(Object.keys(ON_NOTHING).map((phrase) => [phrase, []]));
@@ -564,7 +889,7 @@ describe("nobody is told they are on nothing by a file that has not asked about 
     read += 1;
     const code = stripSource(readFileSync(file, "utf8"), { keepStrings: true });
     for (const phrase of Object.keys(ON_NOTHING)) {
-      if (code.includes(phrase)) found[phrase].push(relative(REPO_ROOT, file).split(sep).join("/"));
+      if (code.includes(phrase)) found[phrase].push(inRepo(file));
     }
   }
 
@@ -581,7 +906,7 @@ describe("nobody is told they are on nothing by a file that has not asked about 
         unregistered,
         [],
         `A file tells a member they are "${phrase}" and is not registered. Somebody decision day gave a place has no run yet: ` +
-          "ask about a held place first (placesHeldBy on the server, a slot handed to the browser), then register the file.",
+          "ask whether they hold a place first (holdsPlace on the server, one answer handed to the browser), then register the file.",
       );
       assert.deepEqual(Object.keys(files).filter((file) => !found[phrase].includes(file)), [], "a registered file no longer says it: remove it");
       for (const [file, entry] of Object.entries(files)) {
