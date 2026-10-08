@@ -76,15 +76,23 @@ import { couldBeFollowed } from "./followable";
  * one, so no value can read as a token, and nobody's name can stop an email
  * being written. No markup is made here at all.
  *
- * ## A meeting link is never put in an email
+ * ## This email never carries a meeting link
  *
  * An email can be forwarded, and a link to an online session lets whoever
- * holds it into the call. So the site shows a group's link to that group's
- * own people, on their programme's page in the member area, and no email
- * carries it: the weekly reminder says "Online" and never the link, and this
- * email keeps to the same rule. `placementWhere` answers "online" and whether
- * the link is there to be found on that page, and nothing in
- * `PlacementFacts` can hold an address. The composer is never handed one.
+ * holds it into the call. So THIS EMAIL says that a group is online and
+ * never prints its link: the link is on the programme's page in the member
+ * area, which shows it to that group's members, its facilitators and admins.
+ * The weekly reminder keeps the same rule for the same reason
+ * (`courseNudgeSessionWhere` says "Online" and never the link).
+ *
+ * THE RULE IS ABOUT THESE TWO EMAILS, AND NOT ABOUT EVERY EMAIL THE SITE
+ * SENDS. A facilitator's own notice to their group is theirs to word, and it
+ * can carry the link: `RoomNoticeComposer` writes one into the notice for a
+ * week that has moved online.
+ *
+ * `placementWhere` answers "online" and whether the link is there to be found
+ * on that page, and nothing in `PlacementFacts` can hold an address. The
+ * composer is never handed one.
  *
  * A ROOM IS TYPED BY A PERSON, AND A LINK CAN BE TYPED INTO ONE. So a room
  * is printed only when nothing in it could be followed (`couldBeFollowed`

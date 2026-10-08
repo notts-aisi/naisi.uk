@@ -14,7 +14,9 @@
  *    where, beside its link to the week's own page.
  *
  * BOTH ASK THIS ONE FUNCTION, so the two cannot come to differ on what
- * counts. A third email that prints a room a facilitator typed asks it too.
+ * counts. The rule is about these two emails, which the site writes from a
+ * group's stored room. A facilitator's own notice to their group is theirs
+ * to word, and can carry a room or a link they put in it.
  *
  * True when the text holds something a mail client would make into a link,
  * or a phone would dial:

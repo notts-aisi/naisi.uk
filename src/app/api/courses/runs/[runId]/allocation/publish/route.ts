@@ -195,7 +195,7 @@ function whyNoFirstSession(run: CourseRunDoc): NoFirstSession {
  * same week `firstSessionWhen` dates, addressed the same way, so the email's
  * when and where are one session's. Null when the group has neither a room
  * nor a link for it, and the email then says nothing about where. The link
- * itself never leaves `placementWhere`: no email carries one.
+ * itself never leaves `placementWhere`, so this email cannot carry it.
  */
 function firstSessionWhere(run: CourseRunDoc, group: CourseGroupDoc): PlacementWhere | null {
   const first = run.weekPlan.find((e) => e.kind === "week");
