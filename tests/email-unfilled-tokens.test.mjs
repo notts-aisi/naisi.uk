@@ -28,8 +28,8 @@
  *     against stored groups, and the link is in none of what comes back.
  *  3. THE ROUTE REFUSES BEFORE IT DOES ANYTHING. The real handler is run
  *     against a stored run: a refusal stamps nothing and emails nobody, the
- *     sentence says what to set, and what does go out names the room or the
- *     link and carries no token.
+ *     sentence says what to set, and what does go out names the room, or
+ *     says the group is online, and carries no token.
  *  4. AN ADMIN PROOFING THE WORDING SEES WHAT A PLACED PERSON WOULD, and the
  *     designer offers exactly the tokens the composer fills.
  *  5. THE CLASS. Every function in the tree that fills tokens is found and
