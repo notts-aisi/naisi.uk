@@ -68,6 +68,13 @@ export const APPLICATION_FIELD_LIMITS = {
  * answer, no availability: the board asks the application system for what it
  * needs when it draws (`src/lib/applications/handover/board.ts`). So nothing
  * a person wrote on the form is stored a second time on the course side.
+ *
+ * AND IT IS ANNOUNCED TO ITS OWNER AS NOTHING. It is the course side's list
+ * to place people from, not news: what became of somebody's application is
+ * said on their own application page and on the list of their applications.
+ * So anything that draws a person's own row for them passes a row with
+ * `fromForm` over before it looks at its status (`/api/courses/me` does),
+ * and the first thing the course system shows that person is their group.
  */
 export type CourseApplicationFromForm = {
   /** The application form's round id. */

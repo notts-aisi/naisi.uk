@@ -1080,6 +1080,12 @@ one of two pages: the page of a member known to hold no place, and the page
 of everybody else. In a view-as session it is one page, however the
 member's application stands.
 
+An admin's hand-over onto a course run changes none of this. The row it
+writes is the course side's list to place people from, and it is announced
+nowhere in the member area, so somebody who has been handed over goes on
+reading these same two pages until they are put in a group ("What the
+person sees", under "From the form onto a course run").
+
 ### Who is in the term
 
 A reply cannot touch the decision documents, so they go on saying Accept for
@@ -1126,9 +1132,10 @@ Decision day tells everybody where they stand. What happens next happens on
 a course run: groups with a time, a room and facilitators, a placement
 email, and the member area. That is the course system, which was built
 before application forms and keeps a list of its own of who may be placed:
-the accepted rows in `courseApplications` for a run. Everything there (the
-allocation board, a placement, Publish, the cohort's mailing list, the
-member area) starts from such a row.
+the accepted rows in `courseApplications` for a run. Placing somebody
+starts from such a row (the allocation board, a placement, Publish, the
+cohort's mailing list), and what the person is shown starts from the place
+on the run that a placement then makes.
 
 So the two are joined at that list and nowhere else, in three steps, each
 taken by an admin.
@@ -1141,7 +1148,8 @@ taken by an admin.
 
 Nothing in this section emails anybody, and decision day is unchanged. The
 first email after decision day is the placement email Publish sends from
-the board, as it always was.
+the board, as it always was. A hand-over tells an applicant nothing: the
+first thing the course system shows somebody is their group.
 
 ### The run a programme names
 
@@ -1245,11 +1253,12 @@ hand-over cannot disagree with any other screen about a place:
 - NOT somebody who gave their place back.
 
 **When.** Only once the term is marked as sent (`decisionsSentAt`), and
-only for somebody decision day has reached (`hasBeenTold`). A row on a run
-shows on its owner's own page, so one written early would tell them early.
+only for somebody decision day has reached (`hasBeenTold`). A row is its
+owner's to read under the collection's own rule, and being put in a group
+shows them the run, so neither may come before they have been told.
 The run has to pass `runStanding` still, and has to have left draft: a
-draft run's own members cannot open it, and nothing in the member area is
-written for one. `handOverBlocker` is the one answer, for the panel that
+draft run's own members cannot open it, so nobody could be shown their
+group on one. `handOverBlocker` is the one answer, for the panel that
 draws the button and for the writer, which asks it again inside each
 transaction of what that transaction read.
 
@@ -1393,46 +1402,51 @@ concerns.
 
 ### What the person sees
 
-The member area lists every run somebody touches (`/api/courses/me`), and
-has always drawn an accepted row with no group yet as a card: a place
-offered, with the group to follow. A row from the form reaches it the same
-way, with two differences.
+**Nothing, because of the hand-over.** The hand-over writes a row the
+course side places people from. That row is a working list and not news for
+its owner. What became of their application is said on their own
+application page and on the list of their applications and nowhere else,
+and what comes next for their kind of programme is said there too ("One set
+of words for an outcome"). So the member area says nothing because of the
+row. `/api/courses/me` lists every run somebody is on, and has always drawn
+a person's own accepted or waitlisted row on a run as a card ("Place
+offered", "Waitlisted"). It passes a row with `fromForm` over before it
+looks at its status. Whatever the run's own applications page then does to
+the row (accepts it again, moves it to the run's waiting list, rejects it,
+annotates it), nothing is announced, and the words of a run's own
+application form are never drawn for somebody who never used that form.
 
-**It is drawn only while it is true.** Somebody can give their place back
-on the form after they were handed over, and nothing takes their row away.
-So before the card is drawn, the route asks the person's OWN application
-whether they still hold a place (`ownPlaceStands` in `status/place.ts`,
-which is `standingOf()`, the reading their own application page is drawn
-from). One they have given back is left out. It reads no decision document.
-When there is nothing to read (the form was destroyed), the place stands:
-only the person's own reply ever turns it to no.
+**So after a hand-over they read what they read before it.** The dashboard
+and the list of their programmes (`/learn`) are the two pages "One set of
+words for an outcome" describes for a member who holds a place and has no
+run: neither says they are on nothing, neither states an outcome, and the
+way to their applications is on the page. A hand-over changes none of that.
+It is invisible to the person, which is what the panel beside the button
+tells the admin who presses it.
 
-**It is worded as a place, not an offer.** They were told on decision day
-and have nothing left to accept. `viaForm` travels with the row, and
-`RunCard` words it in the form's terms: "You have a place", and that their
-group and when it meets will show there once groups are set, and that they
-will be emailed. The card asks for nothing and links nowhere, and never
-prints the run's own "Applications open".
+**The first thing the course system shows them is their group.** An
+admin's first placement of somebody on the board makes their place on the
+run. From then on the run and their group show in their member area and the
+run opens to them, as for anybody in a group, before Publish and after it.
+Publish is what emails them. Once somebody is in a group they are on the
+run whatever they reply later on the form: nothing here takes anybody off a
+run.
 
-**It is only ever a place.** A hand-over writes accepted rows and nothing
-else. The run's own waiting list goes with the run's own application form,
-and its card speaks in that form's words, which are among the ones an
-applicant on the term's form never reads. So a row from the form that
-somebody has since moved to that waiting list is not announced in the member
-area at all. The programme's panel names the person for an admin, under
-"Hold a place, and are not accepted on the run's list".
+**Nothing of the application is read for any of it.** The route reads the
+collections it read before application forms existed and none of the
+application system's, for the member and for an admin viewing the site as
+them alike.
 
-**Not in a view-as session.** Whether the place still stands is on the
-member's own application, which is its owner's to read. So in a view-as
-session the question is not asked and that card is not drawn.
+**One corner, accepted.** Whether a member holds a place is read off their
+own application (`holdsPlace()`). If a form is destroyed between a
+hand-over and a placement, the application has gone, the answer becomes
+no, and both pages tell those people they are on nothing until they are put
+in a group. Their rows stay on the run and the board still places them.
+The operations runbook says so, under destroying an admission round.
 
-**A seat is a seat.** Once somebody is in a group they are on the run,
-whatever they reply later: the run shows in their member area as it does
-for anybody in a group, from their first placement on the board. Nothing
-here takes anybody off a run.
-
-`tests/applications-handover-member-area.test.mjs` runs the route and
-renders the card.
+`tests/applications-handover-member-area.test.mjs` runs the route as each
+person, through every status the run's own applications page can give a
+row, and draws the card somebody in a group then reads.
 
 ## What deletes what
 
@@ -1512,7 +1526,6 @@ All in `src/lib/applications/`.
 | `handover/handOver.ts` | `handOverProgramme`, the one writer of a place holder's row on a course run, and what stops a press | server, staff |
 | `handover/load.ts`, `handover/views.ts` | The read behind naming a run and handing people over, for an admin | server, staff; the shapes anywhere |
 | `handover/board.ts` | What the allocation board is told about somebody the form placed: which groups they can make, and whether they still hold the place | server, staff |
-| `status/place.ts` | Whether the caller still holds the place the form gave them, for their own member area | server, applicant-safe |
 
 ## Rules for anything built on this
 
@@ -1586,10 +1599,13 @@ All in `src/lib/applications/`.
 - **Who is handed over is `holdingOf()`.** Like every other count of
   places. A second test for "holds a place" is how the board and the
   programme's own screens would come to disagree.
-- **The member area says somebody has a place only while they do.** A row
-  a hand-over wrote outlives a place given back, so whatever draws one
-  for its owner asks their own application first (`ownPlaceStands`), and
-  not at all in a view-as session.
+- **A row a hand-over wrote is announced as nothing.** It is the course
+  side's list to place people from. Anything that draws a person's own
+  `courseApplications` row for them passes a row with `fromForm` over
+  before it reads its status, and reads nothing of the application for it.
+  What became of an application is said in the two places "One set of
+  words for an outcome" names, and the first thing the course system shows
+  somebody the form placed is their group.
 - **No query that sorts or ranges on the server.** Every read here is one or
   two equalities, which need no composite index. A term is a few hundred
   documents: filter and sort in memory.

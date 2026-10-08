@@ -1005,10 +1005,20 @@ order the two are joined in, and it is an admin's job from start to finish.
   run's academic year, so it says what the membership record says that day.
   It is not what they answered on the form about Students' Union
   membership. A card with no badge means the account could not be read.
+- **A hand-over shows the person nothing.** Their member area reads as it
+  did before the press, and their own application page says what comes
+  next for their kind of programme. Nothing on a run is announced to them
+  because of the row, whatever is done to it on the run's applications
+  page.
 - **Somebody sees their group as soon as they are put in one.** The first
   placement on the board is what makes the place on the run, so the run
   shows in that person's member area from then on, before Publish. Publish
   is what emails them.
+- **Do not destroy the form while its people are waiting for a group.**
+  Until somebody is in a group, their member area knows they hold a place
+  only from their application. Destroy the form in between and it tells
+  them they are not on a programme, though they are still on the run's
+  list and the board still places them. Put everybody in a group first.
 - **Nothing is deployed for any of this.** No rule and no index changes.
   The rows are written by routes into a collection that was already shut to
   every browser write, and read back by one equality on `runId`.
@@ -1028,8 +1038,9 @@ back". Then, by hand:
    it. Until this is done Publish goes on waiting for them, because Publish
    refuses while anybody accepted is not in a group.
 
-Their own member area stops saying they have a place as soon as they reply,
-whether or not anybody has done either.
+Their own application page says they gave the place back as soon as they
+reply. Somebody who was in a group goes on seeing the run in their member
+area until step 1 is done.
 
 ### What is logged
 
@@ -1191,6 +1202,14 @@ Things worth knowing before you do it:
 - **The runs are untouched.** A round feeds course runs, and the runs outlive
   it. Somebody sitting on a cohort keeps their place when the intake that put
   them there is destroyed.
+- **People an application form handed over to a run, and who are not in a
+  group yet, are then told they are on nothing.** Their rows stay on the
+  run and the board still places them, but until each is in a group their
+  member area knows they hold a place only from the application the destroy
+  removes. So Home and the list of their programmes say "not on a programme
+  yet" to them until they are placed. Put everybody in a group before
+  destroying a form whose people are on a run ("Placing a term's accepted
+  people on a course run").
 - **Two logs survive.** `emailSends` (what was sent to whom) and `dataExports`
   (which spreadsheets were downloaded, and by whom) are append-only records that
   outlive what they describe. The manifest counts both and marks them kept.

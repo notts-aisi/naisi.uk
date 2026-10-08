@@ -30,8 +30,10 @@ import {
  *     own apply page takes no applications.
  *  2. THE HAND-OVER, once decisions have been sent: everybody who holds a
  *     place on the programme is put on the run's allocation board. Nobody is
- *     emailed and nobody is put in a group. It can be pressed again whenever
- *     somebody new has a place, and nothing is written twice.
+ *     emailed, nobody is put in a group, and nothing in their member area
+ *     changes because of it: the first thing the course system shows
+ *     somebody is their group. It can be pressed again whenever somebody new
+ *     has a place, and nothing is written twice.
  *
  * WHAT THE SERVER SAID IS WHAT IS DRAWN. Every answer brings the whole panel
  * back, read from what is stored at that moment, and the panel is redrawn
@@ -183,8 +185,9 @@ export default function RunHandOver({
             )}
 
             <p className={styles.small}>
-              Handing over puts them on the run’s allocation board. Nobody is emailed and nobody is put in a
-              group. Press it again whenever somebody new has a place: nothing is written twice.
+              Handing over puts them on the run’s allocation board. Nobody is emailed, nobody is put in a
+              group, and nothing changes in their member area until they are in one. Press it again whenever
+              somebody new has a place: nothing is written twice.
             </p>
 
             {panel.gaveBack.length > 0 && (

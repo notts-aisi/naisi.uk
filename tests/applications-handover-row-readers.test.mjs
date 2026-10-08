@@ -100,8 +100,8 @@ const READERS = {
   },
   "app/api/courses/me/route.ts": {
     kind: "own",
-    proof: ['.where("uid", "==", actor.uid)'],
-    why: "the caller's own rows, for their own member area, which a row from the form is meant to reach",
+    proof: ['.where("uid", "==", actor.uid)', "if (app.fromForm !== null) continue;"],
+    why: "the caller's own rows, for their own member area. A row from the form is passed over there before its status is read: it is announced as nothing",
   },
   "app/api/courses/runs/[runId]/apply/route.ts": {
     kind: "own",
@@ -111,7 +111,7 @@ const READERS = {
   "features/courses/useMyApplication.ts": {
     kind: "own",
     proof: ["courseApplicationId(runId, uid)", "application?.uid === uid"],
-    why: "the signed-in member's own row, read from the browser under the rule that allows an own row",
+    why: "the signed-in member's own row, read from the browser under the rule that allows an own row. Only the run's own apply form mounts it, and the apply page draws no form for a run the application form places people on (tests/applications-handover-older-way-in.test.mjs)",
   },
   "features/courses/useCourseApplicationCount.ts": {
     kind: "no-content",

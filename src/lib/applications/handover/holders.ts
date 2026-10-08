@@ -20,8 +20,9 @@ import { rankedProgrammes } from "../sections";
  *    list, and who is on that list without holding a place any more.
  *
  * A PERSON IS HANDED OVER ONLY ONCE THEY HAVE BEEN TOLD (`hasBeenTold`). A
- * row on a run shows on its owner's own page, so a row written for somebody
- * decision day had not reached would tell them early.
+ * row on a run is its owner's to read under that collection's own rule, and
+ * being put in a group shows somebody the run, so neither may come before
+ * decision day has reached them.
  *
  * Pure, with no server import, so the writer, the panel and a test all ask
  * the same functions of the same shapes.

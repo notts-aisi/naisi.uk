@@ -106,22 +106,6 @@ const STUBS = new Map([
     "export function getCurrentUser() {\n" +
       "  throw new Error('getCurrentUser is stubbed in tests');\n}",
   ],
-  // The view-as marker, read off the request's cookies. Only `GET` asks
-  // whether the session is a view-as session.
-  [
-    "@/lib/firebase/impersonation",
-    "export function getImpersonator() {\n" +
-      "  throw new Error('getImpersonator is stubbed in tests');\n}\n" +
-      "export function markerIsLive() {\n" +
-      "  throw new Error('markerIsLive is stubbed in tests');\n}",
-  ],
-  // The caller's own application on the term's application form, which only
-  // `GET` reads, for a place that form gave. It opens a connection.
-  [
-    "@/lib/applications/status/place",
-    "export function ownPlaceStands() {\n" +
-      "  throw new Error('ownPlaceStands is stubbed in tests');\n}",
-  ],
 ]);
 
 function resolveLocalTs(specifier, fromFile) {
@@ -397,8 +381,8 @@ test("nothing but runId, status and where the row came from is read off an appli
   //
   // `fromForm` is the one field added since, and it is not something the
   // applicant wrote: it is two ids, the application form a place came from
-  // and the programme on it, which is how the hub knows to word the card as
-  // a place and to ask whether the place still stands.
+  // and the programme on it. The hub reads it for one thing, to pass such a
+  // row over: a row an admin's hand-over wrote is announced as nothing.
   const fields = new Set(
     [...ME_SOURCE.matchAll(/\bapp\.([A-Za-z0-9_]+)/g)].map(([, field]) => field),
   );

@@ -1,15 +1,11 @@
 import { NextResponse } from "next/server";
-import type { Firestore } from "firebase-admin/firestore";
-import { ownPlaceStands } from "@/lib/applications/status/place";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { holdsStanding, isNamedWithStanding } from "@/lib/firebase/eligibility";
-import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { isValidDateKey } from "@/lib/courses/weekPlan";
 import { memberCurrentWeek, resolveCalendar } from "@/lib/courses/groupResolve";
 import {
   normalizeCourseApplication,
-  type CourseApplicationFromForm,
   type CourseApplicationStatus,
 } from "@/lib/firestore/courseApplications";
 import {
@@ -76,27 +72,24 @@ import {
  * goes near the payload, and the query cannot see another applicant's row at
  * all.
  *
- * ── A PLACE THE APPLICATION FORM GAVE ───────────────────────────────────────
+ * ── A ROW THE APPLICATION FORM'S HAND-OVER WROTE IS ANNOUNCED AS NOTHING ────
  * The term's application form decides who holds a place, and an admin's
- * hand-over then writes an accepted row here for each of them (`fromForm`
- * says so). That row reaches this hub as an offer like any other, with two
- * differences.
+ * hand-over then writes a row on a run for each of them (`fromForm` says so),
+ * for the allocation board to place people from. That row is the course
+ * side's working list. It is NOT news for its owner, whatever its status:
  *
- *  1. IT IS DRAWN ONLY WHILE IT IS STILL TRUE. Somebody can give their place
- *     back on the form after they were handed over, and nothing takes the
- *     row away when they do. So an offer that came from the form is checked
- *     against the caller's OWN application before it is drawn
- *     (`ownPlaceStands`), and one they have given back is left out. Their
- *     application page already says so; this hub must not say the opposite.
- *  2. IT IS WORDED AS A PLACE, NOT AN OFFER. They were told on decision day
- *     and have nothing left to accept, so `viaForm` travels with the row and
- *     the card words it in the form's own terms (see RunCard).
+ *  - what became of their application is said on their own application page
+ *    and on the list of their applications, and nowhere else
+ *    (docs/applications.md, "One set of words for an outcome"), and what
+ *    comes next for their kind of programme is said there too;
+ *  - an offer card speaks in the words of a run's own application form
+ *    ("Place offered", "Waitlisted"), which somebody from the term's form
+ *    never used.
  *
- * The check reads the caller's own application, which is its owner's to
- * read. In a view-as session the session is the member's and the reader is
- * not, so the application is not read and the offer is not drawn at all
- * (`formOffersLapsed`). A live enrolment is unaffected by any of this: once
- * somebody is in a group they are on the run, whatever they reply later.
+ * So such a row is passed over before its status is looked at, and nothing
+ * about the form or the caller's application is read here at all. The first
+ * thing this hub shows somebody the form placed is their GROUP: the enrolment
+ * an admin's placement on the board makes, drawn as it is for anybody.
  */
 
 // ---------------------------------------------------------------------------
@@ -190,13 +183,6 @@ export type MyRunEntry = {
   pacedByGroup: boolean;
   /** Only ever the caller's OWN group, and only when they are enrolled in one. */
   groupName: string | null;
-  /**
-   * True when the caller is on this run through the term's application form
-   * and not through the run's own form. It changes words and nothing else:
-   * an `offered` card then says they have a place, in the form's terms, and
-   * never asks for anything.
-   */
-  viaForm: boolean;
 };
 
 export type MePayload = { runs: MyRunEntry[] };
@@ -286,32 +272,6 @@ function currentWeekSummary(
   };
 }
 
-/**
- * Which of the caller's places from the application form are NOT to be drawn
- * as an offer: the ones they have given back since they were handed over.
- *
- * `offers` is run id to where the row came from, for the caller's own
- * accepted rows from the form that have no seat behind them yet.
- *
- * IN A VIEW-AS SESSION NONE IS DRAWN, and nothing is read. Whether a place
- * still stands is on the member's own application, which is theirs to read
- * and not the admin's who borrowed their session. So the question is not
- * asked, and an offer that cannot be checked is not shown.
- */
-async function formOffersLapsed(
-  db: Firestore,
-  uid: string,
-  viewingAs: boolean,
-  offers: ReadonlyMap<string, CourseApplicationFromForm>,
-): Promise<Set<string>> {
-  if (viewingAs) return new Set(offers.keys());
-  const lapsed = new Set<string>();
-  for (const [runId, from] of offers) {
-    if (!(await ownPlaceStands(db, from.roundId, uid))) lapsed.add(runId);
-  }
-  return lapsed;
-}
-
 // ---------------------------------------------------------------------------
 // GET
 // ---------------------------------------------------------------------------
@@ -322,10 +282,6 @@ export async function GET() {
 
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
-
-  // Asked once, of the cookie and the session in hand, before anything below
-  // could come to read the caller's own application.
-  const viewingAs = markerIsLive(await getImpersonator(), actor.uid);
 
   // Four scoped queries, one per way a run can reach the hub. `withdrawn` and
   // `removed` enrolments are excluded at the query: leaving a run removes it
@@ -378,24 +334,17 @@ export async function GET() {
    * notes — is read and discarded, and none of it reaches the wire.
    */
   const applicationStatusByRun = new Map<string, CourseApplicationStatus>();
-  /** runId → the form and programme a row came from, for the rows that came from one. */
-  const fromFormByRun = new Map<string, CourseApplicationFromForm>();
   for (const doc of applicationSnap.docs) {
     const app = normalizeCourseApplication(doc.id, doc.data() ?? {});
     // Belt to the query's braces: the row is only ever the caller's, and a
     // row whose stored uid disagrees is not theirs to be told about.
     if (app.uid !== actor.uid || !app.runId) continue;
+    // A row the application form's hand-over wrote is never an offer, and
+    // never anything else here either: see the note at the top. Asked before
+    // the status, so no status such a row can be given is ever announced.
+    if (app.fromForm !== null) continue;
     if (app.status !== "accepted" && app.status !== "waitlisted") continue;
-    // A ROW THE APPLICATION FORM WROTE IS ONLY EVER A PLACE. The run's own
-    // waiting list goes with the run's own application form, which somebody
-    // from the term's form never used, and its card speaks in that form's
-    // words. A hand-over writes `accepted` and nothing else, so a row from
-    // the form that has since been moved to the waiting list is announced
-    // here as nothing at all. The programme's panel names that person for
-    // an admin.
-    if (app.fromForm && app.status !== "accepted") continue;
     applicationStatusByRun.set(app.runId, app.status);
-    if (app.fromForm) fromFormByRun.set(app.runId, app.fromForm);
   }
 
   // Offers worth CHASING: a decided application with no live enrolment behind
@@ -454,23 +403,6 @@ export async function GET() {
     if (!snap.exists) continue;
     const runId = offerEnrolmentRunIdById.get(snap.id);
     if (runId) supersededOfferRunIds.add(runId);
-  }
-
-  // A place the application form gave, with no seat behind it yet, is an
-  // offer only while the caller's own application still says they hold it.
-  // One they have given back is treated exactly as a spent offer below. In
-  // the common case (nobody here came from the form) this reads nothing.
-  const formOffers = new Map<string, CourseApplicationFromForm>();
-  for (const runId of offerRunIds) {
-    const from = fromFormByRun.get(runId);
-    if (from && applicationStatusByRun.get(runId) === "accepted" && !supersededOfferRunIds.has(runId)) {
-      formOffers.set(runId, from);
-    }
-  }
-  if (formOffers.size > 0) {
-    for (const runId of await formOffersLapsed(db, actor.uid, viewingAs, formOffers)) {
-      supersededOfferRunIds.add(runId);
-    }
   }
 
   type Merged = {
@@ -574,7 +506,6 @@ export async function GET() {
         totalWeeks: calendar.weekPlan.filter((entry) => entry.kind === "week").length,
         pacedByGroup: calendar.source === "group",
         groupName: group?.name ?? null,
-        viaForm: fromFormByRun.has(run.id),
       };
     })
     // A row has to be SOMETHING to be worth a card: a role to open, or a

@@ -270,6 +270,16 @@ describe("the panel itself", () => {
   const EDITOR = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "features", "applications", "editor");
   const code = stripSource(readFileSync(join(EDITOR, "RunHandOver.tsx"), "utf8"), { keepStrings: true });
 
+  test("it tells the admin what a press does to the people it hands over: nothing they can see", () => {
+    const said = code.replace(/\s+/g, " ");
+    assert.ok(
+      said.includes(
+        "Nobody is emailed, nobody is put in a group, and nothing changes in their member area until they are in one.",
+      ),
+      "the panel no longer says a hand-over shows the person nothing",
+    );
+  });
+
   test("asks through the editor's one door, and nowhere else", () => {
     assert.ok(!/\bfetch\s*\(/.test(code), "the panel calls fetch itself");
     assert.match(code, /import \{ fetchRunPanel, postHandOver, putProgrammeRun \} from "\.\/editorClient";/);

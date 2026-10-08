@@ -121,14 +121,6 @@ const { loadTs } = createLoader({
       "@/lib/firebase/impersonation",
       "export async function assertNotImpersonating() {\n" +
         "  return globalThis.__journey.viewAs ? { status: 403, body: { error: 'view-as' } } : null;\n" +
-        "}\n" +
-        // The member area's own route asks whether the session is a view-as
-        // session with these two, as the real module answers them.
-        "export async function getImpersonator() {\n" +
-        "  return globalThis.__journey.viewAs ? { actorUid: 'zach' } : null;\n" +
-        "}\n" +
-        "export function markerIsLive(marker, currentUid) {\n" +
-        "  return marker !== null && marker.actorUid !== currentUid;\n" +
         "}",
     ],
     [
@@ -3073,15 +3065,18 @@ describe("one term, from nothing to settled", () => {
       assert.deepEqual([seat.groupId, seat.status, seat.role], [GROUP.evening, "active", "learner"]);
     });
 
-    test("each person's member area then says what is true of them", () => {
+    test("the member area says nothing because of a hand-over, and then somebody's group", () => {
       const area = seen.placing.memberArea;
-      const said = (who) => (area[who] ?? []).map((entry) => [entry.runId, entry.membership, entry.viaForm, entry.groupName]);
+      const said = (who) => (area[who] ?? []).map((entry) => [entry.runId, entry.membership, entry.groupName]);
       // In a group: on the run, with the group named.
-      assert.deepEqual(said("amara"), [[RUN.agi, "enrolled", true, "Monday evening"]]);
-      // Handed over and not in a group yet: a place, in the form's words.
-      assert.deepEqual(said("oliver"), [[RUN.tais, "offered", true, null]]);
+      assert.deepEqual(said("amara"), [[RUN.agi, "enrolled", "Monday evening"]]);
+      // Handed over and not in a group yet: the row is there, and it is announced as nothing.
+      assert.equal(world.db.read(`courseApplications/${RUN.tais}__oliver`).status, "accepted");
+      assert.deepEqual(said("oliver"), []);
       // Nobody else is on anything.
       for (const who of ["jasmine", "abel", "hannah", "priya"]) assert.deepEqual(said(who), [], who);
+      // And nothing a row from the form carries is sent to its owner.
+      assert.ok(!JSON.stringify(area).includes("fromForm") && !JSON.stringify(area).includes("viaForm"));
     });
 
     test("each course's own page is handed the run its programme names", () => {

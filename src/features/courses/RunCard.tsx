@@ -75,26 +75,9 @@ const OFFER_META: Record<
   },
 };
 
-/**
- * The same card for somebody the term's application form placed on this run.
- *
- * They applied on the form, were told on decision day, and have already said
- * whether they are coming, on their own application page. So nothing here is
- * an offer and nothing here asks for anything: the chip says what they hold,
- * and the note says the one thing that is still to come. `viaForm` on the
- * row is what picks these words, and the route only sends such a row while
- * the person's own application still shows the place.
- */
-const FORM_PLACE_META: { chip: string; tone: ChipTone; note: string } = {
-  chip: "You have a place",
-  tone: "success",
-  note: "We’re putting groups together. Your group and when it meets will show here once they’re set, and we’ll email you too.",
-};
-
-function offerMeta(entry: Pick<MyRunEntry, "membership" | "viaForm">) {
-  if (entry.membership === "offered" && entry.viaForm) return FORM_PLACE_META;
-  return entry.membership === "offered" || entry.membership === "waitlisted"
-    ? OFFER_META[entry.membership]
+function offerMeta(membership: MyRunMembership) {
+  return membership === "offered" || membership === "waitlisted"
+    ? OFFER_META[membership]
     : null;
 }
 
@@ -129,21 +112,7 @@ function statusLine(entry: Props["entry"]): string {
   if (entry.status === "cancelled") return "Cancelled";
 
   const week = entry.currentWeek;
-  if (!week) {
-    // With no dates to count from, the line falls back on the run's own
-    // status, and three of those are about the run's own application form.
-    // Somebody the term's application form placed here never used that form,
-    // so "Applications open" would be a sentence about nothing they did.
-    if (
-      entry.viaForm &&
-      (entry.status === "draft" ||
-        entry.status === "applications-open" ||
-        entry.status === "applications-closed")
-    ) {
-      return "Starts soon";
-    }
-    return COURSE_RUN_STATUS_LABEL[entry.status];
-  }
+  if (!week) return COURSE_RUN_STATUS_LABEL[entry.status];
 
   if (week.phase === "before") {
     if (!entry.startDate) return "Starts soon";
@@ -169,7 +138,7 @@ function statusLine(entry: Props["entry"]): string {
 export default function RunCard({ entry }: Props) {
   const roles = ROLE_ORDER.filter((role) => entry.roles.includes(role));
   const meta = [entry.label, entry.academicYear].filter(Boolean).join(" · ");
-  const offer = offerMeta(entry);
+  const offer = offerMeta(entry.membership);
   // Same predicate as the run layout's `hasRunRole` — see the module comment.
   const linked = roles.length > 0;
 
