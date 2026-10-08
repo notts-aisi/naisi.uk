@@ -82,7 +82,7 @@ const GROUP_TOKENS: TokenHelp[] = [
   {
     token: "firstSessionWhere",
     description:
-      "Where that first session is: the room, or for a group that meets online, the words online, at and its link.",
+      "Where that first session is, e.g. Hallward Library, B12. Online groups say Online, and that the link to join is on their programme's page. Never the meeting link.",
   },
 ];
 

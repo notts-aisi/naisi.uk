@@ -21,7 +21,11 @@
  *  2. EACH TOKEN HAS ITS RULE. The group's name and its first session are
  *     what the email is for: without one, publishing is refused. The
  *     facilitators and the room can be missing: their paragraph is left out.
- *     A value is text, whoever typed it.
+ *     A value is text, whoever typed it. AND A MEETING LINK IS NEVER IN IT:
+ *     an online group is told it is online and where its people find the
+ *     link, because an email can be forwarded. The composer is run over
+ *     every arrangement of wording this file generates, and the handler
+ *     against stored groups, and the link is in none of what comes back.
  *  3. THE ROUTE REFUSES BEFORE IT DOES ANYTHING. The real handler is run
  *     against a stored run: a refusal stamps nothing and emails nobody, the
  *     sentence says what to set, and what does go out names the room or the
@@ -222,18 +226,19 @@ describe("each token has its rule", () => {
     assert.equal(placement.composePlacementEmail(SEED, { ...FACTS, groupName: "   " }).ok, false);
   });
 
-  test("an online group is told its link, as a link", () => {
-    const email = placement.composePlacementEmail(SEED, {
-      ...FACTS,
-      firstSessionWhere: { kind: "online", url: "https://meet.example/abc?x=1&y=2" },
-    });
+  test("an online group is told it is online, and where its people find the link to join", () => {
+    const email = placement.composePlacementEmail(SEED, { ...FACTS, firstSessionWhere: { kind: "online", linkOnPage: true } });
     assert.equal(email.ok, true);
-    assert.ok(read(email).includes("Where: online, at https://meet.example/abc?x=1&y=2 "));
-    assert.ok(
-      printed(email.blocks).includes(
-        '<p>Where: online, at <a href="https://meet.example/abc?x=1&amp;y=2">https://meet.example/abc?x=1&amp;y=2</a></p>',
-      ),
+    assert.equal(
+      read(email),
+      FULL.replace("Where: Hallward B12", "Where: Online. The link to join is on your programme's page in the learning space."),
     );
+  });
+
+  test("an online group with no link yet is told it is online, and is promised no link", () => {
+    const email = placement.composePlacementEmail(SEED, { ...FACTS, firstSessionWhere: { kind: "online", linkOnPage: false } });
+    assert.equal(email.ok, true);
+    assert.equal(read(email), FULL.replace("Where: Hallward B12", "Where: Online"));
   });
 });
 
@@ -312,6 +317,52 @@ describe("the placement email is written whole or not at all", () => {
     assert.ok(seen.ok > 200 && seen.refused > 200, JSON.stringify(seen));
   });
 
+  test("no arrangement of wording carries the group's meeting link, whatever the group's week is set to", () => {
+    // The same generator, the same four hundred arrangements. Each is written
+    // for a group whose stored session has a link, in every way a week can be
+    // set, through the function that reads that session for the email.
+    const LINK = "https://meet.example/j/8675309?pwd=opensesame";
+    const stored = [
+      { location: "", meetingUrl: LINK },
+      { location: "Hallward B12", meetingUrl: LINK },
+    ];
+    let state = 20261023;
+    const next = (n) => {
+      state = (state * 1103515245 + 12345) % 2147483648;
+      return state % n;
+    };
+    const pick = () => PIECES[next(PIECES.length)];
+    let written = 0;
+    let online = 0;
+    for (let i = 0; i < 400; i += 1) {
+      const template = {
+        subject: `About ${pick()} and ${next(2) ? pick() : "your group"}`,
+        blocks: [
+          heading(`Hello ${pick()}`),
+          rich(`<p>${pick()} then ${pick()}.</p><p>${pick()}</p><ul><li>${pick()}</li></ul>`),
+          { id: "i", type: "image", url: "https://example.com/a.png", alt: `Picture of ${pick()}`, caption: next(2) ? pick() : undefined },
+          rich(`<p>Ends with ${pick()}</p><p>Where: {firstSessionWhere}</p>`),
+        ],
+      };
+      for (const session of stored) {
+        for (const mode of [null, "virtual", "in-person"]) {
+          const where = placement.placementWhere(session, mode);
+          if (where?.kind === "online") online += 1;
+          for (const proof of [false, true]) {
+            const email = placement.composePlacementEmail(template, { ...FACTS, firstSessionWhere: where }, { proof });
+            if (!email.ok) continue;
+            written += 1;
+            const all = `${email.subject}\n${printed(email.blocks)}`;
+            for (const part of [LINK, "meet.example", "8675309", "opensesame"]) {
+              assert.ok(!all.includes(part), `case ${i}, mode ${mode}: the email carries ${part}`);
+            }
+          }
+        }
+      }
+    }
+    assert.ok(written > 1000 && online > 500, JSON.stringify({ written, online }));
+  });
+
   test("a token the email does not fill is refused by name, wherever it sits", () => {
     const places = {
       subject: { ...SEED, subject: "Your {facilitatorName} group" },
@@ -383,8 +434,6 @@ describe("a value is text, whoever typed it", () => {
     assert.equal(email.ok, true);
     assert.deepEqual(tokensIn(`${email.subject}\n${printed(email.blocks)}`), []);
     assert.ok(read(email).includes("You've been placed, (groupName) You're in Group (B) for"));
-    const online = placement.composePlacementEmail(SEED, { ...FACTS, firstSessionWhere: { kind: "online", url: "https://meet.example/{room}" } });
-    assert.ok(read(online).includes("online, at https://meet.example/%7Broom%7D"));
   });
 });
 
@@ -392,23 +441,41 @@ describe("where the first session is", () => {
   const session = (location, meetingUrl) => ({ location, meetingUrl });
   const LINK = "https://meet.example/abc";
 
-  test("a room, or the link for a group that meets online, and a room first when it has both", () => {
+  const ONLINE_WITH_LINK = { kind: "online", linkOnPage: true };
+
+  test("a room, or online for a group that only has a link, and a room first when it has both", () => {
     assert.deepEqual(placement.placementWhere(session("Hallward B12", null), null), { kind: "room", room: "Hallward B12" });
-    assert.deepEqual(placement.placementWhere(session("", LINK), null), { kind: "online", url: LINK });
+    assert.deepEqual(placement.placementWhere(session("", LINK), null), ONLINE_WITH_LINK);
     assert.deepEqual(placement.placementWhere(session("Hallward B12", LINK), null), { kind: "room", room: "Hallward B12" });
     assert.equal(placement.placementWhere(session("  ", null), null), null);
   });
 
   test("the week's own switch decides which is live", () => {
-    assert.deepEqual(placement.placementWhere(session("Hallward B12", LINK), "virtual"), { kind: "online", url: LINK });
+    assert.deepEqual(placement.placementWhere(session("Hallward B12", LINK), "virtual"), ONLINE_WITH_LINK);
     assert.deepEqual(placement.placementWhere(session("Hallward B12", LINK), "in-person"), { kind: "room", room: "Hallward B12" });
-    assert.equal(placement.placementWhere(session("Hallward B12", null), "virtual"), null, "a room is named for a week that is online");
-    assert.equal(placement.placementWhere(session("", LINK), "in-person"), null, "a link is named for a week that is in a room");
+    assert.deepEqual(
+      placement.placementWhere(session("Hallward B12", null), "virtual"),
+      { kind: "online", linkOnPage: false },
+      "a week that is online is still online when nobody has added its link",
+    );
+    assert.equal(placement.placementWhere(session("", LINK), "in-person"), null, "a week in a room is said to be online");
   });
 
-  test("a link that would not be drawn as one on the site is left out", () => {
+  test("the link is said to be on the page only when the page would draw it", () => {
     for (const bad of ["javascript:alert(1)", "meet.example/abc", "https://user:pw@meet.example/abc", "ftp://meet.example/abc"]) {
       assert.equal(placement.placementWhere(session("", bad), null), null, bad);
+      assert.deepEqual(placement.placementWhere(session("", bad), "virtual"), { kind: "online", linkOnPage: false }, bad);
+    }
+  });
+
+  test("what it answers has no room for an address", () => {
+    for (const mode of [null, "virtual", "in-person"]) {
+      for (const stored of [session("", LINK), session("Hallward B12", LINK), session("", null)]) {
+        const where = placement.placementWhere(stored, mode);
+        if (!where) continue;
+        assert.ok(Object.keys(where).every((key) => ["kind", "room", "linkOnPage"].includes(key)), JSON.stringify(where));
+        assert.ok(!JSON.stringify(where).includes("meet.example"), JSON.stringify(where));
+      }
     }
   });
 });
@@ -580,9 +647,46 @@ describe("publishing an allocation", { concurrency: false }, () => {
     assert.ok(!of("ben").includes("facilitated") && of("ben").includes("You're in Group B") && of("ben").includes("Where: Hallward B12"));
     // No room: the email goes, without a line about where.
     assert.ok(!of("chloe").includes("Where:") && of("chloe").includes("facilitated by Priya and Sam"));
-    // Online: the link, and it is a link.
-    assert.ok(of("dev").includes("Where: online, at https://meet.example/d") && !of("dev").includes("facilitated"));
-    assert.ok(mails.find((mail) => mail.to === "dev@example.com").html.includes('<a href="https://meet.example/d">https://meet.example/d</a>'));
+    // Online: it says so, and where the link is. The link itself is not in the email.
+    assert.ok(
+      of("dev").includes("Where: Online. The link to join is on your programme's page in the learning space.") &&
+        !of("dev").includes("facilitated"),
+      of("dev"),
+    );
+    for (const mail of mails) assert.ok(!mail.html.includes("meet.example"), `${mail.to} was emailed a meeting link`);
+  });
+
+  test("no email from the route carries a group's meeting link, however the wording and the week are set", async () => {
+    const LINK = "https://meet.example/j/8675309?pwd=opensesame";
+    const wordings = [
+      null,
+      { subject: "Your group: {firstSessionWhen}", blocks: [rich("<p>{groupName}</p><p>{firstSessionWhere}</p>")] },
+      { subject: "Your group", blocks: [heading("Where: {firstSessionWhere}"), rich('<p>{groupName}, {firstSessionWhen}</p><p><a href="{firstSessionWhere}">Join</a></p>')] },
+    ];
+    let sent = 0;
+    for (const template of wordings) {
+      for (const sessionModes of [undefined, { w01: "virtual" }, { w01: "in-person" }]) {
+        stage({
+          template,
+          groups: {
+            a: group("Group A", { session: slot({ location: "", meetingUrl: LINK }), ...(sessionModes ? { sessionModes } : {}) }),
+            b: group("Group B", { session: slot({ meetingUrl: LINK }), ...(sessionModes ? { sessionModes } : {}) }),
+          },
+          people: { amara: "a", ben: "b" },
+        });
+        const response = await press();
+        assert.equal(response.status, 200, JSON.stringify(response.body));
+        for (const mail of await Promise.all(world.sent.map(opened))) {
+          sent += 1;
+          for (const part of [LINK, "meet.example", "8675309", "opensesame"]) {
+            assert.ok(!`${mail.subject}\n${mail.html}`.includes(part), `${mail.to}: the email carries ${part}`);
+          }
+        }
+        // A refusal's sentence is read by an admin, and has no reason to carry it either.
+        assert.ok(!JSON.stringify(response.body).includes("meet.example"));
+      }
+    }
+    assert.equal(sent, 18);
   });
 
   test("a group with no session time: refused with what to set, and nothing at all is done", async () => {

@@ -165,8 +165,9 @@ export type CourseTokenMap = {
   /** Human-formatted first session, e.g. "Tuesday 7 October, 6pm". */
   firstSessionWhen?: string;
   /**
-   * Where that first session is: the room, or for a group that meets online
-   * "online, at" and its link. The placement email only.
+   * Where that first session is: the room, or "Online" for a group that
+   * meets online, with where its people find the link to join. Never the
+   * link itself. The placement email only.
    */
   firstSessionWhere?: string;
   /**

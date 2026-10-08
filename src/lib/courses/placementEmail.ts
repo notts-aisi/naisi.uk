@@ -50,8 +50,17 @@ import type { Block } from "@/lib/firestore/newsletterBlocks";
  * line, so nothing typed into a profile or a group can become markup or a
  * second header line. A curly bracket in a typed value is written as a round
  * one, so no value can read as a token, and nobody's name can stop an email
- * being written. The one piece of markup made here is the link to an online
- * group's meeting, from an address `placementWhere` has checked.
+ * being written. No markup is made here at all.
+ *
+ * ## A meeting link is never put in an email
+ *
+ * An email can be forwarded, and a link to an online session lets whoever
+ * holds it into the call. So the site shows a group's link to that group's
+ * own people, on their programme's page in the member area, and no email
+ * carries it: the weekly reminder says "Online" and never the link, and this
+ * email keeps to the same rule. `placementWhere` answers "online" and whether
+ * the link is there to be found on that page, and nothing in
+ * `PlacementFacts` can hold an address. The composer is never handed one.
  *
  * ## An admin proofing the wording
  *
@@ -83,8 +92,12 @@ export type PlacementToken = keyof typeof PLACEMENT_TOKEN_RULES;
 
 export const PLACEMENT_TOKENS = Object.keys(PLACEMENT_TOKEN_RULES) as PlacementToken[];
 
-/** Where a group's first session is: a room, or the link to an online one. */
-export type PlacementWhere = { kind: "room"; room: string } | { kind: "online"; url: string };
+/**
+ * Where a group's first session is: a room, or online. For an online one,
+ * `linkOnPage` says whether the placed person will find the link to join on
+ * their programme's page. The link itself is not here: see the header.
+ */
+export type PlacementWhere = { kind: "room"; room: string } | { kind: "online"; linkOnPage: boolean };
 
 /** What the email is told about one placed person. Null is "there is nothing to say". */
 export type PlacementFacts = {
@@ -122,16 +135,17 @@ export type ComposedPlacement =
 // ---------------------------------------------------------------------------
 
 /**
- * Where a session is, for the email: the room, or the link for a group that
- * meets online. Null when the group has neither for it.
+ * Where a session is, for the email: the room, or that it is online. Null
+ * when the group has neither a room nor a link for it.
  *
  * The week's own switch decides which is live, as it does on the member's
- * session card: `virtual` is the link and never the room, `in-person` is the
- * room and never the link. With no switch set, a room wins over a link.
+ * session card: `virtual` is online and never the room, `in-person` is the
+ * room and never online. With no switch set, a room wins over a link.
  *
- * The link is the placed person's own group's, which they may see on the
- * site as a member of it. It is checked the way the site checks it before
- * drawing it as a link, and one that fails is left out.
+ * THE LINK IS READ HERE AND GOES NO FURTHER. It decides one thing: whether
+ * the placed person will find a link to join on their programme's page, which
+ * draws one only for an address that passes the check made here (the same
+ * check that page makes). What is returned says so, and carries no address.
  */
 export function placementWhere(
   session: Pick<GroupSession, "location" | "meetingUrl">,
@@ -139,12 +153,22 @@ export function placementWhere(
 ): PlacementWhere | null {
   const room = oneLine(session.location);
   const url = oneLine(session.meetingUrl);
-  const link = url && validateSubmissionUrl(url, GROUP_FIELD_LIMITS.meetingUrl) === null ? url : "";
-  if (mode === "virtual") return link ? { kind: "online", url: link } : null;
+  const linkOnPage = url !== "" && validateSubmissionUrl(url, GROUP_FIELD_LIMITS.meetingUrl) === null;
+  if (mode === "virtual") return { kind: "online", linkOnPage };
   if (mode === "in-person") return room ? { kind: "room", room } : null;
   if (room) return { kind: "room", room };
-  return link ? { kind: "online", url: link } : null;
+  return linkOnPage ? { kind: "online", linkOnPage } : null;
 }
+
+/** The weekly reminder's own word for a session that is online. */
+const ONLINE = "Online";
+
+/**
+ * What an online group's people are told about joining, where the link is
+ * there for them to find. Their programme's page in the member area shows a
+ * placed person their first session, with the way to join it.
+ */
+const LINK_IS_ON_THE_PAGE = "The link to join is on your programme's page in the learning space.";
 
 // ---------------------------------------------------------------------------
 // The values
@@ -189,11 +213,7 @@ function always(value: string | null | undefined): Value {
 function whereValue(where: PlacementWhere | null): Value | null {
   if (!where) return null;
   if (where.kind === "room") return typed(where.room);
-  // In an address a curly bracket is written as its escape, which is the same address.
-  const url = oneLine(where.url).replace(/\{/g, "%7B").replace(/\}/g, "%7D");
-  if (!url) return null;
-  const safe = escapeHtml(url);
-  return { text: `online, at ${url}`, html: `online, at <a href="${safe}">${safe}</a>` };
+  return typed(where.linkOnPage ? `${ONLINE}. ${LINK_IS_ON_THE_PAGE}` : ONLINE);
 }
 
 function valuesOf(facts: PlacementFacts): Record<PlacementToken, Value | null> {
