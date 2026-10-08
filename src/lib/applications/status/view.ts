@@ -1,7 +1,8 @@
 import { formatRoundDate } from "@/lib/admissions/window";
 import { formatRunStartShort } from "@/lib/courses/window";
+import { placeNextWords } from "../decisionDay/emailCopy";
 import { own } from "../keys";
-import type { ApplicationContent } from "../model";
+import type { ApplicationContent, ProgrammeKind } from "../model";
 import { EITHER_OPTION, contentForSend } from "../validate";
 import { formShapeOf, questionSetsOf, sameContent } from "../applicant/shape";
 import type {
@@ -84,6 +85,12 @@ export type StatusView =
       decidedLabel: string | null;
       via: PlaceVia;
       programme: ViewProgramme | null;
+      /**
+       * What comes next, in the words of the kind of programme they are in:
+       * a fellowship's small group, or an incubator's email about its first
+       * week. The words are the decision email's own (`placeNextWords`).
+       */
+      next: string;
       saidComing: boolean;
     }
   /** Invited, not answered: the invitation card of `ap-outcomes`. */
@@ -193,24 +200,44 @@ export function facilitatingLine(
 }
 
 /**
- * Sent, Hear back, Meet your group, while everybody is waiting to hear.
+ * The name of the last of the three steps, from the kinds of programme
+ * somebody ranked.
  *
- * "Meet your group" carries when the programmes they ranked start. Where
- * those differ it lists each, because nobody knows yet which one it will be.
+ * "Meet your group" is a fellowship's: a small group with a facilitator. An
+ * incubator is not run that way, and while everybody is waiting nobody knows
+ * which of their choices it will be. So anybody with an incubator among their
+ * choices reads "Start", which is true of every programme, and "Meet your
+ * group" is said only to somebody who can end up nowhere but a fellowship.
+ */
+export function lastStepName(kinds: readonly ProgrammeKind[]): string {
+  return kinds.includes("incubator") ? "Start" : "Meet your group";
+}
+
+/**
+ * Sent, Hear back, and the start (`lastStepName`), while everybody is
+ * waiting to hear.
+ *
+ * The last step carries when the programmes they ranked start. Where those
+ * differ it lists each, because nobody knows yet which one it will be.
  */
 export function waitingSteps(
   form: ApplicantForm,
   application: Pick<ApplicantApplication, "sent" | "sentLabel">,
 ): StatusStep[] {
+  const choices = application.sent ? ranked(form, application.sent) : [];
   const starts: string[] = [];
-  for (const programme of application.sent ? ranked(form, application.sent) : []) {
+  for (const programme of choices) {
     const label = programme.starts.trim();
     if (label && !starts.includes(label)) starts.push(label);
   }
   return [
     { name: "Sent", when: application.sentLabel, state: "done" },
     { name: "Hear back", when: form.decisionsLabel, state: "now" },
-    { name: "Meet your group", when: starts.length > 0 ? starts.join(" or ") : null, state: "next" },
+    {
+      name: lastStepName(choices.map((programme) => programme.kind)),
+      when: starts.length > 0 ? starts.join(" or ") : null,
+      state: "next",
+    },
   ];
 }
 
@@ -272,12 +299,17 @@ export function statusViewFor(
   const applied = sent ? ranked(form, sent) : [];
 
   if (standing.kind === "place") {
+    const placedOn = programmeOn(form, standing.programmeId);
+    const next = placeNextWords(placedOn?.kind ?? null);
     return {
       kind: "place",
       label,
       decidedLabel,
       via: standing.via,
-      programme: viewProgramme(programmeOn(form, standing.programmeId)),
+      programme: viewProgramme(placedOn),
+      // The page of somebody their own ranking placed has room for the whole
+      // sentence. The card of somebody who accepted an invitation has a line.
+      next: standing.via === "ranking" ? next.page : next.card,
       saidComing: standing.saidComing,
     };
   }

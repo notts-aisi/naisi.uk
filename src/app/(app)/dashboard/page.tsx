@@ -6,6 +6,7 @@ import { formatSiteDate } from "@/lib/datetime/siteTime";
 import YourApplications, {
   type YourApplicationRow,
 } from "@/features/applications/home/YourApplications";
+import { holdsPlace, type HoldsPlace } from "@/features/applications/home/holdsPlace";
 import { InstallCard } from "@/features/pwa/InstallCard";
 import { fetchPublicTerm } from "@/features/term/fetchPublicTerm";
 import { termCivilDay } from "@/features/term/termWords";
@@ -30,6 +31,16 @@ import styles from "./home.module.css";
  * finished pieces: the term (through `fetchPublicTerm`, so no date is written
  * in a file), the next events, the member's own applications and what is
  * missing from their profile.
+ *
+ * HOME STATES NO OUTCOME. What became of an application is said on the
+ * person's own page and on the list of their applications, and the card here
+ * is only the way to them. One thing is asked about it all the same.
+ * Somebody decision day gave a place has no run until they are put on one,
+ * and a member with no run is told "You’re not on a programme yet." So the
+ * page asks `holdsPlace` (yes, no, or could not tell) and hands the member's
+ * Home one thing: whether it may say that sentence. It may only on a "no".
+ * Nothing in this file reads what became of an application, and nothing it
+ * hands on says which programme, or that there is a place at all.
  */
 
 /**
@@ -63,6 +74,9 @@ async function applicationsOf(uid: string, viewingAs: boolean): Promise<YourAppl
   }
 }
 
+/** The answer about a place when the member's applications could not be read. */
+const COULD_NOT_TELL: HoldsPlace = "unknown";
+
 /** "Morning", "Afternoon" or "Evening", by the site's own clock. */
 function partOfDay(now: Date): string {
   const hour = Number(formatSiteDate(now, { hour: "2-digit" }));
@@ -77,10 +91,13 @@ export default async function DashboardPage() {
   const viewingAs = markerIsLive(await getImpersonator(), user?.uid ?? null);
   const applications = user ? await applicationsOf(user.uid, viewingAs) : [];
   const now = new Date();
-  const [term, events, steps] = await Promise.all([
+  const [term, events, steps, held] = await Promise.all([
     fetchPublicTerm(now),
     homeEvents(now),
     user ? profileSteps(user.uid) : null,
+    // Whether they hold a place, asked of the rounds just listed. When that
+    // list could not be read the page cannot tell, and says nothing either way.
+    user && applications ? holdsPlace(user.uid, applications.map((row) => row.roundId)) : COULD_NOT_TELL,
   ]);
   const given = firstName(user?.displayName);
 
@@ -124,6 +141,7 @@ export default async function DashboardPage() {
           comingUpCards={<ComingUp events={events.upcoming} layout="cards" />}
           applications={yourApplications}
           nothingYet={nothingYet}
+          holdsNoPlace={held === "no"}
           finishProfile={<FinishProfile steps={steps} />}
         />
       )}

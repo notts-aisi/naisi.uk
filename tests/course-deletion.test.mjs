@@ -187,7 +187,8 @@ const RUN_ACCESS = src("features", "courses", "runAccess.ts");
 const ADMIN_RUNS_HOOK = src("features", "courses", "useAdminCourses.ts");
 const COURSE_EDITOR = src("features", "courses", "CourseEditor.tsx");
 const DASHBOARD_SUMMARY = src("features", "courses", "MyCoursesSummary.tsx");
-const LEARN_HUB = src("app", "(app)", "learn", "page.tsx");
+// The hub's list is drawn by the client component its page renders.
+const LEARN_HUB = src("app", "(app)", "learn", "LearnHub.tsx");
 const RUN_ZONE = src("features", "courses", "RunDangerZone.tsx");
 const COURSE_ZONE = src("features", "courses", "CourseDangerZone.tsx");
 

@@ -153,6 +153,35 @@
   text-wrap: pretty;
 }
 
+/* The term's incubators, each by name over its own description. Drawn in
+   place of the panel's one sentence when the form carries more than one. */
+.teaserList {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.teaserItem {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The incubator's name. It restates its font, because a heading element's
+   own size would otherwise win. */
+.teaserName {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.1875rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
   /* One column of cards from here down. A card's rows put each label over

@@ -2,6 +2,7 @@ import type {
   ApplicationFormFields,
   EmailWording,
   ProgrammeEmailKind,
+  ProgrammeKind,
   ProgrammeSettings,
 } from "../model";
 import { own } from "../keys";
@@ -44,6 +45,14 @@ import { programmeOf } from "./programmes";
  * shows what the second returns, and the composers below send what it
  * returns, so the subject a lead reads beside "Edit wording" and the subject
  * an applicant receives cannot be two strings.
+ *
+ * ## What comes next depends on the kind of programme
+ *
+ * A fellowship is a small group with a facilitator, on campus. An incubator
+ * is not, so the sentence that says what somebody with a place can expect is
+ * written once for each kind, in {@link placeNextWords}. The standard "You're
+ * in" email takes it from there, and so does the person's own page
+ * (`statusViewFor`), so the two cannot come to promise different things.
  *
  * ## An email changes nothing by being opened
  *
@@ -120,6 +129,57 @@ export type ComposeInput = {
 };
 
 export const NO_OFFER_SUBJECT = "Your NAISI application";
+
+/**
+ * What somebody with a place is told comes next, where each of three places
+ * says it.
+ */
+export type PlaceNextWords = {
+  /** How the first paragraph of the standard "You're in" email ends. */
+  email: string;
+  /** The paragraph on the page of somebody their own ranking placed. */
+  page: string;
+  /** The line on the card of somebody who accepted an invitation. */
+  card: string;
+};
+
+/** The one sentence an incubator's people are told, wherever it is said. */
+const INCUBATOR_NEXT = "We’ll email you before you start with how the first week works.";
+
+/**
+ * THE ONE PLACE THESE SENTENCES ARE WRITTEN, a row to each kind of programme.
+ *
+ * A row says only what is true of every programme of its kind. A fellowship's
+ * people are in a small group with a facilitator, on campus, and are emailed
+ * their group and when it meets. An incubator's are told that an email about
+ * the first week is coming, and nothing about a group, a facilitator or where
+ * it meets, because the site promises only what it is going to send them.
+ *
+ * The type has a row for every kind, so a new kind of programme does not
+ * compile until somebody has written what its people are told.
+ */
+const PLACE_NEXT: Record<ProgrammeKind, PlaceNextWords> = {
+  fellowship: {
+    email:
+      "You’ll be in a small group with a facilitator, on campus, and we’ll email you " +
+      "your group and when it meets before you start.",
+    page:
+      "You’ll be in a small group with a facilitator, on campus. Before you start, we’ll email you " +
+      "your group and when it meets.",
+    card: "You’ll be in a small group with a facilitator, on campus.",
+  },
+  incubator: { email: INCUBATOR_NEXT, page: INCUBATOR_NEXT, card: INCUBATOR_NEXT },
+};
+
+/**
+ * What somebody with a place on a programme of this kind is told comes next.
+ * `null` is a place on a programme the form no longer carries: there is no
+ * kind to go by, and it reads as a fellowship's, which is what a stored kind
+ * that cannot be read is taken for everywhere else.
+ */
+export function placeNextWords(kind: ProgrammeKind | null): PlaceNextWords {
+  return own(PLACE_NEXT, kind ?? "fellowship") ?? PLACE_NEXT.fellowship;
+}
 
 const ACCEPTED_REPLY =
   "You don’t need to reply. If you’re coming, tap the button. It helps us plan groups. " +
@@ -220,8 +280,7 @@ function acceptedEmail(input: ComposeInput, programme: ProgrammeSettings): Decis
       // A programme with no start written down yet says nothing about when,
       // rather than "It starts ." with a hole in it.
       `You’re in the ${programme.name}.${starts ? ` It starts ${starts}.` : ""} ` +
-        "You’ll be in a small group with a facilitator, on campus, and we’ll email you " +
-        "your group and when it meets before you start.",
+        placeNextWords(programme.kind).email,
       ACCEPTED_REPLY,
     ]),
     buttons: [
