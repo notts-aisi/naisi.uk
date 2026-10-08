@@ -88,6 +88,7 @@ const { loadTs } = createLoader({
 });
 
 const words = await loadTs(join("app", "(public)", "incubator", "incubatorWords.ts"));
+const decisionCopy = await loadTs(join("lib", "applications", "decisionDay", "emailCopy.ts"));
 const { default: IncubatorPage } = await loadTs(join("app", "(public)", "incubator", "page.tsx"));
 const { default: FellowshipsPage } = await loadTs(join("app", "(public)", "courses", "page.tsx"));
 
@@ -167,6 +168,24 @@ const SENTENCE =
 const WHO_ONE =
   "It’s for people who’ve done a fellowship with us, or have a similar background. This term’s projects are technical, so expect to read ML papers closely and write code.";
 
+/** The four steps of applying, as the page says them of one incubator. */
+const STEPS_ONE = {
+  apply: "Tick the incubator. If you tick a fellowship too, put them in order.",
+  questionsTitle: "Answer its questions",
+  questions: "The incubator has its own questions on the same form.",
+  hearBack: "The person who runs the incubator reads every answer. We’ll email you our decision.",
+  start: "Your first session is in person, on campus.",
+};
+/** And of more than one. The last is what an incubator's people are told once they have a place. */
+const INCUBATOR_NEXT = "We’ll email you before you start with how the first week works.";
+const STEPS_SEVERAL = {
+  apply: "Tick the incubators you’re interested in. If you tick more than one programme, put them in order.",
+  questionsTitle: "Answer their questions",
+  questions: "The incubators have their own questions on the same form.",
+  hearBack: "The person who runs each incubator reads every answer. We’ll email you our decision.",
+  start: INCUBATOR_NEXT,
+};
+
 // ---------------------------------------------------------------------------
 // 1. One incubator, or none
 // ---------------------------------------------------------------------------
@@ -183,6 +202,7 @@ describe("the incubator's page with one incubator on the form, or none", () => {
       whoEyebrow: "Who it’s for",
       whoBody: WHO_ONE,
       starts: "w/c 26 Oct",
+      steps: STEPS_ONE,
     });
   });
 
@@ -197,6 +217,7 @@ describe("the incubator's page with one incubator on the form, or none", () => {
       whoEyebrow: "Who it’s for",
       whoBody: WHO_ONE,
       starts: null,
+      steps: STEPS_ONE,
     });
     // A term with fellowships and no incubator is no term for this page, so its label is not printed.
     assert.equal(words.incubatorPageWords(pageFacts([], "none", "Autumn 2026")).eyebrow, "Research incubator");
@@ -258,6 +279,24 @@ describe("the incubator's page with more than one incubator on the form", () => 
       two.whoBody,
       "It’s for people who’ve done a fellowship with us, or have a similar background. Replicating a paper is technical, so expect to read ML papers closely and write code.",
     );
+  });
+
+  test("the steps of applying speak of the incubators, and of whoever runs each", () => {
+    assert.deepEqual(two.steps, STEPS_SEVERAL);
+    assert.deepEqual(words.incubatorPageWords(pageFacts([FIRST, SECOND, programme("third", "incubator")])).steps, STEPS_SEVERAL);
+    // Not one of them speaks of "the incubator", as if there were one.
+    for (const said of Object.values(two.steps)) {
+      assert.doesNotMatch(said, /\bthe incubator\b(?!s)/i, said);
+      assert.doesNotMatch(said, /\bits\b/i, said);
+    }
+  });
+
+  test("how an incubator starts is not said for them all: the last step is what the site tells an incubator's people", () => {
+    assert.equal(two.steps.start, decisionCopy.placeNextWords("incubator").page);
+    assert.equal(two.steps.start, decisionCopy.placeNextWords("incubator").email);
+    assert.doesNotMatch(two.steps.start, /in person|campus|small group|facilitator/i);
+    // And nothing in the steps promises where any of them meets.
+    assert.doesNotMatch(Object.values(two.steps).join(" "), /in person|on campus/i);
   });
 
   test("a blank description is left out, and nobody else's stands in for it", () => {
@@ -455,14 +494,46 @@ describe("the incubator's page, drawn", () => {
     assert.ok(text.includes("First Incubator The first one’s own line. first facts line Starts w/c 26 Oct"));
     assert.ok(text.includes("Second Incubator The second one’s own line. second facts line Starts w/c 2 Nov"));
     assert.ok(text.includes("Autumn term · in person Read and critique"), "the timeline prints a start the incubators do not share");
-    assert.ok(text.includes("Your first session is in person, on campus. Not taken this time?"), "the last step prints a start the incubators do not share");
+    assert.ok(text.includes(`Start ${INCUBATOR_NEXT} Not taken this time?`), "the last step prints a start the incubators do not share");
   });
 
   test("with two that start together, the shared start is also printed for them as a whole", async () => {
     const { text } = await draw(IncubatorPage, [FIRST, SECOND]);
     assert.equal(count(text, "w/c 26 Oct"), 4);
     assert.ok(text.includes("Autumn term · in person w/c 26 Oct Read and critique"));
-    assert.ok(text.includes("Your first session is in person, on campus. w/c 26 Oct"));
+    assert.ok(text.includes(`Start ${INCUBATOR_NEXT} w/c 26 Oct`));
+  });
+
+  test("with one incubator, or none, the four steps read as they always have", async () => {
+    for (const programmes of [[FELLOWSHIP_A, FELLOWSHIP_B, FIRST], [FIRST], [FELLOWSHIP_A], []]) {
+      const { text } = await draw(IncubatorPage, programmes, programmes.some((entry) => entry.kind === "incubator") ? "open" : "none");
+      for (const said of [
+        `Apply ${STEPS_ONE.apply}`,
+        `Answer its questions ${STEPS_ONE.questions} Part of the form`,
+        `Hear back ${STEPS_ONE.hearBack}`,
+        `Start ${STEPS_ONE.start}`,
+      ]) {
+        assert.ok(text.includes(said), `${programmes.length} programmes: missing ${said}`);
+      }
+      assert.ok(!text.includes(INCUBATOR_NEXT));
+    }
+  });
+
+  test("with two, the four steps speak of the incubators, and none of one", async () => {
+    for (const programmes of [[FIRST, SECOND], [FELLOWSHIP_A, FELLOWSHIP_B, FIRST, SECOND_LATER]]) {
+      const { text } = await draw(IncubatorPage, programmes);
+      for (const said of [
+        `Apply ${STEPS_SEVERAL.apply}`,
+        `Answer their questions ${STEPS_SEVERAL.questions} Part of the form`,
+        `Hear back ${STEPS_SEVERAL.hearBack}`,
+        `Start ${STEPS_SEVERAL.start}`,
+      ]) {
+        assert.ok(text.includes(said), `missing ${said}`);
+      }
+      for (const ofOne of ["Tick the incubator.", "The incubator has its own questions", "The person who runs the incubator", "Your first session is in person, on campus."]) {
+        assert.ok(!text.includes(ofOne), `the page still says: ${ofOne}`);
+      }
+    }
   });
 
   test("once the term is running no start is printed, for one incubator or for two", async () => {
@@ -551,6 +622,17 @@ describe("the pages take these words from the one place", () => {
     for (const typed of ["Technical this term", "This term’s projects", "10 weeks over 2 terms<", "Research incubator ·"]) {
       assert.ok(!INCUBATOR.includes(typed), `the page types "${typed}" itself`);
     }
+    // Nor any of the steps of applying, which speak of one incubator or of several.
+    for (const typed of ["Tick the incubator", "its own questions", "their own questions", "reads every answer", "first session is in person"]) {
+      assert.ok(!INCUBATOR.includes(typed), `the page types "${typed}" itself`);
+    }
+    for (const step of ["apply", "questionsTitle", "questions", "hearBack", "start"]) {
+      assert.ok(INCUBATOR.includes(`words.steps.${step}`), `the page does not draw words.steps.${step}`);
+    }
+    // How an incubator starts comes from the one table the decision email reads.
+    const WORDS = codeOf("app", "(public)", "incubator", "incubatorWords.ts");
+    assert.ok(WORDS.includes('import { placeNextWords } from "@/lib/applications/decisionDay/emailCopy";'));
+    assert.ok(WORDS.includes('start: placeNextWords("incubator").page,'));
     // The start it prints for the incubators as a whole is the one the words hand it.
     assert.ok(INCUBATOR.includes("const starts = words.starts;"));
     assert.ok(!/\.starts\.trim\(\)/.test(INCUBATOR), "the page reads one programme's start itself");

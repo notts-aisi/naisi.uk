@@ -130,25 +130,27 @@ export default async function IncubatorPage() {
     },
   ];
 
+  // What each step says depends on how many incubators the form carries, so
+  // the words are `incubatorPageWords`'s. The dates beside them are the term's.
   const steps: Step[] = [
     {
       title: "Apply",
-      body: "Tick the incubator. If you tick a fellowship too, put them in order.",
+      body: words.steps.apply,
       chip: ahead && closesAt ? `By ${termDeadline(closesAt)}` : null,
     },
     {
-      title: "Answer its questions",
-      body: "The incubator has its own questions on the same form.",
+      title: words.steps.questionsTitle,
+      body: words.steps.questions,
       chip: "Part of the form",
     },
     {
       title: "Hear back",
-      body: "The person who runs the incubator reads every answer. We’ll email you our decision.",
+      body: words.steps.hearBack,
       chip: stage !== "running" ? decisionsDay : null,
     },
     {
       title: "Start",
-      body: "Your first session is in person, on campus.",
+      body: words.steps.start,
       chip: stage !== "running" ? starts : null,
     },
   ];

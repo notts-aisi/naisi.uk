@@ -1,3 +1,4 @@
+import { placeNextWords } from "@/lib/applications/decisionDay/emailCopy";
 import type { PublicTermStage } from "@/lib/applications/lifecycle/publicTerm";
 import { sharedStart } from "@/features/term/termWords";
 import { startChipLabel } from "../homeWords";
@@ -34,6 +35,13 @@ import { startChipLabel } from "../homeWords";
  * 4. A START BELONGS TO THE INCUBATOR THAT WROTE IT. It is printed beside
  *    that incubator. It is printed for the incubators as a whole only when
  *    every one of them says the same (`sharedStart`).
+ * 5. THE STEPS OF APPLYING SPEAK OF AS MANY INCUBATORS AS THERE ARE. With
+ *    one, "the incubator" and the person who runs it. With more than one,
+ *    "the incubators" and whoever runs each. And how each one starts is not
+ *    the page's to say for them all: with more than one, the last step says
+ *    what the site tells an incubator's people once they have a place
+ *    (`placeNextWords`), which is true of every incubator, and it takes the
+ *    sentence from there so the page and that email cannot come to differ.
  */
 
 /** The fields of one incubator that the incubator's page prints. */
@@ -92,7 +100,47 @@ export type IncubatorPageWords = {
    * and on its last step: the one every incubator shares, or null.
    */
   starts: string | null;
+  /** The four steps of applying, in the page's order. */
+  steps: IncubatorStepWords;
 };
+
+/** What each of the four steps of applying says. Their dates are the page's to add. */
+export type IncubatorStepWords = {
+  /** Under "Apply". */
+  apply: string;
+  /** The title of the second step, and what it says. */
+  questionsTitle: string;
+  questions: string;
+  /** Under "Hear back". */
+  hearBack: string;
+  /** Under "Start". */
+  start: string;
+};
+
+/** The steps where the page speaks of one incubator. */
+const STEPS_ONE: IncubatorStepWords = {
+  apply: "Tick the incubator. If you tick a fellowship too, put them in order.",
+  questionsTitle: "Answer its questions",
+  questions: "The incubator has its own questions on the same form.",
+  hearBack: "The person who runs the incubator reads every answer. We’ll email you our decision.",
+  start: "Your first session is in person, on campus.",
+};
+
+/**
+ * The same steps where the form carries more than one. The first three say
+ * of several what `STEPS_ONE` says of one, in as few words as that takes.
+ * The last cannot: where an incubator first meets is that incubator's to
+ * say, so it reads what every incubator's people are told about starting.
+ */
+function stepsForSeveral(): IncubatorStepWords {
+  return {
+    apply: "Tick the incubators you’re interested in. If you tick more than one programme, put them in order.",
+    questionsTitle: "Answer their questions",
+    questions: "The incubators have their own questions on the same form.",
+    hearBack: "The person who runs each incubator reads every answer. We’ll email you our decision.",
+    start: placeNextWords("incubator").page,
+  };
+}
 
 export type IncubatorPageFacts = {
   /** The incubators on the term's form, in the form's order. */
@@ -130,6 +178,7 @@ export function incubatorPageWords({ incubators, stage, termLabel }: IncubatorPa
       whoEyebrow: "Replicating a paper · who it’s for",
       whoBody: WHO_SEVERAL,
       starts,
+      steps: stepsForSeveral(),
     };
   }
 
@@ -143,6 +192,7 @@ export function incubatorPageWords({ incubators, stage, termLabel }: IncubatorPa
     whoEyebrow: "Who it’s for",
     whoBody: WHO_ONE,
     starts,
+    steps: STEPS_ONE,
   };
 }
 
