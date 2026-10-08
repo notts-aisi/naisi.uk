@@ -61,10 +61,26 @@
   overflow-wrap: anywhere;
 }
 
-/* When it starts, on the card's floor whatever the height of the words. */
-.incubatorStarts {
-  margin: auto 0 0;
+/* Its facts line and when it starts, on the card's floor whatever the
+   height of the words. Side by side where both fit, one over the other
+   where they do not. */
+.incubatorFoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin-top: auto;
   padding-top: var(--space-1);
+}
+
+/* How long it runs and the like, as its lead wrote it. */
+.incubatorFacts {
+  margin: 0;
+  letter-spacing: 0.08em;
+  overflow-wrap: anywhere;
+}
+
+.incubatorStarts {
+  margin: 0;
   letter-spacing: 0.08em;
   color: var(--color-live);
 }

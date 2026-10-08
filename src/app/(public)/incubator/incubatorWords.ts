@@ -10,7 +10,8 @@ import { startChipLabel } from "../homeWords";
  * paper, and the fellowships page (`/courses`) carries a panel that points
  * at it. Those words are the pages' own and are not stored. What the term's
  * form adds is the incubators themselves: how many it carries, and each
- * one's name, one-line description and start, as its lead wrote them.
+ * one's name, one-line description, facts line and start, as its lead wrote
+ * them.
  *
  * The pages draw what these functions say, so both readings are in one place
  * and a test can run them. Nothing here reads anything: each function is
@@ -21,11 +22,12 @@ import { startChipLabel } from "../homeWords";
  * 1. WITH ONE INCUBATOR ON THE FORM, OR NONE, THE PAGES' OWN WORDS ARE THE
  *    WHOLE STORY. They speak of "the incubator", and there is one.
  * 2. WITH MORE THAN ONE, NOTHING IS SAID OF "THE INCUBATOR" AS IF THERE WERE
- *    ONE. The page counts them, names each with its own stored name and
- *    description, and labels its own words about replicating a paper as
- *    being about that. A fact that could be true of one incubator and not of
- *    another (how long it runs, what kind of work it is) is not printed over
- *    all of them.
+ *    ONE. The page counts them, names each with its own stored name,
+ *    description and facts line, and labels its own words about replicating
+ *    a paper as being about that. A fact that could be true of one incubator
+ *    and not of another (how long it runs, what kind of work it is) is not
+ *    printed over all of them: how long each runs is said by its own facts
+ *    line, beside its own name.
  * 3. WHAT IS SAID ABOUT ONE INCUBATOR IS THE FORM'S. No sentence in this file
  *    describes a particular incubator. To say more about one, its lead
  *    writes it on the form.
@@ -35,10 +37,18 @@ import { startChipLabel } from "../homeWords";
  */
 
 /** The fields of one incubator that the incubator's page prints. */
-export type IncubatorFields = { id: string; name: string; pitch: string; starts: string };
+export type IncubatorFields = { id: string; name: string; pitch: string; facts: string; starts: string };
 
 /** One incubator, as a list of them prints it. A blank field is null, and is left out. */
-export type ListedIncubator = { id: string; name: string; pitch: string | null; starts: string | null };
+export type ListedIncubator = {
+  id: string;
+  name: string;
+  pitch: string | null;
+  /** Its own facts line, as stored: "10 WEEKS · SELECTIVE". Set as metadata. */
+  facts: string | null;
+  /** "Starts w/c 26 Oct", while its start is still ahead. */
+  starts: string | null;
+};
 
 /** The page's one sentence about replicating a paper, said wherever one incubator is spoken of. */
 export const REPLICATION_SENTENCE =
@@ -113,6 +123,7 @@ export function incubatorPageWords({ incubators, stage, termLabel }: IncubatorPa
         id: incubator.id,
         name: incubator.name,
         pitch: blankToNull(incubator.pitch),
+        facts: blankToNull(incubator.facts),
         starts: startChipLabel(stage, incubator.starts),
       })),
       runsEyebrow: "Replicating a paper · how it runs",

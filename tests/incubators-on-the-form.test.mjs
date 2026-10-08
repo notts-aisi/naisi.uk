@@ -17,12 +17,12 @@
  *  1. WITH ONE INCUBATOR, OR NONE, THE PAGES SAY THEIR OWN WORDS. They are
  *     pinned here, so the rule for several cannot change what one reads.
  *  2. WITH MORE THAN ONE, NOTHING IS SAID OF THEM ALL THAT THE FORM DOES NOT
- *     SAY. They are counted, each is named with its own name and its own
- *     description, and no chip or sentence calls the term's incubators
- *     technical or gives them one length.
- *  3. WHAT IS SAID OF ONE INCUBATOR IS THE FORM'S. A blank description is
- *     left out and nobody else's stands in for it, and nothing else stored
- *     about a programme reaches the page.
+ *     SAY. They are counted, each is named with its own name, its own
+ *     description and its own facts line, and no chip or sentence calls the
+ *     term's incubators technical or gives them one length.
+ *  3. WHAT IS SAID OF ONE INCUBATOR IS THE FORM'S. A blank description or
+ *     facts line is left out and nobody else's stands in for it, and nothing
+ *     else stored about a programme reaches the page.
  *  4. A START BELONGS TO THE INCUBATOR THAT WROTE IT. It is printed beside
  *     that incubator, and for the incubators as a whole only when every one
  *     says the same.
@@ -223,10 +223,22 @@ describe("the incubator's page with more than one incubator on the form", () => 
     assert.equal(words.incubatorPageWords(pageFacts([FIRST, SECOND], "open", null)).eyebrow, "Research incubators");
   });
 
-  test("each is named with its own name and its own description, in the form's order", () => {
+  test("each is named with its own name, description and facts line, in the form's order", () => {
     assert.deepEqual(two.listed, [
-      { id: "first", name: "First Incubator", pitch: "The first one’s own line.", starts: "Starts w/c 26 Oct" },
-      { id: "second", name: "Second Incubator", pitch: "The second one’s own line.", starts: "Starts w/c 26 Oct" },
+      {
+        id: "first",
+        name: "First Incubator",
+        pitch: "The first one’s own line.",
+        facts: "first facts line",
+        starts: "Starts w/c 26 Oct",
+      },
+      {
+        id: "second",
+        name: "Second Incubator",
+        pitch: "The second one’s own line.",
+        facts: "second facts line",
+        starts: "Starts w/c 26 Oct",
+      },
     ]);
     const turned = words.incubatorPageWords(pageFacts([SECOND, FIRST]));
     assert.deepEqual(turned.listed.map((incubator) => incubator.id), ["second", "first"]);
@@ -250,18 +262,40 @@ describe("the incubator's page with more than one incubator on the form", () => 
 
   test("a blank description is left out, and nobody else's stands in for it", () => {
     const blank = words.incubatorPageWords(pageFacts([FIRST, { ...SECOND, pitch: "   " }]));
-    assert.deepEqual(blank.listed[1], { id: "second", name: "Second Incubator", pitch: null, starts: "Starts w/c 26 Oct" });
+    assert.deepEqual(blank.listed[1], {
+      id: "second",
+      name: "Second Incubator",
+      pitch: null,
+      facts: "second facts line",
+      starts: "Starts w/c 26 Oct",
+    });
     assert.equal(blank.listed[0].pitch, "The first one’s own line.");
   });
 
-  test("the words handed back hold nothing of a programme but its name, description and start", () => {
+  test("a blank facts line is left out, and neither another's nor the page's own length stands in for it", () => {
+    const blank = words.incubatorPageWords(pageFacts([FIRST, { ...SECOND, facts: "  " }]));
+    assert.equal(blank.listed[1].facts, null);
+    assert.equal(blank.listed[0].facts, "first facts line");
+    assert.ok(!JSON.stringify(blank).includes(words.REPLICATION_LENGTH));
+  });
+
+  test("the words handed back hold nothing of a programme but its name, description, facts line and start", () => {
     const said = JSON.stringify(two);
     for (const kept of [FIRST, SECOND]) {
-      for (const field of ["shortName", "facts", "courseId", "runId"]) {
+      for (const field of ["shortName", "courseId", "runId"]) {
         assert.ok(!said.includes(kept[field]), `${kept.id}: ${field} reached the page's words`);
       }
     }
-    for (const listed of two.listed) assert.deepEqual(Object.keys(listed).sort(), ["id", "name", "pitch", "starts"]);
+    for (const listed of two.listed) {
+      assert.deepEqual(Object.keys(listed).sort(), ["facts", "id", "name", "pitch", "starts"]);
+    }
+  });
+
+  test("with one incubator, nothing of the programme is in the words but its start", () => {
+    const said = JSON.stringify(words.incubatorPageWords(pageFacts([FIRST])));
+    for (const field of ["name", "shortName", "pitch", "facts", "courseId", "runId"]) {
+      assert.ok(!said.includes(FIRST[field]), `${field} reached the words of a page about one incubator`);
+    }
   });
 });
 
@@ -400,8 +434,8 @@ describe("the incubator's page, drawn", () => {
     assert.equal(
       between(text, "Research incubators", "Replicating a paper · how it runs"),
       "Research incubators · Autumn 2026 Research incubators. 2 incubators this term Free " +
-        "First Incubator The first one’s own line. Starts w/c 26 Oct " +
-        "Second Incubator The second one’s own line. Starts w/c 2 Nov " +
+        "First Incubator The first one’s own line. first facts line Starts w/c 26 Oct " +
+        "Second Incubator The second one’s own line. second facts line Starts w/c 2 Nov " +
         `Apply How to apply ${STATUS}`,
     );
   });
@@ -418,8 +452,8 @@ describe("the incubator's page, drawn", () => {
     const { text } = await draw(IncubatorPage, [FIRST, SECOND_LATER]);
     assert.equal(count(text, "w/c 26 Oct"), 1, "the first incubator's start is printed for the incubators as a whole");
     assert.equal(count(text, "w/c 2 Nov"), 1);
-    assert.ok(text.includes("First Incubator The first one’s own line. Starts w/c 26 Oct"));
-    assert.ok(text.includes("Second Incubator The second one’s own line. Starts w/c 2 Nov"));
+    assert.ok(text.includes("First Incubator The first one’s own line. first facts line Starts w/c 26 Oct"));
+    assert.ok(text.includes("Second Incubator The second one’s own line. second facts line Starts w/c 2 Nov"));
     assert.ok(text.includes("Autumn term · in person Read and critique"), "the timeline prints a start the incubators do not share");
     assert.ok(text.includes("Your first session is in person, on campus. Not taken this time?"), "the last step prints a start the incubators do not share");
   });
@@ -438,15 +472,33 @@ describe("the incubator's page, drawn", () => {
     }
   });
 
+  test("with two, each facts line is printed once, beside its own incubator, and the page's own length is not", async () => {
+    const { text } = await draw(IncubatorPage, [FIRST, { ...SECOND, facts: "" }]);
+    assert.equal(count(text, "first facts line"), 1);
+    assert.ok(text.includes("First Incubator The first one’s own line. first facts line Starts w/c 26 Oct"));
+    // The second names no facts line, and is lent neither the first's nor the page's own.
+    assert.ok(text.includes("Second Incubator The second one’s own line. Starts w/c 26 Oct Apply"));
+    assert.ok(!between(text, "Research incubators", "Replicating a paper · how it runs").includes("10 weeks"));
+  });
+
   test("nothing else stored about a programme is in the page", async () => {
     const { html } = await draw(IncubatorPage, [FELLOWSHIP_A, FIRST, SECOND]);
     for (const kept of [FELLOWSHIP_A, FIRST, SECOND]) {
-      for (const field of ["shortName", "facts", "courseId", "runId"]) {
+      for (const field of ["shortName", "courseId", "runId"]) {
         assert.ok(!html.includes(kept[field]), `${kept.id}: ${field} is in the page's HTML`);
       }
     }
     // A fellowship is not this page's to name.
-    assert.ok(!html.includes(FELLOWSHIP_A.name) && !html.includes(FELLOWSHIP_A.pitch));
+    for (const field of ["name", "pitch", "facts"]) {
+      assert.ok(!html.includes(FELLOWSHIP_A[field]), `the fellowship's ${field} is in the page's HTML`);
+    }
+  });
+
+  test("with one incubator, the page prints nothing stored about it but its start", async () => {
+    const { html } = await draw(IncubatorPage, [FELLOWSHIP_A, FIRST]);
+    for (const field of ["name", "shortName", "pitch", "facts", "courseId", "runId"]) {
+      assert.ok(!html.includes(FIRST[field]), `${field} is in the HTML of a page about one incubator`);
+    }
   });
 });
 

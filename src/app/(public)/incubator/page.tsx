@@ -22,8 +22,8 @@ import styles from "./incubator.module.css";
  *
  * A page of words about how the incubator runs. The words are the page's
  * own and are not stored. What IS read is the term: which incubators its
- * application form has on it, each one's name, description and start, and
- * that form's dates.
+ * application form has on it, each one's name, description, facts line and
+ * start, and that form's dates.
  *
  * Three rules a maintainer has to keep:
  *
@@ -38,8 +38,9 @@ import styles from "./incubator.module.css";
  * 3. THE WORDS THAT DEPEND ON HOW MANY INCUBATORS THE FORM CARRIES ARE NOT
  *    WRITTEN HERE. `incubatorPageWords` (`./incubatorWords.ts`) says them,
  *    and this page draws what it says: with one incubator, the page's own
- *    words about it; with more than one, each by its own name and
- *    description, and nothing said of them all that the form does not say.
+ *    words about it; with more than one, each by its own name,
+ *    description and facts line, and nothing said of them all that the form
+ *    does not say.
  */
 
 export const metadata: Metadata = {
@@ -171,8 +172,15 @@ export default async function IncubatorPage() {
               <li key={incubator.id} className={styles.incubator}>
                 <h2 className={styles.incubatorName}>{incubator.name}</h2>
                 {incubator.pitch ? <p className={styles.incubatorPitch}>{incubator.pitch}</p> : null}
-                {incubator.starts ? (
-                  <p className={`meta ${styles.incubatorStarts}`}>{incubator.starts}</p>
+                {incubator.facts || incubator.starts ? (
+                  <div className={styles.incubatorFoot}>
+                    {incubator.facts ? (
+                      <p className={`meta ${styles.incubatorFacts}`}>{incubator.facts}</p>
+                    ) : null}
+                    {incubator.starts ? (
+                      <p className={`meta ${styles.incubatorStarts}`}>{incubator.starts}</p>
+                    ) : null}
+                  </div>
                 ) : null}
               </li>
             ))}
