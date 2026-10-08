@@ -62,6 +62,13 @@ import type { Block } from "@/lib/firestore/newsletterBlocks";
  * the link is there to be found on that page, and nothing in
  * `PlacementFacts` can hold an address. The composer is never handed one.
  *
+ * A ROOM IS TYPED BY A PERSON, AND A LINK CAN BE TYPED INTO ONE. So a room
+ * is printed only when nothing in it could be followed (`couldBeFollowed`:
+ * an address, a host name, a long number a phone would dial). Otherwise the
+ * email says where the person will find it, in words that are true of a
+ * room and of a call alike, and prints none of what was typed. The check is
+ * made where the room is classified and again where it is printed.
+ *
  * ## An admin proofing the wording
  *
  * `proof: true` is for the designer's preview and its test send. Those hold
@@ -93,11 +100,15 @@ export type PlacementToken = keyof typeof PLACEMENT_TOKEN_RULES;
 export const PLACEMENT_TOKENS = Object.keys(PLACEMENT_TOKEN_RULES) as PlacementToken[];
 
 /**
- * Where a group's first session is: a room, or online. For an online one,
- * `linkOnPage` says whether the placed person will find the link to join on
- * their programme's page. The link itself is not here: see the header.
+ * Where a group's first session is: a room, online, or "on their programme's
+ * page", for a room whose text is not printed (see the header). For an
+ * online one, `linkOnPage` says whether the placed person will find the link
+ * to join on their programme's page. The link itself is not here.
  */
-export type PlacementWhere = { kind: "room"; room: string } | { kind: "online"; linkOnPage: boolean };
+export type PlacementWhere =
+  | { kind: "room"; room: string }
+  | { kind: "online"; linkOnPage: boolean }
+  | { kind: "on-page" };
 
 /** What the email is told about one placed person. Null is "there is nothing to say". */
 export type PlacementFacts = {
@@ -154,11 +165,43 @@ export function placementWhere(
   const room = oneLine(session.location);
   const url = oneLine(session.meetingUrl);
   const linkOnPage = url !== "" && validateSubmissionUrl(url, GROUP_FIELD_LIMITS.meetingUrl) === null;
+  const inARoom = (): PlacementWhere => (couldBeFollowed(room) ? { kind: "on-page" } : { kind: "room", room });
   if (mode === "virtual") return { kind: "online", linkOnPage };
-  if (mode === "in-person") return room ? { kind: "room", room } : null;
-  if (room) return { kind: "room", room };
+  if (mode === "in-person") return room ? inARoom() : null;
+  if (room) return inARoom();
   return linkOnPage ? { kind: "online", linkOnPage } : null;
 }
+
+/**
+ * COULD A READER FOLLOW ANY OF THIS? True when a typed value holds something
+ * a mail client would make into a link, or a phone would dial:
+ *
+ *  - an address with a scheme (`https://…`, `msteams://…`), or one of the
+ *    schemes that needs no slashes (`mailto:`, `tel:`);
+ *  - a host name, with or without `www.` (`zoom.example/j/1`), which is also
+ *    what an email address ends in;
+ *  - four numbers with dots between them;
+ *  - a run of nine digits or more, however it is spaced: a phone number, or
+ *    the id of a meeting.
+ *
+ * IT ERRS TOWARDS TRUE. A room named "St.Peters" reads as a host name, and
+ * its email then says where to find the room and does not print it. That is
+ * the safe way to be wrong: nobody is sent a way into somebody's call, and
+ * nobody is left without a way to find their room.
+ */
+export function couldBeFollowed(value: string | null | undefined): boolean {
+  const text = oneLine(value);
+  return text !== "" && FOLLOWABLE.some((shape) => shape.test(text));
+}
+
+const FOLLOWABLE = [
+  /[a-z][a-z0-9+.-]*:\/\//i,
+  /\b(?:mailto|tel|sms|callto|skype|facetime|zoommtg|msteams|webcal):/i,
+  /\bwww\.[a-z0-9]/i,
+  /(?:^|[^a-z0-9.-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?![a-z0-9-])/i,
+  /\b\d{1,3}(?:\.\d{1,3}){3}\b/,
+  /(?:\d[\s().-]{0,2}){9,}/,
+];
 
 /** The weekly reminder's own word for a session that is online. */
 const ONLINE = "Online";
@@ -169,6 +212,13 @@ const ONLINE = "Online";
  * placed person their first session, with the way to join it.
  */
 const LINK_IS_ON_THE_PAGE = "The link to join is on your programme's page in the learning space.";
+
+/**
+ * What stands for a room whose text is not printed. It is true of a room and
+ * of a call alike: the programme's page shows the placed person their first
+ * session, with the room as it was typed or the way to join.
+ */
+const WHERE_IS_ON_THE_PAGE = "You'll find where it meets on your programme's page in the learning space.";
 
 // ---------------------------------------------------------------------------
 // The values
@@ -212,7 +262,9 @@ function always(value: string | null | undefined): Value {
 
 function whereValue(where: PlacementWhere | null): Value | null {
   if (!where) return null;
-  if (where.kind === "room") return typed(where.room);
+  if (where.kind === "on-page") return typed(WHERE_IS_ON_THE_PAGE);
+  // Asked again here, where it is printed, whatever the caller classified.
+  if (where.kind === "room") return typed(couldBeFollowed(where.room) ? WHERE_IS_ON_THE_PAGE : where.room);
   return typed(where.linkOnPage ? `${ONLINE}. ${LINK_IS_ON_THE_PAGE}` : ONLINE);
 }
 

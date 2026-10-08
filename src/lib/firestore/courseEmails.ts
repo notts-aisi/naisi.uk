@@ -167,7 +167,8 @@ export type CourseTokenMap = {
   /**
    * Where that first session is: the room, or "Online" for a group that
    * meets online, with where its people find the link to join. Never the
-   * link itself. The placement email only.
+   * link itself, and never a room that has something to follow typed into
+   * it. The placement email only.
    */
   firstSessionWhere?: string;
   /**

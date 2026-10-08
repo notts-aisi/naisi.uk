@@ -23,9 +23,13 @@
  *     facilitators and the room can be missing: their paragraph is left out.
  *     A value is text, whoever typed it. AND A MEETING LINK IS NEVER IN IT:
  *     an online group is told it is online and where its people find the
- *     link, because an email can be forwarded. The composer is run over
- *     every arrangement of wording this file generates, and the handler
- *     against stored groups, and the link is in none of what comes back.
+ *     link, because an email can be forwarded. Nor is a link that somebody
+ *     typed into the group's room: a room with anything in it that a reader
+ *     could follow is not printed, and its people are told where to find
+ *     it. The composer is run over every arrangement of wording this file
+ *     generates, and the handler against stored groups, for a link in its
+ *     own field and for one typed into the room, and none of it is in what
+ *     comes back.
  *  3. THE ROUTE REFUSES BEFORE IT DOES ANYTHING. The real handler is run
  *     against a stored run: a refusal stamps nothing and emails nobody, the
  *     sentence says what to set, and what does go out names the room, or
@@ -143,6 +147,25 @@ const textOf = (html) =>
     .trim();
 /** A composed email as one reader would read it: the subject, then the words. */
 const read = (email) => `${email.subject} | ${textOf(printed(email.blocks))}`;
+
+/**
+ * A way into a call, typed into a group's ROOM in the shapes people type
+ * one. None of it may reach an email. Each holds the same three parts, which
+ * is what the tests look for in what was written.
+ */
+const ROOMS_WITH_A_LINK = [
+  "https://meet.example/j/8675309?pwd=opensesame",
+  "Teams: https://meet.example/j/8675309?pwd=opensesame",
+  "Hallward B12 or meet.example/j/8675309?pwd=opensesame",
+  "www.meet.example/j/8675309 (pwd opensesame)",
+  "msteams://meet.example/j/8675309?pwd=opensesame",
+  "HTTPS://MEET.EXAMPLE/J/8675309?PWD=OPENSESAME",
+  "Hallward B12 (or join: meet.example, id 8675309, opensesame)",
+];
+/** What to look for, in lower case: the host, the meeting's id and its password. */
+const WAY_IN = ["meet.example", "8675309", "opensesame"];
+/** What an email says in the stead of a room it will not print. */
+const ON_THE_PAGE = "You'll find where it meets on your programme's page in the learning space.";
 
 // ---------------------------------------------------------------------------
 // The composer
@@ -317,14 +340,17 @@ describe("the placement email is written whole or not at all", () => {
     assert.ok(seen.ok > 200 && seen.refused > 200, JSON.stringify(seen));
   });
 
-  test("no arrangement of wording carries the group's meeting link, whatever the group's week is set to", () => {
+  test("no arrangement of wording carries a way into the group's call, wherever it was typed and whatever the week is set to", () => {
     // The same generator, the same four hundred arrangements. Each is written
-    // for a group whose stored session has a link, in every way a week can be
-    // set, through the function that reads that session for the email.
+    // for a group whose stored session has a link, in its own field or typed
+    // into the room, in every way a week can be set, through the function
+    // that reads that session for the email.
     const LINK = "https://meet.example/j/8675309?pwd=opensesame";
     const stored = [
       { location: "", meetingUrl: LINK },
       { location: "Hallward B12", meetingUrl: LINK },
+      ...ROOMS_WITH_A_LINK.map((location) => ({ location, meetingUrl: null })),
+      { location: ROOMS_WITH_A_LINK[0], meetingUrl: LINK },
     ];
     let state = 20261023;
     const next = (n) => {
@@ -333,7 +359,7 @@ describe("the placement email is written whole or not at all", () => {
     };
     const pick = () => PIECES[next(PIECES.length)];
     let written = 0;
-    let online = 0;
+    const kinds = { online: 0, "on-page": 0, room: 0 };
     for (let i = 0; i < 400; i += 1) {
       const template = {
         subject: `About ${pick()} and ${next(2) ? pick() : "your group"}`,
@@ -347,20 +373,20 @@ describe("the placement email is written whole or not at all", () => {
       for (const session of stored) {
         for (const mode of [null, "virtual", "in-person"]) {
           const where = placement.placementWhere(session, mode);
-          if (where?.kind === "online") online += 1;
+          if (where) kinds[where.kind] += 1;
           for (const proof of [false, true]) {
             const email = placement.composePlacementEmail(template, { ...FACTS, firstSessionWhere: where }, { proof });
             if (!email.ok) continue;
             written += 1;
-            const all = `${email.subject}\n${printed(email.blocks)}`;
-            for (const part of [LINK, "meet.example", "8675309", "opensesame"]) {
-              assert.ok(!all.includes(part), `case ${i}, mode ${mode}: the email carries ${part}`);
+            const all = `${email.subject}\n${printed(email.blocks)}`.toLowerCase();
+            for (const part of WAY_IN) {
+              assert.ok(!all.includes(part), `case ${i}, mode ${mode}, room ${JSON.stringify(session.location)}: the email carries ${part}`);
             }
           }
         }
       }
     }
-    assert.ok(written > 1000 && online > 500, JSON.stringify({ written, online }));
+    assert.ok(written > 5000 && kinds.online > 1500 && kinds["on-page"] > 1500 && kinds.room > 500, JSON.stringify({ written, kinds }));
   });
 
   test("a token the email does not fill is refused by name, wherever it sits", () => {
@@ -469,13 +495,100 @@ describe("where the first session is", () => {
   });
 
   test("what it answers has no room for an address", () => {
+    const rooms = ["", "Hallward B12", ...ROOMS_WITH_A_LINK];
     for (const mode of [null, "virtual", "in-person"]) {
-      for (const stored of [session("", LINK), session("Hallward B12", LINK), session("", null)]) {
+      for (const stored of rooms.flatMap((room) => [session(room, LINK), session(room, null)])) {
         const where = placement.placementWhere(stored, mode);
         if (!where) continue;
         assert.ok(Object.keys(where).every((key) => ["kind", "room", "linkOnPage"].includes(key)), JSON.stringify(where));
-        assert.ok(!JSON.stringify(where).includes("meet.example"), JSON.stringify(where));
+        assert.ok(!JSON.stringify(where).toLowerCase().includes("meet.example"), JSON.stringify(where));
       }
+    }
+  });
+
+  test("a room with a way into a call typed into it is not a room to print", () => {
+    for (const room of ROOMS_WITH_A_LINK) {
+      assert.equal(placement.couldBeFollowed(room), true, room);
+      assert.deepEqual(placement.placementWhere(session(room, null), null), { kind: "on-page" }, room);
+      assert.deepEqual(placement.placementWhere(session(room, null), "in-person"), { kind: "on-page" }, room);
+      // A week that is online is online, whatever was typed into the room.
+      assert.deepEqual(placement.placementWhere(session(room, null), "virtual"), { kind: "online", linkOnPage: false }, room);
+    }
+  });
+
+  test("the email then says where to find it, in words true of a room and of a call, and prints none of what was typed", () => {
+    for (const room of ROOMS_WITH_A_LINK) {
+      const email = placement.composePlacementEmail(SEED, { ...FACTS, firstSessionWhere: placement.placementWhere(session(room, null), null) });
+      assert.equal(email.ok, true, room);
+      assert.equal(read(email), FULL.replace("Where: Hallward B12", `Where: ${ON_THE_PAGE}`), room);
+    }
+  });
+
+  test("the composer asks again where it prints, whatever it was handed", () => {
+    for (const room of ROOMS_WITH_A_LINK) {
+      for (const proof of [false, true]) {
+        const email = placement.composePlacementEmail(SEED, { ...FACTS, firstSessionWhere: { kind: "room", room } }, { proof });
+        assert.equal(email.ok, true, room);
+        const all = `${email.subject}\n${printed(email.blocks)}`.toLowerCase();
+        for (const part of WAY_IN) assert.ok(!all.includes(part), `${room}: the email carries ${part}`);
+        assert.ok(read(email).includes(`Where: ${ON_THE_PAGE}`), room);
+      }
+      // The designer's sample goes the same way.
+      const proofed = placement.composePlacementEmail(SEED, placement.placementFactsFromSample({ ...samples.courseSampleTokens("course-allocated", "Alex Taylor"), firstSessionWhere: room }), { proof: true });
+      assert.ok(!printed(proofed.blocks).toLowerCase().includes("meet.example"), room);
+    }
+  });
+
+  test("anything a reader could follow counts: an address, a host name, a long number", () => {
+    for (const followable of [
+      "http://meet.example",
+      "zoommtg://meet.example/join?confno=1",
+      // Each of the next six is caught by one shape and by no other.
+      "webex://join/abc",
+      "skype:roomname?call",
+      "www.meet-example",
+      "meet.example",
+      "192.0.2.10/call",
+      "Meeting id 867 5309 1234",
+      "mailto:room@example.com",
+      "tel:+441154960000",
+      "ask room@example.com",
+      "see teams.example/l/abc",
+      "bit.example/x",
+      "Dial in on 0115 496 0000",
+      "(0115) 496-0000",
+    ]) {
+      assert.equal(placement.couldBeFollowed(followable), true, followable);
+      assert.deepEqual(placement.placementWhere(session(followable, null), null), { kind: "on-page" }, followable);
+    }
+  });
+
+  test("an ordinary room is printed as it was typed", () => {
+    for (const room of [
+      "Hallward B12",
+      "Hallward Library, B12",
+      "Portland Building C.11",
+      "Room 3.14, second floor",
+      "No.5 Lecture Theatre",
+      "Trent Building LG11 (ring the bell)",
+      "George Green Library, Room A.1",
+      "B12, 6pm to 7.30pm",
+      "B12 on 27 October, 18:00",
+      "Rooms 101, 102 and 103",
+      "Coates Road Auditorium, e.g. the foyer",
+      "Hotel: Room 4",
+      "Café Aspire",
+    ]) {
+      assert.equal(placement.couldBeFollowed(room), false, room);
+      assert.deepEqual(placement.placementWhere(session(room, null), null), { kind: "room", room }, room);
+    }
+    for (const nothing of ["", "   ", null, undefined]) assert.equal(placement.couldBeFollowed(nothing), false);
+  });
+
+  test("it errs towards not printing: a room that only looks like a host name is found on the page", () => {
+    // The email still tells the person where to find their room, so this is the safe way to be wrong.
+    for (const room of ["St.Peters Church hall", "Dr.Smith's office"]) {
+      assert.equal(placement.couldBeFollowed(room), true, room);
     }
   });
 });
@@ -654,6 +767,21 @@ describe("publishing an allocation", { concurrency: false }, () => {
       of("dev"),
     );
     for (const mail of mails) assert.ok(!mail.html.includes("meet.example"), `${mail.to} was emailed a meeting link`);
+  });
+
+  test("no email from the route carries a link typed into a group's room, and its people are told where to look", async () => {
+    stage({
+      groups: Object.fromEntries(ROOMS_WITH_A_LINK.map((location, index) => [`g${index}`, group(`Group ${index + 1}`, { session: slot({ location }) })])),
+      people: Object.fromEntries(ROOMS_WITH_A_LINK.map((_, index) => [`person${index}`, `g${index}`])),
+    });
+    const response = await press();
+    assert.deepEqual([response.status, response.body.emailed], [200, ROOMS_WITH_A_LINK.length], JSON.stringify(response.body));
+    for (const mail of await Promise.all(world.sent.map(opened))) {
+      const all = `${mail.subject}\n${mail.html}`.toLowerCase();
+      for (const part of WAY_IN) assert.ok(!all.includes(part), `${mail.to}: the email carries ${part}`);
+      assert.ok(mail.text.includes(`Where: ${ON_THE_PAGE}`), mail.text);
+    }
+    assert.ok(!JSON.stringify(response.body).toLowerCase().includes("meet.example"));
   });
 
   test("no email from the route carries a group's meeting link, however the wording and the week are set", async () => {
