@@ -4,7 +4,8 @@ import type { StatusStep, StepState } from "@/lib/applications/status/view";
 import styles from "./status.module.css";
 
 /**
- * Sent, Hear back, Meet your group: the three steps of a term, down a rail.
+ * Sent, Hear back, and the start: the three steps of a term, down a rail.
+ * The names are the view's (`waitingSteps`), so this component types none.
  *
  * Where each step stands is drawn (a tick, a lit dot, an empty ring) and also
  * said, in words only a screen reader meets, because a colour is not a

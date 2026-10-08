@@ -930,6 +930,37 @@ const USERS = new Map([
       "with the engine's own source, which is plain script this loader does not compile; nothing " +
       "else is stubbed",
   ],
+  [
+    "incubators-on-the-form.test.mjs",
+    "it executes `incubatorWords.ts` and renders the incubator's page and the fellowships page " +
+      "from a term with no, one and two incubators on its form, because what each page says for " +
+      "each count is only real when the page is drawn. The term's fetcher, the list of published " +
+      "courses, `next/link`, the network drawing and the stylesheets are stubbed",
+  ],
+  [
+    "applications-place-next-words.test.mjs",
+    "it composes the standard You are in email and draws the person's own page from one stored " +
+      "form, for a place on a fellowship and on an incubator, because that the two say the same " +
+      "thing for each kind is only real when both are run. `server-only`, `next/link`, the " +
+      "router the reply buttons ask for and the two stylesheets are stubbed",
+  ],
+  [
+    "applications-place-in-the-member-area.test.mjs",
+    "it stores every way an application can stand and runs Home and the list of programmes " +
+      "for each, on the server and drawn to HTML, because that neither page states an outcome " +
+      "is only real when the pages run. `server-only`, three `next` modules, `next/link`, the " +
+      "Admin SDK handle, the session, the hook that lists a member's runs, the public term, the " +
+      "parts of Home that are not about an application, a run's card, the entrance wrapper and " +
+      "the stylesheets are stubbed",
+  ],
+  [
+    "email-unfilled-tokens.test.mjs",
+    "it runs the placement email's composer over generated wording, the allocation publish " +
+      "handler against a stored run, and every sender that fills tokens on its own seed copy, " +
+      "because which tokens reach a reader is only real when the email is written and rendered. " +
+      "`server-only`, `next/server`, the Admin SDK handle, the session, the view-as guard, the " +
+      "standing check, the subscription, push and suppression doors and the mail door are stubbed",
+  ],
 ]);
 
 /**

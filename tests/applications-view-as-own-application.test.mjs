@@ -8,7 +8,8 @@
  *   /apply/[roundId]             the form
  *   /applications                the list
  *   /applications/[roundId]      one application, read back
- *   /dashboard                   the card that leads to the list
+ *   /dashboard                   the card that leads to the list, and whether the member holds a place
+ *   /learn                       whether the member holds a place, where their runs are listed
  *
  * ## The rule this guards
  *
@@ -34,7 +35,7 @@
  * held to the check, and each entry is read out of the source.
  *
  * THE SCREENS AND THE ROUTES, run for real against a small term: the two
- * handlers, and the four server components, each drawn to HTML for a member,
+ * handlers, and the five server components, each drawn to HTML for a member,
  * for an admin viewing as that member, and for an admin with a marker left
  * over.
  *
@@ -87,6 +88,7 @@ const OWN_READS = {
   loadApplicantView: "@/lib/applications/applicant/store",
   loadStatus: "@/lib/applications/status/load",
   loadListWords: "@/lib/applications/status/load",
+  loadHoldsPlace: "@/lib/applications/status/load",
   loadStatusRows: "@/lib/admissions/statusHubData",
   loadStatusRowForRound: "@/lib/admissions/statusHubData",
 };
@@ -144,6 +146,11 @@ const HELD = {
     how: "notice-first",
     leaves: "if (viewingAs) return null;",
     why: "the dashboard card, which names each application",
+  },
+  "features/applications/home/holdsPlace.ts#holdsPlace": {
+    how: "notice-first",
+    leaves: 'if (markerIsLive(await getImpersonator(), uid)) return "unknown";',
+    why: "whether the member holds a place, which Home and the list of their programmes ask before they say a member is on nothing",
   },
   "app/(public)/applications/[roundId]/page.tsx#ApplicationDetailPage": {
     how: "after-the-form",
@@ -233,6 +240,19 @@ describe("every read of the caller's own application is held to the view-as chec
     const dashboard = code("app", "(app)", "dashboard", "page.tsx");
     assert.ok(dashboard.includes("const viewingAs = markerIsLive(await getImpersonator(), user?.uid ?? null);"));
     assert.ok(dashboard.includes("const applications = user ? await applicationsOf(user.uid, viewingAs) : [];"));
+    // The question about a held place asks for itself, of the same cookie,
+    // with the uid it is about to read by, so no page that calls it can
+    // forget to. In a view-as session its answer is that it could not tell.
+    const asked = code("features", "applications", "home", "holdsPlace.ts");
+    assert.ok(asked.includes('export async function holdsPlace(uid: string, appliedTo?: readonly string[]): Promise<HoldsPlace> { if (markerIsLive(await getImpersonator(), uid)) return "unknown";'));
+    // And the two pages hand it the session's own uid, and nothing a request carries.
+    assert.ok(dashboard.includes("user && applications ? holdsPlace(user.uid, applications.map((row) => row.roundId)) : COULD_NOT_TELL,"));
+    const learn = code("app", "(app)", "learn", "page.tsx");
+    assert.ok(learn.includes('const user = await getCurrentUser(); const held = user ? await holdsPlace(user.uid) : "unknown";'));
+    for (const [name, page] of [["the dashboard", dashboard], ["the list of programmes", learn]]) {
+      assert.equal(page.split("holdsPlace(").length - 1, 1, `${name} asks more than once`);
+      assert.ok(!/searchParams|params\b|cookies\(|headers\(/.test(page), `${name} reads something off the request`);
+    }
   });
 });
 
@@ -258,10 +278,21 @@ const BOX =
   "export default function Box({ children }) {\n" +
   "  return globalThis.__viewAsOwn.createElement('div', null, children);\n" +
   "}";
-/** One of Home's forms: it draws the two things it is handed about applications. */
+/**
+ * One of Home's forms: it draws what it is handed about applications (the
+ * card and "Nothing yet"), and records the name of everything it was handed
+ * and the one answer it is given about a place.
+ */
 const HOME_FORM = (name) =>
-  `export default function ${name}({ applications, nothingYet }) {\n` +
-  "  return globalThis.__viewAsOwn.createElement('div', null, applications, nothingYet);\n" +
+  `export default function ${name}(props) {\n` +
+  `  globalThis.__viewAsOwn.handed.${name} = { holdsNoPlace: props.holdsNoPlace, names: Object.keys(props).sort() };\n` +
+  "  return globalThis.__viewAsOwn.createElement('div', null, props.applications, props.nothingYet);\n" +
+  "}";
+/** The list of somebody's runs: it draws what it is handed to stand where its empty state would, and nothing else here is about an application. */
+const LEARN_HUB =
+  "export default function LearnHub({ instead }) {\n" +
+  "  globalThis.__viewAsOwn.handed.LearnHub = { instead: instead !== null };\n" +
+  "  return globalThis.__viewAsOwn.createElement('div', null, instead);\n" +
   "}";
 
 const STUBS = new Map([
@@ -319,6 +350,7 @@ const STUBS = new Map([
   ["./JoinStep", records("JoinStep")],
   ["./StatusPage", records("StatusPage")],
   ["@/features/applications/home/YourApplications", records("YourApplications")],
+  ["./LearnHub", LEARN_HUB],
   ["@/features/pwa/InstallCard", NOTHING("Install")],
   // Home's own pieces. The two forms draw what they are handed about
   // applications and nothing else; the rest of the page (the term, the
@@ -362,6 +394,7 @@ const { renderApplicationStatus } = await loadTs(
 );
 const { default: ApplicationsPage } = await loadTs(join("app", "(public)", "applications", "page.tsx"));
 const { default: DashboardPage } = await loadTs(join("app", "(app)", "dashboard", "page.tsx"));
+const { default: LearnPage } = await loadTs(join("app", "(app)", "learn", "page.tsx"));
 const { IMPERSONATION_BLOCKED_MESSAGE } = await loadTs(join("lib", "firebase", "impersonation.ts"));
 const { VIEW_AS_NOTICE } = await loadTs(join("features", "applications", "viewAsNotice.ts"));
 
@@ -590,7 +623,14 @@ describe("the dashboard card names nothing in a view-as session", () => {
     term();
     signedIn("amara");
     assert.deepEqual(await home(), { rows: [{ roundId: ROUND, label: "Autumn 2026" }], nothingYet: false });
-    assert.deepEqual(readOfAnApplication(), ["admissionApplications"], "the list's own loader read them");
+    // Two reads, both of her own and neither of the private sibling: the
+    // list's own loader, then the read behind "Your application" for the one
+    // round on that list, which is how Home knows whether she holds a place.
+    assert.deepEqual(
+      readOfAnApplication(),
+      ["admissionApplications", "admissionApplications"],
+      "the list's own loader read them, and her own page's read asked what one came to",
+    );
   });
 
   test("to a member who has not applied it says so, while applications are open", async () => {
@@ -615,6 +655,163 @@ describe("the dashboard card names nothing in a view-as session", () => {
     viewingAs("nina");
     assert.deepEqual(await home(), { rows: null, nothingYet: false }, "the same as for somebody who has");
     assert.deepEqual(readOfAnApplication(), []);
+  });
+});
+
+describe("whether a member holds a place is asked for the member, and for nobody viewing the site as them", () => {
+  /** Amara's application once decision day has published a place on AGI Strategy onto it. */
+  const placed = () => ({
+    ...applicationDoc("amara", [AGI, TAIS]),
+    status: "accepted",
+    result: { kind: "accepted", programmeId: AGI, publishedAt: new Date("2026-10-23T11:00:00+01:00"), email: "sent" },
+  });
+  /** Everything Home's form for a member is handed, by name. One of them is about a place, and it is one answer. */
+  const HANDED_TO_HOME = [
+    "applications",
+    "comingUpCards",
+    "comingUpRows",
+    "finishProfile",
+    "given",
+    "holdsNoPlace",
+    "invite",
+    "nothingYet",
+    "termCard",
+  ];
+  /** Home: whether it was told the member holds no place, and what its card of applications names. */
+  const home = async () => {
+    renderToStaticMarkup(await DashboardPage());
+    assert.deepEqual(world.handed.HomeMember.names, HANDED_TO_HOME, "Home is handed something else");
+    return { holdsNoPlace: world.handed.HomeMember.holdsNoPlace, rows: world.handed.YourApplications.rows };
+  };
+  /** The list of programmes: what it has drawn where its empty state would be. */
+  const learn = async () => {
+    renderToStaticMarkup(await LearnPage());
+    if (!world.handed.LearnHub.instead) return "nothing";
+    return world.handed.YourApplications?.rows === null ? "the way to the list, naming nothing" : "something else";
+  };
+  const readOfAnApplication = () => world.touched.filter((name) => name.startsWith("admissionApplication"));
+  const DECISIONS = "admissionDecisions";
+  const NAMED = [{ roundId: ROUND, label: "Autumn 2026" }];
+
+  test("to the member with a place, Home is told only that it may not say they are on nothing", async () => {
+    term({ over: { [applicationPath("amara")]: placed() } });
+    signedIn("amara");
+    assert.deepEqual(await home(), { holdsNoPlace: false, rows: NAMED });
+  });
+
+  test("and the list of their programmes draws the way to their applications, naming nothing", async () => {
+    term({ over: { [applicationPath("amara")]: placed() } });
+    signedIn("amara");
+    assert.equal(await learn(), "the way to the list, naming nothing");
+  });
+
+  test("somebody still waiting to hear holds no place, and both pages know it", async () => {
+    term();
+    signedIn("amara");
+    assert.deepEqual(await home(), { holdsNoPlace: true, rows: NAMED });
+    signedIn("amara");
+    assert.equal(await learn(), "nothing");
+  });
+
+  test("a decision that has not been published is not a place, and is not read", async () => {
+    // A lead has accepted Dev, and decision day has not been sent: the
+    // decision is on its own document and nothing is on Dev's application.
+    term({
+      over: {
+        [`${DECISIONS}/${ROUND}__dev`]: {
+          roundId: ROUND,
+          uid: "dev",
+          programmes: { [AGI]: { decision: "accept", decidedByUid: "claudia" } },
+        },
+        [applicationPath("dev")]: { ...applicationDoc("dev", [AGI]), status: "accepted" },
+      },
+    });
+    signedIn("dev");
+    assert.deepEqual(await home(), { holdsNoPlace: true, rows: NAMED });
+    assert.equal(world.touched.includes(DECISIONS), false, "Home read a decision");
+    signedIn("dev");
+    assert.equal(await learn(), "nothing");
+    assert.equal(world.touched.includes(DECISIONS), false, "the list of programmes read a decision");
+  });
+
+  test("somebody who has not applied holds no place, and the page knows it", async () => {
+    term();
+    signedIn("nina");
+    assert.deepEqual(await home(), { holdsNoPlace: true, rows: [] });
+  });
+
+  test("in a view-as session Home is not told the member holds no place, whether they do or not, and reads nothing", async () => {
+    term({ over: { [applicationPath("amara")]: placed() } });
+    viewingAs("amara");
+    assert.deepEqual(await home(), { holdsNoPlace: false, rows: null });
+    assert.deepEqual(readOfAnApplication(), []);
+    // The same for somebody who has not applied at all: nothing there to tell them apart.
+    viewingAs("nina");
+    assert.deepEqual(await home(), { holdsNoPlace: false, rows: null });
+    assert.deepEqual(readOfAnApplication(), []);
+  });
+
+  test("in a view-as session the list of programmes makes no claim, and reads nothing", async () => {
+    term({ over: { [applicationPath("amara")]: placed() } });
+    viewingAs("amara");
+    // Where its empty state would be it draws the way to the list, which names nothing.
+    assert.equal(await learn(), "the way to the list, naming nothing");
+    assert.deepEqual(world.touched, [], "the page read something before it left");
+  });
+
+  test("nor does it say whether they hold a place at all", async () => {
+    term();
+    viewingAs("nina");
+    assert.equal(await learn(), "the way to the list, naming nothing", "the same as for somebody who does");
+    assert.deepEqual(world.touched, []);
+  });
+
+  test("a marker left over is not a session: the admin's own answer is read", async () => {
+    // An admin who applied and is still waiting holds no place. Only a read
+    // can say so, and the list of programmes then reads as it always has.
+    term({ over: { [applicationPath("zach")]: applicationDoc("zach", [AGI]) } });
+    leftOver();
+    assert.equal(await learn(), "nothing");
+    assert.deepEqual(readOfAnApplication(), ["admissionApplications", "admissionApplications"]);
+    // And with a place of their own, the way to their applications.
+    const own = { ...placed(), uid: "zach", email: "zach@example.com", displayName: "Zach Levin" };
+    term({ over: { [applicationPath("zach")]: own } });
+    leftOver();
+    assert.equal(await learn(), "the way to the list, naming nothing");
+  });
+
+  /** Every document id and every filter the application collections are asked for from here on. */
+  function addressesAsked() {
+    const asked = [];
+    const collection = world.db.collection;
+    world.db.collection = (name) => {
+      const handle = collection(name);
+      if (!name.startsWith("admissionApplication")) return handle;
+      return {
+        ...handle,
+        doc: (id) => {
+          asked.push(id);
+          return handle.doc(id);
+        },
+        where: (...filter) => {
+          asked.push(JSON.stringify(filter));
+          return handle.where(...filter);
+        },
+      };
+    };
+    return asked;
+  }
+
+  test("one member's answer is never another's, and every read is addressed to the session's own account", async () => {
+    term({ over: { [applicationPath("amara")]: placed() } });
+    const asked = addressesAsked();
+    signedIn("dev");
+    assert.deepEqual(await home(), { holdsNoPlace: true, rows: NAMED });
+    signedIn("dev");
+    assert.equal(await learn(), "nothing");
+    // Home: the list's query, then Dev's own application by its id. The list of programmes: the same two.
+    const BY_UID = JSON.stringify(["uid", "==", "dev"]);
+    assert.deepEqual(asked, [BY_UID, `${ROUND}__dev`, BY_UID, `${ROUND}__dev`]);
   });
 });
 

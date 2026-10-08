@@ -86,6 +86,35 @@ export async function loadListWords(
   return said;
 }
 
+/**
+ * Whether this person holds a place on any of these rounds: whether, for one
+ * of them, their own page is the page of somebody with a place.
+ *
+ * For the two pages of the member area that would otherwise tell somebody
+ * with a place and no run that they are on nothing. THE ANSWER IS ONE BIT.
+ * Which round, which programme and how the place was come by stay with the
+ * person's own page, which is where an outcome is said, so a caller of this
+ * can state none. Read through {@link loadStatus}, the page's own read,
+ * exactly as {@link loadListWords} is: one view of one document, the caller's
+ * own, so this is true exactly when that page says they have a place. A
+ * round that is not an application form, and an application that holds no
+ * place, count for nothing.
+ */
+export async function loadHoldsPlace(
+  db: Firestore,
+  uid: string,
+  roundIds: readonly string[],
+  now: Date,
+): Promise<boolean> {
+  const held = await Promise.all(
+    [...new Set(roundIds)].map(async (roundId) => {
+      const loaded = await loadStatus(db, roundId, uid, now);
+      return loaded !== null && loaded.view.kind === "place";
+    }),
+  );
+  return held.includes(true);
+}
+
 /** True when there is a form here that an applicant may be told about. */
 export async function formIsThere(db: Firestore, roundId: string, now: Date): Promise<boolean> {
   if (!isId(roundId)) return false;
