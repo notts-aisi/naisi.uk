@@ -14,25 +14,32 @@ import { fetchPublicTerm } from "@/features/term/fetchPublicTerm";
 import TermApplyLink from "@/features/term/TermApplyLink";
 import TermStatusLine from "@/features/term/TermStatusLine";
 import { termCivilDay, termDeadline } from "@/features/term/termWords";
+import { incubatorPageWords } from "./incubatorWords";
 import styles from "./incubator.module.css";
 
 /**
  * THE RESEARCH INCUBATOR.
  *
  * A page of words about how the incubator runs. The words are the page's
- * own and are not stored. What IS read is the term: whether its application
- * form has the incubator on it, and that form's dates.
+ * own and are not stored. What IS read is the term: which incubators its
+ * application form has on it, each one's name, description and start, and
+ * that form's dates.
  *
- * Two rules a maintainer has to keep:
+ * Three rules a maintainer has to keep:
  *
  * 1. NO DATE IS WRITTEN HERE. The day to apply by, the day everybody hears
- *    and when the incubator starts come from the term's form, formatted in
+ *    and when an incubator starts come from the term's form, formatted in
  *    London's time. Where the form does not say, the page says nothing: it
  *    names a season ("February") and never a day.
- * 2. THE PAGE SPEAKS ABOUT APPLYING ONLY WHILE THE INCUBATOR IS ON THE FORM.
+ * 2. THE PAGE SPEAKS ABOUT APPLYING ONLY WHILE AN INCUBATOR IS ON THE FORM.
  *    A term whose form has fellowships and no incubator is, for this page, a
  *    term with nothing to apply to: no button, no dates, and the closing band
  *    says applications are not open.
+ * 3. THE WORDS THAT DEPEND ON HOW MANY INCUBATORS THE FORM CARRIES ARE NOT
+ *    WRITTEN HERE. `incubatorPageWords` (`./incubatorWords.ts`) says them,
+ *    and this page draws what it says: with one incubator, the page's own
+ *    words about it; with more than one, each by its own name and
+ *    description, and nothing said of them all that the form does not say.
  */
 
 export const metadata: Metadata = {
@@ -56,17 +63,20 @@ type Phase = {
 
 export default async function IncubatorPage() {
   const term = await fetchPublicTerm();
-  const incubator = term.programmes.find((programme) => programme.kind === "incubator") ?? null;
+  const incubators = term.programmes.filter((programme) => programme.kind === "incubator");
+  const onTheForm = incubators.length > 0;
 
   // With no incubator on the term's form, this page has no term to tell about.
-  const stage = incubator ? term.stage : "none";
-  const applyPath = incubator ? term.applyPath : null;
-  const opensAt = incubator ? term.opensAt : null;
-  const closesAt = incubator ? term.closesAt : null;
-  const decisionsByDate = incubator ? term.decisionsByDate : null;
-  const next = incubator ? term.next : null;
+  const stage = onTheForm ? term.stage : "none";
+  const applyPath = onTheForm ? term.applyPath : null;
+  const opensAt = onTheForm ? term.opensAt : null;
+  const closesAt = onTheForm ? term.closesAt : null;
+  const decisionsByDate = onTheForm ? term.decisionsByDate : null;
+  const next = onTheForm ? term.next : null;
 
-  const starts = incubator?.starts.trim() || null;
+  const words = incubatorPageWords({ incubators, stage, termLabel: term.label });
+  // The one start every incubator shares. Each incubator's own is beside its name.
+  const starts = words.starts;
   const decisionsDay = decisionsByDate ? termCivilDay(decisionsByDate) : null;
   const ahead = stage === "before" || stage === "open";
   const band = bandWords({
@@ -145,21 +155,29 @@ export default async function IncubatorPage() {
   return (
     <>
       <ProgrammeHero>
-        <p className={`meta ${shared.heroEyebrow}`}>
-          {incubator && term.label ? `Research incubator · ${term.label}` : "Research incubator"}
-        </p>
-        <h1 className={`${shared.pageTitle} ${styles.title}`}>
-          Replicate a paper. Then add your twist.
-        </h1>
-        <p className={shared.pageLede}>
-          Replicate a published AI safety paper with a small team, then add your own twist.
-          There’s food at every session.
-        </p>
+        <p className={`meta ${shared.heroEyebrow}`}>{words.eyebrow}</p>
+        <h1 className={`${shared.pageTitle} ${styles.title}`}>{words.title}</h1>
+        {words.lede ? <p className={shared.pageLede}>{words.lede}</p> : null}
         <ul className={shared.factChips}>
-          <li className={shared.factChip}>10 weeks over 2 terms</li>
-          <li className={shared.factChip}>Technical this term</li>
-          <li className={shared.factChip}>Free</li>
+          {words.chips.map((chip) => (
+            <li key={chip} className={shared.factChip}>
+              {chip}
+            </li>
+          ))}
         </ul>
+        {words.listed.length > 0 ? (
+          <ul className={styles.incubators}>
+            {words.listed.map((incubator) => (
+              <li key={incubator.id} className={styles.incubator}>
+                <h2 className={styles.incubatorName}>{incubator.name}</h2>
+                {incubator.pitch ? <p className={styles.incubatorPitch}>{incubator.pitch}</p> : null}
+                {incubator.starts ? (
+                  <p className={`meta ${styles.incubatorStarts}`}>{incubator.starts}</p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
         <div className={shared.heroActions}>
           <TermApplyLink
             stage={stage}
@@ -188,7 +206,7 @@ export default async function IncubatorPage() {
       <Section rule={false} labelledBy="runs-heading">
         <SectionHead
           id="runs-heading"
-          eyebrow="How it runs"
+          eyebrow={words.runsEyebrow}
           title="10 weeks over 2 terms."
           lede="There are 7 weeks in person this term and 3 more in February. Over Christmas and exams, we’re around if you want help."
         />
@@ -227,15 +245,11 @@ export default async function IncubatorPage() {
           <div className={styles.splitWords}>
             <SectionHead
               id="who-heading"
-              eyebrow="Who it’s for"
+              eyebrow={words.whoEyebrow}
               title="Ready to do research."
               space="prose"
             >
-              <p className={shared.prose}>
-                It’s for people who’ve done a fellowship with us, or have a similar background.
-                This term’s projects are technical, so expect to read ML papers closely and write
-                code.
-              </p>
+              <p className={shared.prose}>{words.whoBody}</p>
             </SectionHead>
           </div>
           <div className={styles.details}>

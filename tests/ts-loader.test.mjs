@@ -930,6 +930,13 @@ const USERS = new Map([
       "with the engine's own source, which is plain script this loader does not compile; nothing " +
       "else is stubbed",
   ],
+  [
+    "incubators-on-the-form.test.mjs",
+    "it executes `incubatorWords.ts` and renders the incubator's page and the fellowships page " +
+      "from a term with no, one and two incubators on its form, because what each page says for " +
+      "each count is only real when the page is drawn. The term's fetcher, the list of published " +
+      "courses, `next/link`, the network drawing and the stylesheets are stubbed",
+  ],
 ]);
 
 /**

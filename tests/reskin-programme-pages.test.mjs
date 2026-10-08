@@ -297,6 +297,7 @@ const PAGE_SOURCES = [
   ["app", "(public)", "incubator", "page.tsx"],
   ["features", "programmes", "bandWords.ts"],
   ["features", "programmes", "words.ts"],
+  ["app", "(public)", "incubator", "incubatorWords.ts"],
 ];
 
 /** A year, or a day of a month: "2027", "18 Oct", "1 to 21 Feb". */

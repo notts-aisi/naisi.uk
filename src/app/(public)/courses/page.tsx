@@ -32,6 +32,7 @@ import TermApplyLink from "@/features/term/TermApplyLink";
 import TermDates from "@/features/term/TermDates";
 import TermStatusLine from "@/features/term/TermStatusLine";
 import { sharedStart, termCivilDay, termDeadline } from "@/features/term/termWords";
+import { incubatorTeaserWords, oneFormWords } from "../incubator/incubatorWords";
 import { FELLOWSHIP_QUESTIONS } from "./questions";
 import styles from "./courses.module.css";
 
@@ -75,10 +76,13 @@ export default async function FellowshipsPage() {
 
   const byCourse = new Map(entries.map((entry) => [entry.course.id, entry]));
   const fellowships = term.programmes.filter((programme) => programme.kind === "fellowship");
-  const incubator = term.programmes.find((programme) => programme.kind === "incubator") ?? null;
+  const incubators = term.programmes.filter((programme) => programme.kind === "incubator");
+  // What the panel about the incubator says depends on how many the form
+  // carries, and is worded where the incubator's own page is worded.
+  const teaser = incubatorTeaserWords(incubators);
 
   // A course the term's form speaks for is drawn as its programme, once. A
-  // course tied to the incubator has the incubator's own page to speak for
+  // course tied to an incubator has the incubator's own page to speak for
   // it. Everything else published is a course on no form.
   const onTheForm = new Set(term.programmes.map((programme) => programme.courseId));
   const otherCourses = entries.filter((entry) => !onTheForm.has(entry.course.id));
@@ -204,11 +208,7 @@ export default async function FellowshipsPage() {
           id="how-it-works-heading"
           eyebrow="Applications"
           title="How applying works."
-          lede={
-            fellowships.length === 2 && incubator
-              ? "One form covers both fellowships and the research incubator."
-              : "There’s one form for every programme."
-          }
+          lede={oneFormWords({ fellowships: fellowships.length, incubators: incubators.length })}
           space="loose"
         />
         <Steps steps={steps} />
@@ -246,20 +246,23 @@ export default async function FellowshipsPage() {
         />
         <div className={styles.teaser}>
           <div className={styles.teaserPicture}>
-            <CourseVisual
-              seed="research-incubator"
-              size="wide"
-              label={incubator?.facts || "10 weeks over 2 terms"}
-            />
+            <CourseVisual seed="research-incubator" size="wide" label={teaser.label} />
           </div>
           <div className={styles.teaserWords}>
-            <p className={`meta ${styles.teaserEyebrow}`}>Research incubator</p>
-            <p className={styles.teaserBody}>
-              Replicate a published AI safety paper with a small team, then add your own twist.
-              There’s food at every session.
-            </p>
+            <p className={`meta ${styles.teaserEyebrow}`}>{teaser.eyebrow}</p>
+            {teaser.body ? <p className={styles.teaserBody}>{teaser.body}</p> : null}
+            {teaser.listed.length > 0 ? (
+              <ul className={styles.teaserList}>
+                {teaser.listed.map((incubator) => (
+                  <li key={incubator.id} className={styles.teaserItem}>
+                    <h3 className={styles.teaserName}>{incubator.name}</h3>
+                    {incubator.pitch ? <p className={styles.teaserBody}>{incubator.pitch}</p> : null}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             <Link href="/incubator" className={`${shared.btn} ${shared.btnSurface}`}>
-              See the incubator
+              {teaser.link}
               <Arrow />
             </Link>
           </div>

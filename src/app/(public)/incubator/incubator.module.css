@@ -12,6 +12,63 @@
   max-width: 15em;
 }
 
+/* === The term's incubators, each by name ===
+   Drawn under the title only when the term's form carries more than one.
+   As many columns as fit, and one once two no longer do. */
+
+.incubators {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.5rem), 1fr));
+  gap: var(--space-3);
+  max-width: 56rem;
+  margin: 1.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.incubator {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-bg) 55%, transparent);
+}
+
+/* The incubator's name. It restates its font, because a heading element's
+   own size would otherwise win. */
+.incubatorName {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+/* Its one-line description, as its lead wrote it. */
+.incubatorPitch {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.55;
+  color: var(--color-text-soft);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+/* When it starts, on the card's floor whatever the height of the words. */
+.incubatorStarts {
+  margin: auto 0 0;
+  padding-top: var(--space-1);
+  letter-spacing: 0.08em;
+  color: var(--color-live);
+}
+
 /* === The year, as three stretches side by side === */
 
 .timeline {
@@ -214,5 +271,9 @@
 
   .details {
     padding: var(--space-5) var(--space-5) var(--space-2);
+  }
+
+  .incubator {
+    padding: var(--space-4);
   }
 }
