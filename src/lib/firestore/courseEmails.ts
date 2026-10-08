@@ -146,10 +146,13 @@ function tsToDate(v: unknown): Date | null {
 
 /**
  * Token map used at send time. The group-scoped tokens (`groupName`,
- * `facilitatorNames`, `firstSessionWhen`) are only populated once the
- * recipient has a group — before allocation they're absent, so a template
- * that uses them out of place leaves the `{token}` literal visible and the
- * admin notices (same convention as applicationEmails' `customReason`).
+ * `facilitatorNames`, `firstSessionWhen`, `firstSessionWhere`) are the
+ * placement email's, and only that email fills them: it is written by
+ * `composePlacementEmail` (`src/lib/courses/placementEmail.ts`), which leaves
+ * a paragraph out where a group has nothing to say and never sends one of
+ * them unfilled. On every other template they are not supplied, so one used
+ * out of place stays visible as typed in the designer's preview and the admin
+ * notices (same convention as applicationEmails' `customReason`).
  */
 export type CourseTokenMap = {
   courseTitle: string;
@@ -161,6 +164,11 @@ export type CourseTokenMap = {
   facilitatorNames?: string;
   /** Human-formatted first session, e.g. "Tuesday 7 October, 6pm". */
   firstSessionWhen?: string;
+  /**
+   * Where that first session is: the room, or for a group that meets online
+   * "online, at" and its link. The placement email only.
+   */
+  firstSessionWhere?: string;
   /**
    * The anonymous feedback form offered on drop-out (`config/courses`
    * `dropOutFeedbackUrl`). ABSENT when no link is configured.
@@ -232,6 +240,7 @@ export type CourseTokenInput = {
   groupName?: string;
   facilitatorNames?: string;
   firstSessionWhen?: string;
+  firstSessionWhere?: string;
   feedbackUrl?: string;
   applicationUrl?: string;
   roundLabel?: string;
@@ -258,6 +267,9 @@ export function buildCourseTokens(input: CourseTokenInput): CourseTokenMap {
       : {}),
     ...(input.firstSessionWhen !== undefined
       ? { firstSessionWhen: input.firstSessionWhen }
+      : {}),
+    ...(input.firstSessionWhere !== undefined
+      ? { firstSessionWhere: input.firstSessionWhere }
       : {}),
     ...(input.feedbackUrl ? { feedbackUrl: input.feedbackUrl } : {}),
     // The admissions tokens, omitted rather than blanked: an empty string
@@ -351,14 +363,32 @@ export const courseTemplateDefaults: Record<
       ),
     ],
   },
+  /**
+   * The placement email. `composePlacementEmail` fills it
+   * (`src/lib/courses/placementEmail.ts`), and that file's rule shapes this
+   * copy, so an editor should know it before rewriting:
+   *
+   *  - `{groupName}` and `{firstSessionWhen}` are what the email is for.
+   *    Publishing is refused for a group that lacks either.
+   *  - `{facilitatorNames}` and `{firstSessionWhere}` can be missing: a group
+   *    formed in a hurry may have no facilitator or no room yet. EACH SITS IN
+   *    A PARAGRAPH OF ITS OWN, because that paragraph is left out whole for a
+   *    group with nothing to put in it. Neither may go in the subject, or in
+   *    a paragraph with the group's name or its first session.
+   *  - A token outside that file's list is refused at publish, with a
+   *    sentence naming it.
+   */
   "course-allocated": {
     label: COURSE_DEFAULT_LABELS["course-allocated"],
-    subject: "Your {courseTitle} group — first session {firstSessionWhen}",
+    subject: "Your {courseTitle} group: first session {firstSessionWhen}",
     blocks: [
       h("You've been placed, {firstName}"),
       rt(
-        "<p>You're in <strong>{groupName}</strong> for {courseTitle} ({runLabel}), facilitated by {facilitatorNames}.</p>" +
-          "<p>Your first session is <strong>{firstSessionWhen}</strong>. Everything you need — the week's reading, your group's details, and your progress — lives in the learning space on the website.</p>" +
+        "<p>You're in <strong>{groupName}</strong> for {courseTitle} ({runLabel}).</p>" +
+          "<p>Your group is facilitated by {facilitatorNames}.</p>" +
+          "<p>Your first session is <strong>{firstSessionWhen}</strong>.</p>" +
+          "<p>Where: {firstSessionWhere}</p>" +
+          "<p>Everything you need is in the learning space on the website: the week's reading, your group's details and your progress.</p>" +
           "<p>Do the first week's reading before you come; the sessions work best when everyone arrives with opinions.</p>",
       ),
     ],

@@ -22,6 +22,7 @@ export const COURSE_PREVIEW_SAMPLE = {
   groupName: "Tuesday 6pm — Group B",
   facilitatorNames: "Priya and Sam",
   firstSessionWhen: "Tuesday 7 October, 6pm",
+  firstSessionWhere: "Hallward Library, B12",
   feedbackUrl: "https://example.com/naisi-course-feedback",
 } as const;
 
@@ -220,9 +221,10 @@ export function courseTemplateUsesAdmissionsTokens(
 
 /**
  * Templates whose send path actually populates the group-scoped tokens
- * (`groupName` / `facilitatorNames` / `firstSessionWhen`). Only the allocation
- * email knows a recipient's group: the application-lifecycle sends fire before
- * anyone is placed (see courseApplicationEmails.ts, which passes none of them).
+ * (`groupName` / `facilitatorNames` / `firstSessionWhen` /
+ * `firstSessionWhere`). Only the allocation email knows a recipient's group:
+ * the application-lifecycle sends fire before anyone is placed (see
+ * courseApplicationEmails.ts, which passes none of them).
  *
  * Previewing them as literal `{groupName}` on the other templates is the point
  * — it is exactly what the recipient would receive, so an admin who drops a
@@ -337,6 +339,7 @@ export function courseSampleTokens(
         groupName: COURSE_PREVIEW_SAMPLE.groupName,
         facilitatorNames: COURSE_PREVIEW_SAMPLE.facilitatorNames,
         firstSessionWhen: COURSE_PREVIEW_SAMPLE.firstSessionWhen,
+        firstSessionWhere: COURSE_PREVIEW_SAMPLE.firstSessionWhere,
       }
     : {};
 

@@ -79,6 +79,11 @@ const GROUP_TOKENS: TokenHelp[] = [
   { token: "groupName", description: "The small group they were placed in." },
   { token: "facilitatorNames", description: "Who facilitates that group, e.g. Priya and Sam." },
   { token: "firstSessionWhen", description: "Their group's first session, date and time." },
+  {
+    token: "firstSessionWhere",
+    description:
+      "Where that first session is: the room, or for a group that meets online, the words online, at and its link.",
+  },
 ];
 
 /**
@@ -372,9 +377,20 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
         )}
         {!showsWeekTokens && !showsAdmissionsTokens && !showsGroupTokens && (
           <p className={styles.tokensNote}>
-            The last three only resolve on the group placement email: nobody has a group
+            The last four only resolve on the group placement email: nobody has a group
             yet when this one sends. Used here they arrive as the literal{" "}
             <code>{"{groupName}"}</code> text, which the preview shows you.
+          </p>
+        )}
+        {showsGroupTokens && (
+          <p className={styles.tokensNote}>
+            A group can be formed before it has a facilitator or a room. So keep{" "}
+            <code>{"{facilitatorNames}"}</code> and <code>{"{firstSessionWhere}"}</code> each in a
+            paragraph of its own: that paragraph is left out for a group with nothing to put in
+            it, and the rest of the email goes. Neither can go in the subject, or in a paragraph
+            with <code>{"{groupName}"}</code> or <code>{"{firstSessionWhen}"}</code>. A group with
+            no name or no session time cannot be published at all, and neither can wording that
+            uses a token not on this list: publishing says which.
           </p>
         )}
         {showsWeekTokens && (

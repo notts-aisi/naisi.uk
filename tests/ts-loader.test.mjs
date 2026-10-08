@@ -952,6 +952,14 @@ const USERS = new Map([
       "the Home forms for somebody on a run, two summary cards, a run's card, `next/link`, the " +
       "entrance wrapper and the stylesheets are stubbed",
   ],
+  [
+    "email-unfilled-tokens.test.mjs",
+    "it runs the placement email's composer over generated wording, the allocation publish " +
+      "handler against a stored run, and every sender that fills tokens on its own seed copy, " +
+      "because which tokens reach a reader is only real when the email is written and rendered. " +
+      "`server-only`, `next/server`, the Admin SDK handle, the session, the view-as guard, the " +
+      "standing check, the subscription, push and suppression doors and the mail door are stubbed",
+  ],
 ]);
 
 /**

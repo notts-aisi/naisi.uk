@@ -1,6 +1,7 @@
 import "server-only";
 import ApplicationEmail from "@/emails/ApplicationEmail";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { unfilledTokens } from "@/lib/courses/placementEmail";
 import {
   buildCourseTokens,
   courseTemplateDefaults,
@@ -10,6 +11,7 @@ import {
 import {
   personaliseBlocks,
   personaliseString,
+  type Block,
   type TokenValues,
 } from "@/lib/firestore/newsletterBlocks";
 import { sendEmail } from "./send";
@@ -39,9 +41,14 @@ import { sendEmail } from "./send";
  * group-scoped tokens ({groupName}, {facilitatorNames}, {firstSessionWhen}) are
  * deliberately NOT supplied on the application-lifecycle paths: an admin who
  * pastes one into a decision template sees the literal `{token}` in a test send
- * and notices, rather than shipping a blank where a group name should be. They
- * ARE supplied on the `allocated` path (the allocation publish route), which is
- * exactly the email those tokens exist for.
+ * and notices, rather than shipping a blank where a group name should be.
+ *
+ * THE PLACEMENT EMAIL (`allocated`) IS SENT AS COMPOSED, AND NO OTHER WAY. The
+ * allocation publish route writes it with `composePlacementEmail`
+ * (`src/lib/courses/placementEmail.ts`), which fills every token or says why
+ * it cannot, and hands the finished subject and blocks to this function.
+ * Nothing here fills a token for that kind, and a placement email that still
+ * carries one is refused rather than sent.
  */
 
 /**
@@ -69,8 +76,23 @@ const TEMPLATE_FOR_KIND: Record<CourseApplicationEmailKind, CourseTemplateId> = 
   allocated: "course-allocated",
 };
 
+/** The placement email, already written. See the module comment. */
+export type ComposedCourseEmailOptions = {
+  kind: "allocated";
+  /** Deliverable address: the placed person's own. */
+  to: string;
+  /** The subject and blocks `composePlacementEmail` returned for this person. */
+  composed: { subject: string; blocks: Block[] };
+  /** The template's own sender name, when an admin set one. */
+  fromName?: string;
+  /** The placed person's uid, recorded as the deliverability log's actor. */
+  uid: string;
+  /** Run id, the deliverability log's reference. */
+  runId: string;
+};
+
 export type CourseApplicationEmailOptions = {
-  kind: CourseApplicationEmailKind;
+  kind: Exclude<CourseApplicationEmailKind, "allocated">;
   /** Deliverable address — sourced from the SESSION at the call site, never a body field. */
   to: string;
   /** The applicant's display name; drives the {preferredName} / {firstName} tokens. */
@@ -85,32 +107,22 @@ export type CourseApplicationEmailOptions = {
    * nobody does).
    */
   startDate?: string;
-  /**
-   * Group-scoped tokens, supplied ONLY by the `allocated` kind (see the module
-   * comment). Each is pre-formatted for humans at the call site; when absent
-   * the `{token}` stays literal in the sent mail, per the house convention.
-   */
-  groupName?: string;
-  /** Comma-joined display names, e.g. "Priya and Sam". */
-  facilitatorNames?: string;
-  /** Human first-session label, e.g. "Tuesday 7 October, 18:00". */
-  firstSessionWhen?: string;
   /** Applicant uid — recorded as the deliverability log's actor. */
   uid: string;
   /** Run id — the deliverability log's reference, so a run's mail is greppable. */
   runId: string;
 };
 
-export async function sendCourseApplicationEmail(
-  opts: CourseApplicationEmailOptions,
-): Promise<void> {
-  const templateId = TEMPLATE_FOR_KIND[opts.kind];
+/** One course email's wording as it would be sent now. */
+export type CourseEmailTemplate = { subject: string; blocks: Block[]; fromName?: string };
+
+/**
+ * The wording of one course email: the template an admin saved, or the seed
+ * copy where there is none, it is blank, or it could not be read (the
+ * fallback-first rule in the module comment).
+ */
+export async function loadCourseEmailTemplate(templateId: CourseTemplateId): Promise<CourseEmailTemplate> {
   const defaults = courseTemplateDefaults[templateId];
-
-  let subject = defaults.subject;
-  let blocks = defaults.blocks;
-  let fromName: string | undefined;
-
   const db = getAdminDb();
   if (db) {
     try {
@@ -118,15 +130,65 @@ export async function sendCourseApplicationEmail(
       if (snap.exists) {
         const template = normalizeCourseTemplate(snap.id, snap.data() ?? {});
         if (template && template.subject && template.blocks.length > 0) {
-          subject = template.subject;
-          blocks = template.blocks;
-          fromName = template.fromName;
+          return { subject: template.subject, blocks: template.blocks, fromName: template.fromName };
         }
       }
     } catch (err) {
       console.warn("[courseApplicationEmails] template read failed", templateId, err);
     }
   }
+  return { subject: defaults.subject, blocks: defaults.blocks };
+}
+
+/** Every piece of text a block prints, for the check below. */
+function printedText(block: Block): string {
+  if (block.type === "heading") return block.text;
+  if (block.type === "richText") return block.html;
+  if (block.type === "image") return `${block.alt}\n${block.caption ?? ""}`;
+  if (block.type === "video") return block.caption ?? "";
+  return "";
+}
+
+export async function sendCourseApplicationEmail(
+  opts: CourseApplicationEmailOptions | ComposedCourseEmailOptions,
+): Promise<void> {
+  const written = opts.kind === "allocated" ? asComposed(opts) : await filledFromTemplate(opts);
+
+  await sendEmail({
+    to: opts.to,
+    subject: written.subject,
+    react: ApplicationEmail({
+      subject: written.subject,
+      blocks: written.blocks,
+      preheader: written.subject,
+    }),
+    fromName: written.fromName,
+    kind: "course-application",
+    actorUid: opts.uid,
+    referenceId: opts.runId,
+  });
+}
+
+/**
+ * The placement email, exactly as it was written for this person.
+ *
+ * The composer's own promise is asked once more at the door: a placement
+ * email with a token still in it is not sent. The caller's send fails, which
+ * leaves that person unstamped, so a later publish reaches them.
+ */
+function asComposed(opts: ComposedCourseEmailOptions): CourseEmailTemplate {
+  const { subject, blocks } = opts.composed;
+  const left = unfilledTokens([subject, ...blocks.map(printedText)].join("\n"));
+  if (left.length > 0) {
+    throw new Error(`placement email not sent: unfilled ${left.map((token) => `{${token}}`).join(", ")}`);
+  }
+  return { subject, blocks, fromName: opts.fromName };
+}
+
+/** One of the four application emails: its template, with this applicant's tokens filled. */
+async function filledFromTemplate(opts: CourseApplicationEmailOptions): Promise<CourseEmailTemplate> {
+  const templateId = TEMPLATE_FOR_KIND[opts.kind];
+  const { subject, blocks, fromName } = await loadCourseEmailTemplate(templateId);
 
   const tokens: TokenValues = {
     ...buildCourseTokens({
@@ -136,31 +198,14 @@ export async function sendCourseApplicationEmail(
       courseTitle: opts.courseTitle,
       runLabel: opts.runLabel,
       startDate: opts.startDate ?? "",
-      // The group-scoped trio: `buildCourseTokens` omits each key when the
-      // input is undefined, so an unset value leaves the `{token}` literal in
-      // the sent mail (an admin notices) rather than a silent blank.
-      groupName: opts.groupName,
-      facilitatorNames: opts.facilitatorNames,
-      firstSessionWhen: opts.firstSessionWhen,
     }),
   };
   // Leave {startDate} literal rather than substituting an empty string.
   if (!opts.startDate) delete tokens.startDate;
 
-  const personalisedSubject = personaliseString(subject, tokens);
-  const personalisedBlocks = personaliseBlocks(blocks, tokens);
-
-  await sendEmail({
-    to: opts.to,
-    subject: personalisedSubject,
-    react: ApplicationEmail({
-      subject: personalisedSubject,
-      blocks: personalisedBlocks,
-      preheader: personalisedSubject,
-    }),
+  return {
+    subject: personaliseString(subject, tokens),
+    blocks: personaliseBlocks(blocks, tokens),
     fromName,
-    kind: "course-application",
-    actorUid: opts.uid,
-    referenceId: opts.runId,
-  });
+  };
 }
