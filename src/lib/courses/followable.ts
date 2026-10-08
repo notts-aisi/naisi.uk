@@ -37,6 +37,12 @@
  * WHAT IT DOES NOT CATCH, and is not meant to: a short code written out
  * ("code 4321"), which nobody can follow.
  *
+ * EVERY PATTERN BELOW IS LINEAR in the length of the text, whatever the text
+ * holds: none has a repetition that can begin again inside what it has just
+ * read. `tests/email-pattern-shapes.test.mjs` holds each to that, with a line
+ * beside it saying why. Keep a new shape to the same rule, and prefer a
+ * counted repetition (`{9}`) to an open one where the count is all it needs.
+ *
  * Pure, with no import, so an email of either kind and a test can ask it.
  */
 export function couldBeFollowed(value: string | null | undefined): boolean {
@@ -45,10 +51,16 @@ export function couldBeFollowed(value: string | null | undefined): boolean {
 }
 
 const FOLLOWABLE = [
-  /[a-z][a-z0-9+.-]*:\/\//i,
+  // An address with a scheme: the two slashes after a colon are enough to say so.
+  /:\/\//,
+  // A scheme that needs no slashes.
   /\b(?:mailto|tel|sms|callto|skype|facetime|zoommtg|msteams|webcal):/i,
   /\bwww\.[a-z0-9]/i,
-  /(?:^|[^a-z0-9.-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?![a-z0-9-])/i,
+  // A host name: a dot between a letter or digit and a word of letters that
+  // ends there (`meet.example`, and the `e.com` an email address ends in).
+  /[a-z0-9]\.[a-z]{2,}(?![a-z0-9-])/i,
+  // Four numbers with dots between them.
   /\b\d{1,3}(?:\.\d{1,3}){3}\b/,
-  /(?:\d[\s().-]{0,2}){9,}/,
+  // Nine digits, each with at most two spacing characters after it.
+  /(?:\d[\s().-]{0,2}){9}/,
 ];

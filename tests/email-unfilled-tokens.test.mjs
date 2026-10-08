@@ -10,7 +10,7 @@
  * An email template is copy with `{tokens}` in it, and a token with no value
  * can reach a person as the characters an admin typed. Publishing an
  * allocation emails each placed person their group, its facilitators and its
- * first session, from data a group formed in a hurry may not have yet. Seven
+ * first session, from data a group formed in a hurry may not have yet. Eight
  * things have to hold:
  *
  *  1. THE PLACEMENT EMAIL IS WRITTEN WHOLE OR NOT AT ALL. Its composer
@@ -36,17 +36,24 @@
  *     a block that holds no token is never left out and never changed. Each
  *     is tested on its own, and every email the walk writes is held to all
  *     three.
- *  4. NEITHER EMAIL PRINTS SOMETHING A READER COULD FOLLOW FROM A ROOM. The
+ *  4. WORDING OF ANY LENGTH IS READ IN STEP WITH ITS LENGTH. The composer and
+ *     the question asked of a room are run over three hundred thousand
+ *     characters of each shape that is slow to read the wrong way, and each
+ *     has to answer, the cautious way, well inside a bound. What each
+ *     pattern is allowed to look like is held in
+ *     `tests/email-pattern-shapes.test.mjs`, with no clock. This is the part
+ *     a pattern cannot show: a loop that reads the text again and again.
+ *  5. NEITHER EMAIL PRINTS SOMETHING A READER COULD FOLLOW FROM A ROOM. The
  *     weekly reminder asks the same function of the same room as the
  *     placement email, and the two are held to the same answer for every
  *     room this file tries.
- *  5. THE ROUTE REFUSES BEFORE IT DOES ANYTHING. The real handler is run
+ *  6. THE ROUTE REFUSES BEFORE IT DOES ANYTHING. The real handler is run
  *     against a stored run: a refusal stamps nothing and emails nobody, the
  *     sentence says what to set, and what does go out names the room, or
  *     says the group is online, and carries no token.
- *  6. AN ADMIN PROOFING THE WORDING SEES WHAT A PLACED PERSON WOULD, and the
+ *  7. AN ADMIN PROOFING THE WORDING SEES WHAT A PLACED PERSON WOULD, and the
  *     designer offers exactly the tokens the composer fills.
- *  7. THE CLASS. Every function in the tree that fills tokens is found and
+ *  8. THE CLASS. Every function in the tree that fills tokens is found and
  *     registered, both directions. A path that sends to people is run here on
  *     its own seed copy with every optional value absent, and the tokens it
  *     then leaves are compared with what is written beside it: none, for the
@@ -571,6 +578,16 @@ describe("a missing value takes its own unit, and nothing beside it", () => {
     assert.equal(only("<p>🎉 {groupName}</p>").html, "<p>🎉 Group A</p>");
   });
 
+  test("a rule, a tag that closes nothing and a tag that never closes each count as something held", () => {
+    // A rule inside the bullet: the bullet keeps it.
+    assert.equal(written("<p>{groupName}</p><ul><li><p>Led by {facilitatorNames}</p><hr></li></ul>"), "<p>Group A</p><ul><li><hr></li></ul>");
+    // Tags that cross: nothing round them is taken away, and none of them is swallowed.
+    assert.equal(written("<p>{groupName}</p><ul><li>Led by {facilitatorNames}</ul></li>"), "<p>Group A</p><ul><li></ul></li>");
+    // A bullet that never closes stays open, and so does its list.
+    assert.equal(written("<p>{groupName}</p><ul><li>Led by {facilitatorNames}"), "<p>Group A</p><ul><li>");
+    assert.equal(written("<p>{groupName}</p><ul><li>Led by {facilitatorNames}</ul>"), "<p>Group A</p><ul><li></ul>");
+  });
+
   test("a paragraph an admin left empty on purpose is not taken with the bullet beside it", () => {
     assert.equal(written("<p>{groupName}</p><p></p><ul><li><p>Led by {facilitatorNames}</p></li></ul><p></p>"), "<p>Group A</p><p></p><p></p>");
     assert.equal(written("<ul><li></li><li><p>Led by {facilitatorNames}</p></li><li><p>{groupName}</p></li></ul>"), "<ul><li></li><li><p>Group A</p></li></ul>");
@@ -608,6 +625,169 @@ describe("a missing value takes its own unit, and nothing beside it", () => {
   test("a token inside the tag that opens a paragraph is not filled: the email is refused, and names it", () => {
     const email = placement.composePlacementEmail({ subject: SEED.subject, blocks: [rich('<p title="{groupName}">Hello {firstName}</p>')] }, FACTS);
     assert.deepEqual(email, { ok: false, problems: [{ kind: "unknown-token", tokens: ["groupName"] }] });
+  });
+});
+
+describe("long hostile wording and rooms are answered in step with their length", () => {
+  /**
+   * Three hundred thousand characters of each shape that is slow to read the
+   * wrong way: a run of `<`, lists inside lists, a bullet to every value, a
+   * token to every word. Read again from every character, or walked outwards
+   * again from every unit, the quickest of them takes several seconds, and
+   * most take tens of seconds.
+   *
+   * THE BOUND IS THREE SECONDS for each case, for work that takes a few
+   * hundredths of one here and under a fifth of one with the whole suite
+   * running beside it, so a slow machine passes and a wrong shape does not.
+   * A case that runs over is run once more before it fails, so one stall of
+   * the machine is not a failure. Nothing here prints what it was handed.
+   */
+  const N = 300_000;
+  const BOUND_MS = 3_000;
+  const NO_FACILITATOR = without(FACTS, ["facilitatorNames"]);
+  const write = (html, facts = NO_FACILITATOR) => placement.composePlacementEmail({ subject: SEED.subject, blocks: [rich(html)] }, facts);
+
+  /** Run it, and hold it to the bound. What it answers is handed back to be checked. */
+  function inTime(name, run) {
+    let answer;
+    let took = Infinity;
+    for (let attempt = 0; attempt < 2 && took > BOUND_MS; attempt += 1) {
+      const from = performance.now();
+      answer = run();
+      took = Math.min(took, performance.now() - from);
+    }
+    assert.ok(took <= BOUND_MS, `${name}: ${Math.round(took)} ms for ${N} characters, which is not in step with their length`);
+    return answer;
+  }
+  /** A long answer compared without printing it. */
+  const same = (actual, expected, name) => assert.ok(actual === expected, `${name}: not what was expected (${actual.length} characters against ${expected.length})`);
+
+  test("a run of `<` with no `>`: kept as text, and counted as something to show", () => {
+    const run = "<".repeat(N);
+    const beside = inTime("beside a filled paragraph", () => write(`<p>{groupName}</p>${run}`));
+    assert.equal(beside.ok, true);
+    same(beside.blocks[0].html, `<p>Group A</p>${run}`, "beside a filled paragraph");
+    // The paragraph with the missing value goes. What is left is not a tag, so the block stays.
+    const alone = inTime("beside a paragraph that is left out", () => write(`<p>Led by {facilitatorNames}</p>${run}`));
+    assert.equal(alone.ok, true);
+    same(alone.blocks[0].html, run, "beside a paragraph that is left out");
+  });
+
+  test("tags that open and never close: read once, and the token among them is filled", () => {
+    const email = inTime("unclosed paragraphs", () => write(`${"<p ".repeat(N / 3)}{groupName}`));
+    assert.equal(email.ok, true);
+    same(email.blocks[0].html, `${"<p ".repeat(N / 3)}Group A`, "unclosed paragraphs");
+    const lists = inTime("unclosed lists", () => write(`<p>{groupName}</p>${"<ul><li>".repeat(N / 8)}{facilitatorNames}`));
+    assert.equal(lists.ok, true);
+    same(lists.blocks[0].html, `<p>Group A</p>${"<ul><li>".repeat(N / 8)}`, "unclosed lists");
+  });
+
+  test("a list inside a list, many thousands deep, around one missing value: every shell goes, in one pass", () => {
+    const depth = N / 8;
+    const email = inTime("nested lists", () => write(`<p>{groupName}</p>${"<ul><li>".repeat(depth)}{facilitatorNames}${"</li></ul>".repeat(depth)}`));
+    assert.equal(email.ok, true);
+    same(email.blocks[0].html, "<p>Group A</p>", "nested lists");
+  });
+
+  test("a bullet to every value, many thousands of them: each goes, and the list with the last", () => {
+    const bullets = N / 40;
+    const all = inTime("every bullet missing", () => write(`<p>{groupName}</p><ul>${"<li><p>Led by {facilitatorNames}</p></li>".repeat(bullets)}</ul>`));
+    assert.equal(all.ok, true);
+    same(all.blocks[0].html, "<p>Group A</p>", "every bullet missing");
+    const spaced = inTime("every bullet missing, with space between", () =>
+      write(`<p>{groupName}</p><ul>${"\n  <li>\n    <p>{facilitatorNames}</p>\n  </li>".repeat(bullets)}\n</ul>`),
+    );
+    same(spaced.blocks[0].html, "<p>Group A</p>", "every bullet missing, with space between");
+    const half = inTime("every other bullet missing", () =>
+      write(`<p>{groupName}</p><ul>${"<li><p>{facilitatorNames}</p></li><li><p>kept</p></li>".repeat(bullets)}</ul>`),
+    );
+    same(half.blocks[0].html, `<p>Group A</p><ul>${"<li><p>kept</p></li>".repeat(bullets)}</ul>`, "every other bullet missing");
+  });
+
+  test("closing tags with nothing to close: kept, and nothing is taken away for them", () => {
+    const stray = "</li>".repeat(N / 5);
+    const email = inTime("stray closing tags", () => write(`<p>{groupName}</p><p>{facilitatorNames}</p>${stray}`));
+    assert.equal(email.ok, true);
+    same(email.blocks[0].html, `<p>Group A</p>${stray}`, "stray closing tags");
+  });
+
+  test("curly brackets with no token in them: read once, and none is taken for a token", () => {
+    for (const [name, run] of [["open brackets", "{".repeat(N)], ["open brackets and letters", "{a".repeat(N / 2)], ["one bracket and a long word", `{${"a".repeat(N)}`]]) {
+      const email = inTime(name, () => write(`${run}<p>{groupName}</p>`));
+      assert.equal(email.ok, true, name);
+      same(email.blocks[0].html, `${run}<p>Group A</p>`, name);
+    }
+    assert.deepEqual(inTime("tokens that never close", () => placement.unfilledTokens("{a_".repeat(N / 3))), []);
+  });
+
+  test("a token the email cannot fill, tens of thousands of times over: refused once, with every name", () => {
+    // A hundred thousand names in one paragraph: each is noted once, without reading back through the others.
+    const many = Array.from({ length: 100_000 }, (_, index) => `u${index}`);
+    const oneUnit = inTime("one paragraph", () => write(`<p>{groupName} ${many.map((name) => `{${name}}`).join("")}</p>`));
+    assert.equal(oneUnit.ok, false);
+    assert.equal(oneUnit.problems.length, 1);
+    assert.equal(oneUnit.problems[0].tokens.length, many.length);
+    // Twenty thousand paragraphs with a name each: twenty thousand problems, each noted without reading the rest.
+    const names = many.slice(0, 20_000);
+    const manyUnits = inTime("a paragraph each", () => write(`<p>{groupName}</p>${names.map((name) => `<p>{${name}}</p>`).join("")}`));
+    assert.equal(manyUnits.ok, false);
+    assert.equal(new Set(manyUnits.problems.flatMap((problem) => problem.tokens)).size, names.length);
+    // And the same problem, however many paragraphs have it, is one problem.
+    const same1 = inTime("the same problem in every paragraph", () => write("<p>{groupName} {facilitatorNames}</p>".repeat(N / 36)));
+    assert.deepEqual(same1.problems, [{ kind: "cannot-leave-out", tokens: ["facilitatorNames"], where: "paragraph" }]);
+  });
+
+  test("a typed value of any length goes in as one line of text", () => {
+    const email = inTime("a name that is mostly space", () => write("<p>{groupName}</p>", { ...FACTS, groupName: `${" ".repeat(N)}x${" ".repeat(N)}y` }));
+    assert.equal(email.ok, true);
+    assert.equal(email.blocks[0].html, "<p>x y</p>");
+    const room = inTime("a room that is a run of `<`", () =>
+      write("<p>{groupName}</p><p>{firstSessionWhere}</p>", { ...FACTS, firstSessionWhere: placement.placementWhere({ location: "<".repeat(N), meetingUrl: null }, null) }),
+    );
+    assert.equal(room.ok, true);
+    same(room.blocks[0].html, `<p>Group A</p><p>${"&lt;".repeat(N)}</p>`, "a room that is a run of `<`");
+  });
+
+  test("a room of any length is asked whether a reader could follow it, and answered the same", () => {
+    const answers = {
+      "a long word": ["a".repeat(N), false],
+      "a long word, then an address": [`${"a".repeat(N)}://x`, true],
+      "letters and dots": ["a.".repeat(N / 2), false],
+      "letters and hyphens": ["a-".repeat(N / 2), false],
+      "a dot, then a long word that ends in a digit": [`x.${"a".repeat(N)}9`, false],
+      "a dot, then a long word": [`x.${"a".repeat(N)}`, true],
+      "short words after dots, each ending in a digit": ["x.aa9".repeat(N / 5), false],
+      "colons": [":".repeat(N), false],
+      "colons and single slashes": [":/".repeat(N / 2), false],
+      "the start of a scheme, over and over": ["tel".repeat(N / 3), false],
+      "eight digits and a letter, over and over": ["1 2 3 4 5 6 7 8 x".repeat(Math.floor(N / 17)), false],
+      "digits three dots apart": ["1...".repeat(N / 4), false],
+      // A run of space is one space by the time the room is asked about.
+      "digits three spaces apart": ["1   ".repeat(N / 4), true],
+      "digits one space apart": ["1 ".repeat(N / 2), true],
+      "numbers and dots with letters between": ["1.x".repeat(N / 3), false],
+      "brackets, dots and hyphens": ["(.-".repeat(N / 3), false],
+      "space": [`${" ".repeat(N)}x`, false],
+    };
+    for (const [name, [room, followable]] of Object.entries(answers)) {
+      assert.equal(inTime(name, () => links.couldBeFollowed(room)), followable, name);
+    }
+    // And the weekly reminder, which asks the same function of the same room.
+    const session = { weekday: 2, startTimeLocal: "18:00", durationMinutes: 90, notes: "", location: `${"a".repeat(N)}://x`, meetingUrl: null };
+    assert.equal(inTime("the reminder", () => nudgeMail.courseNudgeSessionWhere(session, null)), "");
+  });
+
+  test("text that is not well-formed counts as something to show, so the block it is in is kept", () => {
+    const kept = (html) => {
+      const email = write(`<p>Led by {facilitatorNames}</p>${html}`);
+      return email.blocks.length === 1 && email.blocks[0].html === html;
+    };
+    // A `<` that opens nothing, a tag that never closes, and a tag with a `<` inside it.
+    for (const html of ["<p> < </p>", "<", "<p", "<p>a < b</p>", '<a title="a<b"></a>', "<<>>"]) assert.ok(kept(html), html);
+    // A whole tag with nothing in it is still nothing.
+    for (const html of ["<p></p>", "<p><br></p>", "<span></span>", "<p>&nbsp;</p>"]) {
+      assert.equal(write(`<p>Led by {facilitatorNames}</p>${html}`).blocks.length, 0, html);
+    }
   });
 });
 

@@ -47,8 +47,8 @@ import { couldBeFollowed } from "./followable";
  *  - NO EMPTY SHELL IS LEFT. The element a unit sat in goes with it when it
  *    then holds nothing, and so on outwards: the paragraph, a bullet that
  *    held only that paragraph, a list that held only that bullet
- *    (`takeEmptiedShells`). A rich-text block goes when nothing in it is
- *    left to show.
+ *    (`writeUnits`). A rich-text block goes when nothing in it is left to
+ *    show.
  *  - A BLOCK THAT HOLDS NO TOKEN IS NEVER LEFT OUT AND NEVER CHANGED. It is
  *    the admin's own, whatever is in it: a line of emoji, a paragraph kept
  *    empty for space. Only what a token was in can go.
@@ -102,6 +102,26 @@ import { couldBeFollowed } from "./followable";
  * what was typed. The check is made where the room is classified and again
  * where it is printed. The weekly reminder asks the same function of the
  * same room, so the two emails cannot come to differ on what counts.
+ *
+ * ## Every pattern here is linear
+ *
+ * The wording is what an admin saved and the values are what people typed,
+ * so every regular expression in this file, and in `./followable.ts`, has to
+ * take time in step with the length of the text whatever the text holds. The
+ * shape that does not is a repetition that can match the character its own
+ * pattern begins with, with more to match after it: a tag written as "`<`,
+ * then anything but `>`, then `>`" is tried again from every `<` in a long
+ * run of them, and each try reads to the end. So a tag is "`<`, then
+ * anything but `<` or `>`, then `>`", and a try stops at the next `<`.
+ * `tests/email-pattern-shapes.test.mjs` reads every pattern in both files
+ * out of the source, holds each to that shape rule, and keeps one line
+ * beside each saying why it is linear. A new pattern is added there with its
+ * line.
+ *
+ * The same is asked of what is done with the pieces. `writeUnits` weighs each
+ * element once, and each token and each problem is noted once, whatever the
+ * wording holds. `tests/email-unfilled-tokens.test.mjs` runs the composer
+ * over very long wording of each awkward shape, and holds it inside a bound.
  *
  * ## An admin proofing the wording
  *
@@ -319,23 +339,24 @@ type Filled = {
  * exactly as typed.
  */
 function fillUnit(input: string, values: Record<PlacementToken, Value | null>, as: "text" | "html"): Filled {
-  const unknown: string[] = [];
-  const absent: PlacementToken[] = [];
+  // Sets, so a unit with a great many tokens is read once and not once per token.
+  const unknown = new Set<string>();
+  const absent = new Set<PlacementToken>();
   let holdsEssential = false;
   const text = input.replace(TOKEN, (match, name: string) => {
     if (!isPlacementToken(name)) {
-      if (!unknown.includes(name)) unknown.push(name);
+      unknown.add(name);
       return match;
     }
     const value = values[name];
     if (!value) {
-      if (!absent.includes(name)) absent.push(name);
+      absent.add(name);
       return "";
     }
     if (PLACEMENT_TOKEN_RULES[name] === "essential") holdsEssential = true;
     return as === "html" ? value.html : value.text;
   });
-  return { text, unknown, absent, holdsEssential };
+  return { text, unknown: [...unknown], absent: [...absent], holdsEssential };
 }
 
 // ---------------------------------------------------------------------------
@@ -349,64 +370,126 @@ function fillUnit(input: string, values: Record<PlacementToken, Value | null>, a
  * and a unit is what is left out when it has nothing to say. So a missing
  * value takes its own paragraph or its own bullet, and never the bullet
  * beside it or a line of text that happens to follow.
+ *
+ * A TAG ENDS AT ITS OWN `>` AND NEVER RUNS PAST ANOTHER `<`. That is what
+ * keeps the split in step with the length of the text whatever the text
+ * holds: see "Every pattern here is linear", at the top of this file.
  */
 const BLOCK_TAG =
-  /(<\/?(?:p|li|ul|ol|blockquote|h[1-6]|div|pre|hr|table|thead|tbody|tfoot|tr|td|th|dl|dt|dd|section|article|header|footer|figure|figcaption)\b[^>]*>)/i;
+  /(<\/?(?:p|li|ul|ol|blockquote|h[1-6]|div|pre|hr|table|thead|tbody|tfoot|tr|td|th|dl|dt|dd|section|article|header|footer|figure|figcaption)\b[^<>]*>)/i;
 
 /** One piece of a rich-text block: a block tag, or the run of text between two of them. */
-type Piece = { tag: { name: string; closes: boolean } | null; text: string; gone: boolean };
+type Piece = { tag: { name: string; closes: boolean } | null; text: string };
 
 function piecesOf(html: string): Piece[] {
   // A split on one capturing group puts the tags at the odd places.
   return html.split(BLOCK_TAG).map((text, index) => {
-    if (index % 2 === 0) return { tag: null, text, gone: false };
+    if (index % 2 === 0) return { tag: null, text };
     const name = (/^<\/?([a-z0-9]+)/i.exec(text)?.[1] ?? "").toLowerCase();
-    return { tag: { name, closes: text.startsWith("</") }, text, gone: false };
+    return { tag: { name, closes: text.startsWith("</") }, text };
   });
 }
 
-/** Gone already, or only the space between two tags. */
-function isNothing(piece: Piece): boolean {
-  return piece.gone || (piece.tag === null && piece.text.trim() === "");
+/** An element that has opened and not yet closed, and what has become of what is inside it. */
+type Open = {
+  name: string;
+  /** Where its opening tag is among the pieces. */
+  at: number;
+  /** A unit inside it was left out, or an element inside it was taken away. */
+  lost: boolean;
+  /** Something inside it stays: text, or an element that was not taken away. */
+  holds: boolean;
+};
+
+/**
+ * A rich-text block, written: each unit filled by `fill`, or left out when
+ * `fill` answers null, and each element taken away that leaving a unit out
+ * has left with nothing in it. That goes outwards: the paragraph, then a
+ * bullet that held only that paragraph, then a list that held only that
+ * bullet.
+ *
+ * NO EMPTY SHELL IS LEFT, AND NOTHING ELSE IS TOUCHED. An element goes only
+ * when it has lost something and holds nothing, so a paragraph an admin left
+ * empty on purpose stays, and so does everything round it. A closing tag
+ * with nothing of its own to close, and an element that never closes, are
+ * kept as they are and count as something held.
+ *
+ * ONE PASS, in step with the length of the text however deep its lists go and
+ * however many units are left out. Each element is weighed once, as it
+ * closes, from what was noted while it was open, and what goes is kept as
+ * "from here to there" (`goneUntil`), so nothing is read or marked twice.
+ */
+function writeUnits(html: string, fill: (unit: string) => string | null): string {
+  const pieces = piecesOf(html);
+  /** Where a stretch that is taken away ends, by where it begins. */
+  const goneUntil = new Map<number, number>();
+  const open: Open[] = [];
+  pieces.forEach((piece, index) => {
+    const around = open[open.length - 1];
+    if (!piece.tag) {
+      // The space between two tags is nothing, either way.
+      if (piece.text.trim() === "") return;
+      const filled = fill(piece.text);
+      if (filled === null) {
+        goneUntil.set(index, index);
+        if (around) around.lost = true;
+      } else {
+        piece.text = filled;
+        if (around) around.holds = true;
+      }
+      return;
+    }
+    // A block tag is not text. A token inside one is not filled, and the look
+    // at what is about to be returned refuses it by name.
+    if (!piece.tag.closes) {
+      // A rule has no inside: it is something in its own right.
+      if (piece.tag.name === "hr" || piece.text.endsWith("/>")) {
+        if (around) around.holds = true;
+      } else {
+        open.push({ name: piece.tag.name, at: index, lost: false, holds: false });
+      }
+      return;
+    }
+    if (!around || around.name !== piece.tag.name) {
+      if (around) around.holds = true;
+      return;
+    }
+    open.pop();
+    const outside = open[open.length - 1];
+    if (around.lost && !around.holds) {
+      goneUntil.set(around.at, index);
+      if (outside) outside.lost = true;
+    } else if (outside) {
+      outside.holds = true;
+    }
+  });
+
+  const kept: string[] = [];
+  for (let index = 0; index < pieces.length; index += 1) {
+    const end = goneUntil.get(index);
+    if (end === undefined) kept.push(pieces[index].text);
+    else index = end;
+  }
+  return kept.join("");
 }
 
 /**
- * A unit was left out at `index`. Take away each element that now has
- * nothing in it, working outwards: the paragraph, then a bullet that held
- * only that paragraph, then a list that held only that bullet.
+ * Anything a reader would see: a character that is not space, a picture, or a
+ * rule.
  *
- * NO EMPTY SHELL IS LEFT, AND NOTHING ELSE IS TOUCHED. The walk starts from a
- * unit that was left out and stops at the first element that still holds
- * something, so a paragraph an admin left empty on purpose is never reached.
+ * IT ERRS TOWARDS YES. A tag is taken away only when it is whole, from its
+ * `<` to its own `>` with no other `<` between them. A `<` that opens nothing
+ * stays, and counts as something to show, so text that is not well-formed is
+ * kept and never mistaken for an empty block.
  */
-function takeEmptiedShells(pieces: Piece[], index: number): void {
-  let left = index - 1;
-  let right = index + 1;
-  for (;;) {
-    while (left >= 0 && isNothing(pieces[left])) left -= 1;
-    while (right < pieces.length && isNothing(pieces[right])) right += 1;
-    const opens = pieces[left]?.tag;
-    const closes = pieces[right]?.tag;
-    if (!opens || !closes || opens.closes || !closes.closes || opens.name !== closes.name) return;
-    for (let at = left; at <= right; at += 1) pieces[at].gone = true;
-    left -= 1;
-    right += 1;
-  }
-}
-
-/** Anything a reader would see: a character that is not space, a picture, or a rule. */
 function showsAnything(html: string): boolean {
   if (/<(?:img|hr)\b/i.test(html)) return true;
-  return html.replace(/<[^>]*>/g, " ").replace(/&nbsp;|&#160;|&#xa0;/gi, " ").trim() !== "";
+  return html.replace(/<[^<>]*>/g, " ").replace(/&nbsp;|&#160;|&#xa0;/gi, " ").trim() !== "";
 }
 
 // ---------------------------------------------------------------------------
 // The email
 // ---------------------------------------------------------------------------
-
-function sameProblem(a: PlacementProblem, b: PlacementProblem): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
 
 /**
  * The email for one placed person, or the problems that stop it.
@@ -422,8 +505,13 @@ export function composePlacementEmail(
   const proof = options.proof === true;
   const values = valuesOf(facts);
   const problems: PlacementProblem[] = [];
+  /** Each problem once, however many units have it. */
+  const noted = new Set<string>();
   const note = (problem: PlacementProblem) => {
-    if (!problems.some((seen) => sameProblem(seen, problem))) problems.push(problem);
+    const key = JSON.stringify(problem);
+    if (noted.has(key)) return;
+    noted.add(key);
+    problems.push(problem);
   };
 
   if (!values.groupName) note({ kind: "no-group-name" });
@@ -461,23 +549,7 @@ export function composePlacementEmail(
       const text = unit(block.text, "text", true);
       if (text !== null && text.trim()) blocks.push({ ...block, text });
     } else if (block.type === "richText") {
-      const pieces = piecesOf(block.html);
-      pieces.forEach((piece, index) => {
-        // A block tag is not text. A token inside one is not filled, and the
-        // look at what is about to be returned, below, refuses it by name.
-        if (piece.gone || piece.tag || piece.text.trim() === "") return;
-        const filled = unit(piece.text, "html", true);
-        if (filled === null) {
-          piece.gone = true;
-          takeEmptiedShells(pieces, index);
-        } else {
-          piece.text = filled;
-        }
-      });
-      const html = pieces
-        .filter((piece) => !piece.gone)
-        .map((piece) => piece.text)
-        .join("");
+      const html = writeUnits(block.html, (run) => unit(run, "html", true));
       if (showsAnything(html)) blocks.push({ ...block, html });
     } else if (block.type === "image") {
       const caption = block.caption ? unit(block.caption, "text", true) : null;
