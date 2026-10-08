@@ -111,6 +111,7 @@ const { loadTs } = createLoader({
 });
 
 const placement = await loadTs(join("lib", "courses", "placementEmail.ts"));
+const links = await loadTs(join("lib", "courses", "followable.ts"));
 const seeds = await loadTs(join("lib", "firestore", "courseEmails.ts"));
 const samples = await loadTs(join("features", "admin", "emailDesigns", "courseEmailSamples.ts"));
 const courseMail = await loadTs(join("lib", "email", "courseApplicationEmails.ts"));
@@ -508,7 +509,7 @@ describe("where the first session is", () => {
 
   test("a room with a way into a call typed into it is not a room to print", () => {
     for (const room of ROOMS_WITH_A_LINK) {
-      assert.equal(placement.couldBeFollowed(room), true, room);
+      assert.equal(links.couldBeFollowed(room), true, room);
       assert.deepEqual(placement.placementWhere(session(room, null), null), { kind: "on-page" }, room);
       assert.deepEqual(placement.placementWhere(session(room, null), "in-person"), { kind: "on-page" }, room);
       // A week that is online is online, whatever was typed into the room.
@@ -558,7 +559,7 @@ describe("where the first session is", () => {
       "Dial in on 0115 496 0000",
       "(0115) 496-0000",
     ]) {
-      assert.equal(placement.couldBeFollowed(followable), true, followable);
+      assert.equal(links.couldBeFollowed(followable), true, followable);
       assert.deepEqual(placement.placementWhere(session(followable, null), null), { kind: "on-page" }, followable);
     }
   });
@@ -579,16 +580,16 @@ describe("where the first session is", () => {
       "Hotel: Room 4",
       "Café Aspire",
     ]) {
-      assert.equal(placement.couldBeFollowed(room), false, room);
+      assert.equal(links.couldBeFollowed(room), false, room);
       assert.deepEqual(placement.placementWhere(session(room, null), null), { kind: "room", room }, room);
     }
-    for (const nothing of ["", "   ", null, undefined]) assert.equal(placement.couldBeFollowed(nothing), false);
+    for (const nothing of ["", "   ", null, undefined]) assert.equal(links.couldBeFollowed(nothing), false);
   });
 
   test("it errs towards not printing: a room that only looks like a host name is found on the page", () => {
     // The email still tells the person where to find their room, so this is the safe way to be wrong.
     for (const room of ["St.Peters Church hall", "Dr.Smith's office"]) {
-      assert.equal(placement.couldBeFollowed(room), true, room);
+      assert.equal(links.couldBeFollowed(room), true, room);
     }
   });
 });
@@ -645,6 +646,102 @@ describe("what an admin is told when publishing is refused", () => {
       assert.ok(sentences.length >= 1, JSON.stringify(problems));
       for (const sentence of sentences) assert.match(sentence, /then publish again\.$/, sentence);
     }
+  });
+});
+
+describe("neither email prints something a reader could follow from a room", () => {
+  const base = { weekday: 2, startTimeLocal: "18:00", durationMinutes: 90, notes: "" };
+  const LINK = "https://meet.example/j/8675309?pwd=opensesame";
+  const nudgeSeed = seeds.courseTemplateDefaults["course-week-nudge"];
+  /** The weekly reminder on its seed copy, for a group whose session is stored this way. */
+  const reminder = (session, mode) => {
+    const rendered = nudgeMail.renderCourseNudge(
+      { subject: nudgeSeed.subject, blocks: nudgeSeed.blocks },
+      nudgeMail.buildCourseNudgeTokens({
+        recipientName: "Amara Okafor",
+        courseTitle: "AI Safety Fundamentals",
+        weekNumber: 1,
+        weekTitle: "What is at stake",
+        sessionWhen: nudgeMail.courseNudgeSessionWhen(session, "2026-10-27"),
+        sessionWhere: nudgeMail.courseNudgeSessionWhere(session, mode),
+      }),
+    );
+    return { all: `${rendered.subject}\n${printed(rendered.blocks)}`, text: textOf(printed(rendered.blocks)) };
+  };
+
+  test("the weekly reminder says nothing of a room with a way into a call typed into it", () => {
+    for (const location of ROOMS_WITH_A_LINK) {
+      for (const meetingUrl of [null, LINK]) {
+        const session = { ...base, location, meetingUrl };
+        for (const mode of [undefined, null, "in-person"]) {
+          assert.equal(nudgeMail.courseNudgeSessionWhere(session, mode), "", `${location}, mode ${mode}`);
+        }
+        // A week that is online is online, whatever was typed into the room.
+        assert.equal(nudgeMail.courseNudgeSessionWhere(session, "virtual"), "Online", location);
+      }
+    }
+  });
+
+  test("and the reminder that goes out carries none of it, and closes its sentence up", () => {
+    for (const location of ROOMS_WITH_A_LINK) {
+      for (const mode of [null, "virtual", "in-person"]) {
+        const mail = reminder({ ...base, location, meetingUrl: LINK }, mode);
+        for (const part of WAY_IN) assert.ok(!mail.all.toLowerCase().includes(part), `${location}, mode ${mode}: the reminder carries ${part}`);
+        assert.deepEqual(tokensIn(mail.all), [], location);
+        assert.ok(
+          mail.text.includes(mode === "virtual" ? "Your group meets Tuesday 27 October, 18:00–19:30, Online." : "Your group meets Tuesday 27 October, 18:00–19:30."),
+          mail.text,
+        );
+      }
+    }
+  });
+
+  test("an ordinary room is still in the reminder, as it was typed", () => {
+    for (const location of ["Hallward B12", "Portland Building C.11", "Room 3.14, second floor"]) {
+      const session = { ...base, location, meetingUrl: null };
+      assert.equal(nudgeMail.courseNudgeSessionWhere(session), location);
+      assert.equal(nudgeMail.courseNudgeSessionWhere(session, "in-person"), location);
+      assert.ok(reminder(session, null).text.includes(`Your group meets Tuesday 27 October, 18:00–19:30, ${location}.`));
+    }
+  });
+
+  test("a room that holds a link is never turned into Online: it may still be a room", () => {
+    const session = { ...base, location: `Hallward B12 or ${LINK}`, meetingUrl: LINK };
+    assert.equal(nudgeMail.courseNudgeSessionWhere(session), "");
+    assert.equal(nudgeMail.courseNudgeSessionWhere(session, "in-person"), "");
+    assert.deepEqual(placement.placementWhere(session, null), { kind: "on-page" });
+  });
+
+  test("the two emails agree on every room: what one will not print, the other will not either", () => {
+    const rooms = [
+      ...ROOMS_WITH_A_LINK,
+      "Hallward B12",
+      "Portland Building C.11",
+      "St.Peters Church hall",
+      "Dial in on 0115 496 0000",
+      "Café Aspire",
+      "",
+    ];
+    for (const location of rooms) {
+      const session = { ...base, location, meetingUrl: null };
+      for (const mode of [null, "in-person"]) {
+        const placed = placement.placementWhere(session, mode);
+        const weekly = nudgeMail.courseNudgeSessionWhere(session, mode);
+        assert.equal(placed?.kind === "room", weekly !== "", `${JSON.stringify(location)}, mode ${mode}`);
+        if (placed?.kind === "room") assert.equal(weekly, placed.room);
+      }
+    }
+  });
+
+  test("both ask the one function, and it is declared once", () => {
+    const placementCode = codeOf("lib", "courses", "placementEmail.ts");
+    const nudgeCode = codeOf("lib", "email", "courseNudgeEmail.ts");
+    assert.ok(placementCode.includes('import { couldBeFollowed } from "./followable";'));
+    assert.ok(nudgeCode.includes('import { couldBeFollowed } from "@/lib/courses/followable";'));
+    assert.ok(nudgeCode.includes('const room = couldBeFollowed(location) ? "" : location;'));
+    assert.ok(nudgeCode.includes('if (mode === "in-person") return room; if (location) return room;'), "the reminder prints the room as typed somewhere");
+    const declared = [...walkSource(SRC)].filter((file) => /function couldBeFollowed\b/.test(readFileSync(file, "utf8")));
+    assert.deepEqual(declared.map(inSrc), ["lib/courses/followable.ts"]);
   });
 });
 

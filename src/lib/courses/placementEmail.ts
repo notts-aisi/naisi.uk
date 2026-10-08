@@ -2,6 +2,7 @@ import { firstWord } from "@/lib/firestore/applicationEmails";
 import { GROUP_FIELD_LIMITS, type GroupSession, type GroupSessionMode } from "@/lib/firestore/courseGroups";
 import { validateSubmissionUrl } from "@/lib/firestore/courses";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
+import { couldBeFollowed } from "./followable";
 
 /**
  * THE EMAIL THAT TELLS SOMEBODY THEIR GROUP: what it is filled with, and what
@@ -63,11 +64,13 @@ import type { Block } from "@/lib/firestore/newsletterBlocks";
  * `PlacementFacts` can hold an address. The composer is never handed one.
  *
  * A ROOM IS TYPED BY A PERSON, AND A LINK CAN BE TYPED INTO ONE. So a room
- * is printed only when nothing in it could be followed (`couldBeFollowed`:
- * an address, a host name, a long number a phone would dial). Otherwise the
- * email says where the person will find it, in words that are true of a
- * room and of a call alike, and prints none of what was typed. The check is
- * made where the room is classified and again where it is printed.
+ * is printed only when nothing in it could be followed (`couldBeFollowed`
+ * in `./followable.ts`: an address, a host name, a long number a phone
+ * would dial). Otherwise the email says where the person will find it, in
+ * words that are true of a room and of a call alike, and prints none of
+ * what was typed. The check is made where the room is classified and again
+ * where it is printed. The weekly reminder asks the same function of the
+ * same room, so the two emails cannot come to differ on what counts.
  *
  * ## An admin proofing the wording
  *
@@ -171,37 +174,6 @@ export function placementWhere(
   if (room) return inARoom();
   return linkOnPage ? { kind: "online", linkOnPage } : null;
 }
-
-/**
- * COULD A READER FOLLOW ANY OF THIS? True when a typed value holds something
- * a mail client would make into a link, or a phone would dial:
- *
- *  - an address with a scheme (`https://…`, `msteams://…`), or one of the
- *    schemes that needs no slashes (`mailto:`, `tel:`);
- *  - a host name, with or without `www.` (`zoom.example/j/1`), which is also
- *    what an email address ends in;
- *  - four numbers with dots between them;
- *  - a run of nine digits or more, however it is spaced: a phone number, or
- *    the id of a meeting.
- *
- * IT ERRS TOWARDS TRUE. A room named "St.Peters" reads as a host name, and
- * its email then says where to find the room and does not print it. That is
- * the safe way to be wrong: nobody is sent a way into somebody's call, and
- * nobody is left without a way to find their room.
- */
-export function couldBeFollowed(value: string | null | undefined): boolean {
-  const text = oneLine(value);
-  return text !== "" && FOLLOWABLE.some((shape) => shape.test(text));
-}
-
-const FOLLOWABLE = [
-  /[a-z][a-z0-9+.-]*:\/\//i,
-  /\b(?:mailto|tel|sms|callto|skype|facetime|zoommtg|msteams|webcal):/i,
-  /\bwww\.[a-z0-9]/i,
-  /(?:^|[^a-z0-9.-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?![a-z0-9-])/i,
-  /\b\d{1,3}(?:\.\d{1,3}){3}\b/,
-  /(?:\d[\s().-]{0,2}){9,}/,
-];
 
 /** The weekly reminder's own word for a session that is online. */
 const ONLINE = "Online";

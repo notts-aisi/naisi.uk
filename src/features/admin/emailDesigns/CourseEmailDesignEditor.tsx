@@ -110,7 +110,8 @@ const WEEK_TOKENS: TokenHelp[] = [
   },
   {
     token: "sessionWhere",
-    description: "Where that session is, e.g. Hallward Library, B12. Online groups say Online, never the meeting link.",
+    description:
+      "Where that session is, e.g. Hallward Library, B12. Online groups say Online, never the meeting link. A room with a link typed into it is left out.",
   },
   { token: "weekUrl", description: "Link straight to the week page in the learning space." },
   {
