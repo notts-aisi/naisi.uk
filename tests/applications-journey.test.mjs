@@ -36,6 +36,11 @@
  *     staff screen shows the same numbers, and they are the numbers a
  *     recount of the documents gives.
  *  7. The term settles and the member records are written.
+ *  8. The people who hold a place go onto their course run. An admin names
+ *     the run each programme places people on and hands them over, and the
+ *     course system's own allocation board, a placement and the member area
+ *     then read rows the application system wrote. The people on a run's
+ *     board are the people the programme's own list says hold a place.
  *
  * And beside all of it, at each turn of the form's life, what a course's
  * public page is told: the editor ties a programme to its course, and the
@@ -55,19 +60,26 @@
  * Real: every route handler under `src/app/api/admissions/forms/`, the
  * server logic under `src/lib/applications/`, the access predicates, the
  * rate limiter, the email templates, and the member-record writer a settle
- * calls. Stubbed: `server-only`, `next/server`, the Admin SDK's sentinels and
+ * calls. For the last chapter, also the course system's own handlers that a
+ * hand-over feeds: the run's older apply route, the allocation board, a
+ * placement and the member area's route. Stubbed: `server-only`, `next/server`, the Admin SDK's sentinels and
  * handle, the session, the view-as guard, and `sendEmail`, which records
  * what it was handed and answers as the story tells it to. No message can
  * leave this process. The clock is the runner's, set by the story.
  *
  * The database is `tests/lib/applicationsStore.mjs`, the store the form
- * editor's own suite uses.
+ * editor's own suite uses. The course routes page their reads with a limit,
+ * which that store refuses on purpose, so each of them is handed the same
+ * documents through `tests/lib/courseRunStore.mjs` for the length of its own
+ * request and no longer: every route of the application system still runs
+ * on the store as it is.
  */
 import { before, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { createLoader } from "./lib/tsLoader.mjs";
 import { FIELD_VALUE_STUB, makeDb } from "./lib/applicationsStore.mjs";
+import { courseView } from "./lib/courseRunStore.mjs";
 
 // ---------------------------------------------------------------------------
 // The world: one database, one mail door, one clock
@@ -155,6 +167,17 @@ const routes = {
   send: await api(R, "send"),
   sendTest: await api(R, "send", "test"),
   programmeTest: await api(R, "programmes", "[programmeId]", "test-email"),
+  run: await api(R, "programmes", "[programmeId]", "run"),
+  handOver: await api(R, "programmes", "[programmeId]", "run", "hand-over"),
+};
+
+/** The course system's own handlers, which the last chapter's hand-over feeds. */
+const course = (...parts) => loadTs(join("app", "api", "courses", ...parts, "route.ts"));
+const courseRoutes = {
+  olderApply: await course("runs", "[runId]", "apply"),
+  allocation: await course("runs", "[runId]", "allocation"),
+  allocate: await course("runs", "[runId]", "allocate"),
+  me: await course("me"),
 };
 
 const reminders = await lib("decisionDay", "reminders.ts");
@@ -179,6 +202,7 @@ const WHEN = {
   decisionDay: "2026-10-23T09:00:00Z",
   replying: "2026-10-24T10:00:00Z",
   settling: "2026-10-27T10:00:00Z",
+  placing: "2026-10-27T14:00:00Z",
 };
 const at = (when) => mock.timers.setTime(new Date(WHEN[when]).getTime());
 
@@ -1289,6 +1313,160 @@ async function theTermSettles() {
   await outcomes("settled");
 }
 
+
+// ---------------------------------------------------------------------------
+// 8. Onto a course run
+// ---------------------------------------------------------------------------
+
+/** One run of each tied course, and the two groups of the first. */
+const RUN = {
+  agi: "agi-strategy-autumn-2026__run0agi1",
+  tais: "technical-ai-safety-autumn-2026__run0tai1",
+};
+const GROUP = {
+  /** Mondays 18:00 to 19:30, inside the evening everybody here painted. */
+  evening: "agi-autumn-2026-monday-evening__grp0eve1",
+  /** Wednesdays 10:00 to 11:30, which nobody painted. */
+  morning: "agi-autumn-2026-wednesday-morning__grp0mor1",
+};
+
+/** A course run as the course editor and its routes leave one, out of draft. */
+const runDocFor = (courseId, courseTitle, over = {}) => ({
+  courseId,
+  courseTitle,
+  label: "Autumn 2026",
+  academicYear: "2026/27",
+  status: "applications-open",
+  enrolMode: "admissions",
+  startDate: "2026-11-02",
+  weekPlan: [{ kind: "week", weekNumber: 1, weekId: "w01" }],
+  applicationForm: [],
+  applicationsOpenAt: null,
+  applicationsCloseAt: null,
+  applicationCap: null,
+  admissionsReviewerUids: [],
+  runFacilitatorUids: [],
+  trackLeadUids: [],
+  applicationCounts: { pending: 0, accepted: 0, rejected: 0, waitlisted: 0, withdrawn: 0 },
+  groupCount: 0,
+  archived: false,
+  ...over,
+});
+
+const groupDocFor = (name, weekday, startTimeLocal) => ({
+  runId: RUN.agi,
+  courseId: COURSE.agi,
+  name,
+  facilitatorUids: ["claudia"],
+  capacity: 8,
+  memberCount: 0,
+  archived: false,
+  session: { weekday, startTimeLocal, durationMinutes: 90, location: "Room B12", meetingUrl: null, notes: "" },
+});
+
+/**
+ * One request to a handler of the COURSE system. Those handlers page their
+ * reads with a limit, so for the length of this request the database is the
+ * course routes' view of the same documents (`tests/lib/courseRunStore.mjs`).
+ */
+async function courseCall(who, handler, routeParams, options) {
+  const store = world.db;
+  world.db = courseView(store);
+  try {
+    return await call(who, handler, routeParams, options);
+  } finally {
+    world.db = store;
+  }
+}
+
+/** 8. The people who hold a place go onto their course run. */
+async function ontoACourseRun() {
+  at("placing");
+  const of = (name) => ({ roundId: ROUND, programmeId: P[name] });
+  const onRun = () =>
+    world.db
+      .paths()
+      .filter((path) => path.startsWith("courseApplications/"))
+      .sort()
+      .map((path) => [world.db.read(path).runId, world.db.read(path).uid]);
+  const formSide = () =>
+    JSON.stringify(
+      world.db
+        .paths()
+        .filter((path) => /^admission(Applications|Decisions|Reviews)\//.test(path))
+        .sort()
+        .map((path) => [path, world.db.read(path)]),
+    );
+
+  // The course side, made the way the course editor makes it: a run of each
+  // course that has left draft, with no dates of its own, and two groups.
+  world.db.seed(`courseRuns/${RUN.agi}`, runDocFor(COURSE.agi, "AGI Strategy Fellowship", { trackLeadUids: ["yusuf"], groupCount: 2 }));
+  world.db.seed(`courseRuns/${RUN.tais}`, runDocFor(COURSE.tais, "Technical AI Safety Fellowship"));
+  world.db.seed(`courseGroups/${GROUP.evening}`, groupDocFor("Monday evening", 1, "18:00"));
+  world.db.seed(`courseGroups/${GROUP.morning}`, groupDocFor("Wednesday morning", 3, "10:00"));
+
+  const placing = { rowsBefore: onRun(), mailBefore: world.mail.calls.length, formBefore: formSide() };
+  seen.placing = placing;
+
+  // Before a programme names it, the run's own apply route takes an application.
+  placing.olderApplyOpen = await courseCall("nell", courseRoutes.olderApply.POST, { runId: RUN.tais }, { body: { answers: {}, availability: [] } });
+  // That run now has an application of its own, so no programme can name it.
+  placing.runWithItsOwnApplication = await call("zach", routes.run.PUT, of("tais"), { body: { runId: RUN.tais } });
+  await world.db.collection("courseApplications").doc(`${RUN.tais}__nell`).delete();
+  world.db.poke(`courseRuns/${RUN.tais}`, { "applicationCounts.pending": 0 });
+
+  // Naming the run: an admin's, and a run of the programme's own course.
+  placing.leadNames = await call("claudia", routes.run.PUT, of("agi"), { body: { runId: RUN.agi } });
+  placing.anothersRun = await call("zach", routes.run.PUT, of("agi"), { body: { runId: RUN.tais } });
+  placing.noCoursePage = await call("zach", routes.run.PUT, of("inc"), { body: { runId: RUN.agi } });
+  placing.pressedBeforeARunIsNamed = await call("zach", routes.handOver.POST, of("agi"));
+  placing.named = await step("an admin names the run agi places people on", 200, "zach", routes.run.PUT, of("agi"), { body: { runId: RUN.agi } });
+  await step("an admin names the run tais places people on", 200, "zach", routes.run.PUT, of("tais"), { body: { runId: RUN.tais } });
+  placing.roundOnceNamed = structuredClone(roundDoc());
+  // What each course's own page is handed about the run, by the lookup those pages call.
+  const pages = await openForm.findFormsByCourse(world.db, new Date());
+  placing.runOnCoursePage = { agi: pages.get(COURSE.agi)?.runId ?? null, tais: pages.get(COURSE.tais)?.runId ?? null };
+
+  // From then on the run's own apply route refuses, though the run is open.
+  later();
+  placing.olderApplyShut = await courseCall("nell", courseRoutes.olderApply.POST, { runId: RUN.tais }, { body: { answers: {}, availability: [] } });
+
+  // The hand-over.
+  placing.leadPresses = await call("claudia", routes.handOver.POST, of("agi"));
+  placing.agi = await step("an admin hands over agi's place holders", 200, "zach", routes.handOver.POST, of("agi"));
+  placing.tais = await step("an admin hands over tais's place holders", 200, "zach", routes.handOver.POST, of("tais"));
+  placing.rows = onRun();
+  placing.rowOfAmara = structuredClone(world.db.read(`courseApplications/${RUN.agi}__amara`));
+  const afterThePress = everything();
+  placing.again = await call("zach", routes.handOver.POST, of("agi"));
+  placing.againWroteNothing = everything() === afterThePress;
+
+  // What each programme's own list says hold a place, for the same people.
+  placing.placedByItsOwnList = {};
+  for (const name of ["agi", "tais"]) {
+    placing.placedByItsOwnList[name] =
+      (await call("zach", routes.board.GET, { roundId: ROUND, programmeId: P[name] })).body?.board?.progress?.placed ?? null;
+  }
+
+  // The course system's own board, reading rows it did not write.
+  placing.board = {
+    agi: await courseCall("zach", courseRoutes.allocation.GET, { runId: RUN.agi }),
+    tais: await courseCall("zach", courseRoutes.allocation.GET, { runId: RUN.tais }),
+    asTheRunsTrackLead: await courseCall("yusuf", courseRoutes.allocation.GET, { runId: RUN.agi }),
+  };
+
+  // A placement, by the code that was already there, and the member area.
+  placing.jasminePlaced = await courseCall("zach", courseRoutes.allocate.POST, { runId: RUN.agi }, { body: { placements: [{ uid: "jasmine", groupId: GROUP.evening }] } });
+  placing.amaraPlaced = await courseCall("zach", courseRoutes.allocate.POST, { runId: RUN.agi }, { body: { placements: [{ uid: "amara", groupId: GROUP.evening }] } });
+  placing.memberArea = {};
+  for (const who of APPLICANTS) {
+    placing.memberArea[who] = (await courseCall(who, courseRoutes.me.GET, {})).body?.runs ?? null;
+  }
+
+  placing.mailed = world.mail.calls.length - placing.mailBefore;
+  placing.formUntouched = formSide() === placing.formBefore;
+}
+
 async function tellTheStory() {
   mock.timers.enable({ apis: ["Date"], now: new Date(WHEN.building) });
   // The code under test logs an email that fails, with its stack. The story
@@ -1307,6 +1485,7 @@ async function tellTheStory() {
     await decisionDay();
     await peopleReply();
     await theTermSettles();
+    await ontoACourseRun();
   } catch (err) {
     seen.crashed = err;
   }
@@ -2769,6 +2948,139 @@ describe("one term, from nothing to settled", () => {
       );
       // Their own route still answers them, too.
       for (const who of [...APPLICANTS, "dev"]) assert.equal(seen.outcomes.settled[who].status, 200, who);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe("8. the people who hold a place go onto their course run", () => {
+    const short = (response) => [response.status, response.body?.error ?? null];
+
+    test("only an admin names the run, and it has to be a run of the programme's own course that has no applications of its own", () => {
+      const placing = seen.placing;
+      assert.equal(placing.leadNames.status, 403);
+      assert.equal(placing.anothersRun.status, 400);
+      assert.match(placing.anothersRun.body.error, /belongs to another course/);
+      // The incubator is tied to no course page, so it has no run to name.
+      assert.equal(placing.noCoursePage.status, 409);
+      // A run somebody has applied to through its own page cannot be named.
+      assert.equal(placing.olderApplyOpen.status, 200, placing.olderApplyOpen.body?.error);
+      assert.equal(placing.runWithItsOwnApplication.status, 409);
+      assert.match(placing.runWithItsOwnApplication.body.error, /already has applications of its own/);
+
+      assert.equal(placing.named.body.panel.runId, RUN.agi);
+      assert.deepEqual(
+        [placing.roundOnceNamed.programmes[P.agi].runId, placing.roundOnceNamed.programmes[P.tais].runId, placing.roundOnceNamed.programmes[P.inc].runId],
+        [RUN.agi, RUN.tais, null],
+      );
+    });
+
+    test("from then on the run's own apply route refuses, though the run is open with no dates", () => {
+      assert.deepEqual(short(seen.placing.olderApplyShut), [
+        409,
+        "This run doesn't take applications here. The course page says how to apply.",
+      ]);
+    });
+
+    test("nothing is handed over until a run is named, and only an admin presses", () => {
+      assert.equal(seen.placing.pressedBeforeARunIsNamed.status, 409);
+      assert.equal(seen.placing.leadPresses.status, 403);
+      assert.deepEqual(seen.placing.rowsBefore, []);
+    });
+
+    test("a press writes a row for exactly the people who hold a place, and nobody else", () => {
+      const placing = seen.placing;
+      assert.deepEqual(placing.agi.body.receipt, { handedOver: 1, alreadyThere: 0 });
+      assert.deepEqual(placing.tais.body.receipt, { handedOver: 1, alreadyThere: 0 });
+      // Amara was placed by her own ranking. Oliver joined by accepting an
+      // invitation. Jasmine gave her place back, Abel said no thanks, Hannah
+      // had no offer and Priya was declined: none of them is on a run.
+      assert.deepEqual(placing.rows, [
+        [RUN.agi, "amara"],
+        [RUN.tais, "oliver"],
+      ]);
+      assert.deepEqual(Object.keys(placing.rowOfAmara).sort(), [
+        "courseId",
+        "createdAt",
+        "displayName",
+        "fromForm",
+        "runId",
+        "status",
+        "uid",
+        "updatedAt",
+      ]);
+      assert.deepEqual(
+        [placing.rowOfAmara.status, placing.rowOfAmara.fromForm, placing.rowOfAmara.displayName],
+        ["accepted", { roundId: ROUND, programmeId: P.agi }, "Amara Okafor"],
+      );
+    });
+
+    test("the people on a run's list are as many as the programme's own list says hold a place", () => {
+      const placing = seen.placing;
+      assert.deepEqual(placing.placedByItsOwnList, { agi: 1, tais: 1 });
+      for (const [name, runId] of [["agi", RUN.agi], ["tais", RUN.tais]]) {
+        assert.equal(placing.rows.filter(([run]) => run === runId).length, placing.placedByItsOwnList[name], name);
+        assert.equal(placing.board[name].body.people.length, placing.placedByItsOwnList[name], name);
+      }
+    });
+
+    test("pressed again it writes nothing, and it emails nobody and changes nobody's application", () => {
+      const placing = seen.placing;
+      assert.deepEqual(placing.again.body.receipt, { handedOver: 0, alreadyThere: 1 });
+      assert.equal(placing.againWroteNothing, true);
+      assert.equal(placing.mailed, 0);
+      assert.equal(placing.formUntouched, true);
+    });
+
+    test("the course system's own board lists them for an admin, with the group their painted week covers", () => {
+      const placing = seen.placing;
+      assert.equal(placing.board.agi.status, 200, placing.board.agi.body?.error);
+      assert.deepEqual(placing.board.agi.body.people.map((row) => row.uid), ["amara"]);
+      // Everybody in this term painted Monday evening: the evening group's
+      // whole session is inside it, and the Wednesday morning one is not.
+      assert.deepEqual(placing.board.agi.body.people[0].fromForm, {
+        availability: "given",
+        canMakeGroupIds: [GROUP.evening],
+        holdsPlace: true,
+      });
+      assert.deepEqual(placing.board.tais.body.people.map((row) => row.uid), ["oliver"]);
+      const sent = JSON.stringify(placing.board.agi.body);
+      for (const words of [AMARA_FIRST_WHY, AMARA_SECOND_WHY, "A new law came into force.", address("amara"), "000000000fff"]) {
+        assert.ok(!sent.includes(words), `the board carries ${words}`);
+      }
+    });
+
+    test("the run's track lead, who is named on nothing on the form, is listed nobody", () => {
+      const shown = seen.placing.board.asTheRunsTrackLead;
+      assert.equal(shown.status, 200);
+      assert.deepEqual(shown.body.people, []);
+      assert.equal(shown.body.groups.length, 2);
+      assert.ok(!JSON.stringify(shown.body).includes("Amara"));
+    });
+
+    test("a placement works for somebody handed over, and for nobody who was not", () => {
+      const placing = seen.placing;
+      assert.deepEqual(placing.jasminePlaced.body, { ok: true, placed: 0, rejected: [{ uid: "jasmine", reason: "not-accepted" }] });
+      assert.deepEqual(placing.amaraPlaced.body, { ok: true, placed: 1, rejected: [] });
+      const seat = world.db.read(`courseEnrolments/${RUN.agi}__amara`);
+      assert.deepEqual([seat.groupId, seat.status, seat.role], [GROUP.evening, "active", "learner"]);
+    });
+
+    test("the member area says nothing because of a hand-over, and then somebody's group", () => {
+      const area = seen.placing.memberArea;
+      const said = (who) => (area[who] ?? []).map((entry) => [entry.runId, entry.membership, entry.groupName]);
+      // In a group: on the run, with the group named.
+      assert.deepEqual(said("amara"), [[RUN.agi, "enrolled", "Monday evening"]]);
+      // Handed over and not in a group yet: the row is there, and it is announced as nothing.
+      assert.equal(world.db.read(`courseApplications/${RUN.tais}__oliver`).status, "accepted");
+      assert.deepEqual(said("oliver"), []);
+      // Nobody else is on anything.
+      for (const who of ["jasmine", "abel", "hannah", "priya"]) assert.deepEqual(said(who), [], who);
+      // And nothing a row from the form carries is sent to its owner.
+      assert.ok(!JSON.stringify(area).includes("fromForm") && !JSON.stringify(area).includes("viaForm"));
+    });
+
+    test("each course's own page is handed the run its programme names", () => {
+      assert.deepEqual(seen.placing.runOnCoursePage, { agi: RUN.agi, tais: RUN.tais });
     });
   });
 });

@@ -664,6 +664,18 @@ const NOT_COVERED = {
     coverWhen:
       "When the first application form is opened to applicants, because from then on what a lead saves here is what real people are shown.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run": {
+    reason:
+      "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId]/run is pressed by an admin naming the course run a programme places people on, who reads the outcome on the panel it redraws; tests/applications-handover-run.test.mjs executes it as every kind of caller against every kind of run.",
+    coverWhen:
+      "Before the first term's groups are formed from a hand-over, alongside the spec for the allocation board, because from then on a wrong run is where real people are put.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/hand-over": {
+    reason:
+      "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId]/run/hand-over is pressed by an admin after decision day and answered on the panel that called it; tests/applications-handover.test.mjs executes it as every kind of caller, and tests/applications-handover-board.test.mjs executes the board, a placement and Publish after it against the same store.",
+    coverWhen:
+      "Before the first term's groups are formed from a hand-over, because that weekend is the first time the press, the board and Publish are used on real people in one sitting.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/roles": {
     reason:
       "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId]/roles is pressed by a programme's lead or an admin, and tests/applications-editor-routes.test.mjs and tests/applications-access.test.mjs execute who may name whom.",

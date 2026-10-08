@@ -3,7 +3,9 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
 import {
+  membershipKnownFromRow,
   normalizeCourseApplication,
+  rowIsServedTo,
   type CourseApplicationStatus,
 } from "@/lib/firestore/courseApplications";
 import {
@@ -61,7 +63,12 @@ export type AdmissionsRow = {
   displayName: string;
   /** ADMINS ONLY — null for every non-admin reviewer. See the PII boundary. */
   email: string | null;
-  paidMembership: boolean;
+  /**
+   * The membership badge, read from the person's account. `null` is "not
+   * known": the account could not be read and the row carries no snapshot
+   * (`membershipKnownFromRow`). The queue then draws no badge.
+   */
+  paidMembership: boolean | null;
   status: CourseApplicationStatus;
   answers: Record<string, unknown>;
   /** The session labels the applicant ticked, split back out of storage. */
@@ -231,9 +238,13 @@ export async function GET(
     db.collection("courseGroups").where("runId", "==", runId).limit(50).get(),
   ]);
 
-  const applications = appSnap.docs.map((d) =>
-    normalizeCourseApplication(d.id, d.data() ?? {}),
-  );
+  // A row the application form put on this run is an admin's to see
+  // (`rowIsServedTo`): the run's reviewers and track leads are listed the
+  // people who applied to the run itself, and nobody else. The run's own
+  // counters above still count every row, as numbers.
+  const applications = appSnap.docs
+    .map((d) => normalizeCourseApplication(d.id, d.data() ?? {}))
+    .filter((a) => rowIsServedTo(a, { isAdmin }));
 
   // Archived groups are dropped: a reviewer must not be able to record a
   // preference for a group that no longer runs.
@@ -292,7 +303,10 @@ export async function GET(
     email: isAdmin ? app.email : null,
     // Falls back to the apply-time snapshot when the user doc is gone (deleted
     // account) — the badge then reflects what was true when they applied.
-    paidMembership: paidByUid.get(app.uid) ?? app.paidMembershipAtApply,
+    // A row the application form wrote carries no snapshot, so for one of
+    // those the answer is null and no badge is drawn
+    // (`membershipKnownFromRow`).
+    paidMembership: paidByUid.get(app.uid) ?? membershipKnownFromRow(app),
     status: app.status,
     answers: app.answers,
     availability: splitAvailability(app.availability),

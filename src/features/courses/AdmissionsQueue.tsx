@@ -555,9 +555,13 @@ function ApplicationCard({
           <div className={styles.identityBadges}>
             {/* A badge for context at review. It gates nothing, here or in the
                 route — a run does not require paid membership. */}
-            <Badge tone={row.paidMembership ? "success" : "warning"}>
-              {row.paidMembership ? paidLabel : "Unpaid"}
-            </Badge>
+            {/* Drawn only when it is known: a row that could say nothing about
+                membership gets no badge, never "Unpaid". */}
+            {row.paidMembership !== null && (
+              <Badge tone={row.paidMembership ? "success" : "warning"}>
+                {row.paidMembership ? paidLabel : "Unpaid"}
+              </Badge>
+            )}
           </div>
           {/* Admins only. Non-admin reviewers get `email: null` from the route,
               so there is nothing to render even if this branch were forced. */}

@@ -374,16 +374,21 @@ test("the offer's enrolment probe is addressed, never queried", () => {
   );
 });
 
-test("nothing but runId and status is read off an application", () => {
+test("nothing but runId, status and where the row came from is read off an application", () => {
   // The row carries the applicant's email, their free-text answers and the
   // reviewer's notes. None of it belongs on a hub payload, and the cheapest
   // guarantee of that is that the route never touches the fields at all.
+  //
+  // `fromForm` is the one field added since, and it is not something the
+  // applicant wrote: it is two ids, the application form a place came from
+  // and the programme on it. The hub reads it for one thing, to pass such a
+  // row over: a row an admin's hand-over wrote is announced as nothing.
   const fields = new Set(
     [...ME_SOURCE.matchAll(/\bapp\.([A-Za-z0-9_]+)/g)].map(([, field]) => field),
   );
   assert.deepEqual(
     [...fields].sort(),
-    ["runId", "status", "uid"],
-    "an application field beyond (uid, runId, status) is being read",
+    ["fromForm", "runId", "status", "uid"],
+    "an application field beyond (uid, runId, status, fromForm) is being read",
   );
 });

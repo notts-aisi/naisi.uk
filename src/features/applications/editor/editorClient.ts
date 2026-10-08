@@ -6,6 +6,7 @@ import type {
   ProgrammeSetupView,
   QuestionSetView,
 } from "@/lib/applications/editor/views";
+import type { HandOverReceiptView, RunPanelView } from "@/lib/applications/handover/views";
 
 /**
  * The editor's one door to its routes.
@@ -170,4 +171,32 @@ export function putProgrammeRoles(
   change: { leadUid?: string | null; reviewerUids?: string[] },
 ): Promise<{ programme: ProgrammeSetupView }> {
   return call(`${programmeUrl(roundId, programmeId)}/roles`, "PUT", change);
+}
+
+// ---------------------------------------------------------------------------
+// The course run a programme places people on (admins)
+// ---------------------------------------------------------------------------
+
+const runUrl = (roundId: string, programmeId: string) => `${programmeUrl(roundId, programmeId)}/run`;
+
+/** The "Course run" panel, read again from what is stored now. */
+export function fetchRunPanel(roundId: string, programmeId: string): Promise<{ panel: RunPanelView }> {
+  return call(runUrl(roundId, programmeId));
+}
+
+/** Name the run a programme places people on, or clear it with null. */
+export function putProgrammeRun(
+  roundId: string,
+  programmeId: string,
+  runId: string | null,
+): Promise<{ panel: RunPanelView; changed: boolean }> {
+  return call(runUrl(roundId, programmeId), "PUT", { runId });
+}
+
+/** Hand over everybody who holds a place and is not on the run's list yet. */
+export function postHandOver(
+  roundId: string,
+  programmeId: string,
+): Promise<{ panel: RunPanelView; receipt: HandOverReceiptView }> {
+  return call(`${runUrl(roundId, programmeId)}/hand-over`, "POST");
 }

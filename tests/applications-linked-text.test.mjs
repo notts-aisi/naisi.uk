@@ -885,6 +885,13 @@ const BUILT = new Map([
     { built: ["termPath(roundId)", "termPath(roundId)"], from: "the term's own page, from the form's id" },
   ],
   [
+    "src/features/applications/editor/RunHandOver.tsx",
+    {
+      built: ["panel.boardPath", "panel.listPath", "person.applicationPath"],
+      from: "paths the server built for an admin's panel, each from the ids of stored documents and encoded: a course run's allocation board and its own applications list, and one person's application on the review screen. Nothing anybody typed is in one",
+    },
+  ],
+  [
     "src/features/applications/editor/FormEditor.tsx",
     { built: ["homeHref", "homeHref"], from: "the term's own page, handed in by the page that draws the editor" },
   ],

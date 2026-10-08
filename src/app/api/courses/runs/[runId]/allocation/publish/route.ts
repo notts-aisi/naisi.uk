@@ -22,7 +22,10 @@ import {
   isValidDateKey,
 } from "@/lib/courses/weekPlan";
 import { formatRunStart } from "@/lib/courses/window";
-import { normalizeCourseApplication } from "@/lib/firestore/courseApplications";
+import {
+  normalizeCourseApplication,
+  rowIsServedTo,
+} from "@/lib/firestore/courseApplications";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
@@ -259,9 +262,12 @@ export async function POST(_req: Request, ctx: Ctx) {
     db.collection("courseApplications").where("runId", "==", runId).limit(500).get(),
     db.collection("courseGroups").where("runId", "==", runId).limit(50).get(),
   ]);
+  // A row the application form put here is an admin's (`rowIsServedTo`): a
+  // track lead's publish neither emails those people nor names one of them
+  // in the refusal below, and an admin's publish reaches everybody.
   const accepted = appSnap.docs
     .map((d) => normalizeCourseApplication(d.id, d.data() ?? {}))
-    .filter((a) => a.status === "accepted");
+    .filter((a) => a.status === "accepted" && rowIsServedTo(a, { isAdmin }));
   const groupById = new Map(
     groupSnap.docs.map((d) => {
       const g = normalizeCourseGroup(d.id, d.data() ?? {});

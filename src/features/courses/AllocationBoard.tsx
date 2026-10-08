@@ -48,6 +48,7 @@ import {
   type AllocRow,
   type Placement,
 } from "./useAllocation";
+import { GAVE_PLACE_BACK, cardFit, type CardFit } from "./allocationFit";
 import styles from "./AllocationBoard.module.css";
 
 /**
@@ -228,6 +229,12 @@ type CardFacts = {
    * ever true when they stated one — silence is not a conflict.
    */
   availabilityConflict: boolean;
+  /**
+   * What the card says about when they are free, worked out one way for
+   * somebody who ticked this run's sessions and for somebody the application
+   * form placed here, who painted a week instead. See `allocationFit.ts`.
+   */
+  fit: CardFit;
 };
 
 /**
@@ -246,9 +253,11 @@ function cardFacts(
     ? (preferred?.name ?? "a group that no longer exists")
     : null;
   const facilitator = row.reviewerPreferredFacilitatorName;
+  const fit = cardFit(row, group, [...groupsById.values()]);
   return {
     row,
     group,
+    fit,
     preferredGroupName: preferredName,
     againstPreferredGroup:
       row.reviewerPreferredGroupId !== null &&
@@ -257,11 +266,7 @@ function cardFacts(
       facilitator !== null &&
       group !== null &&
       !group.facilitatorNames.includes(facilitator),
-    availabilityConflict:
-      group !== null &&
-      group.sessionLabel !== "" &&
-      row.availability.length > 0 &&
-      !row.availability.includes(group.sessionLabel),
+    availabilityConflict: fit.conflict,
   };
 }
 
@@ -283,9 +288,14 @@ function PersonCardBody({
     <>
       <div className={styles.cardHead}>
         <span className={styles.name}>{row.displayName || "Applicant"}</span>
-        <Badge tone={row.paidMembership ? "success" : "warning"}>
-          {row.paidMembership ? paidLabel : "Unpaid"}
-        </Badge>
+        {/* Drawn only when it is known. "Unpaid" is a statement about a
+            person, and a card that could read nothing about their membership
+            makes none. */}
+        {row.paidMembership !== null && (
+          <Badge tone={row.paidMembership ? "success" : "warning"}>
+            {row.paidMembership ? paidLabel : "Unpaid"}
+          </Badge>
+        )}
       </div>
 
       {row.enrolmentStatus === "withdrawn" || row.enrolmentStatus === "removed" ? (
@@ -296,9 +306,18 @@ function PersonCardBody({
         </div>
       ) : null}
 
-      {row.availability.length > 0 ? (
+      {/* Somebody the application form placed here who has since given the
+          place back on the form. Nothing takes them off this board, so the
+          card has to say it before anybody puts them in a group. */}
+      {facts.fit.gaveBack ? (
+        <div className={styles.chips}>
+          <Badge tone="warning">{GAVE_PLACE_BACK}</Badge>
+        </div>
+      ) : null}
+
+      {facts.fit.slots.length > 0 ? (
         <ul className={styles.chips}>
-          {row.availability.map((slot) => (
+          {facts.fit.slots.map((slot) => (
             /* The slot matching this card's own session is highlighted: it is
                the one fact that answers "can they actually come to this?". */
             <li
@@ -308,6 +327,14 @@ function PersonCardBody({
               {slot}
             </li>
           ))}
+        </ul>
+      ) : null}
+
+      {/* Said in words when there is no chip to say it: they gave no
+          availability, or the week they gave covers none of these sessions. */}
+      {facts.fit.note ? (
+        <ul className={styles.chips}>
+          <li className={facts.fit.noteWarns ? styles.chipWarn : styles.chip}>{facts.fit.note}</li>
         </ul>
       ) : null}
 
