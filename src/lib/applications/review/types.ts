@@ -187,7 +187,10 @@ export type AnswerView = {
   answered: boolean;
   /** `short`, `long` and `choice`: what they wrote or picked. */
   text: string | null;
-  /** `multi`: what they picked. */
+  /**
+   * `multi`: what they picked. `rank`: what they placed, in their order,
+   * first choice first. `type` says which, and the screen numbers a ranking.
+   */
   items: string[] | null;
   /** `scale`: the labelled points, and the index of theirs. */
   scale: { options: string[]; index: number } | null;
@@ -207,7 +210,7 @@ export type AnswerView = {
   changedSinceScored: string | null;
 };
 
-/** What one answer draws: its words, its ticks, or its point on a scale. */
+/** What one answer draws: its words, its ticks or its order, or its point on a scale. */
 export type AnswerBody = Pick<AnswerView, "answered" | "text" | "items" | "scale">;
 
 /**

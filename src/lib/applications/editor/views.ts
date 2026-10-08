@@ -18,6 +18,7 @@ import type {
 import { PROGRAMME_EMAIL_KINDS } from "../model";
 import { programmeEmailSubject } from "../decisionDay/emailCopy";
 import type { ApplicationForm } from "../normalise";
+import { everybodyFirst } from "../sections";
 import { RESULT_LABEL } from "../words";
 import { lockedSentence, questionsLocked, scoresHeldSentence, sentCount } from "./lock";
 import { own } from "./own";
@@ -268,8 +269,10 @@ export type QuestionSetView = {
   /** The sets it is shown beside in the editor. */
   family: SetFamily;
   label: string;
-  /** The line applicants read under the heading. */
+  /** The note for admins. Applicants are never sent it. */
   intro: string;
+  /** The line applicants read under the heading, before the first question. */
+  applicantLine: string;
   /** "People who tick AGI Strategy": the line under its name in the list. */
   audience: string;
   /** The sentence under its heading when it is open. */
@@ -292,9 +295,16 @@ function questionView(question: ApplicationQuestion): QuestionView {
 }
 
 function scopeView(scope: QuestionSetScope): QuestionSetScope {
-  if (scope.type === "kind") return { type: "kind", kind: scope.kind };
-  if (scope.type === "programme") return { type: "programme", programmeId: scope.programmeId };
-  return { type: "facilitating" };
+  switch (scope.type) {
+    case "everybody":
+      return { type: "everybody" };
+    case "kind":
+      return { type: "kind", kind: scope.kind };
+    case "programme":
+      return { type: "programme", programmeId: scope.programmeId };
+    case "facilitating":
+      return { type: "facilitating" };
+  }
 }
 
 /**
@@ -313,13 +323,17 @@ export function projectSetForEditor(
     family: familyOf(set, form),
     label: set.label,
     intro: set.intro,
+    applicantLine: set.applicantLine,
     audience: whoSees(set, form),
     description: describeSet(set, form, sets),
     questions: set.questions.map(questionView),
   };
 }
 
-/** The form's sets in the order it asks them, empty ones included. */
+/**
+ * The form's sets in the order it asks them, empty ones included: the set for
+ * everybody first, as `orderedSets` asks it, and then the form's own order.
+ */
 export function setsInFormOrder(
   form: Pick<ApplicationForm, "questionSetIds">,
   sets: readonly QuestionSetDoc[],
@@ -330,7 +344,7 @@ export function setsInFormOrder(
     const set = byId.get(id);
     if (set) out.push(set);
   }
-  return out;
+  return everybodyFirst(out);
 }
 
 // ---------------------------------------------------------------------------

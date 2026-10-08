@@ -22,6 +22,7 @@ import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
 import kit from "@/features/applications/kit/kit.module.css";
 import { APPLICATION_LIMITS, type QuestionSetScope } from "@/lib/applications/model";
 import { lockedSentence } from "@/lib/applications/editor/lock";
+import { LINKS_HINT } from "@/lib/applications/linkedText";
 import { own } from "@/lib/applications/editor/own";
 import {
   SET_ROLE_LABEL,
@@ -50,6 +51,7 @@ import {
 import QuestionCard from "./QuestionCard";
 import {
   blankQuestion,
+  canBeScored,
   duplicateQuestion,
   firstProblem,
   moved,
@@ -236,18 +238,20 @@ export default function FormEditor({
     setVersions((current) => ({ ...current, [setId]: (own(current, setId) ?? 0) + 1 }));
   };
 
-  const scoredFor = (set: LocalSet) =>
-    set.role !== "stream"
-      ? false
-      : set.questions.length > 0
-        ? set.questions.some((question) => question.scored)
-        : (own(scoredWhenEmpty, set.id) ?? true);
+  // The switch is read off the questions that CAN be scored. A set with none
+  // (no questions yet, or only rankings, which never are) has nothing to read
+  // it off, so what was last pressed is kept here for the next question.
+  const scoredFor = (set: LocalSet) => {
+    if (set.role !== "stream") return false;
+    const scorable = set.questions.filter((question) => canBeScored(question.type));
+    return scorable.length > 0
+      ? scorable.some((question) => question.scored)
+      : (own(scoredWhenEmpty, set.id) ?? true);
+  };
 
   const setScored = (set: LocalSet, scored: boolean) => {
-    if (set.questions.length === 0) {
-      setScoredWhenEmpty((current) => ({ ...current, [set.id]: scored }));
-      return;
-    }
+    setScoredWhenEmpty((current) => ({ ...current, [set.id]: scored }));
+    if (set.questions.length === 0) return;
     change(set.id, (questions) => questions.map((question) => ({ ...question, scored })), true);
   };
 
@@ -404,11 +408,15 @@ export default function FormEditor({
                     editingKey={editingKey}
                     onScored={(scored) => setScored(set, scored)}
                     onEdit={setEditingKey}
-                    onChange={(key, patch) =>
+                    onChange={(key, patch) => {
+                      // A question whose type changes takes its set's switch,
+                      // so one that stops being a ranking is scored as the
+                      // questions beside it are.
+                      const carried = patch.type === undefined ? patch : { ...patch, scored: scoredFor(set) };
                       change(set.id, (questions) =>
-                        questions.map((question) => (question.key === key ? { ...question, ...patch } : question)),
-                      )
-                    }
+                        questions.map((question) => (question.key === key ? { ...question, ...carried } : question)),
+                      );
+                    }}
                     onReorder={(from, to) => change(set.id, (questions) => moved(questions, from, to), true)}
                     onDuplicate={(key) => {
                       const source = set.questions.find((question) => question.key === key);
@@ -488,6 +496,7 @@ export default function FormEditor({
       {dialog?.kind === "new-set" && (
         <NewSetDialog
           form={form}
+          hasEverybody={sets.some((set) => set.scope.type === "everybody")}
           onClose={() => setDialog(null)}
           onSaved={(payload, id) => {
             adopt(payload);
@@ -505,7 +514,14 @@ export default function FormEditor({
             setSets((current) =>
               current.map((set) =>
                 set.id === stored.id
-                  ? { ...set, label: stored.label, intro: stored.intro, audience: stored.audience, description: stored.description }
+                  ? {
+                      ...set,
+                      label: stored.label,
+                      intro: stored.intro,
+                      applicantLine: stored.applicantLine,
+                      audience: stored.audience,
+                      description: stored.description,
+                    }
                   : set,
               ),
             );
@@ -677,6 +693,7 @@ function SetCard({
                   setLabel={set.label}
                   open={editingKey === question.key}
                   locked={locked}
+                  inScoredSet={scored}
                   onOpen={() => onEdit(question.key)}
                   onDone={() => onEdit(null)}
                   onChange={(patch) => onChange(question.key, patch)}
@@ -889,13 +906,21 @@ function TermDialog({
   );
 }
 
-/** A new, empty question set: its name and who it is for. */
+/**
+ * A new, empty question set: its name and who it is for.
+ *
+ * A form has at most one set for everyone, so that choice is offered only
+ * while the form has none. The route refuses a second whatever is sent.
+ */
 function NewSetDialog({
   form,
+  hasEverybody,
   onClose,
   onSaved,
 }: {
   form: FormStaffView;
+  /** The form already has its set for everyone. */
+  hasEverybody: boolean;
   onClose: () => void;
   onSaved: (payload: EditorPayload, id: string) => void;
 }) {
@@ -919,13 +944,20 @@ function NewSetDialog({
       label: "Anyone who ticks the incubator",
       scope: { type: "kind", kind: "incubator" },
     });
+    if (!hasEverybody) {
+      out.push({
+        value: "everybody",
+        label: "Everyone, whatever they tick",
+        scope: { type: "everybody" },
+      });
+    }
     out.push({
       value: "facilitating",
       label: "People who say yes to facilitating",
       scope: { type: "facilitating" },
     });
     return out;
-  }, [form.programmes]);
+  }, [form.programmes, hasEverybody]);
   const [label, setLabel] = useState("");
   const [choice, setChoice] = useState(choices[0]?.value ?? "facilitating");
   const { busy, problem, run } = useSaving();
@@ -956,6 +988,9 @@ function NewSetDialog({
     >
       <p className={shared.dialogText}>
         A set starts empty. A set for one programme is a stream, and only a stream’s questions can be scored.
+        {hasEverybody
+          ? " This form already has its set for everyone."
+          : " A set for everyone is asked once, before the others, and a form has one."}
       </p>
       <div className={shared.dialogFields}>
         <div className={shared.field}>
@@ -999,6 +1034,14 @@ function NewSetDialog({
   );
 }
 
+/**
+ * A set's name and its two lines.
+ *
+ * THE TWO LINES ARE DIFFERENT THINGS AND SAY SO. "Line shown to applicants"
+ * is drawn under the set's heading on the form. "Note for admins" is kept for
+ * whoever edits the form next and is never sent to an applicant. Each box
+ * says who reads it, so nobody types one into the other.
+ */
 function RenameSetDialog({
   roundId,
   set,
@@ -1012,13 +1055,14 @@ function RenameSetDialog({
 }) {
   const ids = useId();
   const [label, setLabel] = useState(set?.label ?? "");
+  const [applicantLine, setApplicantLine] = useState(set?.applicantLine ?? "");
   const [intro, setIntro] = useState(set?.intro ?? "");
   const { busy, problem, run } = useSaving();
   if (!set) return null;
 
   const save = () =>
     run(async () => {
-      const saved = await patchSet(roundId, set.id, { label, intro });
+      const saved = await patchSet(roundId, set.id, { label, applicantLine, intro });
       onSaved(saved.set);
     });
 
@@ -1052,6 +1096,23 @@ function RenameSetDialog({
             onChange={(event) => setLabel(event.target.value)}
           />
           <p className={shared.hint}>Applicants see it as the heading over these questions.</p>
+        </div>
+        <div className={shared.field}>
+          <label htmlFor={`${ids}-applicant-line`} className={shared.label}>
+            Line shown to applicants <span className={shared.optional}>(optional)</span>
+          </label>
+          <input
+            id={`${ids}-applicant-line`}
+            type="text"
+            className={shared.input}
+            value={applicantLine}
+            maxLength={L.setApplicantLine}
+            aria-describedby={`${ids}-applicant-line-hint`}
+            onChange={(event) => setApplicantLine(event.target.value)}
+          />
+          <p id={`${ids}-applicant-line-hint`} className={shared.hint}>
+            Applicants read it under the heading, before the first question. {LINKS_HINT}
+          </p>
         </div>
         <div className={shared.field}>
           <label htmlFor={`${ids}-intro`} className={shared.label}>

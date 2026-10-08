@@ -53,6 +53,11 @@ export type ApplicantQuestionSet = {
   role: QuestionSetRole;
   scope: QuestionSetScope;
   label: string;
+  /**
+   * The line written for applicants, drawn under the set's heading. The
+   * set's other line, its note for admins, is not a field of this shape.
+   */
+  applicantLine: string;
   questions: ApplicantQuestion[];
 };
 

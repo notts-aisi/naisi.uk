@@ -9,6 +9,8 @@ import type {
   QuestionSetScope,
   QuestionType,
 } from "../model";
+import { everybodyFirst } from "../sections";
+import { namedAsQuestions } from "../words";
 import { own } from "./own";
 
 /**
@@ -60,6 +62,7 @@ export const QUESTION_TYPE_LABEL: Record<QuestionType, string> = {
   choice: "Choice",
   multi: "Multi-choice",
   scale: "Scale",
+  rank: "Ranking",
 };
 
 /** "1 question", "2 questions". */
@@ -84,6 +87,8 @@ export function questionChips(question: ApplicationQuestion): string[] {
     chips.push("From their ranking");
   } else if (question.type === "scale") {
     chips.push(question.options.length === 1 ? "1 point" : `${question.options.length} points`);
+  } else if (question.type === "rank") {
+    chips.push(`${question.options.length} to put in order`);
   } else {
     chips.push(question.options.length === 1 ? "1 option" : `${question.options.length} options`);
   }
@@ -96,29 +101,44 @@ export function questionChips(question: ApplicationQuestion): string[] {
 
 /**
  * The group a set is shown with in the editor: the general set for a kind of
- * programme sits with that kind's streams. `unplaced` is a stream whose
- * programme is no longer on the form.
+ * programme sits with that kind's streams, and the set for everybody stands
+ * by itself. `unplaced` is a stream whose programme is no longer on the form.
  */
-export type SetFamily = ProgrammeKind | "facilitating" | "unplaced";
+export type SetFamily = ProgrammeKind | "everybody" | "facilitating" | "unplaced";
 
 export function familyOf(set: Scoped, form: Pick<Form, "programmes">): SetFamily {
   const scope = set.scope;
-  if (scope.type === "facilitating") return "facilitating";
-  if (scope.type === "kind") return scope.kind;
-  return own(form.programmes, scope.programmeId)?.kind ?? "unplaced";
+  switch (scope.type) {
+    case "everybody":
+      return "everybody";
+    case "facilitating":
+      return "facilitating";
+    case "kind":
+      return scope.kind;
+    case "programme":
+      return own(form.programmes, scope.programmeId)?.kind ?? "unplaced";
+  }
 }
 
 /** The role a scope gives a set. The same rule the reader applies. */
 export function roleForScope(scope: QuestionSetScope): QuestionSetRole {
-  if (scope.type === "facilitating") return "facilitator";
-  return scope.type === "kind" ? "general" : "stream";
+  switch (scope.type) {
+    case "everybody":
+    case "kind":
+      return "general";
+    case "programme":
+      return "stream";
+    case "facilitating":
+      return "facilitator";
+  }
 }
 
 /**
  * The form's order with a new set added where it belongs.
  *
- * A set joins the end of its own family, so a stream lands under its general
- * set and beside its sibling streams. A family the form has not met yet goes
+ * The set for everybody goes first, because it is asked first. Any other set
+ * joins the end of its own family, so a stream lands under its general set
+ * and beside its sibling streams. A family the form has not met yet goes
  * after every programme's questions and before the facilitator questions,
  * which stay last because they are asked last.
  */
@@ -131,6 +151,7 @@ export function orderWithNewSet(
   const byId = new Map(sets.map((set) => [set.id, set]));
   const family = familyOf(added, form);
   const next = order.filter((id) => id !== added.id);
+  if (family === "everybody") return [added.id, ...next];
   let after = -1;
   let firstFacilitating = -1;
   next.forEach((id, at) => {
@@ -171,6 +192,7 @@ function incubatorPhrase(form: Form): string {
 /** The line under a set's name in the list: "People who tick either fellowship". */
 export function whoSees(set: Scoped & Pick<QuestionSetDoc, "label">, form: Form): string {
   const scope = set.scope;
+  if (scope.type === "everybody") return "Everyone, whatever they tick";
   if (scope.type === "facilitating") return "People who say yes to facilitating";
   if (scope.type === "kind") {
     if (scope.kind === "incubator") return `People who tick ${incubatorPhrase(form)}`;
@@ -196,6 +218,9 @@ export function describeSet(
   sets: readonly Scoped[],
 ): string {
   const scope = set.scope;
+  if (scope.type === "everybody") {
+    return "Asked once, to everyone, before every other set. The lead and reviewers of each programme they pick read the answers.";
+  }
   if (scope.type === "facilitating") return "Asked to anyone who says yes to facilitating.";
   if (scope.type === "kind") {
     return scope.kind === "incubator"
@@ -226,9 +251,10 @@ function listNames(names: readonly string[]): string {
 }
 
 /**
- * The sets one programme's applicants are asked, in the form's order: the
- * general sets for its kind and its own streams. A set with no questions is
- * kept, because the programme's settings say so rather than hide it.
+ * The sets one programme's applicants are asked, in the order they are asked:
+ * the set for everybody, the general sets for its kind and its own streams. A
+ * set with no questions is kept, because the programme's settings say so
+ * rather than hide it.
  */
 export function setsForProgramme<S extends Scoped & { id: string }>(
   form: Form,
@@ -243,15 +269,17 @@ export function setsForProgramme<S extends Scoped & { id: string }>(
     const set = byId.get(id);
     if (!set) continue;
     const scope = set.scope;
+    if (scope.type === "everybody") out.push(set);
     if (scope.type === "kind" && scope.kind === programme.kind) out.push(set);
     if (scope.type === "programme" && scope.programmeId === programmeId) out.push(set);
   }
-  return out;
+  return everybodyFirst(out);
 }
 
 /**
  * What a programme's settings call one of its sets: "Fellowship questions,
- * shared with Technical AI Safety", "AGI Strategy questions".
+ * shared with Technical AI Safety", "AGI Strategy questions", "Shared
+ * questions, asked of everyone".
  */
 export function summaryLabel(
   set: Scoped & Pick<QuestionSetDoc, "label">,
@@ -259,6 +287,7 @@ export function summaryLabel(
   programmeId: string,
 ): string {
   const scope = set.scope;
+  if (scope.type === "everybody") return `${namedAsQuestions(set.label)}, asked of everyone`;
   if (scope.type !== "kind") {
     return /questions$/i.test(set.label.trim()) ? set.label.trim() : `${set.label.trim()} questions`;
   }

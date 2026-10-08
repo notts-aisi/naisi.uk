@@ -86,6 +86,7 @@ export const APPLICATION_LIMITS = {
   maxQuestionSets: 12,
   setLabel: 60,
   setIntro: 300,
+  setApplicantLine: 300,
   maxQuestionsPerSet: 12,
   questionText: 300,
   questionHelp: 300,
@@ -112,9 +113,9 @@ export const APPLICATION_LIMITS = {
 // ---------------------------------------------------------------------------
 
 /**
- * A fellowship or the incubator. It decides which GENERAL question set a
- * person sees: the fellowship questions are asked once however many
- * fellowships they tick.
+ * A fellowship or the incubator. It decides which of the question sets kept
+ * for a KIND a person sees: the fellowship questions are asked once however
+ * many fellowships they tick.
  */
 export type ProgrammeKind = "fellowship" | "incubator";
 
@@ -183,8 +184,12 @@ export type ProgrammeSettings = {
   emailWording: Partial<Record<ProgrammeEmailKind, EmailWording>>;
 };
 
-/** What a question collects. */
-export type QuestionType = "short" | "long" | "choice" | "multi" | "scale";
+/**
+ * What a question collects. `rank` asks for an order: the person places as
+ * many of the options as they like, and the answer is the ones they placed,
+ * first choice first.
+ */
+export type QuestionType = "short" | "long" | "choice" | "multi" | "scale" | "rank";
 
 export const QUESTION_TYPES: readonly QuestionType[] = [
   "short",
@@ -192,7 +197,16 @@ export const QUESTION_TYPES: readonly QuestionType[] = [
   "choice",
   "multi",
   "scale",
+  "rank",
 ];
+
+/**
+ * The types a reviewer never scores, wherever the question sits and whatever
+ * a stored question says. A ranking is an order somebody gave, not a piece of
+ * writing, so there is nothing in it to give 1 to 5. The reader clears the
+ * flag, the editor's routes ignore one sent, and the editor never sends one.
+ */
+export const NEVER_SCORED_TYPES: readonly QuestionType[] = ["rank"];
 
 export type ApplicationQuestion = {
   /** Stable within its set. A score and an answer both key on it. */
@@ -202,8 +216,9 @@ export type ApplicationQuestion = {
   help: string;
   type: QuestionType;
   /**
-   * `choice` and `multi`: the options. `scale`: the labelled points, lowest
-   * first. Empty for the two text types.
+   * `choice` and `multi`: the options. `rank`: the things to put in order,
+   * two to ten. `scale`: the labelled points, lowest first. Empty for the two
+   * text types.
    */
   options: string[];
   /**
@@ -214,12 +229,17 @@ export type ApplicationQuestion = {
   /** `short` and `long`: the limit in words. Null means no limit of its own. */
   wordLimit: number | null;
   required: boolean;
-  /** Reviewers give this answer 1 to 5. Honoured on stream sets only. */
+  /**
+   * Reviewers give this answer 1 to 5. Honoured on stream sets only, and
+   * never for a type in {@link NEVER_SCORED_TYPES}.
+   */
   scored: boolean;
 };
 
 /**
- * `general` is asked once to everybody who ticks a kind of programme.
+ * `general` is asked once of a group of people, whichever of their programmes
+ * brought them into it: everybody who ticks anything (scope `everybody`), or
+ * everybody who ticks a kind of programme (scope `kind`).
  * `stream` belongs to one programme and is the only kind that can be scored.
  * `facilitator` is asked to people who said yes to facilitating.
  */
@@ -233,6 +253,11 @@ export const QUESTION_SET_ROLES: readonly QuestionSetRole[] = [
 
 /** Who a question set is shown to. */
 export type QuestionSetScope =
+  /**
+   * Anyone who ranks at least one programme, whatever its kind. Asked once,
+   * before every other set, and never scored. A form has at most one.
+   */
+  | { type: "everybody" }
   /** Anyone who ranks at least one programme of this kind. */
   | { type: "kind"; kind: ProgrammeKind }
   /** Anyone who ranks this programme. */
@@ -245,10 +270,24 @@ export type QuestionSetDoc = {
   roundId: string;
   role: QuestionSetRole;
   scope: QuestionSetScope;
-  /** "Fellowships", "AGI Strategy", "Facilitator questions". */
+  /** "Fellowships", "AGI Strategy", "Facilitator questions". The author's own for a set made by hand. */
   label: string;
-  /** One line under the heading. */
+  /**
+   * THE NOTE FOR ADMINS: kept with the set for whoever edits the form next.
+   * Never sent to an applicant and never drawn for one. The name is older
+   * than what it holds.
+   */
   intro: string;
+  /**
+   * THE LINE SHOWN TO APPLICANTS: drawn under the set's heading on its step,
+   * before its first question. Plain text an admin writes, in which an
+   * `https://` address and `[words](https://address)` are drawn as links
+   * (`linkedText.ts`). Empty for a set with none.
+   *
+   * A set has these two lines and they are never one another: what is typed
+   * as a note for admins does not reach an applicant by any route.
+   */
+  applicantLine: string;
   questions: ApplicationQuestion[];
   createdAt: Date | null;
   updatedAt: Date | null;
@@ -300,7 +339,16 @@ export type ApplicationFormFields = {
 // What an applicant writes
 // ---------------------------------------------------------------------------
 
-/** Text, a choice; several choices; or the index of a point on a scale. */
+/**
+ * Text, or a choice; a list of the question's own options; or the index of a
+ * point on a scale.
+ *
+ * A LIST IS TWO KINDS OF ANSWER IN ONE STORED SHAPE. For `multi` it is the
+ * options ticked, kept in the question's own order. For `rank` it is the
+ * options placed, in the person's order, which is the answer: the first is
+ * their first choice. Either way each entry is one of the question's options
+ * and none is there twice.
+ */
 export type AnswerValue = string | string[] | number;
 
 /** Answers by question set id, then by question id. */

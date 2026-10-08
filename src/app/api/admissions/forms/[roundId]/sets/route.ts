@@ -41,9 +41,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ roundId: strin
 }
 
 /**
- * Add an empty question set to the form: a name, and who it is for (a kind of
- * programme, one programme, or people who said yes to facilitating). Admin
- * only, and refused once anybody has sent an application.
+ * Add an empty question set to the form: a name, and who it is for (everybody,
+ * a kind of programme, one programme, or people who said yes to
+ * facilitating). Admin only, and refused once anybody has sent an
+ * application. A form has one set for everybody, and a second is refused.
  */
 export async function POST(req: Request, ctx: { params: Promise<{ roundId: string }> }) {
   const blocked = await assertNotImpersonating();

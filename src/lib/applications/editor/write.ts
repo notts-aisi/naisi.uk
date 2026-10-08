@@ -98,6 +98,10 @@ const NO_FORM = refuse(404, "There is no application form here.");
 const NO_PROGRAMME = refuse(404, "That programme is not on this form.");
 const NO_SET = refuse(404, "That question set is not on this form.");
 
+/** What a second set for everybody is answered with. A form asks one, once. */
+export const ONE_SET_FOR_EVERYBODY =
+  "This form already has a set of questions for everyone. Add your questions to that one, or delete it first.";
+
 const L = APPLICATION_LIMITS;
 
 // ---------------------------------------------------------------------------
@@ -154,6 +158,7 @@ function newSetData(roundId: string, label: string, scope: QuestionSetScope) {
     scope,
     label,
     intro: "",
+    applicantLine: "",
     questions: [],
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
@@ -503,7 +508,14 @@ export async function changeForm(
 // Question sets
 // ---------------------------------------------------------------------------
 
-/** Add an empty question set to the form. Admin only, and not once the questions lock. */
+/**
+ * Add an empty question set to the form. Admin only, and not once the
+ * questions lock.
+ *
+ * A FORM HAS AT MOST ONE SET FOR EVERYBODY. Whether it has one already is
+ * read inside the transaction that would add another, from the sets the form
+ * itself lists, so two admins adding one at the same moment make one.
+ */
 export async function createSet(
   db: Firestore,
   actor: SessionUser,
@@ -520,6 +532,12 @@ export async function createSet(
     if (sent > 0) return refuse(409, lockedSentence(sent));
     if (input.scope.type === "programme" && !own(form.programmes, input.scope.programmeId)) {
       return NO_PROGRAMME;
+    }
+    if (
+      input.scope.type === "everybody" &&
+      sets.some((set) => set.scope.type === "everybody" && form.questionSetIds.includes(set.id))
+    ) {
+      return refuse(409, ONE_SET_FOR_EVERYBODY);
     }
     if (form.questionSetIds.length >= L.maxQuestionSets) {
       return refuse(400, `A form takes at most ${L.maxQuestionSets} question sets.`);
@@ -570,9 +588,10 @@ function questionsToStore(
 }
 
 /**
- * Change one question set: its name, the line under its heading, or its whole
- * list of questions (which is also how they are reordered and deleted). Admin
- * only, and refused once anybody has sent an application.
+ * Change one question set: its name, its note for admins, the line shown to
+ * applicants under its heading, or its whole list of questions (which is also
+ * how they are reordered and deleted). Admin only, and refused once anybody
+ * has sent an application: the line is part of what they were shown.
  */
 export async function changeSet(
   db: Firestore,
@@ -597,6 +616,7 @@ export async function changeSet(
     const update: Record<string, unknown> = {};
     if (change.label !== undefined) update.label = change.label;
     if (change.intro !== undefined) update.intro = change.intro;
+    if (change.applicantLine !== undefined) update.applicantLine = change.applicantLine;
     if (change.questions !== undefined) {
       const cannotScore = scoredRefusal(set.role);
       if (cannotScore && change.questions.some((question) => question.scored)) {

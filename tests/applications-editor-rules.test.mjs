@@ -764,7 +764,10 @@ describe("what the staff screens are handed", () => {
 
   test("a question set for the editor carries its questions and who sees it", () => {
     const view = views.projectSetForEditor(setById(AGI), FORM, SETS);
+    // `applicantLine` is the line shown to applicants under the set's heading,
+    // beside `intro`, the note for admins. An admin edits both.
     assert.deepEqual(Object.keys(view).sort(), [
+      "applicantLine",
       "audience",
       "description",
       "family",

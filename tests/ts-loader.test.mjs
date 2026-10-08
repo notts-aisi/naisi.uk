@@ -385,6 +385,14 @@ const USERS = new Map([
       "an authored paragraph",
   ],
   [
+    "applications-rank-question.test.mjs",
+    "executes the checks, the draft clean-up and the editor's reader over every type a question " +
+      "can have, drives the applicant's, the editor's and the review screen's handlers with a " +
+      "ranking question against one in-memory term, and renders the form's ranking control and " +
+      "the review screen's answer, which are .tsx and need the JSX option this loader sets, " +
+      "because what a ranking is, and that it is never scored, is decided by the code that runs",
+  ],
+  [
     "applications-readable-before-answering.test.mjs",
     "executes the decision route and the route that decides several at once as a programme's " +
       "lead, against an in-memory term, for every way an application can be one she may not " +
@@ -409,6 +417,21 @@ const USERS = new Map([
     "executes the route that names a programme's lead and reviewers against an in-memory " +
       "store whose documents change before the transaction opens and while it runs, because " +
       "whether a refusal is decided from what the transaction read is only shown by running it",
+  ],
+  [
+    "applications-set-for-everybody.test.mjs",
+    "executes the editor's, the applicant's and the review screen's handlers against one " +
+      "in-memory term with a set asked of everybody, and the pure rules that say who is asked " +
+      "it and where, because whether somebody is asked it once, and who then reads the answer, " +
+      "is decided by the code that runs",
+  ],
+  [
+    "applications-set-line-for-applicants.test.mjs",
+    "executes the editor's, the applicant's and the review screen's handlers against one " +
+      "in-memory term whose sets carry both a note for admins and a line for applicants, and " +
+      "renders the component that draws the line, which is .tsx and needs the JSX option this " +
+      "loader sets, because which of a set's two lines an applicant is sent is decided by the " +
+      "code that runs",
   ],
   [
     "applications-su-membership-answer.test.mjs",
@@ -555,6 +578,13 @@ const USERS = new Map([
     "applications-wave-h-small.test.mjs",
     "executes src/lib/applications/lifecycle/status.ts against a form in every stage, because the " +
       "term page and the route that adds a programme have to stop on the same answer",
+  ],
+  [
+    "applications-linked-text.test.mjs",
+    "executes the function that says which parts of an author's line are links against a table " +
+      "of hostile input, and renders the component that draws them and the form's own question " +
+      "step over the same table, which are .tsx and need the JSX option this loader sets, " +
+      "because what becomes an address somebody can press is decided by the code that runs",
   ],
   [
     "applications-own-keys.test.mjs",

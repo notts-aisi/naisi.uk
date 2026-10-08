@@ -43,15 +43,17 @@ export function countWords(text: string): number {
 }
 
 /**
- * The options a question offers this person. For a question whose options
+ * The options a question offers this person. For a "pick one" whose options
  * come from the ranking, that is each programme they ranked and "Either".
+ * Every other type offers its own options, whatever the flag says: a ranking
+ * question puts its own list in order, never the programmes.
  */
 export function optionsFor(
   question: ApplicationQuestion,
   form: Form,
   content: Pick<ApplicationContent, "rankedProgrammeIds">,
 ): string[] {
-  if (!question.optionsFromRanking) return question.options;
+  if (question.type !== "choice" || !question.optionsFromRanking) return question.options;
   const names = rankedProgrammes(form, content).map((programme) => programme.shortName);
   return names.length > 1 ? [...names, EITHER_OPTION] : names;
 }
@@ -64,38 +66,58 @@ export function isAnswered(value: AnswerValue | undefined): boolean {
   return value.length > 0;
 }
 
+/** What a required ranking with nothing placed is told. A first choice is all it needs. */
+export const RANK_NEEDS_A_FIRST_CHOICE = "Pick at least a first choice.";
+
 /**
  * What is wrong with one answer, as a sentence for the person, or null.
  * An optional question left blank is fine; anything written is checked.
+ *
+ * EVERY TYPE IS NAMED. The switch has no default, so a type added to the
+ * model fails the build here until somebody says what a good answer to it
+ * is: no type is ever checked as if it were another.
  */
 export function answerProblem(
   question: ApplicationQuestion,
   value: AnswerValue | undefined,
   options: readonly string[],
 ): string | null {
-  if (!isAnswered(value)) return question.required ? "Answer this question." : null;
+  if (!isAnswered(value)) {
+    if (!question.required) return null;
+    return question.type === "rank" ? RANK_NEEDS_A_FIRST_CHOICE : "Answer this question.";
+  }
   const L = APPLICATION_LIMITS;
-  if (question.type === "short" || question.type === "long") {
-    if (typeof value !== "string") return "Answer this question in words.";
-    const cap = question.type === "short" ? L.shortAnswerChars : L.longAnswerChars;
-    if (value.length > cap) return "That answer is too long.";
-    if (question.wordLimit !== null && countWords(value) > question.wordLimit) {
-      return `Keep this to ${question.wordLimit} words.`;
+  switch (question.type) {
+    case "short":
+    case "long": {
+      if (typeof value !== "string") return "Answer this question in words.";
+      const cap = question.type === "short" ? L.shortAnswerChars : L.longAnswerChars;
+      if (value.length > cap) return "That answer is too long.";
+      if (question.wordLimit !== null && countWords(value) > question.wordLimit) {
+        return `Keep this to ${question.wordLimit} words.`;
+      }
+      return null;
     }
-    return null;
+    case "choice":
+      return typeof value === "string" && options.includes(value) ? null : "Pick one of the options.";
+    case "multi":
+      return Array.isArray(value) && value.every((item) => options.includes(item))
+        ? null
+        : "Pick from the options.";
+    case "rank":
+      // The options the person placed, in their order: each one of the
+      // question's own, and none of them twice. They may place as many as
+      // they like, so a ranking is never too short once it has a first choice.
+      if (!Array.isArray(value) || !value.every((item) => options.includes(item))) {
+        return "Pick from the options.";
+      }
+      return new Set(value).size === value.length ? null : "Put each one in your order once.";
+    case "scale":
+      // The index of a point.
+      return typeof value === "number" && Number.isInteger(value) && value >= 0 && value < options.length
+        ? null
+        : "Pick a point on the scale.";
   }
-  if (question.type === "choice") {
-    return typeof value === "string" && options.includes(value) ? null : "Pick one of the options.";
-  }
-  if (question.type === "multi") {
-    return Array.isArray(value) && value.every((item) => options.includes(item))
-      ? null
-      : "Pick from the options.";
-  }
-  // scale: the index of a point.
-  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value < options.length
-    ? null
-    : "Pick a point on the scale.";
 }
 
 export type Issue = {

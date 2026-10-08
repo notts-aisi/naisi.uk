@@ -81,6 +81,7 @@ export function questionSetsOf(form: ApplicantForm, sets: readonly ApplicantQues
     scope: set.scope,
     label: set.label,
     intro: "",
+    applicantLine: set.applicantLine,
     questions: set.questions.map((question) => ({
       id: question.id,
       text: question.text,

@@ -19,14 +19,19 @@ const ADMIN_ONLY = "Only an admin can change the application form.";
 type Ctx = { params: Promise<{ roundId: string; setId: string }> };
 
 /**
- * Change one question set: its name, the line under its heading, or its whole
- * list of questions. Sending the list is also how questions are reordered and
- * deleted. Admin only.
+ * Change one question set: its name (`label`), the line shown to applicants
+ * under its heading (`applicantLine`), its note for admins (`intro`), or its
+ * whole list of questions (`questions`). Sending the list is also how
+ * questions are reordered and deleted. Admin only.
+ *
+ * A set's two lines are two fields: the note for admins is never sent to an
+ * applicant, and the line shown to applicants is.
  *
  * Two rules are the writer's and are stated here because this is the door:
  *
  *  - QUESTIONS LOCK ONCE ANYBODY HAS SENT AN APPLICATION. The answer is a 409
- *    carrying the sentence the editor shows.
+ *    carrying the sentence the editor shows. The name and both lines lock
+ *    with them.
  *  - ONLY A STREAM SET'S QUESTIONS CAN BE SCORED. A body that scores a
  *    question in any other set is refused, never quietly unscored.
  *
