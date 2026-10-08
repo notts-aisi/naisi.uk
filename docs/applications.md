@@ -1360,6 +1360,41 @@ Nothing in this system takes anybody off a run. That is a person's act, made
 on the run, and the hand-over, the panel and the board only ever say who it
 concerns.
 
+### What the person sees
+
+The member area lists every run somebody touches (`/api/courses/me`), and
+has always drawn an accepted row with no group yet as a card: a place
+offered, with the group to follow. A row from the form reaches it the same
+way, with two differences.
+
+**It is drawn only while it is true.** Somebody can give their place back
+on the form after they were handed over, and nothing takes their row away.
+So before the card is drawn, the route asks the person's OWN application
+whether they still hold a place (`ownPlaceStands` in `status/place.ts`,
+which is `standingOf()`, the reading their own application page is drawn
+from). One they have given back is left out. It reads no decision document.
+When there is nothing to read (the form was destroyed), the place stands:
+only the person's own reply ever turns it to no.
+
+**It is worded as a place, not an offer.** They were told on decision day
+and have nothing left to accept. `viaForm` travels with the row, and
+`RunCard` words it in the form's terms: "You have a place", and that their
+group and when it meets will show there once groups are set, and that they
+will be emailed. The card asks for nothing and links nowhere, and never
+prints the run's own "Applications open".
+
+**Not in a view-as session.** Whether the place still stands is on the
+member's own application, which is its owner's to read. So in a view-as
+session the question is not asked and that card is not drawn.
+
+**A seat is a seat.** Once somebody is in a group they are on the run,
+whatever they reply later: the run shows in their member area as it does
+for anybody in a group, from their first placement on the board. Nothing
+here takes anybody off a run.
+
+`tests/applications-handover-member-area.test.mjs` runs the route and
+renders the card.
+
 ## What deletes what
 
 | When | What goes | What stays |
@@ -1438,6 +1473,7 @@ All in `src/lib/applications/`.
 | `handover/handOver.ts` | `handOverProgramme`, the one writer of a place holder's row on a course run, and what stops a press | server, staff |
 | `handover/load.ts`, `handover/views.ts` | The read behind naming a run and handing people over, for an admin | server, staff; the shapes anywhere |
 | `handover/board.ts` | What the allocation board is told about somebody the form placed: which groups they can make, and whether they still hold the place | server, staff |
+| `status/place.ts` | Whether the caller still holds the place the form gave them, for their own member area | server, applicant-safe |
 
 ## Rules for anything built on this
 
@@ -1511,6 +1547,10 @@ All in `src/lib/applications/`.
 - **Who is handed over is `holdingOf()`.** Like every other count of
   places. A second test for "holds a place" is how the board and the
   programme's own screens would come to disagree.
+- **The member area says somebody has a place only while they do.** A row
+  a hand-over wrote outlives a place given back, so whatever draws one
+  for its owner asks their own application first (`ownPlaceStands`), and
+  not at all in a view-as session.
 - **No query that sorts or ranges on the server.** Every read here is one or
   two equalities, which need no composite index. A term is a few hundred
   documents: filter and sort in memory.

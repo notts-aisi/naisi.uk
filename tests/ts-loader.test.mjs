@@ -349,6 +349,13 @@ const USERS = new Map([
       "running them says so",
   ],
   [
+    "applications-handover-member-area.test.mjs",
+    "executes the member area's own route and the gate every page under /learn/[runId] asks, " +
+      "for somebody an admin's hand-over put on a course run, and renders the run card (.tsx) " +
+      "to HTML, because what that person is told is decided by the route reading their own " +
+      "application and by the words the card then picks",
+  ],
+  [
     "applications-handover-older-way-in.test.mjs",
     "executes the older per-run apply route and renders its page (a .tsx server component) to " +
       "HTML for a run a programme on the application form names, because whether that run " +

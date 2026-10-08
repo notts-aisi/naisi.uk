@@ -91,6 +91,9 @@ const OWN_READS = {
   loadHoldsPlace: "@/lib/applications/status/load",
   loadStatusRows: "@/lib/admissions/statusHubData",
   loadStatusRowForRound: "@/lib/admissions/statusHubData",
+  // Whether the caller still holds the place the form gave them, read off
+  // their own application for the member area's card.
+  ownPlaceStands: "@/lib/applications/status/place",
 };
 
 const GUARD_FIRST = /^\{\s*const blocked = await assertNotImpersonating\(\);\s*if \(blocked\) return blocked;/;
@@ -151,6 +154,11 @@ const HELD = {
     how: "notice-first",
     leaves: 'if (markerIsLive(await getImpersonator(), uid)) return "unknown";',
     why: "whether the member holds a place, which Home and the list of their programmes ask before they say a member is on nothing",
+  },
+  "app/api/courses/me/route.ts#formOffersLapsed": {
+    how: "notice-first",
+    leaves: "if (viewingAs) return new Set(offers.keys());",
+    why: "whether a place the form gave still stands, for the member area's card. In a view-as session it is not asked, and the card is not drawn",
   },
   "app/(public)/applications/[roundId]/page.tsx#ApplicationDetailPage": {
     how: "after-the-form",
@@ -253,6 +261,10 @@ describe("every read of the caller's own application is held to the view-as chec
       assert.equal(page.split("holdsPlace(").length - 1, 1, `${name} asks more than once`);
       assert.ok(!/searchParams|params\b|cookies\(|headers\(/.test(page), `${name} reads something off the request`);
     }
+    // The member area's own route asks the same way, and hands the answer to the one function that reads.
+    const hub = code("app", "api", "courses", "me", "route.ts");
+    assert.ok(hub.includes("const viewingAs = markerIsLive(await getImpersonator(), actor.uid);"));
+    assert.ok(hub.includes("await formOffersLapsed(db, actor.uid, viewingAs, formOffers)"));
   });
 });
 
