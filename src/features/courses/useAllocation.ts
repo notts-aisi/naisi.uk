@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { WeekPlanEntry } from "@/lib/courses/weekPlan";
+import type { FormPlace } from "./allocationFit";
 
 /**
  * The allocation payload for one course run, plus the three mutations the
@@ -97,6 +98,15 @@ export type AllocRow = {
   enrolmentStatus: "none" | "active" | "withdrawn" | "removed";
   /** ISO instant of their allocation email, or null if they've had none. */
   allocatedEmailAt: string | null;
+  /**
+   * Set for somebody the term's application form placed on this run, and null
+   * for somebody who applied to the run itself. Such a person painted a week
+   * on that form and ticked nothing here, so `availability` above is empty
+   * for them and this says, group by group, whether their week covers the
+   * group's whole session. Worked out by the server when the board is read:
+   * the week itself is never sent. See `allocationFit.ts`.
+   */
+  fromForm: FormPlace | null;
 };
 
 export type AllocationPayload = {

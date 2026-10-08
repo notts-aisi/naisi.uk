@@ -1344,6 +1344,17 @@ handed the outcome of the comparison and nothing else. A group with no
 session time set is never one somebody can make. The read is an admin's
 (`rowIsServedTo`), and an admin may read every application.
 
+**What a card then says** is one function, `cardFit`
+(`src/features/courses/allocationFit.ts`), for both kinds of person on the
+board. Somebody from the form is shown the sessions they can make as
+chips, and is marked when they sit in a group they cannot make. "No
+availability given" is said in words and is never a clash. A week that
+covers none of the sessions is a warning. Somebody who has given their
+place back is marked "Gave their place back", wherever they sit. Somebody
+who applied to the run itself is drawn from the labels they ticked, as
+before. `tests/applications-handover-board-cards.test.mjs` puts the rows
+the route sends through that function.
+
 ### A place given back
 
 - **Before the hand-over**: they hold no place, so they are not handed
@@ -1351,8 +1362,8 @@ session time set is never one somebody can make. The read is an admin's
 - **Afterwards**: nothing removes them. Their row stays on the run, and so
   does their group if they are in one. The programme's own read
   (`GET .../programmes/[programmeId]/run`) names them under `gaveBack`, and
-  the board's read carries `holdsPlace: false` on their row, so that an
-  admin can act: take them out of their group on the board, then take their
+  their card on the board says "Gave their place back", so that an admin
+  can act: take them out of their group on the board, then take their
   row off the run's own list (its applications page). A row from the form
   carries no address, so the run's own decide route emails nobody about it.
 
