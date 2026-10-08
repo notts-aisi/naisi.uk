@@ -11,7 +11,7 @@ import {
 } from "../applicant/project";
 import { isFormVisible } from "../applicant/window";
 import { statusViewFor, type StatusView } from "./view";
-import { listWordsFor, type ListWords } from "./words";
+import { listWordsFor, placeWordsFor, type ListWords, type PlaceWords } from "./words";
 
 /**
  * Reading what "Your application" shows one person, on the server.
@@ -84,6 +84,35 @@ export async function loadListWords(
     }),
   );
   return said;
+}
+
+/**
+ * The places this person holds, by round id: for each form decision day gave
+ * them a place on, the title and the sentence their own page shows
+ * (`placeWordsFor`).
+ *
+ * For the two pages of the member area that would otherwise tell somebody
+ * with a place and no run that they are on nothing. A round that is not an
+ * application form has no entry, and neither has an application that holds
+ * no place. Read through {@link loadStatus}, the page's own read, exactly as
+ * {@link loadListWords} is: one view of one document, the caller's own, so
+ * these pages can say nothing the person's own page does not.
+ */
+export async function loadPlaceWords(
+  db: Firestore,
+  uid: string,
+  roundIds: readonly string[],
+  now: Date,
+): Promise<Map<string, PlaceWords>> {
+  const held = new Map<string, PlaceWords>();
+  await Promise.all(
+    [...new Set(roundIds)].map(async (roundId) => {
+      const loaded = await loadStatus(db, roundId, uid, now);
+      const words = loaded ? placeWordsFor(loaded.view) : null;
+      if (words) held.set(roundId, words);
+    }),
+  );
+  return held;
 }
 
 /** True when there is a form here that an applicant may be told about. */

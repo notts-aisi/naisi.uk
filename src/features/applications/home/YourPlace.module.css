@@ -1,0 +1,64 @@
+/* ============================================================
+   YourPlace: a place somebody holds, said on Home and on the
+   list of their programmes while they are on no run.
+
+   Drawn like the applications card beside it, with a live rule
+   down its leading edge so that good news does not read as one
+   more summary card.
+   ============================================================ */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+  border-left: 3px solid var(--color-live);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.next {
+  max-width: 40rem;
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: var(--leading-normal);
+  color: var(--color-text-body);
+}
+
+/* A short text link with a tall enough place to press: the padding gives it
+   the height and the negative margin takes most of that height back. */
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  margin-bottom: calc(-1 * var(--space-2));
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-accent-text);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* The card is one column of words at every width. */
+}

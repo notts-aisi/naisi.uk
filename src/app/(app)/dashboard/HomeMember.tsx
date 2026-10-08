@@ -30,6 +30,14 @@ import styles from "./home.module.css";
  * of runs is loading it draws the greeting and a placeholder, and says
  * nothing about programmes: "You're not on a programme yet" is a claim, and
  * it waits until it is known.
+ *
+ * A PLACE ON A PROGRAMME IS NOT A RUN. Somebody decision day gave a place
+ * has no run until they are put on one, so this list has nothing of theirs.
+ * The server reads what their own application page says and hands in a card
+ * (`place`) that says the same. A member with a place and no run is shown it
+ * where they would have been told they are not on a programme, and the claim
+ * is made only when the server could read that they hold none
+ * (`placesRead`).
  */
 
 type Slots = {
@@ -44,6 +52,10 @@ type Slots = {
   applications: ReactNode;
   /** "Nothing yet", for a member with no application while applications are open. */
   nothingYet: ReactNode;
+  /** The place the member holds on a programme they are not on a run of yet, or null. */
+  place: ReactNode;
+  /** Whether the member's places could be read. While false, nothing is said about being on no programme. */
+  placesRead: boolean;
   finishProfile: ReactNode;
 };
 
@@ -55,6 +67,8 @@ export default function HomeMember({
   comingUpCards,
   applications,
   nothingYet,
+  place,
+  placesRead,
   finishProfile,
 }: Slots) {
   const { runs, loading, error } = useMyRuns();
@@ -125,14 +139,15 @@ export default function HomeMember({
     );
   }
 
+  // "Not on a programme" is said only when it is known: the runs were read
+  // and hold nothing, and the member's places were read and there are none.
+  const onNothing = !error && !involved && placesRead && !place;
+
   return (
     <>
-      <PageHead
-        title={greeting}
-        // A failed read is not "not on a programme": the line is left out.
-        description={error || involved ? undefined : "You’re not on a programme yet."}
-      />
+      <PageHead title={greeting} description={onNothing ? "You’re not on a programme yet." : undefined} />
       {invite}
+      {place}
       {termCard}
       <div className={styles.columns}>
         <div className={styles.stack}>{comingUpRows}</div>

@@ -944,6 +944,14 @@ const USERS = new Map([
       "thing for each kind is only real when both are run. `server-only`, `next/link`, the " +
       "router the reply buttons ask for and the two stylesheets are stubbed",
   ],
+  [
+    "applications-place-in-the-member-area.test.mjs",
+    "it runs every way an application can stand through the status page's own reader and draws " +
+      "Home and the list of programmes for a member with and without a place, because what " +
+      "each says is only real when the components run. The hook that lists a member's runs, " +
+      "the Home forms for somebody on a run, two summary cards, a run's card, `next/link`, the " +
+      "entrance wrapper and the stylesheets are stubbed",
+  ],
 ]);
 
 /**

@@ -6,6 +6,8 @@ import { formatSiteDate } from "@/lib/datetime/siteTime";
 import YourApplications, {
   type YourApplicationRow,
 } from "@/features/applications/home/YourApplications";
+import YourPlace from "@/features/applications/home/YourPlace";
+import { placesHeldBy } from "@/features/applications/home/places";
 import { InstallCard } from "@/features/pwa/InstallCard";
 import { fetchPublicTerm } from "@/features/term/fetchPublicTerm";
 import { termCivilDay } from "@/features/term/termWords";
@@ -28,8 +30,15 @@ import styles from "./home.module.css";
  *
  * What is the same for every reader is read here, once, and handed down as
  * finished pieces: the term (through `fetchPublicTerm`, so no date is written
- * in a file), the next events, the member's own applications and what is
- * missing from their profile.
+ * in a file), the next events, the member's own applications, a place they
+ * hold and what is missing from their profile.
+ *
+ * A PLACE IS SAID IN THE WORDS OF THE PERSON'S OWN PAGE. Somebody decision
+ * day gave a place has no run until they are put on one, and a member with
+ * no run is told they are not on a programme. So the page asks
+ * `placesHeldBy`, which asks what "Your application" shows this person, and
+ * hands the member's Home a card that says the same and links there. Nothing
+ * in this file reads what became of an application.
  */
 
 /**
@@ -77,10 +86,13 @@ export default async function DashboardPage() {
   const viewingAs = markerIsLive(await getImpersonator(), user?.uid ?? null);
   const applications = user ? await applicationsOf(user.uid, viewingAs) : [];
   const now = new Date();
-  const [term, events, steps] = await Promise.all([
+  const [term, events, steps, places] = await Promise.all([
     fetchPublicTerm(now),
     homeEvents(now),
     user ? profileSteps(user.uid) : null,
+    // The places they hold, from the rounds just listed. Null when that list
+    // could not be read: the page then does not know, and says nothing either way.
+    user && applications ? placesHeldBy(user.uid, applications.map((row) => row.roundId)) : null,
   ]);
   const given = firstName(user?.displayName);
 
@@ -124,6 +136,8 @@ export default async function DashboardPage() {
           comingUpCards={<ComingUp events={events.upcoming} layout="cards" />}
           applications={yourApplications}
           nothingYet={nothingYet}
+          place={places && places.length > 0 ? <YourPlace places={places} /> : null}
+          placesRead={places !== null}
           finishProfile={<FinishProfile steps={steps} />}
         />
       )}

@@ -68,6 +68,34 @@ export function outcomeWords(view: StatusView): OutcomeWords | null {
   return null;
 }
 
+/**
+ * WHAT THE MEMBER AREA SAYS TO SOMEBODY WHO HOLDS A PLACE.
+ *
+ * Home and the member's list of programmes say "not on a programme yet" to
+ * anybody with no run. Somebody decision day gave a place has no run until
+ * they are put on one, so those two pages ask here first, with the view the
+ * person's own page is drawn from, and say what that page says: its title
+ * ("You’re in AGI Strategy.") and its sentence about what comes next.
+ *
+ * NULL FOR EVERYBODY WHO HOLDS NO PLACE: no application, a draft, one that
+ * is waiting to hear, an invitation not yet answered, a place given back, a
+ * kind no. Nothing is worked out here that the page does not already say,
+ * and nothing is read: a view with a place exists only once decision day has
+ * published one onto the person's own application.
+ */
+export type PlaceWords = {
+  /** The title of the person's own page: "You’re in AGI Strategy." */
+  title: string;
+  /** What that page says comes next, for the kind of programme they are in. */
+  next: string;
+};
+
+export function placeWordsFor(view: StatusView): PlaceWords | null {
+  if (view.kind !== "place") return null;
+  const words = outcomeWords(view);
+  return words ? { title: words.title, next: view.next } : null;
+}
+
 /** One row of the list of somebody's applications, in that list's own chip tones. */
 export type ListWords = {
   chip: string;
