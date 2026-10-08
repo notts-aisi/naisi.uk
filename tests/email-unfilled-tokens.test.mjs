@@ -834,6 +834,13 @@ describe("neither email prints something a reader could follow from a room", () 
     );
     return { all: `${rendered.subject}\n${printed(rendered.blocks)}`, text: textOf(printed(rendered.blocks)) };
   };
+  /** When that session is, in the reminder's own words: the day, and the hours it runs between. */
+  const WHEN = nudgeMail.courseNudgeSessionWhen({ ...base, location: "", meetingUrl: null }, "2026-10-27");
+
+  test("the reminder's own words for when are what this file expects them to start with", () => {
+    assert.ok(WHEN.startsWith("Tuesday 27 October, 18:00"), WHEN);
+    assert.ok(WHEN.endsWith("19:30"), WHEN);
+  });
 
   test("the weekly reminder says nothing of a room with a way into a call typed into it", () => {
     for (const location of ROOMS_WITH_A_LINK) {
@@ -855,7 +862,7 @@ describe("neither email prints something a reader could follow from a room", () 
         for (const part of WAY_IN) assert.ok(!mail.all.toLowerCase().includes(part), `${location}, mode ${mode}: the reminder carries ${part}`);
         assert.deepEqual(tokensIn(mail.all), [], location);
         assert.ok(
-          mail.text.includes(mode === "virtual" ? "Your group meets Tuesday 27 October, 18:00–19:30, Online." : "Your group meets Tuesday 27 October, 18:00–19:30."),
+          mail.text.includes(mode === "virtual" ? `Your group meets ${WHEN}, Online.` : `Your group meets ${WHEN}.`),
           mail.text,
         );
       }
@@ -867,7 +874,7 @@ describe("neither email prints something a reader could follow from a room", () 
       const session = { ...base, location, meetingUrl: null };
       assert.equal(nudgeMail.courseNudgeSessionWhere(session), location);
       assert.equal(nudgeMail.courseNudgeSessionWhere(session, "in-person"), location);
-      assert.ok(reminder(session, null).text.includes(`Your group meets Tuesday 27 October, 18:00–19:30, ${location}.`));
+      assert.ok(reminder(session, null).text.includes(`Your group meets ${WHEN}, ${location}.`));
     }
   });
 
