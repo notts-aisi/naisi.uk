@@ -28,6 +28,8 @@ import {
   normaliseSiteNotice,
 } from "@/lib/siteNotice";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { runTakesPeopleFromForm } from "@/lib/applications/lifecycle/openForm";
+import { APPLICATIONS_NOT_TAKEN_HERE } from "@/lib/courses/formPlacedRun";
 
 /**
  * Course run application write API. ALL `courseApplications` writes go through
@@ -50,6 +52,16 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  *
  * The paid-membership tag is snapshotted here as a BADGE for reviewers. No
  * branch in this file (or any other route) may read it as a gate.
+ *
+ * A RUN THE APPLICATION FORM PLACES PEOPLE ON TAKES NO APPLICATION HERE. When
+ * a programme on a term's application form names this run, people reach it
+ * through that form and an admin's hand-over, so POST and PATCH refuse with
+ * one sentence, BEFORE the run's own window is read: the run's status and
+ * dates do not come into it. A run can only leave draft by way of
+ * "applications open", and without this the run a form feeds would take
+ * applications nobody is reading for as long as it sat there. DELETE is
+ * untouched, because withdrawing takes work off the team and trapping
+ * somebody in a queue helps nobody.
  *
  * Shape borrowed wholesale from /api/collaborators/route.ts: session first,
  * rate limits before any datastore work, a deterministic doc id + `.create()`
@@ -465,6 +477,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ runId: string 
     return NextResponse.json({ error: "Course run not found." }, { status: 404 });
   }
 
+  // Before the window, so no status and no date can open this door.
+  if (await runTakesPeopleFromForm(db, run.id)) {
+    return NextResponse.json({ error: APPLICATIONS_NOT_TAKEN_HERE }, { status: 409 });
+  }
+
   const openError = windowError(run, new Date());
   if (openError) {
     return NextResponse.json({ error: openError }, { status: 400 });
@@ -636,6 +653,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ runId: string
   const run = await loadRun(db, runId);
   if (!run) {
     return NextResponse.json({ error: "Course run not found." }, { status: 404 });
+  }
+
+  // The same door as POST: nothing is written to an application here while
+  // the application form is what places people on this run.
+  if (await runTakesPeopleFromForm(db, run.id)) {
+    return NextResponse.json({ error: APPLICATIONS_NOT_TAKEN_HERE }, { status: 409 });
   }
 
   // GATED on the application window, and deliberately NOT on the maintenance

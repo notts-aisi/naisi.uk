@@ -1119,6 +1119,44 @@ Every caller of `tallyTerm()` hands each applicant over with its application.
 `tests/applications-wave-h-places.test.mjs` runs one stored term, in which
 every kind of reply has been made, through each of them.
 
+## From the form onto a course run
+
+A programme names the course run its accepted people go onto
+(`programmes.<id>.runId`). This section is what follows from that.
+
+### A run the form places people on takes no application of its own
+
+A course run has an apply page and route of its own
+(`/courses/[courseId]/apply`, `/api/courses/runs/[runId]/apply`), from before
+application forms. A run can only leave draft by way of "applications
+open", and while it is there that page takes applications whenever the
+run's own dates allow, which with no dates set is always.
+
+A run that a programme names must not. Its people come through the form and
+an admin's hand-over, and an application made to the run itself would be
+read by nobody. So the question is asked of the forms, and not of the run:
+
+- **`runTakesPeopleFromForm(db, runId)`** in `lifecycle/openForm.ts` is true
+  when a programme on ANY form names the run, whatever state that form is
+  in (a draft, open, closed, settled, archived or cancelled) and whether or
+  not the programme has been closed. Every state, because a rule that
+  waited for the form to open, or stopped once it settled, would leave a
+  window in which the older page took applications after all.
+- **The route** refuses to make an application (`POST`) and to change one
+  (`PATCH`), with one sentence and a 409, after its "not found" answers and
+  BEFORE the run's own window is read, so no status and no date opens the
+  door. Withdrawing (`DELETE`) is untouched: it takes work off the team.
+- **The page** draws a card in words for everybody, signed in or not. It
+  draws no form and no status card, and reads nobody's application.
+- **The words say nothing about the form.** A form that is still a draft is
+  nobody's business. The reader is sent to the course's own page, which is
+  told where the term's form is by the form's own code and says the right
+  thing in every state. The sentence and the card are in
+  `src/lib/courses/formPlacedRun.ts`.
+
+The run's status machine is unchanged. `tests/applications-handover-older-way-in.test.mjs`
+runs the route and renders the page for every way a run can stand.
+
 ## What deletes what
 
 | When | What goes | What stays |
@@ -1182,7 +1220,7 @@ All in `src/lib/applications/`.
 | `status/standing.ts`, `status/replies.ts`, `status/reasons.ts`, `status/view.ts`, `status/words.ts` | Where one person stands after sending, what each reply does, why somebody gave a place back and how the committee reads it, what their page says, the chip and title of an outcome | anywhere |
 | `status/load.ts`, `status/record.ts` | The page's read, and the one transaction a reply writes | server, applicant-safe |
 | `accounts/approve.ts`, `accounts/afterReply.ts` | Approving a waiting account on an acceptance, and the call an accepted invitation makes | server, applicant-safe |
-| `lifecycle/openForm.ts` | Which form is open, and which form speaks for each course, for a page that offers Apply | server, safe for a page any visitor can load |
+| `lifecycle/openForm.ts` | Which form is open, which form speaks for each course, and whether a form places people on a course run, for a page that offers Apply | server, safe for a page any visitor can load |
 | `lifecycle/publicTerm.ts` | Where the term is (`none`, `before`, `open`, `closed`, `running`) and what is on it, for a page that draws the term | server, safe for a page any visitor can load |
 | `editor/courses.ts` | The courses a programme can be tied to, and the one rule the box and the route share | server, staff |
 

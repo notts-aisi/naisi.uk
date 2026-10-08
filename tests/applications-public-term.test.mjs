@@ -944,13 +944,16 @@ describe("a page any visitor can load may import it", () => {
       .map(rel)
       .sort();
     assert.deepEqual(users, [READER, LOOKUP].sort());
-    // And the module it comes from still exports what it did, with that one more.
+    // And the module it comes from still exports what it did, with that one
+    // more, and one lookup that answers a yes or a no about a course run
+    // (`runTakesPeopleFromForm`) and hands nothing of a form to anybody.
     assert.deepEqual(Object.keys(openForm).sort(), [
       "applyPathFor",
       "findFormsByCourse",
       "findOpenForm",
       "openFormSpeaksFor",
       "readForms",
+      "runTakesPeopleFromForm",
     ]);
   });
 });

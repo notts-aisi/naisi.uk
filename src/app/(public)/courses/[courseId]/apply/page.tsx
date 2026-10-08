@@ -16,6 +16,7 @@ import {
   formatWindowDeadline,
   type ApplicationWindow,
 } from "@/lib/courses/window";
+import { NOT_TAKEN_HERE_CARD } from "@/lib/courses/formPlacedRun";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import Reveal from "../../../Reveal";
 import styles from "./apply.module.css";
@@ -54,6 +55,15 @@ export async function generateMetadata({
     return {
       title: `Sign up: ${context.course.title || "Course"}`,
       description: `${context.course.title || "This course"} takes sign-ups on the course page: pick a session and the place is yours.`,
+      robots: { index: false, follow: true },
+    };
+  }
+  // The application form places people on this run, so there is no form of
+  // the run's own on this page. The title says what the reader will find.
+  if (context.placedFromForm) {
+    return {
+      title: `${context.course.title || "Course"}: how to apply`,
+      description: `Applications for ${context.course.title || "this course"} aren't taken on this page. The course page says how to apply.`,
       robots: { index: false, follow: true },
     };
   }
@@ -130,6 +140,34 @@ export default async function CourseApplyPage({
   // window state alone could not give: an open run in `applications-closed`
   // or `running` is enrolling, so its window reads `open`.
   if (context.openEnrol) redirect(`/courses/${encodeURIComponent(courseId)}`);
+
+  // THE APPLICATION FORM PLACES PEOPLE ON THIS RUN, so it takes no application
+  // of its own and the route behind the form refuses one. The page says so in
+  // words, for everybody and in every state of the run: no form, and no
+  // status card either, because this page reads nobody's application for a
+  // run like this. A card and not a redirect, because somebody who typed or
+  // bookmarked this address should be told why there is nothing to fill in.
+  if (context.placedFromForm) {
+    return (
+      <section className={styles.page}>
+        <div className="container">
+          <Breadcrumb courseId={courseId} title={context.course.title} />
+          <Card padding="lg" className={styles.closedCard}>
+            <h1 className={styles.closedTitle}>{NOT_TAKEN_HERE_CARD.title}</h1>
+            <p className={styles.closedBody}>{NOT_TAKEN_HERE_CARD.body}</p>
+            <p className={styles.closedLinks}>
+              <Link href={`/courses/${courseId}`} className={styles.link}>
+                {NOT_TAKEN_HERE_CARD.toCourse}
+              </Link>
+              <Link href="/courses" className={styles.link}>
+                {NOT_TAKEN_HERE_CARD.toCatalogue}
+              </Link>
+            </p>
+          </Card>
+        </div>
+      </section>
+    );
+  }
 
   const { course, run, groups, window } = context;
   const applyPath = `/courses/${courseId}/apply`;

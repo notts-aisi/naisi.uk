@@ -349,6 +349,13 @@ const USERS = new Map([
       "running them says so",
   ],
   [
+    "applications-handover-older-way-in.test.mjs",
+    "executes the older per-run apply route and renders its page (a .tsx server component) to " +
+      "HTML for a run a programme on the application form names, because whether that run " +
+      "takes an application is decided by reading the forms when the request arrives, and the " +
+      "route reaches the course email templates through the mail door it stubs",
+  ],
+  [
     "applications-journey-in-term.test.mjs",
     "executes the contract's term arithmetic beside every builder and loader that counts with " +
       "it (the review list, the decision-day plan, the two editor loaders) on one stored term, " +
