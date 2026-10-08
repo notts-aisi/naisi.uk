@@ -312,6 +312,9 @@ function facilitatorCheck(
 /** What stops one question being answered, as the end of a sentence, or null. */
 function questionProblem(question: ApplicationQuestion): string | null {
   if (!question.text.trim()) return "has no text";
+  if (question.type === "rank" && question.options.length < 2) {
+    return "has fewer than 2 options to put in order";
+  }
   const offersOptions = question.type === "choice" || question.type === "multi" || question.type === "scale";
   if (offersOptions && !question.optionsFromRanking && question.options.length < 2) {
     return "has fewer than 2 options to pick from";

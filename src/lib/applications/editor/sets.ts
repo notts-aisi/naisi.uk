@@ -62,6 +62,7 @@ export const QUESTION_TYPE_LABEL: Record<QuestionType, string> = {
   choice: "Choice",
   multi: "Multi-choice",
   scale: "Scale",
+  rank: "Ranking",
 };
 
 /** "1 question", "2 questions". */
@@ -86,6 +87,8 @@ export function questionChips(question: ApplicationQuestion): string[] {
     chips.push("From their ranking");
   } else if (question.type === "scale") {
     chips.push(question.options.length === 1 ? "1 point" : `${question.options.length} points`);
+  } else if (question.type === "rank") {
+    chips.push(`${question.options.length} to put in order`);
   } else {
     chips.push(question.options.length === 1 ? "1 option" : `${question.options.length} options`);
   }

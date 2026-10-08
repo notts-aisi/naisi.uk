@@ -52,7 +52,10 @@ const STYLES = "export default new Proxy({}, { get: (_, name) => String(name) })
 const { loadTs } = createLoader({
   stubs: new Map([
     ["server-only", "export {};"],
+    // The step's own stylesheets: every question it can draw is in its graph.
     ["./form.module.css", STYLES],
+    ["./rank.module.css", STYLES],
+    ["@/features/applications/kit/kit.module.css", STYLES],
   ]),
 });
 

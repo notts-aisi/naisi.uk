@@ -310,6 +310,22 @@
   padding: 0;
   list-style: none;
 }
+/* A ranking: the options somebody placed, numbered in their order. */
+.ranked {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0 0 0 1.6em;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--review-text-soft);
+  overflow-wrap: anywhere;
+}
+.ranked li::marker {
+  font-family: var(--font-meta);
+  font-weight: 700;
+  color: var(--color-text);
+}
 
 /* --- A score, 1 to 5 --------------------------------------------------- */
 

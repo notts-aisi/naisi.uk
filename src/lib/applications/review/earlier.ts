@@ -130,7 +130,12 @@ export function partHistory<T>(
 // The parts
 // ---------------------------------------------------------------------------
 
-/** What one answer draws: its words, its ticks, or its point on a scale. */
+/**
+ * What one answer draws: its words, its ticks or its order, or its point on a
+ * scale. A list is copied in the order it is stored, so two versions of a
+ * ranking that place the same options in a different order are two answers,
+ * and the second says what the first said before.
+ */
 export function answerBody(
   form: ApplicationForm,
   question: ApplicationQuestion,

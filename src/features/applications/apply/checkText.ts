@@ -1,5 +1,11 @@
 import { STATUSES_WITH_GRADUATION, STATUS_LABELS } from "@/lib/firestore/users";
-import type { AboutYou, AnswerValue, ApplicationContent, QuestionSetDoc } from "@/lib/applications/model";
+import type {
+  AboutYou,
+  AnswerValue,
+  ApplicationContent,
+  ApplicationQuestion,
+  QuestionSetDoc,
+} from "@/lib/applications/model";
 import { isAnswered } from "@/lib/applications/validate";
 import { own } from "@/lib/applications/applicant/keys";
 import { POLICIES, currentPolicy } from "@/lib/legal/policies";
@@ -130,12 +136,21 @@ export function aboutDetail(about: AboutYou): string {
   return status || (graduation ? `Graduating ${graduation}` : "");
 }
 
-/** One answer as words, whatever kind of question it answered. */
-function answerWords(value: AnswerValue | undefined, options: readonly string[]): string {
+/**
+ * One answer as words, whatever kind of question it answered. A ranking says
+ * its order: "1. Interpretability, 2. Evals".
+ */
+function answerWords(
+  question: Pick<ApplicationQuestion, "type">,
+  value: AnswerValue | undefined,
+  options: readonly string[],
+): string {
   if (!isAnswered(value)) return "";
   if (typeof value === "string") return value.replace(/\s+/g, " ").trim();
   if (typeof value === "number") return options[value] ?? "";
-  return (value ?? []).join(", ");
+  const items = value ?? [];
+  if (question.type === "rank") return items.map((item, at) => `${at + 1}. ${item}`).join(", ");
+  return items.join(", ");
 }
 
 /**
@@ -150,7 +165,7 @@ export function answersPreview(
   const given = own(content.answers, set.id) ?? {};
   const parts: string[] = [];
   for (const question of set.questions) {
-    const words = answerWords(own(given, question.id), optionsOf(question.id));
+    const words = answerWords(question, own(given, question.id), optionsOf(question.id));
     if (!words) continue;
     parts.push(/[.!?…]$/.test(words) ? words : `${words}.`);
   }

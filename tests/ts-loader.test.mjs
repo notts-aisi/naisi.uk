@@ -385,6 +385,14 @@ const USERS = new Map([
       "an authored paragraph",
   ],
   [
+    "applications-rank-question.test.mjs",
+    "executes the checks, the draft clean-up and the editor's reader over every type a question " +
+      "can have, drives the applicant's, the editor's and the review screen's handlers with a " +
+      "ranking question against one in-memory term, and renders the form's ranking control and " +
+      "the review screen's answer, which are .tsx and need the JSX option this loader sets, " +
+      "because what a ranking is, and that it is never scored, is decided by the code that runs",
+  ],
+  [
     "applications-readable-before-answering.test.mjs",
     "executes the decision route and the route that decides several at once as a programme's " +
       "lead, against an in-memory term, for every way an application can be one she may not " +

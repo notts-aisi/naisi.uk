@@ -237,7 +237,8 @@ export function LongText({
   );
 }
 
-function Group({
+/** A question that is a group of controls: its legend, its help line, what is wrong with the answer. */
+export function Group({
   legend,
   help,
   optional,
@@ -367,6 +368,35 @@ export function ScalePoints({
   );
 }
 
+/**
+ * Tick boxes drawn as chips. The caller says which are on and what a press
+ * does, so "several choices" and a ranking tick their options the same way.
+ */
+export function Chips({
+  options,
+  isOn,
+  onToggle,
+}: {
+  options: readonly string[];
+  isOn: (option: string) => boolean;
+  onToggle: (option: string) => void;
+}) {
+  return (
+    <div className={styles.chips}>
+      {options.map((option) => {
+        const on = isOn(option);
+        return (
+          <label key={option} className={styles.chipOption} data-on={on ? "true" : "false"}>
+            <input type="checkbox" className={styles.native} checked={on} onChange={() => onToggle(option)} />
+            {on ? <TickIcon className={styles.tick} /> : null}
+            <span>{option}</span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 /** As many as apply, as chips. */
 export function ChipChoices({
   legend,
@@ -379,26 +409,14 @@ export function ChipChoices({
 }: Omit<ChoiceProps, "value" | "onChange"> & { value: readonly string[]; onChange: (next: string[]) => void }) {
   return (
     <Group legend={legend} help={help} optional={optional} error={error}>
-      <div className={styles.chips}>
-        {options.map((option) => {
-          const on = value.includes(option);
-          return (
-            <label key={option} className={styles.chipOption} data-on={on ? "true" : "false"}>
-              <input
-                type="checkbox"
-                className={styles.native}
-                checked={on}
-                onChange={() =>
-                  // Kept in the question's own order, whichever was ticked first.
-                  onChange(options.filter((each) => (each === option ? !on : value.includes(each))))
-                }
-              />
-              {on ? <TickIcon className={styles.tick} /> : null}
-              <span>{option}</span>
-            </label>
-          );
-        })}
-      </div>
+      <Chips
+        options={options}
+        isOn={(option) => value.includes(option)}
+        onToggle={(option) =>
+          // Kept in the question's own order, whichever was ticked first.
+          onChange(options.filter((each) => (each === option ? !value.includes(option) : value.includes(each))))
+        }
+      />
     </Group>
   );
 }

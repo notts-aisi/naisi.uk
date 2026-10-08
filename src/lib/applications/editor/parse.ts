@@ -2,6 +2,7 @@ import { isValidDateKey, londonWallClockToInstant } from "@/lib/courses/weekPlan
 import { ADMISSION_ROUND_FIELD_LIMITS } from "@/lib/firestore/admissionRounds";
 import {
   APPLICATION_LIMITS,
+  NEVER_SCORED_TYPES,
   PROGRAMME_EMAIL_KINDS,
   PROGRAMME_KINDS,
   QUESTION_TYPES,
@@ -313,7 +314,8 @@ function readQuestion(raw: unknown, position: number): Parsed<QuestionInput> {
       optionsFromRanking,
       wordLimit,
       required: body.required === true,
-      scored: body.scored === true,
+      // A type nobody scores is stored unscored, whatever was sent with it.
+      scored: body.scored === true && !NEVER_SCORED_TYPES.includes(type),
     },
   };
 }

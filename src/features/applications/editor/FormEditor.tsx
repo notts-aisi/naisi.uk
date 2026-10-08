@@ -50,6 +50,7 @@ import {
 import QuestionCard from "./QuestionCard";
 import {
   blankQuestion,
+  canBeScored,
   duplicateQuestion,
   firstProblem,
   moved,
@@ -236,18 +237,20 @@ export default function FormEditor({
     setVersions((current) => ({ ...current, [setId]: (own(current, setId) ?? 0) + 1 }));
   };
 
-  const scoredFor = (set: LocalSet) =>
-    set.role !== "stream"
-      ? false
-      : set.questions.length > 0
-        ? set.questions.some((question) => question.scored)
-        : (own(scoredWhenEmpty, set.id) ?? true);
+  // The switch is read off the questions that CAN be scored. A set with none
+  // (no questions yet, or only rankings, which never are) has nothing to read
+  // it off, so what was last pressed is kept here for the next question.
+  const scoredFor = (set: LocalSet) => {
+    if (set.role !== "stream") return false;
+    const scorable = set.questions.filter((question) => canBeScored(question.type));
+    return scorable.length > 0
+      ? scorable.some((question) => question.scored)
+      : (own(scoredWhenEmpty, set.id) ?? true);
+  };
 
   const setScored = (set: LocalSet, scored: boolean) => {
-    if (set.questions.length === 0) {
-      setScoredWhenEmpty((current) => ({ ...current, [set.id]: scored }));
-      return;
-    }
+    setScoredWhenEmpty((current) => ({ ...current, [set.id]: scored }));
+    if (set.questions.length === 0) return;
     change(set.id, (questions) => questions.map((question) => ({ ...question, scored })), true);
   };
 
@@ -404,11 +407,15 @@ export default function FormEditor({
                     editingKey={editingKey}
                     onScored={(scored) => setScored(set, scored)}
                     onEdit={setEditingKey}
-                    onChange={(key, patch) =>
+                    onChange={(key, patch) => {
+                      // A question whose type changes takes its set's switch,
+                      // so one that stops being a ranking is scored as the
+                      // questions beside it are.
+                      const carried = patch.type === undefined ? patch : { ...patch, scored: scoredFor(set) };
                       change(set.id, (questions) =>
-                        questions.map((question) => (question.key === key ? { ...question, ...patch } : question)),
-                      )
-                    }
+                        questions.map((question) => (question.key === key ? { ...question, ...carried } : question)),
+                      );
+                    }}
                     onReorder={(from, to) => change(set.id, (questions) => moved(questions, from, to), true)}
                     onDuplicate={(key) => {
                       const source = set.questions.find((question) => question.key === key);
@@ -678,6 +685,7 @@ function SetCard({
                   setLabel={set.label}
                   open={editingKey === question.key}
                   locked={locked}
+                  inScoredSet={scored}
                   onOpen={() => onEdit(question.key)}
                   onDone={() => onEdit(null)}
                   onChange={(patch) => onChange(question.key, patch)}

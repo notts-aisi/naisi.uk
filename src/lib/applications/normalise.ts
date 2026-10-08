@@ -17,6 +17,7 @@ import {
   APPLICATION_LIMITS,
   APPLICATION_RESULT_KINDS,
   FORM_VERSION,
+  NEVER_SCORED_TYPES,
   POOL_REASONS,
   PROGRAMME_DECISION_KINDS,
   PROGRAMME_EMAIL_KINDS,
@@ -281,7 +282,7 @@ export function normaliseQuestion(v: unknown): ApplicationQuestion | null {
   const type = QUESTION_TYPES.includes(raw.type as QuestionType)
     ? (raw.type as QuestionType)
     : "long";
-  const takesOptions = type === "choice" || type === "multi" || type === "scale";
+  const takesOptions = type === "choice" || type === "multi" || type === "scale" || type === "rank";
   const options: string[] = [];
   if (takesOptions && Array.isArray(raw.options)) {
     for (const option of raw.options) {
@@ -300,7 +301,8 @@ export function normaliseQuestion(v: unknown): ApplicationQuestion | null {
     optionsFromRanking: type === "choice" && bool(raw.optionsFromRanking),
     wordLimit: isText ? intIn(raw.wordLimit, 1, L.maxWordLimit) : null,
     required: bool(raw.required),
-    scored: bool(raw.scored),
+    // A type nobody scores is not scored, whatever the stored question says.
+    scored: bool(raw.scored) && !NEVER_SCORED_TYPES.includes(type),
   };
 }
 
@@ -382,7 +384,13 @@ function asAboutYou(v: unknown): AboutYou {
   };
 }
 
-/** One stored answer, or undefined when it is not a shape this system writes. */
+/**
+ * One stored answer, or undefined when it is not a shape this system writes.
+ *
+ * A list is read in the order it was stored, with a repeat left out. That is
+ * the whole of what a ranking needs from the reader: its order is the
+ * person's, and no option is in it twice.
+ */
 function asAnswer(v: unknown): AnswerValue | undefined {
   const L = APPLICATION_LIMITS;
   if (typeof v === "string") return v.slice(0, L.longAnswerChars);

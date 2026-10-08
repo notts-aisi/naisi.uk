@@ -2,6 +2,10 @@
    Rank: a short list of rows that can be dragged into order, or
    moved with the up and down buttons on each row.
 
+   One list for the whole form (RankList.tsx): the Rank step's
+   programmes, and the options somebody has placed for a question
+   that asks for an order.
+
    A row at rest, the gap it leaves while it is lifted, and the
    lifted copy that follows the pointer are three looks of one
    element. Every control is 44px (docs/touch-targets.md).
@@ -156,9 +160,42 @@
   cursor: not-allowed;
 }
 
+/* A ranking question: the order somebody has made so far, under the options they tick. */
+.order {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: var(--space-4);
+}
+
+.order .orderLabel {
+  color: var(--color-text-muted);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .row[data-lifted="true"] {
     transform: none;
+  }
+}
+
+/*
+  A row whose name is a sentence (an option of a ranking question, where a
+  programme has a short name). On a phone the name takes the first line to
+  itself and the two buttons sit under it, on the right.
+*/
+@media (max-width: 36rem) { /* --bp-sm */
+  .row[data-roomy="true"] {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .row[data-roomy="true"] .text {
+    flex: 1 1 60%;
+  }
+
+  .row[data-roomy="true"] .moves {
+    flex: 1 0 100%;
+    justify-content: flex-end;
   }
 }
 

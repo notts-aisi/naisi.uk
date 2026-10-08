@@ -484,6 +484,76 @@ the build. `tests/applications-set-for-everybody.test.mjs` reads the scopes
 out of `model.ts` and puts each through every copy, and runs the set through
 the editor's routes, the applicant's and the review screen's.
 
+### A question that asks for an order
+
+A question's type is one of `short`, `long`, `choice`, `multi`, `scale` and
+`rank`. A `rank` question's options are the things to put in order, two to
+ten of them. The answer is the options the person placed, in their order:
+each one of the question's own, none of them twice. They may place as many
+as they like, and what they leave out is simply not in the answer. A required
+ranking needs a first choice and nothing more.
+
+**Stored as "several choices" is.** A list of option texts on the
+application, so no rule and no stored shape changes: every collection here is
+closed to browsers, and a list of option texts is a shape the routes already
+wrote. The difference is the order. For `multi` the list is kept in the
+question's own order. For `rank` it is kept in the person's, which is the
+answer: the first entry is their first choice.
+
+**A save cleans and a send checks.** `cleanContent` (`applicant/draft.ts`)
+keeps only the question's own options, each once, in the order given, so
+nothing stored can name an option twice or one the question never had. The
+send reads the stored draft through the same clean-up and then
+`answerProblem` (`validate.ts`), which refuses in words: "Pick at least a
+first choice.", "Pick from the options.", "Put each one in your order once."
+
+**Never scored.** `NEVER_SCORED_TYPES` in `model.ts` is the list, and it
+holds `rank`. A ranking is an order somebody gave, not a piece of writing, so
+there is nothing in it to give 1 to 5. The reader clears the flag whatever is
+stored, the editor's route stores the question unscored whatever was sent,
+and the editor never sends one. In a set whose Scored switch is on, the
+switch passes a ranking by and its card says "Not scored". A reviewer can
+still comment on it.
+
+**One ranking control.** `RankList`
+(`src/features/applications/apply/RankList.tsx`) is the form's one list that
+somebody puts in order. The Rank step draws the programmes a person ticked
+through it, and a ranking question draws the options they placed through it.
+A row moves three ways, and none needs the others: drag its handle, focus
+the handle and use the keyboard, or press its up or down button. So it works
+with a keyboard alone and on a phone. For a ranking question the options are
+tick boxes above the list (the chips "several choices" uses): ticking one
+puts it at the end of the order and unticking takes it out. On a phone a row
+that holds a sentence puts its two buttons under its name.
+
+**How it is shown afterwards.** The review screen draws a ranking as a
+numbered list, first choice first. What it is sent is the same field
+"several choices" uses (`items`), and the question's `type` says which of
+the two it is. The form's last step says the order in words ("1. Evals, 2.
+Governance"). The same options in another order are another answer: the
+applicant's page says they have changed something they have not sent, a send
+keeps what it said before, and the review screen shows the earlier order
+under the current one.
+
+**When an author changes the options.** A ranking does what "pick one" and
+"several choices" do. Once anybody has sent an application the questions are
+locked, so nothing changes under an answer of record. Before that, only
+drafts exist, and nothing writes to a draft but its owner: it says what it
+said until their next save or send, which keeps what is still an option (a
+ranking closes up in the person's order, "several choices" keep the ticks
+that are left, and a "pick one" whose option has gone reads as not
+answered). The form shows only what is still an option, and asks for the
+answer again once they press Send.
+
+**Every type is named wherever a type decides.** `answerProblem`,
+`cleanAnswer` and the form's `controlFor` are each a switch with no default,
+so a type they do not name fails the build: no type is ever checked, cleaned
+or drawn as another. A question's options come from the programmes somebody
+ranked only for a "pick one" (`optionsFor`).
+`tests/applications-rank-question.test.mjs` reads the types out of
+`model.ts` and runs each through all three, and runs a ranking through the
+editor's routes, the applicant's and the review screen's.
+
 ### A help line can carry a link
 
 A question's help line is plain text. An author types it, and an applicant
@@ -548,7 +618,8 @@ component's.
 
 Scoring is per answer, 1 to 5, and optional per programme (`useScores`). Only a
 stream set's questions can carry `scored`; the flag is cleared on read anywhere
-else, the set asked of everybody included.
+else, the set asked of everybody included. A ranking is never scored, in any
+set (`NEVER_SCORED_TYPES`).
 
 - A reviewer's score for a programme is the mean of what they gave its answers.
 - The section score is the mean of the reviewers' scores, one voice each.
@@ -1014,7 +1085,7 @@ All in `src/lib/applications/`.
 | `keys.ts` | What an id is, and `own()`, the one way a map is read by one | anywhere |
 | `normalise.ts` | Reads stored documents into the model's shapes. Never throws. | anywhere |
 | `sections.ts` | Which steps and question sets one person sees, and in what order | anywhere |
-| `validate.ts` | What stops a send; what is copied into `sent`; word counts | anywhere |
+| `validate.ts` | What stops a send; what a good answer to each type of question is; what is copied into `sent`; word counts | anywhere |
 | `versions/kept.ts` | What a send keeps of the application it replaces: what counts as a change, the cap, how the versions are read | anywhere |
 | `scoring.ts` | Scored questions, section scores, first-review blindness | anywhere |
 | `decisions.ts` | Placement, outcomes, who is in the term, who holds a place, tallies, readiness, recommendations | anywhere |
