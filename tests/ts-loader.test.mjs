@@ -937,6 +937,13 @@ const USERS = new Map([
       "each count is only real when the page is drawn. The term's fetcher, the list of published " +
       "courses, `next/link`, the network drawing and the stylesheets are stubbed",
   ],
+  [
+    "applications-place-next-words.test.mjs",
+    "it composes the standard You are in email and draws the person's own page from one stored " +
+      "form, for a place on a fellowship and on an incubator, because that the two say the same " +
+      "thing for each kind is only real when both are run. `server-only`, `next/link`, the " +
+      "router the reply buttons ask for and the two stylesheets are stubbed",
+  ],
 ]);
 
 /**
