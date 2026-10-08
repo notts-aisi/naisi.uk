@@ -382,7 +382,9 @@ const USERS = new Map([
       "writer against one in-memory store, as one term from an empty form to a settled one, " +
       "because a disagreement between two parts of the application system exists only when " +
       "both run on the same documents; the mail door is stubbed to record and the email " +
-      "templates behind it are compiled for real",
+      "templates behind it are compiled for real. Its last chapter also executes the course " +
+      "routes a hand-over feeds (the older apply route, the allocation board, a placement and " +
+      "the member area), on the same documents",
   ],
   [
     "applications-own-application.test.mjs",
