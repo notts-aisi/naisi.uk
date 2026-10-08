@@ -554,9 +554,9 @@ function ApplicationCard({
           <h4 className={styles.name}>{row.displayName || "Applicant"}</h4>
           <div className={styles.identityBadges}>
             {/* A badge for context at review. It gates nothing, here or in the
-                route — a run does not require paid membership. Drawn only when
-                it is known: a row that could say nothing about membership gets
-                no badge, never "Unpaid". */}
+                route — a run does not require paid membership. */}
+            {/* Drawn only when it is known: a row that could say nothing about
+                membership gets no badge, never "Unpaid". */}
             {row.paidMembership !== null && (
               <Badge tone={row.paidMembership ? "success" : "warning"}>
                 {row.paidMembership ? paidLabel : "Unpaid"}

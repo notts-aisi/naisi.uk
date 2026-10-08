@@ -302,9 +302,10 @@ export async function GET(
     // THE PII BOUNDARY, asserted in one expression: non-admin reviewers get null.
     email: isAdmin ? app.email : null,
     // Falls back to the apply-time snapshot when the user doc is gone (deleted
-    // account) — the badge then reflects what was true when they applied. A
-    // row the application form wrote carries no snapshot, so for one of those
-    // the answer is null and no badge is drawn (`membershipKnownFromRow`).
+    // account) — the badge then reflects what was true when they applied.
+    // A row the application form wrote carries no snapshot, so for one of
+    // those the answer is null and no badge is drawn
+    // (`membershipKnownFromRow`).
     paidMembership: paidByUid.get(app.uid) ?? membershipKnownFromRow(app),
     status: app.status,
     answers: app.answers,
