@@ -10,7 +10,7 @@
  * An email template is copy with `{tokens}` in it, and a token with no value
  * can reach a person as the characters an admin typed. Publishing an
  * allocation emails each placed person their group, its facilitators and its
- * first session, from data a group formed in a hurry may not have yet. Five
+ * first session, from data a group formed in a hurry may not have yet. Seven
  * things have to hold:
  *
  *  1. THE PLACEMENT EMAIL IS WRITTEN WHOLE OR NOT AT ALL. Its composer
@@ -30,13 +30,23 @@
  *     generates, and the handler against stored groups, for a link in its
  *     own field and for one typed into the room, and none of it is in what
  *     comes back.
- *  3. THE ROUTE REFUSES BEFORE IT DOES ANYTHING. The real handler is run
+ *  3. A MISSING VALUE TAKES ITS OWN UNIT, AND NOTHING BESIDE IT. A unit is
+ *     a paragraph, a bullet, or text that stands outside both. The bullet
+ *     beside it stays, no element is left empty by what was taken out, and
+ *     a block that holds no token is never left out and never changed. Each
+ *     is tested on its own, and every email the walk writes is held to all
+ *     three.
+ *  4. NEITHER EMAIL PRINTS SOMETHING A READER COULD FOLLOW FROM A ROOM. The
+ *     weekly reminder asks the same function of the same room as the
+ *     placement email, and the two are held to the same answer for every
+ *     room this file tries.
+ *  5. THE ROUTE REFUSES BEFORE IT DOES ANYTHING. The real handler is run
  *     against a stored run: a refusal stamps nothing and emails nobody, the
  *     sentence says what to set, and what does go out names the room, or
  *     says the group is online, and carries no token.
- *  4. AN ADMIN PROOFING THE WORDING SEES WHAT A PLACED PERSON WOULD, and the
+ *  6. AN ADMIN PROOFING THE WORDING SEES WHAT A PLACED PERSON WOULD, and the
  *     designer offers exactly the tokens the composer fills.
- *  5. THE CLASS. Every function in the tree that fills tokens is found and
+ *  7. THE CLASS. Every function in the tree that fills tokens is found and
  *     registered, both directions. A path that sends to people is run here on
  *     its own seed copy with every optional value absent, and the tokens it
  *     then leaves are compared with what is written beside it: none, for the

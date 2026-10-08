@@ -1068,14 +1068,16 @@ with a place that they are on nothing. The answer is yes, no, or could not
 tell. It carries no round, no programme and no words, so a page that asks
 it has nothing of an outcome to print. On a no, the page reads as it always
 has. On a yes, and on could not tell, it does one and the same thing: the
-sentence is left out, and the way to the member's applications stands
-there, which is the card above on the dashboard and the same card, naming
-nothing, on `/learn`. NEITHER PAGE STATES AN OUTCOME, for the reason the
-card does not. `tests/applications-place-in-the-member-area.test.mjs` puts
-every way an application can stand through both pages, and holds that what
-each draws carries no outcome word and no programme's name, and is one of
-two pages: the page of a member known to hold no place, and the page of
-everybody else.
+sentence is left out, and the way to the member's applications is on the
+page, which is the card above on the dashboard and the same card, naming
+nothing, where the empty state would be on `/learn`. NEITHER PAGE STATES AN
+OUTCOME, for the reason the card does not.
+`tests/applications-place-in-the-member-area.test.mjs` puts every way an
+application can stand through both pages, and holds that what each draws
+carries no outcome word and no programme's name, and that a member reads
+one of two pages: the page of a member known to hold no place, and the page
+of everybody else. In a view-as session it is one page, however the
+member's application stands.
 
 ### Who is in the term
 
