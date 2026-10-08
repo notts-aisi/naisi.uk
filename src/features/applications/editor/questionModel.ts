@@ -1,4 +1,4 @@
-import { APPLICATION_LIMITS, type QuestionType } from "@/lib/applications/model";
+import { APPLICATION_LIMITS, NEVER_SCORED_TYPES, type QuestionType } from "@/lib/applications/model";
 import type { QuestionSetView, QuestionView } from "@/lib/applications/editor/views";
 import type { QuestionPatch } from "./editorClient";
 
@@ -71,7 +71,16 @@ export function duplicateQuestion(question: LocalQuestion): LocalQuestion {
 }
 
 export function takesOptions(type: QuestionType): boolean {
-  return type === "choice" || type === "multi" || type === "scale";
+  return type === "choice" || type === "multi" || type === "scale" || type === "rank";
+}
+
+/**
+ * Can a reviewer give an answer to this type 1 to 5? Not a ranking: it is an
+ * order, and the Scored switch of its set passes it by. The same list the
+ * reader and the routes go by (`NEVER_SCORED_TYPES`).
+ */
+export function canBeScored(type: QuestionType): boolean {
+  return !NEVER_SCORED_TYPES.includes(type);
 }
 
 export function takesWordLimit(type: QuestionType): boolean {
@@ -93,7 +102,9 @@ export function toPatch(question: LocalQuestion): QuestionPatch {
     optionsFromRanking: fromRanking,
     wordLimit: takesWordLimit(question.type) ? question.wordLimit : null,
     required: question.required,
-    scored: question.scored,
+    // A question on screen carries its set's switch, so that changing its type
+    // back gives it the set's answer again. What is sent is what can be true.
+    scored: question.scored && canBeScored(question.type),
   };
 }
 

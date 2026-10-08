@@ -156,6 +156,18 @@ const SETS = [
   }),
 ];
 
+/**
+ * A set asked of everybody who picks a programme. Kept out of SETS, so every
+ * check below that reads SETS is asked exactly what it was asked before.
+ */
+const FOR_EVERYBODY = normalise.normaliseQuestionSet("shared", {
+  roundId: ROUND,
+  role: "general",
+  scope: { type: "everybody" },
+  label: "Shared",
+  questions: [question("cv")],
+});
+
 /** Everything the send checks, filled in, so the ranking is the only variable. */
 function content(rankedProgrammeIds, answers = { agi: { event: "The reading group." }, tais: { built: "A probe." } }) {
   return {
@@ -561,6 +573,12 @@ const CONTRACT = {
     isQuestionKey: (name) => assert.equal(keys.isQuestionKey(`${name}.q`), false),
     own: (name) => assert.equal(keys.own({}, name), undefined),
   },
+  "linkedText.ts": {
+    httpsHref:
+      "reads one string it is handed, a character at a time, and asks the platform's parser " +
+      "about it; reads no map by an id",
+    linkedParts: "splits one string it is handed into text and links; reads no map by an id",
+  },
   "model.ts": {
     questionKey: "builds a string from two ids and reads nothing",
     applicationId: "builds a document id from a round id and a uid and reads nothing",
@@ -709,7 +727,13 @@ const CONTRACT = {
     },
     setApplies: (name) => {
       for (const set of SETS) assert.equal(sections.setApplies(set, FORM, content([name])), false);
+      // The set for everybody applies to anybody who picked a programme the
+      // form carries. A name every object carries is not one, so somebody who
+      // "picked" only that has picked nothing, and is not asked it either.
+      assert.equal(sections.setApplies(FOR_EVERYBODY, FORM, content([name])), false);
+      assert.equal(sections.setApplies(FOR_EVERYBODY, FORM, content([name, AGI])), true);
     },
+    everybodyFirst: "orders the sets it is handed by each one's own scope; reads no map by an id",
     orderedSets: "looks sets up in a Map it builds from the sets it is handed",
     applicableSets: (name) => assert.deepEqual(sections.applicableSets(FORM, SETS, content([name])), []),
     streamSetsFor: (name) => assert.deepEqual(sections.streamSetsFor(FORM, SETS, name), []),
@@ -762,6 +786,7 @@ const CONTRACT = {
   "words.ts": {
     ordinal: "formats a number and takes no id",
     choiceLabel: "formats a number and takes no id",
+    namedAsQuestions: "reads one name it is handed and takes no id",
   },
 };
 

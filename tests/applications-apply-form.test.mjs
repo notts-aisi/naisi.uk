@@ -1020,10 +1020,26 @@ describe("the components keep to real controls", () => {
   });
 
   test("every drag has a route that is not a drag", () => {
-    const rank = codeOf("RankStep.tsx");
-    assert.match(rank, /aria-label=\{`Move \$\{programme\.shortName\} up`\}/);
-    assert.match(rank, /aria-label=\{`Move \$\{programme\.shortName\} down`\}/);
-    assert.match(rank, /KeyboardSensor/);
+    // The ranking control used to be written inside the Rank step. It is now
+    // `RankList.tsx`, so that a question which asks for an order uses the
+    // same one. What was held of the step is held of the control: every row
+    // has an up and a down button that name it, and the handle answers the
+    // keyboard. The row is named by what the caller calls it, and the Rank
+    // step still calls it by the programme's short name.
+    const list = codeOf("RankList.tsx");
+    assert.match(list, /aria-label=\{`Move \$\{item\.name\} up`\}/);
+    assert.match(list, /aria-label=\{`Move \$\{item\.name\} down`\}/);
+    assert.match(list, /KeyboardSensor/);
+    assert.match(codeOf("RankStep.tsx"), /name: programme\.shortName,/);
+    // And there is one of it: the two places that ask for an order draw their
+    // rows through it, and neither builds a list to drag of its own.
+    for (const file of ["RankStep.tsx", "RankQuestion.tsx"]) {
+      const code = codeOf(file);
+      assert.match(code, /<RankList\b/, `${file} does not draw its order through the form's one ranking control`);
+      assert.ok(!/useSortable|DndContext|SortableContext|@dnd-kit/.test(code), `${file} builds a list to drag of its own`);
+    }
+    const draggers = formFiles.filter((file) => file.endsWith(".tsx") && /@dnd-kit/.test(codeOf(file)));
+    assert.deepEqual(draggers, ["RankList.tsx"], "a second file in the form builds something to drag");
     const when = codeOf("AvailabilityStep.tsx");
     assert.ok(when.includes("Add times by typing instead"));
     assert.match(when, /typedRun\(fromText, toText, grid\)/);

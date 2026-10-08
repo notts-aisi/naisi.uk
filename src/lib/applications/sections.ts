@@ -11,9 +11,10 @@ import type {
  *
  * The form is one list of steps for everybody, and a step only appears when
  * it applies: you rank only if you ticked two or more programmes, you see the
- * fellowship questions once however many fellowships you ticked, a stream's
- * questions only if you ticked that stream, and the facilitator questions
- * only if you said yes. No question is asked twice.
+ * questions for everybody once whatever you ticked, the fellowship questions
+ * once however many fellowships you ticked, a stream's questions only if you
+ * ticked that stream, and the facilitator questions only if you said yes. No
+ * question is asked twice.
  *
  * Everything here is derived from the form and from what the person has
  * written so far. Nothing is stored, so the form, the check page, the send
@@ -73,11 +74,32 @@ export function setApplies(set: QuestionSetDoc, form: Form, content: Choices): b
   if (scope.type === "facilitating") {
     return form.asksFacilitating && content.wantsToFacilitate === true;
   }
+  // Everybody is anybody who has picked a programme the form carries. Nobody
+  // is asked these before they have: there is nobody yet to read the answers.
+  if (scope.type === "everybody") return ranked.length > 0;
   if (scope.type === "kind") return ranked.some((programme) => programme.kind === scope.kind);
   return ranked.some((programme) => programme.id === scope.programmeId);
 }
 
-/** The question sets in the form's own order. A set with no questions asks nothing. */
+/**
+ * A list of sets with the one for everybody first, and the rest as they were.
+ *
+ * WHERE THAT SET IS ASKED IS A RULE, NOT A PLACE IN A STORED LIST. The form's
+ * own order puts it first when it is made, and every reader that orders sets
+ * goes through this as well, so a stored order that says otherwise changes
+ * nothing anybody is shown.
+ */
+export function everybodyFirst<S extends Pick<QuestionSetDoc, "scope">>(sets: readonly S[]): S[] {
+  return [
+    ...sets.filter((set) => set.scope.type === "everybody"),
+    ...sets.filter((set) => set.scope.type !== "everybody"),
+  ];
+}
+
+/**
+ * The question sets in the order the form asks them: the set for everybody,
+ * then the form's own order. A set with no questions asks nothing.
+ */
 export function orderedSets(form: Form, sets: readonly QuestionSetDoc[]): QuestionSetDoc[] {
   const byId = new Map(sets.map((set) => [set.id, set]));
   const out: QuestionSetDoc[] = [];
@@ -85,14 +107,15 @@ export function orderedSets(form: Form, sets: readonly QuestionSetDoc[]): Questi
     const set = byId.get(id);
     if (set && set.questions.length > 0) out.push(set);
   }
-  return out;
+  return everybodyFirst(out);
 }
 
 /**
  * The sets this person is asked, in the order they are asked them.
  *
- * That is the form's order, with one exception: stream sets that sit next to
- * each other are asked in the order the person RANKED their programmes.
+ * That is the set for everybody and then the form's order (`orderedSets`),
+ * with one exception: stream sets that sit next to each other are asked in
+ * the order the person RANKED their programmes.
  * Somebody who put AGI Strategy first answers its questions before Technical
  * AI Safety's, whichever the committee happened to list first.
  */

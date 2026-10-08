@@ -17,6 +17,7 @@ import {
   APPLICATION_LIMITS,
   APPLICATION_RESULT_KINDS,
   FORM_VERSION,
+  NEVER_SCORED_TYPES,
   POOL_REASONS,
   PROGRAMME_DECISION_KINDS,
   PROGRAMME_EMAIL_KINDS,
@@ -263,6 +264,7 @@ export function normaliseForm(id: string, data: unknown): ApplicationForm {
 
 function asScope(v: unknown): QuestionSetScope | null {
   const raw = asRecord(v);
+  if (raw.type === "everybody") return { type: "everybody" };
   if (raw.type === "facilitating") return { type: "facilitating" };
   if (raw.type === "kind" && PROGRAMME_KINDS.includes(raw.kind as ProgrammeKind)) {
     return { type: "kind", kind: raw.kind as ProgrammeKind };
@@ -280,7 +282,7 @@ export function normaliseQuestion(v: unknown): ApplicationQuestion | null {
   const type = QUESTION_TYPES.includes(raw.type as QuestionType)
     ? (raw.type as QuestionType)
     : "long";
-  const takesOptions = type === "choice" || type === "multi" || type === "scale";
+  const takesOptions = type === "choice" || type === "multi" || type === "scale" || type === "rank";
   const options: string[] = [];
   if (takesOptions && Array.isArray(raw.options)) {
     for (const option of raw.options) {
@@ -299,7 +301,8 @@ export function normaliseQuestion(v: unknown): ApplicationQuestion | null {
     optionsFromRanking: type === "choice" && bool(raw.optionsFromRanking),
     wordLimit: isText ? intIn(raw.wordLimit, 1, L.maxWordLimit) : null,
     required: bool(raw.required),
-    scored: bool(raw.scored),
+    // A type nobody scores is not scored, whatever the stored question says.
+    scored: bool(raw.scored) && !NEVER_SCORED_TYPES.includes(type),
   };
 }
 
@@ -314,12 +317,13 @@ export function normaliseQuestionSet(id: string, data: unknown): QuestionSetDoc 
   if (!isId(id) || !scope) return null;
   const L = APPLICATION_LIMITS;
   // The role follows from the scope wherever the scope decides it, so a
-  // stored pair that disagrees cannot make a general set scorable.
+  // stored pair that disagrees cannot make a general set scorable. That
+  // covers both general scopes: a kind of programme, and everybody.
   const storedRole = raw.role as QuestionSetRole;
   const role: QuestionSetRole =
     scope.type === "facilitating"
       ? "facilitator"
-      : scope.type === "kind"
+      : scope.type === "kind" || scope.type === "everybody"
         ? "general"
         : QUESTION_SET_ROLES.includes(storedRole) && storedRole !== "facilitator"
           ? storedRole
@@ -342,6 +346,9 @@ export function normaliseQuestionSet(id: string, data: unknown): QuestionSetDoc 
     scope,
     label: str(raw.label, L.setLabel),
     intro: str(raw.intro, L.setIntro),
+    // Read from its own field and from no other: a set stored before the
+    // line existed has none, whatever its note for admins says.
+    applicantLine: str(raw.applicantLine, L.setApplicantLine),
     questions,
     createdAt: tsToDate(raw.createdAt),
     updatedAt: tsToDate(raw.updatedAt),
@@ -380,7 +387,13 @@ function asAboutYou(v: unknown): AboutYou {
   };
 }
 
-/** One stored answer, or undefined when it is not a shape this system writes. */
+/**
+ * One stored answer, or undefined when it is not a shape this system writes.
+ *
+ * A list is read in the order it was stored, with a repeat left out. That is
+ * the whole of what a ranking needs from the reader: its order is the
+ * person's, and no option is in it twice.
+ */
 function asAnswer(v: unknown): AnswerValue | undefined {
   const L = APPLICATION_LIMITS;
   if (typeof v === "string") return v.slice(0, L.longAnswerChars);

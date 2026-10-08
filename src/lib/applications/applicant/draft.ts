@@ -34,8 +34,9 @@ import { hasOwn, isSafeKey, own } from "./keys";
  *    it in words, and then checks the result against the open list again.
  *  - An answer is to a question on this form, and is the kind of value that
  *    question collects: text for a text question, one of the options for a
- *    choice, a point that exists on the scale. Anything else is dropped, so a
- *    stored draft never holds a value the send would have no way to read.
+ *    choice, a point that exists on the scale, the question's own options in
+ *    the person's order for a ranking. Anything else is dropped, so a stored
+ *    draft never holds a value the send would have no way to read.
  *  - "What do you do at UoN?" is one of the answers the site offers, or blank.
  *  - The availability grid's geometry is the FORM'S. Only the painted days
  *    are taken from the request. A request that brought its own start time
@@ -86,31 +87,52 @@ export function rankingOnForm(
   return out;
 }
 
-/** One answer, cleaned for the question it answers, or undefined when it is not an answer to it. */
+/**
+ * One answer, cleaned for the question it answers, or null when it is not an
+ * answer to it.
+ *
+ * EVERY TYPE IS NAMED. The switch has no default, so a type added to the
+ * model fails the build here until somebody says what is kept of an answer
+ * to it: no type is ever cleaned as if it were another.
+ */
 function cleanAnswer(
   question: ApplicationQuestion,
   value: AnswerValue | undefined,
   options: readonly string[],
-): AnswerValue | undefined {
+): AnswerValue | null {
   const L = APPLICATION_LIMITS;
-  if (value === undefined) return undefined;
-  if (question.type === "short" || question.type === "long") {
-    if (typeof value !== "string") return undefined;
-    const cap = question.type === "short" ? L.shortAnswerChars : L.longAnswerChars;
-    return value.slice(0, cap);
+  if (value === undefined) return null;
+  switch (question.type) {
+    case "short":
+    case "long": {
+      if (typeof value !== "string") return null;
+      const cap = question.type === "short" ? L.shortAnswerChars : L.longAnswerChars;
+      return value.slice(0, cap);
+    }
+    case "choice":
+      return typeof value === "string" && options.includes(value) ? value : null;
+    case "multi":
+      if (!Array.isArray(value)) return null;
+      // In the question's own order, so two saves of the same ticks store the same list.
+      return options.filter((option) => value.includes(option));
+    case "rank": {
+      if (!Array.isArray(value)) return null;
+      // In the PERSON'S order, which is the answer. Whatever is not one of
+      // the question's options is left out, and so is a second placing of
+      // one, so nothing stored can name an option twice or one the question
+      // never had.
+      const placed: string[] = [];
+      for (const item of value) {
+        if (options.includes(item) && !placed.includes(item)) placed.push(item);
+      }
+      return placed;
+    }
+    case "scale":
+      // The index of a point on it.
+      return typeof value === "number" && Number.isInteger(value) && value >= 0 && value < options.length
+        ? value
+        : null;
   }
-  if (question.type === "choice") {
-    return typeof value === "string" && options.includes(value) ? value : undefined;
-  }
-  if (question.type === "multi") {
-    if (!Array.isArray(value)) return undefined;
-    // In the question's own order, so two saves of the same ticks store the same list.
-    return options.filter((option) => value.includes(option));
-  }
-  // scale: the index of a point on it.
-  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value < options.length
-    ? value
-    : undefined;
 }
 
 function cleanAnswers(
@@ -130,7 +152,7 @@ function cleanAnswers(
     for (const question of set.questions) {
       if (!isSafeKey(question.id)) continue;
       const cleaned = cleanAnswer(question, own(answers, question.id), optionsFor(question, form, ranking));
-      if (cleaned !== undefined) kept[question.id] = cleaned;
+      if (cleaned !== null) kept[question.id] = cleaned;
     }
     out[set.id] = kept;
   }

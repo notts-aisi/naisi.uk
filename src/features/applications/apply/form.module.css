@@ -277,6 +277,8 @@
   font-size: 17px;
   line-height: 1.55;
   text-wrap: pretty;
+  /* A set's own line can hold an address, which has no space to break at. */
+  overflow-wrap: anywhere;
 }
 
 .lede + .lede {
@@ -420,6 +422,8 @@
   color: var(--color-text-muted);
   font-size: 14px;
   line-height: 1.45;
+  /* A help line can hold an address, which has no space to break at. */
+  overflow-wrap: anywhere;
 }
 
 .helpBelow {

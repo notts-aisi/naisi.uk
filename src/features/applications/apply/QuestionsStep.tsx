@@ -1,9 +1,16 @@
 "use client";
 
-import { APPLICATION_LIMITS, type AnswerValue, type QuestionSetDoc } from "@/lib/applications/model";
+import { Fragment, type ReactElement } from "react";
+import {
+  APPLICATION_LIMITS,
+  type AnswerValue,
+  type ApplicationQuestion,
+  type QuestionSetDoc,
+} from "@/lib/applications/model";
 import { answerProblem } from "@/lib/applications/validate";
 import { own } from "@/lib/applications/applicant/keys";
 import { ChipChoices, ChoicePair, ChoiceRows, LongText, ScalePoints, TextField } from "./fields";
+import RankQuestion from "./RankQuestion";
 import styles from "./form.module.css";
 
 /**
@@ -15,6 +22,8 @@ import styles from "./form.module.css";
  *   choice  one of several: two short options sit side by side, more take a
  *           row each
  *   multi   as many as apply, as chips
+ *   rank    the options to tick, and the ticked ones as a list to put in
+ *           order (`RankQuestion`)
  *   scale   labelled points, lowest first
  *
  * Every question says when it is optional and shows its limit. What is wrong
@@ -25,6 +34,104 @@ import styles from "./form.module.css";
 
 /** Two options this short read as a pair of buttons, not as a list. */
 const PAIR_MAX_CHARS = 12;
+
+/**
+ * The control one question is answered with.
+ *
+ * EVERY TYPE IS NAMED. The switch has no default, so a type added to the
+ * model fails the build here until it has a control of its own: no question
+ * is ever drawn as another kind of question.
+ */
+function controlFor(
+  question: ApplicationQuestion,
+  value: AnswerValue | undefined,
+  options: string[],
+  problem: string | null,
+  onAnswer: (value: AnswerValue) => void,
+): ReactElement {
+  const optional = !question.required;
+  const help = question.help || undefined;
+  switch (question.type) {
+    case "short":
+      return (
+        <TextField
+          label={question.text}
+          optional={optional}
+          first={typeof value === "string" ? value : ""}
+          onChange={onAnswer}
+          maxLength={APPLICATION_LIMITS.shortAnswerChars}
+          wordLimit={question.wordLimit}
+          help={help}
+          error={problem}
+        />
+      );
+    case "long":
+      return (
+        <LongText
+          label={question.text}
+          optional={optional}
+          help={help}
+          first={typeof value === "string" ? value : ""}
+          onChange={onAnswer}
+          wordLimit={question.wordLimit}
+          maxLength={APPLICATION_LIMITS.longAnswerChars}
+          error={problem}
+        />
+      );
+    case "choice": {
+      const chosen = typeof value === "string" && options.includes(value) ? value : null;
+      const pair = options.length === 2 && options.every((option) => option.length <= PAIR_MAX_CHARS);
+      const Choice = pair ? ChoicePair : ChoiceRows;
+      return (
+        <Choice
+          legend={question.text}
+          optional={optional}
+          help={help}
+          options={options}
+          value={chosen}
+          onChange={onAnswer}
+          error={problem}
+        />
+      );
+    }
+    case "multi":
+      return (
+        <ChipChoices
+          legend={question.text}
+          optional={optional}
+          help={help ?? "Pick as many as you like."}
+          options={options}
+          value={Array.isArray(value) ? value : []}
+          onChange={onAnswer}
+          error={problem}
+        />
+      );
+    case "rank":
+      return (
+        <RankQuestion
+          legend={question.text}
+          optional={optional}
+          help={help}
+          options={options}
+          value={Array.isArray(value) ? value : []}
+          onChange={onAnswer}
+          error={problem}
+        />
+      );
+    case "scale":
+      return (
+        <ScalePoints
+          legend={question.text}
+          optional={optional}
+          help={help}
+          options={options}
+          value={typeof value === "number" && value >= 0 && value < options.length ? value : null}
+          onChange={onAnswer}
+          error={problem}
+        />
+      );
+  }
+}
 
 export default function QuestionsStep({
   set,
@@ -46,81 +153,10 @@ export default function QuestionsStep({
         const options = optionsOf(question.id);
         const value = own(answers, question.id);
         const problem = showProblems ? answerProblem(question, value, options) : null;
-        const optional = !question.required;
-        const help = question.help || undefined;
-
-        if (question.type === "short") {
-          return (
-            <TextField
-              key={question.id}
-              label={question.text}
-              optional={optional}
-              first={typeof value === "string" ? value : ""}
-              onChange={(next) => onAnswer(question.id, next)}
-              maxLength={APPLICATION_LIMITS.shortAnswerChars}
-              wordLimit={question.wordLimit}
-              help={help}
-              error={problem}
-            />
-          );
-        }
-        if (question.type === "long") {
-          return (
-            <LongText
-              key={question.id}
-              label={question.text}
-              optional={optional}
-              help={help}
-              first={typeof value === "string" ? value : ""}
-              onChange={(next) => onAnswer(question.id, next)}
-              wordLimit={question.wordLimit}
-              maxLength={APPLICATION_LIMITS.longAnswerChars}
-              error={problem}
-            />
-          );
-        }
-        if (question.type === "choice") {
-          const chosen = typeof value === "string" && options.includes(value) ? value : null;
-          const pair = options.length === 2 && options.every((option) => option.length <= PAIR_MAX_CHARS);
-          const Choice = pair ? ChoicePair : ChoiceRows;
-          return (
-            <Choice
-              key={question.id}
-              legend={question.text}
-              optional={optional}
-              help={help}
-              options={options}
-              value={chosen}
-              onChange={(next) => onAnswer(question.id, next)}
-              error={problem}
-            />
-          );
-        }
-        if (question.type === "multi") {
-          return (
-            <ChipChoices
-              key={question.id}
-              legend={question.text}
-              optional={optional}
-              help={help ?? "Pick as many as you like."}
-              options={options}
-              value={Array.isArray(value) ? value : []}
-              onChange={(next) => onAnswer(question.id, next)}
-              error={problem}
-            />
-          );
-        }
         return (
-          <ScalePoints
-            key={question.id}
-            legend={question.text}
-            optional={optional}
-            help={help}
-            options={options}
-            value={typeof value === "number" && value >= 0 && value < options.length ? value : null}
-            onChange={(next) => onAnswer(question.id, next)}
-            error={problem}
-          />
+          <Fragment key={question.id}>
+            {controlFor(question, value, options, problem, (next) => onAnswer(question.id, next))}
+          </Fragment>
         );
       })}
     </div>

@@ -31,6 +31,20 @@ export function choiceLabel(n: number): string {
   return `${ordinal(n)} choice`;
 }
 
+/**
+ * An author's own name for a set of questions, as a screen calls the set:
+ * "Shared" reads "Shared questions", and a name that already says it is
+ * questions ("A few questions for everyone") is left exactly as it is.
+ *
+ * For the set asked of everybody, whose name is only ever its author's. The
+ * applicant's step, the review screen and a programme's settings all name it
+ * through this, so the three cannot come to call it different things.
+ */
+export function namedAsQuestions(label: string): string {
+  const name = label.trim();
+  return /(^|[^a-z])questions?([^a-z]|$)/i.test(name) ? name : `${name} questions`;
+}
+
 /** Where one application stands with one programme, as a lead sees it. */
 export type ProgrammeStanding = "to-review" | "accepted" | "pooled" | "declined";
 

@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNo
 import MemberText from "@/components/ui/MemberText";
 import kit from "@/features/applications/kit/kit.module.css";
 import { own } from "@/lib/applications/keys";
+import type { QuestionType } from "@/lib/applications/model";
 import type {
   AnswerBody as AnswerBodyView,
   AnswerView,
@@ -279,8 +280,23 @@ export function EarlierEntry({ sentOn, children }: { sentOn: string | null; chil
   );
 }
 
-function AnswerBody({ answer }: { answer: AnswerBodyView }) {
+/**
+ * One answer, as it stands or as an earlier version held it. `type` is the
+ * question's, which says what a list of options is: the ticks of "several
+ * choices", or the order somebody put them in.
+ */
+function AnswerBody({ answer, type }: { answer: AnswerBodyView; type: QuestionType }) {
   if (!answer.answered) return <p className={styles.noAnswer}>No answer.</p>;
+  if (answer.items && type === "rank") {
+    // The order is the answer, so it is drawn as one: a numbered list, first choice first.
+    return (
+      <ol className={styles.ranked}>
+        {answer.items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ol>
+    );
+  }
   if (answer.items) {
     return (
       <ul className={styles.picked}>
@@ -313,14 +329,14 @@ function Answer({ answer, actions }: { answer: AnswerView; actions: AnswerAction
         {answer.question}
         {answer.optional ? <span className={styles.optional}> (optional)</span> : null}
       </h3>
-      <AnswerBody answer={answer} />
+      <AnswerBody answer={answer} type={answer.type} />
       {answer.changedSinceScored ? (
         <p className={styles.changedNote}>{answer.changedSinceScored}</p>
       ) : null}
       <Earlier count={answer.earlier.length}>
         {answer.earlier.map((entry, at) => (
           <EarlierEntry key={at} sentOn={entry.sentOn}>
-            <AnswerBody answer={entry} />
+            <AnswerBody answer={entry} type={answer.type} />
           </EarlierEntry>
         ))}
       </Earlier>

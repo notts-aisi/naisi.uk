@@ -3,6 +3,7 @@ import type { ProgrammeSettings, QuestionSetDoc } from "@/lib/applications/model
 import { isId } from "@/lib/applications/normalise";
 import type { FormStep } from "@/lib/applications/sections";
 import type { Issue } from "@/lib/applications/validate";
+import { namedAsQuestions } from "@/lib/applications/words";
 
 /**
  * WHAT EACH STEP IS CALLED.
@@ -17,7 +18,8 @@ import type { Issue } from "@/lib/applications/validate";
  * exist this term, so a set the committee adds next term reads properly
  * without a change here:
  *
- *  - a general set is named for its kind ("Fellowship questions");
+ *  - the set for everybody is named by its author, and by nobody else;
+ *  - a general set for a kind is named for its kind ("Fellowship questions");
  *  - a stream set is named for itself ("AGI Strategy questions");
  *  - the facilitator set is "Facilitator questions", under the heading
  *    "Facilitating".
@@ -55,6 +57,9 @@ export function setStepLabel(set: SetLike): string {
   if (set.scope.type === "kind") {
     return set.scope.kind === "incubator" ? "Incubator questions" : "Fellowship questions";
   }
+  // The author's own words: "A few questions for everyone" is left as it is,
+  // and "Shared" reads "Shared questions", as a stream's name does.
+  if (set.scope.type === "everybody") return namedAsQuestions(set.label);
   return endsInQuestions(set.label) ? set.label : `${set.label} questions`;
 }
 
@@ -70,6 +75,8 @@ export function setChangeLabel(set: SetLike): string {
   if (set.scope.type === "kind") {
     return set.scope.kind === "incubator" ? "incubator answers" : "fellowship answers";
   }
+  // "Change your answers to A few questions for everyone".
+  if (set.scope.type === "everybody") return `answers to ${set.label}`;
   return `${set.label} answers`;
 }
 
@@ -78,7 +85,8 @@ export type SetChip = { text: string; tone: "accent" | "neutral" };
 /**
  * The small label beside a set's heading, when there is something to say:
  * a general fellowship set is asked once for every fellowship on the form,
- * and an incubator's stream is the one running this term.
+ * and an incubator's stream is the one running this term. The set for
+ * everybody has none: its heading is its author's, and says what it is.
  */
 export function setChip(set: SetLike, programmes: readonly Named[]): SetChip | null {
   if (set.scope.type === "kind" && set.scope.kind === "fellowship") {

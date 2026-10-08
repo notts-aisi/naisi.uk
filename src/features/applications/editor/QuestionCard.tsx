@@ -10,9 +10,10 @@ import {
   type QuestionType,
 } from "@/lib/applications/model";
 import { QUESTION_TYPE_LABEL, questionChips } from "@/lib/applications/editor/sets";
+import { LINKS_HINT } from "@/lib/applications/linkedText";
 import { Chip, MoreMenu, Tick } from "./controls";
 import { CloseIcon, GripIcon, PlusIcon } from "./Icons";
-import { takesOptions, takesWordLimit, type LocalQuestion } from "./questionModel";
+import { canBeScored, takesOptions, takesWordLimit, type LocalQuestion } from "./questionModel";
 import shared from "./editor.module.css";
 import styles from "./FormEditor.module.css";
 
@@ -37,6 +38,8 @@ type Props = {
   open: boolean;
   /** The questions are locked: nothing here can change. */
   locked: boolean;
+  /** The set's Scored switch is on. A ranking in such a set says that it is not scored. */
+  inScoredSet: boolean;
   onOpen: () => void;
   onDone: () => void;
   onChange: (patch: Partial<LocalQuestion>) => void;
@@ -103,6 +106,8 @@ export default function QuestionCard(props: Props) {
             <Chip key={chip}>{chip}</Chip>
           ))}
           {question.required ? <Chip tone="accent">Required</Chip> : <Chip>Optional</Chip>}
+          {/* In a set whose answers are scored, the one kind of question that is not says so. */}
+          {props.inScoredSet && !canBeScored(question.type) ? <Chip>Not scored</Chip> : null}
         </div>
       </div>
       {!locked && (
@@ -179,8 +184,12 @@ function QuestionFields({
           placeholder="Shown under the question"
           value={question.help}
           maxLength={L.questionHelp}
+          aria-describedby={`${ids}-help-links`}
           onChange={(event) => onChange({ help: event.target.value })}
         />
+        <p id={`${ids}-help-links`} className={shared.hint}>
+          {LINKS_HINT}
+        </p>
       </div>
 
       <div className={styles.questionRow}>
@@ -232,8 +241,18 @@ function QuestionFields({
       {withOptions && (
         <fieldset className={shared.fieldset}>
           <legend className={shared.label}>
-            {question.type === "scale" ? "Points on the scale, lowest first" : "Options"}
+            {question.type === "scale"
+              ? "Points on the scale, lowest first"
+              : question.type === "rank"
+                ? "Options to put in order"
+                : "Options"}
           </legend>
+          {question.type === "rank" && (
+            <p className={shared.hint}>
+              People tick the ones they’d like and put them in order, and can leave some out. A ranking isn’t
+              scored.
+            </p>
+          )}
           {question.type === "choice" && (
             <Tick
               label="Use the programmes they ranked, plus Either"

@@ -19,7 +19,7 @@ Use these, one way each, in code and in the interface.
 | application form | The one form for a term. Stored on an admission round. |
 | programme | A fellowship or the incubator, for one term. |
 | stream | A programme's own questions. The only questions that can be scored. |
-| question set | A group of questions shown to the people it applies to. |
+| question set | A group of questions shown to the people it applies to: everybody, a kind of programme, one programme, or people who would facilitate. |
 | rank, 1st choice | Applicants rank what they tick. `choiceNumber()` gives 1 for a 1st choice. |
 | lead | Decides one programme. |
 | reviewer | Reads, scores and comments on one programme. Cannot decide. |
@@ -426,11 +426,257 @@ says anything, because a term that was called off promises no decision day.
   programme when it starts as its lead wrote it and the run it places people
   on. Not the form's label, and not a programme's name, places or people.
 
+## What the form asks
+
+### Question sets, and who is asked each
+
+A question set's `scope` says who is shown it, and its role follows from its
+scope. `setApplies()` in `sections.ts` is the one rule.
+
+| Scope | Shown to | Role | Scored |
+| --- | --- | --- | --- |
+| `everybody` | anybody who has picked at least one programme the form carries, whatever its kind | `general` | never |
+| `kind` | anybody who has picked a programme of that kind (a fellowship, or the incubator) | `general` | never |
+| `programme` | anybody who has picked that programme | `stream` | where its questions say so and the programme uses scores |
+| `facilitating` | anybody who said yes to facilitating | `facilitator` | never |
+
+**The set for everybody is asked once, first.** Somebody who picks a
+fellowship and the incubator is asked it once, before every other set. Where
+it is asked is a rule and not a place in a stored list: `everybodyFirst()`
+puts it first, `orderedSets()` and the editor's own list both go through it,
+and `orderWithNewSet()` stores it first when it is made. Nobody is asked it
+before they have picked a programme, because until then nobody reads the
+answers.
+
+**A form has at most one.** `createSet` (`editor/write.ts`) refuses a second,
+inside the transaction that would have made it, from the sets the form
+itself lists. The editor offers the choice only while the form has none.
+Like any set it is made, renamed, edited and deleted by an admin, until
+somebody sends an application and the questions lock. Its name is its
+author's own, and `namedAsQuestions()` (`words.ts`) is how every screen says
+it: "Shared" reads "Shared questions", and a name that already says it is
+questions is left as it is.
+
+**It is never scored.** The reader gives any set with this scope the role
+`general` whatever is stored, so a scored question is refused on write and
+cleared on read, and no programme's reviewers are offered a score for one of
+its answers. A reviewer can still comment on one.
+
+**Its answers are read by everybody who may read the application, and by
+nobody else.** That is `canReadApplication()`: an admin, and the lead and
+reviewers of each programme the person ranked or joined by accepting an
+invitation. The review screen draws it as an open section, first, marked
+"Asked of everyone" and "Not scored". It is what already held for a kind's
+general set among the programmes of that kind. Nothing reaches anybody who
+could not already read the application.
+
+**Readiness.** Everybody who applies has to be asked something. A set for
+everybody with a question in it meets that for every programme at once, and
+then no kind of programme needs a general set of its own: one that is
+missing or empty asks nobody anything, like a stream with no questions.
+Without it, each kind with a programme open needs its own general set, as it
+always has. An empty set for everybody is not there.
+
+**A scope is copied by name.** Each function that copies a scope or turns
+one into a role (`scopeForApplicant`, `scopeView`, `roleForScope`,
+`familyOf`) is a switch with no default, so a scope it does not name fails
+the build. `tests/applications-set-for-everybody.test.mjs` reads the scopes
+out of `model.ts` and puts each through every copy, and runs the set through
+the editor's routes, the applicant's and the review screen's.
+
+### A set has two lines of its own
+
+Besides its name and its questions, a question set stores two lines of text.
+They are two fields, written in two boxes, and they are never one another.
+
+| | The line shown to applicants | The note for admins |
+| --- | --- | --- |
+| Field | `applicantLine` | `intro` (the name is older than what it holds) |
+| Who reads it | everybody who is asked the set | whoever edits the form: admins |
+| Sent to an applicant | yes, with the set | never |
+| Drawn | under the set's heading on its step, before its first question | in the editor only |
+| Links | an `https://` address and `[words](https://address)`, as in a help line | none: it is shown as typed |
+| Limit | `APPLICATION_LIMITS.setApplicantLine` characters, as typed | `APPLICATION_LIMITS.setIntro` characters |
+| Which sets | every kind, the set for everybody included | every kind |
+
+**Each is read from its own field and from no other.** The reader
+(`normaliseQuestionSet`) gives a set stored before the line existed an empty
+line, whatever its note says. The applicant's projection
+(`projectQuestionSetForApplicant`) sends `applicantLine` and does not name
+`intro`, so the note is not a field of what an applicant is sent, and it
+does not stand in for a line that is empty. `SetLine`
+(`src/features/applications/apply/SetLine.tsx`) draws the line and reads
+nothing else of the set.
+
+**Writing it.** Both go through the route that changes a set
+(`changeSet`, `PATCH .../sets/[setId]`), each under its own name, and each
+is refused under its own name when it is over its limit. A new set starts
+with neither. Like the set's name and questions, both are an admin's, and
+both lock once somebody has sent an application: the line is part of what
+that person was shown. In the editor they are the two boxes under More, then
+Rename: "Line shown to applicants" and "Note for admins".
+
+**Where the line shown to applicants is drawn.**
+
+| Where | Drawn | Why |
+| --- | --- | --- |
+| The applicant's form, on the set's step | yes, through `LinkedText` | it says how to fill that step in |
+| "Preview as an applicant", from the editor | yes | it is the form itself, in a new tab |
+| The form's last step, where the answers are checked | no | it lists answers under each set's name, and the line is not an answer |
+| An applicant's page after sending | no | it lists no questions |
+| The review screen | no | reviewers are shown the questions and the answers; the payload does not carry the line |
+| What an application said before | no | a kept version holds what the person sent, and the line is the form's |
+
+`tests/applications-set-line-for-applicants.test.mjs` holds each of these: it
+writes both lines through the editor's route on every kind of set, reads
+what the applicant's route and the review screen's then send, renders the
+component, and reads the editor's two boxes out of the source.
+
+### A question that asks for an order
+
+A question's type is one of `short`, `long`, `choice`, `multi`, `scale` and
+`rank`. A `rank` question's options are the things to put in order, two to
+ten of them. The answer is the options the person placed, in their order:
+each one of the question's own, none of them twice. They may place as many
+as they like, and what they leave out is simply not in the answer. A required
+ranking needs a first choice and nothing more.
+
+**Stored as "several choices" is.** A list of option texts on the
+application, so no rule and no stored shape changes: every collection here is
+closed to browsers, and a list of option texts is a shape the routes already
+wrote. The difference is the order. For `multi` the list is kept in the
+question's own order. For `rank` it is kept in the person's, which is the
+answer: the first entry is their first choice.
+
+**A save cleans and a send checks.** `cleanContent` (`applicant/draft.ts`)
+keeps only the question's own options, each once, in the order given, so
+nothing stored can name an option twice or one the question never had. The
+send reads the stored draft through the same clean-up and then
+`answerProblem` (`validate.ts`), which refuses in words: "Pick at least a
+first choice.", "Pick from the options.", "Put each one in your order once."
+
+**Never scored.** `NEVER_SCORED_TYPES` in `model.ts` is the list, and it
+holds `rank`. A ranking is an order somebody gave, not a piece of writing, so
+there is nothing in it to give 1 to 5. The reader clears the flag whatever is
+stored, the editor's route stores the question unscored whatever was sent,
+and the editor never sends one. In a set whose Scored switch is on, the
+switch passes a ranking by and its card says "Not scored". A reviewer can
+still comment on it.
+
+**One ranking control.** `RankList`
+(`src/features/applications/apply/RankList.tsx`) is the form's one list that
+somebody puts in order. The Rank step draws the programmes a person ticked
+through it, and a ranking question draws the options they placed through it.
+A row moves three ways, and none needs the others: drag its handle, focus
+the handle and use the keyboard, or press its up or down button. So it works
+with a keyboard alone and on a phone. For a ranking question the options are
+tick boxes above the list (the chips "several choices" uses): ticking one
+puts it at the end of the order and unticking takes it out. On a phone a row
+that holds a sentence puts its two buttons under its name.
+
+**How it is shown afterwards.** The review screen draws a ranking as a
+numbered list, first choice first. What it is sent is the same field
+"several choices" uses (`items`), and the question's `type` says which of
+the two it is. The form's last step says the order in words ("1. Evals, 2.
+Governance"). The same options in another order are another answer: the
+applicant's page says they have changed something they have not sent, a send
+keeps what it said before, and the review screen shows the earlier order
+under the current one.
+
+**When an author changes the options.** A ranking does what "pick one" and
+"several choices" do. Once anybody has sent an application the questions are
+locked, so nothing changes under an answer of record. Before that, only
+drafts exist, and nothing writes to a draft but its owner: it says what it
+said until their next save or send, which keeps what is still an option (a
+ranking closes up in the person's order, "several choices" keep the ticks
+that are left, and a "pick one" whose option has gone reads as not
+answered). The form shows only what is still an option, and asks for the
+answer again once they press Send.
+
+**Every type is named wherever a type decides.** `answerProblem`,
+`cleanAnswer` and the form's `controlFor` are each a switch with no default,
+so a type they do not name fails the build: no type is ever checked, cleaned
+or drawn as another. A question's options come from the programmes somebody
+ranked only for a "pick one" (`optionsFor`).
+`tests/applications-rank-question.test.mjs` reads the types out of
+`model.ts` and runs each through all three, and runs a ranking through the
+editor's routes, the applicant's and the review screen's.
+
+### A help line can carry a link
+
+A question's help line is plain text. An author types it, and an applicant
+reads it under the question. A set's line shown to applicants is the same
+kind of text, read under the set's heading, and everything below holds for
+it too. Two shapes in such a line are drawn as a link, and nothing else in
+it is ever markup:
+
+- an address that begins `https://`, written out where it stands;
+- `[words](https://address)`, which shows the words.
+
+**One function and one component.** `linkedParts()` in `linkedText.ts` splits
+a line into the parts that are text and the parts that are links.
+`LinkedText` (`src/features/applications/kit/LinkedText.tsx`) draws them: a
+text part as a text node and a link part as an anchor that opens in a new
+tab with `rel="noopener noreferrer"`. Nothing is set as HTML. What a reader
+sees is the words, or the address itself.
+
+**Only `https:`.** Every other way of writing an address stays text exactly
+as it was typed: `http:`, `javascript:`, `data:`, `mailto:`, an address with
+no scheme, a path on this site. The scheme is read whatever its letter case.
+
+**An address is on a named site, in plain characters.** Letters, digits,
+hyphens and dots, ending in a name, with nothing before it: no name and
+password, no number written as a site, and no character that only looks like
+a letter. An address that fails this is not cut down to the part that
+passes. The whole of it stays text, so no link goes anywhere but the address
+a reader was shown.
+
+**Where a bare address starts and stops.** It starts at the beginning of the
+line, or after white space or an opening bracket or quote mark. It stops at
+white space, a control character, a square bracket, `<`, `>` or `"`. A full
+stop or a comma at its end belongs to the sentence, and so does a closing
+bracket the address did not open.
+
+**The words of a link are words.** `[words](address)` is a link only when
+the words say something, carry no control or hidden direction character, and
+name no site of their own other than the one the link goes to. Words that
+read `example.org` over an address somewhere else are left as text, and each
+address there that can stand by itself is linked to itself.
+
+**The limit counts what was typed.** A help line is at most
+`APPLICATION_LIMITS.questionHelp` characters and a set's line shown to
+applicants at most `APPLICATION_LIMITS.setApplicantLine`, brackets and
+address included.
+
+**Two places draw one.** `HelpLine` in the form's `fields.tsx` draws a help
+line and `SetLine` draws a set's line, both through `LinkedText`, and no
+other file under the form's folders uses the component. The editor shows
+either as typed, in its box.
+
+**Where a help line is drawn.**
+
+| Where | How | Why |
+| --- | --- | --- |
+| The applicant's form, under each question | through `LinkedText` | it is where the line is read and followed |
+| "Preview as an applicant", from the editor | through `LinkedText` | it is the form itself, in a new tab |
+| The editor's own Help text box | as typed, in the box | it is where the line is written. One sentence under the box says what becomes a link (`LINKS_HINT`), and a test runs that sentence's example through the function |
+| The review screen | not drawn | reviewers are shown the question and the answer, not the help line |
+| An applicant's page after sending | not drawn | it lists no questions |
+
+`tests/applications-linked-text.test.mjs` runs the function against a table
+of hostile input, renders the component and the form's own step over the
+same table, and reads every `href` under the form's folders out of the
+source. An address written out in full, or built on a fixed path of this
+site, is what it says. Every other is on a list in that test with what it is
+built from, and one entry there is made from what an author typed: the
+component's.
+
 ## Scores
 
 Scoring is per answer, 1 to 5, and optional per programme (`useScores`). Only a
 stream set's questions can carry `scored`; the flag is cleared on read anywhere
-else.
+else, the set asked of everybody included. A ranking is never scored, in any
+set (`NEVER_SCORED_TYPES`).
 
 - A reviewer's score for a programme is the mean of what they gave its answers.
 - The section score is the mean of the reviewers' scores, one voice each.
@@ -895,12 +1141,13 @@ All in `src/lib/applications/`.
 | `model.ts` | Types, limits, `questionKey()`, `applicationId()` | anywhere |
 | `keys.ts` | What an id is, and `own()`, the one way a map is read by one | anywhere |
 | `normalise.ts` | Reads stored documents into the model's shapes. Never throws. | anywhere |
-| `sections.ts` | Which steps and question sets one person sees | anywhere |
-| `validate.ts` | What stops a send; what is copied into `sent`; word counts | anywhere |
+| `sections.ts` | Which steps and question sets one person sees, and in what order | anywhere |
+| `validate.ts` | What stops a send; what a good answer to each type of question is; what is copied into `sent`; word counts | anywhere |
 | `versions/kept.ts` | What a send keeps of the application it replaces: what counts as a change, the cap, how the versions are read | anywhere |
 | `scoring.ts` | Scored questions, section scores, first-review blindness | anywhere |
 | `decisions.ts` | Placement, outcomes, who is in the term, who holds a place, tallies, readiness, recommendations | anywhere |
-| `words.ts` | Labels, ordinals, the words applicants never see | anywhere |
+| `words.ts` | Labels, ordinals, how a set its author named is called, the words applicants never see | anywhere |
+| `linkedText.ts` | Which parts of an author's line are links: `linkedParts()`, and the sentence the editor shows about it | anywhere |
 | `access.ts` | Staff predicates | server |
 | `roles.ts` | `setProgrammeRoles`, the one writer of leads and reviewers | server |
 | `repo.ts` | The form, its sets, the caller's own application | server, applicant-safe |
@@ -955,6 +1202,17 @@ All in `src/lib/applications/`.
   `tests/applications-su-membership-answer.test.mjs` only once both of those
   still hold, and the privacy page's own list
   (`tests/privacy-policy.test.mjs`) with it.
+- **Stored text becomes an address in one place.** A line an author wrote is
+  drawn with its links through `LinkedText`, and nothing else under the
+  form's folders makes an `href` out of text an author or an applicant
+  typed. A new `href` that is not written out in full is added to the list
+  in `tests/applications-linked-text.test.mjs` with what it is built from.
+  Nothing there is set as HTML.
+- **A set's note for admins is not an applicant's to read.** A set has two
+  lines, `applicantLine` and `intro`, and only the first is sent to an
+  applicant. Nothing that builds what an applicant is sent, and nothing the
+  form draws, reads `intro` or falls back on it. A new line or label for
+  applicants gets a field of its own.
 - **No query that sorts or ranges on the server.** Every read here is one or
   two equalities, which need no composite index. A term is a few hundred
   documents: filter and sort in memory.

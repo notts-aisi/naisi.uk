@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import LinkedText from "@/features/applications/kit/LinkedText";
 import { countWords } from "@/lib/applications/validate";
 import { TickIcon } from "./icons";
 import styles from "./form.module.css";
@@ -20,6 +21,11 @@ import styles from "./form.module.css";
  * be reset to its first value at the moment the page came alive. `useTyped`
  * is the other half: when a box mounts already holding something its first
  * value did not, it reports it.
+ *
+ * A HELP LINE IS ITS AUTHOR'S TEXT, WITH ITS LINKS. Every field draws the
+ * line under its label through `HelpLine`, which hands it to `LinkedText`:
+ * an address that begins `https://` and `[words](https://address)` are drawn
+ * as links, and everything else as the text it is.
  */
 
 function useTyped<T extends HTMLInputElement | HTMLTextAreaElement>(
@@ -53,6 +59,15 @@ function Label({ htmlFor, children, optional }: { htmlFor: string; children: Rea
 function describedBy(...ids: (string | false | null | undefined)[]): string | undefined {
   const kept = ids.filter(Boolean);
   return kept.length > 0 ? kept.join(" ") : undefined;
+}
+
+/** The line between a label and its control: what the author wrote, with any link in it. */
+function HelpLine({ id, text }: { id: string; text: string }) {
+  return (
+    <p id={id} className={styles.help}>
+      <LinkedText text={text} linkClassName={styles.inlineLink} />
+    </p>
+  );
 }
 
 export function TextField({
@@ -127,11 +142,7 @@ export function TextField({
       <Label htmlFor={id} optional={optional}>
         {label}
       </Label>
-      {help ? (
-        <p id={`${id}-t`} className={styles.help}>
-          {help}
-        </p>
-      ) : null}
+      {help ? <HelpLine id={`${id}-t`} text={help} /> : null}
       {adornment ? (
         <div className={styles.adorned}>
           {input}
@@ -198,11 +209,7 @@ export function LongText({
       <Label htmlFor={id} optional={optional}>
         {label}
       </Label>
-      {help ? (
-        <p id={`${id}-h`} className={styles.help}>
-          {help}
-        </p>
-      ) : null}
+      {help ? <HelpLine id={`${id}-h`} text={help} /> : null}
       <textarea
         ref={ref}
         id={id}
@@ -230,7 +237,8 @@ export function LongText({
   );
 }
 
-function Group({
+/** A question that is a group of controls: its legend, its help line, what is wrong with the answer. */
+export function Group({
   legend,
   help,
   optional,
@@ -250,11 +258,7 @@ function Group({
         {legend}
         {optional ? <span className={styles.optional}> (optional)</span> : null}
       </legend>
-      {help ? (
-        <p id={`${id}-h`} className={styles.help}>
-          {help}
-        </p>
-      ) : null}
+      {help ? <HelpLine id={`${id}-h`} text={help} /> : null}
       {children}
       {error ? (
         <p id={`${id}-e`} className={styles.error}>
@@ -364,6 +368,35 @@ export function ScalePoints({
   );
 }
 
+/**
+ * Tick boxes drawn as chips. The caller says which are on and what a press
+ * does, so "several choices" and a ranking tick their options the same way.
+ */
+export function Chips({
+  options,
+  isOn,
+  onToggle,
+}: {
+  options: readonly string[];
+  isOn: (option: string) => boolean;
+  onToggle: (option: string) => void;
+}) {
+  return (
+    <div className={styles.chips}>
+      {options.map((option) => {
+        const on = isOn(option);
+        return (
+          <label key={option} className={styles.chipOption} data-on={on ? "true" : "false"}>
+            <input type="checkbox" className={styles.native} checked={on} onChange={() => onToggle(option)} />
+            {on ? <TickIcon className={styles.tick} /> : null}
+            <span>{option}</span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 /** As many as apply, as chips. */
 export function ChipChoices({
   legend,
@@ -376,26 +409,14 @@ export function ChipChoices({
 }: Omit<ChoiceProps, "value" | "onChange"> & { value: readonly string[]; onChange: (next: string[]) => void }) {
   return (
     <Group legend={legend} help={help} optional={optional} error={error}>
-      <div className={styles.chips}>
-        {options.map((option) => {
-          const on = value.includes(option);
-          return (
-            <label key={option} className={styles.chipOption} data-on={on ? "true" : "false"}>
-              <input
-                type="checkbox"
-                className={styles.native}
-                checked={on}
-                onChange={() =>
-                  // Kept in the question's own order, whichever was ticked first.
-                  onChange(options.filter((each) => (each === option ? !on : value.includes(each))))
-                }
-              />
-              {on ? <TickIcon className={styles.tick} /> : null}
-              <span>{option}</span>
-            </label>
-          );
-        })}
-      </div>
+      <Chips
+        options={options}
+        isOn={(option) => value.includes(option)}
+        onToggle={(option) =>
+          // Kept in the question's own order, whichever was ticked first.
+          onChange(options.filter((each) => (each === option ? !value.includes(option) : value.includes(each))))
+        }
+      />
     </Group>
   );
 }

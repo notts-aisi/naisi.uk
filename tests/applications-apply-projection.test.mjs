@@ -350,7 +350,13 @@ describe("a question set, as it is asked", () => {
   });
 
   test("it is exactly these fields", () => {
-    assert.deepEqual(keys(projected), ["id", "label", "questions", "role", "scope"]);
+    // `applicantLine` is the line a set's author wrote FOR applicants, drawn
+    // under the set's heading. It is a field of its own. The set's other
+    // line, the note for admins (`intro`), is still not sent: the test above
+    // holds that word, and the note's own marked text, out of the whole
+    // payload, this field included. That the line sent is never the note is
+    // held in `applications-set-line-for-applicants.test.mjs`.
+    assert.deepEqual(keys(projected), ["applicantLine", "id", "label", "questions", "role", "scope"]);
     for (const question of projected.questions) {
       assert.deepEqual(keys(question), [
         "help",
