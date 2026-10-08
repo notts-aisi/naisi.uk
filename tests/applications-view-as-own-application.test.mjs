@@ -35,7 +35,7 @@
  * held to the check, and each entry is read out of the source.
  *
  * THE SCREENS AND THE ROUTES, run for real against a small term: the two
- * handlers, and the four server components, each drawn to HTML for a member,
+ * handlers, and the five server components, each drawn to HTML for a member,
  * for an admin viewing as that member, and for an admin with a marker left
  * over.
  *
