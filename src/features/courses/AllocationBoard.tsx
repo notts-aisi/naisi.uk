@@ -288,9 +288,14 @@ function PersonCardBody({
     <>
       <div className={styles.cardHead}>
         <span className={styles.name}>{row.displayName || "Applicant"}</span>
-        <Badge tone={row.paidMembership ? "success" : "warning"}>
-          {row.paidMembership ? paidLabel : "Unpaid"}
-        </Badge>
+        {/* Drawn only when it is known. "Unpaid" is a statement about a
+            person, and a card that could read nothing about their membership
+            makes none. */}
+        {row.paidMembership !== null && (
+          <Badge tone={row.paidMembership ? "success" : "warning"}>
+            {row.paidMembership ? paidLabel : "Unpaid"}
+          </Badge>
+        )}
       </div>
 
       {row.enrolmentStatus === "withdrawn" || row.enrolmentStatus === "removed" ? (

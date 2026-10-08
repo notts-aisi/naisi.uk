@@ -1000,6 +1000,11 @@ order the two are joined in, and it is an admin's job from start to finish.
   admin places and an admin publishes. The run's own counts do include
   them, as numbers: the run's applications page shows a track lead "8
   accepted" above an empty list.
+- **The "Paid" or "Unpaid" badge on a card is the membership record's.** It
+  is read from the person's account when the board is drawn, against the
+  run's academic year, so it says what the membership record says that day.
+  It is not what they answered on the form about Students' Union
+  membership. A card with no badge means the account could not be read.
 - **Somebody sees their group as soon as they are put in one.** The first
   placement on the board is what makes the place on the run, so the run
   shows in that person's member area from then on, before Publish. Publish

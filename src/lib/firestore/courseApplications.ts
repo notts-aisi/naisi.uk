@@ -312,6 +312,31 @@ export function rowIsServedTo(
 }
 
 /**
+ * WHAT A ROW ITSELF KNOWS ABOUT PAID MEMBERSHIP, for a screen that could not
+ * read the person's account.
+ *
+ * The allocation board and the run's own queue draw a membership badge
+ * ("Paid 2026/27" or "Unpaid"). They read it from the person's account when
+ * the screen is drawn (`users.paidMembershipYears`, the cache the membership
+ * record's own writers keep, against the run's academic year), and they ask
+ * the row only when that account cannot be read.
+ *
+ *  - A row from the run's own form carries a snapshot taken when the person
+ *    applied (`paidMembershipAtApply`), and that is its answer.
+ *  - A row the application form wrote carries no snapshot: nothing about
+ *    membership crosses over from the form. Its answer is `null`, which is
+ *    "not known", and a screen then draws no badge at all.
+ *
+ * A screen never says "Unpaid" about somebody it knows nothing about. The
+ * field being absent is not an answer.
+ */
+export function membershipKnownFromRow(
+  row: Pick<CourseApplicationDoc, "fromForm" | "paidMembershipAtApply">,
+): boolean | null {
+  return row.fromForm === null ? row.paidMembershipAtApply : null;
+}
+
+/**
  * The whole of a row the application form's hand-over creates: who the
  * person is, that they hold a place, and where the place came from. Nothing
  * else is written, and nothing here is ever updated by the hand-over.

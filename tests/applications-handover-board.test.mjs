@@ -27,6 +27,10 @@
  *     the run's track lead and its reviewer are listed none of them, cannot
  *     place, publish, decide or annotate one, and learn nothing from a
  *     refusal. They keep everything they could do for the run's own rows.
+ *     THE MEMBERSHIP BADGE IS THE ACCOUNT'S, read when the screen is drawn,
+ *     and nothing about membership crosses over from the form. When the
+ *     account cannot be read, nothing is said about somebody from the form:
+ *     never "Unpaid" from a field their row does not carry.
  *  7. A PLACEMENT AND A PUBLISH THEN WORK with the code that was already
  *     there: the first placement makes the place on the run, and Publish
  *     tells each person once, at their account's own address.
@@ -37,6 +41,9 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   AGI,
   AGI_HOLDERS,
@@ -53,6 +60,7 @@ import {
   names,
   short,
 } from "./lib/handoverWorld.mjs";
+import { stripSource } from "./lib/stripSource.mjs";
 
 const made = makeWorld();
 const { world, reset, call, everything } = made;
@@ -241,6 +249,89 @@ describe("6. the allocation board", () => {
       assert.deepEqual([run().applicationCounts.accepted, run().applicationCounts.rejected], [AGI_HOLDERS.length - 1, 1]);
       assert.ok(!(await board()).body.people.some((row) => row.uid === "tariq"));
     });
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// 6b. The membership badge
+// ---------------------------------------------------------------------------
+
+describe("6b. what the board and the run's own queue say about membership", () => {
+  /** Each person's badge on the board and on the run's own applications page, by uid. */
+  async function badges() {
+    const shown = (await board()).body;
+    const listed = (await queue("zach")).body;
+    return {
+      onBoard: Object.fromEntries(shown.people.map((row) => [row.uid, row.paidMembership])),
+      inQueue: Object.fromEntries(listed.applications.map((row) => [row.uid, row.paidMembership])),
+    };
+  }
+
+  /** A row from the run's own form, with the snapshot its apply route took. */
+  const ownRow = (uid, paidMembershipAtApply) => ({
+    runId: RUN.agi,
+    courseId: COURSE.agi,
+    uid,
+    displayName: CAST[uid].displayName,
+    status: "accepted",
+    availability: "",
+    paidMembershipAtApply,
+  });
+
+  test("it is the account's, read when the screen is drawn, for somebody from the form as for anybody", async () => {
+    await press();
+    // Nobody is on the membership record yet.
+    let seen = await badges();
+    for (const uid of AGI_HOLDERS) assert.deepEqual([seen.onBoard[uid], seen.inQueue[uid]], [false, false], uid);
+
+    // The membership record's own writers keep this list on the account.
+    // It is read against the run's year, so last year's says nothing here.
+    world.db.poke("users/amara", { paidMembershipYears: ["2026/27"] });
+    world.db.poke("users/dev", { paidMembershipYears: ["2025/26"] });
+    seen = await badges();
+    assert.deepEqual([seen.onBoard.amara, seen.onBoard.dev, seen.onBoard.bea], [true, false, false]);
+    assert.deepEqual([seen.inQueue.amara, seen.inQueue.dev, seen.inQueue.bea], [true, false, false]);
+    // And nothing about membership was written on the run for anybody.
+    for (const uid of AGI_HOLDERS) {
+      assert.ok(!Object.keys(world.db.read(rowPath(uid))).some((key) => /member|paid/i.test(key)), uid);
+    }
+  });
+
+  test("when the account cannot be read, nothing is said about somebody from the form", async () => {
+    await press();
+    await world.db.collection("users").doc("dev").delete();
+    const seen = await badges();
+    assert.deepEqual([seen.onBoard.dev, seen.inQueue.dev], [null, null]);
+    // They are still listed, by the name written when they were handed over.
+    const row = (await board()).body.people.find((person) => person.uid === "dev");
+    assert.equal(row.displayName, "Dev Patel");
+    // Everybody whose account is there reads theirs.
+    assert.deepEqual([seen.onBoard.amara, seen.inQueue.amara], [false, false]);
+  });
+
+  test("somebody who applied to the run itself keeps the snapshot their own application took", async () => {
+    await press();
+    world.db.seed(rowPath("nobody"), ownRow("nobody", true));
+    world.db.seed(rowPath("omar"), ownRow("omar", false));
+    for (const uid of ["nobody", "omar"]) await world.db.collection("users").doc(uid).delete();
+    const seen = await badges();
+    assert.deepEqual([seen.onBoard.nobody, seen.onBoard.omar], [true, false]);
+    assert.deepEqual([seen.inQueue.nobody, seen.inQueue.omar], [true, false]);
+  });
+
+  test("a card and a queue row draw no badge when it is not known, and never the word for it", () => {
+    const courses = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "features", "courses");
+    for (const file of ["AllocationBoard.tsx", "AdmissionsQueue.tsx"]) {
+      const code = stripSource(readFileSync(join(courses, file), "utf8"), { keepStrings: true });
+      const drawn = [...code.matchAll(/"Unpaid"/g)].length;
+      assert.equal(drawn, 1, `${file} says Unpaid in ${drawn} places`);
+      assert.match(
+        code,
+        /\{row\.paidMembership !== null && \(\s*<Badge tone=\{row\.paidMembership \? "success" : "warning"\}>\s*\{row\.paidMembership \? paidLabel : "Unpaid"\}\s*<\/Badge>\s*\)\}/,
+        `${file} draws the membership badge without asking whether it is known`,
+      );
+    }
   });
 });
 

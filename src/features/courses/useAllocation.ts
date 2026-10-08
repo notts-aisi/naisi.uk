@@ -85,8 +85,11 @@ export type AllocGroup = {
 export type AllocRow = {
   uid: string;
   displayName: string;
-  /** Paid-membership badge. Context for the allocator, never a gate. */
-  paidMembership: boolean;
+  /**
+   * Paid-membership badge. Context for the allocator, never a gate. `null`
+   * when it is not known, and the card then draws no badge.
+   */
+  paidMembership: boolean | null;
   /** The session labels they ticked when applying. May be empty. */
   availability: string[];
   reviewerPreferredGroupId: string | null;

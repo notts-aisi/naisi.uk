@@ -1357,6 +1357,24 @@ who applied to the run itself is drawn from the labels they ticked, as
 before. `tests/applications-handover-board-cards.test.mjs` puts the rows
 the route sends through that function.
 
+**The membership badge is the account's, and nothing about membership
+crosses over.** The board and the run's own applications page draw "Paid
+2026/27" or "Unpaid" on a card. Both read it when the screen is drawn, from
+the person's account: `users.paidMembershipYears`, the cache the membership
+record's own writers keep (the grant and the import routes, in the same
+write as the membership row), against the run's academic year. That is the
+same read for somebody from the form as for anybody, so the badge says what
+the membership record says today. It is not the answer the form asks about
+Students' Union membership, which stays on the application and is shown to
+whoever its own rule says.
+
+Only when the account cannot be read does a screen ask the row
+(`membershipKnownFromRow` in `src/lib/firestore/courseApplications.ts`). A
+row from the run's own form answers with the snapshot its apply route took.
+A row the hand-over wrote carries none, so its answer is "not known" and no
+badge is drawn. A screen never says "Unpaid" about somebody because a field
+is absent.
+
 ### A place given back
 
 - **Before the hand-over**: they hold no place, so they are not handed

@@ -8,6 +8,7 @@ import {
 } from "@/lib/applications/handover/board";
 import type { WeekPlanEntry } from "@/lib/courses/weekPlan";
 import {
+  membershipKnownFromRow,
   normalizeCourseApplication,
   rowIsServedTo,
 } from "@/lib/firestore/courseApplications";
@@ -97,7 +98,12 @@ export type AllocGroup = {
 export type AllocRow = {
   uid: string;
   displayName: string;
-  paidMembership: boolean;
+  /**
+   * The membership badge, read from the person's account. `null` is "not
+   * known": the account could not be read and the row carries no snapshot
+   * (`membershipKnownFromRow`). A card then draws no badge.
+   */
+  paidMembership: boolean | null;
   /** The session labels the applicant ticked, split back out of storage. */
   availability: string[];
   reviewerPreferredGroupId: string | null;
@@ -388,7 +394,7 @@ export async function GET(
     return {
       uid: app.uid,
       displayName: nameByUid.get(app.uid) ?? app.displayName ?? "NAISI member",
-      paidMembership: paidByUid.get(app.uid) ?? app.paidMembershipAtApply,
+      paidMembership: paidByUid.get(app.uid) ?? membershipKnownFromRow(app),
       availability: splitAvailability(app.availability),
       reviewerPreferredGroupId: app.reviewerPreferredGroupId ?? null,
       reviewerPreferredFacilitatorName: app.reviewerPreferredFacilitatorUid

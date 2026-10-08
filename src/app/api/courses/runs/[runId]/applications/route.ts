@@ -3,6 +3,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
 import {
+  membershipKnownFromRow,
   normalizeCourseApplication,
   rowIsServedTo,
   type CourseApplicationStatus,
@@ -62,7 +63,12 @@ export type AdmissionsRow = {
   displayName: string;
   /** ADMINS ONLY — null for every non-admin reviewer. See the PII boundary. */
   email: string | null;
-  paidMembership: boolean;
+  /**
+   * The membership badge, read from the person's account. `null` is "not
+   * known": the account could not be read and the row carries no snapshot
+   * (`membershipKnownFromRow`). The queue then draws no badge.
+   */
+  paidMembership: boolean | null;
   status: CourseApplicationStatus;
   answers: Record<string, unknown>;
   /** The session labels the applicant ticked, split back out of storage. */
@@ -296,8 +302,10 @@ export async function GET(
     // THE PII BOUNDARY, asserted in one expression: non-admin reviewers get null.
     email: isAdmin ? app.email : null,
     // Falls back to the apply-time snapshot when the user doc is gone (deleted
-    // account) — the badge then reflects what was true when they applied.
-    paidMembership: paidByUid.get(app.uid) ?? app.paidMembershipAtApply,
+    // account) — the badge then reflects what was true when they applied. A
+    // row the application form wrote carries no snapshot, so for one of those
+    // the answer is null and no badge is drawn (`membershipKnownFromRow`).
+    paidMembership: paidByUid.get(app.uid) ?? membershipKnownFromRow(app),
     status: app.status,
     answers: app.answers,
     availability: splitAvailability(app.availability),
