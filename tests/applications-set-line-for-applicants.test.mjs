@@ -449,6 +449,16 @@ describe("the editor has a box for each line, and each says who reads it", () =>
 
   test("the two are saved under their own names", () => {
     assert.match(dialog, /await patchSet\(roundId, set\.id, \{ label, applicantLine, intro \}\);/);
+    // Each box opens on what the set holds, and the editor keeps what the
+    // server stored. A box that reopened on an older line would save that
+    // older line over the new one the next time the set was renamed.
+    assert.match(dialog, /useState\(set\?\.applicantLine \?\? ""\)/);
+    assert.match(dialog, /useState\(set\?\.intro \?\? ""\)/);
+    assert.match(
+      editor,
+      /label: stored\.label,\s*intro: stored\.intro,\s*applicantLine: stored\.applicantLine,/,
+      "the editor does not keep the line it has just saved",
+    );
     assert.match(read("src/lib/applications/editor/write.ts"), /if \(change\.applicantLine !== undefined\) update\.applicantLine = change\.applicantLine;/);
     assert.match(read("src/lib/applications/editor/write.ts"), /if \(change\.intro !== undefined\) update\.intro = change\.intro;/);
   });
