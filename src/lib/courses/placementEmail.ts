@@ -33,15 +33,38 @@ import { couldBeFollowed } from "./followable";
  *    to say these, so a placement without one is refused, with a sentence
  *    that says what to set. Nobody is told "your first session is" nothing.
  *  - `optional`: the facilitators, where the first session is, and the run's
- *    start. Where there is nothing to say, the paragraph (or the heading)
- *    that holds the token is left out whole, and the rest of the email goes.
+ *    start. Where there is nothing to say, the unit that holds the token is
+ *    left out whole, and the rest of the email goes.
+ *
+ * ## What is left out, and what never is
+ *
+ * A UNIT is a heading, a caption, or one run of text in a rich-text block:
+ * what sits between two tags that begin or end a block (`BLOCK_TAG`), so a
+ * paragraph, a bullet, or text that stands outside both. Three things hold:
+ *
+ *  - A MISSING VALUE TAKES ITS OWN UNIT AND NOTHING BESIDE IT: not the next
+ *    bullet, and not a line of text that happens to follow.
+ *  - NO EMPTY SHELL IS LEFT. The element a unit sat in goes with it when it
+ *    then holds nothing, and so on outwards: the paragraph, a bullet that
+ *    held only that paragraph, a list that held only that bullet
+ *    (`takeEmptiedShells`). A rich-text block goes when nothing in it is
+ *    left to show.
+ *  - A BLOCK THAT HOLDS NO TOKEN IS NEVER LEFT OUT AND NEVER CHANGED. It is
+ *    the admin's own, whatever is in it: a line of emoji, a paragraph kept
+ *    empty for space. Only what a token was in can go.
+ *
+ * Two limits are the rule itself, and not accidents of it. Lines inside one
+ * paragraph (a line break is not a block) are one unit, so a missing value
+ * takes the paragraph. And a token is filled in text and in the tags inside
+ * text (a link's address), never in the tag that opens a paragraph or a
+ * list: wording with one there is refused, and the token is named.
  *
  * THE COPY RULE THAT FALLS OUT OF IT: an optional token goes in a paragraph
- * of its own. It cannot be left out of a subject line, or of a paragraph that
- * also carries an essential token, without taking what the email is for with
- * it. Wording that puts one there is refused for a group that lacks the
- * value, with a sentence that says which to change. The seed copy in
- * `courseEmails.ts` obeys the rule, and the same rule is what the weekly
+ * or a bullet of its own. It cannot be left out of a subject line, or of a
+ * unit that also carries an essential token, without taking what the email
+ * is for with it. Wording that puts one there is refused for a group that
+ * lacks the value, with a sentence that says which to change. The seed copy
+ * in `courseEmails.ts` obeys the rule, and the same rule is what the weekly
  * reminder asks of its own copy.
  *
  * ## Values go in as text
@@ -282,9 +305,10 @@ type Filled = {
 };
 
 /**
- * Fill one unit: a subject, a heading, or one paragraph of a rich-text block.
- * A token with no value becomes nothing, and the caller decides what happens
- * to the unit. A token this email does not fill is left exactly as typed.
+ * Fill one unit: a subject, a heading, a caption, or one run of text in a
+ * rich-text block. A token with no value becomes nothing, and the caller
+ * decides what happens to the unit. A token this email does not fill is left
+ * exactly as typed.
  */
 function fillUnit(input: string, values: Record<PlacementToken, Value | null>, as: "text" | "html"): Filled {
   const unknown: string[] = [];
@@ -306,13 +330,67 @@ function fillUnit(input: string, values: Record<PlacementToken, Value | null>, a
   return { text, unknown, absent, holdsEssential };
 }
 
-/** Any letter or digit left once the tags are gone? */
-function hasVisibleText(html: string): boolean {
-  return /[\p{L}\p{N}]/u.test(html.replace(/<[^>]*>/g, " "));
+// ---------------------------------------------------------------------------
+// The units of a rich-text block
+// ---------------------------------------------------------------------------
+
+/**
+ * A tag that begins or ends a block of its own: a paragraph, a list and each
+ * of its items, a quote, a rule. What sits between two of them is ONE UNIT of
+ * text, with whatever inline tags it carries (bold, a link, a line break),
+ * and a unit is what is left out when it has nothing to say. So a missing
+ * value takes its own paragraph or its own bullet, and never the bullet
+ * beside it or a line of text that happens to follow.
+ */
+const BLOCK_TAG =
+  /(<\/?(?:p|li|ul|ol|blockquote|h[1-6]|div|pre|hr|table|thead|tbody|tfoot|tr|td|th|dl|dt|dd|section|article|header|footer|figure|figcaption)\b[^>]*>)/i;
+
+/** One piece of a rich-text block: a block tag, or the run of text between two of them. */
+type Piece = { tag: { name: string; closes: boolean } | null; text: string; gone: boolean };
+
+function piecesOf(html: string): Piece[] {
+  // A split on one capturing group puts the tags at the odd places.
+  return html.split(BLOCK_TAG).map((text, index) => {
+    if (index % 2 === 0) return { tag: null, text, gone: false };
+    const name = (/^<\/?([a-z0-9]+)/i.exec(text)?.[1] ?? "").toLowerCase();
+    return { tag: { name, closes: text.startsWith("</") }, text, gone: false };
+  });
 }
 
-/** Each `<p>` on its own, and whatever sits between two of them. */
-const PARAGRAPHS = /(<p\b[^>]*>[\s\S]*?<\/p>)/i;
+/** Gone already, or only the space between two tags. */
+function isNothing(piece: Piece): boolean {
+  return piece.gone || (piece.tag === null && piece.text.trim() === "");
+}
+
+/**
+ * A unit was left out at `index`. Take away each element that now has
+ * nothing in it, working outwards: the paragraph, then a bullet that held
+ * only that paragraph, then a list that held only that bullet.
+ *
+ * NO EMPTY SHELL IS LEFT, AND NOTHING ELSE IS TOUCHED. The walk starts from a
+ * unit that was left out and stops at the first element that still holds
+ * something, so a paragraph an admin left empty on purpose is never reached.
+ */
+function takeEmptiedShells(pieces: Piece[], index: number): void {
+  let left = index - 1;
+  let right = index + 1;
+  for (;;) {
+    while (left >= 0 && isNothing(pieces[left])) left -= 1;
+    while (right < pieces.length && isNothing(pieces[right])) right += 1;
+    const opens = pieces[left]?.tag;
+    const closes = pieces[right]?.tag;
+    if (!opens || !closes || opens.closes || !closes.closes || opens.name !== closes.name) return;
+    for (let at = left; at <= right; at += 1) pieces[at].gone = true;
+    left -= 1;
+    right += 1;
+  }
+}
+
+/** Anything a reader would see: a character that is not space, a picture, or a rule. */
+function showsAnything(html: string): boolean {
+  if (/<(?:img|hr)\b/i.test(html)) return true;
+  return html.replace(/<[^>]*>/g, " ").replace(/&nbsp;|&#160;|&#xa0;/gi, " ").trim() !== "";
+}
 
 // ---------------------------------------------------------------------------
 // The email
@@ -326,7 +404,7 @@ function sameProblem(a: PlacementProblem, b: PlacementProblem): boolean {
  * The email for one placed person, or the problems that stop it.
  *
  * For a send (`proof` unset) the answer is all or nothing: every token filled
- * and every paragraph with nothing to say left out, or `ok: false` and why.
+ * and every unit with nothing to say left out, or `ok: false` and why.
  */
 export function composePlacementEmail(
   template: PlacementTemplate,
@@ -365,15 +443,34 @@ export function composePlacementEmail(
 
   const blocks: Block[] = [];
   for (const block of template.blocks) {
-    if (block.type === "heading") {
+    // A BLOCK THAT HOLDS NO TOKEN IS THE ADMIN'S OWN, and goes as it is,
+    // whatever is in it: a line of emoji, a paragraph left empty for space.
+    // Only a block a token was in can be left out, and only when filling it
+    // left nothing to show.
+    if (unfilledTokens(textOf(block)).length === 0) {
+      blocks.push(block);
+    } else if (block.type === "heading") {
       const text = unit(block.text, "text", true);
       if (text !== null && text.trim()) blocks.push({ ...block, text });
     } else if (block.type === "richText") {
-      const html = block.html
-        .split(PARAGRAPHS)
-        .map((segment) => (segment ? (unit(segment, "html", true) ?? "") : ""))
+      const pieces = piecesOf(block.html);
+      pieces.forEach((piece, index) => {
+        // A block tag is not text. A token inside one is not filled, and the
+        // look at what is about to be returned, below, refuses it by name.
+        if (piece.gone || piece.tag || piece.text.trim() === "") return;
+        const filled = unit(piece.text, "html", true);
+        if (filled === null) {
+          piece.gone = true;
+          takeEmptiedShells(pieces, index);
+        } else {
+          piece.text = filled;
+        }
+      });
+      const html = pieces
+        .filter((piece) => !piece.gone)
+        .map((piece) => piece.text)
         .join("");
-      if (hasVisibleText(html)) blocks.push({ ...block, html });
+      if (showsAnything(html)) blocks.push({ ...block, html });
     } else if (block.type === "image") {
       const caption = block.caption ? unit(block.caption, "text", true) : null;
       blocks.push({ ...block, alt: unit(block.alt, "text", true) ?? "", caption: caption ?? undefined });

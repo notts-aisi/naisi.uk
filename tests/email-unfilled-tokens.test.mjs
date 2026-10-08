@@ -191,6 +191,9 @@ function subsets(list) {
 }
 const without = (facts, absent) => Object.fromEntries(Object.entries(facts).map(([key, value]) => [key, absent.includes(key) ? null : value]));
 
+/** An element with nothing in it: what taking a value out must never leave behind. */
+const EMPTY_SHELL = /<(p|li|ul|ol|blockquote|h[1-6]|div)\b[^>]*>\s*<\/\1>/i;
+
 const heading = (text) => ({ id: `h-${text.length}`, type: "heading", text, level: 2 });
 const rich = (html) => ({ id: `r-${html.length}`, type: "richText", html });
 
@@ -267,12 +270,25 @@ describe("each token has its rule", () => {
 });
 
 describe("the placement email is written whole or not at all", () => {
-  /** What every answer must be: finished with no token in it, or refused with a reason. */
+  /**
+   * What every answer must be: finished with no token in it, or refused with
+   * a reason. A finished one has no element left empty by what was taken out
+   * of it, and every block of the wording that holds no token is in it,
+   * untouched and in its place.
+   */
   function wholeOrNot(template, facts, label) {
     const email = placement.composePlacementEmail(template, facts);
     if (email.ok) {
       assert.deepEqual(tokensIn(`${email.subject}\n${printed(email.blocks)}`), [], `${label}: a token was returned`);
       assert.ok(email.subject.length > 0, `${label}: no subject`);
+      const untouched = template.blocks.filter((block) => tokensIn(printed([block])).length === 0);
+      assert.deepEqual(email.blocks.filter((block) => untouched.includes(block)), untouched, `${label}: a block that holds no token was left out or changed`);
+      for (const block of email.blocks) {
+        // What an admin left empty is theirs. What this left empty is not allowed.
+        if (block.type !== "richText" || untouched.includes(block)) continue;
+        assert.doesNotMatch(block.html, EMPTY_SHELL, `${label}: an empty element was left in ${block.html}`);
+        assert.match(block.html.replace(/<[^>]*>/g, ""), /\S/, `${label}: a block with nothing to show was sent`);
+      }
     } else {
       assert.ok(email.problems.length > 0, `${label}: refused with no reason`);
       assert.equal("subject" in email, false, `${label}: a refusal carries an email`);
@@ -317,7 +333,13 @@ describe("the placement email is written whole or not at all", () => {
       return state % n;
     };
     const pick = () => PIECES[next(PIECES.length)];
+    // The pieces this email can fill, for the block of lists below: with a
+    // token it cannot fill in every bullet, almost nothing would be written
+    // and the checks on what is written would have nothing to read.
+    const FILLABLE = PIECES.filter((piece) => tokensIn(piece).every((token) => token in placement.PLACEMENT_TOKEN_RULES));
+    const fillable = () => FILLABLE[next(FILLABLE.length)];
     let cases = 0;
+    let leftOut = 0;
     const seen = { ok: 0, refused: 0 };
     for (let i = 0; i < 400; i += 1) {
       const template = {
@@ -327,18 +349,32 @@ describe("the placement email is written whole or not at all", () => {
           rich(`<p>${pick()} then ${pick()}.</p><p>${pick()}</p><ul><li>${pick()}</li></ul>`),
           { id: "i", type: "image", url: "https://example.com/a.png", alt: `Picture of ${pick()}`, caption: next(2) ? pick() : undefined },
           { id: "d", type: "divider" },
+          // The shapes the editor makes: a paragraph inside each bullet, a
+          // list inside a bullet, a quote. And two it does not: text outside
+          // any paragraph, and a bullet with no paragraph in it.
+          rich(
+            `<ul><li><p>${fillable()}</p></li><li><p>${fillable()}</p><ol><li><p>${fillable()}</p></li></ol></li></ul>` +
+              `<blockquote><p>${fillable()}</p></blockquote>${fillable()}<ul><li>${fillable()}</li><li>${fillable()}</li></ul>`,
+          ),
+          // Two blocks an admin left with no token in them, and one left empty.
+          rich("<p>🎉🎉🎉</p>"),
+          { id: "h-empty", type: "heading", text: "", level: 3 },
+          rich("<p></p>"),
           rich(`<p>Ends with ${pick()}</p>`),
         ],
       };
       for (const absent of subsets([...OPTIONAL, ...ESSENTIAL])) {
         const email = wholeOrNot(template, without(FACTS, absent), `case ${i}, absent ${absent.join("+")}`);
         seen[email.ok ? "ok" : "refused"] += 1;
+        // An email that was written with something left out of its lists.
+        if (email.ok && absent.length > 0 && printed(email.blocks).length < printed(placement.composePlacementEmail(template, FACTS).blocks ?? []).length) leftOut += 1;
         cases += 1;
       }
     }
     assert.equal(cases, 400 * 32);
-    // Both answers are really reached, so neither branch of the check above is idle.
-    assert.ok(seen.ok > 200 && seen.refused > 200, JSON.stringify(seen));
+    // Both answers are really reached, so neither branch of the check above is idle,
+    // and so is an email with something taken out of it.
+    assert.ok(seen.ok > 200 && seen.refused > 200 && leftOut > 100, JSON.stringify({ ...seen, leftOut }));
   });
 
   test("no arrangement of wording carries a way into the group's call, wherever it was typed and whatever the week is set to", () => {
@@ -432,6 +468,136 @@ describe("the placement email is written whole or not at all", () => {
     const email = placement.composePlacementEmail(template, without(FACTS, ["facilitatorNames"]));
     assert.equal(email.ok, true);
     assert.ok(!read(email).includes("Led by"));
+  });
+});
+
+describe("a missing value takes its own unit, and nothing beside it", () => {
+  const NO_FACILITATOR = without(FACTS, ["facilitatorNames"]);
+  /** The rich text of one block of wording, written for a group with no facilitator. */
+  const written = (html, facts = NO_FACILITATOR) => {
+    const email = placement.composePlacementEmail({ subject: SEED.subject, blocks: [rich(html)] }, facts);
+    assert.equal(email.ok, true, JSON.stringify(email.problems));
+    return email.blocks.map((block) => block.html).join(" | ");
+  };
+
+  test("a bullet whose value is missing goes, and no empty bullet is left", () => {
+    // As the editor writes a list: a paragraph inside each bullet.
+    assert.equal(
+      written("<p>You're in {groupName}.</p><ul><li><p>Led by {facilitatorNames}</p></li><li><p>Bring a laptop</p></li></ul>"),
+      "<p>You're in Group A.</p><ul><li><p>Bring a laptop</p></li></ul>",
+    );
+    // And as a list is written by hand, with no paragraph in a bullet.
+    assert.equal(
+      written("<p>You're in {groupName}.</p><ul><li>Led by {facilitatorNames}</li><li>Bring a laptop</li></ul>"),
+      "<p>You're in Group A.</p><ul><li>Bring a laptop</li></ul>",
+    );
+    assert.equal(
+      written("<ol><li><p>{groupName}</p></li><li><p>Led by {facilitatorNames}</p></li><li><p>{firstSessionWhen}</p></li></ol>"),
+      "<ol><li><p>Group A</p></li><li><p>Tuesday 27 October, 18:00</p></li></ol>",
+    );
+  });
+
+  test("a list that held only that bullet goes with it, and so does a quote that held only that paragraph", () => {
+    assert.equal(written("<p>{groupName}</p><ul><li><p>Led by {facilitatorNames}</p></li></ul><p>After</p>"), "<p>Group A</p><p>After</p>");
+    assert.equal(written("<p>{groupName}</p><blockquote><p>Led by {facilitatorNames}</p></blockquote><p>After</p>"), "<p>Group A</p><p>After</p>");
+    assert.equal(
+      written("<p>{groupName}</p><ul><li><p>Led by {facilitatorNames}</p></li><li><p>Start {startDate}</p></li></ul>", without(FACTS, ["facilitatorNames", "startDate"])),
+      "<p>Group A</p>",
+    );
+    // With space between the tags, as a file written by hand has.
+    assert.equal(written("<p>{groupName}</p>\n<ul>\n  <li>\n    <p>Led by {facilitatorNames}</p>\n  </li>\n</ul>\n<p>After</p>"), "<p>Group A</p>\n\n<p>After</p>");
+  });
+
+  test("a list inside a bullet goes without the bullet it sits in", () => {
+    assert.equal(
+      written("<ul><li><p>{groupName}</p><ul><li><p>Led by {facilitatorNames}</p></li></ul></li><li><p>Bring a laptop</p></li></ul>"),
+      "<ul><li><p>Group A</p></li><li><p>Bring a laptop</p></li></ul>",
+    );
+    // The bullet's own words stay when they are not in a paragraph either.
+    assert.equal(written("<p>{groupName}</p><ul><li>Bring:<ul><li>Led by {facilitatorNames}</li></ul></li></ul>"), "<p>Group A</p><ul><li>Bring:</li></ul>");
+  });
+
+  test("text outside a paragraph is its own unit: it is not taken with what is beside it, and takes nothing with it", () => {
+    assert.equal(written("<p>{groupName}</p><h3>Hello</h3>Led by {facilitatorNames}<p>End</p>"), "<p>Group A</p><h3>Hello</h3><p>End</p>");
+    assert.equal(written("<p>{groupName}</p>Come along.<ul><li>{facilitatorNames}</li></ul>"), "<p>Group A</p>Come along.");
+    assert.equal(written("Led by {facilitatorNames}<p>{groupName}</p>Come along."), "<p>Group A</p>Come along.");
+  });
+
+  test("a block that holds no token is never left out and never changed, whatever is in it", () => {
+    const own = [
+      rich("<p>🎉🎉🎉</p>"),
+      rich("<p></p>"),
+      rich("<p><br></p>"),
+      rich(""),
+      rich("<ul><li></li></ul>"),
+      { id: "h0", type: "heading", text: "", level: 2 },
+      { id: "h1", type: "heading", text: "✨", level: 3 },
+      { id: "d", type: "divider" },
+      { id: "i", type: "image", url: "https://example.com/a.png", alt: "" },
+      { id: "v", type: "video", url: "https://example.com/v" },
+    ];
+    for (const facts of [FACTS, NO_FACILITATOR, without(FACTS, OPTIONAL)]) {
+      for (const proof of [false, true]) {
+        const email = placement.composePlacementEmail({ subject: SEED.subject, blocks: [...own, ...SEED.blocks] }, facts, { proof });
+        assert.equal(email.ok, true);
+        // The very same blocks, in their places, before the seed's own.
+        assert.deepEqual(email.blocks.slice(0, own.length), own);
+        for (const [index, block] of own.entries()) assert.equal(email.blocks[index], block, `block ${index} was copied or changed`);
+      }
+    }
+  });
+
+  test("a block a token was in is left out only when nothing is left to show", () => {
+    const only = (html) => placement.composePlacementEmail({ subject: SEED.subject, blocks: [rich(html), ...SEED.blocks] }, NO_FACILITATOR).blocks[0];
+    // Everything in it went: the block goes, and no empty one is sent.
+    assert.equal(only("<p>Led by {facilitatorNames}</p>").type, "heading");
+    assert.equal(only("<ul><li><p>Led by {facilitatorNames}</p></li></ul>").type, "heading");
+    // What it has left is a paragraph kept empty for space: nothing to show.
+    assert.equal(only("<p>Led by {facilitatorNames}</p><p><br></p>").type, "heading");
+    assert.equal(only("<p>Led by {facilitatorNames}</p><p>&nbsp;</p>").type, "heading");
+    // Anything a reader would see keeps it: a line of emoji, a rule.
+    assert.equal(only("<p>Led by {facilitatorNames}</p><p>🎉</p>").html, "<p>🎉</p>");
+    assert.equal(only("<p>Led by {facilitatorNames}</p><hr>").html, "<hr>");
+    assert.equal(only("<p>🎉 {groupName}</p>").html, "<p>🎉 Group A</p>");
+  });
+
+  test("a paragraph an admin left empty on purpose is not taken with the bullet beside it", () => {
+    assert.equal(written("<p>{groupName}</p><p></p><ul><li><p>Led by {facilitatorNames}</p></li></ul><p></p>"), "<p>Group A</p><p></p><p></p>");
+    assert.equal(written("<ul><li></li><li><p>Led by {facilitatorNames}</p></li><li><p>{groupName}</p></li></ul>"), "<ul><li></li><li><p>Group A</p></li></ul>");
+  });
+
+  test("with everything known, every shape reads in full, exactly as it was written", () => {
+    const html =
+      "<p>You're in <strong>{groupName}</strong>.</p><ul><li><p>Led by {facilitatorNames}</p></li><li>Start {startDate}</li></ul>" +
+      "Come along.<blockquote><p>{firstSessionWhere}</p></blockquote><hr><p></p>";
+    assert.equal(
+      written(html, FACTS),
+      "<p>You're in <strong>Group A</strong>.</p><ul><li><p>Led by Priya and Sam</p></li><li>Start Monday 26 October</li></ul>" +
+        "Come along.<blockquote><p>Hallward B12</p></blockquote><hr><p></p>",
+    );
+  });
+
+  test("a proof leaves out exactly what a send leaves out", () => {
+    for (const html of [
+      "<p>{groupName}</p><ul><li><p>Led by {facilitatorNames}</p></li><li><p>Bring a laptop</p></li></ul>",
+      "<p>{groupName}</p><h3>Hello</h3>Led by {facilitatorNames}<p>End</p>",
+      "<p>{groupName}</p><blockquote><p>Led by {facilitatorNames}</p></blockquote>",
+    ]) {
+      const template = { subject: SEED.subject, blocks: [rich(html)] };
+      const sent = placement.composePlacementEmail(template, NO_FACILITATOR);
+      const proofed = placement.composePlacementEmail(template, NO_FACILITATOR, { proof: true });
+      assert.deepEqual(proofed.blocks, sent.blocks, html);
+    }
+  });
+
+  // The two limits that are the rule, and not an accident of it.
+  test("lines inside one paragraph are one unit: a missing value takes the paragraph, as the copy rule says", () => {
+    assert.equal(written("<p>{groupName}</p><p>Line one<br>Led by {facilitatorNames}<br>Line three</p>"), "<p>Group A</p>");
+  });
+
+  test("a token inside the tag that opens a paragraph is not filled: the email is refused, and names it", () => {
+    const email = placement.composePlacementEmail({ subject: SEED.subject, blocks: [rich('<p title="{groupName}">Hello {firstName}</p>')] }, FACTS);
+    assert.deepEqual(email, { ok: false, problems: [{ kind: "unknown-token", tokens: ["groupName"] }] });
   });
 });
 
