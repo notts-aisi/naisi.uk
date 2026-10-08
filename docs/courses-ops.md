@@ -997,7 +997,9 @@ order the two are joined in, and it is an admin's job from start to finish.
   run's own applications page and Publish serve somebody the form placed to
   admins only. A track lead still edits the run, staffs its groups and sees
   everybody who applied to the run itself. A row the form wrote is one an
-  admin places and an admin publishes.
+  admin places and an admin publishes. The run's own counts do include
+  them, as numbers: the run's applications page shows a track lead "8
+  accepted" above an empty list.
 - **Somebody sees their group as soon as they are put in one.** The first
   placement on the board is what makes the place on the run, so the run
   shows in that person's member area from then on, before Publish. Publish

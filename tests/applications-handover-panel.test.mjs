@@ -195,6 +195,21 @@ describe("what the panel says, from what the server sent", () => {
     assert.equal(words.runHint(await panel()), refusals.RUN_LOCKED);
   });
 
+  test("and no run is explained any more: nothing can be picked once the run is fixed", async () => {
+    world.db.seed("courseApplications/agi-strategy-spring-2027__run00002__nobody", {
+      runId: RUN.agiSpring,
+      uid: "nobody",
+      status: "pending",
+    });
+    assert.equal(words.unpickable(await panel()).length, 1);
+    await press();
+    const fixed = await panel();
+    assert.equal(fixed.runLocked, refusals.RUN_LOCKED);
+    // The server still says why that run could not be picked. The panel no longer lists it.
+    assert.ok(fixed.choices.some((choice) => choice.note !== ""));
+    assert.deepEqual(words.unpickable(fixed), []);
+  });
+
   test("how many hold a place and how many are on the list, as the list fills", async () => {
     let shown = await panel();
     assert.equal(words.holdersLine(shown), "4 people hold a place on AGI Strategy. None of them is on the run’s list yet.");

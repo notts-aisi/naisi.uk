@@ -32,8 +32,13 @@ export function runHint(panel: Pick<RunPanelView, "courseTied" | "runLocked" | "
   return `People who hold a place on ${panel.programmeName} are handed over to this run. Its own apply page takes no applications.`;
 }
 
-/** The runs in the list that cannot be picked, each with the server's reason. */
-export function unpickable(panel: Pick<RunPanelView, "choices">): RunChoiceView[] {
+/**
+ * The runs in the list that cannot be picked, each with the server's reason.
+ * None once the run is fixed: nothing can be picked then, so there is nothing
+ * left to explain.
+ */
+export function unpickable(panel: Pick<RunPanelView, "choices" | "runLocked">): RunChoiceView[] {
+  if (panel.runLocked !== null) return [];
   return panel.choices.filter((choice) => choice.note !== "");
 }
 

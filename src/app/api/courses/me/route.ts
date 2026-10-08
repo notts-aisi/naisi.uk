@@ -386,6 +386,14 @@ export async function GET() {
     // row whose stored uid disagrees is not theirs to be told about.
     if (app.uid !== actor.uid || !app.runId) continue;
     if (app.status !== "accepted" && app.status !== "waitlisted") continue;
+    // A ROW THE APPLICATION FORM WROTE IS ONLY EVER A PLACE. The run's own
+    // waiting list goes with the run's own application form, which somebody
+    // from the term's form never used, and its card speaks in that form's
+    // words. A hand-over writes `accepted` and nothing else, so a row from
+    // the form that has since been moved to the waiting list is announced
+    // here as nothing at all. The programme's panel names that person for
+    // an admin.
+    if (app.fromForm && app.status !== "accepted") continue;
     applicationStatusByRun.set(app.runId, app.status);
     if (app.fromForm) fromFormByRun.set(app.runId, app.fromForm);
   }

@@ -1192,7 +1192,8 @@ has become of it.
 **Once anybody has been handed over, the run stays.** It can no longer be
 changed or cleared here. The rows a hand-over wrote sit on that run, and a
 programme pointed somewhere else would leave them behind, on a run whose
-own apply page had just opened again.
+own apply page had just opened again. The panel then stops listing why
+other runs could not be picked: nothing can be picked any more.
 
 ### A run the form places people on takes no application of its own
 
@@ -1394,6 +1395,14 @@ and have nothing left to accept. `viaForm` travels with the row, and
 group and when it meets will show there once groups are set, and that they
 will be emailed. The card asks for nothing and links nowhere, and never
 prints the run's own "Applications open".
+
+**It is only ever a place.** A hand-over writes accepted rows and nothing
+else. The run's own waiting list goes with the run's own application form,
+and its card speaks in that form's words, which are among the ones an
+applicant on the term's form never reads. So a row from the form that
+somebody has since moved to that waiting list is not announced in the member
+area at all. The programme's panel names the person for an admin, under
+"Hold a place, and are not accepted on the run's list".
 
 **Not in a view-as session.** Whether the place still stands is on the
 member's own application, which is its owner's to read. So in a view-as

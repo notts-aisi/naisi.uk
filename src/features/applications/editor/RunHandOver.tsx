@@ -194,7 +194,7 @@ export default function RunHandOver({
                   They gave their place back after they were handed over, and nothing takes them off the run.
                   Remove them from their group on the board, then change their row on{" "}
                   {panel.listPath ? (
-                    <Link href={panel.listPath} className={styles.link}>
+                    <Link href={panel.listPath} className={styles.inText}>
                       the run’s own applications list
                     </Link>
                   ) : (

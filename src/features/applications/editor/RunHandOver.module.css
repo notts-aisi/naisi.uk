@@ -111,6 +111,15 @@
 .link:hover {
   color: var(--color-text);
 }
+/* The same link inside a sentence: it runs with the words around it. */
+.inText {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.inText:hover {
+  color: var(--color-text);
+}
 
 /* What a press just did. */
 .receipt {

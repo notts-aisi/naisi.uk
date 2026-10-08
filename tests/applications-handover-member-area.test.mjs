@@ -27,6 +27,9 @@
  *  - NOT IN A VIEW-AS SESSION. An admin who borrowed the member's session
  *    is not the applicant: the application is not read, and the card is not
  *    drawn.
+ *  - ONLY EVER A PLACE. A row from the form that somebody has since moved
+ *    to the run's own waiting list is not announced at all: that list goes
+ *    with the run's own application form, and its words are not theirs.
  *  - A SEAT IS A SEAT. Once somebody is in a group they are on the run,
  *    whatever they reply later. Nothing here removes anybody.
  *
@@ -39,6 +42,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   CAST,
+  COURSE,
   GROUP,
   RUN,
   loadJoin,
@@ -50,7 +54,7 @@ import { createLoader } from "./lib/tsLoader.mjs";
 const made = makeWorld();
 const { world, reset } = made;
 const join_ = await loadJoin(made);
-const { press, reply, place, me, rowPath } = join_;
+const { press, reply, place, me, rowPath, routes } = join_;
 const runAccess = await made.lib("..", "features", "courses", "runAccess.ts");
 
 const NOW = new Date("2026-10-24T10:00:00Z");
@@ -158,6 +162,34 @@ describe("a place is drawn only while the person still holds it", () => {
     reads.length = 0;
     assert.equal((await me("amara")).length, 1);
     assert.ok(reads.includes("admissionApplications"));
+  });
+
+  test("a row from the form is only ever a place: moved to the run's own waiting list, it says nothing here", async () => {
+    await press();
+    assert.equal((await me("tariq")).length, 1);
+    const moved = await made.call(
+      "zach",
+      routes.decide.POST,
+      { runId: RUN.agi, uid: "tariq" },
+      { body: { action: "waitlist" }, course: true },
+    );
+    assert.equal(moved.status, 200, moved.body?.error);
+    assert.equal(world.db.read(rowPath("tariq")).status, "waitlisted");
+    // He still holds his place on the form, and the run's waiting list is not his to be told about.
+    assert.deepEqual(await me("tariq"), []);
+    assert.equal((await me("amara")).length, 1);
+
+    // Somebody who applied to the run itself and was put on its waiting list reads that, as before.
+    world.db.seed(rowPath("nobody"), {
+      runId: RUN.agi,
+      courseId: COURSE.agi,
+      uid: "nobody",
+      displayName: "Nell Carter",
+      status: "waitlisted",
+      availability: "",
+    });
+    const [own] = await me("nobody");
+    assert.deepEqual([own.runId, own.membership, own.viaForm], [RUN.agi, "waitlisted", false]);
   });
 
   test("once somebody is in a group they are on the run, whatever they reply later", async () => {
