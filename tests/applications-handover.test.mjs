@@ -367,7 +367,7 @@ describe("4. nothing is written twice", () => {
   test("a row that is already there is left exactly as it is, whatever it says", async () => {
     for (const [uid, row] of [
       ["amara", { runId: RUN.agi, uid: "amara", status: "rejected", decidedByUid: "zach", email: "kept@example.com" }],
-      ["dev", { runId: RUN.agi, uid: "dev", status: "pending", availability: "Mondays 18:00–19:30" }],
+      ["dev", { runId: RUN.agi, uid: "dev", status: "pending", availability: "Mondays 18:00\u201319:30" }],
     ]) {
       world.db.seed(rowPath(uid), row);
     }

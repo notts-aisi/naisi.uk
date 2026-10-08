@@ -167,7 +167,7 @@ describe("6. the allocation board", () => {
 
   describe("a row the form put there is an admin's, on every route that reads rows", () => {
     /** A row of the run's own, as its older form would have left it accepted. */
-    const OWN_ROW = { runId: RUN.agi, courseId: COURSE.agi, uid: "nobody", displayName: "Nell Carter", email: "nobody@example.com", status: "accepted", availability: "Mondays 18:00–19:30" };
+    const OWN_ROW = { runId: RUN.agi, courseId: COURSE.agi, uid: "nobody", displayName: "Nell Carter", email: "nobody@example.com", status: "accepted", availability: "Mondays 18:00\u201319:30" };
 
     beforeEach(async () => {
       await press();
@@ -179,7 +179,7 @@ describe("6. the allocation board", () => {
       assert.equal(shown.status, 200);
       assert.deepEqual(shown.body.people.map((row) => row.uid), ["nobody"]);
       assert.equal(shown.body.people[0].fromForm, null);
-      assert.deepEqual(shown.body.people[0].availability, ["Mondays 18:00–19:30"]);
+      assert.deepEqual(shown.body.people[0].availability, ["Mondays 18:00\u201319:30"]);
       assert.equal(shown.body.groups.length, 3);
       const sent = JSON.stringify(shown.body);
       for (const uid of AGI_HOLDERS) assert.ok(!sent.includes(CAST[uid].displayName.split(" ")[0]), uid);
@@ -337,7 +337,7 @@ describe("6b. what the board and the run's own queue say about membership", () =
 
 
 // ---------------------------------------------------------------------------
-// 7. A placement, a publish and the member area
+// 7. A placement and a publish
 // ---------------------------------------------------------------------------
 
 describe("7. a placement and a publish then work, with the code that was already there", () => {

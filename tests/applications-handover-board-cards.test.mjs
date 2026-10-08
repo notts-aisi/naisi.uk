@@ -48,8 +48,10 @@ beforeEach(() => {
   reset(namedSeed());
 });
 
-const MONDAY = { id: "g-mon", sessionLabel: "Mondays 18:00–19:30" };
-const THURSDAY = { id: "g-thu", sessionLabel: "Thursdays 10:00–11:30" };
+// A session's label is the course side's own: a weekday and two times joined by
+// the character it writes between them, given here by its code point.
+const MONDAY = { id: "g-mon", sessionLabel: "Mondays 18:00\u201319:30" };
+const THURSDAY = { id: "g-thu", sessionLabel: "Thursdays 10:00\u201311:30" };
 const UNSET = { id: "g-tbc", sessionLabel: "" };
 const GROUPS = [MONDAY, THURSDAY, UNSET];
 
@@ -164,8 +166,8 @@ describe("the rows the board's own route sends, through the card's rule", () => 
   test("in the pool, each person is shown what they can make", async () => {
     await press();
     const shown = await cards();
-    assert.deepEqual(shown.amara.slots, ["Mondays 18:00–19:30", "Thursdays 10:00–11:30"]);
-    assert.deepEqual(shown.dev.slots, ["Mondays 18:00–19:30"]);
+    assert.deepEqual(shown.amara.slots, ["Mondays 18:00\u201319:30", "Thursdays 10:00\u201311:30"]);
+    assert.deepEqual(shown.dev.slots, ["Mondays 18:00\u201319:30"]);
     assert.deepEqual([shown.tariq.slots, shown.tariq.note, shown.tariq.noteWarns], [[], "Can’t make any of these sessions", true]);
     assert.deepEqual([shown.bea.slots, shown.bea.note, shown.bea.noteWarns], [[], "No availability given", false]);
     for (const card of Object.values(shown)) assert.deepEqual([card.conflict, card.gaveBack], [false, false]);
@@ -195,7 +197,7 @@ describe("the rows the board's own route sends, through the card's rule", () => 
     await reply("amara", { reply: "cant-make-it", reason: { kind: "times", other: "" } });
     const shown = await cards();
     assert.equal(shown.amara.gaveBack, true);
-    assert.deepEqual(shown.amara.slots, ["Mondays 18:00–19:30", "Thursdays 10:00–11:30"]);
+    assert.deepEqual(shown.amara.slots, ["Mondays 18:00\u201319:30", "Thursdays 10:00\u201311:30"]);
     assert.equal(shown.dev.gaveBack, false);
     assert.equal(world.db.read(rowPath("amara")).status, "accepted");
   });
@@ -208,11 +210,11 @@ describe("the rows the board's own route sends, through the card's rule", () => 
       uid: "nobody",
       displayName: "Nell Carter",
       status: "accepted",
-      availability: "Thursdays 10:00–11:30",
+      availability: "Thursdays 10:00\u201311:30",
     });
     await place("zach", [{ uid: "nobody", groupId: GROUP.monday }]);
     const shown = await cards();
-    assert.deepEqual([shown.nobody.slots, shown.nobody.conflict, shown.nobody.note], [["Thursdays 10:00–11:30"], true, null]);
+    assert.deepEqual([shown.nobody.slots, shown.nobody.conflict, shown.nobody.note], [["Thursdays 10:00\u201311:30"], true, null]);
   });
 });
 
