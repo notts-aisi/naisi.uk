@@ -1,0 +1,176 @@
+/*
+  The "Course run" panel on a programme's Settings tab: the run the programme
+  places people on, and the hand-over. An admin's, so it is plain and dense.
+  Type, the card and the fields are the editor's own (editor.module.css);
+  this file only lays the panel's own parts out.
+*/
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin-top: 18px;
+  min-width: 0;
+}
+
+.field {
+  max-width: 32rem;
+}
+
+/* Why a run in the list cannot be picked, one line each. */
+.reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+.reasons strong {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+.partTitle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.25;
+  color: var(--color-text);
+}
+
+.line {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.small {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+}
+
+/* A quiet button beside the main one. */
+.quiet {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.quiet:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+.quiet:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+.quiet:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.link:hover {
+  color: var(--color-text);
+}
+
+/* What a press just did. */
+.receipt {
+  padding: 12px 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  background: var(--color-surface-hover);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+/* A named list of people, each a link to their application. */
+.people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.person {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-text);
+  text-decoration: underline;
+  text-decoration-color: var(--color-border-strong);
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+.person:hover {
+  text-decoration-color: var(--color-text);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.groupTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+@media (max-width: 48rem) {
+  .field {
+    max-width: none;
+  }
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .quiet {
+    width: 100%;
+  }
+  .people {
+    flex-direction: column;
+    gap: 0;
+  }
+}

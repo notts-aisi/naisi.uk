@@ -363,6 +363,13 @@ const USERS = new Map([
       "route reaches the course email templates through the mail door it stubs",
   ],
   [
+    "applications-handover-panel.test.mjs",
+    "renders a programme's Settings tab (a .tsx server component) for an admin, for the " +
+      "programme's lead and for a reviewer, against a database that records its reads, " +
+      "because whether the \"Course run\" panel is drawn, and whether anything was read to " +
+      "draw it, is decided by the page as it runs",
+  ],
+  [
     "applications-journey-in-term.test.mjs",
     "executes the contract's term arithmetic beside every builder and loader that counts with " +
       "it (the review list, the decision-day plan, the two editor loaders) on one stored term, " +

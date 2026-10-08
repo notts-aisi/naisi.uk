@@ -1149,8 +1149,9 @@ the board, as it always was.
 onto. It is something else than `courseId`: the course is the evergreen
 page, and the run is one term of it.
 
-**One writer, and it is an admin's.** `setProgrammeRun` stores it, through
-`PUT /api/admissions/forms/[roundId]/programmes/[programmeId]/run`.
+**One writer, and it is an admin's.** `setProgrammeRun` stores it, from the
+"Course run" panel on the programme's Settings tab
+(`PUT /api/admissions/forms/[roundId]/programmes/[programmeId]/run`).
 Placing people on a run is part of running the term, so a programme's lead
 is refused like anybody else, before anything is read. The programme's own
 `PATCH` goes on refusing the field, and says where it is set.
@@ -1229,7 +1230,7 @@ runs the route and renders the page for every way a run can stand.
 ### The hand-over
 
 An admin presses it once for each programme, after decisions have been
-sent (`POST .../programmes/[programmeId]/run/hand-over`).
+sent, on the same panel (`POST .../programmes/[programmeId]/run/hand-over`).
 
 **Who is handed over** is who holds a place on the programme now, and has
 been told. That is `holdingOf()` and nothing else (`placeHoldersOn` in

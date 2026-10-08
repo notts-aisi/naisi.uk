@@ -951,6 +951,86 @@ Use the **Didn't happen** switch on the column, then push as normal. A session
 marked not held leaves every denominator rather than counting as a room full of
 absences, and the group still gets its reminder about the next one.
 
+## Placing a term's accepted people on a course run
+
+The term's application form decides who holds a place on each programme
+(see [docs/applications.md](applications.md), "From the form onto a course
+run"). Groups are formed on a course run's allocation board. This is the
+order the two are joined in, and it is an admin's job from start to finish.
+
+### The order
+
+1. **Make the run, and leave it a draft.** One run per programme, on the
+   course the programme is tied to, with its groups: a weekday, a start
+   time, a length, a room and facilitators for each.
+2. **Name the run on the programme.** Admin, Admissions, the form, the
+   programme, Settings, "Course run". From this moment the run's own apply
+   page (`/courses/<course>/apply`) refuses for everybody, whatever the
+   run's status and dates say.
+3. **Move the run on from draft.** A run can only leave draft by way of
+   "applications open". Because step 2 came first, nothing can be applied
+   for while it is there. Step 4 refuses a run that is still a draft.
+4. **After decisions have been sent, press "Hand over".** On the same panel.
+   Everybody who holds a place on the programme gets a row on the run's own
+   list. Nobody is emailed and nobody is put in a group.
+5. **Open the allocation board** (the panel links to it) and put people in
+   groups. Each card says which groups that person can make, from the week
+   they painted on the form, or that they gave no availability.
+6. **Publish** from the board when everybody is in a group. That is the
+   email that tells each person their group, and the first email anybody
+   gets after decision day.
+
+### Things worth knowing before you do it
+
+- **Press "Hand over" again whenever somebody new has a place.** Somebody
+  who accepts an invitation after the first press is added by the next one.
+  Pressing it twice writes nothing twice: a press that finds everybody
+  already there says so and changes nothing.
+- **A run has to start with no applications of its own.** A run that
+  already took applications through its own page cannot be named. Make a
+  new run for the term.
+- **One run, one programme.** A run another programme already names cannot
+  be named again.
+- **Once anybody has been handed over, the run cannot be changed** on the
+  programme. Check the run before the first press.
+- **A track lead on such a run is not shown these people.** The board, the
+  run's own applications page and Publish serve somebody the form placed to
+  admins only. A track lead still edits the run, staffs its groups and sees
+  everybody who applied to the run itself. A row the form wrote is one an
+  admin places and an admin publishes.
+- **Somebody sees their group as soon as they are put in one.** The first
+  placement on the board is what makes the place on the run, so the run
+  shows in that person's member area from then on, before Publish. Publish
+  is what emails them.
+- **Nothing is deployed for any of this.** No rule and no index changes.
+  The rows are written by routes into a collection that was already shut to
+  every browser write, and read back by one equality on `runId`.
+
+### When somebody gives their place back
+
+Before the hand-over, they are simply not handed over.
+
+After it, nothing takes them off the run. The panel names them under "No
+longer hold a place", and their card on the board says "Gave their place
+back". Then, by hand:
+
+1. on the board, **Remove** them if they are in a group. That frees the
+   seat and takes them off the cohort's mailing list;
+2. on the run's own applications page, change their row from Accepted. A
+   row the form wrote carries no address, so that page emails nobody about
+   it. Until this is done Publish goes on waiting for them, because Publish
+   refuses while anybody accepted is not in a group.
+
+Their own member area stops saying they have a place as soon as they reply,
+whether or not anybody has done either.
+
+### What is logged
+
+Each press that puts anybody on a run appends one line to the course log
+(`courseAudit`, kind `run-hand-over`), keyed to the run: who pressed, which
+programme, and how many people. It names none of them. Destroying the run
+clears it with the run's other lines.
+
 ## Cutover: membership periods
 
 Membership is a period-per-year object (`membershipPeriods/{periodId}`), and
