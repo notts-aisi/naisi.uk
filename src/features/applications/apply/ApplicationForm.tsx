@@ -29,6 +29,7 @@ import ChooseStep from "./ChooseStep";
 import FacilitatingStep from "./FacilitatingStep";
 import QuestionsStep from "./QuestionsStep";
 import RankStep from "./RankStep";
+import SetLine from "./SetLine";
 import { UniversityCheckHold, UniversityCheckNote } from "./UniversityCheck";
 import { sendApplication, type SendIssue } from "./applyClient";
 import { paintedSlots, summaryLines } from "./availabilityText";
@@ -616,6 +617,8 @@ export default function ApplicationForm({
                 </span>
               ) : null}
             </div>
+            {/* A set's own line for applicants, when its author wrote one. */}
+            <SetLine set={set} />
             {step.kind === "about" ? (
               <>
                 <p className={styles.lede}>From your account. Change anything that’s out of date.</p>

@@ -130,6 +130,11 @@ function scopeForApplicant(scope: QuestionSetScope): QuestionSetScope {
 /**
  * One question set as it is asked. The committee's own line about who sees
  * the set (`intro`) stays behind with the `scored` flag.
+ *
+ * A SET HAS TWO LINES, AND ONE OF THEM IS SENT. `applicantLine` was written
+ * for applicants and is theirs to read. `intro` is the note for admins and is
+ * named nowhere below. Each is read from its own field, so neither can stand
+ * in for the other.
  */
 export function projectQuestionSetForApplicant(set: QuestionSetDoc): ApplicantQuestionSet {
   return {
@@ -137,6 +142,7 @@ export function projectQuestionSetForApplicant(set: QuestionSetDoc): ApplicantQu
     role: set.role,
     scope: scopeForApplicant(set.scope),
     label: set.label,
+    applicantLine: set.applicantLine,
     questions: set.questions.map(questionForApplicant),
   };
 }

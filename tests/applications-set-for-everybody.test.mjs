@@ -755,6 +755,7 @@ describe("an applicant is sent it, saves it, sends it and sees what changed", ()
       role: "general",
       scope: { type: "everybody" },
       label: "Shared",
+      applicantLine: "",
       questions: [
         { id: LOOKED, text: "How much have you looked into AI safety before?", help: "", type: "long", options: [], optionsFromRanking: false, wordLimit: null, required: true },
         { id: CV, text: "A link to your CV, if you have one.", help: "", type: "short", options: [], optionsFromRanking: false, wordLimit: null, required: false },

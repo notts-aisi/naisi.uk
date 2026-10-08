@@ -22,6 +22,7 @@ import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
 import kit from "@/features/applications/kit/kit.module.css";
 import { APPLICATION_LIMITS, type QuestionSetScope } from "@/lib/applications/model";
 import { lockedSentence } from "@/lib/applications/editor/lock";
+import { LINKS_HINT } from "@/lib/applications/linkedText";
 import { own } from "@/lib/applications/editor/own";
 import {
   SET_ROLE_LABEL,
@@ -513,7 +514,14 @@ export default function FormEditor({
             setSets((current) =>
               current.map((set) =>
                 set.id === stored.id
-                  ? { ...set, label: stored.label, intro: stored.intro, audience: stored.audience, description: stored.description }
+                  ? {
+                      ...set,
+                      label: stored.label,
+                      intro: stored.intro,
+                      applicantLine: stored.applicantLine,
+                      audience: stored.audience,
+                      description: stored.description,
+                    }
                   : set,
               ),
             );
@@ -1026,6 +1034,14 @@ function NewSetDialog({
   );
 }
 
+/**
+ * A set's name and its two lines.
+ *
+ * THE TWO LINES ARE DIFFERENT THINGS AND SAY SO. "Line shown to applicants"
+ * is drawn under the set's heading on the form. "Note for admins" is kept for
+ * whoever edits the form next and is never sent to an applicant. Each box
+ * says who reads it, so nobody types one into the other.
+ */
 function RenameSetDialog({
   roundId,
   set,
@@ -1039,13 +1055,14 @@ function RenameSetDialog({
 }) {
   const ids = useId();
   const [label, setLabel] = useState(set?.label ?? "");
+  const [applicantLine, setApplicantLine] = useState(set?.applicantLine ?? "");
   const [intro, setIntro] = useState(set?.intro ?? "");
   const { busy, problem, run } = useSaving();
   if (!set) return null;
 
   const save = () =>
     run(async () => {
-      const saved = await patchSet(roundId, set.id, { label, intro });
+      const saved = await patchSet(roundId, set.id, { label, applicantLine, intro });
       onSaved(saved.set);
     });
 
@@ -1079,6 +1096,23 @@ function RenameSetDialog({
             onChange={(event) => setLabel(event.target.value)}
           />
           <p className={shared.hint}>Applicants see it as the heading over these questions.</p>
+        </div>
+        <div className={shared.field}>
+          <label htmlFor={`${ids}-applicant-line`} className={shared.label}>
+            Line shown to applicants <span className={shared.optional}>(optional)</span>
+          </label>
+          <input
+            id={`${ids}-applicant-line`}
+            type="text"
+            className={shared.input}
+            value={applicantLine}
+            maxLength={L.setApplicantLine}
+            aria-describedby={`${ids}-applicant-line-hint`}
+            onChange={(event) => setApplicantLine(event.target.value)}
+          />
+          <p id={`${ids}-applicant-line-hint`} className={shared.hint}>
+            Applicants read it under the heading, before the first question. {LINKS_HINT}
+          </p>
         </div>
         <div className={shared.field}>
           <label htmlFor={`${ids}-intro`} className={shared.label}>

@@ -322,7 +322,10 @@ function readQuestion(raw: unknown, position: number): Parsed<QuestionInput> {
 
 export type SetChange = {
   label?: string;
+  /** The note for admins. Applicants are never sent it. */
   intro?: string;
+  /** The line shown to applicants under the set's heading. */
+  applicantLine?: string;
   /** The whole list, in order. A question left out is deleted. */
   questions?: QuestionInput[];
 };
@@ -339,10 +342,19 @@ export function parseSetChange(raw: unknown): Parsed<SetChange> {
     if (!label.ok) return label;
     change.label = label.value;
   }
+  // A set's two lines are refused under their own names, the names the
+  // editor's two boxes carry, so a refusal never points at the wrong box.
   if ("intro" in body) {
-    const intro = readText(body.intro, "The line under the heading", L.setIntro, false);
+    const intro = readText(body.intro, "The note for admins", L.setIntro, false);
     if (!intro.ok) return intro;
     change.intro = intro.value;
+  }
+  if ("applicantLine" in body) {
+    // The limit counts what was typed: a link's brackets and its address are
+    // characters of the line like any others.
+    const line = readText(body.applicantLine, "The line shown to applicants", L.setApplicantLine, false);
+    if (!line.ok) return line;
+    change.applicantLine = line.value;
   }
   if ("questions" in body) {
     if (!Array.isArray(body.questions)) return fail("The questions have to be a list.");

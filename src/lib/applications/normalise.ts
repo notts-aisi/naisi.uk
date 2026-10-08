@@ -346,6 +346,9 @@ export function normaliseQuestionSet(id: string, data: unknown): QuestionSetDoc 
     scope,
     label: str(raw.label, L.setLabel),
     intro: str(raw.intro, L.setIntro),
+    // Read from its own field and from no other: a set stored before the
+    // line existed has none, whatever its note for admins says.
+    applicantLine: str(raw.applicantLine, L.setApplicantLine),
     questions,
     createdAt: tsToDate(raw.createdAt),
     updatedAt: tsToDate(raw.updatedAt),

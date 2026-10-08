@@ -269,8 +269,10 @@ export type QuestionSetView = {
   /** The sets it is shown beside in the editor. */
   family: SetFamily;
   label: string;
-  /** The line applicants read under the heading. */
+  /** The note for admins. Applicants are never sent it. */
   intro: string;
+  /** The line applicants read under the heading, before the first question. */
+  applicantLine: string;
   /** "People who tick AGI Strategy": the line under its name in the list. */
   audience: string;
   /** The sentence under its heading when it is open. */
@@ -321,6 +323,7 @@ export function projectSetForEditor(
     family: familyOf(set, form),
     label: set.label,
     intro: set.intro,
+    applicantLine: set.applicantLine,
     audience: whoSees(set, form),
     description: describeSet(set, form, sets),
     questions: set.questions.map(questionView),

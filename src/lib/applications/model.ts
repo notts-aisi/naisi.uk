@@ -86,6 +86,7 @@ export const APPLICATION_LIMITS = {
   maxQuestionSets: 12,
   setLabel: 60,
   setIntro: 300,
+  setApplicantLine: 300,
   maxQuestionsPerSet: 12,
   questionText: 300,
   questionHelp: 300,
@@ -271,8 +272,22 @@ export type QuestionSetDoc = {
   scope: QuestionSetScope;
   /** "Fellowships", "AGI Strategy", "Facilitator questions". The author's own for a set made by hand. */
   label: string;
-  /** One line under the heading. */
+  /**
+   * THE NOTE FOR ADMINS: kept with the set for whoever edits the form next.
+   * Never sent to an applicant and never drawn for one. The name is older
+   * than what it holds.
+   */
   intro: string;
+  /**
+   * THE LINE SHOWN TO APPLICANTS: drawn under the set's heading on its step,
+   * before its first question. Plain text an admin writes, in which an
+   * `https://` address and `[words](https://address)` are drawn as links
+   * (`linkedText.ts`). Empty for a set with none.
+   *
+   * A set has these two lines and they are never one another: what is typed
+   * as a note for admins does not reach an applicant by any route.
+   */
+  applicantLine: string;
   questions: ApplicationQuestion[];
   createdAt: Date | null;
   updatedAt: Date | null;

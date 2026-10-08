@@ -1076,17 +1076,28 @@ describe("no other file under the form's folders makes an address out of stored 
     const authored = [...BUILT].filter(([, entry]) => entry.authored === true).map(([file]) => file);
     assert.deepEqual(authored, [COMPONENT_FILE]);
     assert.deepEqual(BUILT.get(COMPONENT_FILE).built, ["part.href"]);
-    // And only the form's own fields and the component itself import the function.
+    // And only the component imports the function. The editor's two files
+    // import the one sentence they show beside a box, and nothing else.
     const importers = everyFile.filter((file) => /from "@\/lib\/applications\/linkedText"/.test(read(file))).sort();
-    assert.deepEqual(importers, [
+    const editorFiles = [
+      "src/features/applications/editor/FormEditor.tsx",
       "src/features/applications/editor/QuestionCard.tsx",
-      COMPONENT_FILE,
+    ];
+    assert.deepEqual(importers, [...editorFiles, COMPONENT_FILE]);
+    for (const file of editorFiles) {
+      assert.match(
+        read(file),
+        /import \{ LINKS_HINT \} from "@\/lib\/applications\/linkedText";/,
+        `${file} imports more of the function's file than the sentence it shows`,
+      );
+    }
+    // And two places draw an author's line through the component: a question's
+    // help line, and the line a set's author wrote for applicants.
+    const drawers = everyFile.filter((file) => /<LinkedText\b/.test(read(file))).sort();
+    assert.deepEqual(drawers, [
+      "src/features/applications/apply/SetLine.tsx",
+      "src/features/applications/apply/fields.tsx",
     ]);
-    assert.match(
-      read("src/features/applications/editor/QuestionCard.tsx"),
-      /import \{ LINKS_HINT \} from "@\/lib\/applications\/linkedText";/,
-      "the editor imports more of the function's file than the sentence it shows",
-    );
   });
 
   test("nothing under the form's folders sets markup from a string, or sends the browser to an address in code", () => {

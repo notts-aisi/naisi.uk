@@ -426,6 +426,14 @@ const USERS = new Map([
       "is decided by the code that runs",
   ],
   [
+    "applications-set-line-for-applicants.test.mjs",
+    "executes the editor's, the applicant's and the review screen's handlers against one " +
+      "in-memory term whose sets carry both a note for admins and a line for applicants, and " +
+      "renders the component that draws the line, which is .tsx and needs the JSX option this " +
+      "loader sets, because which of a set's two lines an applicant is sent is decided by the " +
+      "code that runs",
+  ],
+  [
     "applications-su-membership-answer.test.mjs",
     "executes the decision-day, pooled applicants and review handlers as two admins, a lead, a " +
       "reviewer and people with no role, and the applicant's own read and form (a .tsx server " +

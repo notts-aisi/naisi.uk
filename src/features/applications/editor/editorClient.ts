@@ -124,7 +124,7 @@ export type QuestionPatch = {
 export function patchSet(
   roundId: string,
   setId: string,
-  patch: { label?: string; intro?: string; questions?: QuestionPatch[] },
+  patch: { label?: string; intro?: string; applicantLine?: string; questions?: QuestionPatch[] },
 ): Promise<{ set: QuestionSetView }> {
   return call(`${base(roundId)}/sets/${encodeURIComponent(setId)}`, "PATCH", patch);
 }

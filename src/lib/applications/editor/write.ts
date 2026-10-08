@@ -158,6 +158,7 @@ function newSetData(roundId: string, label: string, scope: QuestionSetScope) {
     scope,
     label,
     intro: "",
+    applicantLine: "",
     questions: [],
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
@@ -587,9 +588,10 @@ function questionsToStore(
 }
 
 /**
- * Change one question set: its name, the line under its heading, or its whole
- * list of questions (which is also how they are reordered and deleted). Admin
- * only, and refused once anybody has sent an application.
+ * Change one question set: its name, its note for admins, the line shown to
+ * applicants under its heading, or its whole list of questions (which is also
+ * how they are reordered and deleted). Admin only, and refused once anybody
+ * has sent an application: the line is part of what they were shown.
  */
 export async function changeSet(
   db: Firestore,
@@ -614,6 +616,7 @@ export async function changeSet(
     const update: Record<string, unknown> = {};
     if (change.label !== undefined) update.label = change.label;
     if (change.intro !== undefined) update.intro = change.intro;
+    if (change.applicantLine !== undefined) update.applicantLine = change.applicantLine;
     if (change.questions !== undefined) {
       const cannotScore = scoredRefusal(set.role);
       if (cannotScore && change.questions.some((question) => question.scored)) {

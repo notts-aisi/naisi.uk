@@ -484,6 +484,54 @@ the build. `tests/applications-set-for-everybody.test.mjs` reads the scopes
 out of `model.ts` and puts each through every copy, and runs the set through
 the editor's routes, the applicant's and the review screen's.
 
+### A set has two lines of its own
+
+Besides its name and its questions, a question set stores two lines of text.
+They are two fields, written in two boxes, and they are never one another.
+
+| | The line shown to applicants | The note for admins |
+| --- | --- | --- |
+| Field | `applicantLine` | `intro` (the name is older than what it holds) |
+| Who reads it | everybody who is asked the set | whoever edits the form: admins |
+| Sent to an applicant | yes, with the set | never |
+| Drawn | under the set's heading on its step, before its first question | in the editor only |
+| Links | an `https://` address and `[words](https://address)`, as in a help line | none: it is shown as typed |
+| Limit | `APPLICATION_LIMITS.setApplicantLine` characters, as typed | `APPLICATION_LIMITS.setIntro` characters |
+| Which sets | every kind, the set for everybody included | every kind |
+
+**Each is read from its own field and from no other.** The reader
+(`normaliseQuestionSet`) gives a set stored before the line existed an empty
+line, whatever its note says. The applicant's projection
+(`projectQuestionSetForApplicant`) sends `applicantLine` and does not name
+`intro`, so the note is not a field of what an applicant is sent, and it
+does not stand in for a line that is empty. `SetLine`
+(`src/features/applications/apply/SetLine.tsx`) draws the line and reads
+nothing else of the set.
+
+**Writing it.** Both go through the route that changes a set
+(`changeSet`, `PATCH .../sets/[setId]`), each under its own name, and each
+is refused under its own name when it is over its limit. A new set starts
+with neither. Like the set's name and questions, both are an admin's, and
+both lock once somebody has sent an application: the line is part of what
+that person was shown. In the editor they are the two boxes under More, then
+Rename: "Line shown to applicants" and "Note for admins".
+
+**Where the line shown to applicants is drawn.**
+
+| Where | Drawn | Why |
+| --- | --- | --- |
+| The applicant's form, on the set's step | yes, through `LinkedText` | it says how to fill that step in |
+| "Preview as an applicant", from the editor | yes | it is the form itself, in a new tab |
+| The form's last step, where the answers are checked | no | it lists answers under each set's name, and the line is not an answer |
+| An applicant's page after sending | no | it lists no questions |
+| The review screen | no | reviewers are shown the questions and the answers; the payload does not carry the line |
+| What an application said before | no | a kept version holds what the person sent, and the line is the form's |
+
+`tests/applications-set-line-for-applicants.test.mjs` holds each of these: it
+writes both lines through the editor's route on every kind of set, reads
+what the applicant's route and the review screen's then send, renders the
+component, and reads the editor's two boxes out of the source.
+
 ### A question that asks for an order
 
 A question's type is one of `short`, `long`, `choice`, `multi`, `scale` and
@@ -557,8 +605,10 @@ editor's routes, the applicant's and the review screen's.
 ### A help line can carry a link
 
 A question's help line is plain text. An author types it, and an applicant
-reads it under the question. Two shapes in it are drawn as a link, and
-nothing else in it is ever markup:
+reads it under the question. A set's line shown to applicants is the same
+kind of text, read under the set's heading, and everything below holds for
+it too. Two shapes in such a line are drawn as a link, and nothing else in
+it is ever markup:
 
 - an address that begins `https://`, written out where it stands;
 - `[words](https://address)`, which shows the words.
@@ -594,7 +644,14 @@ read `example.org` over an address somewhere else are left as text, and each
 address there that can stand by itself is linked to itself.
 
 **The limit counts what was typed.** A help line is at most
-`APPLICATION_LIMITS.questionHelp` characters, brackets and address included.
+`APPLICATION_LIMITS.questionHelp` characters and a set's line shown to
+applicants at most `APPLICATION_LIMITS.setApplicantLine`, brackets and
+address included.
+
+**Two places draw one.** `HelpLine` in the form's `fields.tsx` draws a help
+line and `SetLine` draws a set's line, both through `LinkedText`, and no
+other file under the form's folders uses the component. The editor shows
+either as typed, in its box.
 
 **Where a help line is drawn.**
 
@@ -1151,6 +1208,11 @@ All in `src/lib/applications/`.
   typed. A new `href` that is not written out in full is added to the list
   in `tests/applications-linked-text.test.mjs` with what it is built from.
   Nothing there is set as HTML.
+- **A set's note for admins is not an applicant's to read.** A set has two
+  lines, `applicantLine` and `intro`, and only the first is sent to an
+  applicant. Nothing that builds what an applicant is sent, and nothing the
+  form draws, reads `intro` or falls back on it. A new line or label for
+  applicants gets a field of its own.
 - **No query that sorts or ranges on the server.** Every read here is one or
   two equalities, which need no composite index. A term is a few hundred
   documents: filter and sort in memory.
