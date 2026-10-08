@@ -1,0 +1,300 @@
+/*
+  What the pooled applicants page and the decision-day page share: the page
+  head, the card, the status pill, the people's initials and the two kinds of
+  button.
+
+  Colours are theme tokens (src/theme/tokens.css) and the few the application
+  screens add (kit.module.css). The three text tints below sit between the
+  theme's text and muted colours, mixed from those two so they follow the
+  theme rather than restating a hex.
+*/
+
+.page {
+  --dd-text-soft: color-mix(in srgb, var(--color-text) 47%, var(--color-text-muted));
+  --dd-text-quote: color-mix(in srgb, var(--color-text) 79%, var(--color-text-muted));
+  --dd-text-letter: color-mix(in srgb, var(--color-text) 62%, var(--color-text-muted));
+  --dd-danger-text: color-mix(in srgb, var(--color-danger) 70%, white);
+  max-width: 71rem;
+  min-width: 0;
+  color: var(--color-text);
+  /* The design sets a line height only where a line runs to a paragraph.
+     Everything else sits at the font's own, which is tighter than the site's
+     default for running text. */
+  line-height: normal;
+}
+
+.icon {
+  display: block;
+  flex: none;
+}
+
+/* === The page head === */
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  /* The link below is 44px tall with its word in the middle, which leaves the
+     same gap above the title that a 10px margin under a bare line would. */
+  margin-top: -0.75rem;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+.crumb:hover {
+  color: var(--color-text);
+}
+.crumb:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.head {
+  margin-bottom: var(--space-6);
+}
+
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.titleChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.lede {
+  margin: 6px 0 0;
+  font-size: var(--text-base);
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+
+/* A second line under the lede, about the person looking: quieter than it. */
+.aside {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* === Pills: a status, always with its word === */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-hover);
+  color: var(--dd-text-soft);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.pillDot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.pillLive {
+  background: color-mix(in srgb, var(--color-live) 12%, transparent);
+  border-color: color-mix(in srgb, var(--color-live) 35%, transparent);
+  color: var(--color-live);
+}
+
+.pillAccent {
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
+  color: var(--color-accent-text);
+}
+
+.pillOk {
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+  border-color: color-mix(in srgb, var(--color-ok) 35%, transparent);
+  color: var(--color-ok);
+}
+
+.pillDanger {
+  background: color-mix(in srgb, var(--color-danger) 16%, transparent);
+  border-color: color-mix(in srgb, var(--dd-danger-text) 35%, transparent);
+  color: var(--dd-danger-text);
+}
+
+.pillWarn {
+  background: color-mix(in srgb, var(--color-warning) 14%, transparent);
+  border-color: color-mix(in srgb, var(--color-warning) 35%, transparent);
+  color: var(--color-warning);
+}
+
+/* === Cards === */
+
+.card {
+  min-width: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+/* Section labels are set a little wider than table headers. Scoped under the
+   page so it wins over the shared metadata class it is used beside. */
+.page .eyebrow {
+  letter-spacing: 0.12em;
+}
+
+/* === A calm line with an icon in front === */
+
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.noteIcon {
+  margin-top: 1px;
+}
+
+/* === Buttons === */
+
+.secondary {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: 0 18px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.secondary:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+.secondary:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+.secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* A text-only action: accent words, no box. */
+.quiet {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.quiet:hover:not(:disabled) {
+  color: var(--color-text);
+}
+.quiet:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.quiet:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* === Something went wrong, said in a sentence === */
+
+.problem {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--dd-danger-text);
+  overflow-wrap: anywhere;
+}
+
+/* === Somebody who may not use this page === */
+
+.refusal {
+  max-width: 34rem;
+  padding: var(--space-6);
+}
+
+.refusalTitle {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.refusalText {
+  margin: 0 0 var(--space-3);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .title {
+    font-size: 1.75rem;
+  }
+  .secondary {
+    width: 100%;
+  }
+}

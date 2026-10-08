@@ -132,6 +132,12 @@ const DEADLINE_NAMES = new Map([
         "src/lib/admissions/roundRoutes.ts",
         "src/lib/admissions/stageRelease.ts",
         "src/lib/admissions/window.ts",
+        // The application form's editor. `parse.ts` declares the close on the
+        // change an admin sends and `write.ts` stores it (null on a new form).
+        // Neither tells an applicant the close nor refuses a write past it, so
+        // `told` and `enforced` below are as they were.
+        "src/lib/applications/editor/parse.ts",
+        "src/lib/applications/editor/write.ts",
         "src/lib/courses/enrolWindow.ts",
         "src/lib/courses/window.ts",
         "src/lib/firestore/admissionRounds.ts",
@@ -142,8 +148,15 @@ const DEADLINE_NAMES = new Map([
           of: "an admission round",
           binds: "an applicant",
           why: "The last instant a round accepts a submission of any kind.",
-          told: ["src/lib/admissions/applyRoutes.ts", "src/features/admissions/ApplyFlow.tsx"],
-          enforced: ["src/lib/admissions/applyContext.ts"],
+          // The last file in each list is the application form's: its screen
+          // prints the close, and its draft save and its send are refused
+          // past it through `formWindowRefusal`.
+          told: [
+            "src/lib/admissions/applyRoutes.ts",
+            "src/features/admissions/ApplyFlow.tsx",
+            "src/features/applications/apply/ApplicationForm.tsx",
+          ],
+          enforced: ["src/lib/admissions/applyContext.ts", "src/lib/applications/applicant/window.ts"],
           predicate: "roundWindowState(",
         },
         {
@@ -569,6 +582,38 @@ const DEADLINE_PREDICATES = new Map([
         [
           "src/app/api/admissions/rounds/[roundId]/stages/[stageId]/release/route.ts",
           { role: "enforces", why: "refuses a manual release into a round nobody can answer" },
+        ],
+        [
+          "src/lib/applications/applicant/window.ts",
+          {
+            role: "enforces",
+            why: "`formWindowRefusal`, which the application form's draft save and its send both call before they write",
+          },
+        ],
+        [
+          "src/lib/applications/decisionDay/plan.ts",
+          { role: "enforces", why: "`sendBlockers`: decision day is refused while the form is still taking applications, in the sentence the send route answers with" },
+        ],
+        [
+          "src/lib/applications/editor/views.ts",
+          {
+            role: "tells",
+            why: "`formStateFor`, the one chip on the committee's screens that says where a form is in its term: opens on a day, open, or closed",
+          },
+        ],
+        [
+          "src/lib/applications/lifecycle/status.ts",
+          {
+            role: "enforces",
+            why: "`planFormMove` refuses to settle a form that is still taking applications, in the sentence the status route answers with; `termStageFor` reads the same window to say where the form is",
+          },
+        ],
+        [
+          "src/lib/applications/lifecycle/openForm.ts",
+          {
+            role: "tells",
+            why: "`findOpenForm`: which application form a public page's Apply button leads to, and the close it prints; the form's own routes refuse on the same predicate",
+          },
         ],
       ]),
     },

@@ -7,11 +7,14 @@ import {
   APPLICATION_STATUS_TONE,
   applicationStatusBlurb,
 } from "@/features/admissions/applicationStatus";
+import { VIEW_AS_NOTICE } from "@/features/applications/viewAsNotice";
 import { loadStatusRows } from "@/lib/admissions/statusHubData";
+import { loadListWords } from "@/lib/applications/status/load";
 import type { ApplicationStatusRow } from "@/lib/admissions/statusTypes";
 import { formatRoundDate, formatRoundDeadline } from "@/lib/admissions/window";
 import { formatRunStartShort } from "@/lib/courses/window";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { ADMISSION_APPLICATION_STATUS_LABEL } from "@/lib/firestore/admissionApplications";
 import styles from "./applications.module.css";
@@ -51,6 +54,15 @@ import styles from "./applications.module.css";
  *
  * Every row the caller has, open round or long closed. This is the surface
  * that has to survive the deadline; see `statusHubData.ts`.
+ *
+ * ## A view-as session is not the applicant
+ *
+ * The list is read by one query for every application the account has, of
+ * either kind, and an application made on an application form is its
+ * owner's to read (`src/features/applications/viewAsNotice.ts`). So while an
+ * admin is viewing the site as a member the query is not made: the page
+ * draws a notice in the list's place, and nothing of anybody's application
+ * is fetched to be left out afterwards.
  */
 
 export const dynamic = "force-dynamic";
@@ -124,12 +136,34 @@ function Unavailable() {
   );
 }
 
+/** What a view-as session is shown where the list would have been. */
+function ViewingAs() {
+  return (
+    <section className={styles.page}>
+      <div className="container">
+        <header className={styles.hero}>
+          <h1 className={styles.title}>Your applications</h1>
+        </header>
+        <Card padding="lg" className={styles.empty}>
+          <h2 className={styles.emptyTitle}>{VIEW_AS_NOTICE.title}</h2>
+          <p className={styles.emptyBody}>{VIEW_AS_NOTICE.body}</p>
+        </Card>
+      </div>
+    </section>
+  );
+}
+
 export default async function ApplicationsPage() {
   const user = await getCurrentUser();
   // The proxy already redirects a caller with no session cookie. This is the
   // second half of the two-layer gate: a cookie that no longer verifies gets
   // the same answer the proxy would have given, rather than an empty page.
   if (!user) redirect("/login?next=%2Fapplications");
+
+  // Before anything is read. The session is already in hand, so this is
+  // `markerIsLive` rather than a second read of it, and a marker left over
+  // from a session that has ended is not a session.
+  if (markerIsLive(await getImpersonator(), user.uid)) return <ViewingAs />;
 
   const db = getAdminDb();
   // NOT the empty state. An unconfigured Admin SDK means this page cannot read
@@ -140,6 +174,10 @@ export default async function ApplicationsPage() {
   if (!db) return <Unavailable />;
 
   const rows = await loadStatusRows(db, user.uid, new Date());
+  // An application made on an application form says here what its own page
+  // says: the same chip and the same title, from the one place they are
+  // written. A row with no entry keeps the words below.
+  const formWords = await loadListWords(db, user.uid, rows.map((row) => row.round.id), new Date());
 
   return (
     <section className={styles.page}>
@@ -174,6 +212,7 @@ export default async function ApplicationsPage() {
                 opensLine(row),
                 decisionsLine(row),
               ].filter((line): line is string => Boolean(line));
+              const said = formWords.get(row.round.id);
               return (
                 <li key={row.application.id}>
                   <Card padding="lg" className={styles.row}>
@@ -184,17 +223,18 @@ export default async function ApplicationsPage() {
                           <p className={styles.rowYear}>{row.round.academicYear}</p>
                         ) : null}
                       </div>
-                      <Badge tone={APPLICATION_STATUS_TONE[row.application.status]}>
-                        {ADMISSION_APPLICATION_STATUS_LABEL[row.application.status]}
+                      <Badge tone={said?.tone ?? APPLICATION_STATUS_TONE[row.application.status]}>
+                        {said?.chip ?? ADMISSION_APPLICATION_STATUS_LABEL[row.application.status]}
                       </Badge>
                     </div>
 
                     <p className={styles.rowBlurb}>
-                      {applicationStatusBlurb(
-                        row.application.status,
-                        row.round.windowState,
-                        row.round.kind,
-                      )}
+                      {said?.sentence ??
+                        applicationStatusBlurb(
+                          row.application.status,
+                          row.round.windowState,
+                          row.round.kind,
+                        )}
                     </p>
 
                     {facts.length > 0 ? (

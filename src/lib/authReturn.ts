@@ -69,3 +69,37 @@ export function safeFunnelReturn(raw: string | null | undefined): string | null 
   if (path.split("/").includes("..")) return null;
   return raw;
 }
+
+/**
+ * A page that IS one of those forms: an application form or an older round
+ * (`/apply/<id>`), or a course's own apply page (`/courses/<id>/apply`).
+ */
+const FORM_PAGE = /^\/(?:apply\/[^/]+|courses\/[^/]+\/apply)$/;
+
+/**
+ * `pathname` when somebody on that page is on a form, otherwise null.
+ *
+ * NARROWER THAN THE LIST ABOVE, ON PURPOSE. That list says where signing in
+ * or registering may hand somebody BACK to, and a course's public page is on
+ * it. This says which pages somebody is ON when leaving them loses a form,
+ * which is the question the site's top bar asks (`signedOutEntriesOn`,
+ * `src/layout/publicNav.ts`). Every address it passes is on the list above.
+ */
+export function formPageReturn(pathname: string | null | undefined): string | null {
+  const safe = safeFunnelReturn(pathname);
+  return safe !== null && FORM_PAGE.test(safe) ? safe : null;
+}
+
+/**
+ * The sign-in page, with a form's page as the place to come back to.
+ *
+ * `formPage` is an address `formPageReturn` passed. The BARE address is
+ * carried, never an application form's marked one (`signInHrefFor`,
+ * `src/lib/applications/applicant/join.ts`): from the address alone nobody
+ * can tell an application form from an older round or from a form that is
+ * not open, and the sign-in page already sorts a bare one for an account
+ * with no join request, by asking the form's own route (`newAccountReturn`).
+ */
+export function signInHrefWithReturn(formPage: string): string {
+  return `/login?next=${encodeURIComponent(formPage)}`;
+}

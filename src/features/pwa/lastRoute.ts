@@ -1,5 +1,7 @@
 "use client";
 
+import { safeReturnPath } from "@/lib/safeReturnPath";
+
 /*
  * Remembering where a signed-in member was, so an installed app relaunch
  * can put them back there.
@@ -43,9 +45,9 @@ export function readLastRoute(): string | null {
     const parsed = JSON.parse(raw) as { path?: unknown; ts?: unknown };
     if (typeof parsed.path !== "string" || typeof parsed.ts !== "number") return null;
     if (Date.now() - parsed.ts > MAX_AGE_MS) return null;
-    // Same open-redirect guard as everywhere else: same-origin path only.
-    if (!parsed.path.startsWith("/") || parsed.path.startsWith("//")) return null;
-    return parsed.path;
+    // Only a path on this site, which is decided in one place for the whole
+    // codebase (`safeReturnPath`) and asked here. Anything else is no route.
+    return safeReturnPath(parsed.path);
   } catch {
     return null;
   }

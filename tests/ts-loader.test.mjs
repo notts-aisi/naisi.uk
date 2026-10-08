@@ -243,6 +243,334 @@ describe("the shared loader reads JSX", () => {
  */
 const USERS = new Map([
   [
+    "admissions-form-fence.test.mjs",
+    "executes every older round route against a stored application form and against a round " +
+      "of the older kind, with the session, the Admin SDK handle and every sending door faked, " +
+      "because whether a form is refused before anything is written is decided by the handler " +
+      "that runs; it also renders the two notices the older pages return for a form, which " +
+      "are .tsx components and need the JSX option this loader sets",
+  ],
+  [
+    "application-decision-lifetime.test.mjs",
+    "executes the whole account cascade against a store that records each committed batch as " +
+      "a unit, to prove a decision document leaves in the same batch as the application it is " +
+      "about; its graph is `accountDeletion.ts` and every collection helper it imports, and " +
+      "the Admin SDK sentinels are its only stub, because atomicity proved against a copy of " +
+      "the sweep would say nothing about the sweep that ships",
+  ],
+  [
+    "applications-access.test.mjs",
+    "executes src/lib/applications/access.ts and roles.ts with the real eligibility bar " +
+      "underneath, against a cast that includes a lead who lost their standing, and the roles " +
+      "writer against an in-memory Firestore, because who may read applications is decided " +
+      "by the code that runs and not by its comments",
+  ],
+  [
+    "applications-apply-draft.test.mjs",
+    "executes the draft clean-up (src/lib/applications/applicant/draft.ts, account.ts, keys.ts) " +
+      "against a small form, including ids that are only the names of things every object " +
+      "inherits, because what a save may store is decided by the code that runs",
+  ],
+  [
+    "applications-apply-form.test.mjs",
+    "executes the applicant form's pure helpers (step names, availability wording, the typed " +
+      "route into the grid, the lines on the last step) against the sample term, because they " +
+      "have to produce the boards' own words",
+  ],
+  [
+    "applications-apply-projection.test.mjs",
+    "executes the three applicant projections over a form, a question set and an application " +
+      "whose every staff-only field carries a marker, because only running them shows no " +
+      "marker survives",
+  ],
+  [
+    "applications-apply-routes.test.mjs",
+    "executes the applicant's GET, PUT and send handlers with the real gate, rate limiter and " +
+      "application modules against an in-memory Firestore, because the two copies and the " +
+      "counters are transactions and only running them shows what was written",
+  ],
+  [
+    "applications-blind-first.test.mjs",
+    "executes the review screen's read, the review save, a programme's list and its settings " +
+      "route as leads and reviewers who are not admins, against an in-memory term with every " +
+      "kind of programme that has nothing to score, because whose scores and comments somebody " +
+      "is sent before they have saved a review of their own is decided by the code that runs",
+  ],
+  [
+    "applications-d2-delta-join.test.mjs",
+    "executes the rules of joining on the application form (src/lib/applications/applicant/join.ts: " +
+      "what stops a join request, what is sent as one, what is kept while somebody signs in, " +
+      "what holds a send) against the contract's own About you rules and the site's notification " +
+      "defaults, because each is a promise only running the function shows is kept",
+  ],
+  [
+    "applications-d2-gamma-find-the-form.test.mjs",
+    "executes the form lookup, the older round lookup, the catalogue's fetcher and the flattener a public " +
+      "course page calls, against a database that records its reads, and renders the page's call to " +
+      "action and the dashboard's applications card (both .tsx) to HTML, because what the Apply button " +
+      "says and where it leads in each state of the form is decided by the code that runs",
+  ],
+  [
+    "applications-decision-day-emails.test.mjs",
+    "executes the pure email copy and the settings page's projection against the same form, " +
+      "and renders the three decision-day templates through the real `@react-email/components`, " +
+      "because what an applicant reads is the property under test and the templates are `.tsx`",
+  ],
+  [
+    "applications-decision-day-plan.test.mjs",
+    "executes the pure decision-day modules (the line-up, what may be picked for a pooled " +
+      "person, why the send is held, the sentences built from numbers) against a small term " +
+      "and against the 122 applicants the design was drawn for",
+  ],
+  [
+    "applications-decision-day-pool.test.mjs",
+    "executes the pooled outcome writer, the board builder and the pool route against an " +
+      "in-memory Firestore, with the real access predicates underneath, because what matters " +
+      "is what is written where and what is read before the gate",
+  ],
+  [
+    "applications-decision-day-send.test.mjs",
+    "executes the decision-day send, the account approval inside it and four route handlers " +
+      "against an in-memory Firestore and a mail door that records; its graph reaches the three " +
+      "`.tsx` templates, and what was handed to the door is rendered and read",
+  ],
+  [
+    "applications-editor-routes.test.mjs",
+    "executes the six route files under src/app/api/admissions/forms against an in-memory " +
+      "Firestore as every kind of caller, with the real access predicates, the real roles " +
+      "writer and the real eligibility bar underneath, because who may edit a form and when " +
+      "its questions lock are decided by the code that runs",
+  ],
+  [
+    "applications-editor-rules.test.mjs",
+    "executes the pure modules under src/lib/applications/editor (the lock, id minting, who " +
+      "sees a set, every request body, the three projections) against the autumn form the " +
+      "design was drawn for, because the sentences and the field lists are only right if " +
+      "running them says so",
+  ],
+  [
+    "applications-journey-in-term.test.mjs",
+    "executes the contract's term arithmetic beside every builder and loader that counts with " +
+      "it (the review list, the decision-day plan, the two editor loaders) on one stored term, " +
+      "to prove a place given back is free on all of them at once; `../staffRepo` is stubbed " +
+      "so the two loaders are handed this file's applications with no database",
+  ],
+  [
+    "applications-journey.test.mjs",
+    "executes every route handler under src/app/api/admissions/forms and the member-record " +
+      "writer against one in-memory store, as one term from an empty form to a settled one, " +
+      "because a disagreement between two parts of the application system exists only when " +
+      "both run on the same documents; the mail door is stubbed to record and the email " +
+      "templates behind it are compiled for real",
+  ],
+  [
+    "applications-own-application.test.mjs",
+    "executes the pooled applicants, decision day, test email and decision handlers for an " +
+      "admin who has applied, beside what a second admin is sent, against an in-memory term, " +
+      "because whether a page lists or counts the viewer's own application, and whether the " +
+      "send still tells them, are decided by the code that runs",
+  ],
+  [
+    "applications-public-term.test.mjs",
+    "executes the lookup a public page asks what a visitor may be told about this term, against a " +
+      "database that records its queries, and renders the three components a page draws the term " +
+      "with (all .tsx) to HTML, because the stage, what leaves for a visitor's page and the words " +
+      "and dates printed for each stage are decided by the code that runs",
+  ],
+  [
+    "reskin-programme-pages.test.mjs",
+    "executes the words of the programme pages' closing band and renders a course's call to action " +
+      "(a .tsx client component) to HTML from the same dates, because whether the two say the same " +
+      "thing is decided by the code that runs; it also runs the helpers that word a chip and split " +
+      "an authored paragraph",
+  ],
+  [
+    "applications-readable-before-answering.test.mjs",
+    "executes the decision route and the route that decides several at once as a programme's " +
+      "lead, against an in-memory term, for every way an application can be one she may not " +
+      "read, because whether an answer names somebody or says where their application stands " +
+      "is decided by the writer that runs",
+  ],
+  [
+    "applications-review-routes.test.mjs",
+    "executes the review loaders, builders and writers under src/lib/applications/review with " +
+      "access.ts and the real eligibility bar underneath, against an in-memory Firestore, " +
+      "because who is sent which score, and whether a decision touches an applicant's own " +
+      "document, are decided by the code that runs",
+  ],
+  [
+    "applications-review-views.test.mjs",
+    "executes the pure halves of the review screens (the availability picture and its lines " +
+      "of words, the line under a name, the list's filters and sorts, the queue), because " +
+      "each is worked out from stored data and only running it shows the words match",
+  ],
+  [
+    "applications-roles-in-transaction.test.mjs",
+    "executes the route that names a programme's lead and reviewers against an in-memory " +
+      "store whose documents change before the transaction opens and while it runs, because " +
+      "whether a refusal is decided from what the transaction read is only shown by running it",
+  ],
+  [
+    "applications-su-membership-answer.test.mjs",
+    "executes the decision-day, pooled applicants and review handlers as two admins, a lead, a " +
+      "reviewer and people with no role, and the applicant's own read and form (a .tsx server " +
+      "component) with the real view-as module reading a cookie the test sets, against an " +
+      "in-memory term in which each person gave an answer, because which payloads carry " +
+      "somebody's answer about SU membership, and for whom, is decided by the code that runs",
+  ],
+  [
+    "applications-versions.test.mjs",
+    "executes the rules for what a send keeps of the application it replaces " +
+      "(src/lib/applications/versions/kept.ts), then the review loaders and builders, the " +
+      "applicant's projections, the status page's read and the member record's builder " +
+      "against one in-memory store, because who is sent an earlier version of an application, " +
+      "and who is not, is decided by the code that runs",
+  ],
+  [
+    "applications-view-as-own-application.test.mjs",
+    "executes the applicant's two GET handlers with the real view-as module reading a cookie " +
+      "the test sets, and renders the form's screen, the page for one application, the list and " +
+      "the dashboard (all .tsx server components) to HTML for a member and for an admin viewing " +
+      "as that member, against a database that records its reads, because whether anything of " +
+      "an application is read or drawn in a view-as session is decided by the code that runs",
+  ],
+  [
+    "applications-wave-e1-lifecycle.test.mjs",
+    "executes the three pure modules under src/lib/applications/lifecycle (the readiness " +
+      "list, the moves a form may make, and what the term page is handed), because each " +
+      "sentence an admin is shown is built from stored dates and only running it shows the words",
+  ],
+  [
+    "applications-wave-e1-open-form.test.mjs",
+    "executes the lookup a public page asks which application form is open, against a " +
+      "database that records its queries, because what leaves it for a visitor's page and " +
+      "the shape of its one read are decided by the code that runs",
+  ],
+  [
+    "applications-wave-e1-status-route.test.mjs",
+    "executes the form status route and the transaction behind it with access.ts and the " +
+      "readiness list underneath, against an in-memory Firestore, because whether an unready " +
+      "form opens, and what a move writes, are decided by the code that runs",
+  ],
+  [
+    "applications-wave-e1-term-home.test.mjs",
+    "executes the term page's numbers beside the loaders of the two screens they link to " +
+      "(the programme's list and the pooled applicants), on one stored term, because a " +
+      "button that says 23 is only right if the list behind it walks 23",
+  ],
+  [
+    "applications-wave-e2b-closed-on.test.mjs",
+    "executes closedOnLabel in src/features/applications/apply/closedOn.ts, the one rule both of the " +
+      "applicant's pages ask before printing the day a form closed, against a form closed by hand before " +
+      "its time and one closed by the clock, because the sentence was untrue for eleven days of a term " +
+      "and only running the rule shows which day it prints",
+  ],
+  [
+    "applications-wave-e2b-email-text.test.mjs",
+    "renders the three decision-day templates through the real renderer, .tsx graph and all, and holds " +
+      "every address in the plain-text part to be followed by white space, because the join between two " +
+      "buttons is made by the renderer and can only be seen in what it returns",
+  ],
+  [
+    "applications-wave-e2b-review.test.mjs",
+    "executes filterRows in src/features/applications/review/listModel.ts against rows that have " +
+      "withdrawn from every standing, because which tab a withdrawn applicant is listed under is decided " +
+      "by that function and nowhere else",
+  ],
+  [
+    "applications-wave-f-replies.test.mjs",
+    "executes the standing and reply rules (src/lib/applications/status/standing.ts, replies.ts, " +
+      "view.ts) for every state of an application against every reply, and the contract's own " +
+      "tallyTerm and freePlaces over a term, because what a reply does and whether a place " +
+      "comes free are decided by the code that runs",
+  ],
+  [
+    "applications-wave-f-reply-route.test.mjs",
+    "executes the applicant's reply handler with the real gate, rate limiter and application " +
+      "modules against an in-memory Firestore, because the reply, the status and the counters " +
+      "are one transaction and only running it shows what was written and what was not",
+  ],
+  [
+    "applications-wave-f-status.test.mjs",
+    "executes the status view (src/lib/applications/status/view.ts) over the sample term and " +
+      "the page's read (load.ts) against an in-memory Firestore holding somebody else's " +
+      "application, a decision and a review, because only running them shows no result is " +
+      "said early and no other document is read",
+  ],
+  [
+    "applications-wave-g-approve.test.mjs",
+    "executes the one function that approves a waiting account against an in-memory Firestore, " +
+      "as every kind of account and in every kind of approver's name, because it changes a role " +
+      "and what matters is what is written and what is left alone",
+  ],
+  [
+    "applications-wave-g-reminders.test.mjs",
+    "executes the invitation reminder job, its rule and its words against an in-memory " +
+      "Firestore and a mail door that records; its graph reaches the invitation `.tsx` " +
+      "template, and what was handed to the door is rendered and read",
+  ],
+  [
+    "applications-wave-h-joined.test.mjs",
+    "executes src/lib/applications/access.ts, decisions.ts and the review loaders against one stored " +
+      "term in which an invitation stands every way it can, as every kind of account, because who " +
+      "may read somebody invited is decided by the code that runs",
+  ],
+  [
+    "applications-wave-h-list-words.test.mjs",
+    "executes src/lib/applications/status/words.ts for every way an application can stand, because " +
+      "the list of somebody's applications and their own page have to say the same words",
+  ],
+  [
+    "applications-wave-h-places.test.mjs",
+    "executes src/lib/applications/decisions.ts and every caller of its arithmetic over one stored " +
+      "term in which every kind of reply has been made, because each screen has to count the same place",
+  ],
+  [
+    "applications-d2-zeta-access-requirements.test.mjs",
+    "executes the applicant's two access-requirements handlers and the admin's one, with the " +
+      "real gate, rate limiter, access.ts and application modules, against an in-memory " +
+      "Firestore, because who is refused before anything is read and what an open writes to " +
+      "the log are decided by the code that runs",
+  ],
+  [
+    "applications-d2-zeta-access-requirements-boundary.test.mjs",
+    "executes the review loaders for an admin, a lead and a reviewer over a term in which " +
+      "two people wrote in the access-requirements box, because only running them shows the " +
+      "collection is never addressed and the words are in no payload",
+  ],
+  [
+    "applications-d2-zeta-access-requirements-deletion.test.mjs",
+    "executes the applicant's writer, then the round destroy and the account cascade over " +
+      "what it wrote, because that an answer leaves in its application's own batch is a " +
+      "claim about a commit and only a run can show one",
+  ],
+  [
+    "applications-d2-zeta-audit-names.test.mjs",
+    "executes every writer of an application audit line (a decision, several at once, a " +
+      "revoked acceptance, a pooled outcome, the send's sentence) against a term whose " +
+      "applicants have names no other string contains, because whether a row names somebody " +
+      "is decided by what the writer is handed when it runs",
+  ],
+  [
+    "applications-wave-h-small.test.mjs",
+    "executes src/lib/applications/lifecycle/status.ts against a form in every stage, because the " +
+      "term page and the route that adds a programme have to stop on the same answer",
+  ],
+  [
+    "applications-own-keys.test.mjs",
+    "executes every exported function of every module under src/lib/applications against " +
+      "each name Object.prototype carries, with the real eligibility bar and the real roles " +
+      "writer underneath, because whether such a name reads as a programme is decided by how " +
+      "each function reads its map, and only running each one shows it",
+  ],
+  [
+    "applications-model.test.mjs",
+    "executes every pure module under src/lib/applications (reading, steps, send validation, " +
+      "scoring, placement, the decision-day tallies) against a small term and against the " +
+      "full one the design was drawn for, because each rule there is arithmetic and only " +
+      "running it shows the counts add up",
+  ],
+  [
     "authority-at-use.test.mjs",
     "executes the real bar registry from src/lib/firebase/eligibility.ts against every persona, " +
       "plus `isEligibleAdmissionsReviewer` and `canCirculateWorksheet` from the users module and " +
@@ -306,6 +634,13 @@ const USERS = new Map([
       "the two-level JSX graph a hand-copied loader dies on",
   ],
   [
+    "event-editor-unsaved-edits.test.mjs",
+    "it executes the two functions in `src/features/events/editorSync.ts` that decide, one field " +
+      "at a time, whether the event editor keeps what somebody has typed when the event changes " +
+      "underneath it; a copy of that comparison would prove nothing about what the editor does, " +
+      "and the module imports nothing, so nothing is stubbed",
+  ],
+  [
     "event-location-disclosure.test.mjs",
     "the RSVP, approve, cancel, broadcast and update routes executed with `sendRsvpEmail` and " +
       "the two event `.tsx` templates loaded for real, because what it asserts is the rendered " +
@@ -316,6 +651,14 @@ const USERS = new Map([
     "it executes the calendar builders in `src/lib/events/ics.ts` for real: the file leaves the " +
       "site and is read by software nobody here controls, so a copy of the URL arithmetic would " +
       "prove nothing about what a phone receives; the module has no imports, so nothing is stubbed",
+  ],
+  [
+    "events-when.test.mjs",
+    "it executes `src/features/events/eventWhen.ts` for real under a process zone far from " +
+      "London: the words the public events pages print for a time, a date and the places left " +
+      "are built there from `formatSiteDate`, and a copy of that arithmetic would prove nothing " +
+      "about what a deployed page says; its graph is that module and `siteTime.ts`, so nothing " +
+      "is stubbed",
   ],
   [
     "event-rsvp-identity.test.mjs",
@@ -337,6 +680,12 @@ const USERS = new Map([
     "admissions-stage-release.test.mjs",
     "it loads `admissionEmails.ts` FOR REAL for the token contract, so all six admissions " +
       "templates are compiled here; they were the eight `return null` stubs this change deleted",
+  ],
+  [
+    "email-audience.test.mjs",
+    "it executes `send.ts` in-process to prove a recipient outside this copy of the site's " +
+      "audience never reaches the transport and is logged as held, under a table of " +
+      "environments; the transport, the renderer and the Admin SDK door are its only stubs",
   ],
   [
     "email-suppression-chokepoint.test.mjs",
@@ -401,6 +750,13 @@ const USERS = new Map([
     "it executes `confirmUniEmailVerification.ts` against a fake Firestore to prove the confirming " +
       "caller must be the token's own account; the helper reaches `signedTokens` and the ownership " +
       "helper, both stubbed, and the shared loader is what compiles the TypeScript in-process",
+  ],
+  [
+    "profile-study-changes.test.mjs",
+    "it executes the function that builds the profile's save of a member's degree and graduation " +
+      "(src/features/profile/studyChange.ts), the users normaliser and the words the admin's page " +
+      "uses for the entries, because what is written in each case and what an admin then reads " +
+      "are decided by the code that runs; nothing is stubbed, the graph is four pure modules",
   ],
   [
     "server-date-formatting.test.mjs",
@@ -488,10 +844,61 @@ const USERS = new Map([
       "the rate limiter, the tracker writes) is stubbed, and the test asserts none of them is reached",
   ],
   [
+    "app-frame.test.mjs",
+    "executes src/layout/appNav.ts, the signed-in menu as data: its matchers decide which admin " +
+      "page an address belongs to and `currentEntry` decides which menu entry is lit, and both " +
+      "are held to the page files in the tree by running them rather than by reading their text",
+  ],
+  [
+    "public-nav-pages.test.mjs",
+    "executes src/layout/publicNav.ts, the public menus as data, and its own `addressOf`: which " +
+      "entries are drawn and where each leads is decided by that function and by constants the " +
+      "file imports, so the addresses are held to the page files in the tree by running the " +
+      "module rather than by reading its text; nothing is stubbed",
+  ],
+  [
+    "pwa-display-mode.test.mjs",
+    "it executes `isStandaloneNow` (src/lib/pwa/displayMode.ts) against windows made of plain " +
+      "objects, beside the script StandaloneFlag.tsx puts on every page, because the two are one " +
+      "rule written twice and only running both on the same windows shows they agree; it also " +
+      "runs src/app/manifest.ts for the display mode the rule relies on; nothing is stubbed",
+  ],
+  [
+    "sign-in-return.test.mjs",
+    "it executes src/lib/signInReturn.ts (the guard on a return address, the cookie's text, the " +
+      "tab's copy, what each end of a trip to Google takes) and the Google callback route's POST " +
+      "handler. `next/server` is stubbed only to re-export the framework's real request and " +
+      "response, so cookies are read and written by the code production runs; " +
+      "`google-auth-library` is stood in for, because nobody but Google can sign a credential",
+  ],
+  [
+    "site-path.test.mjs",
+    "it executes the three askers of `safeReturnPath` that are not about signing in (the last page " +
+      "an installed app had open, and the two modules that hand a destination to a notification), " +
+      "because what each does with an address it is refused is only real when the module runs; " +
+      "the notification modules' three doors (`./config`, `./preferences`, `./send`) are stubbed " +
+      "so nothing is sent, and what would have been sent is kept to be looked at",
+  ],
+  [
     "slug-id.test.mjs",
     "it executes `slugId`, with the platform's random source replaced, because where the suffix " +
       "comes from and what happens to a byte that would bias it are both about the shipping code; " +
       "nothing is stubbed",
+  ],
+  [
+    "home-words.test.mjs",
+    "it executes `homeWords.ts`, the pure functions that say what the homepage's two buttons, " +
+      "the chip on a programme and the sentence under This term read at each stage of the term, " +
+      "in a time zone far from London, because the promise is the words a visitor is given and " +
+      "a copy of the table would prove nothing; nothing is stubbed",
+  ],
+  [
+    "hero-scene.test.mjs",
+    "it executes `mountHero` and `startScene` against a page made of plain objects, because what " +
+      "the homepage's scene gives back when it stops, whether it asks for a frame under reduced " +
+      "motion and when a drag is held are only real when the modules run. `./engine.js` is stubbed " +
+      "with the engine's own source, which is plain script this loader does not compile; nothing " +
+      "else is stubbed",
   ],
 ]);
 

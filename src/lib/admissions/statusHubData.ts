@@ -3,6 +3,7 @@ import { buildStatusRow, sortStatusRows } from "./statusHub";
 import type { ApplicationStatusRow } from "./statusTypes";
 import { type Db } from "./applicantSession";
 import { ROUNDS_COLLECTION, STAGES_SUBCOLLECTION } from "./roundRoutes";
+import { isApplicationForm } from "@/lib/applications/normalise";
 import {
   APPLICATIONS_COLLECTION,
   admissionApplicationId,
@@ -61,6 +62,24 @@ import {
  * second reason: ordering wants `updatedAt`, and the rows are joined to their
  * rounds in memory anyway. `sortStatusRows` is the one ordering, applied after
  * the join, so the API and both pages list them identically.
+ *
+ * ## An application made on an application form is still listed
+ *
+ * Every application shares one collection, whichever kind of round it is on,
+ * and this list is where somebody comes back to find out what happened to
+ * any of them. So a form application is NOT filtered out: a hub that said
+ * "you have not applied to anything" to somebody who sent one last week would
+ * read as the site having lost it. It is listed through the same projection
+ * as every other row, which is a list of named fields, so what the row says
+ * is its status and its dates and nothing a form keeps for itself.
+ *
+ * Two things are different for a form, and both are decided here from the
+ * STORED round, before the round normaliser drops the field that says what
+ * it is. No stages are read for one: a form asks its questions through its
+ * own question sets, so there is no next stage to announce and nothing in
+ * the older shape to read back. And the single-round loader says the round
+ * is a form, so the page that reads one application back can stand aside for
+ * the form's own. See `formFence.ts`.
  */
 
 /**
@@ -71,18 +90,24 @@ import {
  */
 const MAX_ROWS = 50;
 
-type RoundBundle = { round: AdmissionRoundDoc; stages: AdmissionStageDoc[] };
+type RoundBundle = {
+  round: AdmissionRoundDoc;
+  stages: AdmissionStageDoc[];
+  /** The round is an application form. Always with no stages: see the header. */
+  applicationForm: boolean;
+};
 
 async function loadRoundBundle(db: Db, roundId: string): Promise<RoundBundle | null> {
   const ref = db.collection(ROUNDS_COLLECTION).doc(roundId);
   const snap = await ref.get();
   if (!snap.exists) return null;
   const round = normalizeAdmissionRound(snap.id, snap.data() ?? {});
+  if (isApplicationForm(snap.data())) return { round, stages: [], applicationForm: true };
   const stagesSnap = await ref.collection(STAGES_SUBCOLLECTION).get();
   const stages = stagesSnap.docs
     .map((doc) => normalizeAdmissionStage(doc.id, doc.data() ?? {}))
     .sort((a, b) => a.order - b.order);
-  return { round, stages };
+  return { round, stages, applicationForm: false };
 }
 
 /**
@@ -152,6 +177,12 @@ export async function loadStatusRows(
  * (`/apply/[roundId]` answers 404 for one), so a stranger who guesses the id
  * must be told nothing about it. Somebody who APPLIED to it still sees their
  * own row, which is why this is a separate flag rather than a filter.
+ *
+ * `applicationForm` is the fourth: the round is an application form, whose
+ * applications are read back on the form's own screens. The page that reads
+ * one application back asks for those screens first. A form that still
+ * reaches this loader is one that page may not show this caller, and the page
+ * answers it as a round that is not there, whoever is asking.
  */
 export async function loadStatusRowForRound(
   db: Db,
@@ -160,12 +191,18 @@ export async function loadStatusRowForRound(
   now: Date,
 ): Promise<
   | { roundMissing: true }
-  | { roundMissing: false; roundPublic: boolean; row: ApplicationStatusRow | null }
+  | {
+      roundMissing: false;
+      roundPublic: boolean;
+      applicationForm: boolean;
+      row: ApplicationStatusRow | null;
+    }
 > {
   const bundle = await loadRoundBundle(db, roundId);
   if (!bundle) return { roundMissing: true };
 
   const roundPublic = !bundle.round.archived && bundle.round.status !== "draft";
+  const { applicationForm } = bundle;
 
   const snap = await db
     .collection(APPLICATIONS_COLLECTION)
@@ -173,7 +210,7 @@ export async function loadStatusRowForRound(
     // can only ever be the caller's own row.
     .doc(admissionApplicationId(roundId, uid))
     .get();
-  if (!snap.exists) return { roundMissing: false, roundPublic, row: null };
+  if (!snap.exists) return { roundMissing: false, roundPublic, applicationForm, row: null };
 
   const application = normalizeAdmissionApplication(
     snap.id,
@@ -183,6 +220,7 @@ export async function loadStatusRowForRound(
   return {
     roundMissing: false,
     roundPublic,
+    applicationForm,
     row: buildStatusRow(application, bundle.round, bundle.stages, now),
   };
 }

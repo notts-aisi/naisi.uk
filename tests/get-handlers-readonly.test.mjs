@@ -53,6 +53,49 @@ const MUTATION_HELPERS = {
   // trigger: a GET that mails a NAISI-signed message from the sending domain on
   // a machine's fetch is the same hazard class as a GET that writes.
   sendEmail: "sends email from the NAISI domain, a side effect a prefetch must not fire",
+  // The application form's editor. Four of its route files hold a GET beside
+  // the handler that writes, and every write is made by a helper in
+  // `src/lib/applications/editor/write.ts` or by the roles writer, so the scan
+  // of a GET's own body would see nothing if one of them were called there.
+  createForm: "makes an application form and its first question set",
+  changeForm: "changes an application form's name, dates and programme order, and adds a programme",
+  createSet: "adds a question set to an application form",
+  changeSet: "rewrites the questions in one question set",
+  deleteSet: "deletes a question set and takes it out of the form's order",
+  changeProgramme: "changes one programme's settings and the wording of its emails",
+  setProgrammeRoles: "names a programme's lead and reviewers, which grants access to applications",
+  // The applicant's side of the same form. The route that saves a draft holds
+  // the GET that reads the application back, and both writes are made in
+  // `src/lib/applications/applicant/store.ts`.
+  saveDraft: "saves an applicant's draft, and creates the application and moves the round's counters on the first save",
+  sendApplication: "makes an applicant's draft the application of record and moves the round's counters",
+  // The review screens. The route that lists a programme's applications holds
+  // the GET beside the bulk decision, and every write is made in
+  // `src/lib/applications/review/`.
+  decideMany: "records a programme's decision on several applications at once and logs each one",
+  decideApplication: "records a programme's decision on one application and logs it",
+  revokeAcceptance: "takes an acceptance back, with the reason, and logs it",
+  saveReview: "writes a reviewer's scores and internal comments about an applicant",
+  setRevealOtherReviews: "switches what every reviewer on a form is shown on a first review",
+  // Pooled applicants and decision day. The pool route and the send route each
+  // hold a GET beside the handler that writes, and the writes and the mail are
+  // made in `src/lib/applications/decisionDay/`.
+  setPooledOutcome: "picks what a pooled applicant hears on decision day, and logs it",
+  runDecisionDay: "publishes every applicant's outcome onto their own application and emails them",
+  sendTestEmail: "mails one decision-day email to the admin who asked for it, and records on the form who tested and when",
+  sendDecisionEmail: "sends a decision-day email, a side effect a prefetch must not fire",
+  sendProgrammeTestEmail: "mails one of a programme's decision emails to whoever asked for the test",
+  approveWaitingAccount: "makes a waiting account a member's, the change the Approvals tab makes",
+  // What an applicant says after decision day. The write is made in
+  // `src/lib/applications/status/record.ts`, beside the read of the same page.
+  recordReply: "records an applicant's reply, moves their application's status and the round's counters",
+  // What follows from accepting an invitation, called by the same route once
+  // the reply is written. The write is `approveWaitingAccount`, one file down.
+  approveAfterAcceptedInvitation: "makes the account of somebody who accepted an invitation a member's, if it was still waiting",
+  // The form's lifecycle. The status route holds no GET today, and the write
+  // and the member records are made in `src/lib/applications/lifecycle/move.ts`,
+  // so a GET added beside it later could call this and show nothing in its body.
+  moveFormStatus: "opens, closes, reopens or settles an application form, and on settling writes every applicant's member record",
 };
 
 /**

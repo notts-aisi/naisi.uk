@@ -1,0 +1,82 @@
+/*
+  The hero's frame, while it has no moving scene.
+
+  It is the same box the scene draws, so the words inside are laid out the
+  same under either: a column one screen high, pulled up under the site's
+  sticky bar, whose first piece is a strip as tall as that bar and whose
+  next piece is the words.
+
+  The navy at the centre of the ground is the hero's own and appears nowhere
+  else, so it lives here and not in the theme.
+*/
+
+.frame {
+  --frame-ground: #14193a;
+  /* The room the site's sticky bar takes at the top of the page. */
+  --frame-bar: calc(var(--header-height) + env(safe-area-inset-top, 0px));
+
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  /* One screen high, and taller when the words need it. The small viewport
+     height is the screen with a phone's bars showing, and does not change
+     as they slide away, so nothing jumps on the first scroll. */
+  min-height: 100vh;
+  min-height: 100svh;
+  /* Pulled up under the bar, which sits above the page and stays there. */
+  margin-top: calc(-1 * var(--frame-bar));
+  overflow: hidden;
+  overflow: clip;
+  background: radial-gradient(ellipse at center, var(--frame-ground) 0%, var(--color-floor) 70%);
+  color: var(--color-text);
+}
+
+/* The bar's room. The bar itself is drawn by the layout, above this. */
+.bar {
+  flex: none;
+  height: var(--frame-bar);
+  pointer-events: none;
+}
+
+/*
+  The still network behind the hero's words, drawn where the moving scene
+  will be: to the left of the words. It fades out before it reaches them, so
+  nothing is set over it.
+
+  The class is doubled so that it wins over NetField's own ground and
+  position whichever stylesheet loads first: the hero has a ground of its
+  own.
+*/
+.still.still {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 0;
+  /* As wide as the ground to the left of the words' column, at any width. */
+  width: min(calc(50% - 5.75rem), calc(100% - 41.75rem));
+  background: none;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 60%, transparent 100%);
+  mask-image: linear-gradient(to right, #000 0%, #000 60%, transparent 100%);
+}
+
+/* === Tablet ===
+   The same two conditions as the forms of the hero's words
+   (HomeHero.module.css). On a tablet and a phone the network is above the
+   words, not beside them. */
+@media (max-width: 60rem), (orientation: portrait) { /* --bp-lg, and any upright screen */
+  .still.still {
+    bottom: auto;
+    width: 100%;
+    height: 52%;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 60%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 0%, #000 60%, transparent 100%);
+  }
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .still.still { height: 42%; }
+}

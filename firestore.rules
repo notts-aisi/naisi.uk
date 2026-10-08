@@ -118,6 +118,18 @@ service cloud.firestore {
         // same class of forgery as tracks/permissions above, guarded the
         // same way in both create and self-update.
         && !('paidMembershipYears' in request.resource.data)
+        // `studyChanges` is the record of a member's own changes to their
+        // degree and graduation (the helpers further down say how it grows).
+        // A new account has made none, so it may not arrive with any: the
+        // entries are shown to admins as what the member's details said
+        // before, and one written at create would be a history that never
+        // happened. No client create sends the field.
+        && !('studyChanges' in request.resource.data)
+        // The degree and the graduation arrive as text, or not at all. The
+        // helpers further down say why (`isTextOrNothing`). Registration
+        // sends `subject` as text, `expectedGraduation` as text or leaves it
+        // out, and never sends the older `course`.
+        && newStudyAnswersAreText()
         // `email` is the address the rest of the system treats as PROVEN: the
         // subscription sync marks rows `confirmed` from it without a click, the
         // newsletter sender resolves recipients from it, and the application
@@ -147,6 +159,146 @@ service cloud.firestore {
         // they don't own and squat a victim's real uni email.
         && !('uniEmailVerifiedAt' in request.resource.data.get('profile', {}))
         && smallEnough();
+
+      // A MEMBER'S OWN CHANGE TO THEIR DEGREE OR GRADUATION IS NOTED.
+      //
+      // A member can correct `profile.subject` and `profile.expectedGraduation`
+      // on their own profile. When one of them held an answer and the write
+      // gives another, the SAME write has to add one entry to `studyChanges`
+      // saying what the answer was, so that an admin opening that person's
+      // page can still read it. The shape is `StudyChange` in
+      // src/lib/firestore/users.ts, and the write is built by
+      // src/features/profile/studyChange.ts, which the rules suite runs
+      // against these lines.
+      //
+      // What a member's own write is held to:
+      //
+      //  - A change away from an answer carries EXACTLY ONE new entry, and the
+      //    entry is the document's own words. `at` is the server's time
+      //    (`request.time`, which is what a client `serverTimestamp()`
+      //    resolves to). It names each field that changed, and only those,
+      //    with the value stored now. Nothing in it is the caller's to choose
+      //    but its key, which is held to letters and digits.
+      //  - Every earlier entry is left exactly as it was: none removed, none
+      //    rewritten. So the map only grows, by one, and only in a write that
+      //    changes one of the two fields.
+      //  - Any other write leaves the map as it is, so an entry cannot be
+      //    added when nothing changed.
+      //  - Twenty entries is the cap (FIELD_LIMITS.maxStudyChanges). At the
+      //    cap a further change is refused and an admin makes it; everything
+      //    else on the profile still saves. Nothing trims the map to make
+      //    room, because trimming is erasing.
+      //
+      // Three readings that keep every other save working. They have to stay.
+      //
+      //  - NO MAP IS AN EMPTY MAP. An account from before this rule has no
+      //    `studyChanges` field. Both sides are read with a `{}` default, so
+      //    such an account saves as it always did, and its first change
+      //    creates the map.
+      //  - AN ANSWER IS TEXT WITH SOMETHING IN IT. A field that is missing or
+      //    empty holds no answer, so filling it for the first time is not a
+      //    change and carries no entry.
+      //  - AN ACCOUNT STILL WAITING TO BE APPROVED IS NOT HELD TO THE ENTRY.
+      //    Registration writes the whole document with one unmerged set, and
+      //    a second attempt rewrites it (the same retry the consent lines
+      //    below make room for), so its answers are still its join request.
+      //    The role cannot be changed by its holder, so this is no way round.
+      //
+      // The degree is `subject` where that holds an answer, otherwise the
+      // older `course`. Every page reads it the same way, through one
+      // function. The next comment says what keeps the two readings one.
+      //
+      // An admin's write takes the isAdmin() branch and is held to none of
+      // this: an admin correcting somebody's profile is not that member's
+      // change.
+      //
+      // WHAT AN ACCOUNT MAY STORE AS ITS DEGREE OR ITS GRADUATION: TEXT, OR
+      // NOTHING.
+      //
+      // `profile.subject`, the older `profile.course` and
+      // `profile.expectedGraduation` are each text, absent or null in what an
+      // account writes to its own document. Two things stand on that:
+      //
+      //  - THE DEGREE IS READ ONE WAY: here by `degreeOf` below, and on every
+      //    page by `degreeOf` in src/features/profile/studyChange.ts. Both
+      //    take `subject` where it is text with something in it and `course`
+      //    otherwise, and to both a value that is not text is no answer. The
+      //    entry a change owes is judged by this reading, and what an admin
+      //    is shown is the page's, so the two have to stay one: the rules
+      //    suite puts one table of stored profiles through both. Change one
+      //    and the other changes with it.
+      //  - Pages treat all three as text: they trim them, search them and
+      //    print them. A value of another type has no place in any of that.
+      //
+      // ONE READING THAT KEEPS AN OLDER DOCUMENT SAVING. A value that is
+      // already stored, and that the write leaves exactly as it was, is not
+      // the write's. A document carrying something else in one of these
+      // fields (only a hand edit could leave one) still saves its name and
+      // its notification switches. Such a value can be replaced only by text
+      // or by nothing.
+      function isTextOrNothing(value) { return value == null || value is string; }
+      function newStudyAnswerIsText(field) {
+        return isTextOrNothing(request.resource.data.get(['profile', field], null));
+      }
+      function newStudyAnswersAreText() {
+        return newStudyAnswerIsText('subject')
+          && newStudyAnswerIsText('course')
+          && newStudyAnswerIsText('expectedGraduation');
+      }
+      function studyAnswerIsTextOrKept(field) {
+        return newStudyAnswerIsText(field)
+          || request.resource.data.get(['profile', field], null)
+               == resource.data.get(['profile', field], null);
+      }
+      function studyAnswersAreTextOrKept() {
+        return studyAnswerIsTextOrKept('subject')
+          && studyAnswerIsTextOrKept('course')
+          && studyAnswerIsTextOrKept('expectedGraduation');
+      }
+      function studyField(data, field) { return data.get(['profile', field], ''); }
+      function isAnswer(value)         { return value is string && value.size() > 0; }
+      function degreeOf(data) {
+        return isAnswer(studyField(data, 'subject'))
+          ? studyField(data, 'subject')
+          : studyField(data, 'course');
+      }
+      function degreeMoves() {
+        return isAnswer(degreeOf(resource.data))
+          && degreeOf(request.resource.data) != degreeOf(resource.data);
+      }
+      function graduationMoves() {
+        return isAnswer(studyField(resource.data, 'expectedGraduation'))
+          && studyField(request.resource.data, 'expectedGraduation')
+               != studyField(resource.data, 'expectedGraduation');
+      }
+      function studyChangesOf(data) { return data.get('studyChanges', {}); }
+      function studyEntryIsTrue(entry) {
+        return entry.keys().hasOnly(['at', 'subject', 'expectedGraduation'])
+          && entry.at == request.time
+          && (degreeMoves()
+                ? entry.get('subject', null) == degreeOf(resource.data)
+                : !('subject' in entry))
+          && (graduationMoves()
+                ? entry.get('expectedGraduation', null)
+                    == studyField(resource.data, 'expectedGraduation')
+                : !('expectedGraduation' in entry));
+      }
+      function studyChangeIsNoted() {
+        let before = studyChangesOf(resource.data);
+        let after = studyChangesOf(request.resource.data);
+        let moved = after.diff(before);
+        return before.size() < 20
+          && moved.removedKeys().size() == 0
+          && moved.changedKeys().size() == 0
+          && moved.addedKeys().size() == 1
+          && after.keys().removeAll(before.keys())[0].matches('^[A-Za-z0-9]{1,40}$')
+          && studyEntryIsTrue(after[after.keys().removeAll(before.keys())[0]]);
+      }
+      function studyChangesHold() {
+        return (resource.data.role != 'pending' && (degreeMoves() || graduationMoves()))
+          ? studyChangeIsNoted()
+          : studyChangesOf(request.resource.data) == studyChangesOf(resource.data);
+      }
 
       // Self-update: role, tracks, permissions and suRecognised all unchanged.
       // (These are admin-only; a user editing their own profile must not be able
@@ -239,7 +391,19 @@ service cloud.firestore {
                 && request.resource.data.get(['profile', 'universityEmail'], '')
                   == resource.data.get(['profile', 'universityEmail'], '')
               )
-            )))
+            )
+            // The degree and the graduation are stored as text, or not at
+            // all: nothing else may be put there by the account itself. See
+            // `isTextOrNothing` above. It comes before the entry clause
+            // because that clause reads the degree, and the degree is read
+            // one way only while these fields are text.
+            && studyAnswersAreTextOrKept()
+            // A change to the degree or the graduation carries its entry in
+            // `studyChanges`, and no write here touches an earlier one. The
+            // helpers and their reasons are above this rule. Inside the
+            // self-update disjunct on purpose, like the consent lines: the
+            // isAdmin() branch is unaffected.
+            && studyChangesHold()))
         && smallEnough();
 
       allow delete: if isAdmin();
@@ -2640,13 +2804,32 @@ service cloud.firestore {
     // ONE append-only log for every course operational action that has to
     // stay answerable after the fact: a register pushed or edited after the
     // lock, a facilitator appointed or removed, a member dropping out, a run
-    // settled, a run's enrolment mode changed, a week unlocked early, and an
-    // applicant's access-requirements answer being read.
+    // settled, a run's enrolment mode changed, a week unlocked early, an
+    // applicant's access-requirements answer being read, and each decision
+    // made about an application.
     //
-    // The posture is `courseDeletions`', verbatim and for its reason: reads
-    // are admin-only and writes are shut to EVERY client, admins included.
-    // An append-only log its own actor can amend is not an audit trail. Every
-    // writer is an Admin SDK route.
+    // SHUT TO EVERY CLIENT, ADMINS INCLUDED, on both axes. Every writer is an
+    // Admin SDK route and every reader is server code.
+    //
+    // WRITE. An append-only log its own actor can amend is not an audit
+    // trail, and the actors here are admins. That is the `courseDeletions`
+    // posture, for its reason.
+    //
+    // READ. Not `isAdmin()`, and it has to stay that way. A line about a
+    // decision on an application carries the applicant's account id, the
+    // programme and the outcome. That is a copy of what `admissionDecisions`
+    // below keeps from every browser, so that nobody reads what was decided
+    // about them before decision day. An admin can be an applicant, and a
+    // browser reads a collection directly, past every screen that leaves a
+    // viewer's own application out. So the copy is closed the way the
+    // decision documents are. Nothing in the site reads this log from a
+    // browser. Whatever shows a line to a person is server code, which
+    // decides what that person may see: today that is the review screen's
+    // loader (src/lib/applications/review/load.ts), for somebody who may
+    // decide for a programme, and never about the reader's own application.
+    // tests/applications-own-application.test.mjs finds every collection a
+    // decision is written to and fails when a rule here lets a client read
+    // one of them.
     //
     // Rows are staff-action METADATA, never member content: `detail` is a
     // route-written sentence, and nothing here holds an applicant's answers,
@@ -2655,8 +2838,7 @@ service cloud.firestore {
     // .ts for the retention decision (audits survive account deletion, as
     // impersonations and courseDeletions already do) and the kind union.
     match /courseAudit/{auditId} {
-      allow read:  if isAdmin();
-      allow write: if false;
+      allow read, write: if false;
     }
 
     // === config ===
@@ -2786,6 +2968,29 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // --- The application form (src/lib/applications/) --------------------
+    // Two more documents in the same posture as the six above, and written
+    // out for the same two reasons: a subcollection does not inherit its
+    // parent's rules, and a later wildcard must not open either silently.
+    //
+    //  - `.../questionSets` holds the questions a form asks. A route serves
+    //    them to whoever is applying, so nothing needs the client read.
+    //  - `admissionDecisions` holds each lead's decision per programme, the
+    //    outcome picked for a pooled applicant, and an admin's exception. Its
+    //    id IS the application's id, which is exactly why an own-row read is
+    //    refused: an applicant who could read the document at their own id
+    //    would learn the outcome before decision day publishes it. The
+    //    applicant's own document changes only when they act or when decision
+    //    day publishes, and this collection is where everything else waits.
+
+    match /admissionRounds/{roundId}/questionSets/{setId} {
+      allow read, write: if false;
+    }
+
+    match /admissionDecisions/{applicationId} {
+      allow read, write: if false;
+    }
+
     // === end V3 W1 PR4: admissions =======================================
 
     // =====================================================================
@@ -2805,24 +3010,21 @@ service cloud.firestore {
     // destroy that finds an entry missing. Shape and reasoning in
     // src/lib/firestore/memberRecords.ts.
     //
-    // WHY SU-RECOGNISED COMMITTEE MAY READ IT. This is the SAME trust boundary
-    // as the `users` collection above, and deliberately not a new one. An
-    // entry is roster-tier knowledge about a member: it names a person, what
-    // they asked the society for and what the society decided. The people who
-    // may already read every member's profile are the people who may read
-    // this, and the split `suRecognised` draws (committee the Students' Union
-    // formally recognises, trusted with member PII, against committee scoped
-    // to what they are explicitly added to) is exactly the split this needs.
-    // Reading it is also the POINT of writing it: a later application is meant
-    // to be graded with this history in view, and the people grading are
-    // committee.
+    // WHY ONLY ADMINS READ IT. An entry is not roster-tier knowledge, though
+    // it looks like it. It holds each reviewer's name with the score they gave
+    // and the overall comment they wrote about a named applicant. On the
+    // screen those were written on, they are shown to admins and to the lead
+    // and reviewers of the programmes that person ranked, and to nobody else:
+    // a reviewer is told so before they write. An entry copies them out to a
+    // document that outlives the form, so whoever can read an entry can read
+    // those comments. An SU-recognised committee member named on none of
+    // that person's programmes cannot open their application, and must not be
+    // able to read what was written about it by reading this instead.
     //
-    // It is a wider tier than `memberConductFlags`, which is admin-only, and
-    // the difference is what the two documents hold. A conduct flag carries a
-    // free-text ALLEGATION and can expose whoever reported it. An entry here
-    // carries a DECISION the committee itself made, together with the reviewer
-    // notes that the review queue already tells reviewers are disclosable to
-    // the applicant on request.
+    // So this is the same tier as `memberConductFlags`, and narrower than the
+    // `users` collection. The one screen that shows an entry is on the
+    // admin-only Members page, and `tests/applications-d2-zeta-member-record-readers.test.mjs`
+    // holds the page gate and this rule to each other.
     //
     // WHY NOBODY WRITES IT CLIENT-SIDE, ADMINS INCLUDED. Three reasons, and
     // the first is the one that would bite hardest:
@@ -2845,7 +3047,7 @@ service cloud.firestore {
     // than streamed to the subject from a browser console. Disclosure is a
     // decision somebody makes; a read rule is not.
     match /memberRecords/{uid} {
-      allow read: if isAdmin() || isSuCommittee();
+      allow read: if isAdmin();
       allow write: if false;
     }
 
@@ -2854,7 +3056,7 @@ service cloud.firestore {
       // required rather than decorative: without it the entries themselves
       // fall to deny-by-default and the read granted above reaches only the
       // near-empty parent document.
-      allow read: if isAdmin() || isSuCommittee();
+      allow read: if isAdmin();
       allow write: if false;
     }
 

@@ -1,84 +1,42 @@
-.head {
+/* The editor for one source sheet (/admin/sources/<address>). Titled cards
+   are AdminPanel's, in adminPanels.module.css. */
+
+/* A form reads best at a reading width: the page fills the frame, and the
+   editor keeps to this. */
+.editor {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--space-4);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-5);
+  flex-direction: column;
+  gap: var(--space-5);
+  width: 100%;
+  max-width: 52rem;
+  min-width: 0;
 }
 
-.back {
-  display: inline-block;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  text-decoration: none;
-  margin-bottom: var(--space-2);
+/* The head is the editor's first child. The gap above already separates it
+   from the first card. */
+.editor > header {
+  margin-bottom: 0;
 }
 
-.back:hover {
-  color: var(--color-text);
-}
-
-.heading {
-  font-size: var(--text-2xl);
-  margin: 0 0 var(--space-2);
-  line-height: var(--leading-snug);
-}
-
-.slugLine {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: center;
-  margin: 0;
-}
-
+/* The address printed under the code, in the metadata face without capitals. */
 .slug {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--color-text-subtle);
-}
-
-.state {
-  font-size: var(--text-xs);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-pill);
-}
-
-.statePublished {
-  background: var(--color-success-soft);
-  color: var(--color-success);
-}
-
-.stateDraft {
-  background: var(--color-surface-hover);
+  font-family: var(--font-meta);
+  font-size: var(--text-caption);
   color: var(--color-text-muted);
-}
-
-.viewLink {
-  color: var(--color-accent);
-  font-size: var(--text-sm);
-}
-
-.sectionTitle {
-  font-size: var(--text-lg);
-  margin: 0 0 var(--space-3);
+  overflow-wrap: anywhere;
 }
 
 .fields {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  margin-bottom: var(--space-3);
 }
 
 .field {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  min-width: 0;
 }
 
 .label {
@@ -88,63 +46,63 @@
 }
 
 .hint {
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
   margin: 0;
-  line-height: var(--leading-normal);
-}
-
-.hintInline {
   font-size: var(--text-sm);
+  line-height: var(--leading-normal);
   color: var(--color-text-muted);
 }
 
-.warning {
-  background: var(--color-warning-soft);
+.hint strong {
+  font-weight: 600;
   color: var(--color-text);
-  border-left: 3px solid var(--color-warning);
-  border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-4);
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
-  margin: 0 0 var(--space-4);
+  overflow-wrap: anywhere;
 }
 
 .error {
-  color: var(--color-danger);
-  font-size: var(--text-sm);
   margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-danger-text);
+  overflow-wrap: anywhere;
 }
 
+/* What just happened, beside the Save button. The words say it: the colour
+   is not the only signal. */
 .message {
-  color: var(--color-success);
   font-size: var(--text-sm);
-  margin: 0;
+  line-height: var(--leading-normal);
+  color: var(--color-ok);
 }
 
-/* --- the source rows --- */
+/* === The source rows === */
 
 .rows {
   list-style: none;
+  margin: 0;
   padding: 0;
-  margin: 0 0 var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
+/* One source: a box a shade darker than the card it sits in. */
 .row {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
   padding: var(--space-4);
-  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
 }
 
+/* The number, the source and its link on one line, and the note under them. */
 .rowGrid {
   display: grid;
-  grid-template-columns: 6rem 1fr;
+  grid-template-columns: 6rem minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--space-3) var(--space-4);
   align-items: start;
+}
+
+.noteField {
+  grid-column: 1 / -1;
 }
 
 .numberField {
@@ -154,7 +112,7 @@
 }
 
 .invalid {
-  border-color: var(--color-danger);
+  border-color: var(--color-danger-text);
 }
 
 .rowErrors {
@@ -164,36 +122,41 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  color: var(--color-danger);
   font-size: var(--text-sm);
+  color: var(--color-danger-text);
 }
 
 .rowActions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
   margin-top: var(--space-3);
-  flex-wrap: wrap;
 }
 
 /* Safari paints its own grey face over a bare button, so the appearance reset
-   and the colours both live on the class rather than in an inline style. */
+   and the colours both live on the class and never in an inline style. */
 .rowButton {
   appearance: none;
   -webkit-appearance: none;
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
   padding: 0 var(--space-3);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   background: var(--color-surface);
   color: var(--color-text);
+  font: inherit;
   font-size: var(--text-sm);
+  font-weight: 600;
   cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .rowButton:hover:not(:disabled) {
+  border-color: var(--color-control-border);
   background: var(--color-surface-hover);
-  border-color: var(--color-border-strong);
 }
 
 .rowButton:disabled {
@@ -201,24 +164,33 @@
   cursor: default;
 }
 
+/* Taking a source off the list is a careful action: an outline, never a fill. */
 .rowRemove {
-  color: var(--color-danger);
+  margin-left: auto;
+  border-color: var(--color-danger-line);
+  background: transparent;
+  color: var(--color-danger-text);
+}
+
+.rowRemove:hover:not(:disabled) {
+  border-color: var(--color-danger-text);
+  background: var(--color-danger-soft);
 }
 
 .actions {
   display: flex;
-  gap: var(--space-3);
   flex-wrap: wrap;
+  gap: var(--space-3);
 }
 
 .footer {
   display: flex;
-  gap: var(--space-3);
   flex-wrap: wrap;
-  margin-top: var(--space-5);
+  align-items: center;
+  gap: var(--space-3);
 }
 
-/* --- the PDF slot --- */
+/* === The PDF slot === */
 
 .uploadWrap {
   display: flex;
@@ -238,14 +210,19 @@
   min-height: 7rem;
   padding: var(--space-5);
   border: 1px dashed var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-elevated);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
   color: var(--color-text);
-  cursor: pointer;
+  font: inherit;
   text-align: center;
+  cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .dropzone:hover:not(:disabled) {
+  border-color: var(--color-control-border);
   background: var(--color-surface-hover);
 }
 
@@ -271,14 +248,14 @@
   gap: var(--space-3);
   padding: var(--space-4);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-elevated);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
 }
 
 .fileName {
+  min-width: 0;
   font-weight: 600;
   overflow-wrap: anywhere;
-  min-width: 0;
 }
 
 .fileMeta {
@@ -294,19 +271,10 @@
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  .head {
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-
-  .heading {
-    font-size: var(--text-xl);
-  }
-
   /* The number stops being a column of its own: at 360px a 6rem track leaves
      the source name about fifteen characters wide. */
   .rowGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .numberField {
@@ -318,11 +286,17 @@
     width: 100%;
   }
 
+  /* Remove keeps its place at the right of the two arrows. */
+  .rowActions {
+    align-items: center;
+  }
+
+  /* Save stays in reach while a long list of sources is being edited. */
   .footer {
     position: sticky;
-    bottom: 0;
+    bottom: var(--app-bottom-inset, 0px);
     padding: var(--space-3) 0;
-    background: var(--color-bg);
+    background: var(--color-floor);
     border-top: 1px solid var(--color-border);
   }
 }

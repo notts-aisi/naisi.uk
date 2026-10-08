@@ -15,8 +15,8 @@
  *    would rather nothing showed than what is there. A temporary redirect in
  *    next.config.ts takes over from the page without touching it, and nothing
  *    on the site links to it. TO BRING IT BACK: delete the /resources entry in
- *    next.config.ts, restore the three links commented out in PublicHeader,
- *    PublicFooter and src/content/links.ts, and delete the second part of
+ *    next.config.ts, add an entry to src/layout/publicNav.ts, restore the link
+ *    commented out in src/content/links.ts, and delete the second part of
  *    this file.
  *
  * 3. COPY A MEMBER READS NEVER NAMES THE OPERATOR'S TOOLS. A page that tells
@@ -92,8 +92,8 @@ describe("/resources is hidden for now", () => {
 
   test("nothing on the site links to it", () => {
     // A link to a page that redirects home bounces somebody back to where
-    // they started. Comments are stripped, so the three links commented out
-    // for the restore do not count.
+    // they started. Comments are stripped, so the link commented out for the
+    // restore does not count.
     const offenders = [];
     for (const file of walk(join(REPO_ROOT, "src"))) {
       const path = posix(file);
@@ -114,8 +114,8 @@ describe("copy a member reads never names the operator's tools", () => {
   // admin-only gate stands in front of. tests/no-admin-gating.test.mjs holds
   // the gate; this list holds the reason.
   const OPERATOR_SCREENS = {
-    "src/app/(app)/admin/": "the admin area, every page of which is role-gated",
-    "src/features/admin/": "the components those pages render, and the mutations behind them",
+    "src/features/admin/":
+      "the components the admin area's pages render, and the mutations behind them; every one of those pages is role-gated",
   };
   // Lines written FOR the operator, in a place only the operator reads: the
   // server log, or the error a deployment raises while it is being set up.

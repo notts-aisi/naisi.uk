@@ -1,861 +1,512 @@
-/* ============================================================
-   Public landing page styles. Editorial-first with a depth pass.
-
-   Goals (post-rejig):
-   - Hero is a small environment: three-layer atmosphere
-     (shader + constellation + sparkles) hosts a typed/blur-rise
-     headline. Below-the-fold sections stay editorial and calm.
-   - 3D buttons (.button3d family below) replace the old flat
-     anchors on the public surface only. Press-down + shine sweep.
-   - Reading-list grid remains the page's visual centrepiece.
-
-   Scope: the .button3d styles here are duplicated into
-   PublicHeader.module.css rather than shared via composes:
-   cross-module composition. They are NOT in the shared
-   <Button> component yet — public surface only.
-   ============================================================ */
-
-/* === Hero ============================================== */
-
-.hero {
-  position: relative;
-  /* dvh (dynamic viewport height) accounts for the URL bar on iOS Safari
-     so the hero fits the actual visible viewport on first load. With
-     vh, mobile Safari measures 100vh as the URL-bar-collapsed height,
-     pushing the bottom of the hero (and the scrollChevron CTA) below
-     the fold while the page is still scroll-locked. dvh resolves to
-     vh on desktop, so this is mobile-correctness with no desktop cost. */
-  min-height: 100dvh;
-  display: flex;
-  align-items: center;
-  padding-block: var(--space-12);
-  overflow: hidden;
-  /* The dark radial backdrop now ships from HeroAtmosphere as an
-     absolutely-positioned div; this CSS fallback only shows if the
-     atmosphere fails to mount. */
-  background: var(--color-bg);
-  isolation: isolate;
-}
-
-/* Hero atmosphere layers — absolute-positioned siblings of .heroInner.
-   z-stack: shader (1) → field (2) → sparkles (3) → text content (10). */
-.heroLayer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-.heroLayerShader { z-index: 1; opacity: 0; transition: opacity 1200ms ease 600ms; }
-.heroLayerField {
-  z-index: 2;
-  /* opacity defaults to 1 — the canvas fades in via its own Big Bang
-     entrance animation, no CSS fade needed. The previous opacity:0 +
-     data-atmosphere-on transition was reliable on Chromium but iOS
-     Safari was leaving the canvas at opacity:0 in some cases (the
-     attribute toggle in HeroAtmosphere uses rAF, and pairing that with
-     iOS Safari layout timing can lose the transition). Defaulting
-     visible removes that whole class of failure. */
-  /* Receive cursor events so the field's mouse attractor + spawn fire.
-     .heroInner sits above at z-index 10, so badge / link / button hits
-     still win priority — this layer only catches events on the empty
-     atmosphere area. */
-  pointer-events: auto;
-}
-.heroLayerSparkles { z-index: 3; opacity: 0; transition: opacity 1500ms ease 1000ms; }
-
-.hero[data-atmosphere-on="true"] .heroLayerShader,
-.hero[data-atmosphere-on="true"] .heroLayerField,
-.hero[data-atmosphere-on="true"] .heroLayerSparkles {
-  opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .heroLayerShader,
-  .heroLayerField,
-  .heroLayerSparkles {
-    opacity: 1 !important;
-    transition: none !important;
-  }
-}
-
 /*
-  Mobile: lock vertical scroll inside the hero so a finger drag drives
-  the NN cursor attractor instead of scrolling the page. Gated on
-  viewport width to match the rest of the codebase's mobile detection
-  (60rem = --bp-lg). Desktop touchscreens at full width keep normal
-  scroll. The scrollChevron CTA below is how mobile users advance past
-  the hero.
+  The homepage below its hero: "This term", "Work on AI safety" and the
+  shell of the mailing list section. The hero is in HomeHero.module.css, the
+  events in UpcomingEvents.module.css and the form in SubscribeForm.module.css.
+
+  Two notes for other stylesheets that point here:
+
+  - This house does not use `composes:` between modules. A rule another
+    module needs is written out there.
+  - A link that looks like a button is styled here (.button and its looks),
+    because Button in components/ui is a <button>. The values are that
+    component's own.
 */
-@media (max-width: 60rem) {
-  .hero {
-    touch-action: none;
-  }
+
+/* === A section === */
+
+.section {
+  padding-block: 7rem;
+  border-top: 1px solid var(--color-border);
+  /* A link from the hero, or from another page, lands with the heading
+     clear of the sticky bar. */
+  scroll-margin-top: var(--header-height);
 }
 
-/*
-  Downward chevron CTA, mobile-only. Sits in the same slot as the award
-  badge: on desktop the badge shows, on coarse pointers (touch primary)
-  the badge hides and the chevron takes its place. Slides up + fades in
-  after the hero settles, then loops a gentle float so it reads as
-  "tap me" rather than static decoration.
-*/
-/* Desktop slot for the award badge — sits inside .heroBadge alongside
-   the chevron CTA. Hidden on mobile via the @media block below so the
-   only badge a mobile user sees is the one in CredentialsBar further
-   down (less cluttered hero). */
-.heroAwardDesktop { display: block; }
+/* The first section sits straight under the hero, with no rule between. */
+.sectionFirst { border-top: 0; }
 
-.scrollChevron {
-  display: none;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 10px 16px;
-  background: transparent;
-  border: none;
-  color: rgba(255, 255, 255, 0.9);
-  font: inherit;
-  cursor: pointer;
-  -webkit-appearance: none;
-  appearance: none;
-  opacity: 0;
-  transform: translateY(20px);
-  animation: scrollChevronEnter 900ms ease 1600ms forwards;
-}
-.scrollChevron:active { color: rgba(255, 255, 255, 1); }
+/* Every other section is a shade lighter than the floor. */
+.sectionRaised { background: var(--color-bg); }
 
-/* Inner stack — Safari's <button> doesn't always honour flex-direction:
-   column on the button element itself. A child span as the flex
-   container is the reliable cross-browser approach. */
-.scrollChevronStack {
+/* The page's column is the site's own `.container` (globals.css): its width
+   and its side gutter, safe-area insets included. Nothing here sets a
+   gutter, so every section lines up with the header and the footer. */
+
+/* A section's head: its words to the left, one link to the right. */
+.head {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-.scrollChevronLabel {
-  display: block;
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.85);
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
-  opacity: 0;
-  transform: translateY(6px);
-  animation: scrollChevronLabelEnter 700ms ease 5000ms forwards;
-}
-
-.scrollChevronInner {
-  display: inline-flex;
-  animation: scrollChevronFloat 2400ms ease-in-out 2600ms infinite;
-  filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.65));
-}
-
-@keyframes scrollChevronEnter {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 0.9; transform: translateY(0); }
-}
-
-@keyframes scrollChevronLabelEnter {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes scrollChevronFloat {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(6px); }
-}
-
-/*
-  Mobile: chevron CTA takes the heroBadge slot below the headline, with
-  flex-centering so it sits in the middle. Award badge relocates above
-  the eyebrow logo via .heroAwardMobile, and the desktop in-slot copy
-  is hidden. Gated on viewport width (matches mobileTagline at
-  --bp-lg) for consistent mobile detection across the codebase, so
-  wide-viewport desktop browsers never render the chevron.
-*/
-@media (max-width: 60rem) {
-  .scrollChevron { display: inline-flex; }
-  .heroAwardDesktop { display: none; }
-  .heroBadge {
-    display: flex;
-    justify-content: center;
-    margin-top: var(--space-6);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .scrollChevron {
-    opacity: 0.9;
-    transform: translateY(0);
-    animation: none;
-  }
-  .scrollChevronInner { animation: none; }
-  .scrollChevronLabel {
-    opacity: 1;
-    transform: translateY(0);
-    animation: none;
-  }
-}
-
-.heroInner {
-  position: relative;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
   gap: var(--space-6);
-  max-width: 56rem;
+  margin-bottom: var(--space-10);
 }
 
-/* Award badge sits as a small accent below the headline, separated by
-   generous space rather than crammed under CTAs (which now live in
-   their own section). On mobile, the heroBadge slot holds the chevron
-   CTA centered (the award badge relocates to .heroAwardMobile above
-   the eyebrow logo) — see scrollChevron + heroAwardMobile rules. */
-.heroBadge {
-  margin-top: var(--space-4);
+.headWords {
+  min-width: 0;
+  max-width: 40rem;
 }
 
-/* Award badge desktop/mobile slots — visibility is overridden together
-   in the mobile @media block earlier in this file. Defaults declared
-   here so heroAward* exists as a class. */
+/* The small line over a heading. `meta` (global) sets the type. */
+.eyebrow { margin: 0; }
+.eyebrowLive { color: var(--color-live); }
 
-/* Intro section directly below the hero — the lede + CTAs that used
-   to sit inside the hero. Revealed via the existing blur-rise on
-   scroll, so the hero stays minimal and this content lands as a
-   second beat. */
-.introSection {
-  padding-block: var(--space-16) var(--space-12);
-}
-.introInner {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  max-width: 56rem;
-}
-
-/*
-  Hero entrance — emblem, eyebrow, lede, CTAs, badge are all motion-
-  driven from their respective client components. No CSS hooks needed
-  here. Motion handles reduced-motion internally.
-*/
-
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  margin: 0;
-}
-
-.eyebrowLogo {
-  /* 2.5x the previous size — the lockup is the hero identity beat now,
-     leave it real visual weight above the headline. Scales from
-     ~140px on mobile to ~220px on wide desktop. */
-  height: clamp(8.75rem, 15vw, 13.75rem);
-  width: auto;
-  object-fit: contain;
-  /* Soft drop shadow so the white-on-shader logo holds shape */
-  filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.55));
-}
-
-/* At the breakpoint where the neural network rotates to vertical
-   (width < 600px in HeroFieldStaggerCore), centre the logo and bump
-   it 1.5x. Headline + badge stay left-aligned; only the lockup
-   centres so it dominates the mobile hero. */
-@media (max-width: 37.5rem) {
-  .eyebrow {
-    align-self: center;
-  }
-  .eyebrowLogo {
-    height: 13.125rem;
-  }
-}
-
-/*
-  Mobile-only tagline — shows below the UoN logo in the hero, hidden on
-  desktop where the headline + UoN logo + emblem-below-stats carry enough
-  identity on their own.
-*/
-.mobileTagline {
-  display: none;
-  font-family: var(--font-space-grotesk), var(--font-sans);
-  font-size: var(--text-base);
-  font-weight: 700;
-  letter-spacing: 0.005em;
-  color: #22d3ee;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
-  margin: 0;
-}
-
-@media (max-width: 60rem) { /* --bp-lg */
-  .mobileTagline {
-    display: block;
-  }
+.title {
+  margin: 0.625rem 0 0;
+  font-family: var(--font-display);
+  font-size: 3rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
 }
 
 .lede {
-  /*
-    Lifted from --color-text-muted (#8b94ac) to a brighter value with
-    a soft text-shadow so the lede stays readable above the aurora
-    shader without competing with the headline.
-  */
-  color: #d7dceb;
+  margin: 0.875rem 0 0;
   font-size: var(--text-lg);
-  max-width: 38rem;
-  line-height: var(--leading-relaxed);
-  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
-  margin: 0 auto;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  text-wrap: pretty;
 }
 
-.ctas {
-  display: flex;
-  gap: var(--space-3);
+/* The events section sets its head a size down. These follow the rules they
+   adjust, in this file, so the order between them never depends on which
+   stylesheet a page loads first. */
+.headEvents {
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+}
+
+.titleEvents { font-size: 2.5rem; }
+
+.ledeEvents {
   margin-top: var(--space-3);
-  flex-wrap: wrap;
-  justify-content: center;
+  font-size: 1.0625rem;
 }
 
-/*
-  Mobile: stack the hero CTAs full-width and centered. With the default
-  flex-wrap each button used to land on its own line but left-aligned
-  at content width — three half-width buttons stair-stepping down the
-  left edge looks unbalanced next to the centered tagline and chevron.
-  Stretch each button to fill the content area and centre the text
-  inside so they read as a clean stacked column.
-*/
-@media (max-width: 60rem) {
-  .ctas {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-2);
-  }
-  .ctas > div {
-    width: 100%;
-  }
-  .primaryCta,
-  .secondaryCta {
-    width: 100%;
-    justify-content: center;
-  }
-}
+/* === Links that look like buttons === */
 
-/* === 3D button family ================================== */
-
-/*
-  Base depth: padding + flex centring + 80ms press transition.
-  Each variant declares its own background + box-shadow skirt.
-  Press: translateY(--btn3d-press-distance), shadow shrinks to flat.
-  Shine sweep: ::after diagonal highlight slides on hover.
-*/
-.button3d {
-  position: relative;
+.button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.75rem; /* 44px touch-target floor for the public site */
-  padding: 0.85rem 1.5rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  font-weight: 600;
-  letter-spacing: -0.005em;
-  text-decoration: none;
-  overflow: hidden;
-  isolation: isolate;
-  will-change: transform, translate;
-  /*
-    Magnetic pull writes --mag-x / --mag-y via useMagneticPull. We apply
-    them via `translate:` (a separate CSS property from `transform:`) so
-    the :active press translateY doesn't conflict — both stack.
-  */
-  translate: var(--mag-x, 0) var(--mag-y, 0);
-  transition:
-    translate 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    transform 80ms ease,
-    box-shadow 80ms ease,
-    background 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
-}
-
-/* Shimmer ::after was previously transition-based, which made it sweep
-   backwards on hover-out (700ms reverse from 110% back to -110%).
-   Animation-driven one-shot avoids the reverse but introduced its own
-   stutter when rapidly moving between adjacent buttons. Dropped in
-   favour of the tilt-on-hover in HeroCTAs.tsx (useTilt), which gives a
-   more interactive depth signal without the rapid-hover edge cases. */
-
-.button3d > * {
-  position: relative;
-  z-index: 2;
-}
-
-.button3dPrimary {
-  background: linear-gradient(180deg, var(--color-accent-hover), var(--color-accent));
-  color: #fff;
-  box-shadow:
-    0 var(--btn3d-press-distance) 0 color-mix(in oklab, var(--color-accent), black 35%),
-    0 calc(var(--btn3d-press-distance) + 4px) 14px rgba(0, 0, 0, 0.28);
-}
-.button3dPrimary:hover {
-  background: linear-gradient(180deg, var(--color-accent-hover), var(--color-accent-hover));
-}
-.button3dPrimary:active {
-  transform: translateY(var(--btn3d-press-distance));
-  box-shadow:
-    0 0 0 color-mix(in oklab, var(--color-accent), black 35%),
-    0 2px 6px rgba(0, 0, 0, 0.2);
-}
-
-.button3dSecondary {
-  background: var(--color-surface);
-  color: var(--color-text);
-  border-color: var(--color-border);
-  box-shadow:
-    0 var(--btn3d-press-distance) 0 var(--btn3d-edge),
-    0 calc(var(--btn3d-press-distance) + 4px) 12px rgba(0, 0, 0, 0.18);
-}
-.button3dSecondary:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-border-strong);
-}
-.button3dSecondary:active {
-  transform: translateY(var(--btn3d-press-distance));
-  box-shadow:
-    0 0 0 var(--btn3d-edge),
-    0 2px 6px rgba(0, 0, 0, 0.15);
-}
-
-.button3dGhost {
-  background: transparent;
-  color: var(--color-accent);
-  border-color: var(--color-accent);
-  box-shadow:
-    0 var(--btn3d-press-distance) 0 color-mix(in oklab, var(--color-accent), transparent 60%),
-    0 calc(var(--btn3d-press-distance) + 4px) 10px rgba(0, 0, 0, 0.18);
-}
-.button3dGhost:hover {
-  background: var(--color-accent-soft);
-}
-.button3dGhost:active {
-  transform: translateY(var(--btn3d-press-distance));
-  box-shadow:
-    0 0 0 color-mix(in oklab, var(--color-accent), transparent 60%),
-    0 2px 4px rgba(0, 0, 0, 0.15);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .button3d {
-    transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
-  }
-  .button3d::after { display: none; }
-  .button3dPrimary:active,
-  .button3dSecondary:active,
-  .button3dGhost:active {
-    transform: none;
-  }
-}
-
-/* === Hero CTAs ==========================================
-
-   Styled after the ElsewhereRow cards (Long-form posts / Every link in
-   one place / Join the society for £6) so the hero CTAs and that
-   section read as the same depth-card family. Hover deepens the box
-   shadow and accents the border; useTilt in HeroCTAs.tsx applies a
-   gentle rotateX/rotateY toward the cursor on desktop. Active state
-   gives a translateY(2px) press feedback that's the only response on
-   touch (useTilt skips coarse pointers). */
-
-.primaryCta,
-.secondaryCta {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
   min-height: 2.75rem;
-  padding: 0.85rem 1.5rem;
+  padding: 0 1.125rem;
+  border: 1px solid transparent;
   border-radius: var(--radius-md);
+  font-size: var(--text-ui);
   font-weight: 600;
+  line-height: 1.2;
   letter-spacing: -0.005em;
   text-decoration: none;
-  transform-style: preserve-3d;
-  transition:
-    transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1),
-    box-shadow 220ms ease,
-    border-color 220ms ease,
-    background 220ms ease,
-    color 160ms ease;
+  white-space: nowrap;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
-.primaryCta {
-  background: linear-gradient(180deg, var(--color-accent-hover), var(--color-accent));
-  color: #fff;
-  border: 1px solid transparent;
-  box-shadow:
-    0 3px 0 color-mix(in oklab, var(--color-accent), black 35%),
-    0 10px 22px rgba(0, 0, 0, 0.28);
-}
-.primaryCta:hover {
-  background: linear-gradient(180deg, var(--color-accent-hover), var(--color-accent-hover));
-  box-shadow:
-    0 5px 0 color-mix(in oklab, var(--color-accent), black 35%),
-    0 16px 32px rgba(0, 0, 0, 0.4);
-}
-
-.secondaryCta {
-  background: linear-gradient(180deg, var(--color-bg-elevated), var(--color-surface));
+/* Outlined, on the page's own ground. */
+.outline {
+  background: transparent;
+  border-color: var(--color-border-strong);
   color: var(--color-text);
-  border: 1px solid var(--color-border);
-  box-shadow:
-    0 3px 0 var(--btn3d-edge),
-    0 10px 22px rgba(0, 0, 0, 0.22);
-}
-.secondaryCta:hover {
-  border-color: var(--color-accent);
-  background: linear-gradient(180deg, var(--color-bg-elevated), var(--color-surface-hover));
-  box-shadow:
-    0 5px 0 var(--btn3d-edge),
-    0 16px 32px rgba(0, 0, 0, 0.32);
 }
 
-/* Press feedback. On desktop the inline transform from useTilt wins
-   over this CSS transform so the press is mostly invisible (the
-   cursor's mid-click and we're navigating away anyway), but on mobile
-   useTilt is disabled and this is the only tap feedback the user gets
-   before navigation. */
-.primaryCta:active,
-.secondaryCta:active {
-  transform: translateY(2px);
-  box-shadow:
-    0 1px 0 var(--btn3d-edge),
-    0 4px 10px rgba(0, 0, 0, 0.2);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .primaryCta,
-  .secondaryCta { transform: none !important; transition: none; }
-}
-
-.heroArt {
-  position: absolute;
-  right: var(--space-6);
-  /*
-    Center vertically without using transform — animations apply
-    their own transform and would wipe out a -50% offset, leaving
-    the emblem positioned at top:50% (i.e. its top edge at hero
-    centre, not its centre). margin-top: -110px keeps centering
-    additive with whatever transform the animation library writes.
-    110px = half of the 220px emblem image height.
-  */
-  top: 50%;
-  margin-top: -110px;
-  pointer-events: none;
-}
-
-/* Below --bp-lg the absolute-positioned emblem becomes an inline brand
-   anchor above the headline. Source order in landing/page.tsx puts heroArt
-   first inside .heroInner so it renders at the top of the flex column. */
-@media (max-width: 60rem) { /* --bp-lg */
-  .heroArt {
-    position: static;
-    transform: none;
-    align-self: center;
-    margin-bottom: var(--space-4);
-  }
-  .heroArt img {
-    width: 120px;
-    height: auto;
-  }
-}
-
-/* === Shared inline link ================================ */
-
-.inlineLink {
-  color: var(--color-accent);
-  text-decoration: underline;
-  text-underline-offset: 0.18em;
-  text-decoration-thickness: 1px;
-}
-.inlineLink:hover {
-  color: var(--color-accent-hover);
-  text-decoration-thickness: 2px;
-}
-
-/* === Inline logo (BlueDot, UoN SU, etc) ================== */
-
-.inlineLogo {
-  display: inline-block;
-  height: 1.1em;
-  width: auto;
-  vertical-align: -0.2em;
-  margin-right: 0.2em;
-  object-fit: contain;
-}
-
-/* === About: prose paragraph ============================= */
-
-.aboutSection {
-  padding-block: var(--space-16) var(--space-12);
-  border-top: 1px solid var(--color-border);
-}
-
-.aboutInner {
-  max-width: 44rem;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-
-.aboutLead {
-  font-size: var(--text-xl);
-  line-height: 1.45;
-  letter-spacing: -0.005em;
+/* Outlined, filled with the card colour. */
+.surface {
+  background: var(--color-surface);
+  border-color: var(--color-border-strong);
   color: var(--color-text);
-  font-weight: 500;
-  margin: 0;
 }
 
-.aboutBody {
-  font-size: var(--text-base);
-  line-height: var(--leading-relaxed);
-  color: var(--color-text-muted);
-  margin: 0;
-}
-
-/* === Three ways in (engagement tiers) =================== */
-
-.tiersSection {
-  padding-block: var(--space-16);
-  border-top: 1px solid var(--color-border);
-}
-
-.tiersInner {
-  max-width: 56rem;
-}
-
-.tiersHead {
-  max-width: 44rem;
-  margin-bottom: var(--space-10);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.tiersTitle {
-  font-size: clamp(1.75rem, 3vw, 2.25rem);
-  letter-spacing: -0.015em;
-  line-height: 1.15;
-  margin: 0;
-  font-weight: 700;
-}
-
-.tiersBlurb {
-  font-size: var(--text-base);
-  color: var(--color-text-muted);
-  line-height: var(--leading-relaxed);
-  margin: 0;
-}
-
-.tiersList {
-  list-style: none;
+/* A quiet text action in the accent's text colour. */
+.text {
   padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
+  color: var(--color-accent-text);
 }
 
-.tier {
-  /* Generous block padding so the divider rules above and below each
-     tier don't crowd the heading or last paragraph. Bumped from space-10
-     for the rejig — more room per tier so the page feels less cramped. */
-  padding: var(--space-12) 0;
-  border-top: 1px solid var(--color-border);
-  display: flex;
-  flex-direction: column;
+.textPadded { padding: 0 var(--space-2); }
+
+@media (hover: hover) {
+  .outline:hover,
+  .surface:hover {
+    background: var(--color-surface-hover);
+    border-color: var(--color-control-border);
+  }
+  .text:hover { color: var(--color-accent-text-hover); }
+}
+
+/* === This term === */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(18.75rem, 100%), 1fr));
   gap: var(--space-5);
+  margin: var(--space-10) 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-/* Mobile keeps the tighter spacing — the desktop bump would stretch the
-   page on phones. */
-@media (max-width: 48rem) { /* --bp-md */
-  .tier {
-    padding: var(--space-10) 0;
+/* With no date to show the strip is not drawn, and the cards follow the head
+   directly: the head's own margin is the room between them. */
+.head + .cards { margin-top: 0; }
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  box-sizing: border-box;
+  height: 100%;
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+/* The picture at the top of a card: the network, with the programme's
+   facts set over its foot. */
+.cardArt {
+  position: relative;
+  height: 8.375rem;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+}
+
+/* NetField crops its drawing to its own box, and the drawing is made for a
+   tall picture: in a strip this short the nodes would be specks. So the box
+   is larger than the strip, and the strip is a window onto part of it. Each
+   card's window is over a different part, by the three classes below.
+
+   The classes are doubled so that they win over NetField's own position
+   whichever stylesheet loads first. */
+.cardNet.cardNet {
+  position: absolute;
+  top: 0;
+  left: -24%;
+  width: 180%;
+  height: 240%;
+}
+
+.cardNetTop.cardNetTop { top: 0; }
+.cardNetMiddle.cardNetMiddle { top: -70%; }
+.cardNetBottom.cardNetBottom { top: -140%; }
+
+.cardFacts {
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-1);
+  bottom: var(--space-3);
+  margin: 0;
+  letter-spacing: 0.08em;
+  color: var(--color-text-soft);
+}
+
+.cardName {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  text-wrap: balance;
+}
+
+.cardPitch {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+
+.cardChips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* "Read more" sits on the card's floor whatever the height of the words. */
+.cardFoot {
+  margin-top: auto;
+  margin-bottom: calc(-1 * var(--space-1));
+  padding-top: var(--space-2);
+}
+
+/* The row about leading a group. */
+.lead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+  margin-top: var(--space-5);
+  padding: 1.125rem var(--space-5);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+}
+
+.leadWords {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+
+.leadTitle {
+  margin: 0;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.leadBody {
+  margin: 2px 0 0;
+  font-size: var(--text-ui);
+  color: var(--color-text-muted);
+}
+
+/* === Work on AI safety === */
+
+/* The slogan to the left and the words to the right, the slogan a little
+   the wider of the two. */
+.work {
+  display: grid;
+  grid-template-columns: minmax(0, 1.04fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-12) var(--space-16);
+}
+
+.workSlogan {
+  min-width: 0;
+  align-self: center;
+}
+
+/* "Worry about" is struck through and "Work on" is written over it. Both
+   are drawn for the eye only: the heading's own words are the hidden ones. */
+.workTitle {
+  position: relative;
+  margin: 0;
+  /* 76px on a wide laptop and 64px on a narrow one or a tablet, with the
+     marker and the room over it in step. */
+  padding-top: clamp(2.75rem, 3.4vw, 3.0625rem);
+  font-family: var(--font-display);
+  font-size: clamp(4rem, 5.28vw, 4.75rem);
+  font-weight: 700;
+  line-height: 0.98;
+  letter-spacing: -0.025em;
+  color: var(--color-text);
+}
+
+.workMarker {
+  position: absolute;
+  top: 0;
+  left: clamp(7.625rem, 10vw, 9rem);
+  display: inline-block;
+  transform: rotate(-5deg);
+  font-family: var(--font-marker), "Marker Felt", cursive;
+  font-size: clamp(2.875rem, 3.61vw, 3.25rem);
+  font-weight: 400;
+  letter-spacing: 0;
+  white-space: nowrap;
+  color: var(--color-marker);
+}
+
+.workStruck {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.workStrike {
+  position: absolute;
+  top: 52%;
+  left: -4%;
+  right: -4%;
+  height: 0.09em;
+  border-radius: 2px;
+  background: var(--color-marker);
+  transform: rotate(-3deg);
+}
+
+.workBody {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.125rem;
+}
+
+.workHeading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.625rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  text-wrap: balance;
+}
+
+.workLead {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: 1.55;
+  color: var(--color-text);
+  text-wrap: pretty;
+}
+
+.workLine {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: 1.55;
+  color: var(--color-text);
+  text-wrap: pretty;
+}
+
+.workQuiet { color: var(--color-text-muted); }
+
+.sourceLink {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .sourceLink:hover { color: var(--color-accent-text-hover); }
+}
+
+.ways {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Wide enough that the two sit one over the other beside the slogan, and
+   side by side once the words have the page's width to themselves. */
+.way {
+  flex: 1 1 16.125rem;
+  min-width: 0;
+  padding: var(--space-4) 1.125rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.wayName {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.55;
+  letter-spacing: 0;
+  color: var(--color-text);
+}
+
+.wayBody {
+  margin: 0.375rem 0 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.workLinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* === The mailing list section === */
+
+.mailing {
+  border-top: 1px solid var(--color-border);
+  scroll-margin-top: var(--header-height);
+}
+
+/* NetField draws the ground and the network; this gives it the section's
+   padding. */
+.mailingField { padding-block: 7rem; }
+
+/* The words to the left and the form to the right, the form the wider. */
+.mailingRow {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-10) var(--space-16);
+}
+
+.mailingWords { min-width: 0; }
+
+.mailingTitle { font-size: 2.75rem; }
+
+.mailingLede { max-width: 30em; }
+
+.mailingNote {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-ui);
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+
+.mailingCard {
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 1.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+/* === Tablet ===
+   Sections stand closer together, headings step down a size, and the two
+   sections that are two columns on a laptop become one. */
+@media (max-width: 60rem) { /* --bp-lg */
+  .section,
+  .mailingField { padding-block: 5.5rem; }
+
+  .title { font-size: 2.5rem; }
+  .titleEvents { font-size: 2.25rem; }
+  .mailingTitle { font-size: 2.375rem; }
+
+  .cards {
+    grid-template-columns: repeat(auto-fit, minmax(min(13.75rem, 100%), 1fr));
     gap: var(--space-4);
   }
+
+  .work,
+  .mailingRow { grid-template-columns: minmax(0, 1fr); }
+
+  .workSlogan { align-self: start; }
 }
 
-.tier:last-child {
-  border-bottom: 1px solid var(--color-border);
-}
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .section,
+  .mailingField { padding-block: 4rem; }
 
-.tierHead {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-4);
-  flex-wrap: wrap;
-}
+  .title { font-size: 2.125rem; }
+  .titleEvents { font-size: 1.875rem; }
+  .mailingTitle { font-size: 2rem; }
 
-.tierName {
-  font-size: var(--text-xl);
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  margin: 0;
-  line-height: 1.25;
-}
-
-.tierMeta {
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-text-muted);
-  margin-left: auto;
-  /* Wraps below the name on narrow widths so the meta does not get
-     squashed into a hyphenated mess on mobile. */
-}
-
-@media (max-width: 38rem) {
-  .tierMeta {
-    margin-left: 0;
-    flex-basis: 100%;
+  /* One card to a row, as far apart as on a laptop. */
+  .cards {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-5);
   }
-}
 
-.tierBody {
-  font-size: var(--text-base);
-  line-height: var(--leading-relaxed);
-  color: var(--color-text);
-  margin: 0;
-  max-width: 44rem;
-}
-
-.tierFooter {
-  margin: 0;
-  font-size: var(--text-sm);
-}
-
-/* === Reading lists: collapsible accordion =============== */
-
-.readingSection {
-  padding-block: var(--space-16);
-  border-top: 1px solid var(--color-border);
-  background: var(--color-bg-elevated);
-}
-
-.readingInner {
-  max-width: 56rem;
-}
-
-.readingHead {
-  max-width: 44rem;
-  margin-bottom: var(--space-10);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.readingTitle {
-  font-size: clamp(1.75rem, 3vw, 2.25rem);
-  letter-spacing: -0.015em;
-  line-height: 1.15;
-  margin: 0;
-  font-weight: 700;
-}
-
-.readingBlurb {
-  font-size: var(--text-base);
-  color: var(--color-text-muted);
-  line-height: var(--leading-relaxed);
-  margin: 0;
-}
-
-/* The accordion items are vertical-stacked with their own borders.
-   `.readingStack` only exists to give the group a max-width and a
-   consistent gap; the individual styling lives in
-   `ReadingListAccordion.module.css`. */
-.readingStack {
-  display: flex;
-  flex-direction: column;
-}
-
-/* === Events nod ======================================== */
-
-.eventsSection {
-  padding-block: var(--space-16);
-  border-top: 1px solid var(--color-border);
-}
-
-.eventsInner {
-  max-width: 44rem;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-
-.eventsTitle {
-  font-size: clamp(1.75rem, 3vw, 2.25rem);
-  letter-spacing: -0.015em;
-  line-height: 1.15;
-  margin: 0;
-  font-weight: 700;
-}
-
-.eventsBody {
-  font-size: var(--text-base);
-  line-height: var(--leading-relaxed);
-  color: var(--color-text-muted);
-  margin: 0;
-}
-
-.eventsForm {
-  margin-top: var(--space-3);
-}
-
-/* === Digest signup ===================================== */
-
-.digestSection {
-  scroll-margin-top: calc(var(--header-height) + var(--space-4));
-  padding-block: var(--space-16);
-  border-top: 1px solid var(--color-border);
-  background:
-    radial-gradient(ellipse at 10% 20%, var(--color-accent-soft) 0%, transparent 55%),
-    var(--color-bg-elevated);
-}
-
-.digestInner {
-  display: grid;
-  gap: var(--space-8);
-  grid-template-columns: 1fr;
-  align-items: start;
-  max-width: 60rem;
-}
-
-@media (min-width: 48rem) {
-  .digestInner {
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-10);
+  .workTitle {
+    padding-top: 2rem;
+    font-size: 2.875rem;
   }
-}
-
-.digestPitch {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.digestTitle {
-  font-size: clamp(1.75rem, 3vw, 2.25rem);
-  letter-spacing: -0.015em;
-  line-height: 1.15;
-  margin: 0;
-  font-weight: 700;
-}
-
-.digestBody {
-  color: var(--color-text-muted);
-  font-size: var(--text-base);
-  line-height: var(--leading-relaxed);
-  margin: 0;
-}
-
-.digestForm {
-  width: 100%;
+  .workMarker {
+    left: 5.4375rem;
+    font-size: 2.125rem;
+  }
 }

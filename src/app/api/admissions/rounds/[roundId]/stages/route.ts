@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { refuseApplicationForm } from "@/lib/admissions/formFence";
 import {
   normalizeAdmissionRound,
   normalizeAdmissionStage,
@@ -69,6 +70,11 @@ export async function GET(
   if (round.archived || round.status === "draft") {
     return NextResponse.json({ error: "Round not found." }, { status: 404 });
   }
+  // An application form has no stages: it asks its questions through its
+  // own routes. Asked after both "not found" answers above, so a form
+  // nobody has opened reads exactly as a round that is not there.
+  const fenced = refuseApplicationForm(roundSnap.data(), "applicant");
+  if (fenced) return fenced;
 
   const now = new Date();
   const stagesSnap = await roundRef.collection(STAGES_SUBCOLLECTION).get();

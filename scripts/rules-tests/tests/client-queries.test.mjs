@@ -572,6 +572,48 @@ describe("client queries: the scan and the registry agree", () => {
     );
   });
 
+  it("every file that calls a hook whose caller decides the shape is pinned by one of that hook's entries", () => {
+    // The pins above go stale when a call site CHANGES. They say nothing when
+    // one is ADDED: a new page that calls `useTasks` with the board's
+    // arguments issues the board's query from a place this registry never
+    // named, behind a gate nobody wrote down. So an entry whose shape is
+    // chosen by the caller names the hook in `callers`, and every file in
+    // `src` that calls it has to be pinned by one of the entries naming it.
+    const byHook = new Map();
+    for (const entry of REGISTRY.filter((e) => e.callers !== undefined)) {
+      assert.ok(
+        entry.unresolved !== undefined,
+        `${entry.id} names the hook its callers go through, which is only for a read the scanner cannot resolve.`,
+      );
+      const group = byHook.get(entry.callers) ?? { definedIn: new Set(), pinned: new Set() };
+      group.definedIn.add(entry.file);
+      for (const pin of entry.pins ?? []) group.pinned.add(pin.file);
+      byHook.set(entry.callers, group);
+    }
+    assert.ok(byHook.has("useTasks"), "the useTasks entries no longer name their hook, so nothing reads its callers");
+
+    const unpinned = [];
+    for (const [hook, group] of byHook) {
+      const call = new RegExp(`\\b${hook}\\(`);
+      let callers = 0;
+      for (const full of walk(SRC)) {
+        const file = toPosix(full);
+        if (group.definedIn.has(file)) continue;
+        if (!call.test(stripComments(readFileSync(full, "utf8")))) continue;
+        callers += 1;
+        if (!group.pinned.has(file)) unpinned.push(`${hook} is called in ${file}`);
+      }
+      assert.ok(callers > 0, `nothing in src calls ${hook} any more, so its entries describe no read`);
+    }
+    assert.deepEqual(
+      unpinned.sort(),
+      [],
+      `These call a hook whose query shape the caller chooses, and no registry entry pins them. Read each call, decide which declared shape it issues and for whom, and add a pin (and a sentence to the reason) to that entry:\n\n  ${unpinned.join(
+        "\n  ",
+      )}`,
+    );
+  });
+
   it("entries that share a scanner key name each other", () => {
     // Two entries may describe one scanned site when the FIXTURE is the
     // interesting variable (the two adminLocks id shapes, a task the viewer

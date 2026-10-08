@@ -1,59 +1,56 @@
 "use client";
 
-import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
+import Notice from "@/components/ui/Notice";
 import type { RegistrationSummary } from "@/lib/firestore/registrations";
+import { AdminPanel, AdminTile, AdminTiles } from "./adminPanels";
 import styles from "./Registrations.module.css";
 
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className={styles.stat}>
-      <span className={styles.statValue}>{value}</span>
-      <span className={styles.statLabel}>{label}</span>
-    </div>
-  );
-}
-
-/** The flagger panel: suspicious-activity flags + signup status counts + signals. */
+/**
+ * Sign-up activity: anything that looks wrong (a burst of new accounts, a
+ * high rate of failed bot checks, a backlog of unfinished sign-ups), then the
+ * counts for the whole collection and the two signals behind the flags.
+ *
+ * The counts come from the summary route, which counts every row. The table
+ * under this card shows the rows that have been loaded so far, which can be
+ * fewer.
+ */
 export default function RegistrationFlags({ summary }: { summary: RegistrationSummary }) {
   const { counts, velocity, recaptcha, flags } = summary;
   return (
-    <Card padding="lg">
-      <div className={styles.summaryHead}>
-        <h2 className={styles.summaryTitle}>Signup activity</h2>
-        {flags.length === 0 && <span className={styles.allClear}>No flags</span>}
-      </div>
-
+    <AdminPanel
+      title="Sign-up activity"
+      badges={flags.length === 0 ? <Chip tone="success">No flags</Chip> : undefined}
+    >
       {flags.length > 0 && (
         <ul className={styles.flagList}>
           {flags.map((f, i) => (
-            <li
-              key={`${f.kind}-${i}`}
-              className={`${styles.flag} ${
-                f.level === "red" ? styles.flagRed : styles.flagAmber
-              }`}
-            >
-              <span className={styles.flagDot} aria-hidden="true" />
-              <span>{f.message}</span>
+            <li key={`${f.kind}-${i}`}>
+              {/* Amber and red are both drawn as a warning: the words say how
+                  bad it is, and a red fill is kept for nothing. */}
+              <Notice tone="warning" role="note" title={f.level === "red" ? "Urgent" : undefined}>
+                {f.message}
+              </Notice>
             </li>
           ))}
         </ul>
       )}
 
-      <div className={styles.statGrid}>
-        <Stat label="Total" value={counts.total} />
-        <Stat label="Pending verify" value={counts.pendingVerify} />
-        <Stat label="Verified · no password" value={counts.verifiedNoPassword} />
-        <Stat label="No profile yet" value={counts.pendingProfile} />
-        <Stat label="Completed" value={counts.completed} />
-        <Stat label="Unfinished" value={counts.orphans} />
-      </div>
+      <AdminTiles label="Sign-ups, counted over every row">
+        <AdminTile value={counts.total} label="Total" />
+        <AdminTile value={counts.pendingVerify} label="Pending verify" />
+        <AdminTile value={counts.verifiedNoPassword} label="Verified, no password" />
+        <AdminTile value={counts.pendingProfile} label="No profile yet" />
+        <AdminTile value={counts.completed} label="Completed" />
+        <AdminTile value={counts.orphans} label="Unfinished" />
+      </AdminTiles>
 
       <p className={styles.metaLine}>
         <strong>{velocity.last1h}</strong> new in the last hour ·{" "}
-        <strong>{velocity.last24h}</strong> in 24h · reCAPTCHA failed{" "}
-        <strong>{Math.round(recaptcha.failRate * 100)}%</strong> ({recaptcha.failed}/
-        {recaptcha.attempts} over {recaptcha.windowDays}d)
+        <strong>{velocity.last24h}</strong> in 24 hours · the bot check failed{" "}
+        <strong>{Math.round(recaptcha.failRate * 100)}%</strong> of the time ({recaptcha.failed} of{" "}
+        {recaptcha.attempts} over {recaptcha.windowDays} days)
       </p>
-    </Card>
+    </AdminPanel>
   );
 }

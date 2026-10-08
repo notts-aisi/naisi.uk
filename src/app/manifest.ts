@@ -33,9 +33,9 @@ export default function manifest(): MetadataRoute.Manifest {
     /*
      * Must be "/", not "/dashboard". A signed-out installer opening
      * /dashboard is bounced through proxy.ts to /login, which is a poor first
-     * launch. "/" is also the only route with revalidate = 600, so it is the
-     * fastest cold start we have. Returning a signed-in member to where they
-     * were is a separate concern and does not belong in start_url.
+     * launch. "/" is a public page, so it opens for anybody. Returning a
+     * signed-in member to where they were is a separate concern and does not
+     * belong in start_url.
      */
     start_url: "/",
     /*
@@ -75,12 +75,6 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: PAGE_FLOOR,
 
     /*
-     * Icon.purpose is a single-value union in Next's types, so the combined
-     * "any maskable" string is a type error here. Separate files are forced,
-     * which is what web.dev recommends anyway: a maskable icon needs a much
-     * larger safe zone and looks over-padded when used as a plain icon.
-     */
-    /*
      * Chrome's richer install sheet (the one that reads like an app listing
      * rather than a bare Add-to-Home-Screen row) is driven by screenshots.
      * Captured from the live site by Playwright; retake them when a surface
@@ -112,15 +106,28 @@ export default function manifest(): MetadataRoute.Manifest {
       },
     ],
 
+    /*
+     * The home-screen icon: the whole emblem on its own dark ground, made by
+     * `npm run brand` from brand-source/3-app-icon/. Not the tab icon, which
+     * is a different picture on purpose (src/app/favicon.ico and icon.svg).
+     *
+     * Each file is listed twice, once per purpose. The artwork keeps the
+     * emblem inside the centre circle Android guarantees to show when it crops
+     * an icon, so one file serves as both a plain and a maskable icon, and
+     * Icon.purpose is a single-value union in Next's types, so the combined
+     * "any maskable" string is a type error here. Two entries with one src
+     * say the same thing.
+     */
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "maskable" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: "/icons/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
 
     /*
      * Android's long-press menu, and macOS Safari 17.4+. iOS ignores these.
-     * Labels match the AppShell sidebar verbatim so the menu and the app agree.
+     * Labels match the signed-in menu (APP_NAV in src/layout/appNav.ts) verbatim so the menu and the app agree.
      * All three are role-gated, so a signed-out tap lands on /login?next=...,
      * which is a reasonable outcome rather than a broken one.
      */
@@ -133,9 +140,9 @@ export default function manifest(): MetadataRoute.Manifest {
     launch_handler: { client_mode: "focus-existing" },
 
     shortcuts: [
-      { name: "Dashboard", url: "/dashboard" },
+      { name: "Home", url: "/dashboard" },
       { name: "My work", url: "/tasks" },
-      { name: "Courses", url: "/learn" },
+      { name: "My programmes", url: "/learn" },
     ],
   };
 }

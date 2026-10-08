@@ -1,0 +1,716 @@
+/*
+  One programme's applications: the progress card, the recommendations, the
+  filters and the table.
+
+  The table is the wide thing on this screen and it looks after itself: it
+  sits in its own scroller, the three cells that can afford to wrap do, and
+  below the phone breakpoint each row becomes a card. The page itself never
+  scrolls sideways.
+*/
+
+.board {
+  display: flex;
+  flex-direction: column;
+  max-width: 76rem;
+}
+
+.card {
+  min-width: 0;
+  padding: 22px 24px 20px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.rule {
+  margin: 16px 0 18px;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.mutedText {
+  color: var(--color-text-muted);
+}
+
+/* --- Where the programme is up to ------------------------------------- */
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 2px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+.stepLabel {
+  font-size: 14px;
+  font-weight: 500;
+}
+.stepCount {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+}
+.stepCurrent {
+  padding: 0 12px;
+  border-color: var(--review-accent-line);
+  background: var(--review-accent-tint);
+}
+.stepCurrent .stepLabel {
+  font-weight: 600;
+}
+.stepCurrent .stepCount {
+  color: var(--color-accent-text);
+}
+.stepMuted {
+  color: var(--color-text-muted);
+}
+.stepArrow {
+  display: inline-flex;
+  color: var(--color-text-subtle);
+}
+
+.meters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px 48px;
+}
+.meter {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.meterHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-bottom: 10px;
+}
+.meterFigure {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.meterLabel {
+  font-size: 15px;
+  color: var(--color-text-muted);
+}
+.meterTrack {
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+.meterFill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+}
+.meterNote {
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.25;
+  color: var(--color-text-muted);
+}
+
+.cardFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  margin-top: -2px;
+}
+.note {
+  display: flex;
+  flex: 1 1 320px;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+.note strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+.noteIcon {
+  flex: none;
+  margin-top: 1px;
+}
+.reviewNext {
+  padding: 0 18px;
+  font-size: 15px;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+}
+
+/* --- Recommendations --------------------------------------------------- */
+
+.recommendations {
+  margin-top: 20px;
+  padding: 20px 24px 18px;
+}
+.recHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 6px;
+}
+.recTitles {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.recTitle {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+.recSub {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+.recList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.recLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--color-border);
+}
+.recText {
+  flex: 1 1 320px;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.recText strong {
+  font-weight: 600;
+}
+.recFoot {
+  flex: none;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* --- Filters ----------------------------------------------------------- */
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 24px;
+}
+.statusGroup {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  max-width: 100%;
+  padding: 3px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+.statusButton {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--review-text-chip);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.statusButton[aria-pressed="true"] {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+  font-weight: 600;
+}
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-hover);
+  color: var(--review-text-chip);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.statusButton[aria-pressed="true"] .count {
+  background: var(--review-accent-tint);
+  color: var(--color-accent-text);
+}
+
+.searchRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  width: 100%;
+}
+.search {
+  position: relative;
+  display: block;
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.searchIcon {
+  position: absolute;
+  top: 13px;
+  left: 12px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+.searchInput {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px 0 40px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 15px;
+}
+.searchInput::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+.pill {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pill[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  background: var(--review-accent-tint);
+  font-weight: 600;
+}
+.sort {
+  flex: 0 1 200px;
+  min-width: 160px;
+}
+/* Two classes, so this wins over the select's own rule whichever stylesheet
+   the bundler happens to emit first. */
+.sort .sortSelect {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-bg);
+  font-size: 15px;
+}
+
+.statusButton:focus-visible,
+.pill:focus-visible,
+.searchInput:focus-visible,
+.inlineLink:focus-visible,
+.applicantName:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+.pill:focus-visible {
+  border-radius: var(--radius-pill);
+}
+
+/* --- The applications -------------------------------------------------- */
+
+.tableCard {
+  margin-top: 16px;
+  padding: 12px 16px 16px;
+  /* The table asks how wide THIS card is, not the window: the shell's
+     sidebar opens and closes per person, so the two are not the same. */
+  container-type: inline-size;
+}
+
+.bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 8px;
+  padding: 8px 10px 8px 16px;
+  border: 1px solid var(--review-accent-line);
+  border-radius: 10px;
+  background: var(--review-accent-tint);
+}
+.bulkCount {
+  margin-right: 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.bulkSpace {
+  flex: 1 1 auto;
+}
+
+.noticeOk,
+.noticeError {
+  margin: 4px 4px 8px;
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.noticeOk {
+  color: var(--color-ok);
+}
+.noticeError {
+  color: var(--review-danger-text);
+}
+
+.tableScroll {
+  min-width: 0;
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.table th {
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-family: var(--font-meta);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  line-height: 1.3;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+/* The one heading that carries a programme's name gives way before the
+   table has to scroll. In a card with room for it, it stays on one line. */
+.table th.wrapHead {
+  white-space: normal;
+}
+.table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 14px;
+  line-height: 1.25;
+  vertical-align: middle;
+}
+.rowSelected {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+
+.checkHead,
+.checkCell {
+  width: 44px;
+}
+.check {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -10px;
+  cursor: pointer;
+}
+.checkInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.checkBox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--color-text-subtle);
+  border-radius: 5px;
+  background: var(--color-bg);
+  color: transparent;
+}
+.checkInput:checked + .checkBox {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-floor);
+}
+.checkInput:focus-visible + .checkBox {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+.checkInput:disabled + .checkBox {
+  opacity: 0.5;
+}
+
+.applicant {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.applicantText {
+  min-width: 0;
+}
+.applicantName {
+  display: block;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.applicantName:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.applicantDetail {
+  margin-top: 1px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+.flag {
+  margin: 2px 0 0 44px;
+  font-size: 13px;
+  color: var(--color-warning);
+  white-space: nowrap;
+}
+/* The application changed after it was first sent. A mark, not a warning. */
+.changedMark {
+  margin: 2px 0 0 44px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.lowerChoice {
+  font-weight: 600;
+  color: var(--color-warning);
+  white-space: nowrap;
+}
+.sub {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+/* Why a withdrawn row left. Its own class: `.sub` never wraps on a wide card,
+   and a reason somebody typed has to. */
+.gaveBack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 16rem;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+.gaveBackWhy {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--color-text);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+@container (min-width: 60rem) { /* --bp-lg, of the card */
+  .table th.wrapHead,
+  .sub {
+    white-space: nowrap;
+  }
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 20px 8px 12px;
+  font-size: 15px;
+  color: var(--color-text-muted);
+}
+
+.tableFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 14px;
+}
+.footText {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+.inlineLink {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent-text);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .card {
+    padding: 18px 16px 16px;
+  }
+  .recommendations {
+    padding: 18px 16px 14px;
+  }
+  .tableCard {
+    padding: 12px 12px 14px;
+  }
+  .meters {
+    gap: 18px;
+  }
+  .reviewNext {
+    width: 100%;
+  }
+  .statusButton {
+    min-height: 44px;
+  }
+  .sort {
+    flex: 1 1 100%;
+  }
+  .inlineLink {
+    min-height: 44px;
+  }
+
+  /* Each row becomes a card: the person on top, then what the table's
+     columns said, each under its own heading, three to a line. */
+  .tableScroll {
+    overflow-x: visible;
+  }
+  .table,
+  .table tbody,
+  .table td {
+    display: block;
+  }
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+  .table tr {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .table td {
+    min-width: 0;
+    padding: 0;
+    border-bottom: 0;
+  }
+  .table td[data-label] {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+  }
+  .table td[data-label]::before {
+    content: attr(data-label);
+    color: var(--color-text-muted);
+    font-size: 12px;
+    line-height: 1.2;
+  }
+  .rowSelected {
+    margin: 0 -12px;
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+  .table td.checkCell {
+    position: absolute;
+    top: 10px;
+    right: 0;
+    width: auto;
+  }
+  .table .rowSelected td.checkCell {
+    right: 12px;
+  }
+  .check {
+    margin: 0;
+  }
+  .table td.applicantCell {
+    grid-column: 1 / -1;
+    padding-right: 52px;
+  }
+  .applicantName {
+    display: flex;
+    align-items: center;
+    min-height: 24px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}

@@ -23,6 +23,7 @@ import {
   toPublicCoursePage,
   type PublicCoursePage,
 } from "@/lib/firestore/coursePages";
+import { fetchFormRoundsByCourse, speakingRoundFor } from "./fetchFormRound";
 import {
   listLiveRoundsByCourse,
   type CourseLiveRound,
@@ -90,7 +91,9 @@ export type CourseCatalogueEntry = {
   featuredRun: RunWindow | null;
   /**
    * The ADMISSION ROUND that places people onto one of this course's runs, or
-   * null when no round names any of them.
+   * null when no round names any of them. When the course is on the term's
+   * application form (one of the form's programmes is tied to it), this is
+   * the form, with `form` set: `speakingRoundFor` chose between the two.
    *
    * When it is present it OUTRANKS the run's own window for every date on the
    * card: a round is the object an applicant applies to, it carries the dates
@@ -122,6 +125,21 @@ export type CourseCatalogueEntry = {
    * notices.
    */
   visual: { seed: string; coverImageUrl: string | null; coverAlt: string };
+  /**
+   * What the course's own page stores that its card repeats: who it is for,
+   * the format, the time it takes and the titles of its weeks. Empty strings
+   * and an empty list for a course whose page nobody has written.
+   *
+   * From the same batch read as `visual`, so it costs no read of its own, and
+   * named field by field: a card is handed these and nothing else of the
+   * page.
+   */
+  about: {
+    whoItIsFor: string;
+    formatText: string;
+    weeklyHoursText: string;
+    themes: { weekNumber: number; title: string }[];
+  };
 };
 
 /** A published course with the curriculum its showcase run puts on display. */
@@ -288,11 +306,16 @@ export async function listPublishedCourses(): Promise<CourseCatalogueEntry[]> {
   // in `draft`).
   const courses = courseSnap.docs.map((d) => normalizeCourse(d.id, d.data()));
 
-  const [roundPass, pages] = await Promise.all([
+  const [roundPass, formRounds, pages] = await Promise.all([
     listLiveRoundsByCourse(knownRuns, now),
-    // ONE batch read for every card's artwork. The page id IS the course id,
-    // so this needs no query and no index; a course with no authored page
-    // comes back missing and falls through to the id-seeded default.
+    // The term's application form, for each course a programme on it is tied
+    // to. One read for the whole catalogue, and an empty map when no form is
+    // one a visitor may be told about.
+    fetchFormRoundsByCourse(now),
+    // ONE batch read for every card's artwork and for the few lines of its
+    // page a card repeats. The page id IS the course id, so this needs no
+    // query and no index; a course with no authored page comes back missing
+    // and falls through to the id-seeded default and to empty lines.
     courses.length > 0
       ? db.getAll(
           ...courses.map((c) => db.collection(COURSE_PAGES_COLLECTION).doc(c.id)),
@@ -309,7 +332,10 @@ export async function listPublishedCourses(): Promise<CourseCatalogueEntry[]> {
   return courses
     .map((course) => {
       const page = visuals.get(course.id) ?? null;
-      const liveRound = roundPass.rounds.get(course.id) ?? null;
+      const liveRound = speakingRoundFor(
+        formRounds.get(course.id) ?? null,
+        roundPass.rounds.get(course.id) ?? null,
+      );
       return {
         course,
         featuredRun: byCourse.get(course.id) ?? null,
@@ -319,6 +345,15 @@ export async function listPublishedCourses(): Promise<CourseCatalogueEntry[]> {
           seed: page?.visualSeed || course.id,
           coverImageUrl: page?.coverImageUrl ?? null,
           coverAlt: page?.coverAlt ?? "",
+        },
+        about: {
+          whoItIsFor: page?.whoItIsFor ?? "",
+          formatText: page?.formatText ?? "",
+          weeklyHoursText: page?.weeklyHoursText ?? "",
+          themes: (page?.weeklyThemes ?? []).map((theme) => ({
+            weekNumber: theme.weekNumber,
+            title: theme.title,
+          })),
         },
       };
     })

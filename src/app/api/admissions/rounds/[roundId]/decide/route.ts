@@ -5,6 +5,7 @@ import {
   sendAdmissionEmail,
 } from "@/lib/email/admissionEmails";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { refuseApplicationForm } from "@/lib/admissions/formFence";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { mirrorCourseDecisionToPush } from "@/lib/push/courseNotifications";
@@ -14,11 +15,13 @@ import {
   isAppointableRun,
 } from "@/lib/admissions/appointmentQueue";
 import { canDecideAppointments } from "@/lib/admissions/appointmentQueueData";
-import { ROUNDS_COLLECTION } from "@/lib/admissions/roundRoutes";
+import { ROUNDS_COLLECTION, canSeeRound } from "@/lib/admissions/roundRoutes";
+import { OWN_APPLICATION } from "@/lib/applications/review/refusals";
 import { formatRunStart, formatRunStartShort } from "@/lib/courses/window";
 import {
   APPLICATIONS_COLLECTION,
   DECISION_STATUS,
+  admissionApplicationId,
   isAppointmentDecision,
   normalizeAdmissionApplication,
   type AppointmentDecision,
@@ -40,6 +43,40 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * which lands eleven days after the training it is supposed to invite people
  * to. So this route serves the appointment branch and answers 400 on an
  * enrolment round, in words that say when the other half arrives.
+ *
+ * ## Who is asking comes before anything about the round
+ *
+ * The answers below say what a round is: whether it exists, whether it is an
+ * application form, which kind it is, what state it is in. So the first thing
+ * decided from the round document is whether this caller may see the round at
+ * all (`canSeeRound`, the question the round's own GET asks). Somebody who may
+ * not is told "Round not found", in the same words as for an id that
+ * addresses nothing, whatever is really stored there. Then the caller's right
+ * to decide, before the round's kind or its state is said. A request whose
+ * body is not a decision is refused before the round is read, which says
+ * nothing about any round.
+ *
+ * ## Nobody decides their own application
+ *
+ * An admin as much as the round's decider. An appointment puts the applicant
+ * on a run's facilitator list, and that is somebody else's to give: another
+ * decider, or an admin. It is the rule the application form's own writers
+ * keep, in the same sentence, with who can decide it said after.
+ *
+ * It is asked twice, and both times before anything is written:
+ *
+ *  - OF THE REQUEST, as soon as the caller is known to be somebody who may
+ *    decide on this round. An application's id is `<roundId>__<uid>`, so
+ *    whose it is can be read off the id that was sent. Nothing about the
+ *    application has been read at that point, so the answer is the same
+ *    wherever the caller's own application stands, and whether or not there
+ *    is one. It comes after the answers for somebody who may not see the
+ *    round and for somebody who may not decide on it, so neither is told
+ *    anything here.
+ *  - OF THE STORED ROW, inside the transaction, before the row's state is
+ *    looked at. The id is the request's own word; the row's `uid` is whose it
+ *    is. A row of the caller's kept under any other id is refused the same
+ *    way.
  *
  * ## What is refused before the transaction opens
  *
@@ -95,6 +132,13 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
 
 /** Cap on the decider's note. Their sentence, not an essay. */
 const NOTE_MAX = 500;
+
+/**
+ * What the caller is told when the application is their own. The first
+ * sentence is the one every decision writer on an application form answers
+ * with, and the second says who can decide it on a round.
+ */
+const OWN_APPLICATION_ON_A_ROUND = `${OWN_APPLICATION} Another decider or an admin has to decide it.`;
 
 type Ctx = { params: Promise<{ roundId: string }> };
 
@@ -153,6 +197,38 @@ export async function POST(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Round not found" }, { status: 404 });
   }
   const round = normalizeAdmissionRound(roundSnap.id, roundSnap.data() ?? {});
+  // WHO IS ASKING, before anything is said about what is stored here. A
+  // caller the round does not name, who is not staff on the course tree, is
+  // answered exactly as for an id that addresses nothing: whether a round
+  // exists, and what kind it is, is itself something about an intake.
+  if (!canSeeRound(user, round)) {
+    return NextResponse.json({ error: "Round not found" }, { status: 404 });
+  }
+  // An application form is decided programme by programme, by its leads,
+  // through its own routes. Nothing here may move its counters, write a
+  // facilitator list from it or email anybody on it. Asked after the "not
+  // found" answer above, so only somebody who may see this round is told
+  // what it is.
+  const fenced = refuseApplicationForm(roundSnap.data());
+  if (fenced) return fenced;
+  // The caller's right to decide, before the round's kind or its state.
+  if (!canDecideAppointments(user, round)) {
+    return NextResponse.json(
+      {
+        error:
+          "Only this round's final decider or an admin can appoint a facilitator. Reviewers can read the queue.",
+      },
+      { status: 403 },
+    );
+  }
+  // NOBODY DECIDES THEIR OWN APPLICATION, an admin as much as the round's
+  // decider. Asked of the id that was sent, before the round's kind, its
+  // state or anything about the application is read, so the answer is the
+  // same wherever the caller's own application stands. Everybody who may not
+  // see this round, or may not decide on it, has been answered above.
+  if (applicationId === admissionApplicationId(roundId, user.uid)) {
+    return NextResponse.json({ error: OWN_APPLICATION_ON_A_ROUND }, { status: 403 });
+  }
 
   if (round.kind !== "appointment") {
     return NextResponse.json(
@@ -168,15 +244,6 @@ export async function POST(req: Request, ctx: Ctx) {
   // states the stage-release route refuses on.
   const roundBlock = appointmentDecideBlock(round);
   if (roundBlock) return NextResponse.json({ error: roundBlock }, { status: 409 });
-  if (!canDecideAppointments(user, round)) {
-    return NextResponse.json(
-      {
-        error:
-          "Only this round's final decider or an admin can appoint a facilitator. Reviewers can read the queue.",
-      },
-      { status: 403 },
-    );
-  }
 
   if (decision === "appoint" && !runId) {
     return NextResponse.json(
@@ -193,6 +260,7 @@ export async function POST(req: Request, ctx: Ctx) {
   let alreadyDecided = false;
   let conflict: string | null = null;
   let notFound = false;
+  let ownApplication = false;
   let refusal: string | null = null;
   let recipient: { email: string; name: string; uid: string } | null = null;
   let appointedRun: {
@@ -207,6 +275,7 @@ export async function POST(req: Request, ctx: Ctx) {
       alreadyDecided = false;
       conflict = null;
       notFound = false;
+      ownApplication = false;
       refusal = null;
       recipient = null;
       appointedRun = null;
@@ -230,6 +299,14 @@ export async function POST(req: Request, ctx: Ctx) {
       // id's shape. A decide on this round may only touch this round's rows.
       if (application.roundId !== roundId) {
         notFound = true;
+        return;
+      }
+      // The same rule as above, asked of the row itself. The id that was sent
+      // is the request's word for whose application this is, and the stored
+      // `uid` is whose it is. Before the row's state is looked at, so the
+      // answer does not depend on it, and before anything is written.
+      if (application.uid === user.uid) {
+        ownApplication = true;
         return;
       }
 
@@ -335,6 +412,9 @@ export async function POST(req: Request, ctx: Ctx) {
       { error: "No application by that id on this round." },
       { status: 404 },
     );
+  }
+  if (ownApplication) {
+    return NextResponse.json({ error: OWN_APPLICATION_ON_A_ROUND }, { status: 403 });
   }
   if (conflict) return NextResponse.json({ error: conflict }, { status: 409 });
   if (refusal) return NextResponse.json({ error: refusal }, { status: 400 });

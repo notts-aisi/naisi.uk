@@ -41,23 +41,24 @@
   flex-direction: column;
   gap: var(--space-6);
   padding: var(--space-8);
-  background: var(--color-bg-elevated);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
 }
 
+/* The page's eyebrow, in the metadata face (the global `meta` class sets the
+   face, the size and the capitals) and the live colour. */
 .kicker {
   margin: 0;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
+  color: var(--color-live);
 }
 
 .title {
   margin: 0;
   font-size: var(--text-3xl);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
 }
 
 .audience {
@@ -80,17 +81,18 @@
   gap: var(--space-1);
 }
 
+/* Set in the metadata face by the global `meta` class. */
 .factLabel {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--color-text-muted);
+  margin: 0;
 }
 
 .factValue {
   margin: 0;
   font-size: var(--text-lg);
+  font-weight: 600;
   line-height: var(--leading-snug);
   color: var(--color-text);
+  overflow-wrap: anywhere;
 }
 
 .actions {
@@ -114,7 +116,7 @@
   min-height: 2.75rem;
   padding: var(--space-3) var(--space-5);
   border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background: var(--color-surface);
   color: var(--color-text);
   text-align: center;
@@ -125,18 +127,20 @@
 
 .action:hover {
   background: var(--color-surface-hover);
-  border-color: var(--color-accent);
+  border-color: var(--color-control-border);
 }
 
 .action:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+  box-shadow: none;
 }
 
+/* The label is dark on the accent. A white one there is too faint to read. */
 .actionPrimary {
   background: var(--color-accent);
   border-color: var(--color-accent);
-  color: white;
+  color: var(--color-on-accent);
 }
 
 .actionPrimary:hover {
@@ -153,6 +157,11 @@
   font-size: var(--text-sm);
   font-weight: 400;
   opacity: 0.85;
+}
+
+/* On the accent the hint is already dark on a mid tone: no fade on top. */
+.actionPrimary .actionHint {
+  opacity: 1;
 }
 
 /*
@@ -233,7 +242,7 @@
 }
 
 .inlineLink {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -257,15 +266,14 @@
   flex-direction: column;
   gap: var(--space-1);
   padding: var(--space-4) var(--space-5);
-  background: var(--color-accent-soft);
+  background: var(--color-bg);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-row);
 }
 
+/* Set in the metadata face by the global `meta` class. */
 .foodLabel {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--color-text-muted);
+  margin: 0;
 }
 
 .foodText {

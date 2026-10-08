@@ -423,6 +423,10 @@ const REGISTRY = {
     "courses",
     "The stage-release announcement telling applicants a new part of the form has opened.",
   ),
+  "src/lib/scheduler/jobs/applicationInvitationReminders.ts#sendDecisionEmail": G(
+    "courses",
+    "The daily reminder for an invitation nobody has answered. A scheduled nudge about something the person already holds, so the courses row is its off switch; `hasOptedOut` reads it off the user document before the day's reminder is taken. Email only: this job has no push leg, so the cell it reads gates the only channel it has.",
+  ),
 
   // -- Courses row: push ---------------------------------------------------
   "src/lib/scheduler/jobs/admissionsStageRelease.ts#mirrorCourseDecisionToPush": G(
@@ -507,6 +511,13 @@ const REGISTRY = {
   ),
   "src/lib/email/admissionEmails.ts#sendEmail": T(
     "The admissions template's send door, shared by five callers. It consults nothing itself; the two scheduled callers consult the courses row before they reach it and carry their own grid entries.",
+  ),
+  "src/lib/applications/decisionDay/deliver.ts#sendEmail": T(
+    "The decision-day template's send door: You're in, Invitation and No offer this time, and the daily reminder that repeats an invitation. It consults nothing itself; the one scheduled caller consults the courses row before it reaches it and carries its own grid entry.",
+  ),
+  "src/lib/applications/decisionDay/send.ts#sendDecisionEmail": T(
+    "Decision day itself, one message per applicant after their result is published (or, on a later press, the one email an earlier press left owed), and a rehearsal of one email to the address on the session of whoever asked for it: an admin from Send decisions, or a programme's lead from its settings. One call each.",
+    2,
   ),
   "src/app/api/admissions/rounds/[roundId]/apply/route.ts#sendAdmissionEmail": T(
     "The receipt for starting an admissions application.",

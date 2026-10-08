@@ -1,0 +1,600 @@
+import { formatRoundDate } from "@/lib/admissions/window";
+import { formatRunStartShort } from "@/lib/courses/window";
+import { hasBeenTold, isInTerm, owesDecision, placementFor, standingWith } from "../decisions";
+import {
+  questionKey,
+  type AnswerValue,
+  type ApplicationDoc,
+  type ApplicationQuestion,
+  type QuestionSetDoc,
+} from "../model";
+import type { ApplicationForm } from "../normalise";
+import {
+  firstReviewOf,
+  formatScore,
+  hiddenReviewCount,
+  otherReviewsShownTo,
+  reviewerScore,
+  reviewsVisibleTo,
+  scorableKeysFor,
+  sectionScore,
+} from "../scoring";
+import { applicableSets } from "../sections";
+import { gaveBackOf } from "../status/reasons";
+import { changeCount } from "../versions/kept";
+import { availabilityViewFor } from "./availabilityView";
+import {
+  aboutFactsHistory,
+  addedChipText,
+  answerBody,
+  answerHistory,
+  availabilityHistory,
+  changedSinceScoredLine,
+  dayOf,
+  facilitatingHistory,
+  motivationHistory,
+  rankingHistory,
+  setAddedOn,
+  timelineOf,
+} from "./earlier";
+import { own, programmeOn } from "./own";
+import {
+  UNNAMED_STAFF,
+  applicantDetail,
+  applicantFirstName,
+  applicantName,
+  degreeLabel,
+  graduationLabel,
+  listInWords,
+  statusLabel,
+} from "./people";
+import { lookingAt, placesLeftOn, type TermPicture, type Viewer } from "./term";
+import type {
+  AnswerView,
+  CommentView,
+  EarlierAnswer,
+  OtherReview,
+  ReviewPayload,
+  ReviewSection,
+  SectionChip,
+  SectionScoreLine,
+} from "./types";
+
+/**
+ * ONE APPLICATION, AS ONE CALLER MAY REVIEW IT.
+ *
+ * Built field by field from what was SENT (never the draft), for the
+ * programme the caller opened it under. What this module decides:
+ *
+ *  - A FIRST REVIEW IS BLIND. What other people scored and wrote for the
+ *    programme comes through `reviewsVisibleTo`, and what is held back leaves
+ *    as a count and never as a body. The same answer decides every comment
+ *    somebody else left on this application. It is ONE answer for the
+ *    application, across every programme on it that the caller reviews
+ *    (`lookingAt`), so it is the same whichever of them the application was
+ *    opened under. While anything is held back, the payload says what the
+ *    caller has left to do (`others.until`), so the screen can.
+ *  - AN ADMIN IS NEVER BLIND. Every one of those answers is
+ *    `otherReviewsShownTo`'s, and for an admin it is always yes: every score,
+ *    every comment and every overall comment is on an admin's payload whether
+ *    or not they have scored, on every programme the person ranked.
+ *  - ADDRESSES ARE FOR ADMINS. The two email fields are added for an admin
+ *    and are otherwise not on the object at all.
+ *  - EVERYTHING IS DERIVED: the standing, what is owed, the places left and
+ *    the caller's own score are worked out here from the stored scores and
+ *    decisions.
+ *  - WHAT IT SAID BEFORE COMES WITH IT. When the applicant has sent again
+ *    with something different, each part that changed carries what it said
+ *    in the versions sent before (`./earlier.ts`), under the same rules as
+ *    the part itself: an address only for an admin, and nothing about a
+ *    review this caller is not shown.
+ *
+ * Pure, with no server import: the route gates the caller and loads the
+ * documents, and hands them here.
+ */
+
+/** The key an internal comment on the "why are you interested" answer uses. */
+export const ABOUT_MOTIVATION_KEY = "about-you.motivation";
+
+/** Where this application sits among the ones the caller has left. */
+export type QueuePlace = ReviewPayload["queue"];
+
+export function queuePlaceFor(order: readonly string[], queue: readonly string[], uid: string): QueuePlace {
+  const waiting = new Set(queue);
+  const at = order.indexOf(uid);
+  let previousUid: string | null = null;
+  let nextUid: string | null = null;
+  if (at !== -1) {
+    for (let i = at - 1; i >= 0 && previousUid === null; i -= 1) {
+      if (waiting.has(order[i])) previousUid = order[i];
+    }
+    for (let i = at + 1; i < order.length && nextUid === null; i += 1) {
+      if (waiting.has(order[i])) nextUid = order[i];
+    }
+  }
+  const position = queue.indexOf(uid);
+  return {
+    position: position === -1 ? null : position + 1,
+    total: queue.length,
+    previousUid,
+    nextUid,
+  };
+}
+
+function sectionTitle(set: QuestionSetDoc): string {
+  const label = set.label.trim();
+  if (/questions$/i.test(label)) return label;
+  if (set.scope.type === "kind" && set.scope.kind === "fellowship") return "Fellowship questions";
+  return label ? `${label} questions` : "Questions";
+}
+
+function sectionTab(set: QuestionSetDoc): string {
+  const label = set.label.trim();
+  return label.replace(/\s+questions$/i, "") || label || "Questions";
+}
+
+function answerView(
+  form: ApplicationForm,
+  set: QuestionSetDoc,
+  question: ApplicationQuestion,
+  value: AnswerValue | undefined,
+  ranking: { rankedProgrammeIds: string[] },
+  scorable: boolean,
+  earlier: EarlierAnswer[],
+): AnswerView {
+  const body = answerBody(form, question, value, ranking);
+  return {
+    key: questionKey(set.id, question.id),
+    question: question.text,
+    optional: !question.required,
+    type: question.type,
+    answered: body.answered,
+    text: body.text,
+    items: body.items,
+    scale: body.scale,
+    scorable,
+    earlier,
+    // Said further down, once it is known whose reviews this caller is shown.
+    changedSinceScored: null,
+  };
+}
+
+/** "4" or "3.5": a reviewer's own score inside a sentence. */
+function compactScore(score: number): string {
+  return Number.isInteger(score) ? String(score) : formatScore(score);
+}
+
+export function buildReview(input: {
+  form: ApplicationForm;
+  sets: readonly QuestionSetDoc[];
+  term: TermPicture;
+  viewer: Viewer;
+  /** Programmes the caller is the named lead of, with standing. */
+  leads: ReadonlySet<string>;
+  /** The programme this application was opened under. */
+  programmeId: string;
+  canDecide: boolean;
+  application: ApplicationDoc;
+  accountWaiting: boolean;
+  /** First names of the committee, by uid. */
+  staffNames: ReadonlyMap<string, string>;
+  /** Every application to the programme, in the order the list walks them. */
+  order: readonly string[];
+  /** The ones the caller still has to review, in the same order. */
+  queue: readonly string[];
+  lastRevocation: ReviewPayload["decision"]["lastRevocation"];
+}): ReviewPayload | null {
+  const { form, sets, term, viewer, leads, programmeId, canDecide, application, staffNames } = input;
+  const sent = application.sent;
+  const programme = programmeOn(form, programmeId);
+  const role = own(viewer.roles, programmeId);
+  if (!sent || !programme || !role) return null;
+  const ranked = term.ranked.get(application.uid) ?? [];
+  // Opened under the programme they joined by accepting an invitation: read
+  // as if they had ranked it, with nothing of its own to score and no
+  // decision to make.
+  const byInvitation =
+    !ranked.includes(programmeId) && term.joined.get(application.uid) === programmeId;
+  if (!ranked.includes(programmeId) && !byInvitation) return null;
+
+  const staffName = (uid: string) => staffNames.get(uid) ?? UNNAMED_STAFF;
+  const reviews = term.reviews.get(application.uid) ?? [];
+  const mine = reviews.find((review) => review.reviewerUid === viewer.uid) ?? null;
+  const others = reviews.filter((review) => review.reviewerUid !== viewer.uid);
+  const keys = scorableKeysFor(form, sets, programmeId, sent);
+
+  // Is the caller shown what others gave and wrote about this application?
+  // Always, for an admin. For anybody else, once they have saved a review of
+  // their own for it: asked once, of the whole application, and never of the
+  // programme it happens to be open under.
+  const looking = lookingAt({ form, sets, term, viewer, application });
+  if (!looking) return null;
+  const othersShown = otherReviewsShownTo(looking);
+
+  // -------------------------------------------------------------------------
+  // The answers, in the order they were asked
+  // -------------------------------------------------------------------------
+
+  const fellowships = form.programmeIds.filter(
+    (id) => programmeOn(form, id)?.kind === "fellowship",
+  );
+  const commentKeys = new Set<string>([ABOUT_MOTIVATION_KEY]);
+
+  // What they sent before, when they have sent again with something
+  // different. `changedCards` is the cards with something earlier to open, in
+  // the order the screen draws them, and `lastChanged` is when each answer
+  // last changed, where that is known exactly.
+  const timeline = timelineOf(application);
+  const changedCards: string[] = [];
+  const lastChanged = new Map<string, Date>();
+  const earlierFacts = aboutFactsHistory(timeline, degreeLabel(sent.aboutYou), viewer.isAdmin);
+  const earlierMotivation = motivationHistory(timeline).earlier.map((entry) => ({
+    sentOn: entry.sentOn,
+    text: entry.value,
+  }));
+  if (earlierFacts.length > 0 || earlierMotivation.length > 0) changedCards.push("about");
+
+  const sections: ReviewSection[] = [];
+  for (const set of applicableSets(form, sets, sent)) {
+    const streamProgramme =
+      set.role === "stream" && set.scope.type === "programme" ? set.scope.programmeId : null;
+    const focus = streamProgramme === programmeId;
+    const chips: SectionChip[] = [];
+    let mode: ReviewSection["mode"] = "open";
+    let note: string | null = null;
+
+    if (focus) {
+      mode = "focus";
+      const scored = programme.useScores && set.questions.some((question) => question.scored);
+      chips.push(scored ? { text: "Scored", tone: "accent" } : { text: "Not scored", tone: "neutral" });
+    } else if (streamProgramme) {
+      mode = "collapsed";
+      const leadUid = programmeOn(form, streamProgramme)?.leadUid ?? null;
+      if (leads.has(streamProgramme)) note = "You review these";
+      else if (leadUid) note = `${staffName(leadUid)} reviews these`;
+      else note = "Its own reviewers read these";
+    } else if (set.role === "facilitator") {
+      mode = "collapsed";
+      if (viewer.isAdmin) note = "You and the programme’s lead decide these";
+      else if (canDecide) note = "You and admins decide these";
+      else note = "The lead and admins decide these";
+    } else {
+      if (set.scope.type === "kind" && set.scope.kind === "fellowship" && fellowships.length > 1) {
+        chips.push({
+          text: fellowships.length === 2 ? "For both fellowships" : "For every fellowship",
+          tone: "neutral",
+        });
+      }
+      chips.push({ text: "Not scored", tone: "neutral" });
+    }
+
+    const given = own(sent.answers, set.id);
+    const answers = set.questions.map((question) => {
+      const key = questionKey(set.id, question.id);
+      commentKeys.add(key);
+      const history = answerHistory(timeline, form, set, question);
+      if (history.changedAt) lastChanged.set(key, history.changedAt);
+      return answerView(
+        form,
+        set,
+        question,
+        own(given, question.id),
+        sent,
+        focus && keys.includes(key),
+        history.earlier,
+      );
+    });
+    // A set that was not part of an earlier version says so once, for all its
+    // questions. An answer that changed while it was part of it says "Changed".
+    const added = setAddedOn(timeline, form, set);
+    const changed = answers.some((answer) => answer.earlier.length > 0);
+    if (added) chips.push({ text: addedChipText(added), tone: "neutral" });
+    if (changed) chips.push({ text: "Changed", tone: "neutral" });
+    if (added || changed) changedCards.push(set.id);
+    sections.push({
+      id: set.id,
+      title: sectionTitle(set),
+      tab: sectionTab(set),
+      role: set.role,
+      mode,
+      chips,
+      note,
+      answers,
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Scores and comments
+  // -------------------------------------------------------------------------
+
+  const comments: CommentView[] = [];
+  for (const review of reviews) {
+    const mine = review.reviewerUid === viewer.uid;
+    for (const comment of review.comments) {
+      if (!commentKeys.has(comment.questionKey)) continue;
+      // Somebody else's comment, on whichever answer, waits for the caller's
+      // own review of the application.
+      if (!mine && !othersShown) continue;
+      comments.push({
+        id: comment.id,
+        key: comment.questionKey,
+        text: comment.text,
+        authorName: mine ? viewer.name : staffName(review.reviewerUid),
+        mine,
+        when: comment.createdAt ? formatRoundDate(comment.createdAt) : null,
+      });
+    }
+  }
+
+  // Other people's reviews FOR THIS PROGRAMME: a row that scores one of its
+  // answers, or anything written by somebody the programme names. A row that
+  // only scores another programme's answers is that programme's business.
+  const namedHere = new Set([
+    ...(programme.leadUid ? [programme.leadUid] : []),
+    ...programme.reviewerUids,
+  ]);
+  const relevant = others.filter(
+    (review) =>
+      reviewerScore(review, keys) !== null ||
+      (namedHere.has(review.reviewerUid) &&
+        (review.comments.length > 0 || review.overallComment.trim() !== "")),
+  );
+  const forProgramme = mine ? [mine, ...relevant] : relevant;
+  const visible = reviewsVisibleTo(viewer.uid, forProgramme, looking).filter(
+    (review) => review.reviewerUid !== viewer.uid,
+  );
+  const hidden = hiddenReviewCount(viewer.uid, forProgramme, looking);
+  // What the caller has left to do before the reviews held back are shown.
+  // Said only while one is, so nobody is asked for a review nothing waits on.
+  let until: ReviewPayload["review"]["others"]["until"] = null;
+  if (hidden > 0) {
+    const first = firstReviewOf(looking);
+    if (!first.over && first.needs === "scores") {
+      until = {
+        needs: "scores",
+        here: first.programmeIds.includes(programmeId),
+        elsewhere: first.programmeIds
+          .filter((id) => id !== programmeId)
+          .map((id) => programmeOn(form, id)?.shortName ?? "")
+          .filter((name) => name !== ""),
+      };
+    } else if (!first.over) {
+      until = { needs: "overall-comment" };
+    }
+  }
+  const visibleOthers: OtherReview[] = visible.map((review) => {
+    const score = reviewerScore(review, keys);
+    return {
+      reviewerUid: review.reviewerUid,
+      name: staffName(review.reviewerUid),
+      score: score === null ? null : formatScore(score),
+      overallComment: review.overallComment,
+    };
+  });
+
+  const ownScores: Record<string, number> = {};
+  for (const key of keys) {
+    const score = own(mine?.scores, key);
+    if (typeof score === "number") ownScores[key] = score;
+  }
+  const ownMean = mine ? reviewerScore(mine, keys) : null;
+
+  // A score stays on the question, not on a version. Where this caller's
+  // score, or one they are shown, was given before the answer last changed,
+  // the answer says so.
+  const shownOthers = visible.map((review) => ({ name: staffName(review.reviewerUid), review }));
+  for (const section of sections) {
+    for (const answer of section.answers) {
+      if (!answer.scorable) continue;
+      answer.changedSinceScored = changedSinceScoredLine({
+        key: answer.key,
+        changedAt: lastChanged.get(answer.key) ?? null,
+        mine,
+        others: shownOthers,
+      });
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // The decision
+  // -------------------------------------------------------------------------
+
+  const decision = term.decisions.get(application.uid) ?? null;
+  const entry = own(decision?.programmes, programmeId) ?? null;
+  // An invitation accepted is a place accepted: nobody decided it here.
+  const standing = byInvitation ? "accepted" : standingWith(decision, programmeId);
+  const owes = owesDecision(ranked, decision, programmeId);
+  // Somebody who has left the term holds no place, whatever was decided.
+  const placement = isInTerm(application) ? placementFor(ranked, decision) : null;
+
+  // -------------------------------------------------------------------------
+  // What only an admin is sent
+  // -------------------------------------------------------------------------
+
+  let admin: ReviewPayload["admin"] = null;
+  if (viewer.isAdmin) {
+    const lines: SectionScoreLine[] = [];
+    for (const id of ranked) {
+      const other = programmeOn(form, id);
+      if (!other?.useScores) continue;
+      const otherKeys = scorableKeysFor(form, sets, id, sent);
+      // Every review there is: nothing is held back from an admin.
+      const seen = reviewsVisibleTo(viewer.uid, reviews, looking);
+      const section = sectionScore(seen, otherKeys);
+      let line: string | null = null;
+      if (section.reviewers.length === 1) {
+        const only = section.reviewers[0];
+        const row = seen.find((review) => review.reviewerUid === only.reviewerUid);
+        const given = otherKeys
+          .map((key) => own(row?.scores, key))
+          .filter((score): score is number => typeof score === "number");
+        line = `${staffName(only.reviewerUid)} scored ${listInWords(given.map(String))}`;
+      } else if (section.reviewers.length > 1) {
+        line = section.reviewers
+          .map((reviewer) => {
+            const partial = reviewer.scoredCount < otherKeys.length ? " so far" : "";
+            return `${staffName(reviewer.reviewerUid)} ${compactScore(reviewer.score)}${partial}`;
+          })
+          .join(" · ");
+      }
+      lines.push({
+        programmeId: id,
+        shortName: other.shortName,
+        score: section.score === null ? null : formatScore(section.score),
+        line,
+      });
+    }
+    admin = { revealOtherReviews: form.revealOtherReviews, sections: lines };
+  }
+
+  const about = sent.aboutYou;
+  const appliedAt = application.submittedAt ?? application.sentAt;
+  const applicant: ReviewPayload["applicant"] = {
+    uid: application.uid,
+    name: applicantName(about, application.displayName),
+    firstName: applicantFirstName(about, application.displayName),
+    detail: applicantDetail(about),
+    appliedOn: appliedAt ? formatRoundDate(appliedAt) : null,
+    accountWaiting: input.accountWaiting,
+    withdrawn: application.status === "withdrawn",
+    gaveBack: gaveBackOf(application),
+    ranked: ranked.map((id, at) => ({
+      programmeId: id,
+      shortName: programmeOn(form, id)?.shortName ?? "",
+      choice: at + 1,
+      focus: id === programmeId,
+    })),
+    invitedTo: byInvitation ? { programmeId: programme.id, shortName: programme.shortName } : null,
+    wantsToFacilitate: sent.wantsToFacilitate === true,
+    earlierRankings: rankingHistory(timeline, form),
+    earlierFacilitating: facilitatingHistory(timeline),
+    about: {
+      status: statusLabel(about),
+      subjectLabel: degreeLabel(about),
+      subject: about.subject,
+      graduating: graduationLabel(about.expectedGraduation),
+      interests: about.interests,
+      motivation: about.motivation,
+      motivationKey: ABOUT_MOTIVATION_KEY,
+      earlierFacts,
+      earlierMotivation,
+    },
+  };
+  // An address is added for an admin, and is otherwise not on the object.
+  if (viewer.isAdmin) {
+    applicant.email = application.email;
+    applicant.universityEmail = about.universityEmail || null;
+  }
+
+  const earlierAvailability = availabilityHistory(timeline);
+  if (earlierAvailability.length > 0) changedCards.push("availability");
+  const changes = changeCount(application);
+
+  return {
+    round: {
+      id: form.round.id,
+      label: form.round.label,
+      decisionDay: form.round.decisionsByDate
+        ? (formatRunStartShort(form.round.decisionsByDate) ?? null)
+        : null,
+      decisionsSent: form.decisionsSentAt !== null,
+    },
+    viewer: { name: viewer.name, role, canDecide, isAdmin: viewer.isAdmin },
+    programme: {
+      id: programme.id,
+      name: programme.name,
+      shortName: programme.shortName,
+      usesScores: programme.useScores,
+      places: programme.places,
+      placesLeft: placesLeftOn(form, term, programmeId),
+      leadName: programme.leadUid ? staffName(programme.leadUid) : null,
+    },
+    applicant,
+    sections,
+    availability: availabilityViewFor(sent.availability),
+    earlierAvailability,
+    changes:
+      changes > 0
+        ? {
+            count: changes,
+            lastOn: dayOf(timeline.versions[timeline.versions.length - 1]?.sentAt),
+            dropped: application.sentHistoryDropped ?? 0,
+            where: changedCards,
+          }
+        : null,
+    queue: queuePlaceFor(input.order, input.queue, application.uid),
+    review: {
+      scorableKeys: keys,
+      scores: ownScores,
+      ownScore: ownMean === null ? null : formatScore(ownMean),
+      overallComment: mine?.overallComment ?? "",
+      comments,
+      others: {
+        count: relevant.length,
+        hidden,
+        until,
+        visible: visibleOthers,
+      },
+    },
+    decision: {
+      standing,
+      owesDecision: owes,
+      told: hasBeenTold(application),
+      byInvitation,
+      kind: entry?.decision ?? null,
+      poolReason: entry?.poolReason ?? null,
+      couldSuitProgrammeId: entry?.couldSuitProgrammeId ?? null,
+      decidedByName: entry ? staffName(entry.decidedByUid) : null,
+      decidedOn: entry?.decidedAt ? formatRoundDate(entry.decidedAt) : null,
+      placedOn:
+        standing === "to-review" && !owes && placement
+          ? (programmeOn(form, placement)?.shortName ?? null)
+          : null,
+      // "Could suit" is a hint for an invitation, and an invitation never
+      // names a programme the person ranked: that programme's own lead
+      // decides for it. So only what they did not rank is offered.
+      couldSuitOptions: form.programmeIds
+        .filter((id) => id !== programmeId && !ranked.includes(id))
+        .map((id) => programmeOn(form, id))
+        .filter((other): other is NonNullable<typeof other> => other !== null && !other.closed)
+        .map((other) => ({ programmeId: other.id, shortName: other.shortName })),
+      lastRevocation: canDecide ? input.lastRevocation : null,
+    },
+    admin,
+  };
+}
+
+/**
+ * The answers a comment may be attached to and the answers this caller may
+ * score, for one sent application. The review write route holds a request to
+ * these, so a score can only land on a programme the caller reviews.
+ */
+export function writableKeysFor(input: {
+  form: ApplicationForm;
+  sets: readonly QuestionSetDoc[];
+  application: Pick<ApplicationDoc, "sent">;
+  ranked: readonly string[];
+  viewer: Pick<Viewer, "roles">;
+}): { scoreKeys: string[]; commentKeys: string[] } {
+  const { form, sets, application, ranked, viewer } = input;
+  const sent = application.sent;
+  if (!sent) return { scoreKeys: [], commentKeys: [] };
+  const scoreKeys: string[] = [];
+  for (const id of ranked) {
+    if (!own(viewer.roles, id)) continue;
+    for (const key of scorableKeysFor(form, sets, id, sent)) {
+      if (!scoreKeys.includes(key)) scoreKeys.push(key);
+    }
+  }
+  const commentKeys = [ABOUT_MOTIVATION_KEY];
+  for (const set of applicableSets(form, sets, sent)) {
+    for (const question of set.questions) commentKeys.push(questionKey(set.id, question.id));
+  }
+  return { scoreKeys, commentKeys };
+}
+
+/** The sum a stored review row carries beside its scores. */
+export function totalOf(scores: Readonly<Record<string, number>>): number {
+  return Object.values(scores).reduce((sum, score) => sum + score, 0);
+}
+

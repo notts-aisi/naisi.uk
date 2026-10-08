@@ -1,0 +1,135 @@
+/* ============================================================
+   Check and send: one card, a row to a section, each with its
+   Change link. The link is a full 44px target that tucks into
+   the row's own padding so the rows stay compact
+   (docs/touch-targets.md).
+   ============================================================ */
+
+.summary {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.row {
+  padding: 12px 4px 14px 16px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--color-border);
+}
+
+.rowHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 24px;
+}
+
+.summary .rowLabel {
+  letter-spacing: 0.08em;
+  overflow-wrap: anywhere;
+}
+
+.change {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  margin: -10px 0;
+  padding: 0 var(--space-3);
+  color: var(--color-accent-text);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.change:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.change:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: -2px;
+  box-shadow: none;
+}
+
+.rowBody {
+  min-width: 0;
+  margin-top: 2px;
+  padding-right: var(--space-3);
+  color: var(--color-text);
+  font-size: 15px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.detail {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+/* One line of the person's own words, clipped. */
+.preview {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.empty {
+  color: var(--color-text-muted);
+}
+
+.order {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.orderItem {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.orderNumber {
+  flex: none;
+  width: 14px;
+  font-family: var(--font-meta);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-accent-text);
+}
+
+.suHelp {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.use {
+  margin-top: calc(var(--space-2) * -1);
+}
+
+.readers {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .rowBody {
+    padding-right: var(--space-3);
+  }
+}

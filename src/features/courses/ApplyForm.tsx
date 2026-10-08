@@ -14,6 +14,7 @@ import { validateAnswers } from "@/lib/events/validateAnswers";
 import type { FormQuestion, RsvpAnswer } from "@/lib/firestore/events";
 import type { CourseApplicationStatus } from "@/lib/firestore/courseApplications";
 import type { ApplicationWindowState } from "@/lib/courses/window";
+import { own } from "@/lib/applications/keys";
 import { useMyApplication } from "./useMyApplication";
 import styles from "./ApplyForm.module.css";
 
@@ -352,7 +353,7 @@ export default function ApplyForm({
       .map((q) => ({
         id: q.id,
         label: q.label,
-        value: renderAnswer(application.answers[q.id]),
+        value: renderAnswer(own(application.answers, q.id)),
       }))
       .filter((row) => row.value !== "");
 

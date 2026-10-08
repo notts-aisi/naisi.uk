@@ -137,6 +137,22 @@ export const AUTHORITY: Record<string, StandingBar> = {
       "reviewer one it is appointed alongside.",
   },
 
+  // A PROGRAMME'S LEAD on an application form (`src/lib/applications/`). The
+  // lead is named per programme inside the round's `programmes` map; a
+  // programme's reviewers are named beside them and answer to the reviewer
+  // entry above, because they are the same people under the same bar.
+  "admissionRounds.leadUid": {
+    field: "admissionRounds.leadUid",
+    appointedBy: "src/lib/applications/roles.ts, via isEligibleAdmissionsReviewer",
+    test: (user) => isEligibleAdmissionsReviewer(user),
+    why:
+      "A lead reads every application that ranked their programme and decides it, which is " +
+      "strictly more than a reviewer does, so the bar cannot be looser than the reviewer one. " +
+      "`setProgrammeRoles` checks it against the candidate's live user document, only an admin " +
+      "may change the lead, and nothing clears the name when that document changes, so it is " +
+      "asked again here.",
+  },
+
   // ── Course runs and groups ────────────────────────────────────────────────
   // A DELIBERATELY WIDE BAR. The run roles route offers every approved account
   // and documents why ("Approved members, committee and admins - the only

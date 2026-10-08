@@ -684,11 +684,12 @@ test(
            * THE BAND THIS MEASURES, AND WHY THE REST OF THE SUITE CANNOT SEE IT.
            *
            * Below --bp-lg (60rem) the grid stacks into one card per row AND
-           * the 16rem sidebar is hidden, so the narrowest window is not the
+           * the 14.5rem sidebar is hidden, so the narrowest window is not the
            * tightest layout. The tightest is one pixel ABOVE that breakpoint,
            * where the stack has not taken over and the sidebar is back: at a
-           * 961px window `.main` is 705px, its own padding takes 80 and the
-           * Card another 64, leaving about 561px for a three-track grid. Track
+           * 961px window `.main` is 729px, its own padding takes 80 and the
+           * section's card another 50 (its padding and its border), leaving
+           * 599px for a three-track grid. Track
            * minimums that add up to more than that cannot shrink, so the Push
            * column is painted past the card's right border and the document
            * scrolls sideways. Every other step here runs at 1280px, where the

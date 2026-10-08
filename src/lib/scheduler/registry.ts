@@ -36,6 +36,7 @@ import {
 } from "@/lib/firestore/schedulerMarkers";
 import { admissionsRemindersJob } from "./jobs/admissionsReminders";
 import { admissionsStageReleaseJob } from "./jobs/admissionsStageRelease";
+import { applicationInvitationRemindersJob } from "./jobs/applicationInvitationReminders";
 import { eventAnnouncementsJob } from "./jobs/eventAnnouncements";
 import { heartbeatJob } from "./jobs/heartbeat";
 import { unmarkedRegistersJob } from "./jobs/unmarkedRegisters";
@@ -53,6 +54,12 @@ export const SCHEDULER_JOB_IDS = [
   "heartbeat",
   "admissions-deadline-reminders",
   "admissions-stage-release",
+  // The daily reminder for an invitation nobody has answered
+  // (docs/applications.md). It emails people, so it registers with
+  // `enabledByDefault: false`. The decision-day page looks this id up on the
+  // tick receipts to say whether reminders are running, so it is load-bearing
+  // in two places: rename it and that page stops promising a reminder.
+  "application-invitation-reminders",
   "courses-unmarked-registers",
   "courses-break-return",
   // The queued new-event announcement (docs/notifications.md). Publishing
@@ -212,6 +219,7 @@ export function policyFor(job: JobRegistration): MarkerPolicy {
 export const JOBS: readonly JobRegistration[] = [
   admissionsRemindersJob,
   admissionsStageReleaseJob,
+  applicationInvitationRemindersJob,
   unmarkedRegistersJob,
   eventAnnouncementsJob,
   heartbeatJob,

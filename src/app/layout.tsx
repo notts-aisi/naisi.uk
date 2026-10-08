@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Space_Grotesk } from "next/font/google";
+import { Inter, Space_Grotesk, Space_Mono } from "next/font/google";
 import { AuthProvider } from "@/auth/AuthProvider";
 import { ScanBeacon } from "@/features/campaign/ScanBeacon";
 import { SiteNoticeBanner } from "@/features/maintenance/SiteNoticeBanner";
@@ -39,6 +39,18 @@ const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
   display: "swap",
 });
+/*
+ * Metadata only: dates, durations, eyebrow labels and table headers. Read
+ * through --font-meta (src/theme/typography.css) and the global .meta class,
+ * never for body copy. Space Mono has two weights and no variable file, so
+ * both are named.
+ */
+const spaceMono = Space_Mono({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-space-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://naisi.uk"),
@@ -48,6 +60,20 @@ export const metadata: Metadata = {
   },
   description:
     "The AI safety student community at the University of Nottingham. Termly courses, real projects, and a weekly digest of what's happening in the field.",
+  /*
+   * No `images` here or under `twitter`, on purpose. Next reads
+   * src/app/opengraph-image.png (the link-preview card, which `npm run brand`
+   * copies from brand-source/2-lockup/) and writes og:image and twitter:image
+   * itself, with the picture's real width and height and an address that
+   * changes when the picture does. An `images` key written here would switch
+   * that off for the tag it sits under.
+   *
+   * This is the DEFAULT card, not a guarantee. Metadata is merged a whole key
+   * at a time, so a page that sets its own `openGraph` replaces this one,
+   * card included. Such a page names its pictures with `linkPreviewImages`
+   * (src/lib/linkPreviewCard.ts): its own picture, or this card when it has
+   * none. tests/brand-assets.test.mjs walks the tree for a page that does not.
+   */
   openGraph: {
     title: "Nottingham AI Safety Initiative",
     description:
@@ -71,8 +97,10 @@ export const metadata: Metadata = {
    * "we did not think about the status bar".
    *
    * Deliberately no metadata.manifest and no metadata.icons here: static
-   * discovery of manifest.ts and of icon.png / apple-icon.png already emits
-   * both, and mergeStaticMetadata runs last so an explicit value would lose.
+   * discovery of manifest.ts, of favicon.ico and icon.svg (the browser tab)
+   * and of apple-icon.png (the home screen, a different picture on purpose)
+   * already emits both, and mergeStaticMetadata runs last so an explicit
+   * value would lose.
    */
   appleWebApp: {
     title: "NAISI",
@@ -82,7 +110,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" data-theme="dark" className={`${inter.variable} ${spaceGrotesk.variable}`}>
+    <html lang="en" data-theme="dark" className={`${inter.variable} ${spaceGrotesk.variable} ${spaceMono.variable}`}>
       <body>
         {/* Must be the first thing in <body>: it stamps the standalone
             attributes on <html> before any styled content paints. */}

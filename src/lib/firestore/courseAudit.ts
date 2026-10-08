@@ -10,12 +10,17 @@
  * when, and what did they say about it), and answering "what happened to
  * this run" across six collections is six queries and six chances to forget
  * one.
- * `kind` is the discriminator; `runId` is the query axis.
+ * `kind` is the discriminator; `runId` is the query axis, and `roundId` is the
+ * axis for the kinds that are about an application form rather than a run.
  *
- * APPEND-ONLY, AND WRITE-SHUT TO EVERY CLIENT INCLUDING ADMINS. This is the
- * `courseDeletions` posture verbatim, for the reason stated there: an audit
- * its own actor can amend is not an audit. Reads are admin-only. Every writer
- * is an Admin SDK route.
+ * APPEND-ONLY, AND SHUT TO EVERY CLIENT INCLUDING ADMINS. No client writes it:
+ * that is the `courseDeletions` posture, for the reason stated there, that an
+ * audit its own actor can amend is not an audit. No client reads it either. A
+ * line about a decision on an application carries the applicant's account id,
+ * the programme and the outcome, which the decision documents keep from every
+ * browser until decision day, and an admin can be an applicant. Every writer
+ * is an Admin SDK route, and every reader is server code that decides what the
+ * person in front of it may see.
  *
  * NOT SWEPT BY ACCOUNT DELETION, and that is a decision rather than an
  * oversight. A row here names the ACTOR of a staff action (and sometimes its
@@ -27,7 +32,9 @@
  * metadata, not member content: nothing here holds an applicant's answers,
  * their access requirements, or a facilitator's notes about them, only the
  * fact that a named actor touched them. The DESTROY cascade does clear them
- * per run, because destroying a run destroys the things the rows describe.
+ * per run, because destroying a run destroys the things the rows describe, and
+ * the round destroy clears the rows keyed to its form for the same reason
+ * (`src/lib/admissions/destroy.ts`).
  */
 
 export const COURSE_AUDIT_COLLECTION = "courseAudit";
@@ -57,7 +64,25 @@ export type CourseAuditKind =
    * outside the scored payload, and "who has read it" is the only control
    * left once a route can serve it at all.
    */
-  | "access-requirements-read";
+  | "access-requirements-read"
+  /**
+   * The five below belong to an APPLICATION FORM (`src/lib/applications/`).
+   * They are about a form and the people who applied to it rather than about
+   * a run, so a row of one of these kinds stores "" in `runId` and names the
+   * form in `roundId`.
+   *
+   * A lead, or an admin, pressed Accept, Pool or Decline for one programme on
+   * one application. One row per decision, and a changed mind is a second row.
+   */
+  | "application-decision"
+  /** An admin took back an acceptance. `detail` carries the reason they gave. */
+  | "application-decision-revoked"
+  /** An admin picked what a pooled applicant will hear: an invitation, or no offer. */
+  | "application-pooled-outcome"
+  /** An admin gave one person a second place, as a named exception. */
+  | "application-exception"
+  /** An admin sent decision day: the outcomes were published and the emails went. */
+  | "application-decisions-sent";
 
 export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "attendance-edit",
@@ -69,6 +94,11 @@ export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "enrol-mode-change",
   "run-settled",
   "access-requirements-read",
+  "application-decision",
+  "application-decision-revoked",
+  "application-pooled-outcome",
+  "application-exception",
+  "application-decisions-sent",
 ];
 
 /** The label for a kind this build does not know. See `courseAuditKindLabel`. */
@@ -84,6 +114,11 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "enrol-mode-change": "Enrolment mode changed",
   "run-settled": "Run settled",
   "access-requirements-read": "Access requirements read",
+  "application-decision": "Application decided",
+  "application-decision-revoked": "Acceptance revoked",
+  "application-pooled-outcome": "Pooled applicant’s outcome picked",
+  "application-exception": "Placement exception made",
+  "application-decisions-sent": "Decisions sent",
 };
 
 /**
@@ -127,10 +162,17 @@ export type CourseAuditDoc = {
   kindKnown: boolean;
   /**
    * The run the action belongs to. THE query axis, and the key the destroy
-   * cascade drains on, so a row without one is unreachable by both. Rows for
-   * an action with no run (there are none today) would store "".
+   * cascade drains on, so a row without one is unreachable by both. A row for
+   * an action with no run stores "": the application kinds are the ones that
+   * do, and they are found through `roundId` instead.
    */
   runId: string;
+  /**
+   * The application form the action belongs to. Written by the application
+   * kinds, which have no run to key on, so that everything logged about one
+   * form can be found with one equality. Null on every other row.
+   */
+  roundId: string | null;
   /** Optional narrower subjects, stored so a query can reach them later. */
   groupId: string | null;
   /** The member the action was ABOUT, when it was about one. */
@@ -173,6 +215,7 @@ export function normalizeCourseAudit(id: string, data: Raw): CourseAuditDoc {
     kind: rawKind,
     kindKnown: isCourseAuditKind(rawKind),
     runId: typeof data.runId === "string" ? data.runId : "",
+    roundId: strOrNull(data.roundId),
     groupId: strOrNull(data.groupId),
     subjectUid: strOrNull(data.subjectUid),
     actorUid: typeof data.actorUid === "string" ? data.actorUid : "",

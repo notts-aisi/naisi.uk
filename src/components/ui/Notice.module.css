@@ -1,0 +1,70 @@
+/*
+  Notice: an icon, a line or two, and optional actions.
+
+  A soft tint and a line of the same colour, never a left-border accent and
+  never a solid fill. The words stay at full text colour on every tone.
+*/
+
+.notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: 0.875rem var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-row);
+}
+
+.icon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.icon svg { display: block; }
+
+.body {
+  flex: 1 1 15rem;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.title { font-weight: 600; }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+/* === Tones === */
+
+.info {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-line);
+}
+.info .icon { color: var(--color-accent-text); }
+
+.warning {
+  background: var(--color-warning-soft);
+  border-color: var(--color-warning-line);
+}
+.warning .icon { color: var(--color-warning); }
+
+.neutral {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-strong);
+}
+.neutral .icon { color: var(--color-text-muted); }
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* The actions take their own row, under the words and in line with them. */
+  .actions {
+    flex-basis: 100%;
+    margin-left: calc(18px + var(--space-3));
+  }
+}

@@ -1508,7 +1508,7 @@ export const REGISTRY = [
     path: "newsletterDrafts",
     clauses: [],
     reason:
-      "Every draft, for /newsletter. Both branches of the rule are resource-independent permission checks, so the unfiltered list passes for precisely the set the layout admits: admins and the two newsletter permission holders. Committee membership grants nothing here, which is the difference from events.",
+      "Every draft, for /newsletter, and for the newsletter line on an admin's Home, mounted for admins only. Both branches of the rule are resource-independent permission checks, so the unfiltered list passes for precisely the set the layout admits: admins and the two newsletter permission holders. Committee membership grants nothing here, which is the difference from events.",
     outcomes: {
       "signed-out": "refused",
       pending: "refused",
@@ -1910,19 +1910,24 @@ export const REGISTRY = [
   },
   {
     id: "tasks-committee-board",
+    callers: "useTasks",
     pins: [
       {
         file: "src/app/(app)/committee/tasks/page.tsx",
         text: 'useTasks({ visibility: "committee", includeArchived: showArchived })',
+      },
+      {
+        file: "src/app/(app)/dashboard/HomeAdmin.tsx",
+        text: 'useTasks({ visibility: "committee", includeArchived: false })',
       },
     ],
     file: "src/features/tasks/hooks/useTasks.ts",
     path: "tasks",
     clauses: ["where(visibility,==)"],
     unresolved:
-      "useTasks builds its constraint array conditionally and spreads it into query(), so the scanner can see the collection but not the clauses. The three shapes its callers actually produce are declared as three entries, found by reading every call site: /committee/tasks passes { visibility: 'committee' }, /tasks and MyWorkSummary pass { completerUid }, and /admin/danger-zone passes neither. `projectId` and `source` are supported by the hook and passed by nobody.",
+      "useTasks builds its constraint array conditionally and spreads it into query(), so the scanner can see the collection but not the clauses. The three shapes its callers actually produce are declared as three entries, found by reading every call site: /committee/tasks and the admin's Home pass { visibility: 'committee' }, /tasks and MyWorkSummary pass { completerUid }, and the same two pass neither in the render before sign-in resolves. `projectId` and `source` are supported by the hook and passed by nobody. Each of the three names the hook in `callers`, and the test holds every file that calls it to a pin in one of them, so a new caller is read before it ships.",
     reason:
-      "The committee board's query. `visibility == 'committee'` matches the rule's committee branch, but that branch is still resource-dependent (it reads the document's visibility), so the clause alone does not save a caller who is not SU committee: the board is gated to SU committee and admins in committee/layout.tsx for exactly that reason.",
+      "The committee board's query. `visibility == 'committee'` matches the rule's committee branch, but that branch is still resource-dependent (it reads the document's visibility), so the clause alone does not save a caller who is not SU committee: the board is gated to SU committee and admins in committee/layout.tsx for exactly that reason. The admin's Home issues the same shape for its count of tasks due this week; it is mounted only when the page has read the role as admin on the server, which is the one persona this shape is allowed for unconditionally.",
     outcomes: {
       "signed-out": "refused",
       pending: "refused",
@@ -1938,6 +1943,7 @@ export const REGISTRY = [
   },
   {
     id: "tasks-my-work",
+    callers: "useTasks",
     pins: [
       {
         file: "src/app/(app)/tasks/page.tsx",
@@ -1974,11 +1980,8 @@ export const REGISTRY = [
   },
   {
     id: "tasks-unfiltered",
+    callers: "useTasks",
     pins: [
-      {
-        file: "src/app/(app)/admin/(admin-only)/danger-zone/page.tsx",
-        text: "useTasks({ includeArchived: true })",
-      },
       {
         file: "src/app/(app)/tasks/page.tsx",
         text: "useTasks(user ? { completerUid: user.uid, includeArchived: false } : {})",
@@ -1992,9 +1995,9 @@ export const REGISTRY = [
     path: "tasks",
     clauses: [],
     unresolved:
-      "The third shape behind the spread: no constraints at all. Issued deliberately by /admin/danger-zone, and issued INCIDENTALLY by /tasks and MyWorkSummary in the render before Firebase Auth resolves, because both pass `{}` while `user` is still null. That transient copy is refused for a member and logged; it is not a bug, but it is why this shape has to be registered rather than treated as admin-only.",
+      "The third shape behind the spread: no constraints at all. No page asks for it on purpose. It is issued INCIDENTALLY by /tasks and MyWorkSummary in the render before Firebase Auth resolves, because both pass `{}` while `user` is still null. That transient copy is refused for a member and logged; it is not a bug, but it is why this shape has to be registered.",
     reason:
-      "Every task including archived ones, for the danger zone's wipe count. Only the admin branch of the rule is resource-independent, so this is an admin-only shape, which matches the (admin-only) route group it is mounted in.",
+      "Every task, with no clause to narrow it. Only the admin branch of the rule is resource-independent, so this is an admin-only shape: the copy a member's page issues before sign-in resolves is refused, and an admin's is allowed.",
     outcomes: {
       "signed-out": "refused",
       pending: "refused",
@@ -2423,13 +2426,13 @@ export const REGISTRY = [
     path: "memberRecords/{uid}/applications",
     clauses: [],
     reason:
-      "One person's application history, listed under their row on the admin Members page: a copy of what they applied for, what was decided, how they scored and what the reviewers wrote, taken when a round settles or is destroyed so that destroying the round does not destroy the committee's memory of the person. The GATE ON THE PAGE is `requireAdminPage()` (the (admin-only) group), so an admin is the only persona who can reach this hook today. The RULE is wider on purpose, admin OR SU-recognised committee, which is the same audience the users collection already trusts with member PII, and the entry pins that: the day this record is surfaced anywhere an SU-recognised committee member works, the read has to already be allowed rather than discovered to be refused. Everybody else is refused, the person it describes included: it is the committee's record ABOUT them, not their copy of it, and a member who could list their own subtree would be reading their reviewers' private notes. No clauses, because the rule admits the whole subcollection or none of it, and the fixture sits under OTHER so no persona is quietly reading their own.",
+      "One person's application history, listed under their row on the admin Members page: a copy of what they applied for, what was decided, how they scored and what the reviewers wrote, taken when a round settles or is destroyed so that destroying the round does not destroy the committee's memory of the person. The GATE ON THE PAGE is `requireAdminPage()` (the (admin-only) group), and the RULE is the same audience: admins, and nobody else. An entry holds each reviewer's comment about a named applicant, which the review screen shows only to admins and to that programme's own lead and reviewers, so an SU-recognised committee member is refused here although they read the users collection. Everybody else is refused too, the person it describes included: it is the committee's record ABOUT them, not their copy of it. No clauses, because the rule admits the whole subcollection or none of it, and the fixture sits under OTHER so no persona is quietly reading their own. `tests/applications-d2-zeta-member-record-readers.test.mjs` holds the page gate and the rule to each other.",
     outcomes: {
       "signed-out": "refused",
       pending: "refused",
       member: "refused",
       committee: "refused",
-      "su-committee": "allowed",
+      "su-committee": "refused",
       admin: "allowed",
     },
     seed: async (db) => {

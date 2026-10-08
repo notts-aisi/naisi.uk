@@ -8,6 +8,7 @@ import ErrorPanel from "@/components/ErrorPanel";
 export default function NotFound() {
   return (
     <ErrorPanel
+      eyebrow="Error 404"
       title="Not found"
       description="That item does not exist, or you do not have access to it. It may have been deleted or archived."
       homeHref="/dashboard"

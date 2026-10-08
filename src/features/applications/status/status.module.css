@@ -1,0 +1,827 @@
+/* ============================================================
+   What an applicant sees after sending: "Application sent",
+   "Your application" while they wait, and what decision day
+   told them.
+
+   Every screen here is ONE reading column. The boards are drawn
+   for a phone; on a laptop the same column sits at the left of
+   the page's container, the way the form's own cards do, so
+   nothing moves between the form and what follows it.
+
+   Colours are the theme's tokens and the few the shared kit
+   adds. The handful below are the ones these boards use that
+   neither carries.
+
+   Public surface: every control declares the 44px floor
+   (docs/touch-targets.md).
+   ============================================================ */
+
+.vars {
+  /* Secondary text set straight on the floor, lighter than the muted token. */
+  --st-soft: var(--color-text-soft);
+  /* The label of a neutral chip. */
+  --st-quiet: var(--color-text-body);
+  --st-ok-wash: rgba(70, 167, 88, 0.16);
+  --st-ok-line: rgba(111, 209, 133, 0.35);
+  --st-accent-wash: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  --st-accent-line: color-mix(in srgb, var(--color-accent) 35%, transparent);
+  color: var(--color-text);
+  /* The boards set a line height on paragraphs and headings only, and leave
+     every label at the font's own. The site's body sets a looser one. */
+  line-height: normal;
+}
+
+.root {
+  background: var(--color-floor);
+}
+
+/* The floor runs to the footer, however short the page is. */
+:global(main):has(> .root) {
+  background: var(--color-floor);
+}
+
+.shell {
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin-inline: auto;
+  padding: var(--space-12) var(--space-6) var(--space-16);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 30rem;
+  min-width: 0;
+}
+
+.column[data-gap="sent"] {
+  gap: 22px;
+}
+
+.column[data-gap="offer"] {
+  gap: 20px;
+}
+
+.column[data-gap="outcome"] {
+  gap: 28px;
+}
+
+/* === Headings === */
+
+.vars .eyebrow {
+  letter-spacing: 0.12em;
+  color: var(--color-live);
+  overflow-wrap: anywhere;
+}
+
+.title {
+  margin: 8px 0 0;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.title:focus,
+.bigTitle:focus {
+  outline: none;
+}
+
+/* "Application sent." and "You’re in AGI Strategy." */
+.bigTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.bigTitle[data-after="disc"] {
+  margin-top: 18px;
+  line-height: 1.08;
+}
+
+.lede {
+  margin: 10px 0 0;
+  color: var(--st-soft);
+  font-size: 17px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.lede strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* A date, which reads badly broken across two lines. */
+.together {
+  white-space: nowrap;
+}
+
+/* The tick in a ring above "Application sent." */
+.disc {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border: 1px solid rgba(111, 209, 133, 0.4);
+  border-radius: 50%;
+  background: var(--st-ok-wash);
+  color: var(--color-ok);
+}
+
+/* === Cards === */
+
+.card {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.card[data-pad="steps"] {
+  padding: 22px 18px 16px;
+}
+
+/* An outcome card, and a calm card that says something plainly. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vars .label {
+  letter-spacing: 0.12em;
+}
+
+.vars .meta {
+  letter-spacing: 0.08em;
+  overflow-wrap: anywhere;
+}
+
+.value {
+  color: var(--color-text);
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+
+.order {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.order li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: var(--color-text);
+  font-size: 16px;
+}
+
+.rank {
+  flex: none;
+  width: 14px;
+  color: var(--color-accent-text);
+  font-family: var(--font-meta);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.rule {
+  margin: 20px 0;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+/* === Chips: a status always comes with its word === */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-hover);
+  color: var(--st-quiet);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.chip::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.chip[data-tone="ok"] {
+  border-color: var(--st-ok-line);
+  background: var(--st-ok-wash);
+  color: var(--color-ok);
+}
+
+.chip[data-tone="accent"] {
+  border-color: var(--st-accent-line);
+  background: var(--st-accent-wash);
+  color: var(--color-accent-text);
+}
+
+/* === The three steps === */
+
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  align-items: stretch;
+  gap: 18px;
+}
+
+.rail {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--color-border-strong);
+  border-radius: 50%;
+}
+
+.step[data-state="done"] .mark {
+  border-color: var(--color-ok);
+  background: var(--color-ok);
+  color: var(--color-floor);
+}
+
+.step[data-state="now"] .mark {
+  border-color: var(--color-accent);
+  background: var(--st-accent-wash);
+}
+
+.step[data-state="now"] .mark::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+.line {
+  flex: 1 1 auto;
+  width: 2px;
+  min-height: 18px;
+  margin: 4px 0;
+  background: var(--color-border);
+}
+
+.step[data-state="done"] .line {
+  background: var(--color-ok);
+}
+
+.stepBody {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-bottom: 18px;
+}
+
+.step[data-state="now"] .stepBody {
+  padding-bottom: 14px;
+}
+
+.step:last-child .stepBody {
+  padding-bottom: 0;
+}
+
+/* The step everybody is waiting on sits in its own lit box. */
+.step[data-state="now"] .stepText {
+  margin: -10px 0 0 -12px;
+  padding: 9px 12px 10px 11px;
+  border: 1px solid var(--st-accent-line);
+  border-radius: 10px;
+  background: var(--st-accent-wash);
+}
+
+.stepName {
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.step[data-state="now"] .stepName {
+  font-weight: 600;
+}
+
+.step[data-state="next"] .stepName {
+  color: var(--st-soft);
+}
+
+.stepWhen {
+  margin-top: 3px;
+}
+
+.vars .stepWhen span {
+  letter-spacing: 0.08em;
+}
+
+.vars .step[data-state="now"] .stepWhen span {
+  color: var(--color-accent-text);
+}
+
+/* === Buttons and links === */
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.actions[data-gap="tight"] {
+  gap: 6px;
+}
+
+.actions[data-space="above"] {
+  margin-top: 4px;
+}
+
+.vars .primary,
+.secondary,
+.outline {
+  min-height: 52px;
+  padding: 0 24px;
+  font-size: 16px;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+}
+
+.secondary,
+.outline,
+.outlineSmall {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.secondary,
+.outline {
+  font-size: 16px;
+}
+
+.secondary {
+  background: var(--color-surface);
+}
+
+.outlineSmall {
+  min-height: 2.75rem;
+  padding: 0 18px;
+  font-size: 15px;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+}
+
+.secondary:hover:not(:disabled),
+.outline:hover:not(:disabled),
+.outlineSmall:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+
+/* "I can’t make it": a real button, drawn as quiet text. */
+.quiet {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  margin-top: 6px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.quiet:hover:not(:disabled) {
+  color: var(--color-accent-text-hover);
+}
+
+.secondary:focus-visible,
+.outline:focus-visible,
+.outlineSmall:focus-visible,
+.quiet:focus-visible,
+.back:focus-visible,
+.link:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+.secondary:disabled,
+.outline:disabled,
+.outlineSmall:disabled,
+.quiet:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+/* --- Why somebody is giving a place or an invitation back -------------- */
+
+.reasons {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 4px 0 2px;
+  padding: 0;
+  border: 0;
+}
+.reasonsLegend {
+  display: block;
+  margin: 0;
+  padding: 0;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.reasonsHelp {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.reasonRows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.reasonRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 3rem;
+  padding: 6px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.reasonRow[data-on="true"] {
+  border-color: var(--color-accent);
+  background: var(--st-accent-wash);
+  font-weight: 600;
+}
+/* For the keyboard only: the first reason is given the focus when the step
+   opens, and after a tap that must not look like a choice already made. */
+.reasonRow:has(.reasonNative:focus-visible) {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+/* The radio itself: there for the keyboard and a screen reader, drawn by the row. */
+.reasonNative {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.reasonRadio {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--st-quiet);
+  border-radius: 50%;
+  background: var(--color-bg);
+}
+.reasonRadio[data-on="true"] {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+.reasonRadio[data-on="true"]::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-floor);
+}
+.reasonOther {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+.reasonBox {
+  display: block;
+  width: 100%;
+  min-height: 5.5rem;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.45;
+  resize: vertical;
+}
+.reasonBox:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 1px;
+  border-color: var(--color-accent);
+  box-shadow: none;
+}
+
+.link {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link:hover {
+  color: var(--color-accent-text-hover);
+}
+
+/* === What decision day told them === */
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.cardTitle:focus {
+  outline: none;
+}
+
+.cardMeta {
+  margin-top: 8px;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--color-text);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.body p {
+  margin: 0;
+}
+
+.offerText {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 16px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+/* The programme's picture across the top of an offer. */
+.banner {
+  position: relative;
+  height: 116px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: radial-gradient(ellipse 70% 90% at 30% 40%, #1a2450 0%, #10163a 45%, #0a0e16 100%);
+}
+
+.bannerArt {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.bannerName {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 12px;
+}
+
+.vars .bannerName span {
+  letter-spacing: 0.08em;
+  color: var(--st-soft);
+}
+
+.questions {
+  margin: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 15px;
+}
+
+/* A reply that could not be recorded, said where the buttons are. */
+.problem {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-warning) 45%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft);
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* A reply that has been recorded. */
+.said {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  color: var(--color-text);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.said svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--color-ok);
+}
+
+/* The way back, above an offer. On a phone it is the screen's own top bar. */
+.bar {
+  margin-bottom: 14px;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  color: var(--color-accent-text);
+  font-size: 15px;
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--color-accent-text-hover);
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .shell {
+    padding: 24px 16px 32px;
+  }
+
+  .shell[data-pad="sent"] {
+    padding-top: 28px;
+  }
+
+  .shell[data-pad="outcome"] {
+    padding-bottom: 48px;
+  }
+
+  .shell[data-pad="offer"] {
+    padding: 0 0 28px;
+  }
+
+  .shell[data-pad="offer"] .column {
+    padding: 16px 16px 0;
+  }
+
+  .column {
+    max-width: none;
+  }
+
+  .actions {
+    align-items: stretch;
+  }
+
+  .actions .note {
+    text-align: center;
+  }
+
+  /* The reasons are a form, read from the left like any other, and so is the
+     question above them. */
+  .reasons {
+    margin-top: 8px;
+  }
+
+  .actions[data-asks="why"] .note {
+    text-align: left;
+  }
+
+  .quiet {
+    padding: 0 18px;
+  }
+
+  /* An offer is the whole screen: its own bar across the top with the way
+     back, where the page's header would be. */
+  :global(header):has(~ :global(main) .bar) {
+    display: none;
+  }
+
+  .bar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    min-height: 56px;
+    margin: 0;
+    padding: env(safe-area-inset-top, 0px) 12px 0;
+    border-bottom: 1px solid var(--color-border);
+    background: color-mix(in srgb, #080b13 92%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+}

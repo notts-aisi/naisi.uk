@@ -29,6 +29,7 @@
  */
 import { sanitizeBlocks, type Block } from "./newsletterBlocks";
 import type { ReviewConfig } from "./circulations";
+import { own } from "@/lib/applications/keys";
 
 export const WORKSHEETS_COLLECTION = "worksheets";
 export const WORKSHEET_FOLDERS_COLLECTION = "worksheetFolders";
@@ -799,7 +800,7 @@ export function computeProgress(
   let requiredAnswered = 0;
   const questions = questionsOf(items);
   for (const question of questions) {
-    const answer = answers?.[question.id];
+    const answer = own(answers, question.id);
     const filled = answer !== undefined && answer !== null && !answerIsEmpty(answer);
     if (filled) answered += 1;
     if (question.required) {
@@ -826,7 +827,7 @@ export function validateSubmission(
 ): SubmissionProblem[] {
   const problems: SubmissionProblem[] = [];
   for (const question of questionsOf(items)) {
-    const answer = answers?.[question.id];
+    const answer = own(answers, question.id);
     if (answer === undefined || answer === null) {
       if (question.required) {
         problems.push({ questionId: question.id, message: "This question needs an answer." });

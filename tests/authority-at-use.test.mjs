@@ -706,6 +706,7 @@ const ORDER = [
 const MATRIX = {
   "admissionRounds.reviewerUids": "-- - - - - Y Y".replace(/ /g, ""),
   "admissionRounds.finalDeciderUid": "-- - - - - Y Y".replace(/ /g, ""),
+  "admissionRounds.leadUid": "-- - - - - Y Y".replace(/ /g, ""),
   "courseRuns.admissionsReviewerUids": "-- Y Y - Y Y Y".replace(/ /g, ""),
   "courseRuns.trackLeadUids": "-- Y Y - Y Y Y".replace(/ /g, ""),
   "courseRuns.runFacilitatorUids": "-- Y Y - Y Y Y".replace(/ /g, ""),

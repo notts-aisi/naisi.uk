@@ -1,0 +1,54 @@
+/* ============================================================
+   The access-requirements box on Check and send. It is drawn
+   from the form's own field classes (form.module.css); what is
+   here is only what the box adds: the line that says who reads
+   it, and the row under the box with its own Saved and count.
+   ============================================================ */
+
+/* Who reads it, in the text colour and not the muted one: it is the line
+   somebody decides by. */
+.who {
+  color: var(--color-text);
+}
+
+.foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 1.5rem;
+  margin-top: 6px;
+}
+
+/* The count sits in the row with the status, so it carries no margin of its own. */
+.foot .count {
+  flex: none;
+  margin-top: 0;
+}
+
+.note {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.note p {
+  margin: 0;
+}
+
+.again {
+  margin-top: var(--space-3);
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  /* The status can run to a few words while it loads: let the row wrap
+     rather than push the count off the edge. */
+  .foot {
+    flex-wrap: wrap;
+  }
+}

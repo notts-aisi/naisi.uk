@@ -152,7 +152,7 @@ export async function readEmailVerification(tokenId) {
  * policy file and computing the same string, so a policy bump fails offline
  * with the line to update rather than at 2am in a browser.
  */
-export const ACCEPTED_POLICY_VERSION = "terms.1+privacy.5";
+export const ACCEPTED_POLICY_VERSION = "terms.1+privacy.6";
 
 /**
  * Creates the minimal `users` document the register flow would create, for a

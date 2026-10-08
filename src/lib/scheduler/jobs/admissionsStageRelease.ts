@@ -141,6 +141,7 @@ import {
 } from "@/lib/admissions/stageRelease";
 import { STAGES_SUBCOLLECTION } from "@/lib/admissions/roundRoutes";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { isApplicationForm } from "@/lib/applications/normalise";
 import { APPLICATIONS_COLLECTION } from "@/lib/firestore/admissionApplications";
 import {
   ROUNDS_COLLECTION,
@@ -255,6 +256,12 @@ export type StageReleaseRunSummary = {
   stages: number;
   /** Rounds this run actually examined: open, and carrying stages. */
   rounds: number;
+  /**
+   * Application forms this run met and LEFT ALONE. Never part of `rounds`:
+   * a form has no stages, and nobody on one is told anything from here. See
+   * `loadRounds`.
+   */
+  forms: number;
   /** Live applications this run looked at (draft or submitted). */
   audience: number;
   /**
@@ -280,6 +287,7 @@ function emptySummary(): StageReleaseRunSummary {
     stale: 0,
     stages: 0,
     rounds: 0,
+    forms: 0,
     audience: 0,
     alreadyDone: 0,
     failures: [],
@@ -330,22 +338,38 @@ function candidateFrom(snap: QueryDocumentSnapshot): Candidate | null {
   };
 }
 
-/** The rounds this run covers: one named round, or every open one. */
+/**
+ * The rounds this run covers: one named round, or every open one.
+ *
+ * AN APPLICATION FORM IS LEFT OUT, AND COUNTED. A form is an admission round
+ * too, so an open one turns up in this walk. It has no stages to announce,
+ * and the email and the push this job sends are the older apply flow's own:
+ * nothing older may tell an applicant on a form anything. The question is
+ * asked of the STORED document, before the round normaliser drops the field
+ * that says what it is. See `src/lib/admissions/formFence.ts`.
+ */
 async function loadRounds(
   db: Firestore,
   roundId: string | undefined,
-): Promise<AdmissionRoundDoc[]> {
+): Promise<{ rounds: AdmissionRoundDoc[]; forms: number }> {
   if (roundId) {
     const snap = await db.collection(ROUNDS_COLLECTION).doc(roundId).get();
-    if (!snap.exists) return [];
-    return [normalizeAdmissionRound(snap.id, snap.data() ?? {})];
+    if (!snap.exists) return { rounds: [], forms: 0 };
+    if (isApplicationForm(snap.data())) return { rounds: [], forms: 1 };
+    return { rounds: [normalizeAdmissionRound(snap.id, snap.data() ?? {})], forms: 0 };
   }
   const query = await db
     .collection(ROUNDS_COLLECTION)
     .where("status", "==", "open")
     .limit(ROUND_SCAN_CAP)
     .get();
-  return query.docs.map((doc) => normalizeAdmissionRound(doc.id, doc.data()));
+  const rounds: AdmissionRoundDoc[] = [];
+  let forms = 0;
+  for (const doc of query.docs) {
+    if (isApplicationForm(doc.data())) forms += 1;
+    else rounds.push(normalizeAdmissionRound(doc.id, doc.data()));
+  }
+  return { rounds, forms };
 }
 
 /** One round's stages, in asked order, or the single named one. */
@@ -471,7 +495,8 @@ export async function runAdmissionsStageRelease(
     if (scoped) reason = value;
   };
 
-  const rounds = await loadRounds(db, opts.roundId);
+  const { rounds, forms } = await loadRounds(db, opts.roundId);
+  summary.forms = forms;
   let hasMore = false;
   // Set when the ceiling or the wall clock stops the run: it ends the WHOLE
   // run rather than one stage, because the next stage would only be read to
@@ -576,7 +601,9 @@ export async function runAdmissionsStageRelease(
   const note =
     `stages ${summary.stages}, sent ${summary.sent}, skipped ${summary.skipped}` +
     `, stale ${summary.stale}` +
-    (summary.failures.length > 0 ? `, failed ${summary.failures.length}` : "");
+    (summary.failures.length > 0 ? `, failed ${summary.failures.length}` : "") +
+    // Said only when there was one, so a run that met none reads as it always has.
+    (summary.forms > 0 ? `, application forms left alone ${summary.forms}` : "");
   return {
     result: {
       processed: summary.sent + summary.skipped + summary.stale,

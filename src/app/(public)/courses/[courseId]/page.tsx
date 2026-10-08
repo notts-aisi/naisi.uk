@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import Badge from "@/components/ui/Badge";
 import BlockView from "@/features/events/BlockView";
 import {
   COURSE_TRACK_LABELS,
@@ -16,12 +16,17 @@ import {
   type RunWindow,
 } from "@/features/courses/fetchCourses";
 import {
+  fetchFormRoundForCourse,
+  speakingRoundFor,
+} from "@/features/courses/fetchFormRound";
+import {
   fetchLiveRoundForRuns,
   type CourseLiveRound,
 } from "@/features/courses/fetchLiveRound";
 import { fetchCoursePage } from "@/features/courses/fetchCoursePage";
 import type { PublicCoursePage } from "@/lib/firestore/coursePages";
 import { cohortLabel } from "@/lib/courses/cohortLabel";
+import { linkPreviewImages } from "@/lib/linkPreviewCard";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import {
   formatPastWindowDate,
@@ -29,24 +34,31 @@ import {
   formatWindowDate,
   formatWindowDeadline,
 } from "@/lib/courses/window";
-import CourseCTA, {
-  type CourseCTARound,
-  type CourseCTARun,
-} from "@/features/courses/CourseCTA";
+import CourseCTA, { type CourseCTARun } from "@/features/courses/CourseCTA";
+import { toCTARound } from "@/features/courses/ctaRound";
 import CourseFactsRail, {
   type CourseFact,
-  type CourseNote,
+  type CourseFactsStatus,
 } from "@/features/courses/CourseFactsRail";
 import CourseFaq from "@/features/courses/CourseFaq";
-import CourseVisual from "@/features/courses/CourseVisual";
 import JourneyStrip from "@/features/courses/JourneyStrip";
+import { applicationStateTone, applicationStateWords } from "@/features/courses/stateWords";
 import WeeklyThemes from "@/features/courses/WeeklyThemes";
 import WeekCurriculum from "@/features/courses/WeekCurriculum";
 import {
   fetchGroupPicker,
   type GroupPickerOption,
 } from "@/features/courses/fetchGroupPicker";
-import Reveal from "../../Reveal";
+import type { PublicTermProgramme } from "@/lib/applications/lifecycle/publicTerm";
+import Arrow from "@/features/programmes/Arrow";
+import ClosingBand from "@/features/programmes/ClosingBand";
+import ProgrammeHero from "@/features/programmes/ProgrammeHero";
+import { splitLead } from "@/features/programmes/prose";
+import Section from "@/features/programmes/Section";
+import SectionHead from "@/features/programmes/SectionHead";
+import { SESSION_TIMES, weeklyHoursWords } from "@/features/programmes/words";
+import shared from "@/features/programmes/programme.module.css";
+import { fetchPublicTerm } from "@/features/term/fetchPublicTerm";
 import styles from "./course.module.css";
 
 /**
@@ -69,6 +81,14 @@ import styles from "./course.module.css";
  *    an open-enrolment pre-course. Two objects naming the same deadline is the
  *    drift V3 exists to stop, so exactly one of them is read per render.
  *
+ *    THE TERM'S APPLICATION FORM arrives the same way. A programme on the form
+ *    is tied to the course it is for, and `fetchFormRound.ts` hands this page
+ *    the form in the round's own shape, so everything below draws it with the
+ *    code that draws a round. `speakingRoundFor` chooses between the form and
+ *    a round of the older kind, and a course tied to no programme is handed
+ *    exactly what it always was. The CTA words the form its own way ("Apply
+ *    by Sun 18 Oct") and sends everybody to the one form.
+ *
  * 2. NO RAW `run.label` REACHES A VISITOR. The cohort is named by
  *    `cohortLabel(run)` and by nothing else. `run.label` survives on the
  *    document for admin lists; a run with no structured cohort simply gets no
@@ -83,21 +103,33 @@ import styles from "./course.module.css";
  * The sample week renders through `WeekCurriculum` with NO optional props, so
  * its byte-identical public contract holds and the week page and this page
  * cannot drift apart. `tests/course-programme-page.test.mjs` pins that.
+ *
+ * THE PAGE IS A HERO AND A COLUMN OF SECTIONS. The hero carries the title,
+ * the call to action and the "At a glance" card. Each section under it is
+ * drawn only when the course has something stored for it, and the sections
+ * take turns between the two grounds in the order they appear, so a course
+ * with half its page written does not show two bands of one colour together.
+ *
+ * WHAT THE TERM ADDS. A course tied to one of the term's programmes says so
+ * above its title ("Fellowship · Autumn 2026"), and a fellowship carries the
+ * line about where its curriculum comes from. Both come from
+ * `fetchPublicTerm`, which decides what a visitor may be told. Nothing about
+ * applying is read from it here: that stays with the two lookups below.
  */
 
 // Run status, the round's window and the published-week set all change without
 // a deploy, so the page is rendered per request rather than cached at build.
 export const dynamic = "force-dynamic";
 
-/**
- * The social card. No generated OG image route: `next/og`'s `ImageResponse`
- * would be this repo's first, it needs a font shipped with it to render
- * anything but a system fallback, and the win over the brand lockup on a page
- * whose share is almost always a link in a group chat is small. The per-track
- * difference lives in the TITLE and the DESCRIPTION, which is the part a
- * reader actually reads.
+/*
+ * The social card is the course's cover, or the site's own card for a course
+ * with none (`linkPreviewImages`). No generated OG image route: `next/og`'s
+ * `ImageResponse` would be this repo's first, it needs a font shipped with it
+ * to render anything but a system fallback, and the win over the site's card
+ * on a page whose share is almost always a link in a group chat is small. The
+ * per-track difference lives in the TITLE and the DESCRIPTION, which is the
+ * part a reader actually reads.
  */
-const OG_IMAGE = "/brand/naisi-lockup.png";
 
 /** The one-line pitch under the title, per track, when nothing is authored. */
 const TRACK_BLURB: Record<CourseTrack, string> = {
@@ -130,13 +162,13 @@ export async function generateMetadata({
       title,
       description,
       type: "website",
-      images: [{ url: page.coverImageUrl || OG_IMAGE }],
+      images: linkPreviewImages(page.coverImageUrl),
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: [page.coverImageUrl || OG_IMAGE],
+      images: linkPreviewImages(page.coverImageUrl),
     },
   };
 }
@@ -149,10 +181,11 @@ export default async function PublicCoursePage({
   const { courseId } = await params;
   // Independent reads go together. An unpublished course throws the other two
   // away, which is cheaper than serialising them on every hit.
-  const [found, runSet, page] = await Promise.all([
+  const [found, runSet, page, term] = await Promise.all([
     getPublishedCourse(courseId),
     getCourseRunSet(courseId),
     fetchCoursePage(courseId),
+    fetchPublicTerm(),
   ]);
   // A draft or unknown course is a 404 either way, so a draft URL leaks
   // nothing about whether the course exists.
@@ -164,8 +197,15 @@ export default async function PublicCoursePage({
   const { course, weeks } = found;
   const applicationRun = runSet.featuredRun;
   // The round can only be asked for once the run ids are known: the join runs
-  // backwards from `outcomeRunIds` until PR17 adds the forward pointer.
-  const round = await fetchLiveRoundForRuns(runSet.runIds);
+  // backwards from `outcomeRunIds` until PR17 adds the forward pointer. The
+  // term's application form is asked for beside it, by the course: it is null
+  // for a course tied to no programme and for a form that is still a draft,
+  // and then `round` is the older lookup's answer and nothing else changes.
+  const [olderRound, formRound] = await Promise.all([
+    fetchLiveRoundForRuns(runSet.runIds),
+    fetchFormRoundForCourse(course.id),
+  ]);
+  const round = speakingRoundFor(formRound, olderRound);
 
   // ONE precedence decision for the whole page, made by the one helper the
   // catalogue also asks. `speakingRound` is null when the run's own window is
@@ -190,6 +230,8 @@ export default async function PublicCoursePage({
   // Dates are formatted HERE, on the server, in Europe/London. The CTA is a
   // client island, and formatting a Nottingham deadline in the visitor's own
   // timezone is how someone reads "closes Sat 17 Oct" and applies a day late.
+  // The round's flattener lives beside the CTA (`ctaRound.ts`), where a test
+  // can run it; the run's is at the foot of this file.
   const ctaRun = toCTARun(applicationRun);
   const ctaRound = toCTARound(speakingRound, targetRun);
 
@@ -205,18 +247,30 @@ export default async function PublicCoursePage({
 
   // Whichever run the page is speaking for: the round's target when a round
   // owns the page, the featured run otherwise. `cohortLabel` returns "" for a
-  // run with no structured cohort and for no run at all, and no chip is then
-  // rendered, which is the honest answer either way.
+  // run with no structured cohort and for no run at all, and nothing is then
+  // printed, which is the honest answer either way.
   const cohort = cohortLabel(
     speakingRound ? targetRun : (applicationRun?.run ?? null),
   );
-  const meta = [
+
+  // The term's programme this course is for, when there is one a visitor may
+  // be told about. `onTheForm` is wider: the form can speak for a course a
+  // term ahead of the one the site is telling, and then the form's own facts
+  // (no fixed session time, no cost) are already true of it.
+  const programme = term.programmes.find((p) => p.courseId === course.id) ?? null;
+  const onTheForm = programme !== null || Boolean(speakingRound?.form);
+  const fellowship = programme?.kind === "fellowship";
+  const eyebrow = programme
+    ? [programmeKindWord(programme.kind), term.label].filter(Boolean).join(" · ")
+    : [COURSE_TRACK_LABELS[course.track], cohort].filter(Boolean).join(" · ");
+
+  // The plain facts under the title. The number of weeks is the number the
+  // page's own list of weeks has, and failing that the number published.
+  const weekCount = page.weeklyThemes.length || weeks.length;
+  const chips = [
+    weekCount ? `${weekCount} ${weekCount === 1 ? "week" : "weeks"}` : "",
+    course.estimatedWeeklyHours ? weeklyHoursWords(course.estimatedWeeklyHours) : "",
     course.level,
-    page.weeklyHoursText.trim()
-      || (course.estimatedWeeklyHours
-        ? formatWeeklyHours(course.estimatedWeeklyHours)
-        : ""),
-    weeks.length ? `${weeks.length} ${weeks.length === 1 ? "week" : "weeks"}` : "",
   ].filter(Boolean);
 
   // The pitch: the authored blocks when there are any, else the course's own
@@ -227,113 +281,132 @@ export default async function PublicCoursePage({
 
   const sampleWeek = pickSampleWeek(page, weeks);
   const todayKey = londonDateKey(new Date());
+  const lede = page.headline.trim() || course.tagline;
 
-  return (
-    <article className={styles.page}>
-      <div className="container">
-        <p className={styles.breadcrumb}>
-          <Link href="/courses" className={styles.breadcrumbLink}>
-            <span aria-hidden="true" className={styles.backArrow}>
-              ←
-            </span>
-            All courses
-          </Link>
-        </p>
+  const whoItIsFor = splitLead(page.whoItIsFor);
+  const howWeChoose = splitLead(page.howSelectionWorks);
+  const membership = page.membershipExpectation.trim();
 
-        <header className={styles.hero}>
-          <div className={styles.heroChips}>
-            <Badge tone="accent">{COURSE_TRACK_LABELS[course.track]}</Badge>
-            {cohort ? <span className={styles.cohort}>{cohort}</span> : null}
-          </div>
-          <Reveal variant="mask-wipe" as="h1" className={styles.title}>
-            {course.title || "Untitled course"}
-          </Reveal>
-          {page.headline.trim() || course.tagline ? (
-            <Reveal variant="blur-rise" as="p" className={styles.tagline}>
-              {page.headline.trim() || course.tagline}
-            </Reveal>
-          ) : null}
-          {meta.length > 0 ? (
-            <p className={styles.meta}>
-              {meta.map((bit, i) => (
-                <span key={bit}>
-                  {i > 0 ? (
-                    <span aria-hidden="true" className={styles.metaDot}>
-                      ·
-                    </span>
-                  ) : null}
-                  {bit}
-                </span>
-              ))}
-            </p>
-          ) : null}
+  // The sections under the hero, in order. A section the course has nothing
+  // stored for is left out here, so the grounds below alternate over the
+  // sections that are really drawn.
+  const sections: PageSection[] = [];
 
-          <CourseVisual
-            seed={page.visualSeed || course.id}
-            track={course.track}
-            coverImageUrl={page.coverImageUrl}
-            coverAlt={page.coverAlt}
-            size="hero"
-            className={styles.visual}
+  if (pitchBlocks.length > 0) {
+    sections.push({
+      key: "pitch",
+      body: (
+        <div className={styles.pitch}>
+          <BlockView blocks={pitchBlocks} />
+        </div>
+      ),
+    });
+  }
+
+  if (whoItIsFor.rest) {
+    sections.push({
+      key: "who",
+      labelledBy: "who-heading",
+      body: (
+        <SectionHead
+          id="who-heading"
+          eyebrow="Who it’s for"
+          title={whoItIsFor.lead ?? undefined}
+          space="prose"
+        >
+          <p className={shared.prose}>{whoItIsFor.rest}</p>
+        </SectionHead>
+      ),
+    });
+  }
+
+  // `weeks` is already the showcase run's PUBLISHED weeks, so a theme row
+  // links out only when there is a page behind it. The section is always
+  // drawn: with no themes stored it says the curriculum is on its way.
+  sections.push({
+    key: "weeks",
+    labelledBy: "weekly-themes-heading",
+    body: (
+      <WeeklyThemes
+        themes={page.weeklyThemes}
+        courseId={course.id}
+        publishedWeeks={weeks.map((w) => w.weekNumber)}
+        note={PRE_START_NOTE}
+        credit={fellowship ? CURRICULUM_CREDIT : undefined}
+      />
+    ),
+  });
+
+  if (sampleWeek) {
+    sections.push({
+      key: "sample",
+      labelledBy: "sample-week-heading",
+      body: (
+        <>
+          <SectionHead
+            id="sample-week-heading"
+            eyebrow="A typical week"
+            title={
+              course.estimatedWeeklyHours
+                ? `About ${course.estimatedWeeklyHours} ${course.estimatedWeeklyHours === 1 ? "hour" : "hours"}.`
+                : "A sample week"
+            }
+            lede={`Week ${sampleWeek.weekNumber} in full, exactly as the cohort reads it. Every other week is published too.`}
+            space="tight"
           />
-
-          <CourseCTA
-            courseId={course.id}
-            courseTitle={course.title}
-            run={ctaRun}
-            round={ctaRound}
-            groups={pickerGroups}
-            placement="hero"
-          />
-        </header>
-
-        <CourseFactsRail
-          facts={buildFacts(page, speakingRound, applicationRun, targetRun)}
-          notes={buildNotes(page)}
-        />
-
-        {pitchBlocks.length > 0 ? (
-          <section className={styles.summary}>
-            <BlockView blocks={pitchBlocks} />
-          </section>
-        ) : null}
-
-        {/* `weeks` is already the showcase run's PUBLISHED weeks, so a theme
-            row links out only when there is a page behind it. */}
-        <WeeklyThemes
-          themes={page.weeklyThemes}
-          courseId={course.id}
-          publishedWeeks={weeks.map((w) => w.weekNumber)}
-          note={PRE_START_NOTE}
-        />
-
-        {sampleWeek ? (
-          <section className={styles.sample}>
-            <Reveal variant="mask-wipe" as="h2" className={styles.sectionTitle}>
-              A sample week
-            </Reveal>
-            <p className={styles.sectionBlurb}>
-              Week {sampleWeek.weekNumber} in full, exactly as the cohort reads
-              it. Every other week is published too.
-            </p>
+          <div className={styles.sample}>
             {/* NO optional props. `WeekCurriculum` renders its public output
                 only when every render prop is absent, and that output is the
                 diff-frozen contract the week page also depends on. */}
             <WeekCurriculum week={sampleWeek} />
-            <p className={styles.sampleMore}>
-              <Link
-                href={`/courses/${course.id}/weeks/${sampleWeek.weekNumber}`}
-                className={styles.sampleLink}
-              >
-                Open week {sampleWeek.weekNumber} on its own page
-                <span aria-hidden="true" className={styles.arrow}>
-                  →
-                </span>
-              </Link>
-            </p>
-          </section>
-        ) : null}
+          </div>
+          <p className={styles.sampleMore}>
+            <Link
+              href={`/courses/${course.id}/weeks/${sampleWeek.weekNumber}`}
+              className={`${shared.btn} ${shared.btnText}`}
+            >
+              Open week {sampleWeek.weekNumber} on its own page
+              <Arrow />
+            </Link>
+          </p>
+        </>
+      ),
+    });
+  }
 
+  if (howWeChoose.rest || membership) {
+    sections.push({
+      key: "choose",
+      labelledBy: howWeChoose.rest ? "choose-heading" : "membership-heading",
+      body: (
+        <>
+          {howWeChoose.rest ? (
+            <SectionHead
+              id="choose-heading"
+              eyebrow="How we choose"
+              title={howWeChoose.lead ?? undefined}
+              space="prose"
+            >
+              <p className={shared.prose}>{howWeChoose.rest}</p>
+            </SectionHead>
+          ) : null}
+          {membership ? (
+            <div className={howWeChoose.rest ? styles.second : undefined}>
+              <SectionHead id="membership-heading" eyebrow="Membership" space="prose">
+                <p className={shared.prose}>{membership}</p>
+              </SectionHead>
+            </div>
+          ) : null}
+        </>
+      ),
+    });
+  }
+
+  if (page.journey.length > 0) {
+    sections.push({
+      key: "journey",
+      labelledBy: "journey-heading",
+      body: (
         <JourneyStrip
           steps={page.journey}
           todayKey={todayKey}
@@ -341,14 +414,77 @@ export default async function PublicCoursePage({
             step.dateKey ? (formatRunStartShort(step.dateKey) ?? "") : "",
           )}
         />
+      ),
+    });
+  }
 
-        <CourseFaq items={page.faq} />
+  if (page.faq.length > 0) {
+    sections.push({
+      key: "faq",
+      labelledBy: "course-faq-heading",
+      body: <CourseFaq items={page.faq} />,
+    });
+  }
 
-        {/* NO `groups`. The session picker is mounted once, by the hero
-            placement above; this one closes the page with the same dates and
-            a link up to it. Two pickers meant two enrolment states on one
-            page, and the foot never heard about a drop-out driven through the
-            hero. */}
+  return (
+    <article>
+      <ProgrammeHero crumb>
+        <Link href="/courses" className={shared.crumb}>
+          <Arrow back />
+          Fellowships
+        </Link>
+
+        <div className={styles.hero}>
+          <header className={styles.heroMain}>
+            {eyebrow ? <p className={`meta ${shared.heroEyebrow}`}>{eyebrow}</p> : null}
+            <h1 className={`${shared.pageTitle} ${shared.pageTitleCompact}`}>
+              {course.title || "Untitled course"}
+            </h1>
+            {lede ? <p className={shared.pageLede}>{lede}</p> : null}
+            {chips.length > 0 ? (
+              <ul className={shared.factChips}>
+                {chips.map((chip) => (
+                  <li key={chip} className={shared.factChip}>
+                    {chip}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            <CourseCTA
+              courseId={course.id}
+              courseTitle={course.title}
+              run={ctaRun}
+              round={ctaRound}
+              groups={pickerGroups}
+              placement="hero"
+            />
+          </header>
+
+          <CourseFactsRail
+            facts={buildFacts(page, speakingRound, applicationRun, targetRun, onTheForm)}
+            status={factsStatus(speakingRound, applicationRun)}
+          />
+        </div>
+      </ProgrammeHero>
+
+      {sections.map((section, index) => (
+        <Section
+          key={section.key}
+          tone={index % 2 === 0 ? "floor" : "raised"}
+          rule={index > 0}
+          labelledBy={section.labelledBy}
+        >
+          {section.body}
+        </Section>
+      ))}
+
+      {/* NO `groups`. The session picker is mounted once, by the hero
+          placement above; this one closes the page with the same dates and
+          a link up to it. Two pickers meant two enrolment states on one
+          page, and the foot never heard about a drop-out driven through the
+          hero. */}
+      <ClosingBand label="Applying" joined>
         <CourseCTA
           courseId={course.id}
           courseTitle={course.title}
@@ -356,10 +492,28 @@ export default async function PublicCoursePage({
           round={ctaRound}
           placement="foot"
         />
-      </div>
+        <Link href="/courses" className={`${shared.btn} ${shared.btnLg} ${shared.btnOutline}`}>
+          All fellowships
+        </Link>
+      </ClosingBand>
     </article>
   );
 }
+
+/** One section under the hero: what goes in it, and the heading that names it. */
+type PageSection = {
+  key: string;
+  labelledBy?: string;
+  body: ReactNode;
+};
+
+/** What the term calls a programme of each kind, above a course's title. */
+function programmeKindWord(kind: PublicTermProgramme["kind"]): string {
+  return kind === "incubator" ? "Research incubator" : "Fellowship";
+}
+
+/** Under the weeks of a fellowship, and of nothing else. */
+const CURRICULUM_CREDIT = "Curriculum adapted from BlueDot Impact.";
 
 /**
  * The pre-start note, shown under the weekly themes.
@@ -372,11 +526,6 @@ export default async function PublicCoursePage({
  */
 const PRE_START_NOTE =
   "This is the core plan for the course. Facilitators may adjust their own group's week, so a few readings can change before you get there. Everything above is open to read ahead, and we would rather you did.";
-
-/** "~5 hrs/week", a rough commitment figure phrased as one. */
-function formatWeeklyHours(hours: number): string {
-  return hours === 1 ? "~1 hr/week" : `~${hours} hrs/week`;
-}
 
 /**
  * Which week the "sample of the course" section renders: the authored
@@ -402,18 +551,49 @@ function pickSampleWeek<T extends { weekNumber: number }>(
 }
 
 /**
- * The facts rail's short answers.
+ * The line beside the card's title: the one-line state of the course's
+ * applications, in the words its card on the fellowships page uses. Null when
+ * nothing speaks for the course, and for a round or a run a visitor may not
+ * be told about.
+ *
+ * `round` is the SPEAKING round, as it is for the facts below.
+ */
+function factsStatus(
+  round: CourseLiveRound | null,
+  run: RunWindow | null,
+): CourseFactsStatus | null {
+  const state = round ? round.state : (run?.window.state ?? null);
+  if (state === null || state === "inactive") return null;
+  const opensAt = round ? round.opensAt : (run?.window.opensAt ?? null);
+  return {
+    words: applicationStateWords({
+      state,
+      openEnrolment: run?.run.enrolMode === "open",
+      opensOn: opensAt ? formatWindowDate(opensAt) : null,
+    }),
+    tone: applicationStateTone(state),
+    live: state === "open",
+  };
+}
+
+/**
+ * The card's short answers.
  *
  * `round` here is the SPEAKING round: the caller has already applied
  * `roundOwnsDates`, so a non-null round means the round owns every date on
- * this rail and a null one means the run's own window does. The rail does not
+ * this card and a null one means the run's own window does. The card does not
  * re-derive that rule, and neither does the CTA.
+ *
+ * `onTheForm` adds the two things that are true of every programme on the
+ * term's application form: its session times are not fixed in advance, and
+ * it costs nothing.
  */
 function buildFacts(
   page: PublicCoursePage,
   round: CourseLiveRound | null,
   run: RunWindow | null,
   targetRun: CourseRunDoc | null,
+  onTheForm: boolean,
 ): CourseFact[] {
   const openMode = run?.run.enrolMode === "open";
   const viaRound = round !== null;
@@ -423,10 +603,15 @@ function buildFacts(
   const past = state === "closed";
   const noun = openMode ? "Sign-ups" : "Applications";
 
+  const format = page.formatText.trim();
   return [
-    { label: "Format", value: page.formatText },
+    onTheForm
+      ? format
+        ? { label: "Format", value: format, note: SESSION_TIMES }
+        : { label: "Format", value: SESSION_TIMES }
+      : { label: "Format", value: format },
     { label: "Sessions", value: page.sessionsText },
-    { label: "Weekly hours", value: page.weeklyHoursText },
+    { label: "Time", value: page.weeklyHoursText },
     {
       label: `${noun} open`,
       value: opensAt ? formatWindowDate(opensAt) : "",
@@ -453,24 +638,20 @@ function buildFacts(
       // The ROUND's target run when a round owns the page, because that is the
       // run someone applying today would join. Blank when none resolves: an
       // empty fact is dropped by the rail, and a start date lifted off the
-      // featured run would be a different intake's.
-      value: startDateOf(viaRound ? targetRun : (run?.run ?? null)),
+      // featured run would be a different intake's. The application form
+      // names no run until groups are made, so until then it is the tied
+      // programme's own "w/c 26 Oct", as its lead wrote it.
+      value:
+        startDateOf(viaRound ? targetRun : (run?.run ?? null))
+        || (round?.form?.starts ?? ""),
     },
+    { label: "Cost", value: onTheForm ? "Free" : "" },
   ];
 }
 
 /** "Mon 26 Oct", or "" for no run and for a run with no start date. */
 function startDateOf(run: CourseRunDoc | null): string {
   return run ? (formatRunStartShort(run.startDate) ?? "") : "";
-}
-
-/** The facts rail's prose half. Empty fields are dropped by the component. */
-function buildNotes(page: PublicCoursePage): CourseNote[] {
-  return [
-    { label: "Who it is for", body: page.whoItIsFor },
-    { label: "How we select", body: page.howSelectionWorks },
-    { label: "Membership", body: page.membershipExpectation },
-  ];
 }
 
 /**
@@ -505,37 +686,5 @@ function toCTARun(found: RunWindow | null): CourseCTARun | null {
         : formatWindowDeadline(window.closesAt)
       : null,
     startsOn: formatRunStartShort(run.startDate) ?? null,
-  };
-}
-
-/**
- * The same flattening for the round, whose state can never be `inactive`.
- *
- * `targetRun` is the run the round will place people onto, and the two rows
- * derived from it (the cohort chip and the start date) are EMPTY when it is
- * null rather than falling back to the featured run: they would then describe
- * a different intake than the deadline beside them.
- */
-function toCTARound(
-  round: CourseLiveRound | null,
-  targetRun: CourseRunDoc | null,
-): CourseCTARound | null {
-  if (!round || round.state === "inactive") return null;
-  const past = round.state === "closed";
-  return {
-    id: round.id,
-    state: round.state,
-    opensOn: round.opensAt ? formatWindowDate(round.opensAt) : null,
-    closesOn: round.closesAt
-      ? past
-        ? formatPastWindowDate(round.closesAt)
-        : formatWindowDeadline(round.closesAt)
-      : null,
-    decisionsOn: round.decisionsByDate
-      ? (formatRunStartShort(round.decisionsByDate) ?? null)
-      : null,
-    // The structured cohort, never the admin label. See rule 2 at the top.
-    cohortLabel: cohortLabel(targetRun),
-    startsOn: targetRun ? (formatRunStartShort(targetRun.startDate) ?? null) : null,
   };
 }

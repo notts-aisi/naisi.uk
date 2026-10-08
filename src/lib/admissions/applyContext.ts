@@ -31,6 +31,11 @@ import {
 } from "./roundRoutes";
 import { roundWindowState } from "./window";
 import { APPLY_RATE_LIMITS, type RecaptchaAction } from "./applyRoutes";
+import { isApplicationForm } from "@/lib/applications/normalise";
+import {
+  APPLICATION_FORM_REFUSAL_STATUS,
+  MADE_ON_THE_APPLICATION_FORM,
+} from "./formFence";
 
 /**
  * The datastore-touching half of the apply tree: the request prologue every
@@ -209,6 +214,14 @@ export function privateRef(db: Db, roundId: string, uid: string) {
  * A DRAFT or ARCHIVED round is "not found", with the same sentence as a round
  * that never existed. Which of the two it is says something about NAISI's
  * plans that an applicant has no business reading off a status code.
+ *
+ * AN APPLICATION FORM IS REFUSED, and this is where every route in the apply
+ * tree learns it: they all load the round through here. A form is filled in
+ * on its own pages and saved through its own routes, and a row started here
+ * would be an application in the older shape sitting beside the new ones,
+ * counted on the form and read by nobody. The refusal comes after the two
+ * "not found" answers, so a form that has not been opened yet still reads as
+ * a round that is not there. See `formFence.ts`.
  */
 export async function loadRound(db: Db, roundId: string): Promise<AdmissionRoundDoc> {
   const snap = await roundRef(db, roundId).get();
@@ -216,6 +229,9 @@ export async function loadRound(db: Db, roundId: string): Promise<AdmissionRound
   const round = normalizeAdmissionRound(snap.id, snap.data() ?? {});
   if (round.archived || round.status === "draft") {
     throw new ApplyError("Round not found.", 404);
+  }
+  if (isApplicationForm(snap.data())) {
+    throw new ApplyError(MADE_ON_THE_APPLICATION_FORM, APPLICATION_FORM_REFUSAL_STATUS);
   }
   return round;
 }

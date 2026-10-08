@@ -16,6 +16,15 @@
  * unscored review contributes) and the labels (what the person asked for, who
  * wrote which note) are therefore assertions rather than comments.
  *
+ * ## Two builders, one entry
+ *
+ * `buildFormApplicationRecord` is the same derivation for an application made
+ * on an application form (`src/lib/applications/`), and section 6 executes it
+ * against documents read through that system's own normalisers. Sections 1 to
+ * 5 are the older round's builder and deep-equal whole records: nothing about
+ * what it writes moved when the second builder arrived, and those assertions
+ * are what say so.
+ *
  * ## What the source pin is for
  *
  * The write side of this collection is `allow write: if false` for every
@@ -42,9 +51,10 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
  * deliberately importable from a client module, and a value import would drag
  * the Admin SDK into a browser chunk), and TypeScript erases a type-only
  * import, so nothing in this graph reaches the outside world. The three
- * admissions modules it pulls in for their types are pure. If a stub ever
- * becomes necessary here, the reason is that this module gained a real
- * dependency, which is the point at which it should be split instead.
+ * admissions modules it pulls in for their types are pure, and so is the one
+ * module it imports by value, the application system's scoring arithmetic. If
+ * a stub ever becomes necessary here, the reason is that this module gained a
+ * real dependency, which is the point at which it should be split instead.
  */
 const { loadTs } = createLoader({ stubs: new Map() });
 
@@ -54,10 +64,18 @@ const {
   MEMBER_RECORD_LIMITS,
   OPEN_TO_FELLOWSHIP_LABEL,
   REMOVED_PROGRAMME_LABEL,
+  UNNAMED_PROGRAMME_LABEL,
   UNNAMED_REVIEWER,
   buildApplicationRecord,
+  buildFormApplicationRecord,
   normalizeApplicationRecord,
 } = await loadTs("lib/firestore/memberRecords.ts");
+
+// The application system's own readers, so the fixtures in section 6 are the
+// shapes a route would hand the builder and not a hand-typed guess at them.
+const { APPLICATION_LIMITS } = await loadTs("lib/applications/model.ts");
+const { normaliseApplication, normaliseFormFields, normaliseQuestionSet, normaliseReview } =
+  await loadTs("lib/applications/normalise.ts");
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -626,7 +644,498 @@ describe("normalizeApplicationRecord", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 6. The source pin: nothing client-side writes the collection
+// 6. buildFormApplicationRecord: an application made on an application form
+// ---------------------------------------------------------------------------
+
+/**
+ * A form with three programmes. AGI Strategy and Technical AI Safety score
+ * their answers; the incubator does not. The form lists AGI Strategy first,
+ * and the applicant below ranks it second, on purpose.
+ */
+function formFields(overrides = {}) {
+  return normaliseFormFields({
+    formVersion: 2,
+    programmeIds: ["agi", "tech", "inc"],
+    programmes: {
+      agi: {
+        kind: "fellowship",
+        name: "AGI Strategy Fellowship",
+        shortName: "AGI Strategy",
+        useScores: true,
+        runId: "run-agi",
+      },
+      tech: {
+        kind: "fellowship",
+        name: "Technical AI Safety Fellowship",
+        shortName: "Technical AI Safety",
+        useScores: true,
+      },
+      inc: { kind: "incubator", name: "Research Incubator", shortName: "Incubator" },
+    },
+    questionSetIds: ["agi", "tech", "inc"],
+    ...overrides,
+  });
+}
+
+function streamSet(programmeId, questionIds) {
+  return normaliseQuestionSet(programmeId, {
+    roundId: "autumn-2026",
+    role: "stream",
+    scope: { type: "programme", programmeId },
+    label: programmeId,
+    questions: questionIds.map((id) => ({ id, text: `Question ${id}`, type: "long", scored: true })),
+  });
+}
+
+/** Two scored questions for AGI Strategy, twelve for Technical AI Safety. */
+function formSets() {
+  return [
+    streamSet("agi", ["event", "plan"]),
+    streamSet("tech", Array.from({ length: 12 }, (_, i) => `q${i + 1}`)),
+    streamSet("inc", ["idea"]),
+  ];
+}
+
+function formApplication(overrides = {}) {
+  return normaliseApplication("autumn-2026__applicant", {
+    roundId: "autumn-2026",
+    uid: "applicant",
+    email: "applicant@example.com",
+    displayName: "An Applicant",
+    formVersion: 2,
+    status: "accepted",
+    createdAt: new Date("2026-10-01T09:00:00Z"),
+    submittedAt: new Date("2026-10-08T18:30:00Z"),
+    sentAt: new Date("2026-10-09T08:00:00Z"),
+    draft: { rankedProgrammeIds: ["tech", "agi"] },
+    sent: {
+      aboutYou: { preferredName: "Ann", motivation: "I read the report and could not put it down." },
+      rankedProgrammeIds: ["tech", "agi"],
+      answers: { agi: { event: "The spring reading group." } },
+    },
+    result: { kind: "accepted", programmeId: "agi", publishedAt: new Date("2026-10-18T17:00:00Z") },
+    ...overrides,
+  });
+}
+
+function formReview(reviewerUid, overrides = {}) {
+  return normaliseReview(`autumn-2026__applicant__${reviewerUid}`, {
+    roundId: "autumn-2026",
+    applicantUid: "applicant",
+    reviewerUid,
+    scores: {},
+    notes: `Overall comment from ${reviewerUid}.`,
+    ...overrides,
+  });
+}
+
+/** Twelve scores on Technical AI Safety: ten 5s and two 2s, a mean of 4.5. */
+function twelveTechScores() {
+  const scores = {};
+  for (let i = 1; i <= 12; i += 1) scores[`tech.q${i}`] = i <= 10 ? 5 : 2;
+  return scores;
+}
+
+/** Every name a plain object answers to without owning it. */
+const FURNITURE = Object.getOwnPropertyNames(Object.prototype);
+
+function buildForm(overrides = {}) {
+  return buildFormApplicationRecord({
+    round: round({ label: "Autumn 2026 applications" }),
+    form: formFields(),
+    sets: formSets(),
+    application: formApplication(),
+    reviews: [],
+    reviewerNames: {},
+    writtenBy: "settle",
+    writtenByUid: "admin1",
+    ...overrides,
+  });
+}
+
+describe("buildFormApplicationRecord: what they applied for and what they were told", () => {
+  it("writes the same entry shape as the older builder, key for key", () => {
+    // One reader and one panel serve both kinds of round, so the shape is the
+    // contract. A key added to one builder and not the other would be a field
+    // the panel shows for half a person's history.
+    assert.deepEqual(Object.keys(buildForm()).sort(), Object.keys(build()).sort());
+    assert.deepEqual(
+      Object.keys(buildForm().outcome).sort(),
+      Object.keys(build().outcome).sort(),
+    );
+    assert.deepEqual(
+      Object.keys(buildForm().scoreSummary).sort(),
+      Object.keys(build().scoreSummary).sort(),
+    );
+  });
+
+  it("copies the round's identity and the application's two dates", () => {
+    const record = buildForm();
+    assert.equal(record.roundId, "autumn-2026");
+    assert.equal(record.roundTitle, "Autumn 2026 applications");
+    assert.equal(record.roundKind, "enrolment");
+    assert.deepEqual(record.appliedAt, new Date("2026-10-01T09:00:00Z"));
+    // The FIRST time they pressed Send, not the most recent.
+    assert.deepEqual(record.submittedAt, new Date("2026-10-08T18:30:00Z"));
+  });
+
+  it("names the programmes they ranked, by short name, 1st choice first", () => {
+    // The form lists AGI Strategy first and they ranked it second. Position in
+    // this list is their preference, so the form's order must not win.
+    assert.deepEqual(buildForm().appliedFor, ["Technical AI Safety", "AGI Strategy"]);
+  });
+
+  it("reads the application of record, not a change they had not sent", () => {
+    // They sent a ranking and then started changing it. A half-made change
+    // never unseats what they sent, in the form or in the record of it.
+    const record = buildForm({
+      application: formApplication({ draft: { rankedProgrammeIds: ["inc"] } }),
+    });
+    assert.deepEqual(record.appliedFor, ["Technical AI Safety", "AGI Strategy"]);
+  });
+
+  it("records a never-sent application as a draft, with what they had ranked so far", () => {
+    const record = buildForm({
+      application: formApplication({
+        status: "draft",
+        submittedAt: null,
+        sentAt: null,
+        sent: null,
+        result: null,
+        draft: { rankedProgrammeIds: ["inc"] },
+      }),
+    });
+    assert.deepEqual(record.appliedFor, ["Incubator"]);
+    assert.equal(record.submittedAt, null);
+    assert.deepEqual(record.outcome, { decision: null, status: "draft", targetRunId: null });
+  });
+
+  it("never emits a bare id for a programme that has left the form", () => {
+    const record = buildForm({
+      application: formApplication({
+        sent: { rankedProgrammeIds: ["gone-programme", "agi"] },
+        result: { kind: "accepted", programmeId: "gone-programme" },
+      }),
+    });
+    assert.deepEqual(record.appliedFor, [REMOVED_PROGRAMME_LABEL, "AGI Strategy"]);
+    assert.equal(record.outcome.decision, `accepted (${REMOVED_PROGRAMME_LABEL})`);
+    assert.equal(record.outcome.targetRunId, null);
+    assert.ok(!JSON.stringify(record).includes("gone-programme"), "no raw id reaches the record");
+    assert.ok(
+      record.outcome.decision.length <= MEMBER_RECORD_LIMITS.decision,
+      "the longest thing a decision can say fits what a read keeps",
+    );
+  });
+
+  it("drops a name every object carries on the way in, so it is never ranked at all", () => {
+    // A ranking is something an applicant typed and a draft is saved as given,
+    // so these reach a stored application for real. None of them is an id
+    // (`isId` refuses a name every object answers to), so reading the
+    // application drops them, and the record is of what is left.
+    const record = buildForm({
+      application: formApplication({
+        status: "draft",
+        submittedAt: null,
+        sent: null,
+        draft: { rankedProgrammeIds: [...FURNITURE, "agi"] },
+        result: { kind: "accepted", programmeId: "constructor" },
+      }),
+      reviews: [formReview("rev-a", { scores: { "agi.event": 4 } })],
+    });
+    assert.deepEqual(record.appliedFor, ["AGI Strategy"]);
+    assert.deepEqual(record.outcome, { decision: "accepted", status: "draft", targetRunId: null });
+    assert.deepEqual(Object.keys(record.scoreSummary.byCriterion), ["agi"]);
+  });
+
+  it("reads such a name as a programme that is not there, if one is handed straight in", () => {
+    // The second line of defence, for an application that did NOT come through
+    // the normaliser. The builder reads the form by own key, so each name is a
+    // programme the form does not carry. A plain property lookup would find
+    // the object's own furniture under each one, and for one of them would
+    // throw, and a record that cannot be built is what makes a destroy refuse:
+    // one application must not be able to hold a whole round's destroy.
+    const clean = formApplication({ status: "draft", submittedAt: null, sent: null });
+    const record = buildForm({
+      application: {
+        ...clean,
+        draft: { ...clean.draft, rankedProgrammeIds: [...FURNITURE, "agi"] },
+        result: { kind: "accepted", programmeId: "constructor", publishedAt: null },
+      },
+      reviews: [formReview("rev-a", { scores: { "agi.event": 4 } })],
+    });
+    assert.deepEqual(record.appliedFor, [REMOVED_PROGRAMME_LABEL, "AGI Strategy"]);
+    assert.equal(record.outcome.decision, `accepted (${REMOVED_PROGRAMME_LABEL})`);
+    assert.equal(record.outcome.targetRunId, null);
+    assert.deepEqual(Object.keys(record.scoreSummary.byCriterion), ["agi"]);
+  });
+
+  it("keeps a programme with no name in the list rather than dropping it", () => {
+    // Dropping it would make the record say they ranked one programme when
+    // they ranked two.
+    const record = buildForm({
+      form: formFields({
+        programmes: {
+          agi: { kind: "fellowship", name: "AGI Strategy Fellowship", shortName: "AGI Strategy" },
+          tech: { kind: "fellowship", name: "", shortName: "" },
+        },
+      }),
+    });
+    assert.deepEqual(record.appliedFor, [UNNAMED_PROGRAMME_LABEL, "AGI Strategy"]);
+  });
+
+  it("says what decision day told them, and the programme it named", () => {
+    assert.deepEqual(buildForm().outcome, {
+      decision: "accepted (AGI Strategy)",
+      status: "accepted",
+      targetRunId: "run-agi",
+    });
+
+    // Pooled, then invited to a programme they did not rank. It has no run yet.
+    const invited = buildForm({
+      application: formApplication({
+        status: "invited",
+        sent: { rankedProgrammeIds: ["agi"] },
+        result: { kind: "invited", programmeId: "tech" },
+      }),
+    });
+    assert.deepEqual(invited.appliedFor, ["AGI Strategy"]);
+    assert.deepEqual(invited.outcome, {
+      decision: "invited (Technical AI Safety)",
+      status: "invited",
+      targetRunId: null,
+    });
+  });
+
+  it("names no programme for the two outcomes that have none", () => {
+    // A stored programme beside either is not something they were offered, so
+    // it reaches neither the decision nor the run.
+    for (const kind of ["no-offer", "declined"]) {
+      const record = buildForm({
+        application: formApplication({ status: kind, result: { kind, programmeId: "agi" } }),
+      });
+      assert.deepEqual(record.outcome, { decision: kind, status: kind, targetRunId: null });
+    }
+  });
+
+  it("says nothing was decided when nothing had been published", () => {
+    // Sent, and decision day had not run. Whatever the leads had decided so
+    // far is their working state, not something that happened to the person.
+    const record = buildForm({
+      application: formApplication({ status: "submitted", result: null }),
+    });
+    assert.deepEqual(record.outcome, { decision: null, status: "submitted", targetRunId: null });
+  });
+
+  it("carries none of the applicant's own writing", () => {
+    // The retention argument depends on this exactly as it does for an older
+    // round: the entry is kept through account deletion because it holds the
+    // committee's decisions and none of the applicant's content.
+    const record = buildForm({ reviews: [formReview("rev-a", { scores: { "agi.event": 4 } })] });
+    const json = JSON.stringify(record);
+    assert.ok(!json.includes("applicant@example.com"), "no email address");
+    assert.ok(!json.includes("The spring reading group."), "no answers");
+    assert.ok(!json.includes("could not put it down"), "nothing from About you");
+    for (const key of ["draft", "sent", "answers", "aboutYou", "availability", "invitation"]) {
+      assert.ok(!Object.hasOwn(record, key), `the record carries ${key}`);
+    }
+  });
+});
+
+describe("buildFormApplicationRecord: scoreSummary", () => {
+  it("means over the reviewers who scored, one voice each, and carries no total", () => {
+    // rev-a scored two answers (4 and 3, a mean of 3.5). rev-b scored twelve
+    // (a mean of 4.5). One voice each: 4, not the 4.36 that pooling fourteen
+    // scores would give. And no total, because a sum of per-answer scores
+    // does not compare across applications that were asked different things.
+    const record = buildForm({
+      reviews: [
+        formReview("rev-a", { scores: { "agi.event": 4, "agi.plan": 3 } }),
+        formReview("rev-b", { scores: twelveTechScores() }),
+        formReview("rev-c"),
+      ],
+    });
+    assert.deepEqual(record.scoreSummary, {
+      reviewerCount: 3,
+      total: null,
+      mean: 4,
+      byCriterion: { tech: 4.5, agi: 3.5 },
+    });
+  });
+
+  it("counts every score a reviewer gave, however many", () => {
+    // THE CAP THIS PINS. The older round's review reader keeps ten scores a
+    // row, which is its criteria budget. Twelve answers scored on one
+    // programme is ordinary on a form, and losing the last two here would turn
+    // a 4.5 into a 5 with nothing to show for it.
+    const review = formReview("rev-b", { scores: twelveTechScores() });
+    assert.equal(Object.keys(review.scores).length, 12, "the form's reader keeps all twelve");
+    const record = buildForm({ reviews: [review] });
+    assert.equal(record.scoreSummary.mean, 4.5);
+    assert.equal(record.scoreSummary.byCriterion.tech, 4.5);
+    assert.equal(record.reviewerNotes[0].total, 4.5);
+  });
+
+  it("keeps one section score per ranked programme that scores its answers", () => {
+    // Ranked and scored by nobody is a null, not an absence: "nobody scored
+    // this" and "this programme does not use scores" are different facts.
+    const record = buildForm({
+      application: formApplication({ sent: { rankedProgrammeIds: ["tech", "agi", "inc"] } }),
+      reviews: [formReview("rev-a", { scores: { "agi.event": 4 } })],
+    });
+    assert.deepEqual(record.scoreSummary.byCriterion, { tech: null, agi: 4 });
+    assert.ok(
+      !Object.hasOwn(record.scoreSummary.byCriterion, "inc"),
+      "the incubator does not score its answers, so it has no score to be missing",
+    );
+  });
+
+  it("takes a programme's section score as the mean of its reviewers, one voice each", () => {
+    const record = buildForm({
+      reviews: [
+        // 5 and 3 on AGI Strategy: 4. One answer at 2: 2. Section: 3.
+        formReview("rev-a", { scores: { "agi.event": 5, "agi.plan": 3 } }),
+        formReview("rev-b", { scores: { "agi.event": 2 } }),
+      ],
+    });
+    assert.equal(record.scoreSummary.byCriterion.agi, 3);
+    assert.equal(record.scoreSummary.mean, 3);
+  });
+
+  it("does not drop a score whose question has since left the form", () => {
+    // A row is the reviewer's whole assessment. Reading it only through
+    // today's question sets would lose this score without a trace.
+    const record = buildForm({
+      reviews: [formReview("rev-a", { scores: { "agi.event": 2, "retired.q1": 4 } })],
+    });
+    assert.equal(record.scoreSummary.mean, 3, "both scores count towards the reviewer's voice");
+    assert.equal(record.scoreSummary.byCriterion.agi, 2, "the programme's own score is its own");
+  });
+
+  it("is nulls and a zero count when nobody reviewed them", () => {
+    assert.deepEqual(buildForm().scoreSummary, {
+      reviewerCount: 0,
+      total: null,
+      mean: null,
+      byCriterion: { tech: null, agi: null },
+    });
+  });
+
+  it("rounds a mean to two places", () => {
+    const record = buildForm({
+      reviews: [
+        formReview("rev-a", { scores: { "agi.event": 5 } }),
+        formReview("rev-b", { scores: { "agi.event": 3 } }),
+        formReview("rev-c", { scores: { "agi.event": 3 } }),
+      ],
+    });
+    assert.equal(record.scoreSummary.mean, 3.67);
+    assert.equal(record.scoreSummary.byCriterion.agi, 3.67);
+  });
+
+  it("survives a read with every programme a form can carry", () => {
+    // `byCriterion` is cut on read at MEMBER_RECORD_LIMITS.maxCriteria. A form
+    // puts one key per ranked programme there, so the two limits are held
+    // together here: raise one without the other and a read would drop a
+    // programme's score with nothing to say it had.
+    assert.ok(
+      APPLICATION_LIMITS.maxProgrammes <= MEMBER_RECORD_LIMITS.maxCriteria,
+      "a form can carry more programmes than a read of the record keeps scores for",
+    );
+    const ids = Array.from({ length: APPLICATION_LIMITS.maxProgrammes }, (_, i) => `p${i + 1}`);
+    const programmes = {};
+    for (const id of ids) {
+      programmes[id] = { kind: "fellowship", name: `Programme ${id}`, useScores: true };
+    }
+    const written = buildForm({
+      form: formFields({ programmeIds: ids, programmes, questionSetIds: ids }),
+      sets: ids.map((id) => streamSet(id, ["q1"])),
+      application: formApplication({ sent: { rankedProgrammeIds: ids }, result: null }),
+      reviews: [
+        formReview("rev-a", { scores: Object.fromEntries(ids.map((id) => [`${id}.q1`, 4])) }),
+      ],
+    });
+    assert.equal(Object.keys(written.scoreSummary.byCriterion).length, ids.length);
+    const read = normalizeApplicationRecord("autumn-2026", written);
+    assert.deepEqual(read.scoreSummary, written.scoreSummary, "nothing was cut on the way back");
+    assert.deepEqual(read.appliedFor, written.appliedFor);
+    assert.deepEqual(read.outcome, written.outcome);
+  });
+});
+
+describe("buildFormApplicationRecord: reviewerNotes", () => {
+  it("keeps each reviewer's overall comment verbatim, in a stable order", () => {
+    const record = buildForm({
+      reviews: [formReview("rev-b"), formReview("rev-a")],
+      reviewerNames: { "rev-a": "Ada Reviewer", "rev-b": "reviewer@nottingham.ac.uk" },
+    });
+    assert.deepEqual(
+      record.reviewerNotes.map((n) => [n.reviewerUid, n.reviewerName, n.notes]),
+      [
+        ["rev-a", "Ada Reviewer", "Overall comment from rev-a."],
+        // An address is refused as a name, exactly as on an older round.
+        ["rev-b", UNNAMED_REVIEWER, "Overall comment from rev-b."],
+      ],
+    );
+  });
+
+  it("gives each reviewer their own mean, and a null for one who only commented", () => {
+    const record = buildForm({
+      reviews: [
+        formReview("rev-a", { scores: { "agi.event": 4, "agi.plan": 3 } }),
+        formReview("rev-b"),
+      ],
+    });
+    assert.deepEqual(
+      record.reviewerNotes.map((n) => [n.reviewerUid, n.total, n.recommendation]),
+      [
+        ["rev-a", 3.5, null],
+        ["rev-b", null, null],
+      ],
+    );
+  });
+
+  it("does not copy a comment on a single answer", () => {
+    // Each is a note on a piece of the applicant's own writing, which the
+    // entry deliberately does not hold, so it goes with the answer.
+    const record = buildForm({
+      reviews: [
+        formReview("rev-a", {
+          comments: [{ id: "c1", questionKey: "agi.event", text: "Lifted from the website." }],
+        }),
+      ],
+    });
+    assert.ok(!JSON.stringify(record).includes("Lifted from the website."));
+    assert.equal(record.reviewerNotes[0].notes, "Overall comment from rev-a.");
+  });
+
+  it("drops a review that belongs to a different applicant or round", () => {
+    const record = buildForm({
+      reviews: [
+        formReview("rev-a"),
+        formReview("rev-x", { applicantUid: "somebody-else" }),
+        formReview("rev-y", { roundId: "spring-2027" }),
+      ],
+    });
+    assert.deepEqual(
+      record.reviewerNotes.map((n) => n.reviewerUid),
+      ["rev-a"],
+    );
+    assert.equal(record.scoreSummary.reviewerCount, 1);
+  });
+
+  it("caps the notes list and leaves the scores counting everybody", () => {
+    const many = Array.from({ length: 30 }, (_, i) =>
+      formReview(`rev-${String(i).padStart(2, "0")}`, { scores: { "agi.event": 2 } }),
+    );
+    const record = buildForm({ reviews: many });
+    assert.equal(record.reviewerNotes.length, MEMBER_RECORD_LIMITS.maxReviewerNotes);
+    assert.equal(record.scoreSummary.reviewerCount, 30);
+    assert.equal(record.scoreSummary.mean, 2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. The source pin: nothing client-side writes the collection
 // ---------------------------------------------------------------------------
 
 /** Every file under a directory, recursively. */

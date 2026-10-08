@@ -20,10 +20,11 @@ body {
    * use --color-bg (a touch lighter), giving them subtle elevation
    * against this page floor.
    *
-   * Mirrored as PAGE_FLOOR in src/theme/brandColors.ts, which the web app
-   * manifest (background_color + theme_color) and the <meta name="theme-color">
-   * tag both read. Keep the two in sync. */
-  background: #050810;
+   * The value is --color-floor in src/theme/tokens.css. It is mirrored as
+   * PAGE_FLOOR in src/theme/brandColors.ts, which the web app manifest
+   * (background_color + theme_color) and the <meta name="theme-color"> tag
+   * both read. Keep the two in sync. */
+  background: var(--color-floor);
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -47,8 +48,13 @@ input, textarea, select {
   color: inherit;
 }
 
+/* The default focus state: the solid ring in --focus-ring, drawn as a
+   box-shadow as it always has been, so the many rules that reset the outline
+   and change only a border colour keep a ring. Forced colours remove every
+   box-shadow, so the outline is kept, transparent: it costs nothing here and
+   becomes the visible ring there. */
 :focus-visible {
-  outline: none;
+  outline: 2px solid transparent;
   box-shadow: var(--focus-ring);
   border-radius: var(--radius-md);
 }
@@ -58,20 +64,17 @@ input, textarea, select {
    physical edges, so in landscape on a notched device the first character of
    every line sits under the notch. max() means the inset only ever widens
    the existing padding, so this is byte-identical on desktop, on
-   non-notched devices and in DevTools. */
+   non-notched devices and in DevTools.
+
+   The padding itself is the page gutter, the same one the header and the
+   footer take, so a page's first column sits under the header's brand. It
+   narrows by itself on a phone, so there is no narrow-screen override. */
 .container {
   width: 100%;
   max-width: var(--content-max-width);
   margin-inline: auto;
-  padding-left: max(var(--space-6), env(safe-area-inset-left, 0px));
-  padding-right: max(var(--space-6), env(safe-area-inset-right, 0px));
-}
-
-@media (max-width: 48rem) {
-  .container {
-    padding-left: max(var(--space-4), env(safe-area-inset-left, 0px));
-    padding-right: max(var(--space-4), env(safe-area-inset-right, 0px));
-  }
+  padding-left: max(var(--page-gutter), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--page-gutter), env(safe-area-inset-right, 0px));
 }
 
 .stack { display: flex; flex-direction: column; }

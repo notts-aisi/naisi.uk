@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
+import Chip, { type ChipTone } from "@/components/ui/Chip";
 import { getClientDb } from "@/lib/firebase/client";
 import { useSiteNoticeState } from "./useSiteNotice";
 import { formatEta } from "./SurfacePausedNotice";
@@ -14,51 +16,100 @@ import {
   normaliseLogEntry,
   type MaintenanceLogEntry,
   type SiteNoticeLevel,
+  type SiteNoticeSurface,
 } from "@/lib/siteNotice";
 import styles from "./StatusPage.module.css";
 
 /**
- * Public availability dashboard + maintenance log at /status. Lights derive
- * from the SAME live notice doc the banner streams (truthful even for
+ * Public availability dashboard + maintenance log at /status. The states
+ * derive from the SAME live notice doc the banner streams (truthful even for
  * break-glass console flips); the log lists the episodes the admin route has
  * recorded, each expandable into a popup (the banner's Details link arrives
  * with ?open=current, which opens the ongoing episode's popup directly).
  *
- * Honesty rules: nothing renders as green before the feed has answered
- * (loading spinner instead), an erroring feed shows grey "Unknown", and all
- * log content is PLAIN TEXT — the docs are world-readable, so no HTML or
- * markdown may ever be rendered from them.
+ * Honesty rules: nothing reads as working before the feed has answered (the
+ * summary says it is checking and no service carries a state), an erroring
+ * feed shows a grey "Unknown", and all log content is PLAIN TEXT: the docs
+ * are world-readable, so no HTML or markdown may ever be rendered from them.
  */
 
-const LEVEL_CLASS: Record<SiteNoticeLevel, string> = {
-  info: styles.levelInfo,
-  warn: styles.levelWarn,
-  critical: styles.levelCritical,
+/** One plain line under each service's name: what a visitor does there. */
+const SURFACE_NOTES: Record<SiteNoticeSurface, string> = {
+  newRegistrations: "Making an account",
+  collaboratorApplications: "Offering to collaborate with us on a project",
+  eventSignups: "Requesting a place at an event",
+  courseApplications: "Applying for a fellowship or the incubator",
+  courseEnrolments: "Taking up a place on a course",
 };
 
-/** Entries longer than this get clamped with a fade + "more info" popup. */
+/** A notice's level decides a colour and nothing else. The word beside it
+    always says what is going on. */
+const LEVEL_TONE: Record<SiteNoticeLevel, ChipTone> = {
+  info: "accent",
+  warn: "warning",
+  critical: "danger",
+};
+
+const LEVEL_CLASS: Record<SiteNoticeLevel, string> = {
+  info: styles.toneInfo,
+  warn: styles.toneWarn,
+  critical: styles.toneCritical,
+};
+
+/** Text longer than this is cut short in the list and gets a "More info" popup. */
 const CLAMP_THRESHOLD = 180;
 
+/*
+  Dates are written out by hand, in the reader's own time zone, so they read
+  the same in every browser: a locale's own short month differs between
+  engines ("Sep" in one, "Sept" in another).
+*/
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+const two = (n: number) => String(n).padStart(2, "0");
+
+/** "14:05" */
+function formatTime(date: Date): string {
+  return `${two(date.getHours())}:${two(date.getMinutes())}`;
+}
+
+/** "5 Oct, 14:05" */
 function formatStamp(date: Date): string {
-  return date.toLocaleString([], {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return `${date.getDate()} ${MONTHS[date.getMonth()]}, ${formatTime(date)}`;
 }
 
+/** "Mon 5 Oct" */
+function formatDay(date: Date): string {
+  return `${WEEKDAYS[date.getDay()]} ${date.getDate()} ${MONTHS[date.getMonth()]}`;
+}
+
+/** When something ended, said as briefly as the start allows: the time
+    alone when it is the same day, the day as well when it is not. */
+function formatEnd(start: Date, end: Date): string {
+  return start.toDateString() === end.toDateString() ? formatTime(end) : formatStamp(end);
+}
+
+/**
+ * Whether the list cuts this entry short, so it needs the popup to be read
+ * in full. Short details are shown whole in the list and need no popup; the
+ * list flattens line breaks, so details with any are always worth opening.
+ */
 function entryNeedsPopup(entry: MaintenanceLogEntry): boolean {
-  return entry.details !== "" || entry.message.length > CLAMP_THRESHOLD;
+  return (
+    entry.message.length > CLAMP_THRESHOLD ||
+    entry.details.length > CLAMP_THRESHOLD ||
+    entry.details.includes("\n")
+  );
 }
 
-function EntryStatusBadge({ ongoing }: { ongoing: boolean }) {
-  return (
-    <span
-      className={`${styles.stateBadge} ${ongoing ? styles.stateBadgeOngoing : styles.stateBadgeDone}`}
-    >
-      {ongoing ? "In progress" : "Complete"}
-    </span>
+function EntryStatusChip({ entry, ongoing }: { entry: MaintenanceLogEntry; ongoing: boolean }) {
+  return ongoing ? (
+    <Chip tone={LEVEL_TONE[entry.level]} dot>
+      In progress
+    </Chip>
+  ) : (
+    <Chip>Resolved</Chip>
   );
 }
 
@@ -87,7 +138,12 @@ function EntryModal({
   const endedAt = entry.clearedAt ?? entry.endsAt;
   const affected = SITE_NOTICE_SURFACES.filter((s) => entry.paused[s]);
 
-  return (
+  // Portalled to <body>. The public layout's <main> carries a transform, and
+  // a fixed box inside a transformed element is pinned to that element and
+  // not to the window: left where it is, this would sit in the middle of the
+  // page's whole height. It only ever mounts in the browser, after a press
+  // or a snapshot, so the document is there.
+  return createPortal(
     <div className={styles.modalBackdrop} onClick={onClose}>
       <div
         className={styles.modal}
@@ -103,13 +159,22 @@ function EntryModal({
           aria-label="Back to the status page"
           autoFocus
         >
-          ×
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
         </button>
-        <div className={styles.entryHead}>
-          <span className={`${styles.levelChip} ${LEVEL_CLASS[entry.level]}`}>
-            {entry.level}
-          </span>
-          <EntryStatusBadge ongoing={ongoing} />
+        <div className={styles.modalHead}>
+          <EntryStatusChip entry={entry} ongoing={ongoing} />
         </div>
         <p className={styles.modalWhen}>
           Started {formatStamp(entry.startedAt)}
@@ -132,7 +197,8 @@ function EntryModal({
           </p>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -174,7 +240,7 @@ export default function StatusPage() {
           if (!snap.metadata.fromCache) setLogState("ready");
         },
         () => {
-          // Fail open — no history beats fabricated history.
+          // Fail open: no history beats fabricated history.
           setEntries([]);
           setLogState("error");
         },
@@ -188,8 +254,8 @@ export default function StatusPage() {
     };
   }, []);
 
-  // Live badges/countdowns: the current episode is identified POSITIVELY by
-  // the live doc's logId — never positionally — and only while the notice
+  // Live chips/countdowns: the current episode is identified POSITIVELY by
+  // the live doc's logId, never positionally, and only while the notice
   // actually shows. A break-glass notice with no entry means no entry claims
   // ongoing (the log's own caveat covers that); a log entry must never claim
   // an outage the banner doesn't.
@@ -219,91 +285,104 @@ export default function StatusPage() {
     }
   }
 
-  // Timeline reads oldest → newest, left to right.
-  const timeline = useMemo(() => [...entries].reverse(), [entries]);
   const eta = live.endsAt ?? live.expiresAt;
+  const noticeShowing = connection === "live" && live.bannerVisible;
 
   return (
     <div className={styles.page}>
-      <header className={styles.head}>
+      <header>
+        <p className="meta">naisi.uk</p>
         <h1 className={styles.title}>Service status</h1>
-        <p className={styles.subtitle}>
-          Live availability of NAISI services, straight from the same feed the
-          site-wide banner uses.
+        <p className={styles.lede}>
+          Whether each part of naisi.uk is working right now.
         </p>
       </header>
 
-      {connection === "live" && live.bannerVisible && (
-        <div className={`${styles.noticeCard} ${LEVEL_CLASS[live.level]}`}>
-          <p className={styles.noticeMessage}>{live.bannerMessage}</p>
-          <p className={styles.noticeMeta}>
-            {eta !== null
-              ? `Estimated resolution by ${formatEta(eta)}.`
-              : "No estimated resolution time yet."}
-          </p>
+      {/* The summary. One of four things, and never "working" before the
+          feed has answered: a premature green is a claim nobody has made. */}
+      {connection === "loading" ? (
+        <div className={`${styles.overall} ${styles.toneQuiet}`} role="status">
+          <span className={styles.spinner} aria-hidden />
+          <p className={styles.overallNote}>Checking current status…</p>
         </div>
+      ) : connection === "error" ? (
+        <section className={`${styles.overall} ${styles.toneQuiet}`} aria-labelledby="status-overall">
+          <span className={styles.overallDot} aria-hidden />
+          <div className={styles.overallText}>
+            <h2 id="status-overall" className={styles.overallTitle}>
+              Status unknown
+            </h2>
+            <p className={styles.overallNote}>
+              We can’t reach the status feed right now. Check your connection
+              and try again.
+            </p>
+          </div>
+        </section>
+      ) : noticeShowing ? (
+        <section
+          className={`${styles.overall} ${LEVEL_CLASS[live.level]}`}
+          aria-labelledby="status-overall"
+        >
+          <span className={styles.overallDot} aria-hidden />
+          <div className={styles.overallText}>
+            <h2 id="status-overall" className={`${styles.overallTitle} ${styles.overallMessage}`}>
+              {live.bannerMessage}
+            </h2>
+            <p className={styles.overallNote}>
+              {eta !== null
+                ? `Estimated resolution by ${formatEta(eta)}.`
+                : "No estimated resolution time yet."}
+            </p>
+          </div>
+        </section>
+      ) : (
+        <section className={`${styles.overall} ${styles.toneOk}`} aria-labelledby="status-overall">
+          <span className={styles.overallDot} aria-hidden />
+          <div className={styles.overallText}>
+            <h2 id="status-overall" className={styles.overallTitle}>
+              All systems working
+            </h2>
+            <p className={styles.overallNote}>Everything on naisi.uk is up.</p>
+          </div>
+        </section>
       )}
 
-      <section aria-labelledby="availability-heading">
-        <h2 id="availability-heading" className={styles.sectionTitle}>
-          Availability
+      <section className={styles.block} aria-labelledby="services-heading">
+        <h2 id="services-heading" className={styles.sectionTitle}>
+          Services
         </h2>
-        {connection === "loading" ? (
-          // Never show a light before the feed has answered: a premature
-          // green is an "Operational" claim nobody has actually made.
-          <div className={styles.loadingRow} role="status">
-            <span className={styles.spinner} aria-hidden />
-            Checking current status…
-          </div>
-        ) : (
-          <>
-            <ul className={styles.serviceList}>
-              {SITE_NOTICE_SURFACES.map((surface) => {
-                const unknown = connection === "error";
-                const paused = live.paused[surface];
-                const lightClass = unknown
-                  ? styles.lightUnknown
-                  : !paused
-                    ? styles.lightGreen
-                    : live.level === "critical"
-                      ? styles.lightRed
-                      : styles.lightAmber;
-                return (
-                  <li key={surface} className={styles.serviceRow}>
-                    <span className={`${styles.light} ${lightClass}`} aria-hidden />
-                    <span className={styles.serviceName}>
-                      {SITE_NOTICE_SURFACE_NAMES[surface]}
-                    </span>
-                    <span
-                      className={`${styles.serviceState} ${
-                        unknown
-                          ? styles.stateUnknown
-                          : paused
-                            ? styles.statePaused
-                            : styles.stateOk
-                      }`}
-                    >
-                      {unknown ? "Unknown" : paused ? "Paused" : "Operational"}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-            {connection === "error" && (
-              <p className={styles.smallPrint}>
-                We can&apos;t reach the status feed right now — these lights may
-                be out of date. Check your connection and try again.
-              </p>
-            )}
-          </>
-        )}
+        <ul className={styles.serviceList}>
+          {SITE_NOTICE_SURFACES.map((surface) => {
+            const paused = live.paused[surface];
+            return (
+              <li key={surface} className={styles.serviceRow}>
+                <div className={styles.serviceText}>
+                  <p className={styles.serviceName}>{SITE_NOTICE_SURFACE_NAMES[surface]}</p>
+                  <p className={styles.serviceNote}>{SURFACE_NOTES[surface]}</p>
+                </div>
+                {/* No state at all while the feed is still answering. */}
+                {connection === "loading" ? null : connection === "error" ? (
+                  <Chip>Unknown</Chip>
+                ) : paused ? (
+                  <Chip tone={live.level === "critical" ? "danger" : "warning"} dot>
+                    Paused
+                  </Chip>
+                ) : (
+                  <Chip tone="success" dot>
+                    Working
+                  </Chip>
+                )}
+              </li>
+            );
+          })}
+        </ul>
         <p className={styles.smallPrint}>
-          Sign-in and password reset run directly against Firebase and are
-          always reachable from here even during app maintenance.
+          Signing in and resetting a password stay available during
+          maintenance.
         </p>
       </section>
 
-      <section id="log" aria-labelledby="log-heading" className={styles.logSection}>
+      <section id="log" className={styles.block} aria-labelledby="log-heading">
         <h2 id="log-heading" className={styles.sectionTitle}>
           Maintenance log
         </h2>
@@ -315,92 +394,74 @@ export default function StatusPage() {
           </div>
         ) : logState === "error" ? (
           <p className={styles.smallPrint}>
-            Couldn&apos;t load the maintenance log right now.
+            Couldn’t load the maintenance log right now.
           </p>
         ) : entries.length === 0 ? (
           <p className={styles.smallPrint}>
-            No maintenance events on record. If a banner is showing without an
-            entry here, it was raised through the emergency path — the banner is
-            always the authority.
+            No maintenance events on record. If a banner is showing with no
+            entry here, the banner is the one to trust.
           </p>
         ) : (
-          <>
-            <div className={styles.timeline} role="list" aria-label="Maintenance events">
-              <span className={styles.timelineTrack} aria-hidden />
-              {timeline.map((entry) => {
-                const isOngoing = entry.id === ongoingId;
-                return (
-                  <a
-                    key={entry.id}
-                    role="listitem"
-                    href={`#log-${entry.id}`}
-                    title={`${formatStamp(entry.startedAt)} — ${entry.message || "maintenance notice"}`}
-                    className={`${styles.timelineDot} ${
-                      isOngoing
-                        ? `${LEVEL_CLASS[entry.level]} ${styles.dotOngoing}`
-                        : styles.dotResolved
-                    }`}
-                  >
-                    <span className={styles.visuallyHidden}>
-                      {formatStamp(entry.startedAt)}
-                    </span>
-                  </a>
-                );
-              })}
-            </div>
-
-            <ul className={styles.entryList}>
-              {entries.map((entry) => {
-                const isOngoing = entry.id === ongoingId;
-                const endedAt = entry.clearedAt ?? entry.endsAt;
-                const affected = SITE_NOTICE_SURFACES.filter((s) => entry.paused[s]);
-                const needsPopup = entryNeedsPopup(entry);
-                return (
-                  <li key={entry.id} id={`log-${entry.id}`} className={styles.entry}>
+          <ul className={styles.entryList}>
+            {entries.map((entry) => {
+              const isOngoing = entry.id === ongoingId;
+              const endedAt = entry.clearedAt ?? entry.endsAt;
+              const affected = SITE_NOTICE_SURFACES.filter((s) => entry.paused[s]);
+              const needsPopup = entryNeedsPopup(entry);
+              return (
+                <li key={entry.id} id={`log-${entry.id}`} className={styles.entry}>
+                  <time className={styles.entryDay} dateTime={entry.startedAt.toISOString()}>
+                    {formatDay(entry.startedAt)}
+                  </time>
+                  <div className={styles.entryMain}>
                     <div className={styles.entryHead}>
-                      <span className={`${styles.levelChip} ${LEVEL_CLASS[entry.level]}`}>
-                        {entry.level}
-                      </span>
-                      <EntryStatusBadge ongoing={isOngoing} />
-                      <span className={styles.entryWhen}>
-                        {formatStamp(entry.startedAt)}
-                        {isOngoing
-                          ? entry.endsAt !== null &&
-                            ` · ETA ${formatEta(entry.endsAt)}`
-                          : endedAt !== null && ` → ${formatStamp(endedAt)}`}
-                      </span>
-                    </div>
-                    <div
-                      className={`${styles.entryBody} ${needsPopup ? styles.entryBodyClamped : ""}`}
-                    >
-                      {/* Neutral fallback — "scheduled" would misdescribe an
+                      {/* Neutral fallback: "scheduled" would misdescribe an
                           unplanned incident logged without copy. */}
-                      <p className={styles.entryMessage}>
+                      <h3
+                        className={
+                          needsPopup ? `${styles.entryMessage} ${styles.clamped}` : styles.entryMessage
+                        }
+                      >
                         {entry.message || "Maintenance notice."}
-                      </p>
-                      {entry.details !== "" && (
-                        <p className={styles.entryDetailsPreview}>{entry.details}</p>
-                      )}
+                      </h3>
+                      <EntryStatusChip entry={entry} ongoing={isOngoing} />
                     </div>
-                    {affected.length > 0 && (
-                      <p className={styles.entryMeta}>
-                        Paused: {affected.map((s) => SITE_NOTICE_SURFACE_NAMES[s]).join(", ")}
+                    {/* A long entry is cut to a few lines here; the popup
+                        has the rest. A short one is shown whole, at any
+                        width, because nothing else would show it. */}
+                    {entry.details !== "" && (
+                      <p
+                        className={
+                          needsPopup
+                            ? `${styles.entryDetailsPreview} ${styles.clamped}`
+                            : styles.entryDetailsPreview
+                        }
+                      >
+                        {entry.details}
                       </p>
                     )}
+                    <p className={styles.entryMeta}>
+                      {formatStamp(entry.startedAt)}
+                      {isOngoing
+                        ? entry.endsAt !== null && ` · ETA ${formatEta(entry.endsAt)}`
+                        : endedAt !== null && ` to ${formatEnd(entry.startedAt, endedAt)}`}
+                      {affected.length > 0 &&
+                        ` · Paused: ${affected.map((s) => SITE_NOTICE_SURFACE_NAMES[s]).join(", ")}`}
+                    </p>
                     {needsPopup && (
                       <button
                         type="button"
                         className={styles.moreButton}
                         onClick={() => setOpenEntryId(entry.id)}
                       >
-                        Click for more info
+                        More info
                       </button>
                     )}
-                  </li>
-                );
-              })}
-            </ul>
-          </>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </section>
 

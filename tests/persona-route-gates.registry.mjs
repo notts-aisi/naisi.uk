@@ -376,14 +376,6 @@ export const ROUTES = {
         "admin would not. The migration is idempotent and ran against the emulator here.",
     },
   },
-  "/api/admin/nuke-tasks": {
-    POST: {
-      expect: everyone(403, { admin: 400 }),
-      why:
-        "Admin only, decided before the body is read: every other session is forbidden and " +
-        "the admin meets the validation. The danger-zone action needs its typed confirmation.",
-    },
-  },
   "/api/admin/registrations": {
     GET: {
       expect: everyone(403, { admin: 200 }),
@@ -397,7 +389,7 @@ export const ROUTES = {
   "/api/admin/registrations/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseProgressDeleted", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseProgressDeleted", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -476,7 +468,7 @@ export const ROUTES = {
   "/api/admin/test-email": {
     POST: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["messageId", "ok", "sentTo"],
+      fields: ["held", "messageId", "ok", "sentTo"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -486,7 +478,7 @@ export const ROUTES = {
   "/api/admin/users/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseProgressDeleted", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseProgressDeleted", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -501,6 +493,265 @@ export const ROUTES = {
       why:
         "The applicant lane: a pending account is an applicant and sees its own (empty) list, " +
         "a rejected one is refused, and every approved account sees its own.",
+    },
+  },
+  "/api/admissions/forms": {
+    GET: {
+      expect: signedIn(200),
+      fields: ["canCreate", "forms"],
+      why:
+        "Any signed-in account may list application forms, and canSeeForm filters the list " +
+        "per caller: an admin sees every form, a lead or a reviewer the forms that name them. " +
+        "Here the list is empty, so pending and rejected see nothing and canCreate is false " +
+        "for everybody but the admin.",
+    },
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Only an admin makes an application form; everyone else is forbidden before the body " +
+        "is read, and the admin meets the validation: a form needs a name.",
+    },
+  },
+  "/api/admissions/forms/[roundId]": {
+    GET: {
+      expect: signedIn(404),
+      why:
+        "404 for a form the caller has no role on, the same as for one that does not exist: " +
+        "whether a form exists is not something a stranger is told. Here it does not exist, " +
+        "so every session including pending and rejected gets the same answer.",
+    },
+    PATCH: {
+      expect: adminOnly(400),
+      why:
+        "The form itself is an admin's to change; everyone else is forbidden before the body " +
+        "is read, and the admin meets the validation on an empty change before any read.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/application": {
+    GET: {
+      expect: signedIn(404, { rejected: 403 }),
+      why:
+        "The applicant lane (requireApplicant): a pending account is an applicant and is " +
+        "admitted, a rejected one is refused, and the form is then missing. A form that is " +
+        "still a draft answers with the same 404.",
+    },
+    PUT: {
+      expect: signedIn(400, { rejected: 403 }),
+      why:
+        "The applicant lane, then the body is checked before any document is read: a save " +
+        "with no draft in it is a 400 for every session that gets past requireApplicant, and " +
+        "a rejected account is refused first.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/application/reply": {
+    POST: {
+      expect: signedIn(400, { rejected: 403 }),
+      why:
+        "The applicant lane (requireApplicant): a pending account is an applicant and is " +
+        "admitted, a rejected one is refused. The body is then checked before any document " +
+        "is read, so a request that carries none of the four replies is a 400 for every " +
+        "session that gets past the gate, whatever form the address names.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/application/send": {
+    POST: {
+      expect: signedIn(404, { rejected: 403 }),
+      why:
+        "The applicant lane (requireApplicant): pending is admitted and rejected refused. The " +
+        "send reads nothing from the body, so the first answer after the gate is that the " +
+        "form is missing.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/applications/[uid]": {
+    GET: {
+      expect: signedIn(404),
+      why:
+        "404 rather than 403 by design: a staff role comes from the form, so a form that is " +
+        "missing and an application the caller has no claim on get the same answer, and nobody " +
+        "learns an application exists by asking.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/application/access-requirements": {
+    GET: {
+      expect: signedIn(404, { rejected: 403 }),
+      why:
+        "The applicant lane (requireApplicant): a pending account is an applicant and is " +
+        "admitted, a rejected one is refused, and the form is then missing. It answers with " +
+        "the caller's own answer and nobody else's, so there is no role to tell apart.",
+    },
+    PUT: {
+      expect: signedIn(400, { rejected: 403 }),
+      why:
+        "The applicant lane, then the body is checked before any document is read: a save " +
+        "that carries no answer is a 400 for every session that gets past requireApplicant, " +
+        "and a rejected account is refused first.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/applications/[uid]/access-requirements": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Opening an applicant's access-requirements answer is admin only, decided before " +
+        "anything is read: a lead, a reviewer and every other session are forbidden in the " +
+        "same words whatever they asked about, and the admin is then told the form is missing.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/applications/[uid]/decision": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "Session required, then the caller's own request is validated before the form is " +
+        "read: a decision has to name its programme and be Accept, Pool or Decline, and an " +
+        "empty body does neither, so every signed-in persona meets the same 400.",
+    },
+    DELETE: {
+      expect: adminOnly(400),
+      why:
+        "Revoking an acceptance is admin only, decided before the body is read: every other " +
+        "session is forbidden and the admin meets the validation, which asks for a programme " +
+        "and a reason.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/applications/[uid]/review": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "Session required, then the caller's own request is validated before the form is " +
+        "read: a review save has to carry a score, a comment or an overall comment, so every " +
+        "signed-in persona meets the same 400 on an empty one.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/pool": {
+    GET: {
+      expect: adminOnly(404),
+      why:
+        "Admin only (running the term), decided before the read: every other session is " +
+        "forbidden whether or not the form exists, and the admin is told the id is missing.",
+    },
+    PUT: {
+      expect: adminOnly(400),
+      why:
+        "Admin only, decided before the body is read: every other session is forbidden and " +
+        "the admin meets the validation. A pooled outcome has to say who it is for.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
+    GET: {
+      expect: signedIn(404),
+      why:
+        "A programme's settings are for its lead and for admins. A caller with no role on the " +
+        "programme gets the 404 a missing programme gets, and here the form is missing for " +
+        "everybody.",
+    },
+    PATCH: {
+      expect: signedIn(400),
+      why:
+        "Session required, then the body is validated before any document is read, so every " +
+        "signed-in persona meets the same 400 on an empty change whether or not the programme " +
+        "exists. Who may edit is decided from the form, inside the write.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/applications": {
+    GET: {
+      expect: signedIn(404),
+      why:
+        "404 rather than 403 by design: a missing form, a missing programme and a programme " +
+        "the caller has no role on are answered in the same words, so the list never confirms " +
+        "that a form or a programme exists.",
+    },
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Session required, then the caller's own request is validated before the form is " +
+        "read: a bulk decision has to be Accept or Pool and name at least one application, so " +
+        "every signed-in persona meets the same 400 on an empty body.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/roles": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "Session required, then the body is validated before any document is read: a roles " +
+        "change has to say who leads or who reviews. Who may name whom is setProgrammeRoles's " +
+        "decision, taken from the form once it is read.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Session required, then the body is validated before any document is read: a test has " +
+        "to name one of the programme's three emails, so every signed-in persona meets the same " +
+        "400 whether or not the programme exists. Who may ask (its lead or an admin) is decided " +
+        "from the form once it is read, and the test goes to the caller's own address.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/review-settings": {
+    PUT: {
+      expect: adminOnly(400),
+      why:
+        "The switch that shows other reviewers' scores is admin only, decided before the body " +
+        "is read: every other session is forbidden and the admin meets the validation, which " +
+        "wants true or false.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/send": {
+    GET: {
+      expect: adminOnly(404),
+      why:
+        "Admin only (running the term), decided before the read: every other session is " +
+        "forbidden whether or not the form exists, and the admin is told the id is missing.",
+    },
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Admin only, decided before the body is read: every other session is forbidden and " +
+        "the admin meets the validation. The send has to say how many emails the page showed.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/send/test": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Admin only, decided before the body is read: every other session is forbidden and " +
+        "the admin meets the validation. A test has to name one of the three emails.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/sets": {
+    GET: {
+      expect: adminOnly(404),
+      why:
+        "The question sets are the form, and the form is an admin's to edit: everyone else is " +
+        "forbidden before the read, and the admin is told the form is missing.",
+    },
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Admin only, decided before the body is read; the admin meets the validation: a new " +
+        "question set needs a name and somebody to show it to.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/sets/[setId]": {
+    PATCH: {
+      expect: adminOnly(400),
+      why:
+        "Admin only, decided before the body is read; the admin meets the validation on an " +
+        "empty change before any read.",
+    },
+    DELETE: {
+      expect: adminOnly(404),
+      why:
+        "Admin only, decided before the read: everyone else is forbidden and the admin is " +
+        "told the form is missing.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/status": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Moving a form along its term is admin only, decided before the body or any document " +
+        "is read: every other session is forbidden in the same words whether or not the form " +
+        "exists, and the admin meets the validation, which asks for a status.",
     },
   },
   "/api/admissions/rounds": {
@@ -1762,13 +2013,6 @@ export const PAGES = {
       "course and membership permission holders included, because the admin front door " +
       "admits them and this inner gate is what keeps them out of the rest.",
   },
-  "/(app)/admin/(admin-only)/danger-zone": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
-    why:
-      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, the " +
-      "course and membership permission holders included, because the admin front door " +
-      "admits them and this inner gate is what keeps them out of the rest.",
-  },
   "/(app)/admin/(admin-only)/deliverability": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
     why:
@@ -1803,6 +2047,16 @@ export const PAGES = {
       "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, the " +
       "course and membership permission holders included, because the admin front door " +
       "admits them and this inner gate is what keeps them out of the rest.",
+  },
+  "/(app)/admin/(admin-only)/members/[uid]": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, the " +
+      "course and membership permission holders included, because the admin front door " +
+      "admits them and this inner gate is what keeps them out of the rest. The uid segment " +
+      "changes nothing about the gate: the page never calls notFound, so an admin gets it " +
+      "whatever the uid, and an id that is on no account is answered on the page in a " +
+      "sentence. Its reads are the roster's own, under the admin-only users rule.",
   },
   "/(app)/admin/(admin-only)/newsletter": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
@@ -1898,6 +2152,69 @@ export const PAGES = {
       "approveCourse) and named reviewers; a draftCourse holder passes the admin front door " +
       "and is sent on to the dashboard here. A missing round renders the console's " +
       "not-found state for those admitted.",
+  },
+  "/(app)/admin/admissions/forms": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree: requireAdmissionsPage admits round authors (admin or " +
+      "approveCourse) and named reviewers, and sends everybody else to the dashboard. The " +
+      "list is filtered per caller, so the approveCourse holder is shown an empty page that " +
+      "says they are on no form.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the page's own: a form the caller has no role on, " +
+      "and a form that does not exist, both render 'there is no application form here' in " +
+      "place of the page, as ordinary HTML with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/form": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the page's own: the form's editor is an admin's, and " +
+      "a missing form or one the caller has no role on renders 'there is no application form " +
+      "here' in place of the page with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/pool": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions console: requireAdmissionsPage admits round authors (admin or " +
+      "approveCourse) and named reviewers; a draftCourse holder passes the admin front door " +
+      "and is sent on to the dashboard here. A missing form, or one the caller has no role " +
+      "on, renders not found for those admitted; a lead or a reviewer on the form is shown " +
+      "a notice that the page is an admin's.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/applications": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions console: requireAdmissionsPage admits round authors (admin or " +
+      "approveCourse) and named reviewers, and sends everyone else to the dashboard. For " +
+      "those admitted, a form that is missing and a programme they have no role on both " +
+      "render the page's own calm not-here state as ordinary HTML, with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions console: requireAdmissionsPage admits round authors (admin or " +
+      "approveCourse) and named reviewers, and sends everyone else to the dashboard. For " +
+      "those admitted, an application that is missing or not theirs to read renders the " +
+      "page's own calm not-here state as ordinary HTML, with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's: a programme the caller has no " +
+      "role on, and one that does not exist, both render 'there is no programme here' in " +
+      "place of the page with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/send": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions console: requireAdmissionsPage admits round authors (admin or " +
+      "approveCourse) and named reviewers; a draftCourse holder passes the admin front door " +
+      "and is sent on to the dashboard here. A missing form, or one the caller has no role " +
+      "on, renders not found for those admitted; a lead or a reviewer on the form is shown " +
+      "a notice that the page is an admin's.",
   },
   "/(app)/admin/courses": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, draftCourse: 200, approveCourse: 200 }),

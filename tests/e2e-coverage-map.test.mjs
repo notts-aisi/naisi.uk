@@ -487,12 +487,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
   },
-  "/api/admin/nuke-tasks": {
-    reason:
-      "Admin CRUD: /api/admin/nuke-tasks answers one admin's deliberate press, and its failure lands on that admin's own screen.",
-    coverWhen:
-      "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
-  },
   "/api/admin/registrations": {
     reason:
       "Admin CRUD: /api/admin/registrations answers one admin's deliberate press, and its failure lands on that admin's own screen.",
@@ -564,6 +558,135 @@ const NOT_COVERED = {
       "/api/admissions/applications/me answers the signed-in applicant with their own applications, and a wrong answer is visible on the status hub that renders it.",
     coverWhen:
       "When the first round publishes its decisions, because this is the screen an applicant refreshes.",
+  },
+  "/api/admissions/forms": {
+    reason:
+      "Application forms: /api/admissions/forms is pressed by an admin who reads the outcome on the screen in front of them, and tests/applications-editor-routes.test.mjs executes it as every kind of caller.",
+    coverWhen:
+      "When the first application form is opened to applicants, because from then on what an admin saves here is what real people are asked.",
+  },
+  "/api/admissions/forms/[roundId]": {
+    reason:
+      "Application forms: /api/admissions/forms/[roundId] is pressed by an admin who reads the outcome on the screen in front of them, and tests/applications-editor-routes.test.mjs executes it as every kind of caller.",
+    coverWhen:
+      "When the first application form is opened to applicants, because from then on what an admin saves here is what real people are asked.",
+  },
+  "/api/admissions/forms/[roundId]/application": {
+    reason:
+      "The new application form's read and draft save. Both are executed against an in-memory store by tests/applications-apply-routes.test.mjs (gate, hidden forms, window, the first save, the counters), and the form that calls them has been driven by hand at 390 and 1440, but no browser spec drives it yet.",
+    coverWhen:
+      "Before the new form opens to applicants (the spring intake): an applicant spec that fills the form in, leaves it, comes back and sends it.",
+  },
+  "/api/admissions/forms/[roundId]/application/access-requirements": {
+    reason:
+      "The applicant's own access-requirements answer on the new application form. Both handlers are executed against an in-memory store by tests/applications-d2-zeta-access-requirements.test.mjs (the gate, view-as, hidden forms, the window, the limit, no row without an application, the application left untouched), and the box that calls them has been driven by hand at 390 and 1440, but no browser spec drives it yet.",
+    coverWhen:
+      "With the applicant spec for the new form: it types in the box on the last step, leaves, comes back and finds it there.",
+  },
+  "/api/admissions/forms/[roundId]/application/reply": {
+    reason:
+      "An applicant's reply to their offer or invitation on the new application form. Executed against an in-memory store by tests/applications-wave-f-reply-route.test.mjs (the gate, the body, hidden forms, every state of an application against every reply, the counters, a refusal writing nothing, the waiting account an accepted invitation approves), and pressed by hand at 390 for each outcome, but no browser spec drives it yet.",
+    coverWhen:
+      "Before the first decision day on an application form: an applicant spec that opens /applications/<form> after a send, says they are coming, and gives a place back.",
+  },
+  "/api/admissions/forms/[roundId]/application/send": {
+    reason:
+      "The new application form's send. Executed by tests/applications-apply-routes.test.mjs (issues refused, the two copies, the counters, sending again, the version a send replaces), with no browser spec yet.",
+    coverWhen:
+      "With the spec above: the send is the last step of the same journey.",
+  },
+  // The application form's review screens. The loaders and writers behind
+  // every one of these are executed offline by
+  // tests/applications-review-routes.test.mjs against an in-memory database.
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/applications": {
+    reason:
+      "Application review: the list and the bulk decision behind this route are executed by tests/applications-review-routes.test.mjs, and no end-to-end fixture seeds an application form with sent applications yet.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an application form, which the first spec for the new applicant form needs before applications open on it.",
+  },
+  "/api/admissions/forms/[roundId]/applications/[uid]": {
+    reason:
+      "Application review: the one-application read behind this route, with its blind first review and its admin-only addresses, is executed by tests/applications-review-routes.test.mjs, and no end-to-end fixture seeds an application form yet.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an application form, which the first spec for the new applicant form needs before applications open on it.",
+  },
+  "/api/admissions/forms/[roundId]/applications/[uid]/review": {
+    reason:
+      "Application review: saving a reviewer's own scores and comments is executed by tests/applications-review-routes.test.mjs, and no end-to-end fixture seeds an application form or a named reviewer yet.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an application form and name a reviewer on a programme, ahead of the first term reviewed on these screens.",
+  },
+  "/api/admissions/forms/[roundId]/applications/[uid]/access-requirements": {
+    reason:
+      "An admin opening one applicant's access-requirements answer. Executed against an in-memory store by tests/applications-d2-zeta-access-requirements.test.mjs (every kind of account refused before anything is read, one log line for each open, an unsent draft not found), with no browser spec yet.",
+    coverWhen:
+      "With the review spec for the new form: an admin presses the button on one application and the log line is read back; a lead opens the same application and has no button.",
+  },
+  "/api/admissions/forms/[roundId]/applications/[uid]/decision": {
+    reason:
+      "Application review: a lead's decision and an admin's revocation are executed by tests/applications-review-routes.test.mjs, which also holds that neither touches the applicant's own document, and no end-to-end fixture seeds a programme lead yet.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an application form and name a lead on a programme, ahead of the first term decided on these screens.",
+  },
+  "/api/admissions/forms/[roundId]/review-settings": {
+    reason:
+      "Application review: the admin's switch is one boolean on the form, executed by tests/applications-review-routes.test.mjs with what it changes for every reviewer.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an application form with two reviewers' scores, so a spec can watch the switch change what the second one is shown.",
+  },
+  "/api/admissions/forms/[roundId]/pool": {
+    reason:
+      "Application system: /api/admissions/forms/[roundId]/pool is pressed by an admin picking what pooled applicants hear, who reads the result on the page it redraws; the writer and its gate are executed by tests/applications-decision-day-pool.test.mjs.",
+    coverWhen:
+      "When the first application form has closed on dev and a whole decision day is rehearsed there, because that rehearsal is the journey a spec would drive.",
+  },
+  "/api/admissions/forms/[roundId]/send": {
+    reason:
+      "Application system: /api/admissions/forms/[roundId]/send publishes a term's outcomes and emails every applicant, so it must never be automated against a database other people are using; the send is executed by tests/applications-decision-day-send.test.mjs.",
+    coverWhen:
+      "When the first application form has closed on dev and a whole decision day is rehearsed there, because that rehearsal is the journey a spec would drive.",
+  },
+  "/api/admissions/forms/[roundId]/send/test": {
+    reason:
+      "Application system: /api/admissions/forms/[roundId]/send/test mails one decision-day email to the admin who asked, and the admin reads the result in their own inbox; the route is executed by tests/applications-decision-day-send.test.mjs.",
+    coverWhen:
+      "When the first application form has closed on dev and a whole decision day is rehearsed there, because that rehearsal is the journey a spec would drive.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email": {
+    reason:
+      "Application system: /api/admissions/forms/[roundId]/programmes/[programmeId]/test-email mails one of a programme's decision emails to whoever asked, and they read the result in their own inbox; the route and its gate are executed as every kind of caller by tests/applications-decision-day-send.test.mjs.",
+    coverWhen:
+      "When the first application form has closed on dev and a whole decision day is rehearsed there, because that rehearsal is the journey a spec would drive.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
+    reason:
+      "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId] is pressed by a programme's lead or an admin who reads the outcome on the screen in front of them, and tests/applications-editor-routes.test.mjs executes it as every kind of caller.",
+    coverWhen:
+      "When the first application form is opened to applicants, because from then on what a lead saves here is what real people are shown.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/roles": {
+    reason:
+      "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId]/roles is pressed by a programme's lead or an admin, and tests/applications-editor-routes.test.mjs and tests/applications-access.test.mjs execute who may name whom.",
+    coverWhen:
+      "When a programme is first run with a reviewer who is not its lead, so a grant made here is used by somebody other than the person who made it.",
+  },
+  "/api/admissions/forms/[roundId]/sets": {
+    reason:
+      "Application forms: /api/admissions/forms/[roundId]/sets is pressed by an admin who reads the outcome on the screen in front of them, and tests/applications-editor-routes.test.mjs executes it as every kind of caller.",
+    coverWhen:
+      "When the first application form is opened to applicants, because from then on what an admin saves here is what real people are asked.",
+  },
+  "/api/admissions/forms/[roundId]/sets/[setId]": {
+    reason:
+      "Application forms: /api/admissions/forms/[roundId]/sets/[setId] is pressed by an admin who reads the outcome on the screen in front of them, and tests/applications-editor-routes.test.mjs executes it as every kind of caller, the lock included.",
+    coverWhen:
+      "When the first application form is opened to applicants, because from then on what an admin saves here is what real people are asked.",
+  },
+  "/api/admissions/forms/[roundId]/status": {
+    reason:
+      "The application form's lifecycle: every move, every refusal and the readiness list behind this route are executed by tests/applications-wave-e1-status-route.test.mjs against an in-memory database, and no end-to-end fixture seeds an application form yet.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an application form, which the first spec for the new applicant form needs: that spec has to open a form before anybody can apply to it.",
   },
   "/api/admissions/rounds/[roundId]/apply/stage/[stageId]": {
     reason:
@@ -1141,12 +1264,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
   },
-  "/(app)/admin/(admin-only)/danger-zone": {
-    reason:
-      "Admin CRUD: /(app)/admin/(admin-only)/danger-zone is used by one admin, fails loudly on the screen of the person who pressed the button, and nothing member-facing waits on it.",
-    coverWhen:
-      "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
-  },
   "/(app)/admin/(admin-only)/deliverability": {
     reason:
       "Admin CRUD: /(app)/admin/(admin-only)/deliverability is used by one admin, fails loudly on the screen of the person who pressed the button, and nothing member-facing waits on it.",
@@ -1173,7 +1290,13 @@ const NOT_COVERED = {
   },
   "/(app)/admin/(admin-only)/members": {
     reason:
-      "The admin members screen is used by one admin: role changes, permission grants and the view-as button, each read back on the same page.",
+      "The Accounts list is read by one admin: a table of accounts, each row a link to that person's page. It changes nothing.",
+    coverWhen:
+      "When a permission grant is next handed to somebody other than the admin who makes it.",
+  },
+  "/(app)/admin/(admin-only)/members/[uid]": {
+    reason:
+      "One person's admin page is used by one admin: role changes, permission grants, the view-as button and deleting an account, each read back on the same page.",
     coverWhen:
       "When a permission grant is next handed to somebody other than the admin who makes it.",
   },
@@ -1236,6 +1359,54 @@ const NOT_COVERED = {
       "Admin CRUD: /(app)/admin/(admin-only)/task-templates is used by one admin, fails loudly on the screen of the person who pressed the button, and nothing member-facing waits on it.",
     coverWhen:
       "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
+  },
+  "/(app)/admin/admissions/forms": {
+    reason:
+      "Application forms: /(app)/admin/admissions/forms is a committee screen an admin uses a few times a term, and a fault in it is seen by the person using it.",
+    coverWhen:
+      "When the first application form is opened to applicants, alongside the spec that walks an applicant through it.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]": {
+    reason:
+      "Application forms: /(app)/admin/admissions/forms/[roundId] is a committee screen, and a fault in it is seen by the lead or admin using it.",
+    coverWhen:
+      "When the first application form is opened to applicants, alongside the spec that walks an applicant through it.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/form": {
+    reason:
+      "Application forms: /(app)/admin/admissions/forms/[roundId]/form is the editor an admin builds the term's questions in, and a fault in it is seen by the admin using it.",
+    coverWhen:
+      "When the first application form is opened to applicants, alongside the spec that walks an applicant through it.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/pool": {
+    reason:
+      "Application system: /(app)/admin/admissions/forms/[roundId]/pool is an admin's page whose every number is worked out by modules the unit suite executes; nobody has applied through the new form yet, so there is no term to drive it against.",
+    coverWhen:
+      "When the first application form has closed on dev and a whole decision day is rehearsed there, because that rehearsal is the journey a spec would drive.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/send": {
+    reason:
+      "Application system: /(app)/admin/admissions/forms/[roundId]/send is an admin's page whose every number is worked out by modules the unit suite executes; nobody has applied through the new form yet, so there is no term to drive it against.",
+    coverWhen:
+      "When the first application form has closed on dev and a whole decision day is rehearsed there, because that rehearsal is the journey a spec would drive.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/applications": {
+    reason:
+      "Application review: the list screen is reached from the term page, by each programme's card and by the rows under Needs you, and was checked by hand at 1440 and 390 as a lead, a reviewer and an admin.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an application form with sent applications for a lead to open from the term page.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
+    reason:
+      "Application review: the review screen is reached from the list only, and was checked by hand at 1440 and 390 as a lead, a reviewer and an admin, keyboard included.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an application form with a sent application for a lead to score and decide.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
+    reason:
+      "Application forms: /(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup is a programme's settings, and a fault in it is seen by the lead or admin using it.",
+    coverWhen:
+      "When the first application form is opened to applicants, alongside the spec that walks an applicant through it.",
   },
   "/(app)/admin/courses": {
     reason:
@@ -1435,15 +1606,21 @@ const NOT_COVERED = {
     coverWhen:
       "When the public site is next restyled, which changes all of these renders in one pull request.",
   },
+  "/(public)/about": {
+    reason:
+      "The About page is static: server-rendered from words in its own file, with no read and no form, and a break is visible to anybody who opens it.",
+    coverWhen:
+      "When the page gains anything read from the database or anything a visitor can submit, because from then on a break is no longer visible at a glance.",
+  },
   "/(public)/applications/[roundId]": {
     reason:
-      "The per-round applicant status page is the detail behind the hub the funnel already asserts.",
+      "The per-round applicant status page. For an older round it is the detail behind the hub the funnel already asserts. For an application form it is now the sent status, the outcome and the reply buttons, drawn from a view model that tests/applications-wave-f-status.test.mjs and tests/applications-wave-f-replies.test.mjs execute, with no browser spec yet.",
     coverWhen:
       "When the first round publishes its decisions, because this is the screen an applicant refreshes.",
   },
   "/(public)/courses": {
     reason:
-      "The catalogue lists published courses and is one query behind the course page a spec already drives.",
+      "The fellowships page lists the fellowships on the term's form and then every published course on no form, from the term's one lookup, which tests/applications-public-term.test.mjs executes, and the catalogue's own reads. What a card says about applying is held by tests/applications-d2-gamma-find-the-form.test.mjs and tests/reskin-programme-pages.test.mjs, and the course page behind a card is driven by a spec.",
     coverWhen:
       "When the catalogue lists more than one published course, so an ordering or a filter can be wrong.",
   },
@@ -1458,6 +1635,12 @@ const NOT_COVERED = {
       "The public week page renders published curriculum, which the October rebuild reshapes.",
     coverWhen:
       "When the October curriculum rebuild lands and the first published week is public.",
+  },
+  "/(public)/incubator": {
+    reason:
+      "The research incubator's page is words, server-rendered, with the term's dates read through the one lookup tests/applications-public-term.test.mjs executes. tests/reskin-programme-pages.test.mjs holds its closing band to the words a course's own page uses, and a break is visible to anybody who opens it.",
+    coverWhen:
+      "When the incubator is first on an application form that is open on the live site, because its Apply button is then a way into the form that a browser spec should press.",
   },
   "/(public)/events": {
     reason:
@@ -1482,6 +1665,12 @@ const NOT_COVERED = {
       "Events RSVP: /(public)/events/[id]/rsvp/[rsvpId]/change belongs to the flow frozen by docs/mobile-baseline-events.md, which is re-checked by hand on every touching change.",
     coverWhen:
       "When an event next runs with a capacity and a waitlist, because a wrong decision there is a real person losing their place.",
+  },
+  "/(public)/join": {
+    reason:
+      "The Join page is static apart from the site's one subscribe form, which it uses as it stands, and two links: one to /register and one to the Students' Union's own site. A break in the page is visible to anybody who opens it.",
+    coverWhen:
+      "When a spec first drives a mailing list sign-up from start to finish, because this page is then the natural place for it to start.",
   },
   "/(public)/members": {
     reason:

@@ -22,9 +22,15 @@ import AdminTabs, { type AdminTabAccess } from "./AdminTabs";
  * behind `requireAdminPage()`, and `/admin/courses` repeats its own predicate
  * in `courses/layout.tsx`.
  *
- * The heading and the tab strip follow the caller: a course drafter gets
- * "Course admin" and a single tab, not the full committee console with twelve
- * sections they would only be redirected out of.
+ * The top of the page follows the caller and the address. `AdminTabs` draws a
+ * strip of the pages of the section the address belongs to (People,
+ * Programmes, Publicity, Site settings) that the caller may open, so a course
+ * drafter gets "Courses" and nothing else, not a console of sections they
+ * would only be redirected out of. It also draws the page's head (the section
+ * as a crumb, the page's own name as the heading) for every page that does not
+ * draw one itself. It is a client component because a layout is not told the
+ * address; what it may show still comes from the `access` object resolved
+ * here, on the server.
  *
  * CLOSED DURING A VIEW-AS SESSION. The course editors under `/admin/courses`
  * write to Firestore CLIENT-DIRECT (`courseMutations.ts` setDoc/updateDoc from
@@ -39,7 +45,9 @@ import AdminTabs, { type AdminTabAccess } from "./AdminTabs";
  * The notice rather than a redirect is deliberate: view-as exists to answer
  * "what does this member see", and bouncing to /dashboard would answer that
  * question wrongly by implying the member cannot reach the admin area at all.
- * The tab strip still renders for the same reason.
+ * The strip and the head still render for the same reason, and the head is
+ * drawn by `AdminTabs` here whatever the page says (`closed`): the page that
+ * would have drawn its own is not on the screen.
  */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
@@ -85,11 +93,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (viewingAs) {
     return (
       <div>
-        <AdminHeading access={access} />
-        <AdminTabs access={access} />
+        <AdminTabs access={access} closed />
         <div
           style={{
-            marginTop: "var(--space-8)",
+            marginTop: "var(--space-6)",
             padding: "var(--space-6)",
             border: "1px solid var(--color-border)",
             borderRadius: "var(--radius-lg)",
@@ -117,53 +124,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div>
-      <AdminHeading access={access} />
       <AdminTabs access={access} />
-      <div style={{ marginTop: "var(--space-8)" }}>{children}</div>
+      <div style={{ marginTop: "var(--space-6)" }}>{children}</div>
       {/* Per-page, one-admin-at-a-time presence lease (keyed on the current admin
           route). Fail-open: renders nothing unless another admin holds the page. */}
       <AdminPageLockBar />
-    </div>
-  );
-}
-
-/** Eyebrow + title. Shared by the open and the closed-during-view-as renders so
- *  the page identifies itself the same way in both. The title follows the
- *  caller: a course drafter and an appointed reviewer are both in here for one
- *  section, and "Committee controls" would be a promise neither can act on. */
-/**
- * The title for one caller, most-specific capability first.
- *
- * Every branch TESTS the capability it names, membership included. Reaching
- * "Membership" as the last else of a chain would have promised a section to
- * whoever falls through it next, which is exactly how a new capability gets
- * mislabelled. The final fallback names no section at all: the layout has
- * already turned away anybody holding none of these, so it is a floor rather
- * than a claim.
- */
-function adminHeadingTitle(access: AdminTabAccess): string {
-  if (access.isAdmin) return "Committee controls";
-  if (access.canAuthorCourses) return "Course admin";
-  if (access.isAdmissionsReviewer || access.canAuthorRounds) return "Admissions";
-  if (access.canManageMembership) return "Membership";
-  return "Admin tools";
-}
-
-function AdminHeading({ access }: { access: AdminTabAccess }) {
-  return (
-    <div style={{ marginBottom: "var(--space-8)" }}>
-      <div
-        style={{
-          color: "var(--color-text-muted)",
-          fontSize: "var(--text-sm)",
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
-          marginBottom: "var(--space-2)",
-        }}
-      >
-        Admin
-      </div>
-      <h1 style={{ fontSize: "var(--text-3xl)" }}>{adminHeadingTitle(access)}</h1>
     </div>
   );
 }

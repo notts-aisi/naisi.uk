@@ -182,7 +182,7 @@ is that helper inverted, for the loops that hold a raw document and are asking
 | --- | --- | --- |
 | `newsletter` | `POST /api/newsletter/[id]/send`, the only sender that addresses this row | the same send, alongside its email loop |
 | `events` | the new-event announcement, on publish, inline or queued to the `event-announcements` job | the same announcement |
-| `courses` | the cohort announcement composer, the weekly session nudge, the run catch-up nudge, the admissions deadline reminder job, the admissions stage-release job | an admissions decision, an allocation publish, the stage release |
+| `courses` | the cohort announcement composer, the weekly session nudge, the run catch-up nudge, the admissions deadline reminder job, the admissions stage-release job, the daily invitation reminder job | an admissions decision, an allocation publish, the stage release |
 | `tasks` | the five `/api/tasks/[id]/*` senders, the four worksheet circulation messages, the worksheet due-soon reminder | a mirror beside each of those |
 
 **The two opt-in rows share one push audience shape**, in
@@ -233,6 +233,18 @@ The `courses` email senders resolve their audience through `resolveCohortAudienc
 which drops anybody whose row is a stored `false` before a message is rendered.
 The two admissions jobs read the row per recipient, off the user document they
 fetch for the name, and carry on with the opt-out unset when that read fails.
+
+**Invitation reminders (`application-invitation-reminders`).** Once a day, from
+10:00 London and never after 18:00, to everybody invited on decision day who
+has not replied, from the day after they were told up to their own reply-by
+day. Grid, courses row, email only: somebody who has switched course emails
+off gets the invitation itself (transactional) and not the reminders, and a
+user document that cannot be read is not a refusal. One a day is
+`invitation.lastReminderOn` on the application, written before the send; the
+job claims no scheduler marker. It registers with `enabledByDefault: false`.
+The Send decisions page tells admins that invited people are reminded only
+while one of the last three scheduled tick receipts lists this job as run, so
+switching it on where the tick is not armed changes nothing on that page.
 
 The `tasks` senders run **their gates in series, any one a skip**, and the
 member's row is always the last. The order of the gates above it is per lane,
@@ -599,6 +611,19 @@ a fifth row cannot appear in the model and be missing from the page.
   un-awaited `POST /api/subscriptions/sync`); the push cells save themselves on
   toggle through a LEAF write at `profile.notifications.push`. Flipping a
   notification must not write somebody's half-typed preferred name.
+- **The Save button carries the member's own details too**, in the same
+  write: the name, the university email, and the degree and the graduation,
+  each of those two only when it changed. A change of either from one answer
+  to another also adds one entry to `studyChanges` on the member's document,
+  holding what the answer was and the server's time, so an admin can read the
+  earlier answer on that person's page (`/admin/members/[uid]`, and nowhere
+  else). The users rule refuses a member's own write that changes either
+  field without its entry, or that removes or rewrites an earlier one, so
+  that part of the write is built in one function,
+  `src/features/profile/studyChange.ts`, which the rules suite runs
+  (`scripts/rules-tests/tests/users-profile-self-edit.test.mjs`). The push
+  leaf write names neither field and is untouched by any of this. An admin's
+  edit of somebody's profile is not the member's change and adds no entry.
 - **The dirty flag** is what makes those two coexist. A push leaf write changes
   `users/{uid}`, the form's own snapshot listener fires with it, and refilling
   every field on each snapshot would throw away an unsaved edit. A one-shot
@@ -621,6 +646,48 @@ The per-device Enable control stays on the push card below
 (`src/features/pwa/PushSettings.tsx`), which now holds nothing but this
 hardware's controls. The card and the column read one state machine
 (`src/features/pwa/pushDevice.tsx`) so they cannot disagree.
+
+## Who a copy of the site may email
+
+The same code runs as the live site, as staging, on a laptop and inside the
+test harness, and all of them can reach the real sender. `sendEmail()` asks
+`src/lib/email/audience.ts` who this copy may write to, for every message,
+after the suppression list and before anything is rendered.
+
+| Where the code is running | Who receives |
+| --- | --- |
+| The live site: `EMAIL_AUDIENCE=everyone` AND the production project | Everyone |
+| The mail server is this machine (the harness's catcher) | Everything, because nothing can leave it |
+| `EMAIL_AUDIENCE` lists addresses | Those addresses |
+| The setting is missing, empty or unreadable | Nobody |
+
+Five things a maintainer has to keep:
+
+- **The harness's own addresses are no exception to the last two rows.** An
+  address under `e2e.invalid` cannot receive mail, so a real mail server has
+  nothing to do with a message to one but bounce it. It is handed over only
+  where everything is: a mail server on this machine. A suite that executes
+  the real send path sets its mail server to a loopback address, which is
+  what its catcher is.
+- **The setting is added on each backend itself, never in `apphosting.yaml`.**
+  Both backends read that file, so a value written there is a value staging
+  inherits. `tests/email-audience.test.mjs` fails if the file declares it.
+- **The live backend needs `EMAIL_AUDIENCE=everyone` before this code reaches
+  it.** Without the setting the live site holds its own mail. The Site status
+  page says so in red, and every held send logs an error line.
+- **`NODE_ENV` is never the test.** Staging builds in production mode.
+- **A held recipient is not a failure.** The send resolves, the caller carries
+  on exactly as it would on the live site, and an `emailSends` row at status
+  `held` records what would have gone. That is what lets a large send be
+  rehearsed on staging and counted afterwards. `SendResult.held` lists the
+  addresses for a caller that wants to say so.
+
+To see the answer without sending anything, open Site status or the
+Deliverability tab: both carry a panel that reads the same rule back.
+
+Not covered, on purpose: the sign-in provider's own verification and
+password-reset mail (sent by the provider to the address the person typed), and
+web push (it reaches only devices that subscribed on that copy of the site).
 
 ## Adding a sender
 

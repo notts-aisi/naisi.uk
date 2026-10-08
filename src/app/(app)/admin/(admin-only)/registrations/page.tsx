@@ -3,7 +3,11 @@
 import { useMemo, useState } from "react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
-import { AdminPage } from "@/features/admin/adminList";
+import Notice from "@/components/ui/Notice";
+import PageHead from "@/components/ui/PageHead";
+import SegmentedControl, { type SegmentedOption } from "@/components/ui/SegmentedControl";
+import { AdminLoadingBar, AdminPage, AdminTable } from "@/features/admin/adminList";
+import { AdminProblem } from "@/features/admin/adminPanels";
 import RegistrationFlags from "@/features/admin/RegistrationFlags";
 import RegistrationRow from "@/features/admin/RegistrationRow";
 import {
@@ -32,6 +36,14 @@ function matchesFilter(reg: RegistrationView, filter: RegistrationFilter): boole
   return reg.status === filter;
 }
 
+/**
+ * Sign-up problems: every account made through the email or the Google route,
+ * and how far each one got.
+ *
+ * Under `(admin-only)`, so `requireAdminPage()` in that group's layout is the
+ * gate. The rows and the counts both come from routes: the collection is shut
+ * to every browser.
+ */
 export default function AdminRegistrationsPage() {
   const [filter, setFilter] = useState<RegistrationFilter>("all");
   const summary = useRegistrationSummary();
@@ -39,7 +51,7 @@ export default function AdminRegistrationsPage() {
   const [deletingUid, setDeletingUid] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Client-side filtering off the cached rows — instant, no re-query per pill.
+  // Client-side filtering off the cached rows: instant, no re-query per pill.
   const filtered = useMemo(
     () => list.rows.filter((r) => matchesFilter(r, filter)),
     [list.rows, filter],
@@ -63,6 +75,16 @@ export default function AdminRegistrationsPage() {
     return c;
   }, [list.rows]);
 
+  // Each pill carries how many of the loaded rows it would show.
+  const options = useMemo<SegmentedOption<RegistrationFilter>[]>(
+    () =>
+      FILTERS.map((f) => ({
+        value: f.value,
+        label: list.loading ? f.label : `${f.label} · ${counts[f.value]}`,
+      })),
+    [counts, list.loading],
+  );
+
   async function handleDelete(uid: string) {
     setActionError(null);
     setDeletingUid(uid);
@@ -84,106 +106,101 @@ export default function AdminRegistrationsPage() {
   }
 
   return (
-    <AdminPage>
-      <div className={styles.page}>
-      <div className={styles.pageHead}>
-        <div>
-          <h1 className={styles.pageTitle}>Registrations</h1>
-          <p className={styles.pageLede}>
-            Sign-ups across the email and Google routes. <strong>Completed</strong>{" "}
-            means a profile was submitted, so the person is on Approvals or has
-            already been decided. Everything else is unfinished: an address never
-            confirmed, a password never set, or an account that can sign in but
-            has sent no profile. <strong>No profile yet</strong> is the one to
-            read before deleting, because nothing reaches Approvals until the
-            profile is in and the person may still mean to finish. The panel
-            below flags suspicious sign-up activity (bursts, a high reCAPTCHA
-            failure rate, a backlog of unfinished rows).
-          </p>
-        </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={list.loading || summary.loading}
-          onClick={() => {
-            void summary.reload();
-            list.reload();
-          }}
-        >
-          {list.loading ? "Refreshing…" : "Refresh"}
-        </Button>
-      </div>
+    <AdminPage wide>
+      <PageHead
+        crumb="Site settings"
+        title="Sign-up problems"
+        description="Every account made through the email or the Google route, and how far each one got."
+        actions={
+          <Button
+            variant="secondary"
+            disabled={list.loading || summary.loading}
+            onClick={() => {
+              void summary.reload();
+              list.reload();
+            }}
+          >
+            {list.loading ? "Refreshing…" : "Refresh"}
+          </Button>
+        }
+      />
+
+      <Notice role="note">
+        <strong>Completed</strong> means a profile was sent, so the person is in Join requests or
+        has already been decided. Everything else is unfinished: an address never confirmed, a
+        password never set, or an account that can sign in and has sent no profile. Read{" "}
+        <strong>No profile yet</strong> before deleting: nothing reaches Join requests until the
+        profile is in, and the person may still mean to finish.
+      </Notice>
 
       {/* A thin loading bar so it's obvious the page is fetching (the table is
           empty until the first load resolves). */}
       {(list.loading || summary.loading) && (
-        <div className={styles.loadingRow}>
-          <span className={styles.loadingBar} aria-hidden="true" />
-          <span className={styles.loadingText}>Loading registrations…</span>
-        </div>
+        <Card padding="md">
+          <AdminLoadingBar label="Loading sign-ups…" />
+        </Card>
       )}
 
       {summary.error ? (
-        <Card padding="md">
-          <p style={{ color: "var(--color-danger)", margin: 0 }}>{summary.error}</p>
-        </Card>
+        <AdminProblem>{summary.error}</AdminProblem>
       ) : summary.summary ? (
         <RegistrationFlags summary={summary.summary} />
       ) : null}
 
-      {actionError && (
-        <Card padding="sm">
-          <p style={{ color: "var(--color-danger)", margin: 0, fontSize: "var(--text-sm)" }}>
-            {actionError}
-          </p>
-        </Card>
-      )}
+      {actionError && <AdminProblem>{actionError}</AdminProblem>}
 
       <div className={styles.filters}>
-        {FILTERS.map((f) => (
-          <button
-            key={f.value}
-            type="button"
-            className={`${styles.filterChip} ${
-              filter === f.value ? styles.filterChipActive : ""
-            }`}
-            onClick={() => setFilter(f.value)}
-          >
-            {f.label}
-            {!list.loading && <span className={styles.filterCount}>{counts[f.value]}</span>}
-          </button>
-        ))}
+        <SegmentedControl<RegistrationFilter>
+          ariaLabel="Which sign-ups to show"
+          value={filter}
+          onChange={setFilter}
+          options={options}
+          size="sm"
+        />
       </div>
 
       {list.error ? (
-        <Card padding="md">
-          <p style={{ color: "var(--color-danger)", margin: 0 }}>{list.error}</p>
-        </Card>
+        <AdminProblem>{list.error}</AdminProblem>
       ) : list.loading ? null : filtered.length === 0 ? (
-        <Card padding="lg">
-          <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
-            No registrations{filter === "all" ? " yet" : " match this filter"}.
+        <Card padding="md">
+          <p className={styles.muted}>
+            No sign-ups{filter === "all" ? " yet" : " match this filter"}.
           </p>
         </Card>
       ) : (
         <>
-          <p className={styles.truncatedNote}>
-            Showing {filtered.length} of {list.rows.length} loaded
-            {list.hasMore ? " (more available)" : ""}. Filters apply to loaded
-            rows only; the flags panel above carries the full counts.
-          </p>
-          <div className={styles.list}>
-            {filtered.map((r) => (
-              <RegistrationRow
-                key={r.uid}
-                reg={r}
-                busy={deletingUid === r.uid}
-                onDelete={() => handleDelete(r.uid)}
-              />
-            ))}
-          </div>
-          {list.hasMore && (
-            <div className={styles.loadMore}>
+          <AdminTable caption="Sign-ups" minWidth="46rem" stackOnPhone>
+            <thead>
+              <tr>
+                <th scope="col" style={{ width: "38%" }}>
+                  Address
+                </th>
+                <th scope="col">Route</th>
+                <th scope="col">Got as far as</th>
+                <th scope="col">Created</th>
+                <th scope="col">
+                  <span className={styles.srOnly}>Delete</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r) => (
+                <RegistrationRow
+                  key={r.uid}
+                  reg={r}
+                  busy={deletingUid === r.uid}
+                  onDelete={() => handleDelete(r.uid)}
+                />
+              ))}
+            </tbody>
+          </AdminTable>
+          <div className={styles.footer}>
+            <p className={styles.truncatedNote}>
+              Showing {filtered.length} of {list.rows.length} loaded
+              {list.hasMore ? " (more available)" : ""}. Filters apply to loaded rows only; the
+              card above carries the full counts.
+            </p>
+            {list.hasMore && (
               <Button
                 variant="secondary"
                 size="sm"
@@ -192,11 +209,10 @@ export default function AdminRegistrationsPage() {
               >
                 {list.loadingMore ? "Loading…" : "Load more"}
               </Button>
-            </div>
-          )}
+            )}
+          </div>
         </>
       )}
-      </div>
     </AdminPage>
   );
 }

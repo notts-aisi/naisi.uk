@@ -3,6 +3,7 @@ import type {
   RsvpAnswer,
   RsvpDoc,
 } from "@/lib/firestore/events";
+import { own } from "@/lib/applications/keys";
 
 /**
  * Analysis behind the pizza order helper. The signup form collects toppings an
@@ -73,7 +74,7 @@ export function analyseToppingExclusions(
   let restrictedCount = 0;
 
   for (const r of rsvps) {
-    const { checked, other } = readAnswer(r.answers[question.id]);
+    const { checked, other } = readAnswer(own(r.answers, question.id));
     // Keep only known options, dedupe, and sort for a stable group key.
     const excl = Array.from(new Set(checked.filter((c) => optionSet.has(c)))).sort();
     for (const t of excl) {

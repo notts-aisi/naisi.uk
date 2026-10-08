@@ -1,0 +1,132 @@
+/*
+  OptionRow: a ticked box in a row.
+
+  The input is real and is kept out of sight, not out of reach: it still
+  takes focus, the keyboard and a form's submit. The box beside it is drawn.
+*/
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  cursor: pointer;
+}
+
+.boxed {
+  padding: var(--space-3) 0.875rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.plain {
+  padding: 0.625rem 0;
+}
+
+.input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.box {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 1px;
+  border: 1.5px solid var(--color-control-border);
+  border-radius: 5px;
+  background: var(--color-bg);
+  /* The tick and the pip are drawn in the label colour of an accent fill. */
+  color: var(--color-on-accent);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.round { border-radius: 50%; }
+
+.tick {
+  display: block;
+  opacity: 0;
+}
+
+.pip {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--text-ui);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.description {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+/* === Ticked === */
+
+.input:checked + .box {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.input:checked + .box .tick,
+.input:checked + .box .pip {
+  opacity: 1;
+}
+
+.boxed:has(.input:checked) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+/* === States === */
+
+@media (hover: hover) {
+  .boxed:hover { border-color: var(--color-border-strong); }
+  .boxed:has(.input:checked):hover { border-color: var(--color-accent-hover); }
+  .plain:hover .box { border-color: var(--color-text-muted); }
+  .plain:hover .input:checked + .box { border-color: var(--color-accent-hover); }
+}
+
+/* The ring goes round the whole row, since the input itself is out of sight. */
+.row:has(.input:focus-visible) {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+  border-radius: var(--radius-row);
+}
+
+.row:has(.input:disabled) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  /* Nothing: the row is already 44px at its shortest and wraps its words. */
+}

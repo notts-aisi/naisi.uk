@@ -1,5 +1,6 @@
 import "server-only";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { isApplicationForm } from "@/lib/applications/normalise";
 import { normalizeAdmissionRound } from "@/lib/firestore/admissionRounds";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { pickLiveRound, type LiveRoundCandidate } from "@/lib/admissions/liveRound";
@@ -40,12 +41,29 @@ import type { RoundWindowState } from "@/lib/admissions/window";
  * course's run ids. `array-contains-any` is a single-field index Firestore
  * provisions automatically, so this needs no composite index, and the site
  * runs a handful of rounds a year over a handful of runs per course.
+ *
+ * ## An application form is never the answer here
+ *
+ * A form is an admission round too, so both fetchers below can read one. They
+ * drop it, asking `isApplicationForm` of the stored document before the round
+ * normaliser discards the field that says what it is. A round found here is
+ * what a course page offers as that course's own intake: the round's dates,
+ * one target run, and a link the older apply flow answers. A form is one form
+ * for every programme of a term. It is not joined to a course by the runs a
+ * round names, and how a course page offers it is the form's own to decide.
+ * See `src/lib/admissions/formFence.ts`.
+ *
+ * What the form decided is in `fetchFormRound.ts`: a programme on the form is
+ * tied to the course it is for, and that course's page is handed the form in
+ * the shape below, with `form` set. Neither fetcher in THIS file ever sets
+ * it.
  */
 
 /**
  * The round as a STRANGER may see it. Five printable fields, every one of them
  * something the page shows: when the form opens, when it shuts, and when a
- * decision is promised. Plus the run ids, which are not printable at all.
+ * decision is promised. Plus the run ids, which are not printable at all, and
+ * `form`, which says whether this is the term's application form.
  */
 export type CourseLiveRound = {
   id: string;
@@ -68,6 +86,17 @@ export type CourseLiveRound = {
    * different intake than the deadline above them.
    */
   outcomeRunIds: string[];
+  /**
+   * Set when this is the term's APPLICATION FORM, which speaks for a course
+   * because one of the form's programmes is tied to it, and null for a round
+   * of the older kind. A page reads it for two things. To offer the form the
+   * way the form is offered: "Apply by Sun 18 Oct", and `applyPath`, the one
+   * address for everybody, signed in or not, built by the form's own code.
+   * And for `starts`, when the tied programme begins as its lead wrote it
+   * ("w/c 26 Oct"), which a page prints only when the form names no run to
+   * take a start date from.
+   */
+  form: { applyPath: string; starts: string } | null;
 };
 
 /**
@@ -112,9 +141,9 @@ export async function fetchLiveRoundForRuns(
     .limit(50)
     .get();
 
-  const candidates: RoundCandidate[] = snap.docs.map((doc) =>
-    toCandidate(normalizeAdmissionRound(doc.id, doc.data() ?? {})),
-  );
+  const candidates: RoundCandidate[] = snap.docs
+    .filter((doc) => !isApplicationForm(doc.data()))
+    .map((doc) => toCandidate(normalizeAdmissionRound(doc.id, doc.data() ?? {})));
 
   const best = pickLiveRound(candidates, now);
   if (!best) return null;
@@ -164,6 +193,9 @@ function toCourseLiveRound(
     closesAt: window.closesAt,
     decisionsByDate: round.decisionsByDate,
     outcomeRunIds: round.outcomeRunIds,
+    // A round found by either fetcher here is of the older kind: both drop a
+    // form before it can be ranked.
+    form: null,
   };
 }
 
@@ -207,9 +239,9 @@ export async function listLiveRoundsByCourse(
   const snap = await db.collection(ROUNDS_COLLECTION).limit(100).get();
   if (snap.empty) return { rounds: out, runs: runToCourse };
 
-  const rounds = snap.docs.map((doc) =>
-    normalizeAdmissionRound(doc.id, doc.data() ?? {}),
-  );
+  const rounds = snap.docs
+    .filter((doc) => !isApplicationForm(doc.data()))
+    .map((doc) => normalizeAdmissionRound(doc.id, doc.data() ?? {}));
 
   // Runs a round names that the caller did not already hold, resolved in one
   // batch read so a term with three fellowship runs costs one round trip.

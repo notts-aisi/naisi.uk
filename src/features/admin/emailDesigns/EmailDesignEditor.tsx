@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { doc, onSnapshot, serverTimestamp, updateDoc } from "firebase/firestore";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
 import { Field, Input } from "@/components/ui/Input";
+import PageHead from "@/components/ui/PageHead";
 import ResponsiveSelect, {
   type ResponsiveSelectOption,
 } from "@/components/ui/ResponsiveSelect";
@@ -162,16 +163,24 @@ export default function EmailDesignEditor({ templateId }: Props) {
   }
 
   if (loading) {
-    return <p style={{ color: "var(--color-text-muted)" }}>Loading template…</p>;
+    return (
+      <div className={styles.wrap}>
+        <PageHead crumb={<EmailCrumb />} title={DEFAULT_LABELS[templateId]} />
+        <p className={styles.statusLine}>Loading this email…</p>
+      </div>
+    );
   }
   if (!template) {
     return (
-      <Card padding="lg">
-        <p>
-          This template doesn&apos;t exist in Firestore yet. Visit the Email designs list to
-          trigger the seed, then come back here.
-        </p>
-      </Card>
+      <div className={styles.wrap}>
+        <PageHead
+          crumb={<EmailCrumb />}
+          title={DEFAULT_LABELS[templateId]}
+          description="This email has not been stored yet. Open the list of sign-up emails, which stores the built-in wording for any that are missing, then come back here."
+          meta={<Link href="/admin/email-designs">Back to Sign-up emails</Link>}
+        />
+        {error && <p className={`${styles.statusLine} ${styles.statusError}`}>{error}</p>}
+      </div>
     );
   }
 
@@ -179,30 +188,28 @@ export default function EmailDesignEditor({ templateId }: Props) {
 
   return (
     <div className={styles.wrap}>
-      <header className={styles.header}>
-        <div>
-          <h2 className={styles.title}>{DEFAULT_LABELS[templateId]}</h2>
-          <p className={styles.tokenHint}>
-            Tokens you can use in the subject + body:{" "}
-            <code>{"{firstName}"}</code>, <code>{"{fullName}"}</code>,{" "}
-            <code>{"{preferredName}"}</code>, <code>{"{fieldOfStudy}"}</code>,{" "}
-            <code>{"{statusLabel}"}</code>
-            {templateId === "rejected-custom" ? (
-              <>
-                , <code>{"{customReason}"}</code>
-              </>
-            ) : null}
-          </p>
-        </div>
-        {dirty ? (
-          <Badge tone="warning">Unsaved changes</Badge>
-        ) : (
-          <Badge tone="neutral">Saved</Badge>
-        )}
-      </header>
+      <PageHead
+        crumb={<EmailCrumb />}
+        title={DEFAULT_LABELS[templateId]}
+        badges={
+          dirty ? <Badge tone="warning">Unsaved changes</Badge> : <Badge tone="neutral">Saved</Badge>
+        }
+      />
+
+      <p className={styles.tokenHint}>
+        Tokens you can use in the subject and the body:{" "}
+        <code>{"{firstName}"}</code>, <code>{"{fullName}"}</code>,{" "}
+        <code>{"{preferredName}"}</code>, <code>{"{fieldOfStudy}"}</code>,{" "}
+        <code>{"{statusLabel}"}</code>
+        {templateId === "rejected-custom" ? (
+          <>
+            , <code>{"{customReason}"}</code>
+          </>
+        ) : null}
+      </p>
 
       <div className={styles.grid}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+        <div className={styles.column}>
           <Field
             id="email-subject"
             label="Subject"
@@ -272,7 +279,7 @@ export default function EmailDesignEditor({ templateId }: Props) {
             )}
             {testStatus.kind === "sent" && testStatus.addresses.length === 0 && (
               <span className={`${styles.statusLine} ${styles.statusError}`}>
-                Test reported as sent but no addresses came back — check server logs.
+                Test reported as sent but no addresses came back. Check the server logs.
               </span>
             )}
             {testStatus.kind === "error" && (
@@ -292,5 +299,16 @@ export default function EmailDesignEditor({ templateId }: Props) {
         />
       </div>
     </div>
+  );
+}
+
+/** The way back, above the email's name. */
+function EmailCrumb() {
+  return (
+    <>
+      <span>Site settings</span>
+      <span aria-hidden="true">/</span>
+      <Link href="/admin/email-designs">Sign-up emails</Link>
+    </>
   );
 }

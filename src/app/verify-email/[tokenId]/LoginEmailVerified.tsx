@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithCustomToken, signInWithEmailAndPassword } from "firebase/auth";
 import { getClientAuth } from "@/lib/firebase/client";
+import { formJoinReturn } from "@/lib/applications/applicant/join";
 import { Field } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import Button from "@/components/ui/Button";
@@ -66,9 +67,17 @@ export default function LoginEmailVerified({
   // they were halfway through instead of on /pending-approval.
   const base =
     audience === "collaborator" ? "/register?type=collaborator" : "/register";
-  const continueUrl = next
-    ? `${base}${base.includes("?") ? "&" : "?"}next=${encodeURIComponent(next)}`
-    : base;
+  // An application form takes the join request on its own first step, so a
+  // member who started on one carries on there and is never shown the
+  // register page's profile form. Only an address that form itself marked is
+  // taken this way (`formJoinReturn` matches its whole shape), and `next` was
+  // held to the funnel allowlist by the server before it reached this page.
+  const onTheForm = audience === "member" ? formJoinReturn(next) : null;
+  const continueUrl = onTheForm
+    ? onTheForm
+    : next
+      ? `${base}${base.includes("?") ? "&" : "?"}next=${encodeURIComponent(next)}`
+      : base;
 
   // Sign in with the custom token + establish the session, then ask for a password.
   useEffect(() => {
@@ -164,13 +173,13 @@ export default function LoginEmailVerified({
   if (phase === "failed") {
     return (
       <>
-        <h1 style={{ fontSize: "var(--text-2xl)", margin: "0 0 var(--space-3)" }}>
+        <h1>
           Email confirmed
         </h1>
-        <p style={{ color: "var(--color-text-muted)", margin: "0 0 var(--space-4)" }}>
+        <p>
           Your email is confirmed, but we couldn&apos;t sign you in automatically.
           Head to the{" "}
-          <a href="/login" style={{ color: "var(--color-accent)" }}>
+          <a href="/login">
             sign-in page
           </a>{" "}
           and use &quot;Forgot password?&quot; to set a password and continue.
@@ -185,12 +194,12 @@ export default function LoginEmailVerified({
   if (phase === "stale-session") {
     return (
       <>
-        <h1 style={{ fontSize: "var(--text-2xl)", margin: "0 0 var(--space-3)" }}>
+        <h1>
           Password saved
         </h1>
-        <p style={{ color: "var(--color-text-muted)", margin: "0 0 var(--space-4)" }}>
+        <p>
           Your password is set, but we couldn&apos;t keep you signed in. Head to the{" "}
-          <a href="/login" style={{ color: "var(--color-accent)" }}>
+          <a href="/login">
             sign-in page
           </a>{" "}
           and sign in with the password you just chose to finish your application.
@@ -202,10 +211,10 @@ export default function LoginEmailVerified({
   if (phase === "signing-in") {
     return (
       <>
-        <h1 style={{ fontSize: "var(--text-2xl)", margin: "0 0 var(--space-3)" }}>
+        <h1>
           Email confirmed
         </h1>
-        <p style={{ color: "var(--color-text-muted)", margin: "0 0 var(--space-4)" }}>
+        <p>
           Signing you in…
         </p>
       </>
@@ -215,22 +224,14 @@ export default function LoginEmailVerified({
   // set-password / saving
   return (
     <>
-      <h1 style={{ fontSize: "var(--text-2xl)", margin: "0 0 var(--space-3)" }}>
+      <h1>
         Set your password
       </h1>
-      <p style={{ color: "var(--color-text-muted)", margin: "0 0 var(--space-5)" }}>
+      <p>
         Your email is confirmed. Choose a password to finish setting up your
         account.
       </p>
-      <form
-        onSubmit={onSetPassword}
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "var(--space-4)",
-          textAlign: "left",
-        }}
-      >
+      <form onSubmit={onSetPassword}>
         <div>
           <Field id="set-password" label="Password">
             <PasswordInput
@@ -241,20 +242,10 @@ export default function LoginEmailVerified({
               required
             />
           </Field>
-          <p
-            style={{
-              marginTop: "var(--space-2)",
-              fontSize: "var(--text-sm)",
-              color: "var(--color-text-muted)",
-            }}
-          >
-            At least 6 characters.
-          </p>
+          <p>At least 6 characters.</p>
         </div>
         {error && (
-          <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>
-            {error}
-          </p>
+          <p style={{ color: "var(--color-danger-text)" }}>{error}</p>
         )}
         <Button type="submit" fullWidth size="lg" disabled={phase === "saving"}>
           {phase === "saving" ? "Saving…" : "Set password & continue"}

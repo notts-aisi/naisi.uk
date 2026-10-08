@@ -1,10 +1,13 @@
 import "server-only";
 import { FieldValue, type Firestore, type Query } from "firebase-admin/firestore";
+import { QUESTION_SETS_SUBCOLLECTION } from "@/lib/applications/model";
+import { DECISIONS_COLLECTION } from "@/lib/applications/staffRepo";
 import { APPLICATIONS_COLLECTION } from "@/lib/firestore/admissionApplications";
 import {
   ROUNDS_COLLECTION,
   type AdmissionRoundDoc,
 } from "@/lib/firestore/admissionRounds";
+import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import { DATA_EXPORTS_COLLECTION } from "@/lib/firestore/dataExports";
 import {
   DESTROY_AUDITS_COLLECTION,
@@ -29,6 +32,16 @@ import { writeRecordsForRound } from "./memberRecordSync";
  * dev, and data somebody has decided must not be retained. It removes the
  * round, its stages, every application on it with the access-requirements row
  * beside it, and every review written about those applications.
+ *
+ * A round that is an APPLICATION FORM (`src/lib/applications/`) keeps three
+ * more kinds of document, and they go by the same rule: its question sets,
+ * the decision document kept beside each application (each lead's decision,
+ * the outcome picked for a pooled applicant, an admin's exception), and the
+ * log lines written about those decisions. A decision is a judgement about a
+ * named applicant, so it is destroyed with the application it is about and
+ * never left behind. What decision day PUBLISHED lives on the application
+ * itself, and that is what the member record below copies before anything is
+ * removed.
  *
  * This module is the engine. The routes own WHO and WHETHER (admin only, a
  * byte-equal typed confirmation, the refusal sentences); everything below
@@ -102,14 +115,21 @@ import { writeRecordsForRound } from "./memberRecordSync";
  *   round that has gone may sit there for good. Harmless, by the
  *   random-suffix argument, and cheaper than a manifest line the dialog
  *   would have to explain.
- * - `courseAudit`. The decide route writes a line naming the appointee when
- *   somebody is made a facilitator out of a round, and that line survives.
- *   It is keyed to the RUN rather than the round, it is the run's operational
- *   history rather than the intake's, and the run outlives the round for the
- *   same reason the seats do. It is applicant-identifying text, so it is
- *   named here rather than left to be discovered; it is not on the manifest
- *   because the manifest's retained lines are the two append-only logs the
- *   round itself wrote.
+ * - `courseAudit` rows keyed to a RUN. The decide route writes a line naming
+ *   the appointee when somebody is made a facilitator out of a round, and
+ *   that line survives. It is keyed to the run rather than the round, it is
+ *   the run's operational history rather than the intake's, and the run
+ *   outlives the round for the same reason the seats do. It is
+ *   applicant-identifying text, so it is named here rather than left to be
+ *   discovered; it is not on the manifest because the manifest's retained
+ *   lines are the two append-only logs the round itself wrote.
+ *
+ *   The rows keyed to THIS ROUND are the other case and they DO go: an
+ *   application form's routes log each decision under the form's own id
+ *   (`roundId`, see `courseAudit.ts`), those lines describe applications this
+ *   cascade is deleting, and a log line saying what was decided about a named
+ *   applicant is the decision in sentence form. The run cascade drains the
+ *   rows keyed to its run on exactly that reasoning.
  *
  * ## No email
  *
@@ -124,18 +144,21 @@ import { writeRecordsForRound } from "./memberRecordSync";
 // ---------------------------------------------------------------------------
 
 /**
- * Rows per page for the review and stage drains. Applications page smaller
- * (below) because each one commits two deletes.
+ * Rows per page for every drain that deletes one document per row.
+ * Applications page smaller (below) because each one commits up to three.
  */
 const DESTROY_PAGE_SIZE = 250;
 
 /**
- * Applications per page. Each row commits its own delete AND the delete of
- * its `admissionApplicationPrivate` twin in the same batch, against
- * Firestore's 500-write cap. That is the `accountDeletion.ts` arithmetic, restated
- * here because the reason is the pairing rather than the collection.
+ * Applications per page. Each row commits its own delete AND the deletes of
+ * the two documents that share its id, in the same batch: its
+ * `admissionApplicationPrivate` twin, and the decision document an
+ * application form keeps beside it. Three writes a row against Firestore's
+ * 500-write cap, so 150 rows is 450 at the very most. That is the
+ * `accountDeletion.ts` arithmetic, restated here because the reason is the
+ * pairing rather than the collection.
  */
-const APPLICATION_PAGE_SIZE = 200;
+const APPLICATION_PAGE_SIZE = 150;
 
 /**
  * Documents one invocation may delete before returning `complete: false`.
@@ -192,7 +215,17 @@ export type RoundDestroyCounts = {
   /** The access-requirements rows, addressed by their application's id. */
   applicationPrivateRows: number;
   reviews: number;
+  /**
+   * Decision documents: what each lead decided about an application, the
+   * outcome picked for a pooled applicant, and an admin's exception. One per
+   * application at most, and only on a round that is an application form.
+   */
+  decisions: number;
   stages: number;
+  /** The question sets of an application form. None on any other round. */
+  questionSets: number;
+  /** The log lines written about this round's decisions. See the module comment. */
+  auditRows: number;
   /** Records guaranteed before anything is deleted. Not a deletion. */
   memberRecordEntriesWritten: number;
   /** People who lose the Admissions nav flag because nothing else names them. */
@@ -360,6 +393,17 @@ async function drainQuery(
  * contract is one number per stage, and the private rows are charged no
  * budget of their own (there is at most one per application, so the
  * applications already bound them).
+ *
+ * ## The decision document rides in the same batch
+ *
+ * An application form keeps a decision document AT THE APPLICATION'S OWN ID.
+ * The `decisions` stage before this one has already drained every one that
+ * names this round, so normally there is nothing left here to find. This is
+ * the half that does not depend on a field: whatever a decision document
+ * says about itself, the one at an application's id is that applicant's, and
+ * it cannot be left standing once the application it judged has gone. It is
+ * read first and counted for the reason the private row is, and its total
+ * lands in `extra.decisions`, beside what the stage drained.
  */
 async function drainApplications(
   db: Firestore,
@@ -387,13 +431,18 @@ async function drainApplications(
     }
     prevFirstId = firstId;
 
-    const privateRefs = snap.docs.map((doc) =>
-      db.collection(APPLICATION_PRIVATE_COLLECTION).doc(doc.id),
+    // One round trip for both twins. `getAll` answers in the order it was
+    // asked, so the first half is the private rows and the second the decisions.
+    const twins = await db.getAll(
+      ...snap.docs.map((doc) => db.collection(APPLICATION_PRIVATE_COLLECTION).doc(doc.id)),
+      ...snap.docs.map((doc) => db.collection(DECISIONS_COLLECTION).doc(doc.id)),
     );
-    const livePrivate = (await db.getAll(...privateRefs)).filter((doc) => doc.exists);
+    const livePrivate = twins.slice(0, snap.size).filter((doc) => doc.exists);
+    const liveDecisions = twins.slice(snap.size).filter((doc) => doc.exists);
 
     const batch = db.batch();
     for (const doc of livePrivate) batch.delete(doc.ref);
+    for (const doc of liveDecisions) batch.delete(doc.ref);
     for (const doc of snap.docs) batch.delete(doc.ref);
     await batch.commit();
 
@@ -401,6 +450,7 @@ async function drainApplications(
     budget.remaining -= snap.size;
     extra.applicationPrivateRows =
       (extra.applicationPrivateRows ?? 0) + livePrivate.length;
+    extra.decisions = (extra.decisions ?? 0) + liveDecisions.length;
 
     if (snap.size < limit) return { deleted, drained: true };
   }
@@ -412,6 +462,30 @@ async function drainApplications(
 // ---------------------------------------------------------------------------
 
 /**
+ * Everybody a stored `programmes` map names: each programme's lead and its
+ * reviewers. Read off the stored map as it is, with no id or shape filter,
+ * because the question is who a document mentions and not which of its
+ * entries the form would show.
+ */
+function namedOnProgrammes(programmes: unknown): string[] {
+  if (!programmes || typeof programmes !== "object" || Array.isArray(programmes)) return [];
+  const named: string[] = [];
+  for (const entry of Object.values(programmes as Record<string, unknown>)) {
+    if (!entry || typeof entry !== "object") continue;
+    const programme = entry as Record<string, unknown>;
+    if (typeof programme.leadUid === "string" && programme.leadUid) {
+      named.push(programme.leadUid);
+    }
+    if (Array.isArray(programme.reviewerUids)) {
+      for (const uid of programme.reviewerUids) {
+        if (typeof uid === "string" && uid) named.push(uid);
+      }
+    }
+  }
+  return named;
+}
+
+/**
  * The people who lose `users.admissionsReviewer` when this round goes.
  *
  * ONE predicate, used by the manifest and by the cascade, so the number an
@@ -421,9 +495,19 @@ async function drainApplications(
  * round is excluded by id, which is what lets the sweep run while the round
  * document is still there.
  *
+ * An application form names people a second way: each programme in its
+ * `programmes` map has a lead and its own reviewers. The round's
+ * `reviewerUids` is kept as their union (`src/lib/applications/roles.ts`), so
+ * that list normally says it all, but it is read here as a second witness and
+ * not as the only one, on both sides of the predicate: everybody THIS round's
+ * programmes name is a candidate to lose the flag, and everybody ANOTHER
+ * round's programmes name keeps it. A list that has drifted from its
+ * programmes, or one longer than the round's own reader keeps, then still
+ * gives the right answer.
+ *
  * Every round is read in one query rather than two queries per person: a
  * round names up to forty reviewers, and rounds are counted in tens. The read
- * is projected down to the two fields the answer needs.
+ * is projected down to the three fields the answer needs.
  *
  * Two filters after that, and both are load-bearing rather than defensive:
  *
@@ -441,22 +525,21 @@ async function reviewerFlagsToClear(
   db: Firestore,
   round: Pick<AdmissionRoundDoc, "id" | "reviewerUids" | "finalDeciderUid">,
 ): Promise<string[]> {
-  const named = [
-    ...new Set([
-      ...round.reviewerUids,
-      ...(round.finalDeciderUid ? [round.finalDeciderUid] : []),
-    ]),
-  ];
-  if (named.length === 0) return [];
-
   const roundsSnap = await db
     .collection(ROUNDS_COLLECTION)
-    .select("reviewerUids", "finalDeciderUid")
+    .select("reviewerUids", "finalDeciderUid", "programmes")
     .get();
+  const namedHere = new Set<string>([
+    ...round.reviewerUids,
+    ...(round.finalDeciderUid ? [round.finalDeciderUid] : []),
+  ]);
   const namedElsewhere = new Set<string>();
   for (const doc of roundsSnap.docs) {
-    if (doc.id === round.id) continue;
     const data = doc.data() ?? {};
+    if (doc.id === round.id) {
+      for (const uid of namedOnProgrammes(data.programmes)) namedHere.add(uid);
+      continue;
+    }
     const reviewers = data.reviewerUids;
     if (Array.isArray(reviewers)) {
       for (const uid of reviewers) if (typeof uid === "string") namedElsewhere.add(uid);
@@ -464,9 +547,10 @@ async function reviewerFlagsToClear(
     if (typeof data.finalDeciderUid === "string" && data.finalDeciderUid) {
       namedElsewhere.add(data.finalDeciderUid);
     }
+    for (const uid of namedOnProgrammes(data.programmes)) namedElsewhere.add(uid);
   }
 
-  const candidates = named.filter((uid) => !namedElsewhere.has(uid));
+  const candidates = [...namedHere].filter((uid) => !namedElsewhere.has(uid));
   if (candidates.length === 0) return [];
 
   const userDocs = await db.getAll(
@@ -523,21 +607,45 @@ export async function countRoundDestroyTargets(
     .get();
   const applicationIds = idSnap.docs.map((doc) => doc.id);
 
+  // The decision documents are found the two ways the cascade removes them,
+  // and counted ONCE each: by naming this round, and by sitting at one of its
+  // applications' ids. The ids are collected into one set because a document
+  // normally satisfies both, and a manifest that counted it twice would
+  // promise more deletions than the receipt then reports.
+  const decisionIdSnap = await db
+    .collection(DECISIONS_COLLECTION)
+    .where("roundId", "==", round.id)
+    .select()
+    .get();
+  const decisionIds = new Set(decisionIdSnap.docs.map((doc) => doc.id));
+
   const privateCounts = await Promise.all(
     chunk(applicationIds, APPLICATION_PAGE_SIZE).map(async (batch) => {
+      // Both twins in one round trip, private rows first, as the cascade reads them.
       const docs = await db.getAll(
         ...batch.map((id) => db.collection(APPLICATION_PRIVATE_COLLECTION).doc(id)),
+        ...batch.map((id) => db.collection(DECISIONS_COLLECTION).doc(id)),
       );
-      return docs.filter((doc) => doc.exists).length;
+      for (const doc of docs.slice(batch.length)) if (doc.exists) decisionIds.add(doc.id);
+      return docs.slice(0, batch.length).filter((doc) => doc.exists).length;
     }),
   );
 
-  const [reviews, stages, reviewerFlags, emailSendRows, dataExportRows] =
+  const [reviews, stages, questionSets, auditRows, reviewerFlags, emailSendRows, dataExportRows] =
     await Promise.all([
       countAgg(db.collection(REVIEWS_COLLECTION).where("roundId", "==", round.id)),
       countAgg(
         db.collection(ROUNDS_COLLECTION).doc(round.id).collection(STAGES_SUBCOLLECTION),
       ),
+      countAgg(
+        db
+          .collection(ROUNDS_COLLECTION)
+          .doc(round.id)
+          .collection(QUESTION_SETS_SUBCOLLECTION),
+      ),
+      // The log lines an application form's routes wrote under this round's id.
+      // Rows keyed to a run carry no `roundId` and are not this cascade's.
+      countAgg(db.collection(COURSE_AUDIT_COLLECTION).where("roundId", "==", round.id)),
       reviewerFlagsToClear(db, round).then((uids) => uids.length),
       // Admission mail logs `referenceId: roundId` (see admissionEmails.ts), so
       // this is "how much of the delivery log mentions this round". Retained.
@@ -554,7 +662,10 @@ export async function countRoundDestroyTargets(
     applications: applicationIds.length,
     applicationPrivateRows: privateCounts.reduce((a, b) => a + b, 0),
     reviews,
+    decisions: decisionIds.size,
     stages,
+    questionSets,
+    auditRows,
     // One record per application, guaranteed before anything is deleted. The
     // destroy writes the entries that are missing, so the WRITES it makes can
     // be fewer; this is how many records must exist for it to proceed.
@@ -763,30 +874,40 @@ function writeTotals(sweep: RecordSweepState): Record<string, number> {
  *  2. THE `destroying` MARKER on the round, after the records are safe and
  *     before the first delete, so a round that is half destroyed between
  *     passes cannot be reopened to applicants. Also see the module comment.
- *  3. Reviews. They are written ABOUT the applications, so they go first: a
- *     review whose application is gone names nothing, and the review rows are
- *     the only place a reviewer's notes live until step 1 has copied them.
- *  4. Applications, each with its access-requirements row in the SAME batch.
- *     See `drainApplications` for why the pairing is not negotiable.
- *  5. Stages, the round's question blocks. After the applications, because an
- *     answer is keyed by the stage it was given in and the stage text is what
- *     makes a surviving answer legible.
- *  6. The reviewer nav flags, while the round document still exists, so the
+ *  3. Reviews, then decisions. Both are written ABOUT the applications, so
+ *     they go first: a review or a decision whose application is gone names
+ *     nothing, and the review rows are the only place a reviewer's notes live
+ *     until step 1 has copied them. The decisions are found by the round they
+ *     name here, and again by address in step 4.
+ *  4. Applications, each with its access-requirements row and any decision
+ *     document still at its id in the SAME batch. See `drainApplications` for
+ *     why the pairing is not negotiable.
+ *  5. Stages and question sets, the round's questions. After the
+ *     applications, because an answer is keyed by the stage or the set it was
+ *     given in, and that text is what makes a surviving answer legible.
+ *  6. The log lines keyed to this round, once the documents they describe
+ *     have gone.
+ *  7. The reviewer nav flags, while the round document still exists, so the
  *     "named on another round" predicate can exclude this one by id.
- *  7. The round document LAST, then the audit row's completion stamp. While
+ *  8. The round document LAST, then the audit row's completion stamp. While
  *     the round exists a resumed cascade can still find everything by name;
  *     deleting it is the write that makes the destroy final.
  *
  * The drain loop runs FULL PASSES until a pass deletes nothing. Pass one does
  * the work and the mandatory zero-delete pass is the verification: nothing
  * client-side can write any of these collections (`admissionApplications`,
- * `admissionReviews` and the stages are all `allow read, write: if false`), so
- * a pass that finds them empty is a pass that found them permanently empty.
+ * `admissionReviews`, `admissionDecisions`, the stages, the question sets and
+ * `courseAudit` are all write-shut to every client), so a pass that finds them
+ * empty found them empty of anything a browser could put back. A route can
+ * still write one while a pass is running (a lead deciding as an admin
+ * destroys), and the same loop is what catches it: that write makes the pass
+ * a deleting one, and the cascade does not finish until a whole pass deletes
+ * nothing.
  *
  * THE ROUND MUST STILL EXIST. There is no finishing mode for a cascade whose
  * round document has already gone: the route reads the round first and answers
  * 404 without ever calling this, and a mode nothing can reach is a mode nothing
- * tests. The window it would have covered is between the round delete in step 7
+ * tests. The window it would have covered is between the round delete in step 8
  * and the completion stamp on the line after it, and what it leaves behind is an
  * audit row with no `completedAt` on a round id that no longer resolves. That
  * row is a cosmetic wart in the destroy log rather than a hazard: everything is
@@ -874,7 +995,7 @@ export async function destroyRoundCascade(
       .doc(roundId)
       .update({ destroying: true, destroyAuditId: auditId });
 
-    // ---- 3-5. The drain ---------------------------------------------------
+    // ---- 3-6. The drain ---------------------------------------------------
     const stages: { key: string; drain: () => Promise<DrainResult> }[] = [
       {
         key: "reviews",
@@ -883,6 +1004,19 @@ export async function destroyRoundCascade(
             db,
             REVIEWS_COLLECTION,
             () => db.collection(REVIEWS_COLLECTION).where("roundId", "==", roundId),
+            budget,
+          ),
+      },
+      {
+        // Every decision document that names this round. The ones that do not
+        // say which round they are for are taken by address with their
+        // application, in the stage below.
+        key: "decisions",
+        drain: () =>
+          drainQuery(
+            db,
+            DECISIONS_COLLECTION,
+            () => db.collection(DECISIONS_COLLECTION).where("roundId", "==", roundId),
             budget,
           ),
       },
@@ -901,6 +1035,32 @@ export async function destroyRoundCascade(
                 .collection(ROUNDS_COLLECTION)
                 .doc(roundId)
                 .collection(STAGES_SUBCOLLECTION),
+            budget,
+          ),
+      },
+      {
+        key: "questionSets",
+        drain: () =>
+          drainQuery(
+            db,
+            QUESTION_SETS_SUBCOLLECTION,
+            () =>
+              db
+                .collection(ROUNDS_COLLECTION)
+                .doc(roundId)
+                .collection(QUESTION_SETS_SUBCOLLECTION),
+            budget,
+          ),
+      },
+      {
+        // Only the rows that carry this round's id. A row keyed to a run has
+        // no `roundId` and is the run's to keep or remove.
+        key: "auditRows",
+        drain: () =>
+          drainQuery(
+            db,
+            COURSE_AUDIT_COLLECTION,
+            () => db.collection(COURSE_AUDIT_COLLECTION).where("roundId", "==", roundId),
             budget,
           ),
       },
@@ -946,7 +1106,7 @@ export async function destroyRoundCascade(
       };
     }
 
-    // ---- 6. The nav flags, while the round is still readable --------------
+    // ---- 7. The nav flags, while the round is still readable --------------
     // The count lands on the audit row as its own field rather than in
     // `totals`, which is the map that becomes `deleted`. Turning a boolean off
     // on somebody's user document is not a row this destroy removed.
@@ -954,7 +1114,7 @@ export async function destroyRoundCascade(
     await stampReviewerFlagsCleared(db, auditId, flagsCleared);
     sweep = { ...sweep, reviewerFlagsCleared: flagsCleared };
 
-    // ---- 7. The round document, then the completion stamp -----------------
+    // ---- 8. The round document, then the completion stamp -----------------
     await db.collection(ROUNDS_COLLECTION).doc(roundId).delete();
     totals.round = 1;
     await accumulateDestroyAudit(db, auditId, nonZero(totals));

@@ -3,6 +3,8 @@
 import { useId, useState } from "react";
 import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
+import OptionRow from "@/components/ui/OptionRow";
+import { useHydrated } from "@/hooks/useHydrated";
 import { attributedSource } from "@/lib/campaign/attribution";
 import styles from "./SubscribeForm.module.css";
 
@@ -13,7 +15,11 @@ type ChannelOption = {
   label: string;
   /** Optional one-line description shown beneath the label. */
   description?: string;
-  /** Whether the box is ticked when the form first renders. */
+  /**
+   * Whether the box is ticked when the form first renders. Leave it out: a
+   * list is something a person ticks, and the homepage ticks nothing for
+   * them. It is still honoured for a page whose whole point is one list.
+   */
   defaultChecked?: boolean;
 };
 
@@ -76,12 +82,24 @@ function defaultSuccessMessage(
 
 /**
  * Single-form, multi-channel subscribe widget. Renders a name field, an
- * email field, and one checkbox per channel option. Submits all selected
- * channels in a single call to /api/subscriptions, which sends one
+ * email field, and one ticked box in a row per channel option. Submits all
+ * selected channels in a single call to /api/subscriptions, which sends one
  * confirmation email listing them.
  *
  * If only one channel is passed, the checkbox UI is suppressed and the
  * form auto-subscribes to that channel on submit.
+ *
+ * Rules a maintainer has to keep:
+ *
+ *  - NOTHING IS SENT UNTIL A LIST IS TICKED. With more than one list on
+ *    offer the form refuses, and says so, until the person has chosen.
+ *  - THE BOXES ARE THE BROWSER'S OWN until the form is sent. The fields are
+ *    read from the form when it is submitted, never mirrored in state, so
+ *    what somebody types before the page's script arrives is still there
+ *    when it does. The button stays disabled until then, because a press
+ *    before that would be the browser's own submission of a form nothing is
+ *    listening to.
+ *  - The form promises what an email is, never how many there will be.
  */
 export default function SubscribeForm({
   channels,
@@ -92,40 +110,34 @@ export default function SubscribeForm({
   hint,
   successMessage,
 }: Props) {
-  const [email, setEmail] = useState(initialEmail);
-  const [name, setName] = useState(initialName);
-  const [selected, setSelected] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(channels.map((c) => [c.id, Boolean(c.defaultChecked)])),
-  );
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const hydrated = useHydrated();
 
   const reactId = useId();
   const emailFieldId = `subscribe-email-${reactId}`;
   const nameFieldId = `subscribe-name-${reactId}`;
   const showCheckboxes = channels.length > 1;
 
-  const selectedChannels = showCheckboxes
-    ? channels.filter((c) => selected[c.id]).map((c) => c.id)
-    : channels.map((c) => c.id);
-
-  function toggleChannel(id: string) {
-    setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
-  }
-
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (status.kind === "submitting") return;
 
-    const trimmedEmail = email.trim();
+    const form = new FormData(e.currentTarget);
+    const trimmedEmail = String(form.get("email") ?? "").trim();
+    const ticked = new Set(form.getAll("channels").map(String));
+    const selectedChannels = showCheckboxes
+      ? channels.filter((c) => ticked.has(c.id)).map((c) => c.id)
+      : channels.map((c) => c.id);
+
     if (!trimmedEmail || !EMAIL_RE.test(trimmedEmail)) {
-      setStatus({ kind: "error", message: "That doesn't look like a valid email." });
+      setStatus({ kind: "error", message: "That doesn’t look like an email address." });
       return;
     }
     if (showCheckboxes && selectedChannels.length === 0) {
-      setStatus({ kind: "error", message: "Pick at least one list to subscribe to." });
+      setStatus({ kind: "error", message: "Tick at least one thing to hear about." });
       return;
     }
-    const trimmedName = name.trim().slice(0, NAME_MAX_LEN);
+    const trimmedName = String(form.get("name") ?? "").trim().slice(0, NAME_MAX_LEN);
 
     setStatus({ kind: "submitting" });
     try {
@@ -182,87 +194,73 @@ export default function SubscribeForm({
 
   return (
     <form onSubmit={onSubmit} className={styles.form} noValidate>
-      <Field
-        id={nameFieldId}
-        label="Your first name"
-        hint="Just so we can address you properly. Optional."
-      >
-        <Input
+      <div className={styles.fields}>
+        <Field
           id={nameFieldId}
-          type="text"
-          autoComplete="given-name"
-          maxLength={NAME_MAX_LEN}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Marie"
-          disabled={submitting}
-        />
-      </Field>
+          label={
+            <>
+              First name <span className={styles.optional}>(optional)</span>
+            </>
+          }
+        >
+          <Input
+            id={nameFieldId}
+            name="name"
+            type="text"
+            autoComplete="given-name"
+            maxLength={NAME_MAX_LEN}
+            defaultValue={initialName}
+            placeholder="Alex"
+            readOnly={submitting}
+          />
+        </Field>
 
-      <Field id={emailFieldId} label="Your email" hint={hint ?? " "}>
-        <Input
-          id={emailFieldId}
-          type="email"
-          inputMode="email"
-          autoComplete="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
-          disabled={submitting}
-        />
-      </Field>
+        <Field id={emailFieldId} label="Email" hint={hint}>
+          <Input
+            id={emailFieldId}
+            name="email"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            required
+            defaultValue={initialEmail}
+            placeholder="you@example.com"
+            readOnly={submitting}
+          />
+        </Field>
+      </div>
 
       {showCheckboxes ? (
-        <fieldset className={styles.channels} disabled={submitting}>
-          <legend className={styles.channelsLegend}>
-            What would you like?
-          </legend>
-          <ul className={styles.channelsList}>
-            {channels.map((c) => {
-              const checked = Boolean(selected[c.id]);
-              const id = `subscribe-${c.id}-${reactId}`;
-              return (
-                <li key={c.id} className={styles.channelRow}>
-                  <label htmlFor={id} className={styles.channelLabel}>
-                    <input
-                      id={id}
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleChannel(c.id)}
-                      className={styles.channelCheckbox}
-                    />
-                    <span className={styles.channelText}>
-                      <span className={styles.channelName}>{c.label}</span>
-                      {c.description ? (
-                        <span className={styles.channelDescription}>
-                          {c.description}
-                        </span>
-                      ) : null}
-                    </span>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
+        <fieldset className={styles.channels}>
+          <legend className={styles.channelsLegend}>Send me</legend>
+          <div className={styles.channelsList}>
+            {channels.map((c) => (
+              <OptionRow
+                key={c.id}
+                name="channels"
+                value={c.id}
+                defaultChecked={Boolean(c.defaultChecked)}
+                description={c.description}
+              >
+                {c.label}
+              </OptionRow>
+            ))}
+          </div>
         </fieldset>
       ) : null}
 
       <div className={styles.submitRow}>
-        <Button type="submit" variant="primary" disabled={submitting}>
-          {submitting ? "Sending…" : "Subscribe"}
+        <Button type="submit" variant="primary" size="lg" disabled={!hydrated || submitting}>
+          {submitting ? "Sending…" : "Join the mailing list"}
         </Button>
-        {status.kind === "error" && (
-          <p className={styles.error} role="alert">
-            {status.message}
-          </p>
-        )}
+        <span className={styles.micro}>We’ll send you an email to confirm.</span>
       </div>
 
-      <p className={styles.micro}>
-        We&apos;ll send a confirmation. You can unsubscribe with one click from
-        any email.
-      </p>
+      {status.kind === "error" ? (
+        <p className={styles.error} role="alert">
+          {status.message}
+        </p>
+      ) : null}
     </form>
   );
 }

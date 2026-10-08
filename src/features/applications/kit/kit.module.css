@@ -1,0 +1,63 @@
+/*
+  The few things every application screen shares, so that four sets of
+  screens built separately agree with each other.
+
+  Every colour and the metadata font come from the theme (src/theme/tokens.css
+  and typography.css): --font-meta, --color-floor, --color-accent-text,
+  --color-ok and --color-live began here, scoped to these screens, and are now
+  the site's under the same names.
+*/
+
+/* Dates, durations, eyebrow labels, table headers. Never body copy. */
+.mono {
+  font-family: var(--font-meta);
+  font-size: 12px;
+  line-height: 1.3;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/*
+  A primary action, for the links and buttons these screens style themselves.
+  The label is dark on the accent, which reads at 5.96:1. A white label on the
+  same blue does not reach the contrast a button needs. The shared Button's
+  primary variant (src/components/ui/Button) follows the same recipe.
+*/
+.primary {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-5);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+.primary:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 48rem) {
+  .primary {
+    width: 100%;
+  }
+}

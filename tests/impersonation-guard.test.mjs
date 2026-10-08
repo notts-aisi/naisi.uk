@@ -139,6 +139,19 @@ const MUST_GUARD = [
   ["src/app/api/admissions/rounds/[roundId]/roles/route.ts", "appoints reviewers and the final decider, which grants access to applications"],
   ["src/app/api/admissions/rounds/[roundId]/reminders/send-now/route.ts", "emails every applicant holding a draft on the round, which cannot be recalled"],
   ["src/app/api/admissions/rounds/[roundId]/decide/route.ts", "decides somebody's application, writes them onto a run's facilitator list and emails them the answer"],
+  ["src/app/api/admissions/forms/route.ts", "makes an application form, the thing a whole term applies to"],
+  ["src/app/api/admissions/forms/[roundId]/route.ts", "changes a form's dates and order and adds a programme to it"],
+  ["src/app/api/admissions/forms/[roundId]/sets/route.ts", "adds a question set to the form applicants answer"],
+  ["src/app/api/admissions/forms/[roundId]/sets/[setId]/route.ts", "writes and deletes the questions applicants are asked"],
+  ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/route.ts", "changes what applicants are shown about a programme, the wording of its emails, and closes it"],
+  ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/roles/route.ts", "names a programme's lead and reviewers, which grants access to applications"],
+  // The application form's lifecycle. Opening a form lets real applicants
+  // reach it, and settling writes every applicant's member record in the
+  // caller's name. An admin viewing as somebody else must not do either.
+  [
+    "src/app/api/admissions/forms/[roundId]/status/route.ts",
+    "opens, closes, reopens or settles an application form, and on settling writes each applicant's member record under the caller's name",
+  ],
   // Admissions: the applicant's own lane. Every write here is recorded by
   // Firestore as the MEMBER performing it, and each one is a fact about their
   // intake: an application starting, an answer changing, a submission going in
@@ -147,6 +160,37 @@ const MUST_GUARD = [
   ["src/app/api/admissions/rounds/[roundId]/apply/route.ts", "starts, saves and withdraws an application in the applicant's own name"],
   ["src/app/api/admissions/rounds/[roundId]/apply/submit/route.ts", "submits an application, which puts somebody's work in a reviewer's queue"],
   ["src/app/api/admissions/rounds/[roundId]/apply/stage/[stageId]/route.ts", "submits one later-released stage of an application, which cannot be undone"],
+  ["src/app/api/admissions/forms/[roundId]/application/route.ts", "saves the draft of an application in the applicant's own name, and creates the application on the first save"],
+  ["src/app/api/admissions/forms/[roundId]/application/send/route.ts", "sends an application, which puts somebody's answers in front of each programme's lead and reviewers"],
+  ["src/app/api/admissions/forms/[roundId]/application/access-requirements/route.ts", "reads and saves an applicant's own access-requirements answer; during a view-as session the session is the member's, so even the read would hand an admin that answer with nothing recording it"],
+  ["src/app/api/admissions/forms/[roundId]/application/reply/route.ts", "records an applicant's reply to their offer or invitation in their own name, which can give their place back, and accepting an invitation approves their own account if it was still waiting"],
+  // The application form's review screens. Every write here is recorded under
+  // the caller's own name: a score, an internal comment, a programme's
+  // decision. An admin viewing as a lead must not be able to make one.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/applications/route.ts",
+    "accepts or pools several applications at once, each logged as the caller's decision",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/applications/[uid]/review/route.ts",
+    "writes scores and internal comments about an applicant on the caller's own review row",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/applications/[uid]/access-requirements/route.ts",
+    "opens an applicant's access-requirements answer and logs the read under the caller's name",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/applications/[uid]/decision/route.ts",
+    "records a programme's decision on somebody's application, or revokes an acceptance, and logs it under the caller's name",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/review-settings/route.ts",
+    "switches what every reviewer on the form is shown on a first review",
+  ],
+  ["src/app/api/admissions/forms/[roundId]/pool/route.ts", "picks what a pooled applicant will hear on decision day, recorded under whoever the session says is acting"],
+  ["src/app/api/admissions/forms/[roundId]/send/route.ts", "publishes every applicant's outcome and emails them, which cannot be unsent"],
+  ["src/app/api/admissions/forms/[roundId]/send/test/route.ts", "sends a decision-day email to the address on the session, which during view-as is the member's, and records on the form who tested and when"],
+  ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email/route.ts", "sends one of a programme's decision emails to the address on the session, which during view-as is the member's"],
   // Outside the scanned trees above (it lives under /api/admin), so it is
   // named here or it is checked by nothing: it writes `config/courses`, whose
   // knobs reach every course surface at once.

@@ -1,0 +1,515 @@
+/*
+  The hero: the scene's canvas behind the page's first words.
+
+  HeroScene.tsx draws .root, .canvas and .bar. Everything from .column down is
+  drawn by parts.tsx, on the server. The scene's script (mount.ts) writes a
+  few data attributes on .root and this file styles them; nothing here needs
+  the script to have run. README.md is the contract.
+
+  Three forms, from the design's three boards (1440 by 810, 834 by 1194 and
+  390 by 844):
+
+    desktop   the base rules: the words in a column on the right, the network
+              running in from the left
+    tablet    the first block at the foot of the file: the emblem at the
+              right, the words stacked at the foot, the network above them
+    phone     the last block: the same stack, smaller
+
+  The two conditions that pick the form are the ones mount.ts reads. Change
+  them in both places. The engine draws its wide network only in a hero that
+  is wider than it is tall and at least 900px wide, so the stacked forms keep
+  the hero taller than it is wide whenever it is that wide.
+
+  Sizes are the boards' own, written in rem so they follow the reader's text
+  size. The navy at the centre of the ground and the two ends of the accent's
+  gradient are the hero's own and appear nowhere else, so they live here and
+  not in the theme.
+*/
+
+.root {
+  --hero-ground: #14193a;
+  --hero-accent-from: #4d8eff;
+  --hero-accent-to: #5cf3ff;
+  /* The room the site's sticky header takes at the top of the page. */
+  --hero-bar: calc(var(--header-height) + env(safe-area-inset-top, 0px));
+
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  /* One screen high, and taller when the words need it. svh is the screen
+     with the browser's bars showing, and does not change as they hide, so
+     the canvas is not rebuilt on every scroll. */
+  min-height: 100vh;
+  min-height: 100svh;
+  /* Pulled up under the header, which sits above the page and stays there. */
+  margin-top: calc(-1 * var(--hero-bar));
+  overflow: hidden;
+  overflow: clip;
+  background: radial-gradient(ellipse at center, var(--hero-ground) 0%, var(--color-floor) 70%);
+  color: var(--color-text);
+  font-family: var(--font-body);
+}
+
+/* The scene. It is sized by this rule alone, so the script's arrival moves
+   nothing. Presses pass through it to the root, where the scene listens. */
+.canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* The header's room. The header itself is drawn by the layout, above this. */
+.bar {
+  flex: none;
+  height: var(--hero-bar);
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- column */
+
+/* The column is the height left under the header; the stack inside it is the
+   words. Presses in the empty part of the column fall through to the scene. */
+.column {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: min(38.75rem, 100% - 3rem);
+  margin-left: auto;
+  /* 24px beyond the page's content box, as the board has it, and never
+     closer than 24px to the edge. */
+  margin-right: max(
+    1.5rem,
+    env(safe-area-inset-right, 0px),
+    calc((100% - var(--content-max-width)) / 2 + 1.5rem)
+  );
+  padding-block: 1.5rem;
+  pointer-events: none;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  pointer-events: auto;
+}
+
+/* ---------------------------------------------------------------- emblem */
+
+.mark {
+  align-self: flex-start;
+  filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.55));
+  animation: hero-up-a 500ms ease-out 250ms both;
+}
+
+/* Sized by its height; the width follows the emblem's own proportions. The
+   scene reads this box to find the head it lights.
+
+   The board's size wherever the screen has room for it. On a screen under
+   about 754px high the board's column no longer fits, so the emblem and the
+   headline give way together, a pixel of column for a pixel of screen, down
+   to their floors. Below that the hero is taller than the screen. */
+.markArt {
+  display: block;
+  overflow: visible;
+  width: auto;
+  max-width: none;
+  height: 13.5rem;
+  height: clamp(9rem, calc(70svh - 19.49rem), 13.5rem);
+}
+
+/* The cyan offset slides out from behind the white body once the emblem has
+   arrived, and the scene kicks and flashes it when a pulse lands. */
+.markOffset {
+  transform: translate(-6px, 6px);
+  animation: hero-offset-a 760ms cubic-bezier(0.22, 0.61, 0.36, 1) 700ms both;
+}
+
+.markKick {
+  transform: translate(calc(var(--nh-kick, 0) * -5px), calc(var(--nh-kick, 0) * 5px));
+}
+
+.markFlash {
+  opacity: var(--nh-flash, 0);
+}
+
+/* ----------------------------------------------------------------- words */
+
+/* The society's name under the emblem. The desktop form does not show it:
+   there it is set aside, far outside the scene and hidden from every reader,
+   and never display: none, which the scene would measure as a zone at its
+   own corner. */
+.tagline {
+  position: absolute;
+  left: -200vw;
+  top: 0;
+  visibility: hidden;
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.005em;
+  color: var(--color-live);
+  text-align: left;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+  animation: hero-up-a 500ms ease-out 350ms both;
+}
+
+.headline {
+  min-height: 2.1em;
+  font-family: var(--font-display);
+  font-size: 4rem;
+  font-size: clamp(2.75rem, calc(14.29svh - 2.734rem), 4rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  color: var(--color-text);
+  text-align: left;
+  text-shadow: 0 1px 10px color-mix(in srgb, var(--color-floor) 35%, transparent);
+}
+
+.word {
+  display: inline-block;
+  animation: hero-rise-a 700ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* The accent's room is kept whatever is typed in it, so the lines under the
+   headline never move. Without the scene it fades in whole, at the moment
+   the scene would have started typing it. */
+.accentWrap {
+  position: relative;
+  display: inline-block;
+  min-width: 9.5em;
+  max-width: 100%;
+  text-align: left;
+  animation: hero-show-a 500ms ease-out 1760ms both;
+}
+
+.accent {
+  position: relative;
+  display: inline-block;
+  background: linear-gradient(
+    120deg,
+    var(--hero-accent-from),
+    var(--color-live) 70%,
+    var(--hero-accent-to)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* The underline is drawn in the server's markup and whenever the scene says
+   "full". */
+.accent::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -0.08em;
+  height: 0.09em;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--hero-accent-from),
+    var(--color-live) 60%,
+    var(--hero-accent-to)
+  );
+  transform: scaleX(1);
+  transform-origin: left center;
+  opacity: 1;
+}
+
+.caret {
+  display: inline-block;
+  margin-left: 0.04em;
+  color: var(--color-live);
+  font-weight: 400;
+  visibility: hidden;
+}
+
+.lede {
+  max-width: 33em;
+  font-family: var(--font-body);
+  font-size: 1.1875rem;
+  line-height: 1.55;
+  color: var(--color-text-soft);
+  text-shadow: 0 1px 8px color-mix(in srgb, var(--color-floor) 70%, transparent);
+  animation: hero-up-a 550ms cubic-bezier(0.22, 0.61, 0.36, 1) 900ms both;
+}
+
+/* --------------------------------------------------------------- actions */
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  animation: hero-up-a 550ms cubic-bezier(0.22, 0.61, 0.36, 1) 1050ms both;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+/* The line under the buttons. It carries the global `meta` class as well,
+   which gives it the mono face and its capitals. */
+.status {
+  font-size: var(--text-caption);
+  line-height: 1.54;
+  letter-spacing: 0.08em;
+  color: var(--color-text-soft);
+  text-shadow: 0 1px 8px color-mix(in srgb, var(--color-floor) 70%, transparent);
+}
+
+/* Each half of the line stays whole, so a narrow screen breaks it at the dot. */
+.statusPart {
+  white-space: nowrap;
+}
+
+.award {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 0.5rem;
+  animation: hero-up-a 550ms cubic-bezier(0.22, 0.61, 0.36, 1) 2900ms both;
+}
+
+/* ----------------------------------------------------------- the entrance */
+
+@keyframes hero-rise-a {
+  from { opacity: 0; transform: translateY(18px); filter: blur(14px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+
+@keyframes hero-up-a {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes hero-show-a {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes hero-offset-a {
+  from { transform: translate(0, 0); }
+  to { transform: translate(-6px, 6px); }
+}
+
+/* The same four again under second names. Swapping an element from one name
+   to the other is what makes its entrance play again, which is how the hero
+   follows the scene when the scene replays. */
+@keyframes hero-rise-b {
+  from { opacity: 0; transform: translateY(18px); filter: blur(14px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+
+@keyframes hero-up-b {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes hero-show-b {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes hero-offset-b {
+  from { transform: translate(0, 0); }
+  to { transform: translate(-6px, 6px); }
+}
+
+.root[data-replay="b"] .word { animation-name: hero-rise-b; }
+.root[data-replay="b"] .mark,
+.root[data-replay="b"] .tagline,
+.root[data-replay="b"] .lede,
+.root[data-replay="b"] .actions,
+.root[data-replay="b"] .award { animation-name: hero-up-b; }
+.root[data-replay="b"] .accentWrap { animation-name: hero-show-b; }
+.root[data-replay="b"] .markOffset { animation-name: hero-offset-b; }
+
+/* ------------------------------------------------- what the scene writes */
+
+/* Once the scene types the accent, the accent is there for it to type into. */
+.root[data-typing] .accentWrap {
+  animation: none;
+}
+
+.root[data-ul="none"] .accent::after {
+  transform: scaleX(0);
+  opacity: 0;
+}
+
+.root[data-ul="grow"] .accent::after {
+  animation: hero-underline-in 350ms ease-out forwards;
+}
+
+.root[data-ul="shrink"] .accent::after {
+  animation: hero-underline-out 250ms ease-in forwards;
+}
+
+.root[data-caret="on"] .caret {
+  visibility: visible;
+  animation: hero-blink 1s steps(2) infinite;
+}
+
+@keyframes hero-underline-in {
+  from { transform: scaleX(0); opacity: 0; }
+  to { transform: scaleX(1); opacity: 1; }
+}
+
+@keyframes hero-underline-out {
+  from { transform: scaleX(1); opacity: 1; }
+  to { transform: scaleX(0); opacity: 0; }
+}
+
+@keyframes hero-blink {
+  50% { opacity: 0; }
+}
+
+/* Less motion: everything is in place from the first paint and stays there. */
+@media (prefers-reduced-motion: reduce) {
+  .word,
+  .mark,
+  .tagline,
+  .accentWrap,
+  .lede,
+  .actions,
+  .award {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .word {
+    filter: none !important;
+  }
+
+  .markOffset {
+    animation: none !important;
+    transform: translate(-6px, 6px) !important;
+  }
+
+  .accent::after {
+    animation: none !important;
+  }
+
+  .caret {
+    display: none;
+  }
+}
+
+/* === Tablet: at or below 60rem, or any screen held upright === */
+@media (max-width: 60rem), (orientation: portrait) { /* --bp-lg */
+  .root {
+    /* From 900px wide the engine would draw its wide network across a hero
+       that is wider than it is tall. The stack needs the network above the
+       tagline, so the hero is kept just taller than it is wide from there
+       up. Below 900px the middle term is nought. */
+    min-height: max(100vh, clamp(0px, (100vw - 899px) * 9999, 100vw + 1px));
+    min-height: max(100svh, clamp(0px, (100vw - 899px) * 9999, 100vw + 1px));
+  }
+
+  .column {
+    justify-content: flex-end;
+    width: auto;
+    margin-left: max(1.5rem, env(safe-area-inset-left, 0px));
+    margin-right: max(1.5rem, env(safe-area-inset-right, 0px));
+    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .stack {
+    gap: 1.25rem;
+  }
+
+  /* The board's sizes down to a screen about 823px high. Below that the
+     emblem and the room under it give way together. */
+  .mark {
+    align-self: flex-end;
+    margin-bottom: 6rem;
+    margin-bottom: clamp(1.5rem, calc(50svh - 19.73rem), 6rem);
+  }
+
+  .markArt {
+    height: 12.5rem;
+    height: clamp(8.5rem, calc(50svh - 13.23rem), 12.5rem);
+  }
+
+  .tagline {
+    position: static;
+    visibility: visible;
+  }
+
+  .headline {
+    margin-top: -0.5rem;
+    font-size: 2.60625rem;
+  }
+
+  .lede {
+    font-size: var(--text-lg);
+  }
+
+  .award {
+    margin-top: 0;
+  }
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .column {
+    margin-left: max(1rem, env(safe-area-inset-left, 0px));
+    margin-right: max(1rem, env(safe-area-inset-right, 0px));
+    padding-top: 1rem;
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .mark {
+    margin-bottom: 0;
+  }
+
+  /* The board's size down to a screen about 688px high: a phone in a browser
+     with its bars showing is shorter than the board, and the emblem is what
+     gives way so the buttons stay on the first screen. */
+  .markArt {
+    height: 10.625rem;
+    height: clamp(7rem, calc(100svh - 32.4rem), 10.625rem);
+  }
+
+  /* 40px on the board's 390px screen, and smaller on a narrower one so the
+     accent and its caret stay inside the column. */
+  .headline {
+    font-size: 2.5rem;
+    font-size: clamp(2rem, 10.26vw, 2.5rem);
+  }
+
+  .lede {
+    font-size: var(--text-base);
+  }
+
+  /* One button to a row, each the full width. */
+  .buttons {
+    flex-direction: column;
+  }
+
+  .buttons > * {
+    width: 100%;
+  }
+
+  /* The phone board draws no award. Set aside the way the tagline is on the
+     desktop form, so the scene does not measure a zone for it. */
+  .award {
+    position: absolute;
+    left: -200vw;
+    top: 0;
+    visibility: hidden;
+  }
+}

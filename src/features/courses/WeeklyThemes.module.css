@@ -1,120 +1,120 @@
 /* ============================================================
-   WeeklyThemes: the authored week-by-week list.
+   WeeklyThemes: the week-by-week pitch on a programme page.
 
-   A numbered rail down the left, prose on the right. No
-   disclosure, no interaction: the whole point is that it can
-   be read in one pass.
+   One row a week under a hairline: the week set as metadata,
+   then what it is about.
    ============================================================ */
-
-.section {
-  padding-block: var(--space-10);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.heading {
-  margin: 0 0 var(--space-6);
-  font-size: clamp(1.35rem, 2.6vw, 1.75rem);
-  line-height: 1.2;
-  letter-spacing: -0.015em;
-  font-weight: 700;
-}
 
 .list {
   margin: 0;
   padding: 0;
   list-style: none;
-  display: grid;
-  gap: var(--space-5);
-}
-
-.item {
-  display: grid;
-  grid-template-columns: 5.5rem 1fr;
-  gap: var(--space-4);
-  padding-bottom: var(--space-5);
   border-bottom: 1px solid var(--color-border);
 }
 
-.item:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
+.item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-6);
+  padding: 1.125rem 0;
+  border-top: 1px solid var(--color-border);
 }
 
+/* A fixed column, so every title starts on the same line down the list. */
 .week {
-  font-size: var(--text-xs);
-  text-transform: uppercase;
+  flex: 0 0 7.5rem;
+  font-size: var(--text-caption);
   letter-spacing: 0.08em;
-  color: var(--color-text-muted);
-  padding-top: 0.2rem;
-  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
 }
 
 .body {
+  flex: 1 1 17.5rem;
   min-width: 0;
 }
 
 .title {
   margin: 0;
-  font-size: var(--text-lg);
-  line-height: 1.3;
+  font-family: var(--font-display);
+  font-size: 1.1875rem;
   font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
 }
 
-/* The link fills the heading rather than sitting inside it as a smaller
-   target, and it is underlined from the start: this is a list of ordinary
-   prose headings, and an underline that only appears on hover is invisible on
-   a phone and to anyone scanning for something to click. */
+/* The link takes the title's own colour and adds an underline on hover, so a
+   list where some weeks are published and some are not still reads as one
+   list and not as a column of mixed link and non-link text. */
 .titleLink {
   color: inherit;
   text-decoration: underline;
   text-decoration-color: var(--color-border-strong);
-  text-underline-offset: 0.18em;
+  text-underline-offset: 4px;
   border-radius: var(--radius-sm);
 }
 
 .titleLink:hover {
+  color: var(--color-accent-text-hover);
   text-decoration-color: currentColor;
 }
 
 .titleLink:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 3px;
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+  box-shadow: none;
 }
 
 .blurb {
-  margin: var(--space-2) 0 0;
+  max-width: 44rem;
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-ui);
+  line-height: 1.55;
   color: var(--color-text-muted);
-  line-height: var(--leading-relaxed);
-  max-width: 42rem;
+  overflow-wrap: anywhere;
 }
 
+/* The one line that stands in for the list. */
+.coming {
+  margin: 0;
+  padding: 1.125rem 0;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-display);
+  font-size: 1.1875rem;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+/* The lines under the list: what the plan is, and where it comes from. */
 .note {
-  margin: var(--space-8) 0 0;
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-left: 3px solid var(--color-accent);
-  border-radius: var(--radius-md);
-  background: var(--color-accent-soft);
+  max-width: 44rem;
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-ui);
+  line-height: 1.55;
   color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  line-height: var(--leading-relaxed);
+  text-wrap: pretty;
+}
+
+.note + .note {
+  margin-top: var(--space-2);
 }
 
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
-  .section {
-    padding-block: var(--space-8);
-  }
-  /* The number moves above the title: a 5.5rem column beside a wrapped
-     sentence leaves the prose in a gutter on a phone. */
+  /* The week sits over its title: the row wraps on its own. A title that is
+     a link gets a target tall enough for a thumb. */
   .item {
-    grid-template-columns: 1fr;
-    gap: var(--space-1);
+    padding: var(--space-4) 0;
   }
-  .week {
-    padding-top: 0;
-  }
-  .title {
-    font-size: var(--text-base);
+
+  .titleLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
   }
 }

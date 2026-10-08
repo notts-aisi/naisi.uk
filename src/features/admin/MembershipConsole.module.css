@@ -1,122 +1,235 @@
-.wrap {
+/* The SU membership page: the year and its counts, the import, the members,
+   and the periods themselves. */
+
+.card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
 }
 
-.heading {
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-display);
   font-size: var(--text-xl);
-  margin-bottom: var(--space-2);
-}
-
-.subheading {
-  font-size: var(--text-lg);
-}
-
-.blurb {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  max-width: 48rem;
-}
-
-.blurb + .blurb {
-  margin-top: var(--space-2);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
 }
 
 .muted {
-  color: var(--color-text-muted);
+  margin: 0;
   font-size: var(--text-sm);
-}
-
-.footnote {
+  line-height: var(--leading-normal);
   color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  margin-top: var(--space-4);
-  max-width: 48rem;
 }
 
 .error {
-  color: var(--color-danger);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-danger-line);
+  border-radius: var(--radius-row);
+  background: var(--color-danger-soft);
   font-size: var(--text-sm);
+  color: var(--color-danger-text);
 }
 
+/* === The year === */
+.yearHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+}
+
+.yearTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
+}
+
+.year {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+/* === The counts ===
+   Each tile is ONE run of text in the markup, "Paid: 41": that is how the
+   page states a count, to a screen reader and to the browser test that reads
+   it. Drawn, it is a tile with the number over its label, so the two halves
+   are two lines of that one run (the label is a full-width inline box, which
+   pushes the number onto a second line without ending the run) and each line
+   is moved into the other's place. The two heights below and the two offsets
+   are the same pair of numbers: change them together.
+
+   The label's capitals are small caps, not text-transform, so the words stay
+   in the case they are typed in wherever they are read as text. The colon is
+   there for the reading and has no colour. */
+.totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  gap: var(--space-5) var(--space-6);
+  min-width: 0;
+}
+
+.stat {
+  min-width: 0;
+  font-size: var(--text-base);
+  line-height: 1;
+}
+
+.statLabel,
+.statValue {
+  position: relative;
+  display: inline-block;
+  vertical-align: top;
+}
+
+.statLabel {
+  top: 2.5rem; /* the number's height */
+  width: 100%;
+  height: 1rem;
+  overflow: hidden;
+  font-family: var(--font-meta);
+  font-size: 1.0625rem;
+  font-variant-caps: all-small-caps;
+  line-height: 1rem;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.statColon {
+  color: transparent;
+}
+
+.statValue {
+  top: -1rem; /* the label's height */
+  height: 2.5rem;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 2.5rem;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.yearFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.yearFoot .muted {
+  flex: 1 1 24rem;
+}
+
+/* === The periods === */
 .sectionHead {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  margin-bottom: var(--space-4);
 }
 
 .list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .row {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
   padding: var(--space-4);
-  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
 }
 
 .rowHead {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
-  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
 }
 
 .rowTitle {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  flex-wrap: wrap;
+  min-width: 0;
+  font-size: var(--text-ui);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
 }
 
 .rowActions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  flex-wrap: wrap;
 }
 
+/* The counts on a period's row keep the case they are typed in. */
 .facts {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-top: var(--space-2);
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
 }
 
 .fact {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
+  white-space: nowrap;
 }
 
 .note {
-  margin-top: var(--space-2);
-  color: var(--color-text-muted);
+  margin: 0;
   font-size: var(--text-sm);
+  color: var(--color-text-body);
+  overflow-wrap: anywhere;
 }
 
+/* === The period form === */
 .form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin-top: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-border);
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
   min-width: 0;
 }
 
@@ -125,23 +238,23 @@
 }
 
 .fieldLabel {
-  color: var(--color-text-muted);
   font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 .formActions {
-  grid-column: 1 / -1;
   display: flex;
-  justify-content: flex-end;
+  grid-column: 1 / -1;
+  gap: var(--space-3);
 }
 
-@media (max-width: 48rem) {
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .card {
+    padding: var(--space-4);
+  }
   .form {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .rowHead {
-    align-items: flex-start;
-    flex-direction: column;
   }
 }

@@ -18,7 +18,8 @@ declare namespace google.accounts.id {
       | "btn_confirm"
       | "btn_add_session"
       | "btn_confirm_add_session";
-    /** Present when GSI is configured with state in initialize(). */
+    /** Present when the button that was pressed was rendered with a
+     *  `state`: the same string, handed back. */
     state?: string;
   }
 
@@ -56,6 +57,10 @@ declare namespace google.accounts.id {
     width?: string | number;
     locale?: string;
     click_listener?: () => void;
+    /** A string of the caller's own, returned with the ID token: to the
+     *  callback in pop-up mode, and as the `state` parameter of the POST to
+     *  `login_uri` in redirect mode. */
+    state?: string;
   }
 
   interface PromptMomentNotification {

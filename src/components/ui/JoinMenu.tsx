@@ -17,15 +17,20 @@ import dd from "./Dropdown.module.css";
 import styles from "./JoinMenu.module.css";
 
 /**
- * The "Join us" chooser. Reuses the proven Dropdown shell (portalled popover
- * ≥ --bp-md, slide-up bottom sheet below it, scrim + safe-area + reduced-motion)
- * but renders a two-section NAV menu rather than a single-select control: the
- * University of Nottingham path on top, and a visually separated, differently-
- * coloured external-collaborator path below. Selecting routes; nothing persists.
+ * A chooser between the two ways to join: the University of Nottingham path
+ * on top, and a visually separated external-collaborator path below.
+ * Selecting routes; nothing persists.
  *
- * Trigger styling comes entirely from `className` so it matches its context
- * (the header join button, the hero CTA, …). Only the menu panel adopts the
- * dropdown look.
+ * The public header no longer opens this: its Join is a plain link
+ * (src/layout/publicNav.ts). It stays for a page that wants the choice made
+ * on the spot.
+ *
+ * Reuses the proven Dropdown shell (portalled popover at --bp-md and above,
+ * slide-up bottom sheet below it, scrim + safe-area + reduced-motion) but
+ * renders a two-section NAV menu rather than a single-select control.
+ *
+ * Trigger styling comes entirely from `className` so it matches its context.
+ * Only the menu panel adopts the dropdown look.
  */
 
 type JoinOption = {
@@ -40,7 +45,7 @@ const OPTIONS: JoinOption[] = [
   {
     key: "uni",
     label: "University of Nottingham member",
-    sub: "Students & staff — apply to join the society",
+    sub: "Students & staff: apply to join the society",
     href: "/register",
   },
   {
@@ -58,7 +63,7 @@ const getServerSnapshot = () => false;
 
 export default function JoinMenu({
   className,
-  label = "Join us",
+  label = "Join",
 }: {
   className?: string;
   label?: string;

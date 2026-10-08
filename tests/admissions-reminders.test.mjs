@@ -1240,6 +1240,119 @@ describe("the reminders job", () => {
 const SEND_NOW = "src/app/api/admissions/rounds/[roundId]/reminders/send-now/route.ts";
 const JOB_FILE = "src/lib/scheduler/jobs/admissionsReminders.ts";
 
+/**
+ * AN APPLICATION FORM IS AN ADMISSION ROUND TOO, so an open one turns up in
+ * this job's walk of open rounds. It is left out: the email this job sends is
+ * the older apply flow's own, and nothing older may email an applicant on a
+ * form (`src/lib/admissions/formFence.ts`). The form below is everything that
+ * would make a round of the older kind due, the open status, the deadline,
+ * the schedule and three people holding drafts, so the one thing that differs
+ * is the field that says what it is.
+ */
+describe("an application form among the open rounds", () => {
+  const FORM_ID = "autumn-2026__f0rm0001";
+  const form = (overrides = {}) =>
+    round({ formVersion: 2, kind: "enrolment", label: "Autumn 2026", ...overrides });
+
+  /** Three people holding a draft on `roundId`, keyed the way the collection keys them. */
+  function draftsOn(roundId) {
+    const rows = {};
+    for (const uid of ["uid001", "uid002", "uid003"]) {
+      rows[`${roundId}__${uid}`] = application(uid, { roundId });
+    }
+    return rows;
+  }
+
+  test("nobody holding a draft on a form is mailed, claimed or even read", async () => {
+    const db = makeDb({
+      admissionRounds: { [FORM_ID]: form() },
+      admissionApplications: draftsOn(FORM_ID),
+      users: users(3),
+    });
+    reset(db);
+    const queried = [];
+    globalThis.__queryHook = (name) => queried.push(name);
+    const { ctx } = context({ now: JUST_AFTER_DUE });
+
+    const { result, summary } = await runAdmissionsReminders(ctx);
+
+    assert.equal(globalThis.__sends.length, 0, "somebody on a form was mailed by the older job");
+    assert.deepEqual(db.ids("schedulerMarkers"), [], "a marker was claimed for somebody on a form");
+    assert.equal(summary.forms, 1);
+    // Not examined: `rounds` counts the rounds the run worked on.
+    assert.equal(summary.rounds, 0);
+    assert.equal(result.processed, 0);
+    // The walk of open rounds, and nothing after it: no application on the
+    // form was fetched to be decided about.
+    assert.deepEqual(queried, ["admissionRounds"]);
+    assert.match(result.note, /application forms left alone 1$/);
+  });
+
+  test("the very same round without the field is mailed, so the field is what decides", async () => {
+    const older = form();
+    delete older.formVersion;
+    const db = makeDb({
+      admissionRounds: { [FORM_ID]: older },
+      admissionApplications: draftsOn(FORM_ID),
+      users: users(3),
+    });
+    reset(db);
+    const { ctx } = context({ now: JUST_AFTER_DUE });
+
+    const { result, summary } = await runAdmissionsReminders(ctx);
+
+    assert.equal(globalThis.__sends.length, 3);
+    assert.equal(summary.forms, 0);
+    assert.equal(summary.rounds, 1);
+    // A run that met no form says nothing about forms.
+    assert.ok(!/application form/.test(result.note), result.note);
+  });
+
+  test("a round of the older kind beside a form is still reminded", async () => {
+    const db = makeDb({
+      admissionRounds: { [FORM_ID]: form(), [ROUND_ID]: round() },
+      admissionApplications: { ...draftsOn(FORM_ID), ...draftsOn(ROUND_ID) },
+      users: users(3),
+    });
+    reset(db);
+    const { ctx } = context({ now: JUST_AFTER_DUE });
+
+    const { summary } = await runAdmissionsReminders(ctx);
+
+    assert.equal(summary.sent, 3);
+    assert.equal(summary.forms, 1);
+    assert.equal(summary.rounds, 1);
+    assert.deepEqual(
+      [...new Set(globalThis.__sends.map((send) => send.roundId))],
+      [ROUND_ID],
+      "a reminder went out about the form",
+    );
+    assert.ok(
+      db.ids("schedulerMarkers").every((id) => id.startsWith(`remind__${ROUND_ID}__`)),
+      "a marker was claimed against the form",
+    );
+  });
+
+  test("a run named for a form sends nothing either", async () => {
+    // The Send now route refuses a form before it gets this far. This is the
+    // job holding the same line by itself, whoever calls it.
+    const db = makeDb({
+      admissionRounds: { [FORM_ID]: form() },
+      admissionApplications: draftsOn(FORM_ID),
+      users: users(3),
+    });
+    reset(db);
+    const { ctx } = context({ now: JUST_AFTER_DUE });
+
+    const { summary } = await runAdmissionsReminders(ctx, { roundId: FORM_ID });
+
+    assert.equal(globalThis.__sends.length, 0);
+    assert.deepEqual(db.ids("schedulerMarkers"), []);
+    assert.equal(summary.forms, 1);
+    assert.equal(summary.rounds, 0);
+  });
+});
+
 describe("the Send now route", () => {
   const src = source(SEND_NOW);
 

@@ -194,6 +194,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "The round's own structure: each stage and the criteria it scored on.",
   },
+  questionSets: {
+    label: "Question sets",
+    fate: "destroyed",
+    note: "The questions an application form asked: each set, its wording and its options. The answers people gave are counted with their applications.",
+  },
   applications: {
     label: "Applications",
     fate: "destroyed",
@@ -203,6 +208,11 @@ const COUNT_META: Record<string, CountMeta> = {
     label: "Access-requirements answers",
     fate: "destroyed",
     note: "What each applicant told us they need in order to take part. Stored apart from the application because fewer people may read it; it goes with the application it belongs to.",
+  },
+  decisions: {
+    label: "Decisions on applications",
+    fate: "destroyed",
+    note: "What each programme's lead decided about each applicant, the outcome picked for anybody who was pooled, and any exception an admin made. What decision day told each person is on their application, and that is copied to their member record before anything is removed.",
   },
   enrolments: { label: "Enrolments", fate: "destroyed" },
   progress: {

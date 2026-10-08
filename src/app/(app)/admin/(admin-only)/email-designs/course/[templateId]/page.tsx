@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdminPage } from "@/features/admin/adminList";
 import CourseEmailDesignEditor from "@/features/admin/emailDesigns/CourseEmailDesignEditor";
 import {
   isCourseTemplateId,
@@ -12,7 +12,10 @@ export const dynamic = "force-dynamic";
  * Course email templates live one segment deeper than the application ones
  * (`/admin/email-designs/course/[templateId]`) so the two id spaces can't
  * collide: a static `course` segment beats the sibling `[templateId]` route.
- * Admin gating is the `(app)/admin/layout.tsx` server check.
+ * Admin gating is the `(admin-only)` group's layout.
+ *
+ * The editor draws the page's head: the email's own name, with the way back
+ * to the list in the crumb above it.
  */
 export default async function CourseEmailDesignDetailPage({
   params,
@@ -23,18 +26,8 @@ export default async function CourseEmailDesignDetailPage({
   if (!isCourseTemplateId(templateId)) notFound();
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
-      <Link
-        href="/admin/email-designs"
-        style={{
-          fontSize: "var(--text-sm)",
-          color: "var(--color-text-muted)",
-          textDecoration: "none",
-        }}
-      >
-        ← All email designs
-      </Link>
+    <AdminPage wide>
       <CourseEmailDesignEditor templateId={templateId as CourseTemplateId} />
-    </div>
+    </AdminPage>
   );
 }

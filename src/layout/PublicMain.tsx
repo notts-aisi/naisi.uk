@@ -3,19 +3,26 @@
 /**
  * Two responsibilities, deliberately split:
  *
- *  • `<PublicTransitionProvider>` is the context owner. It wraps the
- *    ENTIRE public layout (header + main + footer) so any descendant —
- *    including PublicHeader, which is a sibling of PublicMain — can
- *    consume `usePublicTransition()` to participate in the exit
- *    choreography (header-lift before body-fade before nav).
+ *  1. `<PublicTransitionProvider>` is the context owner. It wraps the ENTIRE
+ *     public layout (header + main + footer) so any descendant, including
+ *     PublicHeader, which is a sibling of PublicMain, can consume
+ *     `usePublicTransition()` to take part in the exit choreography
+ *     (header-lift before body-fade before nav).
  *
- *  • `<PublicMain>` is the `<main>` element. It consumes the context
- *    to know when to play its body fade-out, and owns its own first-
- *    paint FOUC mask via inline opacity + class-swap on next rAF.
+ *  2. `<PublicMain>` is the `<main>` element. It consumes the context to know
+ *     when to play its body fade-out, and owns its own entrance.
  *
- * They USED to be one component, with the Provider scoped inside
- * `<main>` — that made the header invisible to the context (siblings
- * don't see it), so header lift never fired. Don't recombine.
+ * They USED to be one component, with the Provider scoped inside `<main>`.
+ * That made the header invisible to the context (siblings don't see it), so
+ * header lift never fired. Don't recombine.
+ *
+ * THE ENTRANCE, AND THE RULE IT KEEPS: a page that arrives in its own HTML is
+ * visible from the first paint, with nothing waiting on a script. Only a page
+ * reached by a navigation inside the browser (back from sign-in, say) fades
+ * in, and by then the script is already running. `useArrivedByNavigation()`
+ * tells the two apart, and PublicHeader uses it for the same reason.
+ * /sources/<slug> is inside this layout and is where a printed code lands, so
+ * never make the first HTML wait for hydration again.
  */
 
 import {
@@ -25,6 +32,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
@@ -69,7 +77,7 @@ export function PublicTransitionProvider({ children }: { children: ReactNode }) 
         sessionStorage.removeItem("naisi:from-signout");
       }
     } catch {
-      // sessionStorage unavailable — nothing to clean up
+      // sessionStorage unavailable: nothing to clean up
     }
   }, []);
 
@@ -80,7 +88,7 @@ export function PublicTransitionProvider({ children }: { children: ReactNode }) 
       // 1) Lift the banner immediately. PublicHeader subscribes to
       //    `headerLifting` and animates upward over 540ms.
       setHeaderLifting(true);
-      // 2) After the banner has had a head-start (420ms — ~78% lifted on
+      // 2) After the banner has had a head-start (420ms, about 78% lifted on
       //    the smooth curve), start the body fade-out.
       setTimeout(() => setExiting(true), HEADER_LIFT_HEAD_START_MS);
       // 3) Once both motions are done, navigate. Total wait ≈ 960ms.
@@ -99,16 +107,34 @@ export function PublicTransitionProvider({ children }: { children: ReactNode }) 
   );
 }
 
+const subscribeToNothing = () => () => {};
+const inBrowser = () => true;
+const onServer = () => false;
+
+/**
+ * True when the component was first rendered by a navigation inside the
+ * browser, false when it arrived in the page's own HTML.
+ *
+ * React reads the server snapshot while it hydrates and the client one on any
+ * later mount, and `useState` keeps whichever the first render saw. So the
+ * answer never changes for the life of the component, and the first client
+ * render of a hydrated page matches its HTML.
+ */
+export function useArrivedByNavigation(): boolean {
+  const browser = useSyncExternalStore(subscribeToNothing, inBrowser, onServer);
+  const [arrived] = useState(browser);
+  return arrived;
+}
+
 export default function PublicMain({ children }: { children: ReactNode }) {
   const ctx = useContext(Ctx);
   const exiting = ctx?.exiting ?? false;
-  // The CRUX of the FOUC fix. We render the main element with an inline
-  // opacity:0 + translateY(4px) so the FIRST paint (whether from SSR
-  // hydration or a fresh client render) is guaranteed invisible. Then
-  // on the next animation frame we flip `animate` true, which swaps in
-  // the .mainAnim class. The CSS animation's from-state matches the
-  // inline style exactly, so the handoff is seamless — no flash where
-  // content was briefly visible before the animation took hold.
+  const arrivedByNavigation = useArrivedByNavigation();
+  // Only for a page reached by navigation. The first paint carries an inline
+  // opacity:0 + translateY(4px), and on the next animation frame `animate`
+  // flips, which swaps in the .mainAnim class. The animation's from-state
+  // matches the inline style exactly, so the handoff is seamless: no flash
+  // where content was briefly visible before the animation took hold.
   const [animate, setAnimate] = useState(false);
 
   useEffect(() => {
@@ -121,17 +147,18 @@ export default function PublicMain({ children }: { children: ReactNode }) {
 
   const className = [
     styles.main,
-    animate ? styles.mainAnim : "",
+    arrivedByNavigation && animate ? styles.mainAnim : "",
     exiting ? styles.exiting : "",
   ]
     .filter(Boolean)
     .join(" ");
 
-  // Inline style is only applied for the pre-animation frame. Once the
-  // .mainAnim class lands, the animation's from-state takes over.
-  const initialStyle = !animate && !exiting
-    ? ({ opacity: 0, transform: "translateY(4px)" } as const)
-    : undefined;
+  // Applied for the one frame before the animation takes over, and never to
+  // a page that arrived in its own HTML: that one starts visible.
+  const initialStyle =
+    arrivedByNavigation && !animate && !exiting
+      ? ({ opacity: 0, transform: "translateY(4px)" } as const)
+      : undefined;
 
   return (
     <main className={className} style={initialStyle}>

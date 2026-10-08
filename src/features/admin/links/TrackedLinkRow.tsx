@@ -1,39 +1,60 @@
 "use client";
 
-import { useState } from "react";
-import Badge from "@/components/ui/Badge";
+import { useState, type MouseEvent } from "react";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
-import { dayColumns, hourColumns, type LinkStats } from "@/lib/campaign/linkStats";
+import Chip from "@/components/ui/Chip";
+import Switch from "@/components/ui/Switch";
+import type { LinkStats } from "@/lib/campaign/linkStats";
 import { isPrintedSlug } from "@/lib/campaign/printedLinks";
-import { scanBucket } from "@/lib/campaign/scanBuckets";
 import { parseDestination, type TrackedLinkDoc } from "@/lib/firestore/trackedLinks";
-import { ScanColumns } from "./ScanColumns";
-import { TrackedLinkForm } from "./TrackedLinkForm";
-import type { TrackedLinkInput } from "./trackedLinkMutations";
 import styles from "./links.module.css";
 
 type Props = {
   link: TrackedLinkDoc;
-  campaigns: string[];
   origin: string;
-  /** This link's numbers for the chosen range. */
+  /** This link's numbers for the chosen period. */
   stats: LinkStats;
-  /** The most scans any link on the page has, which every bar is drawn against. */
-  maxScans: number;
-  /** First day of the range, or null for all time. */
-  fromDate: string | null;
-  onSave: (slug: string, input: TrackedLinkInput) => Promise<void>;
+  /** The numbers are still being read, so none is shown yet. */
+  loadingNumbers: boolean;
+  /** This link's details are open under the table. */
+  selected: boolean;
+  /** The id of the details card, which the address button opens. */
+  panelId: string;
+  /** What the switch shows: the stored value, or the one being saved. */
+  live: boolean;
+  /** A change to this link is being saved. */
+  busy: boolean;
+  onSelect: () => void;
+  onLive: (next: boolean) => void;
 };
 
-export function TrackedLinkRow({ link, campaigns, origin, stats, maxScans, fromDate, onSave }: Props) {
-  const [editing, setEditing] = useState(false);
-  const [detailed, setDetailed] = useState(false);
+/**
+ * One short link, as a row of its campaign's table.
+ *
+ * The address opens the link's details under the table, where it is changed.
+ * The rest of the row follows it on a click, so the row is a large target
+ * without a button wrapped round a table row. Two things are done in the row
+ * itself: switching the link on or off, and copying its address.
+ */
+export function TrackedLinkRow({
+  link,
+  origin,
+  stats,
+  loadingNumbers,
+  selected,
+  panelId,
+  live,
+  busy,
+  onSelect,
+  onLive,
+}: Props) {
   const [copied, setCopied] = useState(false);
 
-  const address = `${new URL(origin).host}/q/${link.slug}`;
+  const host = new URL(origin).host;
+  const address = `${host}/q/${link.slug}`;
   const parsed = parseDestination(link.destination, [origin]);
   const counted = parsed.ok && (parsed.kind === "internal" || link.countOffsite);
+  const shown = (n: number) => (loadingNumbers ? "…" : n);
 
   async function copy() {
     try {
@@ -45,98 +66,99 @@ export function TrackedLinkRow({ link, campaigns, origin, stats, maxScans, fromD
     }
   }
 
+  function onRowClick(e: MouseEvent<HTMLTableRowElement>) {
+    // A press on a control in the row is that control's own business.
+    if (e.defaultPrevented) return;
+    if ((e.target as HTMLElement).closest("a, button, label, input")) return;
+    onSelect();
+  }
+
   return (
-    <Card padding="md">
-      <div className={styles.row}>
-        <div className={styles.rowBody}>
-          <h3 className={styles.rowTitle}>{link.label || link.slug}</h3>
-          <div className={styles.rowMeta}>
-            <span className={styles.address}>{address}</span>
-            <Badge tone={link.type === "qr" ? "accent" : "neutral"}>
-              {link.type === "qr" ? "QR code" : "Link"}
-            </Badge>
-            {isPrintedSlug(link.slug) && <Badge tone="warning">On paper</Badge>}
-            {!counted && <Badge tone="neutral">Not counted</Badge>}
-          </div>
-          <p className={styles.destination}>
-            {link.active ? "Goes to " : "Switched off. Was going to "}
-            <span className={styles.destinationValue}>{link.destination}</span>
-          </p>
-          {counted ? (
-            <div className={styles.stats}>
-              <span
-                className={styles.track}
-                role="img"
-                aria-label={`${stats.scans} ${stats.scans === 1 ? "scan" : "scans"}`}
-              >
-                <span
-                  className={styles.fill}
-                  style={{ width: `${maxScans > 0 ? (stats.scans / maxScans) * 100 : 0}%` }}
-                />
-              </span>
-              <span className={styles.figures}>
-                <strong>{stats.scans}</strong> {stats.scans === 1 ? "scan" : "scans"}
-                <span className={styles.figureGap}>·</span>
-                <strong>{stats.signupsStarted}</strong> signed up
-                <span className={styles.figureGap}>·</span>
-                <strong>{stats.signupsConfirmed}</strong> confirmed
-              </span>
-            </div>
-          ) : (
-            <p className={styles.uncounted}>
-              Goes straight to another site, so scans are not counted. Sign-ups cannot be traced
-              to it either, because there is no page of ours in between.
-            </p>
-          )}
-          {link.active && !parsed.ok && (
-            <p className={styles.error}>
-              This address is not one the site will follow ({parsed.error.replace(/\.$/, "")}), so the
-              link is landing on the links page. Edit it to fix that.
-            </p>
-          )}
+    <tr
+      className={selected ? `${styles.row} ${styles.rowSelected}` : styles.row}
+      onClick={onRowClick}
+    >
+      <td className={styles.addressCell}>
+        <div className={styles.addressLine}>
+          <button
+            type="button"
+            className={styles.address}
+            aria-expanded={selected}
+            aria-controls={selected ? panelId : undefined}
+            onClick={onSelect}
+          >
+            <span className={styles.host}>{host}/q/</span>
+            <span className={styles.slug}>{link.slug}</span>
+          </button>
+          {isPrintedSlug(link.slug) && <Chip tone="neutral">On paper</Chip>}
+          {!counted && <Chip tone="neutral">Not counted</Chip>}
         </div>
-        <div className={styles.rowActions}>
-          <span className={`${styles.state} ${link.active ? styles.stateLive : styles.stateOff}`}>
-            {link.active ? "Live" : "Off"}
+        {link.label && <span className={styles.what}>{link.label}</span>}
+      </td>
+      <td data-label="Goes to" className={styles.goesCell}>
+        <span
+          className={
+            link.active ? styles.destination : `${styles.destination} ${styles.destinationOff}`
+          }
+        >
+          {link.destination}
+        </span>
+        {!link.active && <span className={styles.cellNote}>Lands on /links while it is off</span>}
+        {link.active && !parsed.ok && (
+          <span className={styles.cellProblem}>
+            This address is not one the site will follow ({parsed.error.replace(/\.$/, "")}), so
+            the link is landing on the links page. Change where it goes to fix that.
           </span>
-          <Button size="sm" variant="secondary" onClick={copy}>
-            {copied ? "Copied" : "Copy"}
-          </Button>
-          {stats.scans > 0 && (
-            <Button size="sm" variant="ghost" onClick={() => setDetailed((v) => !v)}>
-              {detailed ? "Hide days" : "By day"}
-            </Button>
-          )}
-          <Button size="sm" variant="ghost" onClick={() => setEditing((v) => !v)}>
-            {editing ? "Close" : "Edit"}
-          </Button>
-        </div>
-      </div>
-
-      {detailed && stats.scans > 0 && (
-        <div className={styles.details}>
-          <ScanColumns
-            caption="Scans by day"
-            columns={dayColumns(stats.byDay, fromDate, scanBucket(new Date()).date)}
-          />
-          <ScanColumns caption="Scans by hour of the day, London time" columns={hourColumns(stats.byHour)} />
-        </div>
+        )}
+      </td>
+      {counted ? (
+        <>
+          <td data-label="Scans" className={styles.number}>
+            {shown(stats.scans)}
+          </td>
+          <td data-label="Signed up" className={styles.number}>
+            {shown(stats.signupsStarted)}
+          </td>
+          <td data-label="Confirmed" className={styles.number}>
+            {shown(stats.signupsConfirmed)}
+          </td>
+        </>
+      ) : (
+        <td colSpan={3} className={styles.uncounted}>
+          <span className={styles.cellNote}>
+            Goes straight to another site, so scans are not counted. Sign-ups cannot be traced to
+            it either, because there is no page of ours in between.
+          </span>
+        </td>
       )}
-
-      {editing && (
-        <div className={styles.editor}>
-          <TrackedLinkForm
-            link={link}
-            campaigns={campaigns}
-            origin={origin}
-            onSubmit={async (slug, input) => {
-              await onSave(slug, input);
-              setEditing(false);
-            }}
-            onCancel={() => setEditing(false)}
-          />
-        </div>
-      )}
-    </Card>
+      <td data-label="Live" className={styles.live}>
+        <Switch
+          checked={live}
+          disabled={busy}
+          onChange={onLive}
+          label={
+            <>
+              <span className={styles.srOnly}>{address} is live</span>
+              <span
+                aria-hidden="true"
+                className={live ? `${styles.liveWord} ${styles.liveWordOn}` : styles.liveWord}
+              >
+                {live ? "On" : "Off"}
+              </span>
+            </>
+          }
+        />
+      </td>
+      <td className={styles.copyCell}>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={copy}
+          aria-label={copied ? `Copied ${address}` : `Copy ${address}`}
+        >
+          {copied ? "Copied" : "Copy"}
+        </Button>
+      </td>
+    </tr>
   );
 }

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
+import styles from "./RsvpPages.module.css";
 
 type Props = {
   eventId: string;
@@ -57,32 +57,30 @@ export default function SelfCancelForm({
 
   if (state.kind === "cancelled") {
     return (
-      <Card padding="lg">
-        <h2 style={{ fontSize: "var(--text-xl)", margin: "0 0 var(--space-2)" }}>
-          Your RSVP is cancelled.
-        </h2>
-        <p style={{ color: "var(--color-text-muted)", margin: 0 }}>
+      <div className={styles.card}>
+        <h1 className={styles.title}>Your RSVP is cancelled.</h1>
+        <p className={styles.muted}>
           Thanks for letting us know. If you change your mind, you can sign up again
           from the event page.
         </p>
-      </Card>
+      </div>
     );
   }
 
   return (
-    <Card padding="lg">
-      <h2 style={{ fontSize: "var(--text-xl)", margin: "0 0 var(--space-2)" }}>
-        Cancel your RSVP for {eventTitle}?
-      </h2>
-      <p style={{ color: "var(--color-text-muted)", marginBottom: "var(--space-4)" }}>
-        Hi {name || "there"} — confirm below and we&apos;ll free up your spot.
+    <div className={styles.card}>
+      <h1 className={styles.title}>Cancel your RSVP for {eventTitle}?</h1>
+      <p className={styles.muted}>
+        Hi {name || "there"}. Confirm below and we&apos;ll free up your spot.
       </p>
 
       {state.kind === "error" && (
-        <p style={{ color: "var(--color-danger)" }}>{state.message}</p>
+        <p className={styles.danger} role="alert">
+          {state.message}
+        </p>
       )}
 
-      <div style={{ display: "flex", gap: "var(--space-3)" }}>
+      <div className={styles.actions}>
         <Button onClick={onConfirm} disabled={state.kind === "submitting"}>
           {state.kind === "submitting" ? "Cancelling…" : "Yes, cancel my RSVP"}
         </Button>
@@ -94,6 +92,6 @@ export default function SelfCancelForm({
           Never mind
         </Button>
       </div>
-    </Card>
+    </div>
   );
 }

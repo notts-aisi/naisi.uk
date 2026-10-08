@@ -4,6 +4,7 @@ import { cache } from "react";
 import Badge from "@/components/ui/Badge";
 import { getNewsArticle } from "@/features/news/fetchNews";
 import { formatSiteDate } from "@/lib/datetime/siteTime";
+import { linkPreviewImages } from "@/lib/linkPreviewCard";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -22,12 +23,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description: article.tldr,
       type: "article",
       publishedTime: article.publishedAt,
-      images: article.coverImageUrl ? [{ url: article.coverImageUrl }] : undefined,
+      // The post's cover, or the card for a post with none.
+      images: linkPreviewImages(article.coverImageUrl),
     },
     twitter: {
       card: "summary_large_image",
       title: article.title,
       description: article.tldr,
+      images: linkPreviewImages(article.coverImageUrl),
     },
   };
 }

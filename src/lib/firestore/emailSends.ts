@@ -90,8 +90,14 @@ export type EmailSendKind =
  *
  * `markSendStatus` only ever patches rows at `sent`, so a late bounce webhook
  * cannot land on one of these.
+ *
+ * `held` is the same kind of row for a different reason: the address is fine,
+ * and THIS COPY OF THE SITE is not allowed to write to it (see
+ * `src/lib/email/audience.ts`). The live site never writes one. Staging and a
+ * laptop write one per recipient outside their own list, which is what lets a
+ * rehearsal there be counted: what was held is what would have gone.
  */
-export type EmailSendStatus = "sent" | "bounced" | "complained" | "suppressed";
+export type EmailSendStatus = "sent" | "bounced" | "complained" | "suppressed" | "held";
 
 /**
  * WHICH NOTICE-LANE SURFACE A `notice` ROW CAME FROM.
@@ -206,6 +212,34 @@ export async function logSuppressedSend(db: Firestore, entry: LogSuppressedInput
   // A withheld notice is still a notice: the tab has to show the surface on
   // the row it held back, or "what bypassed the grid" answers only for the
   // half that was deliverable.
+  if (entry.surface) doc.surface = entry.surface;
+  if (entry.actorUid) doc.actorUid = entry.actorUid;
+  if (entry.referenceId) doc.referenceId = entry.referenceId;
+  await db.collection("emailSends").add(doc);
+}
+
+/**
+ * Log a message that was NOT sent because this copy of the site may not write
+ * to its recipient. Called from `sendEmail()` once per held address, with the
+ * same kind, subject, reference and actor the send would have carried.
+ *
+ * The row is the suppressed row's twin on purpose (no `messageId`, a reason,
+ * both timestamps), and differs only in `status`, so the deliverability tab
+ * can tell "the provider told us to stop" from "this is not the live site".
+ */
+export async function logHeldSend(db: Firestore, entry: LogSuppressedInput): Promise<void> {
+  const at = entry.sentAt ?? new Date();
+  const doc: Record<string, unknown> = {
+    to: entry.to.trim(),
+    subject: entry.subject,
+    fromEmail: entry.fromEmail,
+    fromName: entry.fromName,
+    kind: entry.kind,
+    status: "held",
+    statusReason: entry.reason ?? "held",
+    sentAt: at,
+    statusUpdatedAt: at,
+  };
   if (entry.surface) doc.surface = entry.surface;
   if (entry.actorUid) doc.actorUid = entry.actorUid;
   if (entry.referenceId) doc.referenceId = entry.referenceId;

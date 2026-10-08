@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { mark, warn } from "@/lib/devMonitor";
 import { isStandaloneNow } from "@/lib/pwa/displayMode";
+import { safeReturnPath } from "@/lib/signInReturn";
 import styles from "./GoogleSignInButton.module.css";
 
 type Props = {
@@ -21,13 +22,25 @@ type Props = {
    *
    *  The name is kept for the sake of its two existing call sites; read it
    *  as "sign-in is unavailable, here is why" rather than strictly "the
-   *  script failed". */
+   *  script failed".
+   *
+   *  Called again with an EMPTY message when the script arrives after cause
+   *  1 was reported: the button is about to be drawn, and that message no
+   *  longer holds. A caller that keeps other messages in the same place
+   *  should take down only the one this component gave it. */
   onScriptError?: (reason: string) => void;
   /** Called once the GIS button has finished rendering and is interactive.
    *  Used by the login page to gate its swipe-in entrance — the card stays
    *  off-screen until the Google button is genuinely ready so users don't
    *  see the "Loading sign-in…" placeholder. */
   onReady?: () => void;
+  /** The page on this site the person was on their way to, when the caller
+   *  has one. Used ONLY where the button leaves for Google (the installed
+   *  app): it is handed to Google as the button's `state`, which Google
+   *  posts back beside the credential, so the callback route can put the
+   *  address back. A pop-up never unloads the page, so there it is not
+   *  sent anywhere. One of three copies: see src/lib/signInReturn.ts. */
+  returnTo?: string | null;
 };
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
@@ -36,6 +49,12 @@ const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 // give 5s to cover slow networks and slow re-mounts. Beyond that it's
 // almost certainly a content blocker.
 const SCRIPT_LOAD_TIMEOUT_MS = 5000;
+// A script that is only late still arrives. Once the caller has been told,
+// the button goes on looking for it, this often and for this long, and is
+// drawn the moment it comes. A blocked script never comes, so the looking
+// stops.
+const SCRIPT_LATE_POLL_MS = 1000;
+const SCRIPT_LATE_LIMIT_MS = 120_000;
 
 /**
  * Is this the address Google Identity Services opens its sign-in window at?
@@ -58,6 +77,7 @@ export default function GoogleSignInButton({
   onCredential,
   onScriptError,
   onReady,
+  returnTo,
 }: Props) {
   const buttonRef = useRef<HTMLDivElement | null>(null);
   // Latest onCredential in a ref so the GIS callback registered with
@@ -68,10 +88,12 @@ export default function GoogleSignInButton({
   const onCredentialRef = useRef(onCredential);
   const onReadyRef = useRef(onReady);
   const onScriptErrorRef = useRef(onScriptError);
+  const returnToRef = useRef(returnTo);
   useEffect(() => {
     onCredentialRef.current = onCredential;
     onReadyRef.current = onReady;
     onScriptErrorRef.current = onScriptError;
+    returnToRef.current = returnTo;
   });
 
   /*
@@ -136,25 +158,32 @@ export default function GoogleSignInButton({
 
     let cancelled = false;
     const startedAt = performance.now();
+    // True once the caller has been told the script did not load.
+    let reported = false;
 
     function tryInit() {
       if (cancelled) return;
       if (!window.google?.accounts?.id) {
-        if (performance.now() - startedAt > SCRIPT_LOAD_TIMEOUT_MS) {
+        if (!reported && performance.now() - startedAt > SCRIPT_LOAD_TIMEOUT_MS) {
           warn("[gsi] script never loaded — likely a content blocker");
           onScriptError?.(
             "Sign-in couldn't load. A content blocker, ad-blocker, or VPN tracking-protection may be blocking Google's services. Try disabling those for this site, or use a different browser.",
           );
           setStatus("error");
           onReadyRef.current?.();
-          return;
+          reported = true;
         }
         // Poll — next/script's `afterInteractive` strategy doesn't
         // expose a load promise we can await, so we poll every 50ms
-        // until window.google appears.
-        setTimeout(tryInit, 50);
+        // until window.google appears. After the report above it keeps
+        // looking, more slowly and not for ever: see SCRIPT_LATE_LIMIT_MS.
+        if (performance.now() - startedAt > SCRIPT_LATE_LIMIT_MS) return;
+        setTimeout(tryInit, reported ? SCRIPT_LATE_POLL_MS : 50);
         return;
       }
+      // The script came after the caller was told it had not. An empty
+      // message takes that one down; the button is drawn below.
+      if (reported) onScriptError?.("");
 
       mark("[gsi] script loaded, initializing");
       /*
@@ -206,18 +235,30 @@ export default function GoogleSignInButton({
 
       if (buttonRef.current) {
         // Renders Google's branded button into our div. We can't deeply
-        // restyle it (Google's TOS) — only their official theme variants
+        // restyle it (Google's TOS): only their official theme variants
         // are allowed. `filled_blue` matches our accent colour. The
         // white wrapper background GSI injects around the pill is
-        // stripped by GoogleSignInButton.module.css. width is in px;
-        // we fix at 320 so the button feels prominent on the card.
+        // stripped by GoogleSignInButton.module.css.
+        //
+        // The width is in pixels and is fixed once drawn. 320 where there
+        // is room, so the button feels prominent on the card; the width of
+        // the box it sits in where there is not (a card on a narrow phone),
+        // and never under the 200 Google draws a large button at. A box
+        // that cannot be measured yet reads as 0, and gets the 320.
+        const room = Math.floor(buttonRef.current.parentElement?.clientWidth ?? 0);
+        const width = room > 0 ? Math.max(200, Math.min(320, room)) : 320;
+        // Where the person was going rides the trip to Google and back as
+        // the button's `state`. Only in redirect mode, and only an address
+        // the one guard passes: nothing else of the page is ever sent.
+        const state = useRedirect ? safeReturnPath(returnToRef.current) : null;
         window.google.accounts.id.renderButton(buttonRef.current, {
           theme: "filled_blue",
           size: "large",
           shape: "pill",
           text: "continue_with",
           logo_alignment: "left",
-          width: 320,
+          width,
+          ...(state ? { state } : {}),
         });
       }
 

@@ -191,6 +191,37 @@ The same shape, older:
   file declares as a document (a `…Doc` annotation or an `await get…()`),
   unless the site is in `ALLOWED` with the reason the whole document is
   public.
+- `scripts/rules-tests/tests/users-profile-self-edit.test.mjs` with
+  `tests/profile-study-changes.test.mjs`: a client WRITE versus the rule that
+  judges it. A member can correct their own degree and graduation on
+  `/profile`, and a change from one answer to another has to add one entry to
+  `studyChanges` on their document saying what the answer was, which the
+  admin's page for that person shows. The form's write is built by one plain
+  function, `studyWrite` in `src/features/profile/studyChange.ts`. The rules
+  suite loads that function from source, runs it, and sends what it returns
+  through the users rule as a member, so the saves that must go through are
+  never a copy of the form's; the writes that must be refused (a change with
+  no entry, an entry that misstates what the document said, an earlier entry
+  removed or rewritten, an entry with a time that is not the server's) are
+  written by hand, because no code builds them. The plainest case is the one
+  that matters most: an account from before the record existed, with no such
+  field, saves everything it could save before. The unit file holds the same
+  function as a table of what is written in each case, compares the cap and
+  the key pattern in `firestore.rules` with the constants the form reads, and
+  lists every file under `src` that names the field with what it does with
+  it, both ways, so a second reader of the entries cannot appear unlisted.
+  The same pair holds what a degree IS to one reading. The rule decides
+  whether a save changed somebody's degree by reading `subject` where it is
+  text with something in it and the older `course` otherwise, and `degreeOf`
+  in the form's module reads it the same way for every page that shows a
+  degree, searches by it or fills a box with it. `tests/lib/storedDegrees.mjs`
+  is one table of stored profiles with the degree each holds: the unit file
+  runs it through the function and the rules suite through the rule. The unit
+  file also lists, both ways, every file that reads a property called
+  `course`, every caller of the function and every file that reads `subject`
+  straight off a profile, so a second reading cannot appear unlisted. And the
+  rule holds the three fields to text, or nothing, in whatever an account
+  writes to its own document, on a create and on an update.
 - `tests/authority-at-use.test.mjs`: being named on a document is not a
   standing grant. A dozen documents carry an array of uids that decides what
   the people in it may do (a run's `trackLeadUids`, a round's `reviewerUids`,

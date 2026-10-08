@@ -1,0 +1,81 @@
+/*
+  The head every page of one programme shares: its name, where it is in the
+  term, who leads it, and the tabs.
+*/
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: var(--space-2);
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+.metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.metaItem strong {
+  font-weight: 600;
+  color: var(--color-text);
+}
+.metaDot {
+  color: var(--color-text-subtle);
+}
+
+.tabs {
+  display: flex;
+  gap: var(--space-6);
+  min-width: 0;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--color-border);
+  /* Seven tabs do not fit a phone, so the strip scrolls and the page does not. */
+  overflow-x: auto;
+}
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  margin-bottom: -1px;
+  padding: 0 2px;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+a.tab:hover {
+  color: var(--color-text);
+}
+.tabCurrent {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-text);
+  font-weight: 600;
+}
+/* A tab whose page is not built yet: drawn, and not a link. */
+.tabPending {
+  cursor: default;
+}
+.tabCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-hover);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .tabs {
+    gap: var(--space-5);
+    margin-bottom: var(--space-5);
+  }
+}

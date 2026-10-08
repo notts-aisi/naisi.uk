@@ -5,11 +5,18 @@ import type { ReactElement } from "react";
 import { getAdminDb } from "@/lib/firebase/admin";
 import {
   logEmailSend,
+  logHeldSend,
   logSuppressedSend,
   type EmailSendKind,
   type EmailSendSurface,
 } from "@/lib/firestore/emailSends";
 import { filterSuppressed } from "@/lib/firestore/suppression";
+import {
+  HELD_REASON,
+  isMisconfiguredProduction,
+  resolveEmailAudience,
+  splitByAudience,
+} from "./audience";
 import { parseSesMessageId } from "./sesMessageId";
 import { parseResendMessageId } from "./resendMessageId";
 
@@ -26,6 +33,14 @@ import { parseResendMessageId } from "./resendMessageId";
  * status `suppressed` carrying the same kind, subject, reference and actor the
  * send would have carried, so the deliverability tab answers "what did we
  * withhold, from whom, and why" rather than showing a silent gap.
+ *
+ * WHO THIS COPY OF THE SITE MAY EMAIL is decided here too, second, by
+ * `./audience.ts`: the live site writes to everyone, and every other copy of
+ * it (staging, a laptop) writes only to the addresses its own setting lists.
+ * A recipient outside that audience is HELD the same way a suppressed one is
+ * dropped, with a row at status `held`. Suppression is asked first on purpose:
+ * an address the provider has told us not to write to is suppressed on every
+ * copy of the site, and its row should say so wherever it was tried.
  */
 
 /** What a send reports back. Fields are added here, never removed: callers read them. */
@@ -38,6 +53,11 @@ export type SendResult = {
   delivered: string[];
   /** Addresses dropped because they are on the suppression list. */
   suppressed: string[];
+  /**
+   * Addresses held because this copy of the site may not write to them (see
+   * `./audience.ts`). Always empty on the live site.
+   */
+  held: string[];
 };
 
 type SendArgs = {
@@ -150,31 +170,54 @@ export async function sendEmail({
     );
   }
 
+  // The audience decides who is left of THOSE, and it needs no database: it is
+  // a fact about which copy of the site this is. It runs whether or not the
+  // suppression list could be read, so a server with no Admin SDK still cannot
+  // write to a stranger from anywhere but the live site.
+  const audience = resolveEmailAudience(process.env);
+  const cleared = splitByAudience(recipients, audience);
+  recipients = cleared.allowed;
+  const held = cleared.held;
+  if (held.length > 0 && isMisconfiguredProduction(audience)) {
+    // The one state that must never be quiet: the live site holding its own
+    // mail because the setting that opens the door is missing.
+    console.error(
+      `[sendEmail] HELD ${held.length} message(s) on the production project: the audience ` +
+        "setting does not say everyone. Nothing is reaching members until it does.",
+    );
+  }
+
   const withheld = async () => {
-    if (!db || suppressed.length === 0) return;
-    await Promise.all(
-      suppressed.map((addr) =>
-        logSuppressedSend(db, {
-          to: addr,
-          subject,
-          fromEmail,
-          fromName: displayName,
-          kind: kind ?? "unknown",
-          surface,
-          actorUid,
-          referenceId,
-        }).catch((err) => {
+    if (!db) return;
+    const row = (addr: string) => ({
+      to: addr,
+      subject,
+      fromEmail,
+      fromName: displayName,
+      kind: kind ?? "unknown",
+      surface,
+      actorUid,
+      referenceId,
+    });
+    await Promise.all([
+      ...suppressed.map((addr) =>
+        logSuppressedSend(db, row(addr)).catch((err) => {
           console.warn("[sendEmail] failed to log a suppressed recipient", err);
         }),
       ),
-    );
+      ...held.map((addr) =>
+        logHeldSend(db, { ...row(addr), reason: HELD_REASON }).catch((err) => {
+          console.warn("[sendEmail] failed to log a held recipient", err);
+        }),
+      ),
+    ]);
   };
 
   // Nobody left: the provider is never contacted, and the withheld rows are
   // the only trace, which is the trace that was missing.
   if (recipients.length === 0) {
     await withheld();
-    return { messageId: "", delivered: [], suppressed };
+    return { messageId: "", delivered: [], suppressed, held };
   }
 
   const [html, text] = await Promise.all([render(react), render(react, { plainText: true })]);
@@ -241,5 +284,6 @@ export async function sendEmail({
     resendEmailId,
     delivered: recipients,
     suppressed,
+    held,
   };
 }

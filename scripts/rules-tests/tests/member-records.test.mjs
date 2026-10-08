@@ -11,12 +11,14 @@
  * both are asserted here for every hat rather than for the ones that seem
  * likely:
  *
- *  - READ is admin and SU-RECOGNISED COMMITTEE. Deliberately the same trust
- *    boundary as the `users` collection and deliberately not a new one: an
- *    entry names a person, what they asked the society for and what the
- *    society decided, which is roster-tier knowledge. Non-SU committee are
- *    scoped to what they are explicitly added to and get nothing here, which
- *    is the split `suRecognised` exists to draw.
+ *  - READ is ADMIN ONLY. An entry holds each reviewer's name with the score
+ *    they gave and the overall comment they wrote about a named applicant.
+ *    On the screen those were written on they are shown to admins and to the
+ *    lead and reviewers of the programmes that person ranked, so an entry is
+ *    not roster-tier knowledge: an SU-recognised committee member named on
+ *    none of those programmes cannot open the application, and must not be
+ *    able to read what was written about it here instead. The same tier as
+ *    `memberConductFlags`, and narrower than the `users` collection.
  *  - WRITE is shut to every client, ADMINS INCLUDED. An entry copies reviewer
  *    notes and scores out of `admissionReviews`, which is `read, write: if
  *    false` precisely so no client can enumerate who scored whom; a
@@ -32,10 +34,10 @@
  *
  * ## destroyAudits
  *
- * The `courseDeletions` and `courseAudit` posture verbatim: admin read, no
- * client write at all. This log is the only surviving evidence of a destroy,
- * because the rows it describes are gone, so a client able to touch it could
- * rewrite the record of its own cascade.
+ * The `courseDeletions` posture verbatim: admin read, no client write at all.
+ * This log is the only surviving evidence of a destroy, because the rows it
+ * describes are gone, so a client able to touch it could rewrite the record
+ * of its own cascade.
  *
  * ## worksheets delete
  *
@@ -189,7 +191,7 @@ async function seedWorksheet(id = "w1", overrides = {}) {
 // memberRecords: read
 // ---------------------------------------------------------------------------
 
-describe("memberRecords: read is admin and SU-recognised committee", () => {
+describe("memberRecords: read is admin-only", () => {
   it("lets an admin read the parent document, the entry and a list", async () => {
     await seedCast();
     await seedRecord();
@@ -208,16 +210,18 @@ describe("memberRecords: read is admin and SU-recognised committee", () => {
     );
   });
 
-  it("lets an SU-recognised committee member read the same three", async () => {
-    // The point of writing the record is that a later application can be
-    // graded with this history in view, and the people grading are committee.
-    // A read tier of admin-only would leave the record unreadable by the
-    // people it exists for.
+  it("refuses an SU-recognised committee member, on all three", async () => {
+    // The near miss, and the reason this block changed. SU-recognised
+    // committee read every member's profile, and an entry here looks like more
+    // of the same. It is not: it carries reviewers' comments about a named
+    // applicant, which the review screen shows only to admins and to that
+    // programme's own lead and reviewers. A committee member named on none of
+    // this person's programmes gets nothing.
     await seedCast();
     await seedRecord();
     const db = await asUser("su1");
-    await assertSucceeds(db.collection("memberRecords").doc("subject").get());
-    await assertSucceeds(
+    await assertFails(db.collection("memberRecords").doc("subject").get());
+    await assertFails(
       db
         .collection("memberRecords")
         .doc("subject")
@@ -225,16 +229,31 @@ describe("memberRecords: read is admin and SU-recognised committee", () => {
         .doc("autumn-2026")
         .get(),
     );
-    await assertSucceeds(
+    await assertFails(
       db.collection("memberRecords").doc("subject").collection("applications").get(),
     );
   });
 
-  it("refuses every other hat, non-SU committee included", async () => {
-    // Non-SU committee is the interesting one: they hold the committee role
-    // and are refused member PII in the users collection on exactly this
-    // boundary. A record of what somebody applied for and how they scored is
-    // the same tier of knowledge, so it moves with it.
+  it("refuses an SU-recognised committee member even when they wrote one of the notes", async () => {
+    // `recordEntry()` names `su1` as the reviewer whose note it holds. Having
+    // written a note is not a claim on the record it was copied into: the
+    // other reviewers' notes are in there beside it.
+    await seedCast();
+    await seedRecord();
+    const db = await asUser("su1");
+    await assertFails(
+      db
+        .collection("memberRecords")
+        .doc("subject")
+        .collection("applications")
+        .doc("autumn-2026")
+        .get(),
+    );
+  });
+
+  it("refuses every other hat, the permission holders included", async () => {
+    // A permission is not a role, and none of them buys a read of what was
+    // written about somebody's application.
     await seedCast();
     await seedRecord();
     for (const uid of REFUSED_HATS) {
@@ -349,7 +368,7 @@ describe("memberRecords: write is shut to every client", () => {
     // The other half of the same attack, and the reason the write rule is not
     // merely defence in depth: the notes are somebody else's writing about a
     // named person, and the reviewer whose name is on them cannot see this
-    // collection at all unless they happen to be SU-recognised.
+    // collection at all unless they are an admin.
     await seedCast();
     await seedRecord();
     const db = await asUser("su1");
@@ -407,9 +426,8 @@ describe("destroyAudits: read is admin-only", () => {
   });
 
   it("refuses every other hat, SU-recognised committee included", async () => {
-    // Wider than memberRecords is on read, and narrower here on purpose. A
-    // member record is knowledge about a person that committee are meant to
-    // use; this is a record of an admin-only act, and only admins destroy.
+    // The same tier as memberRecords on read. This is a record of an
+    // admin-only act, and only admins destroy.
     await seedCast();
     await seedAudit();
     for (const uid of ["su1", ...REFUSED_HATS]) {
