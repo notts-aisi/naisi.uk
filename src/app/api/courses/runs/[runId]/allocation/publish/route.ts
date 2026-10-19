@@ -1,14 +1,27 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
-import { sendCourseApplicationEmail } from "@/lib/email/courseApplicationEmails";
+import {
+  loadCourseEmailTemplate,
+  sendCourseApplicationEmail,
+} from "@/lib/email/courseApplicationEmails";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import {
+  composePlacementEmail,
+  placementRefusal,
+  placementWhere,
+  type NoFirstSession,
+  type PlacementFacts,
+  type PlacementWhere,
+  type RefusedGroup,
+} from "@/lib/courses/placementEmail";
 import {
   COURSE_TZ,
   addDaysToKey,
   isValidDateKey,
 } from "@/lib/courses/weekPlan";
+import { formatRunStart } from "@/lib/courses/window";
 import { normalizeCourseApplication } from "@/lib/firestore/courseApplications";
 import {
   courseEnrolmentId,
@@ -18,6 +31,7 @@ import {
 import {
   normalizeCourseGroup,
   sessionForWeek,
+  sessionModeForWeek,
   type CourseGroupDoc,
 } from "@/lib/firestore/courseGroups";
 import {
@@ -45,6 +59,18 @@ import { mirrorCourseDecisionToPush } from "@/lib/push/courseNotifications";
  * is a hard one: nothing is stamped and nobody is emailed on the refusal
  * path. An accepted application with no seat is a person who was promised a
  * placement email and would silently never get one.
+ * ────────────────────────────────────────────────────────────────────────────
+ *
+ * ── SO IS "EVERY EMAIL CAN BE WRITTEN" ──────────────────────────────────────
+ * The email tells somebody their group and when it first meets. Before
+ * anything is stamped or sent, it is written for every group that has
+ * somebody waiting to be told (`composePlacementEmail`), and publishing
+ * REFUSES (409) with a sentence an admin can act on when one cannot be: a
+ * group with no session time, or wording that uses a token the email does not
+ * fill. A group with no facilitator or no room yet is not a refusal: the
+ * paragraph that would have named them is left out. NO EMAIL FROM THIS ROUTE
+ * CARRIES AN UNFILLED TOKEN, and `src/lib/courses/placementEmail.ts` is where
+ * each token's rule is written.
  * ────────────────────────────────────────────────────────────────────────────
  *
  * RE-PUBLISH IS EXPECTED, not an error: late acceptances get placed, someone
@@ -121,12 +147,12 @@ function weekdayOfKey(key: string): number {
 }
 
 /**
- * "{Weekday} {day} {month}, {HH:MM}" for a group's first taught session —
+ * "{Weekday} {day} {month}, {HH:MM}" for a group's first taught session:
  * the {firstSessionWhen} token. A HUMAN label, deliberately not an instant:
  * the session is a London wall-clock slot and the email should read the way a
- * facilitator would say it. Undefined (token stays literal — an admin
- * notices) when the run has no valid start date, no taught week, or the
- * group's slot has no time yet.
+ * facilitator would say it. Undefined when the run has no valid start date,
+ * no taught week, or the group's slot has no time yet, and publishing is then
+ * refused for that group (`whyNoFirstSession` says which it was).
  */
 function firstSessionWhen(run: CourseRunDoc, group: CourseGroupDoc): string | undefined {
   if (!isValidDateKey(run.startDate)) return undefined;
@@ -155,6 +181,46 @@ function firstSessionWhen(run: CourseRunDoc, group: CourseGroupDoc): string | un
     month: "long",
   }).format(new Date(`${sessionKey}T12:00:00Z`));
   return `${dayLabel}, ${session.startTimeLocal}`;
+}
+
+/** Why `firstSessionWhen` has no answer, so the refusal can say what to set. */
+function whyNoFirstSession(run: CourseRunDoc): NoFirstSession {
+  if (!isValidDateKey(run.startDate)) return "no-start-date";
+  if (!run.weekPlan.some((e) => e.kind === "week")) return "no-taught-week";
+  return "no-session-time";
+}
+
+/**
+ * Where that first session is: the group's room, or that it is online. The
+ * same week `firstSessionWhen` dates, addressed the same way, so the email's
+ * when and where are one session's. Null when the group has neither a room
+ * nor a link for it, and the email then says nothing about where. The link
+ * itself never leaves `placementWhere`, so this email cannot carry it.
+ */
+function firstSessionWhere(run: CourseRunDoc, group: CourseGroupDoc): PlacementWhere | null {
+  const first = run.weekPlan.find((e) => e.kind === "week");
+  if (!first || first.kind !== "week") return null;
+  const weekId = weekDocId(first.weekNumber);
+  return placementWhere(sessionForWeek(group, weekId), sessionModeForWeek(group, weekId));
+}
+
+/** What the placement email is told about one person in one group. */
+function placementFacts(
+  run: CourseRunDoc,
+  group: CourseGroupDoc,
+  name: string,
+  facilitatorNames: string[],
+): PlacementFacts {
+  return {
+    name,
+    courseTitle: run.courseTitle,
+    runLabel: run.label,
+    startDate: formatRunStart(run.startDate) ?? null,
+    groupName: group.name.trim() || null,
+    facilitatorNames: facilitatorNames.length > 0 ? joinNames(facilitatorNames) : null,
+    firstSessionWhen: firstSessionWhen(run, group) ?? null,
+    firstSessionWhere: firstSessionWhere(run, group),
+  };
 }
 
 export async function POST(_req: Request, ctx: Ctx) {
@@ -237,17 +303,7 @@ export async function POST(_req: Request, ctx: Ctx) {
     );
   }
 
-  // The publish fact, stamped before the sends: re-publish is allowed and
-  // re-stamps. If the process dies mid-send, the per-enrolment stamps below
-  // record exactly who was reached, and running publish again finishes the
-  // job — that is the recovery path, so the run-level stamp going first
-  // loses nothing.
-  await runRef.update({
-    allocationPublishedAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  });
-
-  // Everyone placed but not yet told. The stamp is the idempotency guard —
+  // Everyone placed but not yet told. The stamp is the idempotency guard:
   // see the module comment.
   const pendingAll = accepted.filter((app) => {
     const e = enrolmentByUid.get(app.uid);
@@ -256,16 +312,23 @@ export async function POST(_req: Request, ctx: Ctx) {
   const pending = pendingAll.slice(0, MAX_EMAILS_PER_REQUEST);
   const remaining = pendingAll.length - pending.length;
 
-  // One getAll for every user doc this needs: recipients (proven address +
-  // greeting name) and the facilitators of their groups (names for the
-  // {facilitatorNames} token — names only; a facilitator's address never
-  // enters this payload or the email body).
-  const uids = new Set<string>();
-  for (const app of pending) {
-    uids.add(app.uid);
+  // Every group with somebody waiting to be told, this request or a later
+  // one: the second precondition below is about all of them.
+  const pendingGroups = new Map<string, CourseGroupDoc>();
+  for (const app of pendingAll) {
     const gid = enrolmentByUid.get(app.uid)?.groupId;
     const group = gid ? groupById.get(gid) : undefined;
-    for (const f of group?.facilitatorUids ?? []) uids.add(f);
+    if (group) pendingGroups.set(group.id, group);
+  }
+
+  // One getAll for every user doc this needs: this request's recipients
+  // (proven address + greeting name) and the facilitators of those groups
+  // (names for the {facilitatorNames} token: names only; a facilitator's
+  // address never enters this payload or the email body).
+  const uids = new Set<string>();
+  for (const app of pending) uids.add(app.uid);
+  for (const group of pendingGroups.values()) {
+    for (const f of group.facilitatorUids) uids.add(f);
   }
   const uidList = [...uids];
   const userDocs = uidList.length
@@ -275,6 +338,59 @@ export async function POST(_req: Request, ctx: Ctx) {
   for (const doc of userDocs) {
     if (doc.exists) userByUid.set(doc.id, doc.data() ?? {});
   }
+  const facilitatorNamesOf = (group: CourseGroupDoc): string[] =>
+    group.facilitatorUids
+      .map((uid) => {
+        const d = userByUid.get(uid);
+        return d ? displayNameOf(d) : "";
+      })
+      .filter(Boolean);
+
+  // ── The second precondition ───────────────────────────────────────────────
+  // The email is written once for each of those groups before anything is
+  // stamped or sent. What can stop it is the group's (no session time, no
+  // name) or the wording's (a token this email does not fill), never the
+  // recipient's, so one stand-in name per group asks the whole question. Like
+  // the first precondition, a refusal does nothing else at all.
+  const template = pendingGroups.size > 0 ? await loadCourseEmailTemplate("course-allocated") : null;
+  const refused: RefusedGroup[] = [];
+  if (template) {
+    for (const group of pendingGroups.values()) {
+      const written = composePlacementEmail(
+        template,
+        placementFacts(run, group, "NAISI member", facilitatorNamesOf(group)),
+      );
+      if (written.ok) continue;
+      refused.push({
+        name: group.name.trim(),
+        problems: written.problems,
+        ...(written.problems.some((problem) => problem.kind === "no-first-session")
+          ? { noFirstSession: whyNoFirstSession(run) }
+          : {}),
+      });
+    }
+  }
+  if (refused.length > 0) {
+    const reasons = placementRefusal(refused);
+    return NextResponse.json(
+      {
+        error: ["Nothing was published and nobody was emailed.", ...reasons].join(" "),
+        reasons,
+        unplaced: [],
+      },
+      { status: 409 },
+    );
+  }
+
+  // The publish fact, stamped before the sends: re-publish is allowed and
+  // re-stamps. If the process dies mid-send, the per-enrolment stamps below
+  // record exactly who was reached, and running publish again finishes the
+  // job. That is the recovery path, so the run-level stamp going first
+  // loses nothing.
+  await runRef.update({
+    allocationPublishedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
 
   const channel = courseRunChannel(runId);
   const actorLabel =
@@ -307,12 +423,18 @@ export async function POST(_req: Request, ctx: Ctx) {
     }
     const name = userData ? displayNameOf(userData) : app.displayName || "NAISI member";
 
-    const facilitatorNames = group.facilitatorUids
-      .map((uid) => {
-        const d = userByUid.get(uid);
-        return d ? displayNameOf(d) : "";
-      })
-      .filter(Boolean);
+    // Written again for this person, with their own name. The precondition
+    // above has already written it for their group, so this cannot fail
+    // unless something changed between the two; then nothing is sent and
+    // nothing is stamped, and the next publish asks again.
+    const written = template
+      ? composePlacementEmail(template, placementFacts(run, group, name, facilitatorNamesOf(group)))
+      : null;
+    if (!template || !written || !written.ok) {
+      console.error("[allocation publish] email could not be written", runId, app.uid);
+      skipped += 1;
+      continue;
+    }
 
     try {
       // Channel membership first, then the email that mentions the course.
@@ -342,13 +464,8 @@ export async function POST(_req: Request, ctx: Ctx) {
       await sendCourseApplicationEmail({
         kind: "allocated",
         to,
-        name,
-        courseTitle: run.courseTitle,
-        runLabel: run.label,
-        groupName: group.name,
-        facilitatorNames:
-          facilitatorNames.length > 0 ? joinNames(facilitatorNames) : undefined,
-        firstSessionWhen: firstSessionWhen(run, group),
+        composed: { subject: written.subject, blocks: written.blocks },
+        fromName: template.fromName,
         uid: app.uid,
         runId,
       });

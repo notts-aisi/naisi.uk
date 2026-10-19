@@ -2403,6 +2403,31 @@ describe("a test of a programme's own email goes to whoever asked, and to nobody
     assert.equal(db.counters.writes, 0);
   });
 
+  test("You’re in an incubator: what an incubator's people are told, with nothing about a group", async () => {
+    const db = makeDb(seed());
+    const result = await send.sendProgrammeTestEmail(db, me, await form(db), INC, "accepted");
+    assert.equal(result.subject, "You’re in Research incubator");
+    const text = (await render(globalThis.__ddMail.calls[0].react, { plainText: true })).replace(/\s+/g, " ");
+    // The standard words depend on the kind of programme: an incubator is not
+    // a small group with a facilitator, so its people are not promised one.
+    assert.ok(
+      text.includes(
+        "You’re in the Research incubator. It starts w/c 26 Oct. We’ll email you before you start with how the first week works.",
+      ),
+      text,
+    );
+    assert.doesNotMatch(text, /small group|facilitator|campus|your group|when it meets/i);
+    // A fellowship's test, from the same form, still says a fellowship's words.
+    await send.sendProgrammeTestEmail(db, me, await form(db), AGI, "accepted");
+    const fellowship = (await render(globalThis.__ddMail.calls[1].react, { plainText: true })).replace(/\s+/g, " ");
+    assert.ok(
+      fellowship.includes(
+        "You’ll be in a small group with a facilitator, on campus, and we’ll email you your group and when it meets before you start.",
+      ),
+      fellowship,
+    );
+  });
+
   test("Invitation: an invitation to this programme, with the form's reply-by day", async () => {
     const db = makeDb(seed());
     const result = await send.sendProgrammeTestEmail(db, me, await form(db), TAIS, "invitation");

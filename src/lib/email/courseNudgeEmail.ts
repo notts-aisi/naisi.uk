@@ -1,6 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import CourseNudgeEmail from "@/emails/CourseNudgeEmail";
+import { couldBeFollowed } from "@/lib/courses/followable";
 import { addDaysToKey, isValidDateKey } from "@/lib/courses/weekPlan";
 import type { GroupSession, GroupSessionMode } from "@/lib/firestore/courseGroups";
 import {
@@ -321,7 +322,7 @@ export type CourseNudgeTokens = {
   weekSummary: string;
   /** Human session label, e.g. "Tuesday 26 August, 18:00–19:30". */
   sessionWhen: string;
-  /** Where that session is, e.g. "Hallward B12" or "Online". */
+  /** Where that session is, e.g. "Hallward B12" or "Online". Empty for a room a reader could follow. */
   sessionWhere: string;
   /** Absolute link to the week page. */
   weekUrl: string;
@@ -546,6 +547,15 @@ export function courseNudgeSessionWhen(
  *                     than naming a destination that is wrong.
  *   · `null`        → the legacy resolution, unchanged.
  *
+ * ── A ROOM IS TYPED BY A PERSON, AND A LINK CAN BE TYPED INTO ONE ───────────
+ * So the room is asked about before it is printed (`couldBeFollowed`, the one
+ * function the placement email asks too, so the two cannot come to differ).
+ * A room with anything in it that a reader could follow is not printed: the
+ * answer is "", exactly as for a group with no room, and the sentence closes
+ * up around it. The email's own link to the week's page is where that group's
+ * people find where they meet. It is never turned into "Online": a room that
+ * holds a link may still be a room.
+ *
  * `courseNudgeSessionWhen` deliberately takes NO mode: a week that moves online
  * happens at the same hour on the same evening, so the mode cannot change the
  * `{sessionWhen}` string. Threading it through for symmetry would be a
@@ -557,9 +567,11 @@ export function courseNudgeSessionWhere(
 ): string {
   if (!session) return "";
   const location = session.location.trim();
+  // What is printed of the room: nothing, when a reader could follow it.
+  const room = couldBeFollowed(location) ? "" : location;
   if (mode === "virtual") return "Online";
-  if (mode === "in-person") return location;
-  if (location) return location;
+  if (mode === "in-person") return room;
+  if (location) return room;
   return session.meetingUrl ? "Online" : "";
 }
 

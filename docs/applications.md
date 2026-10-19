@@ -270,7 +270,11 @@ the person's own application is not shown and not read. The form
 application (`/applications/<roundId>`) each draw a notice in its place
 (`src/features/applications/viewAsNotice.ts`). The form's own `GET` and the
 list's `GET` refuse, as every write already does. The dashboard card offers
-the way to the list and names nothing on it. The check comes before the read
+the way to the list and names nothing on it. Whether the member holds a
+place is not asked either (`holdsPlace()`), so the dashboard and the list of
+their programmes (`/learn`) cannot tell, and do what they do for somebody
+who holds one: neither says the member is on nothing, and neither says they
+are not. The check comes before the read
 on each of them, so nothing of the application is fetched to be left out
 afterwards, and nothing of it is in the page. A marker left over from a
 session that has ended is not a session. A round of the older kind keeps the
@@ -1051,6 +1055,29 @@ it states no outcome at all: a summary card is a third place the words could
 come to disagree, and nobody should learn a decision from one. A waiting
 account, which the dashboard does not admit, has the same link on the page
 it is held on.
+
+Two pages of the member area tell a member with no run that they are on
+nothing: the dashboard ("You’re not on a programme yet.") and the list of
+their programmes (`/learn`, "You're not on a course yet"). A place is not a
+run. Somebody decision day gave a place has no run until they are put on
+one, and of them that sentence is untrue. So both pages ask whether the
+member holds a place (`holdsPlace()` in
+`src/features/applications/home/holdsPlace.ts`, which asks the read behind
+the person's own page), and they ask it only so as not to tell somebody
+with a place that they are on nothing. The answer is yes, no, or could not
+tell. It carries no round, no programme and no words, so a page that asks
+it has nothing of an outcome to print. On a no, the page reads as it always
+has. On a yes, and on could not tell, it does one and the same thing: the
+sentence is left out, and the way to the member's applications is on the
+page, which is the card above on the dashboard and the same card, naming
+nothing, where the empty state would be on `/learn`. NEITHER PAGE STATES AN
+OUTCOME, for the reason the card does not.
+`tests/applications-place-in-the-member-area.test.mjs` puts every way an
+application can stand through both pages, and holds that what each draws
+carries no outcome word and no programme's name, and that a member reads
+one of two pages: the page of a member known to hold no place, and the page
+of everybody else. In a view-as session it is one page, however the
+member's application stands.
 
 ### Who is in the term
 

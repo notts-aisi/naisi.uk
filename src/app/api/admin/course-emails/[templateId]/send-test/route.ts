@@ -18,6 +18,7 @@ import {
   renderCourseNudge,
   COURSE_NUDGE_TEMPLATE_ID,
 } from "@/lib/email/courseNudgeEmail";
+import { composePlacementEmail, placementFactsFromSample } from "@/lib/courses/placementEmail";
 import { sendEmail } from "@/lib/email/send";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
@@ -203,12 +204,25 @@ export async function POST(
       ? renderCourseNudge({ subject, blocks }, courseNudgeTokensFrom(tokens))
       : null;
 
+  // The placement email, written by its own composer as a PROOF: a paragraph
+  // with nothing to say is left out as it would be for a placed person, and a
+  // token that email cannot fill stays as typed for whoever asked to notice.
+  const placement =
+    templateId === "course-allocated"
+      ? composePlacementEmail({ subject, blocks }, placementFactsFromSample(tokens), { proof: true })
+      : null;
+  const proof = placement && placement.ok ? placement : null;
+
   const personalisedSubject = nudge
     ? nudge.subject
-    : personaliseString(subject, tokens);
+    : proof
+      ? proof.subject
+      : personaliseString(subject, tokens);
   const personalisedBlocks: Block[] = nudge
     ? nudge.blocks
-    : personaliseBlocks(blocks, tokens);
+    : proof
+      ? proof.blocks
+      : personaliseBlocks(blocks, tokens);
   const testSubject = `[TEST] ${personalisedSubject}`;
 
   /**

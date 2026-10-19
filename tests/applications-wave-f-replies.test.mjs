@@ -402,6 +402,9 @@ describe("ap-offer, as Amara sees it", () => {
       decidedLabel: "Fri 23 Oct",
       via: "ranking",
       programme: AGI_VIEW,
+      // A fellowship's words, as the board has them. The view carries the
+      // sentence because it depends on the kind of programme the place is on.
+      next: "You’ll be in a small group with a facilitator, on campus. Before you start, we’ll email you your group and when it meets.",
       saidComing: false,
     });
   });
@@ -478,6 +481,8 @@ describe("ap-outcomes, the invitation as Oliver sees it", () => {
       decidedLabel: "Fri 23 Oct",
       via: "invitation",
       programme: TAIS_VIEW,
+      // The card's one line, for a fellowship.
+      next: "You’ll be in a small group with a facilitator, on campus.",
       saidComing: true,
     });
   });
@@ -553,11 +558,19 @@ describe("what an applicant reads on decision day", () => {
     for (const fixed of [
       "<span>Your application</span>",
       "<Chip tone=\"ok\">Accepted</Chip>",
-      "You’ll be in a small group with a facilitator, on campus. Before you start, we’ll email you your group and when it meets.",
+      // The sentence under the facts is the view's `next`: the decision
+      // email's own words for the kind of programme the place is on
+      // (`placeNextWords`), so the page types none of them. A fellowship's
+      // are the board's, and are held to it just below and in the view above.
+      "<p className={styles.offerText}>{view.next}</p>",
       "Questions? <Contact />",
     ]) {
       assert.ok(page.includes(fixed), `missing: ${fixed}`);
     }
+    assert.equal(
+      emailCopy.placeNextWords("fellowship").page,
+      "You’ll be in a small group with a facilitator, on campus. Before you start, we’ll email you your group and when it meets.",
+    );
     // The heading is the sentence the decision email's standard subject says,
     // with a full stop. It is written in one place, so the page takes it from
     // there and these are the words that place gives.
@@ -582,10 +595,12 @@ describe("what an applicant reads on decision day", () => {
       "{view.firstName ? `Thanks for applying, ${view.firstName}.` : \"Thanks for applying.\"} We’ll email you when applications next open.",
       "Our events are open to everyone, so come along to one.",
       "<span>See what’s on</span>",
-      "You’ll be in a small group with a facilitator, on campus.",
+      // The accepted card's line is the view's `next` as well, for the same reason.
+      "<p>{view.next}</p>",
     ]) {
       assert.ok(page.includes(fixed), `missing: ${fixed}`);
     }
+    assert.equal(emailCopy.placeNextWords("fellowship").card, "You’ll be in a small group with a facilitator, on campus.");
     for (const fixed of ["\"Accept your invitation\"", "No thanks"]) assert.ok(buttons.includes(fixed), `missing: ${fixed}`);
     assert.match(page, /const EVENTS = "\/events";/);
   });

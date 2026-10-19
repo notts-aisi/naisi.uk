@@ -7,14 +7,18 @@ import {
   renderCourseNudge,
   COURSE_NUDGE_TEMPLATE_ID,
 } from "@/lib/email/courseNudgeEmail";
+import { composePlacementEmail, placementFactsFromSample } from "@/lib/courses/placementEmail";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { isCourseTemplateId } from "@/lib/firestore/courseEmails";
+import { isCourseTemplateId, type CourseTemplateId } from "@/lib/firestore/courseEmails";
 import {
   personaliseBlocks,
   personaliseString,
   sanitizeBlocks,
   type TokenValues,
 } from "@/lib/firestore/newsletterBlocks";
+
+/** The one template whose preview is written by the placement email's own composer. */
+const PLACEMENT_TEMPLATE_ID: CourseTemplateId = "course-allocated";
 
 /**
  * Server-side render of a COURSE email for the admin editor's iframe preview.
@@ -66,7 +70,9 @@ export async function POST(req: Request) {
     const html =
       templateId === COURSE_NUDGE_TEMPLATE_ID
         ? await renderNudgePreview(rawSubject, blocks, tokens)
-        : await renderCourseTemplatePreview(rawSubject, blocks, tokens);
+        : templateId === PLACEMENT_TEMPLATE_ID
+          ? await renderPlacementPreview(rawSubject, blocks, tokens)
+          : await renderCourseTemplatePreview(rawSubject, blocks, tokens);
     return new NextResponse(html, {
       status: 200,
       headers: { "content-type": "text/html; charset=utf-8" },
@@ -91,6 +97,30 @@ function renderCourseTemplatePreview(
     ApplicationEmail({
       subject,
       blocks: personaliseBlocks(blocks, tokens),
+      preheader: subject,
+    }),
+  );
+}
+
+/**
+ * The placement email, through the composer a placed person's email is
+ * written by, as a PROOF: a paragraph with nothing to say is left out exactly
+ * as it would be for them, and a token that email cannot fill stays as typed
+ * for the admin to notice. A send refuses that token instead.
+ */
+function renderPlacementPreview(
+  rawSubject: string,
+  blocks: ReturnType<typeof sanitizeBlocks>,
+  tokens: TokenValues,
+): Promise<string> {
+  const proof = composePlacementEmail({ subject: rawSubject, blocks }, placementFactsFromSample(tokens), {
+    proof: true,
+  });
+  const subject = (proof.ok && proof.subject) || "(no subject)";
+  return render(
+    ApplicationEmail({
+      subject,
+      blocks: proof.ok ? proof.blocks : [],
       preheader: subject,
     }),
   );

@@ -18,6 +18,10 @@ import styles from "./status.module.css";
  * the same for all of them. After decision day it is the offer, the
  * invitation or the kind no that was published onto their own document.
  *
+ * What somebody with a place is told comes next is the view's own `next`,
+ * which is the decision email's sentence for the kind of programme they are
+ * in. It is not typed here: a sentence typed here is said to everybody.
+ *
  * Nothing on this page is a form control but the reply buttons, so apart
  * from those it reads in full from the first HTML, before any script runs.
  */
@@ -352,10 +356,7 @@ export default function StatusPage({
               </div>
             ) : null}
           </div>
-          <p className={styles.offerText}>
-            You’ll be in a small group with a facilitator, on campus. Before you start, we’ll email you your
-            group and when it meets.
-          </p>
+          <p className={styles.offerText}>{view.next}</p>
           <PlaceReply
             roundId={roundId}
             said={view.saidComing ? "You’ve told us you’re coming." : null}
@@ -390,7 +391,7 @@ export default function StatusPage({
             ) : null}
           </div>
           <div className={styles.body}>
-            <p>You’ll be in a small group with a facilitator, on campus.</p>
+            <p>{view.next}</p>
           </div>
           <PlaceReply roundId={roundId} said="You’ve accepted your invitation." locked={viewingAs} />
         </div>
