@@ -152,11 +152,11 @@ export type IncubatorPageFacts = {
 
 /** The paragraph under "Ready to do research.", where the page speaks of one incubator. */
 const WHO_ONE =
-  "It’s for people who’ve done a fellowship with us, or have a similar background. This term’s projects are technical, so expect to read ML papers closely and write code.";
+  "You don’t need to have done a fellowship with us. If you can write some Python and you’re comfortable reading ML papers, that’s enough to apply. This term’s projects are technical, so expect to read papers closely and write code.";
 
 /** The same paragraph where the form carries more than one: it says what is technical, and not that the term is. */
 const WHO_SEVERAL =
-  "It’s for people who’ve done a fellowship with us, or have a similar background. Replicating a paper is technical, so expect to read ML papers closely and write code.";
+  "You don’t need to have done a fellowship with us. If you can write some Python and you’re comfortable reading ML papers, that’s enough to apply. Replicating a paper is technical, so expect to read papers closely and write code.";
 
 export function incubatorPageWords({ incubators, stage, termLabel }: IncubatorPageFacts): IncubatorPageWords {
   const starts = sharedStart(incubators);

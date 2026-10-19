@@ -113,7 +113,7 @@ export default function HomeHero({
             data-strength="0.8"
             className={styles.lede}
           >
-            The AI safety community at the University of Nottingham. Fellowships, a research incubator and
+            The AI safety community at the University of Nottingham. Fellowships, research incubators and
             socials, open to every subject.
           </p>
           <div

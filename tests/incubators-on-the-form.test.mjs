@@ -166,7 +166,7 @@ const pageFacts = (incubators, stage = "open", termLabel = "Autumn 2026") => ({ 
 const SENTENCE =
   "Replicate a published AI safety paper with a small team, then add your own twist. There’s food at every session.";
 const WHO_ONE =
-  "It’s for people who’ve done a fellowship with us, or have a similar background. This term’s projects are technical, so expect to read ML papers closely and write code.";
+  "You don’t need to have done a fellowship with us. If you can write some Python and you’re comfortable reading ML papers, that’s enough to apply. This term’s projects are technical, so expect to read papers closely and write code.";
 
 /** The four steps of applying, as the page says them of one incubator. */
 const STEPS_ONE = {
@@ -277,7 +277,7 @@ describe("the incubator's page with more than one incubator on the form", () => 
     assert.ok(!two.whoBody.includes("This term’s projects"), "the paragraph still speaks for the whole term");
     assert.equal(
       two.whoBody,
-      "It’s for people who’ve done a fellowship with us, or have a similar background. Replicating a paper is technical, so expect to read ML papers closely and write code.",
+      "You don’t need to have done a fellowship with us. If you can write some Python and you’re comfortable reading ML papers, that’s enough to apply. Replicating a paper is technical, so expect to read papers closely and write code.",
     );
   });
 
@@ -484,7 +484,7 @@ describe("the incubator's page, drawn", () => {
     assert.ok(!text.includes("Technical this term"));
     assert.ok(!text.includes("This term’s projects are technical"));
     assert.ok(text.includes("Replicating a paper · who it’s for Ready to do research."));
-    assert.ok(text.includes("Replicating a paper is technical, so expect to read ML papers closely and write code."));
+    assert.ok(text.includes("Replicating a paper is technical, so expect to read papers closely and write code."));
   });
 
   test("with two that start apart, each start is printed once, beside its own incubator", async () => {
