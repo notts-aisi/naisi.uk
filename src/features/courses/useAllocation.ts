@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { PublishReport } from "@/lib/courses/publishWords";
 import type { WeekPlanEntry } from "@/lib/courses/weekPlan";
 import type { FormPlace } from "./allocationFit";
 
@@ -102,6 +103,12 @@ export type AllocRow = {
   /** ISO instant of their allocation email, or null if they've had none. */
   allocatedEmailAt: string | null;
   /**
+   * What became of that email: handed over, held by this copy of the site, or
+   * stopped by the do-not-email list. Null on a stamp from before Publish
+   * kept this, which was a send.
+   */
+  allocatedEmailDelivery: "sent" | "held" | "suppressed" | null;
+  /**
    * Set for somebody the term's application form placed on this run, and null
    * for somebody who applied to the run itself. Such a person painted a week
    * on that form and ticked nothing here, so `availability` above is empty
@@ -112,11 +119,38 @@ export type AllocRow = {
   fromForm: FormPlace | null;
 };
 
+/**
+ * What a press of Publish would do now: the route's `PublishSummary`, worked
+ * out by the plan Publish itself reads. Counts and names, never an address.
+ */
+export type PublishSummary = {
+  /** The run takes its people from the application form and this viewer is not an admin. */
+  adminOnly: boolean;
+  /** Emails a press sends now: the number on the button. */
+  emails: number;
+  people: number;
+  facilitators: number;
+  /** Emails still owed past one press's cap. */
+  more: number;
+  noAddress: string[];
+  emptyGroups: string[];
+  /** Why a press would be refused because an email cannot be written. */
+  refusals: string[];
+  test: {
+    state: "none" | "stale" | "fresh";
+    /** "5:38pm", or "Mon 26 Oct at 5:38pm". */
+    when: string | null;
+    /** Null for the viewer's own test. */
+    who: string | null;
+  };
+};
+
 export type AllocationPayload = {
   run: AllocRun;
   groups: AllocGroup[];
   /** Every ACCEPTED application for the run, placed or not. */
   people: AllocRow[];
+  publish: PublishSummary;
 };
 
 // ---------------------------------------------------------------------------
@@ -139,18 +173,23 @@ export type PlaceResult =
   | { ok: false; error: string };
 
 export type PublishResult =
-  | { ok: true; emailed: number; skipped: number; unplaced: string[] }
+  | { ok: true; report: PublishReport }
   | {
       ok: false;
       error: string;
       /**
        * NAMES of accepted applicants with no group. Non-empty only on the
-       * 409 refusal, where the route did nothing at all — the board renders
+       * 409 refusal, where the route did nothing at all. The board renders
        * these in the status rail rather than a toast, because "who is still
        * unplaced" is a work list, not a notification.
        */
       unplaced: string[];
     };
+
+/** "Send a test to me": what became of it, or why it did not go. */
+export type TestResult =
+  | { ok: true; delivery: "sent" | "held" | "suppressed"; recorded: boolean }
+  | { ok: false; error: string };
 
 export type RemoveResult = { ok: true } | { ok: false; error: string };
 
@@ -162,8 +201,14 @@ export type UseAllocation = {
   reload: () => void;
   /** Move people between groups (`groupId: null` returns them to the pool). */
   place: (placements: Placement[]) => Promise<PlaceResult>;
-  /** Enrol everyone placed + email them. Refuses while anyone is unplaced. */
-  publishAllocation: () => Promise<PublishResult>;
+  /**
+   * Publish, carrying the number of emails the board showed: the press is
+   * refused if that is no longer what it would send. Refuses while anyone is
+   * unplaced, and until a test of the wording in force has been sent.
+   */
+  publishAllocation: (emails: number) => Promise<PublishResult>;
+  /** "Send a test to me": the first person's and the first facilitator's real emails, to the caller. */
+  sendPublishTest: () => Promise<TestResult>;
   /** Take one person off the run entirely (their enrolment, not their application). */
   removeEnrolment: (uid: string) => Promise<RemoveResult>;
 };
@@ -279,50 +324,60 @@ export function useAllocation(runId: string): UseAllocation {
   );
 
   /**
-   * Publish: enrol everyone placed, subscribe them to the cohort channel, and
-   * email them their group. The 409 branch is the load-bearing one — the route
-   * refuses outright while any accepted applicant has no group and does
-   * nothing else, returning their NAMES so the board can point at the work
-   * that is left.
+   * Publish: subscribe everyone placed to the cohort channel, email them their
+   * group, and tell each facilitator. Carries the number the button showed.
+   * The 409 with names is the load-bearing refusal: the route refuses outright
+   * while any accepted applicant has no group and does nothing else,
+   * returning their NAMES so the board can point at the work that is left.
    */
-  const publishAllocation = useCallback(async (): Promise<PublishResult> => {
+  const publishAllocation = useCallback(
+    async (emails: number): Promise<PublishResult> => {
+      try {
+        const res = await fetch(`${base}/allocation/publish`, {
+          method: "POST",
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ emails }),
+        });
+        const body = await readBody<{ report: PublishReport; unplaced: string[] }>(res);
+        const unplaced = Array.isArray(body?.unplaced) ? body.unplaced : [];
+        if (!res.ok || !body?.ok || !body.report) {
+          // Whatever was refused, the board's count may be out of date now.
+          reload();
+          return {
+            ok: false,
+            error: body?.error ?? `Publishing didn't go through (${res.status}).`,
+            unplaced: res.status === 409 ? unplaced : [],
+          };
+        }
+        reload();
+        return { ok: true, report: body.report };
+      } catch (e: unknown) {
+        return { ok: false, error: messageFrom(e), unplaced: [] };
+      }
+    },
+    [base, reload],
+  );
+
+  /**
+   * "Send a test to me". The board is read again whatever happened, because
+   * whether the test counted is the server's to say: one this copy of the
+   * site held, or one to an address on the do-not-email list, does not.
+   */
+  const sendPublishTest = useCallback(async (): Promise<TestResult> => {
     try {
-      const res = await fetch(`${base}/allocation/publish`, {
+      const res = await fetch(`${base}/allocation/publish/test`, {
         method: "POST",
         headers: JSON_HEADERS,
         body: "{}",
       });
-      const body = await readBody<{
-        emailed: number;
-        skipped: number;
-        unplaced: string[];
-      }>(res);
-      const unplaced = Array.isArray(body?.unplaced) ? body.unplaced : [];
-      if (res.status === 409) {
-        return {
-          ok: false,
-          error:
-            body?.error ??
-            "Some accepted applicants still aren't in a group — nothing was sent.",
-          unplaced,
-        };
-      }
-      if (!res.ok || !body?.ok) {
-        return {
-          ok: false,
-          error: body?.error ?? `Publishing didn't go through (${res.status}).`,
-          unplaced: [],
-        };
-      }
+      const body = await readBody<{ delivery: "sent" | "held" | "suppressed"; recorded: boolean }>(res);
       reload();
-      return {
-        ok: true,
-        emailed: typeof body.emailed === "number" ? body.emailed : 0,
-        skipped: typeof body.skipped === "number" ? body.skipped : 0,
-        unplaced,
-      };
+      if (!res.ok || !body?.ok || !body.delivery) {
+        return { ok: false, error: body?.error ?? `That test didn't go through (${res.status}).` };
+      }
+      return { ok: true, delivery: body.delivery, recorded: body.recorded === true };
     } catch (e: unknown) {
-      return { ok: false, error: messageFrom(e), unplaced: [] };
+      return { ok: false, error: messageFrom(e) };
     }
   }, [base, reload]);
 
@@ -362,6 +417,7 @@ export function useAllocation(runId: string): UseAllocation {
     reload,
     place,
     publishAllocation,
+    sendPublishTest,
     removeEnrolment,
   };
 }

@@ -42,6 +42,8 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Dropdown, { type DropdownOption } from "@/components/ui/Dropdown";
 import { divergenceNote, type GroupDivergenceInput } from "@/lib/courses/groupResolve";
+import { emailsLabel, publishConfirmText, publishResultLines } from "@/lib/courses/publishWords";
+import AllocationPublish from "./AllocationPublish";
 import {
   useAllocation,
   type AllocGroup,
@@ -380,10 +382,22 @@ function PersonCardBody({
             <span className={styles.srOnly}>: {row.reviewerNotes}</span>
           </li>
         ) : null}
+        {/* What became of their group's email, as Publish recorded it: a
+            held or stopped email is not "Emailed", and the card says so. */}
         {row.allocatedEmailAt ? (
-          <li className={styles.chipOk} title={`Emailed ${formatWhen(row.allocatedEmailAt)}`}>
-            Emailed
-          </li>
+          row.allocatedEmailDelivery === "held" ? (
+            <li className={styles.chipWarn} title="This copy of the site doesn't email that address, so nothing went.">
+              Email held
+            </li>
+          ) : row.allocatedEmailDelivery === "suppressed" ? (
+            <li className={styles.chipWarn} title="The address is on the do-not-email list, so nothing went.">
+              Not emailed: do-not-email list
+            </li>
+          ) : (
+            <li className={styles.chipOk} title={`Emailed ${formatWhen(row.allocatedEmailAt)}`}>
+              Emailed
+            </li>
+          )
         ) : null}
       </ul>
     </>
@@ -636,6 +650,7 @@ export default function AllocationBoard({ courseId, runId }: Props) {
     reload,
     place,
     publishAllocation,
+    sendPublishTest,
     removeEnrolment,
   } = useAllocation(runId);
   const { toast, run: runAction, dismiss } = useActionToast();
@@ -656,7 +671,13 @@ export default function AllocationBoard({ courseId, runId }: Props) {
   const [busy, setBusy] = useState(false);
   /** Names the server (or this board) says still have no group. */
   const [unplacedNames, setUnplacedNames] = useState<string[]>([]);
-  const [publishNote, setPublishNote] = useState<string | null>(null);
+  /** What the last press of Publish did, a sentence each. */
+  const [publishLines, setPublishLines] = useState<string[]>([]);
+  /** Why the last test or press did not go. */
+  const [publishProblem, setPublishProblem] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  /** What the last test came to, when the board's own line does not say it. */
+  const [testNote, setTestNote] = useState<string | null>(null);
 
   const settleTimer = useRef<number | null>(null);
   useEffect(
@@ -1011,83 +1032,109 @@ export default function AllocationBoard({ courseId, runId }: Props) {
   );
 
   /**
+   * "Send a test to me": the first person's and the first facilitator's real
+   * emails, marked as a test, to the caller's own address. The board is read
+   * again afterwards, and its line says when the test went; a test that was
+   * held or stopped by the do-not-email list does not count, and says so here.
+   */
+  const handleTest = useCallback(() => {
+    setTesting(true);
+    setTestNote(null);
+    setPublishProblem(null);
+    void (async () => {
+      try {
+        const result = await sendPublishTest();
+        if (!result.ok) {
+          setPublishProblem(result.error);
+        } else if (result.delivery === "held") {
+          setTestNote(
+            "The test was held, not sent: this copy of the site doesn’t email your address. A held test doesn’t count, so Publish stays locked until one reaches you.",
+          );
+        } else if (result.delivery === "suppressed") {
+          setTestNote("Your address is on the do-not-email list, so the test was not sent. It doesn’t count as a test.");
+        }
+      } finally {
+        setTesting(false);
+      }
+    })();
+  }, [sendPublishTest]);
+
+  /**
    * Publish. Two refusal paths, both landing in the STATUS RAIL rather than a
    * toast, because "who is still unplaced" is a work list you act on, not a
    * notification you dismiss:
    *
-   *  1. The board already knows the pool is non-empty → refuse locally, name
+   *  1. The board already knows the pool is non-empty: refuse locally, name
    *     them in the rail, never call and never show the confirm dialog.
    *  2. The board thought it was done but the server disagreed (someone was
-   *     accepted in another tab between the load and the click) → the route's
+   *     accepted in another tab between the load and the click): the route's
    *     409 carries the names, and they go in the same place.
+   *
+   * The confirmation says the number on the button, and the press carries
+   * it: the server refuses if it is no longer what a press would send.
    */
   const handlePublish = useCallback(() => {
+    if (!data) return;
     if (unallocatedCount > 0) {
-      setPublishNote(null);
+      setPublishLines([]);
       setUnplacedNames(poolRows.map((r) => r.displayName || "Applicant"));
       return;
     }
-    const label = data?.run.label ?? "this run";
-    const already = data?.run.allocationPublishedAt != null;
+    const summary = data.publish;
     if (
       !window.confirm(
-        `Publish the allocation for ${label}?\n\n` +
-          `• ${placedCount} ${plural(placedCount, "member is", "members are")} enrolled in their group.\n` +
-          `• Everyone newly placed is emailed their group, session time and facilitator.\n` +
-          `• The cohort mailing list for this run is created so it can be emailed as one group.\n\n` +
-          (already
-            ? "This run has been published before — only people placed since then will be emailed."
-            : "Emails cannot be un-sent."),
+        publishConfirmText({
+          runLabel: data.run.label || "this run",
+          emails: summary.emails,
+          people: summary.people,
+          facilitators: summary.facilitators,
+          more: summary.more,
+          noAddress: summary.noAddress,
+          emptyGroups: summary.emptyGroups,
+          republish: data.run.allocationPublishedAt != null,
+        }),
       )
     ) {
       return;
     }
     const conflict: { names: string[] } = { names: [] };
     setBusy(true);
+    setPublishProblem(null);
+    setTestNote(null);
     void (async () => {
       try {
         await runAction(
           async () => {
-            const result = await publishAllocation();
+            const result = await publishAllocation(summary.emails);
             if (result.ok) {
               setUnplacedNames([]);
-              setPublishNote(
-                `Published — ${result.emailed} ${plural(result.emailed, "email", "emails")} sent` +
-                  (result.skipped > 0
-                    ? `, ${result.skipped} skipped (already had theirs).`
-                    : "."),
-              );
+              setPublishLines(publishResultLines(result.report));
               return;
             }
             if (result.unplaced.length > 0) {
               conflict.names = result.unplaced;
               throw new Error(
-                "Nothing was sent — some accepted applicants still have no group. They're listed above the board.",
+                "Nothing was sent. Some accepted applicants still have no group: they are listed above the board.",
               );
             }
+            setPublishProblem(result.error);
             throw new Error(result.error);
           },
           {
-            savingMessage: "Publishing allocation…",
-            successMessage: "Allocation published — emails are on their way",
+            savingMessage:
+              summary.emails > 0 ? `Publishing and sending ${emailsLabel(summary.emails)}…` : "Publishing…",
+            successMessage: "Published. What went is on the board.",
           },
         );
       } finally {
         setBusy(false);
         if (conflict.names.length > 0) {
-          setPublishNote(null);
+          setPublishLines([]);
           setUnplacedNames(conflict.names);
         }
       }
     })();
-  }, [
-    unallocatedCount,
-    poolRows,
-    data,
-    placedCount,
-    publishAllocation,
-    runAction,
-  ]);
+  }, [unallocatedCount, poolRows, data, publishAllocation, runAction]);
 
   // -------------------------------------------------------------------------
   // Drag and drop
@@ -1227,7 +1274,6 @@ export default function AllocationBoard({ courseId, runId }: Props) {
   }
 
   const { run } = data;
-  const publishedAt = run.allocationPublishedAt;
   const draggingRow = draggingUid ? peopleByUid.get(draggingUid) : undefined;
   const selectedCount = liveSelection.size;
 
@@ -1319,9 +1365,6 @@ export default function AllocationBoard({ courseId, runId }: Props) {
               >
                 {bulkMode ? "Done selecting" : "Select several"}
               </Button>
-              <Button size="sm" onClick={handlePublish} disabled={busy}>
-                Publish allocation
-              </Button>
             </div>
           </div>
 
@@ -1355,18 +1398,18 @@ export default function AllocationBoard({ courseId, runId }: Props) {
             </p>
           ) : null}
 
-          {publishedAt ? (
-            <p className={styles.railNote}>
-              Published {formatWhen(publishedAt)}. Publishing again only emails
-              people placed since then — nobody gets a second copy.
-            </p>
-          ) : null}
-
-          {publishNote ? (
-            <p className={styles.railSuccess} role="status">
-              {publishNote}
-            </p>
-          ) : null}
+          {/* Publish: who it reaches, the last test, and the two buttons. */}
+          <AllocationPublish
+            summary={data.publish}
+            publishedAt={run.allocationPublishedAt}
+            busy={busy}
+            testing={testing}
+            testNote={testNote}
+            problem={publishProblem}
+            result={publishLines}
+            onTest={handleTest}
+            onPublish={handlePublish}
+          />
 
           {/* The V2-3 divergence disclosure. `role="status"`, not `alert`:
               nothing has gone wrong, the move already happened, and it must

@@ -1,0 +1,109 @@
+/* ============================================================
+   AllocationPublish: the board's Publish area. Words on the
+   left (who a press reaches, the last test, what is not sent),
+   the two buttons on the right, as the st-publish board's foot
+   draws them. Stacks on a phone, with the buttons full width.
+   ============================================================ */
+
+.publish {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.words {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1 1 22rem;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-md, 1rem);
+  font-weight: 600;
+  line-height: var(--leading-snug, 1.35);
+  color: var(--color-text);
+}
+
+.line,
+.lineOk,
+.lineWarn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.lineOk {
+  color: var(--color-success);
+}
+
+.lineWarn {
+  color: var(--color-warning);
+}
+
+.icon {
+  flex: none;
+  margin-top: 0.15em;
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.resultLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-danger);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+@media (max-width: 48rem) {
+  .publish {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .words {
+    flex-basis: auto;
+  }
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .actions > * {
+    width: 100%;
+  }
+}

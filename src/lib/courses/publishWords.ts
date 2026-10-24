@@ -79,6 +79,23 @@ export function publishAudienceLine(people: number, facilitators: number): strin
 export const NOTHING_TO_SEND =
   "Publishing now sends no email: everyone placed and every facilitator of a group with people in it has had theirs.";
 
+/** Somebody owed an email with no address to send it to. */
+export function noAddressLine(names: readonly string[]): string {
+  const one = names.length === 1;
+  return `${nameList(names)} ${one ? "has" : "have"} no email address on file, so ${one ? "is" : "are"} not emailed.`;
+}
+
+/** A group with a facilitator to tell and nobody in it yet. */
+export function emptyGroupsLine(groups: readonly string[]): string {
+  const one = groups.length === 1;
+  return `${nameList(groups)} ${one ? "has" : "have"} nobody in ${one ? "it" : "them"} yet, so ${one ? "its" : "their"} facilitators are not emailed.`;
+}
+
+/** Emails past one press's cap. */
+export function moreLine(more: number): string {
+  return `${emailsLabel(more)} more after this. Press Publish again to send ${more === 1 ? "it" : "them"}.`;
+}
+
 /**
  * The confirmation before a press: the same number as the button, who it
  * reaches, and what is not sent.
@@ -111,19 +128,9 @@ export function publishConfirmText(input: {
     }
     lines.push(`${parts.join(". ")}.`);
   }
-  if (input.more > 0) {
-    lines.push(`${emailsLabel(input.more)} more after this. Press Publish again to send ${input.more === 1 ? "it" : "them"}.`);
-  }
-  if (input.noAddress.length > 0) {
-    const one = input.noAddress.length === 1;
-    lines.push(`${nameList(input.noAddress)} ${one ? "has" : "have"} no email address on file, so ${one ? "is" : "are"} not emailed.`);
-  }
-  if (input.emptyGroups.length > 0) {
-    const one = input.emptyGroups.length === 1;
-    lines.push(
-      `${nameList(input.emptyGroups)} ${one ? "has" : "have"} nobody in ${one ? "it" : "them"} yet, so ${one ? "its" : "their"} facilitators are not emailed.`,
-    );
-  }
+  if (input.more > 0) lines.push(moreLine(input.more));
+  if (input.noAddress.length > 0) lines.push(noAddressLine(input.noAddress));
+  if (input.emptyGroups.length > 0) lines.push(emptyGroupsLine(input.emptyGroups));
   if (input.emails > 0) {
     lines.push(input.republish ? "Only people and facilitators not told before are emailed. Emails cannot be unsent." : "Emails cannot be unsent.");
   }
