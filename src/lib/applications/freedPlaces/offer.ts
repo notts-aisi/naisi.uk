@@ -43,6 +43,7 @@ import {
   type OwedRequest,
   type Refusal,
   type TestRequest,
+  windowSentence,
 } from "./rules";
 import { freedPlaceFingerprint, freedPlaceTestStanding, sendIsTested } from "./tested";
 import type { OfferReport } from "./views";
@@ -118,6 +119,11 @@ function sleep(ms: number): Promise<void> {
 /** The name the committee's screens read, by the same rule as decision day's. */
 function nameOf(application: Pick<ApplicationDoc, "displayName" | "sent">): string {
   return application.displayName.trim() || application.sent?.aboutYou.preferredName.trim() || "Unnamed applicant";
+}
+
+/** What is said before decisions have gone out: the window's own sentence for that. */
+function beforeTheSend(programme: ProgrammeSettings, form: ApplicationForm): string {
+  return windowSentence(freedPlaceWindow(null, null, new Date()), programme, form.round.label);
 }
 
 /** The sentence that holds a send until the email has been tested. */
@@ -288,6 +294,8 @@ export async function offerFreedPlaces(
   if (!offersFreedPlaces(role)) return refuse(403, ADMINS_OFFER);
   const link = admissionApplicationUrl(form.round.id, "status");
   if (!link) return refuse(409, NO_SITE_ADDRESS);
+  // Nothing is offered, and nobody is read, before decisions have gone out.
+  if (form.decisionsSentAt === null) return refuse(409, beforeTheSend(programme, form));
 
   // Who is on the form is settled before the transaction: the list only says
   // which documents to read, and every one of them is read again inside it.
@@ -497,6 +505,8 @@ export async function sendOwedFreedPlaceEmails(
   if (!offersFreedPlaces(role)) return refuse(403, ADMINS_OFFER);
   const link = admissionApplicationUrl(form.round.id, "status");
   if (!link) return refuse(409, NO_SITE_ADDRESS);
+  // Nothing has been offered, and nobody is read, before decisions have gone out.
+  if (form.decisionsSentAt === null) return refuse(409, beforeTheSend(programme, form));
   if (freedPlaceTestStanding(form, programme).state !== "fresh") {
     return refuse(409, "This email’s wording has changed since your last test. Send yourself a test again before you send.");
   }
