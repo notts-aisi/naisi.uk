@@ -10,6 +10,7 @@ import { Field, Input } from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
 import Skeleton from "@/components/ui/Skeleton";
 import Switch from "@/components/ui/Switch";
+import { NAMES_WHEN_GROUPS_GO_OUT } from "./groupNamesWords";
 import { useGroupRoster } from "./useGroupRoster";
 import styles from "./StaffEmailComposer.module.css";
 
@@ -217,6 +218,11 @@ function laneCopy(
   count: number | null,
   /** The run lane's "important notice" tick. See the switch's own copy. */
   asNotice: boolean,
+  /**
+   * The group lane only: nobody in the group has been told it yet, so the
+   * roster is empty though people are placed (the roster's `notYetTold`).
+   */
+  namesToCome: boolean,
 ): LaneCopy {
   const runHref = `/learn/${encodeURIComponent(runId)}`;
 
@@ -230,7 +236,9 @@ function laneCopy(
       noun: "the group",
       blockedLine: `We couldn't load ${label}'s roster, so we can't tell you how many people this would reach. Sending is off until we can.`,
       retryHint: null,
-      emptyLine: `No one is placed in ${label} yet, so there is nobody to email.`,
+      emptyLine: namesToCome
+        ? `${NAMES_WHEN_GROUPS_GO_OUT} There is nobody to email until then.`
+        : `No one is placed in ${label} yet, so there is nobody to email.`,
       audienceLine: `This goes to ${members} of ${label}.`,
       audienceNote: (
         <>
@@ -348,7 +356,13 @@ export default function StaffEmailComposer({ runId, audience }: Props) {
   const countKnown = count !== null;
   const countLoading = audience.kind === "group" ? roster.loading : false;
   const countError = audience.kind === "group" ? (roster.error?.message ?? null) : null;
-  const copy = laneCopy(runId, audience, count, asNotice);
+  const copy = laneCopy(
+    runId,
+    audience,
+    count,
+    asNotice,
+    audience.kind === "group" && roster.notYetTold,
+  );
 
   // THE GUARD. An attempt on THIS text blocks a repeat unless it was refused
   // outright (nothing went out) or explicitly cleared for a resend.

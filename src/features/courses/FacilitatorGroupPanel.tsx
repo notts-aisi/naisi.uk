@@ -5,6 +5,7 @@ import Card from "@/components/ui/Card";
 import InitialsChip from "@/components/ui/InitialsChip";
 import MemberName from "@/components/ui/MemberName";
 import Skeleton from "@/components/ui/Skeleton";
+import { NAMES_WHEN_GROUPS_GO_OUT } from "./groupNamesWords";
 import { weekHref } from "./links";
 import { useGroupRoster } from "./useGroupRoster";
 import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/route";
@@ -182,7 +183,11 @@ export default function FacilitatorGroupPanel({
       {roster.error && <p className={styles.panelNote}>{roster.error.message}</p>}
       {roster.group &&
         (roster.members.length === 0 ? (
-          <p className={styles.panelNote}>No one is placed in this group yet.</p>
+          <p className={styles.panelNote}>
+            {roster.notYetTold
+              ? NAMES_WHEN_GROUPS_GO_OUT
+              : "No one is placed in this group yet."}
+          </p>
         ) : (
           /* Names only, because the roster route sends nothing else, and this is a
              cohort surface. InitialsChip is decorative and aria-hidden, so the

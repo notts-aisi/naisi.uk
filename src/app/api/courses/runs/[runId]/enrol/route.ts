@@ -15,6 +15,7 @@ import { readCoursesConfig } from "@/lib/firestore/config";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
+  placementIsShownTo,
   ENROLMENT_LIMITS,
   type CourseEnrolmentStatus,
 } from "@/lib/firestore/courseEnrolments";
@@ -334,8 +335,15 @@ export async function GET(_req: Request, ctx: Ctx) {
   if (snap.exists) {
     const row = normalizeCourseEnrolment(snap.id, snap.data() ?? {});
     // Belt to the doc id's brace: a hand-made document at a guessable path
-    // must not be reported as this caller's enrolment.
-    if (row.uid === user.uid && row.runId === runId) {
+    // must not be reported as this caller's enrolment. Nor is a seat an admin
+    // allocated and Publish has not told them about yet: it is reported as
+    // no row, as it was before they were placed. A seat somebody took here
+    // for themselves is theirs at once.
+    if (
+      row.uid === user.uid &&
+      row.runId === runId &&
+      placementIsShownTo(row, { isAdmin: user.role === "admin" })
+    ) {
       enrolment = {
         groupId: row.groupId,
         streamId: row.streamId,

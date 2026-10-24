@@ -22,6 +22,7 @@ import {
   type ExerciseReviewStatus,
 } from "@/lib/firestore/courseExercises";
 import { validateSubmissionUrl } from "@/lib/firestore/courses";
+import { NAMES_WHEN_GROUPS_GO_OUT } from "./groupNamesWords";
 import {
   useReviewQueue,
   type ExerciseResponseWire,
@@ -225,7 +226,7 @@ export default function ReviewQueue({ runId, groupId, weeks, initialWeek }: Prop
   // it is empty the empty state says so and offers the other filters.
   const [filter, setFilter] = useState<Filter>("needs-review");
 
-  const { week, rows, loading, error, reload, review } = useReviewQueue(
+  const { week, rows, notYetTold, loading, error, reload, review } = useReviewQueue(
     groupId,
     weekNumber,
   );
@@ -599,6 +600,8 @@ export default function ReviewQueue({ runId, groupId, weeks, initialWeek }: Prop
               </Link>
             }
           />
+        ) : rows.length === 0 && notYetTold ? (
+          <EmptyState title={NAMES_WHEN_GROUPS_GO_OUT} />
         ) : rows.length === 0 ? (
           <EmptyState
             title="No one is in this group yet"

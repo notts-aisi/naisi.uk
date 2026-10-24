@@ -3,7 +3,10 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
-import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
+import {
+  normalizeCourseEnrolment,
+  placementIsShownTo,
+} from "@/lib/firestore/courseEnrolments";
 import { normalizeExerciseResponse } from "@/lib/firestore/courseExercises";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { weekDocId } from "@/lib/firestore/courses";
@@ -46,6 +49,11 @@ import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exerci
  * reach these people by email goes through the group email route, which
  * resolves addresses server-side and never hands them out. Every field added
  * below has to be checked against that line.
+ *
+ * ONLY PEOPLE WHO HAVE BEEN TOLD, for anybody but an admin. An admin's
+ * placement is the board's until Publish emails the person their group
+ * (`placementIsShownTo`): before then they are not a row here, and
+ * `notYetTold` says that somebody is waiting.
  */
 
 // ---------------------------------------------------------------------------
@@ -82,6 +90,11 @@ export type GroupExercisesPayload = {
     displayName: string;
     responses: ExerciseResponseWire[];
   }>;
+  /**
+   * True when somebody placed in the group is not a row yet because Publish
+   * has not told them their group. Never true for an admin.
+   */
+  notYetTold: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -265,9 +278,12 @@ export async function GET(
     return NextResponse.json({ error: "Week not found" }, { status: 404 });
   }
 
-  const memberUids = memberSnap.docs
-    .map((d) => normalizeCourseEnrolment(d.id, d.data() ?? {}).uid)
-    .filter(Boolean);
+  const placed = memberSnap.docs
+    .map((d) => normalizeCourseEnrolment(d.id, d.data() ?? {}))
+    .filter((e) => Boolean(e.uid));
+  // Somebody Publish has not told is not a row for anybody but an admin.
+  const shown = placed.filter((e) => placementIsShownTo(e, { isAdmin }));
+  const memberUids = shown.map((e) => e.uid);
   const memberSet = new Set(memberUids);
 
   const responses = responseSnap.docs
@@ -355,6 +371,7 @@ export async function GET(
         (a, b) =>
           a.displayName.localeCompare(b.displayName) || a.uid.localeCompare(b.uid),
       ),
+    notYetTold: shown.length < placed.length,
   };
 
   return NextResponse.json(payload);

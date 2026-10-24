@@ -7,6 +7,7 @@ import PageHead from "@/components/ui/PageHead";
 import Skeleton from "@/components/ui/Skeleton";
 import type { MyRunEntry } from "@/app/api/courses/me/route";
 import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/route";
+import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
 import { useGroupRoster } from "@/features/courses/useGroupRoster";
 import { useRunOverview } from "@/features/courses/useRunOverview";
 import { ArrowRight } from "./icons";
@@ -57,10 +58,13 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
   const runHref = `/learn/${encodeURIComponent(entry.runId)}`;
   const groupHref = group ? `${runHref}/group/${encodeURIComponent(group.id)}` : runHref;
   const headLine = [group?.name ?? entry.groupName, entry.courseTitle].filter(Boolean).join(" · ");
-  // The roster lists everybody with a seat in the group. The facilitators are
-  // named apart, so "8 in the group" is the people they are there for.
+  // The roster lists everybody with a seat in the group who has been told it.
+  // The facilitators are named apart, so "8 in the group" is the people they
+  // are there for. Before Publish has told anybody their group there are no
+  // names to give, and the line says when there will be.
   const staff = new Set(roster.facilitators.map((person) => person.uid));
   const members = roster.members.filter((person) => !staff.has(person.uid));
+  const namesToCome = members.length === 0 && roster.notYetTold;
 
   return (
     <>
@@ -91,7 +95,9 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
           facts={facts}
           people={
             !roster.loading && !roster.error ? (
-              <span className={styles.sessionPeople}>{members.length} in the group</span>
+              <span className={styles.sessionPeople}>
+                {namesToCome ? NAMES_WHEN_GROUPS_GO_OUT : `${members.length} in the group`}
+              </span>
             ) : null
           }
           actions={

@@ -15,6 +15,7 @@ import {
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
+  placementIsShownTo,
 } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { buildMirroredTask, courseTaskId } from "@/lib/firestore/courseTasks";
@@ -265,7 +266,10 @@ export async function POST(
       enrolment.status !== "active" ||
       // ... and the roster floor under the row itself, as everywhere else
       // an enrolment is read as an authority.
-      !isNamedWithStanding(actor, "courseEnrolments.uid", enrolment.uid)
+      !isNamedWithStanding(actor, "courseEnrolments.uid", enrolment.uid) ||
+      // A placement Publish has not told its owner about puts nothing in
+      // their tasks: a weekly card would name the run before Publish does.
+      !placementIsShownTo(enrolment, { isAdmin: actor.role === "admin" })
     ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

@@ -11,6 +11,7 @@ import {
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
+  placementIsShownTo,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
 import {
@@ -51,7 +52,8 @@ import {
  * ── THE OFFER GAP (why the fourth query exists) ─────────────────────────────
  * Accepting an application deliberately does NOT enrol anyone: "an accepted
  * application is an offer, not a seat" (the decide route's header), and the
- * `courseEnrolments` row is minted only when allocation is PUBLISHED. Between
+ * `courseEnrolments` row a placement makes is shown to its owner only once
+ * allocation is PUBLISHED (see the last note below). Between
  * those two moments — which is hours at best and a fortnight in practice — a
  * member who has just been emailed "you're in" held no row in any collection
  * this route read, so `/learn` told them "You're not on a course yet", the
@@ -89,7 +91,19 @@ import {
  * So such a row is passed over before its status is looked at, and nothing
  * about the form or the caller's application is read here at all. The first
  * thing this hub shows somebody the form placed is their GROUP: the enrolment
- * an admin's placement on the board makes, drawn as it is for anybody.
+ * an admin's placement on the board makes, drawn as it is for anybody, once
+ * Publish has told them (below).
+ *
+ * ── A PLACEMENT IS SHOWN ONCE PUBLISH HAS TOLD ITS OWNER ────────────────────
+ * An admin's placement on the board makes the enrolment at once, but it is
+ * the board's working copy until Publish emails its owner their group
+ * (`placementIsTold`). Until then this hub passes the enrolment over as if
+ * it were not there, so the member reads what they read before they were
+ * placed: nothing at all for somebody the application form placed, and the
+ * offer card for somebody who applied to the run itself (the probe below
+ * does not count such a seat as spending the offer). A seat somebody chose
+ * for themselves on an open run shows at once, and an admin is shown their
+ * own seats as they are.
  */
 
 // ---------------------------------------------------------------------------
@@ -322,9 +336,18 @@ export async function GET() {
   // nothing rewrites it when that stops being true, so the hub draws a cohort
   // card only while the account is still on the roster. The two role loops
   // below ask the same question of their own arrays.
-  const enrolments: CourseEnrolmentDoc[] = enrolSnap.docs
+  const standing: CourseEnrolmentDoc[] = enrolSnap.docs
     .map((d) => normalizeCourseEnrolment(d.id, d.data() ?? {}))
     .filter((e) => isNamedWithStanding(actor, "courseEnrolments.uid", e.uid));
+  // A placement Publish has not told its owner about is passed over here,
+  // whatever else is true of it: see the note at the top. Its run is
+  // remembered only so that the offer probe below does not read the seat as
+  // spending an offer the member was still reading before they were placed.
+  const isAdmin = actor.role === "admin";
+  const enrolments = standing.filter((e) => placementIsShownTo(e, { isAdmin }));
+  const untoldRunIds = new Set(
+    standing.filter((e) => !enrolments.includes(e)).map((e) => e.runId),
+  );
 
   /**
    * runId → the caller's own decided application status, for the two statuses
@@ -379,8 +402,15 @@ export async function GET() {
   // above could not see?", i.e. withdrawn or removed: those keep an `accepted`
   // application forever (the remove route rewinds nothing), and announcing
   // that as an offer is the one way this feature could lie outright.
+  //
+  // A run whose seat is a placement nobody has told the member about is not
+  // probed: the query above has already read that seat, it is active, and it
+  // does not spend the offer. The member goes on reading the offer they read
+  // before an admin placed them, until Publish tells them their group.
   const offerEnrolmentRunIdById = new Map(
-    offerRunIds.map((id) => [courseEnrolmentId(id, actor.uid), id] as const),
+    offerRunIds
+      .filter((id) => !untoldRunIds.has(id))
+      .map((id) => [courseEnrolmentId(id, actor.uid), id] as const),
   );
   const [missingRunSnaps, offerEnrolSnaps] = await Promise.all([
     missingRunIds.length

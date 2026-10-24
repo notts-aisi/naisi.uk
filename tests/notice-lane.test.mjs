@@ -532,6 +532,8 @@ const { resolveCohortAudience, countCohortUnreachable } = await audienceLoader.l
 );
 
 const LANE = { logTag: "test", overCapAdvice: "split it" };
+/** When Publish told the cohort below their group. */
+const TOLD = new Date("2026-10-28T09:00:00Z");
 
 describe("the courses row is honoured on the announcement lane and overridden on the notice lane", () => {
   const world = () => {
@@ -553,6 +555,13 @@ describe("the courses row is honoured on the announcement lane and overridden on
         },
       },
     });
+    // Both were told their group by Publish (`allocatedEmailAt`, a timestamp,
+    // which the store's JSON copy above would turn into a string): a placement
+    // nobody has told is no cohort send's audience on either lane, which
+    // tests/course-hub-group-published-mail.test.mjs holds.
+    for (const row of Object.values(globalThis.__db.data.courseEnrolments)) {
+      row.allocatedEmailAt = TOLD;
+    }
     return globalThis.__db;
   };
 

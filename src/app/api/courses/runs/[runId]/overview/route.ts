@@ -20,6 +20,7 @@ import { attendanceDocId } from "@/lib/firestore/courseAttendance";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
+  placementIsShownTo,
   type CourseEnrolmentDoc,
   type CourseEnrolmentRole,
   type CourseEnrolmentStatus,
@@ -51,6 +52,12 @@ import {
  * enrolment like everyone else. This is the same boundary the applications
  * route states from the other side — reviewing applications grants no access
  * to the cohort, facilitating grants no sight of applications.
+ *
+ * An enrolled member is one whose placement has been TOLD: an admin's
+ * placement is shown to its owner once Publish has emailed them their group
+ * (`placementIsShownTo`). Until then they are answered as before they were
+ * placed. A facilitator reads their group's day, time and room from the
+ * start, and no member's name is in this payload either way.
  *
  * `completed` enrolments read too: a finished cohort is the member's own
  * history, and nothing here is more sensitive to them than it was on their
@@ -464,10 +471,16 @@ export async function GET(
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
+  const isAdmin = actor.role === "admin";
 
-  const enrolment: CourseEnrolmentDoc | null = enrolSnap.exists
+  const stored: CourseEnrolmentDoc | null = enrolSnap.exists
     ? normalizeCourseEnrolment(enrolSnap.id, enrolSnap.data() ?? {})
     : null;
+  // A placement Publish has not told its owner about is not there for them:
+  // they are answered as they were before an admin placed them, and nothing
+  // below, the payload's own `enrolment` included, carries their group.
+  const enrolment =
+    stored && placementIsShownTo(stored, { isAdmin }) ? stored : null;
   // Withdrawn / removed enrolments lose access the moment they are written,
   // whatever the member's open tab still shows.
   // The enrolment is an authority like the arrays are, and it is the first of
@@ -488,7 +501,6 @@ export async function GET(
     isNamedWithStanding(actor, "courseGroups.facilitatorUids", g.facilitatorUids),
   );
 
-  const isAdmin = actor.role === "admin";
   const isEnrolled = liveEnrolment?.role === "learner";
   // Three routes to facilitator access: staffed onto a group (the usual one —
   // the facilitators route upserts a `role: "facilitator"` enrolment at the

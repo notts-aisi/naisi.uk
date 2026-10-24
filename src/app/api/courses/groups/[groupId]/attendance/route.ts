@@ -109,8 +109,16 @@ export type AttendancePayload = {
    * `columnsFor`). Breaks carry no week and no session, so they never appear.
    */
   sessions: AttendanceSession[];
-  /** The grid's ROWS: active members of the group, name-sorted. Names only. */
+  /**
+   * The grid's ROWS: active members of the group, name-sorted. Names only.
+   * For anybody but an admin, only people Publish has told their group.
+   */
   members: RegisterMember[];
+  /**
+   * True when somebody placed in the group is not a row yet because Publish
+   * has not told them their group. Never true for an admin.
+   */
+  notYetTold: boolean;
   /**
    * The marks, `sessionKey -> uid -> status`. Sparse in BOTH directions: an
    * absent key means "not marked", which is a real and common state (nobody
@@ -369,9 +377,9 @@ async function prepareWrite(
   const target = parseSessionTarget(body);
   if (!target.ok) return fail(target.error, 400);
 
-  const [runSnap, members] = await Promise.all([
+  const [runSnap, { members }] = await Promise.all([
     db.collection("courseRuns").doc(gated.runId).get(),
-    loadRegisterMembers(db, gated.runId, groupId),
+    loadRegisterMembers(db, gated.runId, groupId, { isAdmin: gated.isAdmin }),
   ]);
   if (!runSnap.exists) return fail("Run not found", 404);
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
@@ -446,9 +454,9 @@ export async function GET(
   }
   const { group, runId } = gated;
 
-  const [runSnap, members] = await Promise.all([
+  const [runSnap, { members, notYetTold }] = await Promise.all([
     db.collection("courseRuns").doc(runId).get(),
-    loadRegisterMembers(db, runId, groupId),
+    loadRegisterMembers(db, runId, groupId, { isAdmin: gated.isAdmin }),
   ]);
   if (!runSnap.exists) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
@@ -561,6 +569,7 @@ export async function GET(
       };
     }),
     members,
+    notYetTold,
     records,
     participantNotes,
     canEditPushed: gated.isAdmin,

@@ -7,6 +7,7 @@ import { resolveWeekDoc } from "@/lib/courses/groupResolve";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
+  placementIsShownTo,
 } from "@/lib/firestore/courseEnrolments";
 import {
   EXERCISE_LIMITS,
@@ -230,7 +231,9 @@ export async function POST(
     enrolment.role !== "learner" ||
     // The row is an authority the allocation route wrote for an approved
     // account, so that account's standing is checked again here.
-    !isNamedWithStanding(actor, "courseEnrolments.uid", enrolment.uid)
+    !isNamedWithStanding(actor, "courseEnrolments.uid", enrolment.uid) ||
+    // A placement Publish has not told its owner about opens nothing yet.
+    !placementIsShownTo(enrolment, { isAdmin: actor.role === "admin" })
   ) {
     // Deliberately specific rather than a bare "Forbidden": the week page shows
     // the exercises section to facilitators and admins too, and the honest

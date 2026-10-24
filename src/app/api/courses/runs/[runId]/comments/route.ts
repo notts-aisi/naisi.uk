@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/firebase/session";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
+  placementIsShownTo,
 } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseProgress } from "@/lib/firestore/courseProgress";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
@@ -165,18 +166,21 @@ export async function GET(
   const enrolment = enrolSnap.exists
     ? normalizeCourseEnrolment(enrolSnap.id, enrolSnap.data() ?? {})
     : null;
+  const isAdmin = actor.role === "admin";
   // The roster floor on the enrolment itself, as in the overview route: the
-  // row outlives the account unless something asks.
+  // row outlives the account unless something asks. And a placement Publish
+  // has not told its owner about is not a way in: the run's comments are
+  // shut to them as the run itself is.
   const liveEnrolment =
     enrolment &&
     (enrolment.status === "active" || enrolment.status === "completed") &&
-    isNamedWithStanding(actor, "courseEnrolments.uid", enrolment.uid)
+    isNamedWithStanding(actor, "courseEnrolments.uid", enrolment.uid) &&
+    placementIsShownTo(enrolment, { isAdmin })
       ? enrolment
       : null;
   const isFacilitator =
     (liveEnrolment?.role === "facilitator" && liveEnrolment.status === "active") ||
     isNamedWithStanding(actor, "courseRuns.runFacilitatorUids", run.runFacilitatorUids);
-  const isAdmin = actor.role === "admin";
 
   if (!isAdmin && !liveEnrolment && !isFacilitator) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

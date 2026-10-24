@@ -15,6 +15,7 @@ import {
   type AttendanceStatus,
 } from "@/lib/firestore/courseAttendance";
 import styles from "./AttendanceGrid.module.css";
+import { NAMES_WHEN_GROUPS_GO_OUT } from "./groupNamesWords";
 import ParticipantNoteDrawer from "./ParticipantNoteDrawer";
 import PushConfirm from "./PushConfirm";
 import useAttendance, {
@@ -275,6 +276,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
     group,
     sessions,
     members,
+    notYetTold,
     records,
     participantNotes,
     canEditPushed,
@@ -565,6 +567,9 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
   }
 
   if (members.length === 0) {
+    // Somebody is placed here and has not been told their group yet, so the
+    // register has no row for them until Publish emails them.
+    if (notYetTold) return <EmptyState title={NAMES_WHEN_GROUPS_GO_OUT} />;
     return (
       <EmptyState
         title="Nobody is in this group yet."
