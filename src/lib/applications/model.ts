@@ -322,6 +322,16 @@ export type DecisionEmailTest = {
   wording: string;
 };
 
+/**
+ * The last test of one programme's freed-place email: decision day's record,
+ * with the day to accept by the test was sent for. A send for another day is
+ * a send nobody has read, so it is held until that day has been tested too.
+ */
+export type FreedPlaceTest = DecisionEmailTest & {
+  /** A civil date, Europe/London. */
+  replyBy: string;
+};
+
 /** The fields an admission round carries when it is an application form. */
 export type ApplicationFormFields = {
   formVersion: typeof FORM_VERSION;
@@ -342,10 +352,11 @@ export type ApplicationFormFields = {
   decisionEmailTest: DecisionEmailTest | null;
   /**
    * The last test of each programme's freed-place email, by programme id:
-   * who sent it, when, and the fingerprint the offer's send compares
-   * (`freedPlaces/tested.ts`). Empty until an admin sends one.
+   * who sent it, when, for which day to accept by, and the fingerprint the
+   * offer's send compares (`freedPlaces/tested.ts`). Empty until an admin
+   * sends one.
    */
-  freedPlaceTests: Record<string, DecisionEmailTest>;
+  freedPlaceTests: Record<string, FreedPlaceTest>;
   /** Stamped once, by the send. Null until decision day. */
   decisionsSentAt: Date | null;
   decisionsSentByUid: string | null;

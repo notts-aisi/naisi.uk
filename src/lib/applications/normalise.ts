@@ -40,6 +40,7 @@ import {
   type DecisionEmailTest,
   type EmailWording,
   type FreedPlace,
+  type FreedPlaceTest,
   type Invitation,
   type PlacementException,
   type PoolReason,
@@ -172,16 +173,17 @@ function asDecisionEmailTest(v: unknown): DecisionEmailTest | null {
 }
 
 /**
- * The last test of each programme's freed-place email, by programme id. Read
- * as the form's OWN keys, each an id and each a whole record by the rule
- * above: a test that cannot be read unlocks nothing.
+ * The last test of each programme's freed-place email, by programme id. Each
+ * an id, and each a whole record by the rule above with the day it was sent
+ * for: a test that cannot be read unlocks nothing.
  */
-function asFreedPlaceTests(v: unknown): Record<string, DecisionEmailTest> {
-  const out: Record<string, DecisionEmailTest> = {};
+function asFreedPlaceTests(v: unknown): Record<string, FreedPlaceTest> {
+  const out: Record<string, FreedPlaceTest> = {};
   for (const [programmeId, entry] of Object.entries(asRecord(v))) {
     if (!isId(programmeId)) continue;
     const test = asDecisionEmailTest(entry);
-    if (test) out[programmeId] = test;
+    const replyBy = dateKey(asRecord(entry).replyBy);
+    if (test && replyBy) out[programmeId] = { ...test, replyBy };
   }
   return out;
 }

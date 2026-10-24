@@ -743,16 +743,29 @@ describe("picking a pooled applicant's outcome", () => {
     assert.equal(decisionOf(db, "nina").pooledOutcome.kind, "no-offer");
   });
 
-  test("nothing changes once the term has been sent", async () => {
+  test("nothing is picked here once the term has been sent, and the refusal says where a freed place goes", async () => {
+    // THE RULE CHANGED ON PURPOSE (Q15, approved Sat 24 Oct 2026). An outcome
+    // can now change after the send in exactly one way: "No offer this time"
+    // to an invitation, for a place given back, offered from the programme's
+    // Applications tab until the end of week 1, by the freed-place writer
+    // (tests/applications-freed-places-offer.test.mjs pins that rule). This
+    // writer still picks nothing after the send, for anybody, whatever is
+    // asked, including an invitation to a programme the person ranked, and
+    // writes nothing: so the old sentence "an outcome can no longer change",
+    // which is no longer true, says instead what is.
     const db = makeDb(seed({ [`admissionRounds/${ROUND}`]: roundDoc({ decisionsSentAt: NOW, decisionsSentByUid: "zach" }) }));
     for (const request of [
       { uid: "ben", choice: { kind: "no-offer" } },
+      { uid: "ben", choice: { kind: "invite", programmeId: INC } },
+      { uid: "nina", choice: { kind: "invite", programmeId: AGI } },
       { everyoneWithoutOne: true, choice: { kind: "no-offer" } },
     ]) {
       assert.deepEqual(await pool.setPooledOutcome(db, ACTOR, ROUND, request), {
         ok: false,
         status: 409,
-        error: "Decisions for Autumn 2026 have gone out, so an outcome can no longer change.",
+        error:
+          "Decisions for Autumn 2026 have gone out, so an outcome can no longer be picked here. " +
+          "A place given back can be offered from its programme’s Applications tab until the end of week 1.",
       });
     }
     assert.equal(db.counters.writes, 0);

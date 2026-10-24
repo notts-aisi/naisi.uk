@@ -36,6 +36,17 @@ import { isInTerm } from "./plan";
  * Whether the person has switched course emails off is asked by the job,
  * which holds their account. It is not part of this rule.
  *
+ * ## A freed place is not reminded
+ *
+ * A place given back after decision day can be offered to somebody told "No
+ * offer this time" (`../freedPlaces/`), as an invitation beside that result.
+ * This job leaves it alone, on purpose: its day to accept by is a few days
+ * away and chosen by the admin who offered it, who can see on the same page
+ * who has answered; no reminder for it has been written; and one would have
+ * to name its group's time again, which this job does not read. It is
+ * skipped by name (`freed-place`), before anything else about an invitation
+ * is asked, so the rule says why it is left out.
+ *
  * ## The time of day
  *
  * The job runs every quarter of an hour, so "once a day" needs a time. The
@@ -76,6 +87,7 @@ export function formRemindsInvitations(form: ApplicationForm, now: Date): boolea
 /** Why somebody is not reminded today. */
 export type ReminderSkip =
   | "not-in-term"
+  | "freed-place"
   | "not-invited"
   | "replied"
   | "past-reply-by"
@@ -103,6 +115,8 @@ export function invitationReminderDue(application: Reminded, now: Date): Reminde
   const skip = (why: ReminderSkip): ReminderCheck => ({ due: false, why });
   if (!isInTerm(application)) return skip("not-in-term");
   const { result, invitation } = application;
+  // A freed place, offered after decision day beside "No offer this time".
+  if (result?.kind === "no-offer" && invitation) return skip("freed-place");
   if (application.status !== "invited" || result?.kind !== "invited" || !invitation) {
     return skip("not-invited");
   }
