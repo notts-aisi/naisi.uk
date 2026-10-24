@@ -2,7 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { listForms, programmeNaming } from "@/lib/applications/handover/run";
 import { own } from "@/lib/applications/keys";
-import { holdsStanding } from "@/lib/firebase/eligibility";
+import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { Role, SessionUser } from "@/lib/firebase/session";
 import { firstWord } from "@/lib/firestore/applicationEmails";
 
@@ -19,7 +19,7 @@ import { firstWord } from "@/lib/firestore/applicationEmails";
  * (`admissionRounds.leadUid` in `src/lib/firebase/eligibility.ts`), and nothing
  * clears the name when the account changes. So the stored role is read and
  * held to that same bar before the lead is put on a task or named on a page,
- * through `holdsStanding`, the one table of bars.
+ * through `isNamedWithStanding`, which asks the one table of bars.
  */
 
 export type RunLead = {
@@ -76,6 +76,7 @@ export async function readRunLead(db: Firestore, runId: string): Promise<RunLead
   const snap = await db.collection("users").doc(leadUid).get();
   if (!snap.exists) return null;
   const data = (snap.data() ?? {}) as Record<string, unknown>;
-  if (!holdsStanding(standingUserOf(leadUid, data), "admissionRounds.leadUid")) return null;
+  const person = standingUserOf(leadUid, data);
+  if (!isNamedWithStanding(person, "admissionRounds.leadUid", leadUid)) return null;
   return { uid: leadUid, firstName: firstNameOfUser(data) };
 }

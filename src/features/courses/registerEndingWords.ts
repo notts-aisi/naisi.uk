@@ -46,6 +46,11 @@ function remindedPeople(names: readonly string[]): string {
   return names.length > 0 ? listOfNames(names) : "The group’s facilitators";
 }
 
+/** "Sofia gets", but "Rahul and Sofia get" and "The group’s facilitators get". */
+function getsAReminder(names: readonly string[]): string {
+  return names.length === 1 ? "gets a reminder." : "get a reminder.";
+}
+
 /** Who gets the task: the lead and admins, or admins alone. */
 function taskPeople(leadName: string): string {
   return leadName ? `${leadName} and admins` : "admins";
@@ -81,7 +86,7 @@ export function chaseSentence(ending: Pick<RegisterEnding, "scheduled" | "remind
   if (!first) return "";
   if (ending.scheduled) {
     const parts: string[] = [`Not finished ${hours(first.hours)} hours after the session?`];
-    if (reminder) parts.push(`${remindedPeople(reminder.names)} get a reminder.`);
+    if (reminder) parts.push(`${remindedPeople(reminder.names)} ${getsAReminder(reminder.names)}`);
     if (task) {
       parts.push(
         reminder
@@ -93,7 +98,8 @@ export function chaseSentence(ending: Pick<RegisterEnding, "scheduled" | "remind
   }
   const parts: string[] = [];
   if (reminder) {
-    parts.push(`After ${hours(reminder.hours)} hours ${lowerFirst(remindedPeople(reminder.names))} get a reminder.`);
+    const who = lowerFirst(remindedPeople(reminder.names));
+    parts.push(`After ${hours(reminder.hours)} hours ${who} ${getsAReminder(reminder.names)}`);
   }
   if (task) parts.push(`After ${hours(task.hours)} hours ${taskPeople(task.leadName)} get a task.`);
   return parts.join(" ");

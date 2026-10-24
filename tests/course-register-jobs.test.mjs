@@ -12,9 +12,18 @@
  *  3. The register's words are the board's, every value from the payload,
  *     with a sentence dropped (never printed blank) when a job is off.
  *  4. The settings route refuses what would make the two chases read wrong.
+ *  5. A group's email about its next session has one door. The push and the
+ *     schedule never both send because both go through one module that claims
+ *     the group's marker before the first message; a file anywhere else in
+ *     `src` that calls the sender or mints the marker would be a lane the
+ *     switch knows nothing about. The last section walks the tree for that.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+import { assertReadable, stripSource } from "./lib/stripSource.mjs";
 import { makeWorld, seedWorld } from "./lib/registerWorld.mjs";
 
 const made = makeWorld("__registerJobs");
@@ -187,6 +196,22 @@ describe("the words under the register's button", () => {
     );
   });
 
+  test("one facilitator gets a reminder; two or more get one", () => {
+    const one = { hours: 36, names: ["Sofia"] };
+    assert.equal(
+      chaseSentence(sample({ reminder: one })),
+      "Not finished 36 hours after the session? Sofia gets a reminder. At 60 hours, Claudia and admins get a task.",
+    );
+    assert.equal(
+      chaseSentence(sample({ scheduled: false, reminder: one })),
+      "After 36 hours Sofia gets a reminder. After 60 hours Claudia and admins get a task.",
+    );
+    assert.equal(
+      chaseSentence(sample({ reminder: { hours: 36, names: ["Rahul", "Sofia", "Tom"] }, task: null })),
+      "Not finished 36 hours after the session? Rahul, Sofia and Tom get a reminder.",
+    );
+  });
+
   test("every state of next week's email says what is true", () => {
     assert.equal(
       nextEmailSentence("Group B", { state: "went", at: "Sun 22 Nov at 6pm" }),
@@ -320,4 +345,73 @@ describe("the course settings", () => {
     assert.equal(blocked.status, 403);
     assert.equal(made.world.db.read("config/courses"), undefined);
   });
+});
+
+// ===========================================================================
+// 6. One door for a group's email about its next session
+// ===========================================================================
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+/**
+ * Every file under `src` that may name the sender or the marker id, with the
+ * reason it may. Checked in both directions: a file that names either and is
+ * not listed fails, and so does a listed file that no longer names it.
+ */
+const ONE_DOOR = {
+  sendCourseWeekNudgeEmail: {
+    "src/lib/email/courseNudgeEmail.ts": "declares it",
+    "src/lib/courses/nextWeekEmail.ts":
+      "the push and the schedule both send through here, after one shared claim",
+    "src/app/api/courses/runs/[runId]/nudge/route.ts":
+      "the run's own nudge, which claims the same marker for each group before it sends",
+  },
+  groupNudgeMarkerId: {
+    "src/lib/email/courseNudgeEmail.ts": "declares it",
+    "src/lib/courses/nextWeekEmail.ts": "the one claim the push and the schedule share",
+    "src/app/api/courses/runs/[runId]/nudge/route.ts":
+      "reads and claims the same marker, so the run's nudge and the two lanes send once between them",
+  },
+};
+
+function* sourceFiles(dir) {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) yield* sourceFiles(full);
+    else if (/\.(ts|tsx|mts|js|mjs)$/.test(entry)) yield full;
+  }
+}
+
+describe("a group's email about its next session has one door", () => {
+  const files = [...sourceFiles(join(ROOT, "src"))];
+
+  test("the walk found the tree", () => {
+    assert.ok(files.length > 500, `only ${files.length} files under src`);
+  });
+
+  for (const [name, allowed] of Object.entries(ONE_DOOR)) {
+    test(`only the listed files name ${name}`, () => {
+      const pattern = new RegExp(`\\b${name}\\b`);
+      const naming = [];
+      for (const file of files) {
+        const source = readFileSync(file, "utf8");
+        if (!source.includes(name)) continue;
+        const code = stripSource(source);
+        const label = relative(ROOT, file).split(sep).join("/");
+        assertReadable(source, code, label, assert);
+        if (pattern.test(code)) naming.push(label);
+      }
+      const unlisted = naming.filter((label) => !(label in allowed));
+      assert.deepEqual(
+        unlisted,
+        [],
+        `${unlisted.join(", ")} names ${name}. A third sender of a group's email about its ` +
+          "next session would send beside the push and the schedule, which never both send " +
+          "only because they share one claim. Send through src/lib/courses/nextWeekEmail.ts.",
+      );
+      const stale = Object.keys(allowed).filter((label) => !naming.includes(label));
+      assert.deepEqual(stale, [], `listed but no longer naming ${name}: ${stale.join(", ")}`);
+      for (const [label, reason] of Object.entries(allowed)) assert.ok(reason.length > 0, label);
+    });
+  }
 });

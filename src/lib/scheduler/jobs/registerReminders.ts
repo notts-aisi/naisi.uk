@@ -13,7 +13,7 @@ import {
   type RegisterReminderFacts,
 } from "@/lib/email/registerReminderEmail";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { holdsStanding } from "@/lib/firebase/eligibility";
+import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { readCoursesConfig, type CoursesConfig } from "@/lib/firestore/config";
 import {
   attendanceDocId,
@@ -118,13 +118,14 @@ async function readCandidateRunIds(db: Firestore): Promise<string[]> {
 async function resolveFacilitator(
   db: Firestore,
   uid: string,
+  facilitatorUids: string[],
 ): Promise<{ to: string; name: string } | { skip: string }> {
   const snap = await db.collection("users").doc(uid).get();
   if (!snap.exists) return { skip: "no-account" };
   const data = (snap.data() ?? {}) as Record<string, unknown>;
   // The bar a facilitator is appointed behind, asked again: a name left on a
   // group after the account lost its standing is not somebody to email.
-  if (!holdsStanding(standingUserOf(uid, data), "courseGroups.facilitatorUids")) {
+  if (!isNamedWithStanding(standingUserOf(uid, data), "courseGroups.facilitatorUids", facilitatorUids)) {
     return { skip: "no-standing" };
   }
   const email = typeof data.email === "string" ? data.email.trim() : "";
@@ -166,7 +167,7 @@ async function remindForSession(
         pass.skipped += 1;
         continue;
       }
-      const person = await resolveFacilitator(db, uid);
+      const person = await resolveFacilitator(db, uid, group.facilitatorUids);
       if ("skip" in person) {
         await stampSkipped(db, marker.id, person.skip, ctx.now);
         pass.skipped += 1;

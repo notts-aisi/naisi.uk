@@ -16,7 +16,7 @@ import {
   missingNudgeValueWords,
   resolveCourseNudgeTemplate,
 } from "@/lib/email/courseNudgeEmail";
-import { holdsStanding } from "@/lib/firebase/eligibility";
+import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { readCoursesConfig } from "@/lib/firestore/config";
 import { sessionModeForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
@@ -111,7 +111,8 @@ async function facilitatorNames(db: Firestore, group: CourseGroupDoc): Promise<s
   for (const snap of snaps) {
     if (!snap.exists) continue;
     const data = (snap.data() ?? {}) as Record<string, unknown>;
-    if (!holdsStanding(standingUserOf(snap.id, data), "courseGroups.facilitatorUids")) continue;
+    const person = standingUserOf(snap.id, data);
+    if (!isNamedWithStanding(person, "courseGroups.facilitatorUids", group.facilitatorUids)) continue;
     const name = firstNameOfUser(data);
     if (name) names.push(name);
   }

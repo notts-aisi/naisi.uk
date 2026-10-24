@@ -547,7 +547,7 @@ describe("the reminder to the facilitators, 36 hours after the session ends", ()
 
   test("skips a facilitator who switched task emails off, or lost their standing, and says so", async () => {
     world.db.poke("users/sofia", { "profile.notifications": { categories: { tasks: false } } });
-    world.db.poke("users/rahul", { role: "rejected" });
+    world.db.poke("users/rahul", { role: "pending" });
     await runJob(registerRemindersJob, afterEnd(36));
     assert.equal(mailTo("sofia").length, 0);
     assert.equal(mailTo("rahul").length, 0);
@@ -682,6 +682,16 @@ describe("what the register says about how it ends", () => {
       "Next week’s email goes to Group B on Sun 25 Oct at 6pm, whatever happens here.",
       "Not finished 36 hours after the session? Rahul and Sofia get a reminder. At 60 hours, Claudia and admins get a task.",
     ]);
+  });
+
+  test("a facilitator who lost their standing is not promised a reminder", async () => {
+    reset(seedWorld({ scheduled: true, reminders: true }));
+    world.db.poke("users/rahul", { role: "pending" });
+    const words = registerEndingWords(await ending("sofia"));
+    assert.equal(
+      words.notes[1],
+      "Not finished 36 hours after the session? Sofia gets a reminder. At 60 hours, Claudia and admins get a task.",
+    );
   });
 
   test("once finished, it says so, and when the email went", async () => {
