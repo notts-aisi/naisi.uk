@@ -104,6 +104,13 @@ export type StatusView =
       kind: "invitation";
       label: string;
       decidedLabel: string | null;
+      /**
+       * A freed place: offered after decision day, from a place somebody
+       * gave back, to somebody decision day told "No offer this time". It is
+       * a programme they ranked, so the card does not say it is a fit for
+       * something "instead". False for decision day's own invitation.
+       */
+      freed: boolean;
       programme: ViewProgramme | null;
       /** "the Research incubator", or "the A and the B": what they applied for. */
       appliedFor: string | null;
@@ -326,6 +333,9 @@ export function statusViewFor(
       kind: "invitation",
       label,
       decidedLabel,
+      // An invitation beside "No offer this time" is a freed place: decision
+      // day's own is always beside an invitation result (`standingOf`).
+      freed: application.result?.kind === "no-offer",
       programme: viewProgramme(programmeOn(form, standing.programmeId)),
       appliedFor: applied.length > 0 ? inWords(applied.map((programme) => `the ${programme.name}`)) : null,
       replyByLabel: formatRunStartShort(standing.replyBy) ?? null,

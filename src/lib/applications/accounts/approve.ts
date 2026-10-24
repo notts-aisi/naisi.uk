@@ -4,6 +4,7 @@ import { isInTerm } from "../decisions";
 import type { ApplicationDoc } from "../model";
 import { normaliseApplication } from "../normalise";
 import { applicationRef } from "../repo";
+import { standingOf } from "../status/standing";
 
 /**
  * ACCEPTING SOMEBODY APPROVES AN ACCOUNT THAT IS STILL WAITING.
@@ -43,7 +44,8 @@ import { applicationRef } from "../repo";
  * The decision-day send, for each person it tells they are in, naming the
  * admin who pressed Send. And the route an invited person accepts through
  * (by way of `./afterReply.ts`), naming the admin who sent the decisions
- * (`decisionsSentByUid` on the form).
+ * (`decisionsSentByUid` on the form), whether the invitation was decision
+ * day's or a freed place offered after it.
  * It reads no review and no decision document, so it is safe to import from
  * a route that serves an applicant.
  */
@@ -75,17 +77,17 @@ type Accepted = Pick<ApplicationDoc, "sent" | "status" | "result" | "invitation"
  * Does this application show that its owner has been accepted this term?
  *
  * Either decision day told them they have a place and they have not since
- * said they cannot take it, or they were invited and have accepted. A
- * withdrawn application shows nothing.
+ * said they cannot take it, or they were invited and have accepted: decision
+ * day's invitation, or a freed place offered after it. A withdrawn
+ * application shows nothing.
+ *
+ * Read through `standingOf`, the one reading of where somebody stands, so an
+ * acceptance here is exactly a place on their own page.
  */
 export function holdsAcceptance(application: Accepted | null): boolean {
   // Sent, and not taken out since: the contract's one rule for who is in the term.
   if (!application || !isInTerm(application)) return false;
-  const { result } = application;
-  if (!result) return false;
-  if (result.kind === "accepted") return application.attendance?.answer !== "cant-make-it";
-  if (result.kind === "invited") return application.invitation?.response === "accepted";
-  return false;
+  return standingOf(application).kind === "place";
 }
 
 export async function approveWaitingAccount(

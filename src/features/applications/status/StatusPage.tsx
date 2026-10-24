@@ -424,11 +424,27 @@ export default function StatusPage({
             ) : null}
           </div>
           <div className={styles.body}>
-            <p>
-              {view.appliedFor ? `You applied for ${view.appliedFor}. ` : null}
-              The pool was really strong and we don’t have space for you this time, but we think you’d be a
-              great fit for {programme ? programme.shortName : "this programme"} instead.
-            </p>
+            {view.freed ? (
+              // A freed place, on a programme they ranked: the words of the
+              // email that offered it, with the day as a date, because a page
+              // is read on any day after.
+              <p>
+                {view.decidedLabel ? (
+                  <>
+                    On <span className={styles.together}>{view.decidedLabel}</span> we
+                  </>
+                ) : (
+                  "We"
+                )}{" "}
+                couldn’t offer you a place this term. Someone has given theirs back, and we’d love you to have it.
+              </p>
+            ) : (
+              <p>
+                {view.appliedFor ? `You applied for ${view.appliedFor}. ` : null}
+                The pool was really strong and we don’t have space for you this time, but we think you’d be a
+                great fit for {programme ? programme.shortName : "this programme"} instead.
+              </p>
+            )}
             <p>
               {!view.canAccept ? (
                 <>

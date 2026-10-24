@@ -466,6 +466,10 @@ describe("ap-outcomes, the invitation as Oliver sees it", () => {
       kind: "invitation",
       label: "Autumn 2026",
       decidedLabel: "Fri 23 Oct",
+      // Decision day's own invitation, beside an invitation result. A freed
+      // place offered after decision day reads `freed: true` and words its
+      // card differently (tests/applications-freed-places-person.test.mjs).
+      freed: false,
       programme: TAIS_VIEW,
       appliedFor: "the Research incubator",
       replyByLabel: "Sun 25 Oct",

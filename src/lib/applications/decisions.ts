@@ -292,6 +292,12 @@ export type Holding = {
  * It stays the answer if they later cannot make it. They are then listed as
  * withdrawn, like anybody else who left after applying, and {@link holdingOf}
  * no longer counts the place.
+ *
+ * A FREED PLACE IS NOT THIS. It is offered after decision day, beside a
+ * "No offer this time" result, to somebody who RANKED the programme: they
+ * are on its list, and readable by its lead and reviewers, by their ranking
+ * already. So this answers null for one, and {@link holdingOf}, which reads
+ * the person's standing, is what says they hold the place.
  */
 export function joinedByInvitation(
   application: Pick<ApplicationDoc, "sent" | "result" | "invitation">,
@@ -323,7 +329,9 @@ export function joinedByInvitation(
  * the invitation is theirs to answer and only their own document is asked
  * about it ({@link standingOf}, the same reading their page is drawn from),
  * so the committee's screens and the person's own page cannot disagree about
- * whether they are in.
+ * whether they are in. That includes a freed place offered after decision
+ * day: its invitation keeps a place while it is unanswered and is a place
+ * once accepted, read here exactly as decision day's own.
  *
  * {@link tallyTerm} counts `placed`, `joined` and `invited` from this and
  * nothing else, and {@link freePlaces} is worked out from those, so no screen
@@ -386,7 +394,13 @@ export type ProgrammeTally = {
    * ranking or an admin's exception, or here by an invitation they accepted.
    */
   placed: number;
-  /** Of `placed`, the people who are here by an invitation they accepted. */
+  /**
+   * Of `placed`, the people who are here by an invitation they accepted to
+   * a programme they did NOT rank, and so are on its list by that invitation
+   * alone. Somebody who accepted a freed place ranked the programme: they are
+   * on its list, and counted among its applications, by their ranking, so
+   * they are in `placed` and not here.
+   */
   joined: number;
   /**
    * Places kept here for an invitation: one picked for a pooled applicant
@@ -475,7 +489,9 @@ export function tallyTerm(
       const tally = own(programmes, programmeId);
       if (!tally) continue;
       tally.placed += 1;
-      if (programmeId === holding.byInvitation) tally.joined += 1;
+      // On the list by the invitation alone. A freed place is on a programme
+      // they ranked, so they are on its list, and counted, already.
+      if (programmeId === holding.byInvitation && !ranked.includes(programmeId)) tally.joined += 1;
     }
     const keeping = holding.heldFor === null ? undefined : own(programmes, holding.heldFor);
     if (keeping) keeping.invited += 1;

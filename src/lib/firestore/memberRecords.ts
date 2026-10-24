@@ -679,12 +679,19 @@ function deriveFormOutcome(
   if (result === null) {
     return { decision: null, status: application.status, targetRunId: null };
   }
+  // A freed place offered after decision day is an invitation beside a "No
+  // offer this time" result, and the result stays what decision day said. So
+  // the record says both, in that order, and names the programme and its run
+  // as an invitation's does. Only "No offer this time" ever carries one.
+  const freed = result.kind === "no-offer" ? (application.invitation?.programmeId ?? null) : null;
   // Only a place and an invitation name a programme. The other two outcomes
   // name none, whatever a stored row carries beside them.
   const programmeId =
-    result.kind === "accepted" || result.kind === "invited" ? result.programmeId : null;
+    result.kind === "accepted" || result.kind === "invited" ? result.programmeId : freed;
   const decision = programmeId
-    ? `${result.kind} (${programmeLabel(form, programmeId)})`
+    ? freed
+      ? `no-offer, then invited (${programmeLabel(form, programmeId)})`
+      : `${result.kind} (${programmeLabel(form, programmeId)})`
     : result.kind;
   return {
     decision: decision.slice(0, MEMBER_RECORD_LIMITS.decision),
