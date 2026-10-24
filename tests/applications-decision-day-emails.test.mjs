@@ -141,11 +141,43 @@ describe("each email reads as the design wrote it", () => {
         paragraphs: [
           "You’re in the AGI Strategy Fellowship. It starts w/c 26 Oct. You’ll be in a small group " +
             "with a facilitator, on campus, and we’ll email you your group and when it meets before you start.",
+          // A fellowship's people are put into groups, so a fellowship's line
+          // is "It helps us plan groups." (`comingHelps`), as it always was.
           "You don’t need to reply. If you’re coming, tap the button. It helps us plan groups. " +
             "If you can’t make it, tell us and we’ll give your place to someone else.",
         ],
         buttons: ["I’m coming", "I can’t make it"],
         signOff: { name: "Claudia", role: "AGI Strategy lead, NAISI" },
+      },
+    );
+  });
+
+  test("You're in: Wen, accepted onto the Research incubator", () => {
+    const email = compose({ kind: "accepted", programmeId: INC }, "Wen", [INC]);
+    assert.deepEqual(
+      {
+        kind: email.kind,
+        subject: email.subject,
+        greeting: email.greeting,
+        paragraphs: email.paragraphs,
+        buttons: labels(email),
+        signOff: email.signOff,
+      },
+      {
+        kind: "accepted",
+        subject: "You’re in Research incubator",
+        greeting: "Hi Wen,",
+        paragraphs: [
+          "You’re in the Research incubator. It starts w/c 26 Oct. We’ll email you before you start " +
+            "with how the first week works.",
+          // An incubator has no groups, so its line says only that it helps us
+          // plan (the owner's decision of 24 October 2026). The rest of the
+          // paragraph is a fellowship's, word for word.
+          "You don’t need to reply. If you’re coming, tap the button. It helps us plan. " +
+            "If you can’t make it, tell us and we’ll give your place to someone else.",
+        ],
+        buttons: ["I’m coming", "I can’t make it"],
+        signOff: { name: "Zach", role: "Research incubator lead, NAISI" },
       },
     );
   });
@@ -340,6 +372,20 @@ describe("the templates render what was composed, as text", () => {
     assert.ok(html.includes("You’re in AGI Strategy"), "the subject heads the email");
     assert.equal(html.split(`href="${LINKS.application}"`).length - 1, 2, "both buttons open the application page");
     assert.ok(text.includes("I’m coming") && text.includes("I can’t make it"));
+  });
+
+  test("You're in for an incubator place renders its own line under the same buttons, and no group", async () => {
+    const email = compose({ kind: "accepted", programmeId: INC }, "Wen", [INC]);
+    const text = await render(AcceptedEmail({ email }), { plainText: true });
+    assert.ok(text.includes("If you’re coming, tap the button. It helps us plan. If you can’t make it"), text);
+    assert.ok(!/group/i.test(text), `the incubator's email names a group: ${text}`);
+    assert.ok(text.includes("I’m coming") && text.includes("I can’t make it"));
+    // The same template, for a fellowship, still carries a fellowship's line.
+    const fellowship = await render(
+      AcceptedEmail({ email: compose({ kind: "accepted", programmeId: AGI }, "Chloe", [AGI]) }),
+      { plainText: true },
+    );
+    assert.ok(fellowship.includes("If you’re coming, tap the button. It helps us plan groups. If you can’t make it"));
   });
 
   test("the invitation and the kind no render through their own templates", async () => {

@@ -413,6 +413,27 @@ describe("ap-offer, as Amara sees it", () => {
     });
   });
 
+  test("an incubator place, as Wen sees it, carries the incubator's two lines", () => {
+    const wen = person("Wen", [INCUBATOR], accepted({ result: { kind: "accepted", programmeId: INCUBATOR } }));
+    assert.deepEqual(viewOf(wen), {
+      kind: "place",
+      label: "Autumn 2026",
+      decidedLabel: "Fri 23 Oct",
+      via: "ranking",
+      programme: {
+        name: "Research incubator",
+        shortName: "Research incubator",
+        facts: "10 WEEKS · SELECTIVE · starts w/c 26 Oct",
+        shortFacts: "10 WEEKS · starts w/c 26 Oct",
+      },
+      next: "We’ll email you before you start with how the first week works.",
+      // An incubator has no groups, so the line under "I’m coming" says only
+      // that it helps us plan (the owner's decision of 24 October 2026).
+      comingHelps: "It helps us plan.",
+      saidComing: false,
+    });
+  });
+
   test("once she has said she is coming, the page knows", () => {
     assert.equal(viewOf(person("Amara", [AGI], STATES["placed, said coming"])).saidComing, true);
   });
