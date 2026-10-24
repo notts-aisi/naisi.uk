@@ -17,8 +17,10 @@
  *   "You’ll see your group’s names when groups go out."
  *
  * The two composers add that there is nobody to email, or to tell, until
- * then. A group that really is empty still says so, in the words it always
- * did, and a group with names lists them.
+ * then. The register, which sits under the roster on the group page, draws
+ * nothing at all rather than say it a second time. A group that really is
+ * empty still says so, in the words it always did, and a group with names
+ * lists them.
  *
  * The components are the real ones, rendered to HTML. Only the hook that
  * fetches each one's data is replaced, by a stand-in handing it a payload.
@@ -249,10 +251,8 @@ describe("the register", () => {
     return textOf(createElement(AttendanceGrid, { groupId: "g-monday", runId: "run-1" }));
   };
 
-  test("before anybody is told the sentence, and not that nobody is in the group", () => {
-    const text = draw({ notYetTold: true });
-    assert.ok(text.includes(SENTENCE), text);
-    assert.ok(!text.includes("Nobody is in this group yet."), text);
+  test("before anybody is told it draws nothing: the roster above it says when the names come", () => {
+    assert.equal(draw({ notYetTold: true }), "");
   });
 
   test("a group nobody is placed in says so, as it did", () => {

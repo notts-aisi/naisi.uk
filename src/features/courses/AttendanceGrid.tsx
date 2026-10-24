@@ -15,7 +15,6 @@ import {
   type AttendanceStatus,
 } from "@/lib/firestore/courseAttendance";
 import styles from "./AttendanceGrid.module.css";
-import { NAMES_WHEN_GROUPS_GO_OUT } from "./groupNamesWords";
 import ParticipantNoteDrawer from "./ParticipantNoteDrawer";
 import PushConfirm from "./PushConfirm";
 import useAttendance, {
@@ -568,8 +567,10 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
 
   if (members.length === 0) {
     // Somebody is placed here and has not been told their group yet, so the
-    // register has no row for them until Publish emails them.
-    if (notYetTold) return <EmptyState title={NAMES_WHEN_GROUPS_GO_OUT} />;
+    // register has no row for them until Publish emails them. The roster
+    // above it on the group page already says when the names come, and a
+    // register of nobody would only say it again.
+    if (notYetTold) return null;
     return (
       <EmptyState
         title="Nobody is in this group yet."
