@@ -18,8 +18,8 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * term is, who leads it, and the tabs.
  *
  * WHICH PAGES THAT IS. This file is in a route group, `(tabs)`, which adds
- * nothing to an address. The pages inside the group (Settings, and the list
- * of applications) are drawn under this head. The single application at
+ * nothing to an address. The pages inside the group (Settings, the list of
+ * applications, and Groups) are drawn under this head. The single application at
  * `applications/[uid]` is OUTSIDE the group on purpose: it is a screen of its
  * own, drawn with no programme head and no tabs, so it must not inherit this
  * layout. A page that should carry the tabs goes inside `(tabs)`; one that
@@ -136,6 +136,7 @@ export default async function ProgrammeLayout({
         applications={applications}
         groups={programme.groupCount}
         canEdit={role === "admin" || role === "lead"}
+        groupsOpen={role === "admin"}
       />
       {children}
     </ApplicationsRoot>

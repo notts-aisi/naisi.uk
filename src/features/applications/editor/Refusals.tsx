@@ -17,7 +17,8 @@ import shared from "./editor.module.css";
 
 const FORMS_PATH = "/admin/admissions/forms";
 
-function Refusal({
+/** The frame every refusal is drawn in. Exported for a page with a refusal of its own. */
+export function Refusal({
   title,
   children,
   href,
