@@ -353,7 +353,7 @@ export async function offerFreedPlaces(
       if (!group || !isTimed(group, run.id)) {
         return refuse(409, `That group isn’t one of ${liveProgramme.shortName}’s run’s groups with a weekly time.`);
       }
-      if (!application.sent || !fits(application.sent.availability, live.round.availabilityGrid, group)) {
+      if (!fits(live.round.availabilityGrid, application, group)) {
         return refuse(
           409,
           `${nameOf(application)}’s week doesn’t cover ${group.name}’s time, so the email can’t say they’re free then.`,
@@ -624,7 +624,7 @@ export async function sendFreedPlaceTest(
   if (!group || !isTimed(group, run.id)) {
     return refuse(409, `That group isn’t one of ${programme.shortName}’s run’s groups with a weekly time.`);
   }
-  if (!fits(application.sent.availability, form.round.availabilityGrid, group)) {
+  if (!fits(form.round.availabilityGrid, application, group)) {
     return refuse(
       409,
       `${nameOf(application)}’s week doesn’t cover ${group.name}’s time, so the email can’t say they’re free then.`,

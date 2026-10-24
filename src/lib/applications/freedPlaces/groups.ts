@@ -1,12 +1,14 @@
 import "server-only";
 import type { DocumentReference, Firestore } from "firebase-admin/firestore";
-import { maskCoversSession, type AvailabilityGrid, type AvailabilityMask } from "@/lib/admissions/availability";
+import type { AvailabilityGrid } from "@/lib/admissions/availability";
 import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
 import { formatRunStartShort } from "@/lib/courses/window";
 import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
+import { paintedWeekOf } from "../handover/paintedWeek";
 import { RUNS_COLLECTION } from "../handover/run";
+import type { ApplicationDoc } from "../model";
 import { freeOnWords, meetsWords } from "./words";
 
 /**
@@ -88,12 +90,18 @@ export function groupWords(run: CourseRunDoc, group: CourseGroupDoc, now: Date) 
 }
 
 /**
- * Does this painted week cover the group's WHOLE weekly session? #67's fit
- * reading (`maskCoversSession`), the same one the allocation board's cards
- * are drawn from.
+ * Does this person's painted week cover the group's WHOLE weekly session?
+ * Asked through `paintedWeekOf`, the one reading of a painted week that the
+ * allocation board's cards and the times picture also ask, so the three
+ * cannot disagree. No sent application, or nothing painted, fits nothing.
  */
-export function fits(mask: AvailabilityMask, grid: AvailabilityGrid, group: CourseGroupDoc): boolean {
-  return maskCoversSession(mask, grid, group.session);
+export function fits(
+  grid: AvailabilityGrid,
+  application: Pick<ApplicationDoc, "sent"> | null,
+  group: CourseGroupDoc,
+): boolean {
+  const week = paintedWeekOf(grid, application);
+  return week.kind === "given" && week.covers(group.session);
 }
 
 /** Of these people, the ones already put in a group on the run. */

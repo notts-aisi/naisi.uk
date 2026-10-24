@@ -1,6 +1,5 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { markedSlotCount } from "@/lib/admissions/availability";
 import { formatRoundDate, formatRoundDeadline } from "@/lib/admissions/window";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { formatRunStartShort } from "@/lib/courses/window";
@@ -14,6 +13,7 @@ import { loadFirstNames } from "../decisionDay/people";
 import { firstNameOf } from "../decisionDay/plan";
 import { programmeOf } from "../decisionDay/programmes";
 import { loadTerm } from "../decisionDay/term";
+import { paintedWeekOf } from "../handover/paintedWeek";
 import { own } from "../keys";
 import type { ApplicationDoc } from "../model";
 import { loadForm, loadQuestionSets } from "../repo";
@@ -201,12 +201,12 @@ export async function loadOfferBoard(
 
     const sent = application.sent;
     const reason = own(person.decision?.programmes, programme.id)?.poolReason ?? null;
-    const painted = markedSlotCount(sent.availability, form.round.availabilityGrid) > 0;
+    const painted = paintedWeekOf(form.round.availabilityGrid, application).kind === "given";
     const freeWords = painted ? freeInWords(sent.availability, form.round.availabilityGrid) : null;
     const detail = [reason ? `Pooled: ${POOL_REASON_LABEL[reason].toLowerCase()}` : "Pooled", freeWords]
       .filter(Boolean)
       .join(" · ");
-    const fitting = painted ? timed.filter((group) => fits(sent.availability, form.round.availabilityGrid, group)) : [];
+    const fitting = painted ? timed.filter((group) => fits(form.round.availabilityGrid, application, group)) : [];
     const chips: OfferChip[] = !painted
       ? [{ label: NO_AVAILABILITY_GIVEN, tone: "plain" }]
       : fitting.length > 0
