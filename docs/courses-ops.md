@@ -1010,10 +1010,21 @@ order the two are joined in, and it is an admin's job from start to finish.
   next for their kind of programme. Nothing on a run is announced to them
   because of the row, whatever is done to it on the run's applications
   page.
-- **Somebody sees their group as soon as they are put in one.** The first
-  placement on the board is what makes the place on the run, so the run
-  shows in that person's member area from then on, before Publish. Publish
-  is what emails them.
+- **Nobody sees their group until Publish has emailed it to them.** The
+  first placement on the board makes the place on the run, but the place is
+  the board's working copy until Publish tells its owner: until then their
+  member area reads as it did before, the run stays shut to them, and the
+  group's facilitators and other members are not shown their name. A
+  facilitator sees their group's day, time and room from the moment they
+  are added, and reads "You’ll see your group’s names when groups go out."
+  where the names will be. Moving people around on the board emails nobody
+  and shows nobody anything.
+- **After Publish, press Publish again straight away after any move.** A
+  move clears the person's "Emailed" mark, so until Publish is pressed
+  again the person moved reads nothing of the run, is on neither group's
+  roster or register, and gets none of the group's mail. Publish emails just
+  them, and then they see their new group. The same goes for anybody placed
+  late.
 - **Do not destroy the form while its people are waiting for a group.**
   Until somebody is in a group, their member area knows they hold a place
   only from their application. Destroy the form in between and it tells
@@ -1039,8 +1050,8 @@ back". Then, by hand:
    refuses while anybody accepted is not in a group.
 
 Their own application page says they gave the place back as soon as they
-reply. Somebody who was in a group goes on seeing the run in their member
-area until step 1 is done.
+reply. Somebody who was in a group, and had been told it by Publish, goes
+on seeing the run in their member area until step 1 is done.
 
 ### What is logged
 

@@ -141,7 +141,7 @@ const GROUP_CARD = {
       durationMinutes: 90,
     },
   },
-  sessionLabel: "Mondays 18:00–19:30",
+  sessionLabel: "Mondays 18:00\u201319:30",
   weekday: 1,
   startTimeLocal: "18:00",
   durationMinutes: 90,

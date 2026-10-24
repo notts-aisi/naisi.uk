@@ -70,7 +70,7 @@ describe("before Publish a facilitator sees their group, its day, time and room,
     const card = overview.body.groups.find((group) => group.id === GROUP.monday);
     assert.deepEqual(
       [card.name, card.sessionLabel, card.location],
-      ["Monday evening", "Mondays 18:00–19:30", "Room B12"],
+      ["Monday evening", "Mondays 18:00\u201319:30", "Room B12"],
     );
     for (const name of NAMES) {
       assert.ok(!JSON.stringify(overview.body).includes(name), `the overview names ${name}`);

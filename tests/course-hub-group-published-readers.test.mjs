@@ -37,7 +37,7 @@
  * push's reminder, the week nudge, the run email) asks `placementIsTold`.
  *
  * WHAT THE READERS THEN DO is executed in
- * `tests/course-hub-group-published-{member,facilitator,mail}.test.mjs`.
+ * `tests/course-hub-group-published-{member,facilitator,mail,nudge}.test.mjs`.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
