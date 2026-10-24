@@ -137,10 +137,7 @@ export async function loadTimesPicture(
   view.length = { counted, options, source };
 
   // Nobody is counted, or named, until everybody has been told.
-  if (form.decisionsSentAt === null) {
-    view.blank = "not-sent";
-    return { status: "ok", view };
-  }
+  if (form.decisionsSentAt === null) return { status: "ok", view: { ...view, blank: "not-sent" } };
 
   const [applications, decisions] = await Promise.all([
     listSentApplications(db, form),
