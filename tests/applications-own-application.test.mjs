@@ -168,6 +168,11 @@ const READS_THE_LISTS = {
     why: "the panel names who a press would hand over, and that is everybody who holds a place. It names and counts nobody until the term is marked as sent",
     holds: "after-the-send",
   },
+  "lib/applications/handover/timesLoad.ts#loadTimesPicture": {
+    kind: "everybody",
+    why: "the times picture counts everybody who holds a place by when they said they are free, and names who no group suits, an admin who applied included. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",
+    holds: "after-the-send",
+  },
 };
 
 /**

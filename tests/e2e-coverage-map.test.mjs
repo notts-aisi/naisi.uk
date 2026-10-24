@@ -1414,6 +1414,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed an application form with a sent application for a lead to score and decide.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": {
+    reason:
+      "Course hub: the Groups tab's times picture is an admin's read-only page. Its counting, its every caller and every state it can be in are executed by tests/course-hub-times-counting.test.mjs and tests/course-hub-times-page.test.mjs, and it was checked by hand at 1440 and 390.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a term whose decisions have been sent, because only then does anybody hold a place for the picture to count.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     reason:
       "Application forms: /(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup is a programme's settings, and a fault in it is seen by the lead or admin using it.",

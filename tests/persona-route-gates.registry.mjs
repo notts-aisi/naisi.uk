@@ -2224,6 +2224,15 @@ export const PAGES = {
       "those admitted, an application that is missing or not theirs to read renders the " +
       "page's own calm not-here state as ordinary HTML, with a 200.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: the Groups " +
+      "tab is an admin's, so a lead or a reviewer on the form is shown a notice that it is, " +
+      "decided from the session before anything is read, and a programme the caller has no " +
+      "role on, or one that does not exist, renders 'there is no programme here' in place of " +
+      "the page with a 200.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
     why:

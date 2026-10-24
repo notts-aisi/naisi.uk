@@ -876,6 +876,20 @@ const USERS = new Map([
       "through and a copy of its regular expression would prove nothing; nothing is stubbed",
   ],
   [
+    "course-hub-times-counting.test.mjs",
+    "executes the times picture's counting (src/lib/applications/handover/times.ts), the one " +
+      "reading of a painted week the allocation board shares (paintedWeek.ts) and the page's " +
+      "words, because who is counted at each start time and what the page says about them are " +
+      "only right if running them says so",
+  ],
+  [
+    "course-hub-times-page.test.mjs",
+    "renders a programme's Groups tab (a .tsx server component) and the tabbed layout over it " +
+      "as every kind of caller, through the real page gate, against a stored term and #67's " +
+      "hand-over, board and reply routes, because who is answered what, what is read before " +
+      "that is decided, and what is counted are decided by the page as it runs",
+  ],
+  [
     "registration-status.test.mjs",
     "it executes the signup tracker end to end: the status rule, the three write helpers, and the " +
       "list, summary and profile-complete routes against one small fake database, because the claim " +

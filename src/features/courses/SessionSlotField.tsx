@@ -3,6 +3,7 @@
 import { useId } from "react";
 import ResponsiveSelect from "@/components/ui/ResponsiveSelect";
 import TimeField from "@/components/ui/TimeField";
+import { SESSION_LENGTH_PRESETS } from "@/lib/courses/sessionLength";
 import { GROUP_FIELD_LIMITS } from "@/lib/firestore/courseGroups";
 import styles from "./SessionSlotField.module.css";
 
@@ -49,8 +50,11 @@ const WEEKDAY_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "0", label: "Sunday" },
 ];
 
-/** The three lengths a reading group / fellowship session actually runs. */
-const DURATION_PRESETS = [60, 90, 120];
+/**
+ * The three lengths a reading group / fellowship session actually runs. One
+ * list, shared with the times picture on a programme's Groups tab.
+ */
+const DURATION_PRESETS = SESSION_LENGTH_PRESETS;
 
 function durationLabel(minutes: number): string {
   if (minutes % 60 === 0) {
