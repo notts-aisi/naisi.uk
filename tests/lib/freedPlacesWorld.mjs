@@ -239,8 +239,12 @@ for (const name of ["SMTP_HOST", "SMTP_USER", "SMTP_PASS", "SMTP_FROM_EMAIL", "S
   delete process.env[name];
 }
 
-/** A world, its loader and the way to make a request in it. */
-export function makeFreedWorld(key = "__freedPlaces") {
+/**
+ * A world, its loader and the way to make a request in it. `extraStubs` adds
+ * specifiers a suite needs stubbed beyond these, such as the stylesheets of a
+ * page it renders.
+ */
+export function makeFreedWorld(key = "__freedPlaces", extraStubs = []) {
   const world = {
     db: null,
     courseDb: null,
@@ -284,6 +288,7 @@ export function makeFreedWorld(key = "__freedPlaces") {
           `  ${handle}.pushes.push({ uid, ...note });\n` +
           "}",
       ],
+      ...extraStubs.map(([specifier, source]) => [specifier, source.replaceAll("__WORLD__", handle)]),
     ]),
   });
 

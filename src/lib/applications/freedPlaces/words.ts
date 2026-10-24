@@ -10,6 +10,7 @@ import { COURSE_TZ, daysBetween, londonDateKey } from "@/lib/courses/weekPlan";
 import { placeNextWords, type DecisionEmail } from "../decisionDay/emailCopy";
 import type { ProgrammeKind } from "../model";
 import { clockLabel } from "../review/availabilityView";
+import type { OfferReport } from "./views";
 
 /**
  * THE WORDS OF A FREED PLACE: the email that offers one, and the slots the
@@ -253,4 +254,50 @@ export function composeFreedPlaceEmail(input: FreedPlaceEmailInput): DecisionEma
     // As decision day signs: the programme's lead, or NAISI when none is named.
     signOff: lead ? { name: lead, role: `${short} lead, NAISI` } : { name: "NAISI", role: "" },
   };
+}
+
+// ---------------------------------------------------------------------------
+// What a press did
+// ---------------------------------------------------------------------------
+
+/**
+ * What one press of "Send N invitations", or of the smaller press for the
+ * emails still to go, did, in words that say what happened to each email.
+ * Nobody whose email did not go is left out: each of them is named.
+ */
+export function reportWords(report: OfferReport): string {
+  const parts: string[] = [];
+  if (report.offered > 0) {
+    parts.push(`Offered ${report.offered === 1 ? "1 place" : `${report.offered} places`}.`);
+  }
+  if (report.emailed > 0) parts.push(`${report.emailed === 1 ? "1 email" : `${report.emailed} emails`} went.`);
+  if (report.held > 0) {
+    parts.push(`${report.held} held: this copy of the site doesn’t write to ${report.held === 1 ? "that address" : "those addresses"}.`);
+  }
+  if (report.suppressed > 0) {
+    parts.push(`${report.suppressed} not sent: on the do-not-email list.`);
+  }
+  if (report.failed.length > 0) parts.push(`Still to go: ${listInWords(report.failed)}.`);
+  if (report.unconfirmed.length > 0) {
+    parts.push(
+      `Nobody can say whether the email to ${listInWords(report.unconfirmed)} went, so it won’t be sent again.`,
+    );
+  }
+  return parts.length > 0 ? parts.join(" ") : "Nothing was sent.";
+}
+
+/** What a test did. Only one that reached the person offering counts. */
+export function testWords(delivery: "sent" | "held" | "suppressed", replyByLabel: string): string {
+  if (delivery === "held") {
+    return "The test was held, not sent: this copy of the site doesn’t email your address. A held test doesn’t count.";
+  }
+  if (delivery === "suppressed") {
+    return "Your address is on the do-not-email list, so the test was not sent. It doesn’t count as a test.";
+  }
+  return `A test went to you. Invitations accepted by ${replyByLabel} can go now.`;
+}
+
+/** The button for the emails still to go: it says how many it sends. */
+export function owedLabel(emails: number): string {
+  return `Send ${emails === 1 ? "the 1 email" : `the ${emails} emails`} still to go`;
 }

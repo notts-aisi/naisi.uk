@@ -141,6 +141,25 @@
   color: var(--color-text-muted);
 }
 
+/* A way on from a number: a link on a line of its own, tall enough to tap. */
+.meterAction {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-accent-text);
+  text-decoration: none;
+}
+.meterAction:hover {
+  color: var(--color-accent-text-hover);
+}
+.meterAction:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 .cardFoot {
   display: flex;
   flex-wrap: wrap;
