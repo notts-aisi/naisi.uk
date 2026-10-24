@@ -354,7 +354,9 @@ describe("what the cards say", () => {
   test("the views name the run's allocation board, and the card the run editor; nothing else is offered", async () => {
     const { html, text: said } = await draw("zach");
     assert.match(html, new RegExp(`<a href="/admin/courses/${COURSE.agi}/runs/${RUN.agi}/allocation" class="view">People in groups</a>`));
-    assert.match(html, new RegExp(`<a href="/admin/courses/${COURSE.agi}/runs/${RUN.agi}" class="btn editorLink">Add or change groups in the run editor</a>`));
+    const editor = new RegExp(`<a href="/admin/courses/${COURSE.agi}/runs/${RUN.agi}" class="see editorLink">(.*?)</a>`).exec(html);
+    assert.ok(editor, "no link to the run editor");
+    assert.equal(text(editor[1]), "Add or change groups in the run editor");
     for (const absent of ["Use for a group", "Change Group", "Add a group", "Facilitators", "set in Settings"]) {
       assert.ok(!said.includes(absent), `the page offers ${absent}`);
     }

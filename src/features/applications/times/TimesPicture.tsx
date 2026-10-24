@@ -49,6 +49,22 @@ const fill = (count: number, said: number): CSSProperties => fillFor(said > 0 ? 
 /** The legend's five steps, from nobody to everybody. */
 const LEGEND_STEPS = [0, 0.26, 0.52, 0.74, 1];
 
+/** A link's words, with its arrow kept on the line of the last word. */
+function ArrowedWords({ words }: { words: string }) {
+  const at = words.lastIndexOf(" ");
+  return (
+    <>
+      {words.slice(0, at + 1)}
+      <span className={styles.lastWord}>
+        {words.slice(at + 1)}
+        <span className={styles.arrow}>
+          <ArrowRightIcon size={16} />
+        </span>
+      </span>
+    </>
+  );
+}
+
 function GroupsViews({ view }: { view: TimesView }) {
   if (!view.run) return null;
   const { run } = view;
@@ -309,8 +325,7 @@ function YourGroups({ view, picture }: { view: TimesView; picture: Picture }) {
                     href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/applications/${encodeURIComponent(person.uid)}`}
                     className={styles.see}
                   >
-                    <span>{seePerson(person.name)}</span>
-                    <ArrowRightIcon size={16} />
+                    <ArrowedWords words={seePerson(person.name)} />
                   </Link>
                 </li>
               ))}
@@ -321,17 +336,18 @@ function YourGroups({ view, picture }: { view: TimesView; picture: Picture }) {
               href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/applications/${encodeURIComponent(fit.none[0].uid)}`}
               className={styles.see}
             >
-              <span>{seePerson(fit.none[0].name)}</span>
-              <ArrowRightIcon size={16} />
+              <ArrowedWords words={seePerson(fit.none[0].name)} />
             </Link>
           )}
         </div>
       )}
       <Link
         href={`/admin/courses/${encodeURIComponent(run.courseId)}/runs/${encodeURIComponent(run.id)}`}
-        className={`${shared.btn} ${styles.editorLink}`}
+        className={`${styles.see} ${styles.editorLink}`}
       >
-        {picture.groups.length === 0 ? "Add groups in the run editor" : "Add or change groups in the run editor"}
+        <ArrowedWords
+          words={picture.groups.length === 0 ? "Add groups in the run editor" : "Add or change groups in the run editor"}
+        />
       </Link>
     </section>
   );
