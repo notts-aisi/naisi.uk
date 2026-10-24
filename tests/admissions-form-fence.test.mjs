@@ -315,6 +315,13 @@ const ROUND_SURFACES = {
       "of applications. It loads the programme through loadProgrammeForStaff, which starts " +
       "from the form's own loader, so a round of the older kind has no programme here to draw",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": {
+    kind: "form",
+    why:
+      "one programme's Groups tab, the times picture, an admin's. It reaches the round only " +
+      "through loadTimesPicture, which starts from the form's own loader and answers 'none' " +
+      "for a round that is not a form, and the page then says there is no programme here",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     kind: "form",
     why:
