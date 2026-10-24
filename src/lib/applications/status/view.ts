@@ -1,6 +1,6 @@
 import { formatRoundDate } from "@/lib/admissions/window";
 import { formatRunStartShort } from "@/lib/courses/window";
-import { placeNextWords } from "../decisionDay/emailCopy";
+import { comingHelps, placeNextWords } from "../decisionDay/emailCopy";
 import { own } from "../keys";
 import type { ApplicationContent, ProgrammeKind } from "../model";
 import { EITHER_OPTION, contentForSend } from "../validate";
@@ -91,6 +91,12 @@ export type StatusView =
        * week. The words are the decision email's own (`placeNextWords`).
        */
       next: string;
+      /**
+       * Why saying "I'm coming" helps, for the same kind: the line under the
+       * button, after "Optional.". The decision email's own sentence
+       * (`comingHelps`), so an incubator's people never read about groups.
+       */
+      comingHelps: string;
       saidComing: boolean;
     }
   /** Invited, not answered: the invitation card of `ap-outcomes`. */
@@ -310,6 +316,7 @@ export function statusViewFor(
       // The page of somebody their own ranking placed has room for the whole
       // sentence. The card of somebody who accepted an invitation has a line.
       next: standing.via === "ranking" ? next.page : next.card,
+      comingHelps: comingHelps(placedOn?.kind ?? null),
       saidComing: standing.saidComing,
     };
   }

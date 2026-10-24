@@ -54,6 +54,12 @@ import { programmeOf } from "./programmes";
  * in" email takes it from there, and so does the person's own page
  * (`statusViewFor`), so the two cannot come to promise different things.
  *
+ * So is the sentence that says why pressing "I'm coming" helps, in
+ * {@link comingHelps}: for a fellowship it helps us plan groups, and an
+ * incubator, which has none, is told only that it helps us plan. The email's
+ * paragraph about replying and the line under the button on the person's own
+ * page both take it from there.
+ *
  * ## An email changes nothing by being opened
  *
  * Every button is a link to a page. The reply buttons go to the person's own
@@ -181,9 +187,39 @@ export function placeNextWords(kind: ProgrammeKind | null): PlaceNextWords {
   return own(PLACE_NEXT, kind ?? "fellowship") ?? PLACE_NEXT.fellowship;
 }
 
-const ACCEPTED_REPLY =
-  "You don’t need to reply. If you’re coming, tap the button. It helps us plan groups. " +
-  "If you can’t make it, tell us and we’ll give your place to someone else.";
+/**
+ * WHY SAYING "I'M COMING" HELPS, one sentence to each kind of programme, and
+ * the one place it is written.
+ *
+ * A fellowship's people are put into groups, so their answer helps us plan
+ * groups. An incubator has no groups, so its people are told only that it
+ * helps us plan, and never the word "group". The type has a row for every
+ * kind, so a new kind of programme does not compile until somebody has
+ * written its sentence.
+ */
+const COMING_HELPS: Record<ProgrammeKind, string> = {
+  fellowship: "It helps us plan groups.",
+  incubator: "It helps us plan.",
+};
+
+/**
+ * The sentence for a place on a programme of this kind, said after
+ * "Optional." under "I'm coming" on the person's own page, and in the middle
+ * of the standard "You're in" email's paragraph about replying. `null` is a
+ * place on a programme the form no longer carries, and reads as a
+ * fellowship's, as it does in {@link placeNextWords}.
+ */
+export function comingHelps(kind: ProgrammeKind | null): string {
+  return own(COMING_HELPS, kind ?? "fellowship") ?? COMING_HELPS.fellowship;
+}
+
+/** The standard "You're in" email's paragraph about replying, for a place on a programme of this kind. */
+function acceptedReply(kind: ProgrammeKind): string {
+  return (
+    `You don’t need to reply. If you’re coming, tap the button. ${comingHelps(kind)} ` +
+    "If you can’t make it, tell us and we’ll give your place to someone else."
+  );
+}
 
 const NO_OFFER_BODY = [
   "Thanks for applying. We can’t offer you a place this term.",
@@ -281,7 +317,7 @@ function acceptedEmail(input: ComposeInput, programme: ProgrammeSettings): Decis
       // rather than "It starts ." with a hole in it.
       `You’re in the ${programme.name}.${starts ? ` It starts ${starts}.` : ""} ` +
         placeNextWords(programme.kind).email,
-      ACCEPTED_REPLY,
+      acceptedReply(programme.kind),
     ]),
     buttons: [
       { label: "I’m coming", href: input.links.application, look: "primary" },

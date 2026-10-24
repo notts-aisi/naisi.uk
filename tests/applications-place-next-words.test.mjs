@@ -430,7 +430,9 @@ describe("the page draws the view's words, and the view takes them from the emai
 
   test("the view asks the email's own function, with the kind of the programme the place is on", () => {
     const code = codeOf("lib", "applications", "status", "view.ts");
-    assert.ok(code.includes('import { placeNextWords } from "../decisionDay/emailCopy";'));
+    // Both of the email's functions, from the one module: what comes next,
+    // and why "I’m coming" helps (the line under the button).
+    assert.ok(code.includes('import { comingHelps, placeNextWords } from "../decisionDay/emailCopy";'));
     assert.ok(code.includes("const next = placeNextWords(placedOn?.kind ?? null);"));
     assert.ok(code.includes('next: standing.via === "ranking" ? next.page : next.card,'));
   });
