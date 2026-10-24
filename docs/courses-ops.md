@@ -9,9 +9,10 @@ deployed in.
 > now also carries the draft course and run reads, the membership cutover, the
 > SU list import and the logged export.
 
-> continues with PUSH ATTENDANCE, which is the one human action the weekly
-> emails hang off, and the membership cutover, import and export. Later PRs
-> extend it with the rules-and-indexes deploy order.
+> continues with FINISHING A REGISTER and next week's email, which goes when
+> the register is pushed or, once its job is switched on, on a schedule, and
+> the membership cutover, import and export. Later PRs extend it with the
+> rules-and-indexes deploy order.
 
 ---
 
@@ -171,19 +172,24 @@ a later PR is never silently off on an environment nobody has touched the panel
 on.
 
 The exception is declared in the registry as `enabledByDefault: false` and is
-set on four jobs: `admissions-deadline-reminders`, `admissions-stage-release`,
+set on every job that emails people: `admissions-deadline-reminders`,
+`admissions-stage-release`, `application-invitation-reminders`,
+`courses-next-week-email`, `courses-register-reminders`,
 `worksheet-due-reminders` and `event-announcements`. A job that emails a live
 audience must not arm itself the moment it deploys, so each ships dark and the
 owner switches it on from the panel, per environment. The panel says so on the
 job's row.
 
-`event-announcements` carries one extra condition, and it is the only job whose
-switch changes what a REQUEST does: `POST /api/events/[id]/publish` reads it to
-decide whether to send the new-event announcement inline or queue it (see
-docs/notifications.md). So it may only be armed where the tick is actually
-armed. On a backend with a `SCHEDULER_SECRET` and nothing calling it, turning
-this on would take every publish off the inline path and queue announcements
-nobody ever delivers.
+`event-announcements` carries one extra condition, and so does
+`courses-next-week-email`: they are the two jobs whose switch changes what a
+REQUEST does. `POST /api/events/[id]/publish` reads the first to decide whether
+to send the new-event announcement inline or queue it (see
+docs/notifications.md). `POST /api/courses/groups/[groupId]/attendance/push`
+reads the second to decide whether finishing a register still sends the
+group's next-week email (see "Finishing a register" below). So each may only be
+armed where the tick is actually armed. On a backend with a `SCHEDULER_SECRET`
+and nothing calling it, turning either on would take the send off the request
+and leave it with a job nobody runs.
 `courses-unmarked-registers` is NOT on that list (it raises tasks rather than
 mail), so it must be switched off on the panel before a deploy reaches an
 environment with real facilitators and re-armed only once dev has shown it
@@ -237,6 +243,7 @@ Marker families and where they live:
 | `remind__` | `{roundId}__{uid}__{dueAtKey}` | admissions deadline reminders |
 | `stagerel__` | `{roundId}__{stageId}__{uid}` | application stage release notices (one per recipient; the `{roundId}__{stageId}` form, with no uid, is the stale verdict for a whole stage) |
 | `unmarked__` | `{groupId}__{sessionKey}` | unmarked-register follow-ups |
+| `regremind__` | `{groupId}__{sessionKey}__{uid}` | the one reminder each facilitator gets about an unfinished register |
 | `breakret__` | `{runId}__{groupId}__{slotStartKey}` | back-after-the-break notices |
 | `wsremind__` | `{circulationId}__{uid}__{dueKey}` | worksheet due-soon reminders (not a courses job, but it shares this collection, so an operator sweeping markers meets it here) |
 | `evannounce__` | `{eventId}__{email\|push}__{recipientKey}` | queued new-event announcements (not a courses job either; one marker per recipient per leg, and `recipientKey` is `u{uid}` for a member or `g{hash}` for a guest row, never an address) |
@@ -244,6 +251,15 @@ Marker families and where they live:
 House rule: **scheduler-tick markers live in `schedulerMarkers`; human-triggered
 course send markers stay in `courseNudges`.** The facilitator's attendance push
 is a human action and keeps its `gnudge__` marker where it is.
+
+One tick job claims a `courseNudges` marker, on purpose: `courses-next-week-email`
+claims the SAME `gnudge__{runId}__{groupId}__{slotStartKey}` document the push
+claims, because the two are two lanes of one email and the claim that keeps
+them from both sending has to be one document. The marker says which lane
+took it (`via: "push"` with `sentByUid`, or `via: "schedule"` with
+`sentByJob`). It never reaches **Stuck sends**: a scheduled send that failed
+part way is recovered the way a push's is, by an admin's **Resend** on the
+register (see "Finishing a register").
 
 ### The registered jobs
 
@@ -495,20 +511,89 @@ safe. The heartbeat is somewhere in the middle now; a tick that runs out of
 budget before reaching it still writes a receipt with its row on it, marked
 skipped, so "is the scheduler running" is still answered by the panel.
 
+#### `courses-next-week-email`
+
+Sends each group next week's time, room and reading a set number of days
+before each of its sessions (`nextWeekEmailDaysBefore`, 2 by default, set under
+Course settings), at that session's own time of day in London, whatever
+happens to the register. **Ships switched off.** While it is off, finishing a
+register (then called Push attendance) sends the email instead; switching it
+on moves the email here and makes the register's button "Finish the register",
+which emails nobody. See "Finishing a register" below for how the two lanes
+never both send.
+
+| | |
+| --- | --- |
+| Claim | `courseNudges/gnudge__{runId}__{groupId}__{slotStartKey}`, shared with the push |
+| Due | from the send instant until the session starts; the group's first session never |
+| Runs scanned | status `applications-open`, `applications-closed` or `running`; archived groups skipped |
+| Recipients | the group's members on the run's cohort channel, opt-outs and suppression honoured: the push's audience |
+| Held card | `tasks/course-register__{runId}__{groupId}__{sessionKey}__email`, for the run's lead and every admin |
+| Config | `nextWeekEmailDaysBefore` (2), `weeklyFeedbackUrl` |
+
+**Days on the calendar, the session's own wall clock.** Two days before a
+Tuesday 6pm session is the Sunday at 6pm, on either side of a clock change.
+Counting 48 elapsed hours would send at 5pm or 7pm on the weekend the clocks
+move.
+
+**Held, not skipped.** Every tick between the send instant and the session's
+start asks again, so:
+
+- a week that is not **published** holds the email (published stands in for a
+  week being ready), and the first tick after it is published sends it, if the
+  session is still ahead;
+- a week published only after its session has started is never sent about;
+- an email with an **empty value** the template uses (the group's room, the
+  week's reading, its title or summary) is held whole rather than sent without
+  the sentence, and one card goes on the boards of the programme's lead and the
+  admins saying what is missing. Filling it in sends the email on the next tick
+  and archives the card. The weekly feedback form and a recipient's name are
+  the two values an email may go without.
+
+**Never a meeting link.** An online week says "Online"; a room with a link in
+it is not printed, which holds the email until the room is a room.
+
+**It may only be switched on where the scheduler is running**, because
+switching it on also stops the push from sending. Prove it on dev with **Run
+now** on a run whose next session is inside the window, then switch it on.
+
+#### `courses-register-reminders`
+
+Emails a group's facilitators ONCE when a session's register is still not
+finished `unmarkedRegisterGraceHours` (36 by default) after the session ENDED.
+**Ships switched off.** Each facilitator's own "Tasks and worksheets" email
+switch is its off switch; a facilitator whose account no longer has standing
+is skipped.
+
+| | |
+| --- | --- |
+| Marker | `schedulerMarkers/regremind__{groupId}__{sessionKey}__{uid}`, one per facilitator |
+| Window | sessions whose END is between the hours and the hours plus 24 |
+| Runs scanned | status `applications-open`, `applications-closed` or `running`; archived groups skipped |
+| `maxLateHours` | 72 |
+| Config | `unmarkedRegisterGraceHours` (36) |
+
+A skipped facilitator is stamped on their marker with the reason (`opted-out`,
+`no-standing`, `no-address`, `suppressed`), so "why did Sofia not get it" is a
+marker to read rather than a log to search.
+
 #### `courses-unmarked-registers`
 
-Raises a committee task for every group whose register is still unpushed once
-the grace has passed. Assigned to every admin, `committee` visibility,
-`source: "course-register"`, due at the session's end plus the grace.
+Raises a task for every group whose register is still not finished
+`registerTaskHours` (60 by default) after the session ended. Assigned to the
+lead of the programme that names the run, while that account still meets the
+bar a lead is appointed behind, and to every admin; a run no programme names
+goes to the admins alone. `committee` visibility, `source: "course-register"`,
+due at the session's end plus the hours, born notified so it emails nobody.
 
 | | |
 | --- | --- |
 | Marker | `schedulerMarkers/unmarked__{groupId}__{sessionKey}` |
 | Task id | `tasks/course-register__{runId}__{groupId}__{sessionKey}` |
-| Window | sessions whose END is between the grace and the grace plus 24 hours |
+| Window | sessions whose END is between the task's hours and those hours plus 24 |
 | Runs scanned | status `applications-open`, `applications-closed` or `running` |
 | `maxLateHours` | 72 |
-| Config | `unmarkedRegisterGraceHours` (36), `unmarkedScanBudgetMs` (12000), `maxFollowUpTasksPerTick` (25) |
+| Config | `registerTaskHours` (60), `unmarkedScanBudgetMs` (12000), `maxFollowUpTasksPerTick` (25) |
 
 **The window is a band, not a threshold.** "Older than the grace" would
 re-derive every unmarked session of the whole term on every tick; the marker
@@ -568,9 +653,10 @@ per-job default-off flag of its own yet, so the first tick after a deploy runs
 it for real against whatever cohorts are live. Turn it off on the site status
 page **before** the deploy reaches an environment with real facilitators on it,
 and only turn it back on once dev has shown all four scenarios: a session
-crossing the 40-hour mark raising exactly one card; a second tick over the same
-session raising none; a push archiving the card it raised; and a task id that
-is already taken going to the `__alt` fallback rather than overwriting anything.
+crossing the 64-hour mark raising exactly one card; a second tick over the same
+session raising none; finishing the register archiving the card it raised; and
+a task id that is already taken going to the `__alt` fallback rather than
+overwriting anything.
 
 ### Budget, re-arm, and the Cloud Run caveat
 
@@ -799,138 +885,178 @@ deploy, the symptom is a `permission-denied` on a `courses`, `courseRuns` or
 `draftCourse` or `approveCourse`, followed by whether the failing read is an
 unfiltered list, and then whether the document exists at all (consequence 3).
 
-## PUSH ATTENDANCE, and the two sends around it
+## FINISHING A REGISTER, and next week's email
 
-### What the push does, in the order it does it
+A facilitator marks their register during the session, and every tap saves:
+the page says "Saved 7:58pm" after each one. Nothing has left the building at
+that point: the register is a draft and nobody outside the room can see it.
+The button under it ends the register, and **what it is called and what it
+does depend on one switch**, the `courses-next-week-email` job's on Site
+status:
 
-A facilitator marks their register during the session, saving as often as they
-like. Nothing has left the building at that point: the register is a draft and
-nobody outside the room can see it. Pressing **Push attendance** does three
-things, and the order is the design:
+| The switch | The button | What pressing it does |
+| --- | --- | --- |
+| Off (how it ships) | **Push attendance** | locks the register, rebuilds everyone's totals, shows people their marks, closes the follow-up card, and emails the group about its next session |
+| On | **Finish the register** | the same, and emails NOBODY: the job sends next week's email a set time before each session, whatever happens to the register |
+
+The register's page says which, in the board's words, every value read from
+records: the group, when next week's email goes, who is reminded and who gets
+a task if nobody finishes.
+
+### What finishing does, in the order it does it
 
 1. **One transaction** stamps `pushedAt` and `pushedByUid` on the register, and
    recomputes every member's `courseEnrolments.attendance` rollup IN FULL from
-   that group's pushed registers. Never a delta: a mirror that can be rebuilt
+   that group's finished registers. Never a delta: a mirror that can be rebuilt
    from its source cannot drift from it.
-2. **The send marker is claimed by a standalone `.create()` OUTSIDE that
-   transaction**, at `courseNudges/gnudge__{runId}__{groupId}__{nextSlotStartKey}`
-   (plus a `-{occurrence}` suffix from a week's second session onwards, so a
-   group meeting twice inside one slot gets two reminders rather than one).
-   A create collision inside a transaction aborts the whole transaction, so
-   claiming it there would unlock a register because an email had already gone.
-3. **The group is emailed** about its next session, one message each, carrying
-   the next week's material and the weekly feedback link.
+2. **The follow-up card closes**, if the scheduler raised one.
+3. **Only while the switch is off**, the group is emailed about its next
+   session: the send marker is claimed by a standalone `.create()` OUTSIDE that
+   transaction, at `courseNudges/gnudge__{runId}__{groupId}__{nextSlotStartKey}`
+   (plus a `-{occurrence}` suffix from a week's second session onwards), and
+   then one message goes to each member. A create collision inside a
+   transaction aborts the whole transaction, so claiming it there would unlock
+   a register because an email had already gone.
 
 The consequence worth knowing on the night: **a send failure leaves the
 register locked and the figures correct**. A second press is an idempotent 200
-that sends nothing, and the mail is recovered by an admin (below) rather than by
-pushing again.
+that sends nothing, and the mail is recovered by an admin (below) rather than
+by pressing again.
 
-### After the push
+### The push and the schedule never both send
+
+Two things hold it, and either alone would:
+
+1. **The switch.** The push route and the tick read the same switch through
+   one function (`nextWeekEmailIsScheduled`): the push sends only while it is
+   off, and the tick runs the job only while it is on. A switch read that fails
+   in the push route is taken as "off", the direction that still sends.
+2. **One claim.** Both lanes claim the same `gnudge__` document with
+   `.create()` before the first message. A switch flipped between a push and a
+   tick finds the claim taken and sends nothing; the run's catch-up send reads
+   the same family before it sends.
+
+`tests/course-register-ends.test.mjs` holds both: the push after the schedule
+has sent, and the schedule after the push has sent, each send nothing.
+
+**Turning the schedule on is the whole switch-over.** Do it only where the
+scheduler is running (a backend whose tick is armed), because it also stops the
+push from sending. Prove it on dev first with **Run now**.
+
+### After finishing
 
 The register is admin-only. An admin corrects it from the same grid: marks, the
 **Didn't happen** switch and the session note all stay available to them on a
-pushed column, and every change appends its own `courseAudit` row with the
+finished column, and every change appends its own `courseAudit` row with the
 before and the after. Participant notes stay open to the facilitator,
 deliberately: they are usually written after the session rather than during it.
 
-The push is also what makes the session visible to the LEARNER. Their own row
+Finishing is also what makes the session visible to the LEARNER. Their own row
 appears on their course home (the **Your progress** card) as soon as the
-register is pushed, and not before: `courseAttendance` stays `read: if false`,
+register is finished, and not before: `courseAttendance` stays `read: if false`,
 and the only route to a member's own mark is the overview payload's
 `ownAttendance`, which drops any register with no `pushedAt`. So a register a
 facilitator is halfway through saving shows nobody anything, and a session
-nobody ever pushed simply does not appear on any member's list.
+nobody ever finished simply does not appear on any member's list.
 
-A cell left blank in a PUSHED register reads "Not marked" on that list, while
+A cell left blank in a FINISHED register reads "Not marked" on that list, while
 the summary line above it (and the reviewer's figures, and any completion bar)
 counts it as an absence. That disagreement is deliberate: the count has to
 treat a finished register as finished, and the row should not turn a
 facilitator's slip into an accusation. If a member reports a wrong mark, an
 admin corrects the register and the figures follow.
 
-### Recovering a push whose email failed
+### Recovering a send that failed
 
 The register locks and the figures move BEFORE the first message goes out, so a
 transport failure leaves a locked register and an unmailed group. The marker is
-already claimed, so pressing **Push** again reports "already pushed" and sends
-nothing. That is the correct default, and it is why there is a second lane.
+already claimed, so pressing again reports "already" and sends nothing. That is
+the correct default, and it is why there is a second lane.
 
-**Resend reminder** sits on a pushed column for admins only. It re-sends this
-group's reminder and **nobody else's**, and it records the re-send on the
-group's marker exactly as the run-level catch-up records its own forces
-(`forceCount`, `lastForcedAt`, `lastForcedByUid`, and an entry in `forces`
-naming the marker it went over). Use it when a facilitator reports "I pushed and
-nobody got the email".
+**Resend** sits on a finished column for admins only ("Resend reminder" while
+the push sends the email, "Resend next week's email" once it is on its
+schedule). It re-sends this group's email and **nobody else's**, and it records
+the re-send on the group's marker exactly as the run-level catch-up records its
+own forces (`forceCount`, `lastForcedAt`, `lastForcedByUid`, and an entry in
+`forces` naming the marker it went over). Use it when a facilitator reports
+"nobody got the email". While the email is on its schedule, Resend only ever
+re-sends an email that has gone: it never sends one early, and it holds the
+schedule's rule, whole or not at all.
 
 Reach for the run-wide catch-up only when the whole cohort is owed the send. It
 mails **every** group of the run, so using it to fix one group mails every other
 group twice.
 
 What can and cannot fail after the claim, so the failure a report describes can
-be placed: the config read and the email template are resolved BEFORE the marker
-is claimed, so the only thing left that can fail after it is the transport
-itself.
+be placed: the settings, the template, the week and the audience are all read
+BEFORE the marker is claimed, so the only thing left that can fail after it is
+the transport itself.
 
-### The two sends, and which is which
+### The sends, and which is which
 
 | Send | Who presses it | When |
 | --- | --- | --- |
-| The weekly reminder | the group's facilitator, by pushing the register | after every session |
+| Next week's email, while the schedule is off | the group's facilitator, by pushing the register | after every session |
+| Next week's email, while the schedule is on | the `courses-next-week-email` job | `nextWeekEmailDaysBefore` days before each session after the first |
 | The run-wide catch-up | an admin, from the run's nudge page | the session-1 welcome, and recovery |
 
-**The session-1 welcome has to be sent by hand.** No push exists before a run's
-first session, so nothing in the group lane can produce it. Send it from the
-run's nudge page before the first week. This is not a gap waiting to be closed
-with a "first session" branch on the push: that would need its own idempotency
-marker for a send that happens once per run, and the catch-up lane already has
-one.
+**The session-1 welcome has to be sent by hand.** Neither lane sends anything
+about a group's first session: nothing was finished before it, and the
+schedule leaves it to the email Publish sends. Send it from the run's nudge
+page before the first week if a welcome is wanted.
 
 **The catch-up reads the group markers before it sends.** If any group has
-already had this week's reminder from its own push, the run-wide send is
-refused unless an admin forces it, and a force records the group markers it
-overrode on its own marker. A cohort mailed twice in one week is on the record
-either way.
+already had this week's email from either lane, the run-wide send is refused
+unless an admin forces it, and a force records the group markers it overrode on
+its own marker. A cohort mailed twice in one week is on the record either way.
 
 **Residual risk: a mid-term `startDate` edit.** The run's own marker family is
 checked across a span of six days either side of the slot, so nudging the same
 calendar week twice is caught even after the dates move. The group markers are
 checked at the CURRENT slot key only. So if a run's `startDate` is edited part
-way through the term, the group markers a push wrote sit under neighbouring
-keys, the catch-up finds none, and it can mail those groups a second time with
-no force recorded anywhere. Remedy: after editing a live run's `startDate`,
-treat the run-wide catch-up as unavailable for that week. If a group is owed a
-reminder, use **Resend reminder** on that group's pushed column, which is keyed
-on the group's own next session and is recorded on the group's own marker.
+way through the term, the group markers either lane wrote sit under
+neighbouring keys, the catch-up finds none, and it can mail those groups a
+second time with no force recorded anywhere. Remedy: after editing a live run's
+`startDate`, treat the run-wide catch-up as unavailable for that week. If a
+group is owed its email, use **Resend** on that group's finished column, which
+is keyed on the group's own next session and is recorded on the group's own
+marker.
 
-### If a facilitator never presses it
+### If nobody finishes it
 
-Their group loses its reminder as well as its register, and every member of
-that group carries a session in a denominator reviewers will read as a
-shortfall.
+The group's record waits, and so (while the schedule is off) does its email.
 
-**The board tells you.** Once the grace has passed
-(`config/courses.unmarkedRegisterGraceHours`, default 36) the
-`courses-unmarked-registers` job raises a committee task naming the group, the
-course and the session, assigned to every admin, saying what is waiting on the
-press and what to do about it. Pushing the register archives the card.
+**First, the facilitators are reminded.** `unmarkedRegisterGraceHours` (36 by
+default) after the session ENDS, the `courses-register-reminders` job emails
+each of the group's facilitators once, naming the register and the button.
+It ships switched off.
 
-That does not make the chase automatic, only visible. The card asks an admin to
-go and talk to the facilitator, so brief facilitators on the push **before**
-their first session rather than after, and watch the volume in the first
-fortnight: with three streams, three fellowships and several groups each, a
-quiet week can put a dozen identical cards on every admin's board, and a board
+**Then the lead and admins get a task.** `registerTaskHours` (60 by default)
+after the session ends, `courses-unmarked-registers` raises a card for the
+lead of the programme that names the run and every admin, saying what is
+waiting on the press and what to do about it. Finishing the register archives
+the card. The card emails nobody, so watch the board in the first fortnight:
+with several groups a quiet week can put a dozen cards on it, and a board
 people mute is a board that stops working.
 
 ### The knobs
 
-Both live on the site status page, under Course settings:
+All live on the site status page, under Course settings:
 
-- **Weekly feedback form** (`config/courses.weeklyFeedbackUrl`). Rides the
-  reminder as `{feedbackUrl}`. Leave it empty and the paragraph carrying it is
-  dropped from the email whole, which is a complete state rather than a broken
-  one.
-- **Unmarked register grace period**, above.
+- **Next week's email: days before each session**
+  (`config/courses.nextWeekEmailDaysBefore`, 2). Whole days, 1 to 6, at the
+  session's own time of day. Read only while the schedule is on.
+- **Weekly feedback form** (`config/courses.weeklyFeedbackUrl`). Rides next
+  week's email as `{feedbackUrl}`. Leave it empty and the paragraph carrying it
+  is dropped from the email whole, which is a complete state rather than a
+  broken one: it is one of the two values an email may go without.
+- **Unfinished register: reminder to facilitators after (hours)**
+  (`unmarkedRegisterGraceHours`, 36). The key is older than the reminder: it
+  used to be when the admins' task was raised, and kept its name and number
+  when the task moved later.
+- **Unfinished register: task for the lead and admins after (hours)**
+  (`registerTaskHours`, 60). Always later than the reminder; the panel refuses
+  a value that is not.
 
 Two more sit on `config/courses` with no editor, because they are scheduler
 cost dials rather than product settings: `unmarkedScanBudgetMs` (12000, the
@@ -939,17 +1065,18 @@ cards raised in one tick). Set them from the Firestore console if a scan is
 consistently reporting `hasMore`. Missing means the default, always.
 
 `unmarkedScanBudgetMs` is a share of the 28s the tick hands its whole job list,
-and it is meant to **shrink as jobs are added**. Today one real job runs, so 12s
-is generous; with the admissions and break-return jobs registered alongside it,
-a scan allowed to spend most of the list's budget is a scan that starves every
-job after it. Rule of thumb when raising it: the sum of the jobs' own budgets
-should stay under 28s.
+and it is meant to **shrink as jobs are added**. The two register jobs added
+beside it carry their own fixed budgets (10s for next week's email, 8s for the
+reminders), and every job checks what the tick has left before it starts, so a
+slow one costs the jobs after it a quarter of an hour, never an email.
 
 ### A cancelled session
 
-Use the **Didn't happen** switch on the column, then push as normal. A session
-marked not held leaves every denominator rather than counting as a room full of
-absences, and the group still gets its reminder about the next one.
+Use the **Didn't happen** switch on the column, then finish as normal. A
+session marked not held leaves every denominator rather than counting as a room
+full of absences, and it is never chased. Next week's email goes either way:
+the push sends it while the schedule is off, and the schedule sends it on time
+while it is on.
 
 ## Placing a term's accepted people on a course run
 

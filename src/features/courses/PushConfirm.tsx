@@ -93,7 +93,7 @@ export default function PushConfirm({
               ? "Nobody’s emailed. Next week’s email goes on its own schedule, whatever happens here."
               : nextLabel
                 ? `Everyone in ${groupName || "this group"} gets one email about ${nextLabel}.`
-                : "Nobody is emailed: this is the group's last session, so there is nothing to remind them about."}
+                : "Nobody is emailed: this is the group’s last session, so there is nothing to remind them about."}
           </li>
           <li>
             The register locks. An admin can still correct it afterwards, and every
@@ -101,8 +101,8 @@ export default function PushConfirm({
           </li>
           <li>
             {held
-              ? "Everyone sees their mark, and everyone's attendance figures are rebuilt from this register."
-              : "This session is marked as not held, so it leaves everyone's attendance figures rather than counting against them."}
+              ? "Everyone sees their mark, and everyone’s attendance figures are rebuilt from this register."
+              : "This session is marked as not held, so it leaves everyone’s attendance figures rather than counting against them."}
           </li>
         </ul>
 
