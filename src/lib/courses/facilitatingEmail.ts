@@ -109,7 +109,10 @@ export type FacilitatingFacts = {
   where: PlacementWhere | null;
   /** The other facilitators' first names ("Sofia", "Sofia and Tom"), or null for somebody facilitating alone. */
   coFacilitators: string | null;
-  /** How many people are placed in the group. */
+  /**
+   * How many people in the group have been told their group by the time the
+   * email goes: never one untold (Publish's plan works it out).
+   */
   groupSize: number | null;
   /** The facilitator's group page, as a whole address. Null when the site does not know its own address. */
   groupUrl: string | null;

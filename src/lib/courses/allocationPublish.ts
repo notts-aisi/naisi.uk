@@ -64,13 +64,27 @@ import { formatRunStart, formatRunStartShort } from "./window";
  *    in a group, with no `allocatedEmailAt` stamp. The stamp is written after
  *    their email went, and a move to another group clears it, so a moved
  *    person is owed one again and is told their new group.
- *  - A FACILITATOR of a live group with somebody placed in it, who has no
- *    marker for that group yet (`facilitatingMarkerId`). Once per facilitator
- *    per group: a facilitator of two groups is told about each, and nobody is
- *    told twice about one. A group with nobody in it is not one its
- *    facilitators are told about yet; they are told by the press after
- *    somebody is placed there. An archived group's facilitators are never
- *    told: its page refuses them.
+ *  - A FACILITATOR of a live group with somebody in it whom Publish has told
+ *    or this press writes to, who has no marker for that group yet
+ *    (`facilitatingMarkerId`). Once per facilitator per group: a facilitator
+ *    of two groups is told about each, and nobody is told twice about one. A
+ *    group with nobody in it is not one its facilitators are told about yet,
+ *    nor is one whose people this press cannot write to; they are told by the
+ *    press that tells somebody there. An archived group's facilitators are
+ *    never told: its page refuses them.
+ *
+ * ## A facilitator is told how many have been told
+ *
+ * The facilitators' email says how many are in the group, and the number is
+ * the people in it who will have been told once the press is done: those
+ * told before it and those it writes to. Never somebody it cannot write to,
+ * never somebody untold: it is the number of names the facilitator's roster
+ * shows them, which shows nobody untold. A send can fail, and a press finds
+ * out only as it sends, so each facilitator's email is written for every
+ * number the group can come to (`emailBySize`) and the press sends the one
+ * that is true (`facilitatorEmailFor`). When every send to a group's people
+ * fails, its facilitators wait for the next press. "Send a test to me" shows
+ * the email for every send going.
  *
  * ## The count is what a press sends
  *
@@ -132,6 +146,9 @@ export type PlanInput = {
   adminOnly: boolean;
 };
 
+/** One finished email: what a composer returned, ready for the mail door. */
+type WrittenEmail = { subject: string; blocks: Block[] };
+
 /** Where a person or a facilitator owed an email stands. */
 type Recipient = {
   uid: string;
@@ -141,12 +158,27 @@ type Recipient = {
   to: string | null;
   groupId: string;
   groupName: string;
-  /** The finished email, or null when it could not be written (`refusals` says why). */
-  email: { subject: string; blocks: Block[] } | null;
+  /**
+   * The finished email, or null when it could not be written (`refusals`
+   * says why). A facilitator's counts the people in the group who will have
+   * been told once every email this press writes to them has gone.
+   */
+  email: WrittenEmail | null;
 };
 
 export type PlannedPerson = Recipient;
-export type PlannedFacilitator = Recipient & { markerId: string };
+export type PlannedFacilitator = Recipient & {
+  markerId: string;
+  /** How many people in the group Publish had told before this press. */
+  toldBefore: number;
+  /**
+   * The email again for each number of people the group can have been told
+   * once this press's people's emails are done: from `toldBefore` (every
+   * send to somebody in it failed) up to the number `email` counts (every
+   * one went). Never for nobody. See `facilitatorEmailFor`.
+   */
+  emailBySize: ReadonlyMap<number, WrittenEmail>;
+};
 
 export type TestState = "none" | "stale" | "fresh";
 
@@ -600,11 +632,16 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   };
   const unplaced = accepted.filter((row) => groupOf(row.uid) === null).map((row) => row.displayName || "NAISI member");
 
-  // How many are placed in each group, told or not: what a facilitator is told.
+  // How many are placed in each group, told or not: whether a group has
+  // anybody in it for its facilitators to be told about at all. And how many
+  // of them Publish has told already: where each facilitator's count starts.
   const placedIn = new Map<string, number>();
+  const toldIn = new Map<string, number>();
   for (const row of accepted) {
     const group = groupOf(row.uid);
-    if (group) placedIn.set(group.id, (placedIn.get(group.id) ?? 0) + 1);
+    if (!group) continue;
+    placedIn.set(group.id, (placedIn.get(group.id) ?? 0) + 1);
+    if (enrolmentByUid.get(row.uid)?.allocatedEmailAt) toldIn.set(group.id, (toldIn.get(group.id) ?? 0) + 1);
   }
 
   // Everyone placed but not yet told. The stamp is the once-only guard: it is
@@ -617,7 +654,8 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   // The facilitators of every live group, and whether each has been told
   // about that group yet. Only a group with somebody in it is one they are
   // told about; a group still empty is named so the board can say why its
-  // facilitators are waiting.
+  // facilitators are waiting. Which of the others are owed their email now
+  // is settled once the people's addresses are read, below.
   const facilitatorSlots: { group: CourseGroupDoc; uid: string; markerId: string }[] = [];
   for (const group of groupById.values()) {
     if (group.archived) continue;
@@ -630,7 +668,7 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
     : [];
   const toldMarkers = new Set(markers.filter((snap) => snap.exists).map((snap) => snap.id));
   const untold = facilitatorSlots.filter((slot) => !toldMarkers.has(slot.markerId));
-  const owedFacilitators = untold.filter((slot) => (placedIn.get(slot.group.id) ?? 0) > 0);
+  const mayTell = untold.filter((slot) => (placedIn.get(slot.group.id) ?? 0) > 0);
   const emptyGroups = [
     ...new Set(
       untold
@@ -641,15 +679,15 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
 
   // One read for every account this needs: the people owed an email
   // (address and greeting), every facilitator of their groups and of the
-  // groups owed a facilitators' email (names, and for those owed one, the
-  // address), and the programme's lead.
-  const signer = owedFacilitators.length > 0 ? await signerOf(db, runId) : { leadUid: null, programmeName: null };
+  // groups that may be owed a facilitators' email (names, and for those owed
+  // one, the address), and the programme's lead.
+  const signer = mayTell.length > 0 ? await signerOf(db, runId) : { leadUid: null, programmeName: null };
   const uids = new Set<string>();
   for (const { row, group } of owed) {
     uids.add(row.uid);
     for (const uid of group.facilitatorUids) uids.add(uid);
   }
-  for (const slot of owedFacilitators) for (const uid of slot.group.facilitatorUids) uids.add(uid);
+  for (const slot of mayTell) for (const uid of slot.group.facilitatorUids) uids.add(uid);
   if (signer.leadUid) uids.add(signer.leadUid);
   const users = await readUsers(db, uids);
   const names = new Map<string, string>();
@@ -692,11 +730,36 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
     });
   }
 
+  // ── Who each facilitators' email counts ─────────────────────────────────
+  // The people in each group this press writes to: everybody owed an email
+  // there who has an address. A press takes the people first, so a press
+  // that carries a facilitator's email carries every one of these.
+  const writesIn = new Map<string, number>();
+  for (const person of people) {
+    if (person.to) writesIn.set(person.groupId, (writesIn.get(person.groupId) ?? 0) + 1);
+  }
+  // A facilitator is told about a group once somebody in it is told: a group
+  // whose people this press cannot write to waits, as an empty one does, for
+  // the press that tells somebody there.
+  const owedFacilitators = mayTell.filter(
+    (slot) => (toldIn.get(slot.group.id) ?? 0) + (writesIn.get(slot.group.id) ?? 0) > 0,
+  );
+
   // ── The facilitators' emails ────────────────────────────────────────────
+  // THE GROUP'S SIZE IN A FACILITATOR'S EMAIL is the people in it who will
+  // have been told once this press is done: those told already and those it
+  // writes to, never somebody it cannot write to and never somebody untold,
+  // so it is the number of names their roster shows them. Whether a send
+  // fails is known only as the press sends, so each email is written here,
+  // before anything goes, for every number the group can come to, and
+  // Publish sends the one that is true once the people's emails are done
+  // (`facilitatorEmailFor`). `email` is the one for every send going, which
+  // is what "Send a test to me" shows.
   const leadData = signer.leadUid ? users.get(signer.leadUid) : undefined;
   const leadName = leadData ? firstNameOf(leadData) || null : null;
   const facilitators: PlannedFacilitator[] = [];
   const refusedFacilitators = new Map<string, RefusedFacilitatorGroup>();
+  const writeFacilitating = (facts: FacilitatingFacts) => composeFacilitatingEmail(templates.facilitating, facts);
   for (const slot of owedFacilitators) {
     const { group, uid } = slot;
     const data = users.get(uid);
@@ -709,6 +772,8 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
       })
       .filter(Boolean);
     const term = groupTerm(run, group);
+    const toldBefore = toldIn.get(group.id) ?? 0;
+    const size = toldBefore + (writesIn.get(group.id) ?? 0);
     const facts: FacilitatingFacts = {
       name,
       courseTitle: run.courseTitle,
@@ -720,12 +785,12 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
       // The weekly slot's own place, not one week's change of room.
       where: placementWhere(group.session, null),
       coFacilitators: others.length > 0 ? namesInWords(others) : null,
-      groupSize: placedIn.get(group.id) ?? 0,
+      groupSize: size,
       groupUrl: groupPageUrl(runId, group.id),
       leadName: signer.programmeName ? leadName : null,
       programmeName: signer.programmeName,
     };
-    const written = composeFacilitatingEmail(templates.facilitating, facts);
+    const written = writeFacilitating(facts);
     if (!written.ok && !refusedFacilitators.has(group.id)) {
       refusedFacilitators.set(group.id, {
         name: group.name.trim(),
@@ -737,6 +802,16 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
           : {}),
       });
     }
+    const emailBySize = new Map<number, WrittenEmail>();
+    if (written.ok) {
+      emailBySize.set(size, { subject: written.subject, blocks: written.blocks });
+      // And for fewer, should sends to people in the group fail. Never for
+      // nobody: a group nobody in which is told has no facilitator to tell.
+      for (let fewer = Math.max(1, toldBefore); fewer < size; fewer += 1) {
+        const again = writeFacilitating({ ...facts, groupSize: fewer });
+        if (again.ok) emailBySize.set(fewer, { subject: again.subject, blocks: again.blocks });
+      }
+    }
     facilitators.push({
       uid,
       name,
@@ -745,6 +820,8 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
       groupName: group.name,
       markerId: slot.markerId,
       email: written.ok ? { subject: written.subject, blocks: written.blocks } : null,
+      toldBefore,
+      emailBySize,
     });
   }
 
@@ -805,4 +882,15 @@ export function pressBatch(plan: Pick<PublishPlan, "people" | "facilitators">): 
       ...plan.facilitators.filter((facilitator) => !facilitator.to).map((facilitator) => facilitator.name),
     ],
   };
+}
+
+/**
+ * The facilitators' email a press sends once its people's emails are done:
+ * the one the plan wrote for the number of people in the group told by then,
+ * which is those told before the press and `toldByPress` more. Null when that
+ * is nobody: the facilitator waits, as for a group with nobody in it, for the
+ * press that tells somebody there.
+ */
+export function facilitatorEmailFor(facilitator: PlannedFacilitator, toldByPress: number): WrittenEmail | null {
+  return facilitator.emailBySize.get(facilitator.toldBefore + toldByPress) ?? null;
 }

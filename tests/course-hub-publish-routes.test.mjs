@@ -59,6 +59,8 @@ const join_ = await loadJoin(made);
 const { routes, press, board, place } = join_;
 const words = await lib("courses", "publishWords.ts");
 const plan = await lib("courses", "allocationPublish.ts");
+/** A group's names, as its facilitator's group page reads them. */
+const roster = await made.courseRoute("groups", "[groupId]", "roster");
 
 // Tue 27 Oct 2026, 5:38pm in London (the clocks went back on the 25th).
 const NOW = new Date("2026-10-27T17:38:00Z");
@@ -144,6 +146,16 @@ async function opened(mail) {
     .replace(/\s+/g, " ")
     .trim();
   return { to: mail.to, subject: mail.subject, html, text };
+}
+
+/** The number a facilitators' email says is in the group, from "There are 2 people in the group." */
+const groupSizeIn = (text) => Number((/There (?:is|are) (\d+) (?:person|people) in the group\./.exec(text) ?? [])[1]);
+
+/** What the group's page shows one of its facilitators. */
+async function rosterFor(who, groupId) {
+  const answer = await call(who, roster.GET, { groupId }, { course: true });
+  assert.equal(answer.status, 200, JSON.stringify(answer.body));
+  return answer.body;
 }
 
 /** No email carries a token or anything that lets a reader into a call. */
@@ -573,16 +585,24 @@ describe("5. what happened is said", () => {
     assert.equal(published.status, 200, JSON.stringify(published.body));
     const { report } = published.body;
     assert.deepEqual(report.people, { sent: 0, held: 1, suppressed: 1 });
-    assert.deepEqual(report.facilitators, { sent: 2, held: 0, suppressed: 0 });
+    // Sofia for Group B. Group A is Bea, with no address, and Tariq, whose
+    // send failed: nobody in it is told, so there is nobody to count, and
+    // Sofia's email for it waits for the press that tells somebody there.
+    assert.deepEqual(report.facilitators, { sent: 1, held: 0, suppressed: 0 });
+    assert.equal(report.more, 1);
     // Names only, as people go by them: never an address.
     assert.deepEqual([report.failed, report.noAddress], [["Tariq", "Rahul"], ["Bea"]]);
     assert.deepEqual(words.publishResultLines(report), [
-      "Published. 2 emails sent: 2 to facilitators.",
+      "Published. 1 email sent: 1 to facilitators.",
       "Not sent to Tariq and Rahul, because the send failed. Press Publish again to try again: nobody already told is emailed twice.",
       "Not sent to Bea, because there is no email address on file.",
       "Not sent to 1 address on the do-not-email list. It counts as told, so it isn’t tried again.",
       "Held, not sent: 1 email to addresses this copy of the site doesn’t email. That is how a rehearsal works.",
+      "1 email still to send. Press Publish again to send it.",
     ]);
+    // A held and a suppressed email both count as told: Sofia's Group B email counts Amara and Dev.
+    const sofiaB = await opened(realMail().find((mail) => mail.to === "sofia@example.com" && mail.subject.includes("Group B")));
+    assert.equal(groupSizeIn(sofiaB.text), 2, sofiaB.text);
     for (const line of words.publishResultLines(report)) assert.doesNotMatch(line, /skipped|—|–/);
     // The stamp is written exactly when an email was written for sending, as
     // before: a held or a suppressed email was handed to the mail door and is
@@ -596,14 +616,19 @@ describe("5. what happened is said", () => {
     assert.equal(seat("tariq").allocatedEmailAt, undefined);
     assert.equal(seat("bea").allocatedEmailAt, undefined);
     assert.equal(world.db.read(`courseNudges/facilitating__${RUN.agi}__${B}__rahul`), undefined);
+    // Sofia's email for Group A was never claimed: it is still owed.
+    assert.equal(world.db.read(`courseNudges/facilitating__${RUN.agi}__${A}__sofia`), undefined);
     // Nobody is pushed whose email did not go.
     assert.deepEqual(world.pushes, []);
-    // The next press tries exactly the two that failed.
+    // The next press tries exactly the two that failed, and sends Sofia's
+    // email for Group A, which counts Tariq once he is told, and not Bea.
     world.mailFate = null;
     const next = await summary();
-    assert.deepEqual([next.emails, next.people, next.facilitators], [2, 1, 1]);
+    assert.deepEqual([next.emails, next.people, next.facilitators], [3, 1, 2]);
     const again = await pressNow();
-    assert.deepEqual([again.body.report.people.sent, again.body.report.facilitators.sent, again.body.report.failed], [1, 1, []]);
+    assert.deepEqual([again.body.report.people.sent, again.body.report.facilitators.sent, again.body.report.failed], [1, 2, []]);
+    const sofiaA = await opened(realMail().find((mail) => mail.to === "sofia@example.com" && mail.subject.includes("Group A")));
+    assert.equal(groupSizeIn(sofiaA.text), 1, sofiaA.text);
   });
 });
 
@@ -633,6 +658,93 @@ describe("6. the emails", () => {
     assert.ok(!sofiaA.text.includes("You’re facilitating with"), sofiaA.text);
     assert.ok(sofiaA.text.includes("Group A meets on Thursdays at 6pm, from Thu 29 Oct to Thu 3 Dec. Where: Portland A13"), sofiaA.text);
     await nothingToFollow(world.mail);
+  });
+
+  test("a facilitator is told how many in the group are told by the end of the press, which is the names on their roster, and the test counts the same way", async (t) => {
+    // The send to Tariq fails, and the press says so on the console too.
+    t.mock.method(console, "error", () => {});
+    await placed();
+    // Group B is Amara and Dev, and Dev has no address on file any more (the
+    // rows the form wrote carry none). Group A is Bea and Tariq, and the send
+    // to Tariq fails.
+    world.db.poke("users/dev", { email: "" });
+    world.mailFate = (args) => (args.to === "tariq@example.com" ? "fail" : "sent");
+    const shown = await summary();
+    assert.deepEqual([shown.emails, shown.people, shown.facilitators, shown.noAddress], [6, 3, 3, ["Dev"]]);
+
+    // The test is Rahul's email for Group B as the press would send it. It
+    // counts the people told already and the people the press writes to, so
+    // Amara, and not Dev, whom it cannot write to.
+    assert.equal((await sendTest()).body.recorded, true);
+    const tested = await opened(world.mail.find((mail) => isTest(mail) && isFacilitating(mail)));
+    assert.equal(tested.subject, "[TEST] You’re facilitating Group B: Tuesdays at 6pm");
+    assert.ok(tested.text.includes("Hi Rahul,"), tested.text);
+    assert.equal(groupSizeIn(tested.text), 1, tested.text);
+
+    const published = await pressNow();
+    assert.equal(published.status, 200, JSON.stringify(published.body));
+    assert.deepEqual(
+      [published.body.report.people, published.body.report.facilitators, published.body.report.failed],
+      [{ sent: 2, held: 0, suppressed: 0 }, { sent: 3, held: 0, suppressed: 0 }, ["Tariq"]],
+    );
+    const sentTo = async (to, group) => {
+      const found = realMail().filter((mail) => mail.to === to && isFacilitating(mail) && mail.subject.includes(`${group}:`));
+      assert.equal(found.length, 1, `${to}, ${group}`);
+      return opened(found[0]);
+    };
+
+    // Group B: Amara is told and Dev is not. Rahul's email is the words of
+    // his test, and each facilitator's number is the names on the roster.
+    const rahul = await sentTo("rahul@example.com", "Group B");
+    // The subject without the test's mark, and every word from the greeting
+    // on (the preheader's invisible padding is as long as its subject).
+    const fromGreeting = (text) => text.slice(text.indexOf("Hi Rahul,"));
+    assert.equal(rahul.subject, tested.subject.replace("[TEST] ", ""));
+    assert.equal(fromGreeting(rahul.text), fromGreeting(tested.text), "the press sent Rahul other words than his test");
+    const groupB = await rosterFor("rahul", B);
+    assert.deepEqual([groupB.members.map((m) => m.uid), groupB.notYetTold], [["amara"], true]);
+    for (const email of [rahul, await sentTo("sofia@example.com", "Group B")]) {
+      assert.equal(groupSizeIn(email.text), groupB.members.length, email.text);
+    }
+
+    // Group A: Bea is told, and the send to Tariq failed, so Sofia is told 1,
+    // not the 2 every send going would have made.
+    const sofiaA = await sentTo("sofia@example.com", "Group A");
+    const groupA = await rosterFor("sofia", A);
+    assert.deepEqual([groupA.members.map((m) => m.uid), groupA.notYetTold], [["bea"], true]);
+    assert.equal(groupSizeIn(sofiaA.text), groupA.members.length, sofiaA.text);
+  });
+
+  test("a group nobody in which can be told yet keeps its facilitators waiting, and the press that tells somebody there tells them", async () => {
+    await press();
+    // Tariq is alone in Group C, and has no address on file.
+    world.db.poke("users/tariq", { email: "" });
+    await place("zach", [
+      { uid: "amara", groupId: B },
+      { uid: "dev", groupId: B },
+      { uid: "bea", groupId: A },
+      { uid: "tariq", groupId: C },
+    ]);
+    const shown = await summary();
+    // Rahul and Sofia for Group B, Sofia for Group A. Not Tom: nobody in Group C can be told.
+    assert.deepEqual([shown.emails, shown.people, shown.facilitators, shown.noAddress, shown.emptyGroups], [6, 3, 3, ["Tariq"], []]);
+    await sendTest();
+    assert.equal((await pressNow()).status, 200);
+    assert.ok(!realMail().some((mail) => mail.to === "tom@example.com"), "Tom was told about a group nobody in which is told");
+    assert.equal(world.db.read(`courseNudges/facilitating__${RUN.agi}__${C}__tom`), undefined);
+    assert.deepEqual((await rosterFor("tom", C)).members, []);
+
+    // Tariq's address is back: the next press tells him, then Tom, who counts him.
+    world.db.poke("users/tariq", { email: "tariq@example.com" });
+    const next = await summary();
+    assert.deepEqual([next.emails, next.people, next.facilitators], [2, 1, 1]);
+    const before = realMail().length;
+    assert.equal((await pressNow()).status, 200);
+    assert.deepEqual(toOf(realMail().slice(before)), ["tariq@example.com", "tom@example.com"]);
+    const tom = await opened(realMail().find((mail) => mail.to === "tom@example.com"));
+    const groupC = await rosterFor("tom", C);
+    assert.deepEqual(groupC.members.map((m) => m.uid), ["tariq"]);
+    assert.equal(groupSizeIn(tom.text), groupC.members.length, tom.text);
   });
 
   test("an online group is told it meets online and that the link is on the page, never the link", async () => {

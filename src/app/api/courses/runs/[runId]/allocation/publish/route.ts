@@ -6,6 +6,7 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
 import {
   claimFacilitatorEmail,
+  facilitatorEmailFor,
   loadPublishPlan,
   pressBatch,
   publishTestBlocker,
@@ -63,6 +64,14 @@ import { mirrorCourseDecisionToPush } from "@/lib/push/courseNotifications";
  * email went (a move clears it), and a facilitator's marker is claimed before
  * theirs goes and given back if it fails. The run-level
  * `allocationPublishedAt` re-stamps on every publish.
+ *
+ * A FACILITATOR'S EMAIL COUNTS THE PEOPLE TOLD. The people's emails go
+ * first; each facilitator's then says how many in the group have been told
+ * by then, those told before and those this press has just told, never one
+ * whose send failed, so it matches the names on their roster. It is one of
+ * the emails the plan wrote for each number the group can come to. A group
+ * nobody in which is told by then keeps its facilitators waiting, and the
+ * answer counts their email as still to send.
  *
  * WHAT HAPPENED IS SAID IN FULL: the answer counts what went to people and to
  * facilitators, what this copy of the site held, what the do-not-email list
@@ -253,12 +262,26 @@ export async function POST(req: Request, ctx: Ctx) {
       ...peopleRecipients.map((who): Letter => ({ kind: "allocated", who })),
       ...facilitatorRecipients.map((who): Letter => ({ kind: "facilitating", who })),
     ];
+    /** The people this press has told, by group: what each facilitator's email counts. */
+    const toldByPress = new Map<string, number>();
     for (const letter of letters) {
       const { who } = letter;
       // `pressBatch` takes only people with an address and an email written.
       if (!who.to || !who.email) continue;
+      let composed = who.email;
 
       if (letter.kind === "facilitating") {
+        // The people's emails are done, so the group's size is known: those
+        // told before this press and those it has just told, never somebody
+        // whose send failed. The plan wrote the email for that number.
+        const written = facilitatorEmailFor(letter.who, toldByPress.get(who.groupId) ?? 0);
+        if (!written) {
+          // Nobody in the group is told: there is nobody to count yet, so
+          // the facilitator waits for the press that tells somebody there.
+          report.more += 1;
+          continue;
+        }
+        composed = written;
         // Claimed before it goes: of two presses, only one can send it.
         if (!(await claimFacilitatorEmail(db, runId, letter.who, actor.uid))) {
           report.alreadyTold += 1;
@@ -293,7 +316,7 @@ export async function POST(req: Request, ctx: Ctx) {
         const delivery = await sendCourseApplicationEmail({
           kind: letter.kind,
           to: who.to,
-          composed: who.email,
+          composed,
           fromName: fromName[letter.kind],
           uid: who.uid,
           runId,
@@ -311,6 +334,8 @@ export async function POST(req: Request, ctx: Ctx) {
               allocatedEmailDelivery: delivery,
               updatedAt: FieldValue.serverTimestamp(),
             });
+          // Stamped, so told: their group's facilitators count them.
+          toldByPress.set(who.groupId, (toldByPress.get(who.groupId) ?? 0) + 1);
           // Owed the mirror push only when the email really went. Recorded
           // here and sent after the loop, never inside it: see the pass below.
           if (delivery === "sent") placed.push({ uid: who.uid, groupName: who.groupName });

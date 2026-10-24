@@ -28,7 +28,11 @@ export type PublishReport = {
   noAddress: string[];
   /** Facilitators' emails another press had already claimed, so this one left them. */
   alreadyTold: number;
-  /** Emails still owed past this press's cap. */
+  /**
+   * Emails still owed after this press: past its cap, or to a facilitator of
+   * a group nobody in which this press managed to tell, who waits for the
+   * press that does.
+   */
   more: number;
 };
 
