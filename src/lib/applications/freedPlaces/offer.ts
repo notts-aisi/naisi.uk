@@ -14,18 +14,12 @@ import { emailStanding, handoverAfter } from "../decisionDay/emailState";
 import { loadFirstNames } from "../decisionDay/people";
 import { firstNameOf, planTerm } from "../decisionDay/plan";
 import { programmeOf } from "../decisionDay/programmes";
-import type { ApplicationDoc, DecisionDoc, ProgrammeSettings, ResultEmailState } from "../model";
-import {
-  isApplicationForm,
-  normaliseApplication,
-  normaliseDecision,
-  normaliseForm,
-  type ApplicationForm,
-} from "../normalise";
+import type { ApplicationDoc, ProgrammeSettings, ResultEmailState } from "../model";
+import { isApplicationForm, normaliseApplication, normaliseForm, type ApplicationForm } from "../normalise";
 import { applicationRef, formRef, loadForm } from "../repo";
 import { OWN_APPLICATION } from "../review/refusals";
 import { rankedProgrammes } from "../sections";
-import { decisionRef, listSentApplications, loadApplication, loadDecision } from "../staffRepo";
+import { listSentApplications, loadApplication, loadDecision } from "../staffRepo";
 import { standingOf } from "../status/standing";
 import { enrolmentRef, fits, groupRef, groupWords, isTimed, placedIn, readRun, runRef } from "./groups";
 import {
@@ -45,6 +39,7 @@ import {
   type TestRequest,
   windowSentence,
 } from "./rules";
+import { readTermInTransaction } from "./term";
 import { freedPlaceFingerprint, freedPlaceTestStanding, sendIsTested } from "./tested";
 import type { OfferReport } from "./views";
 import { composeFreedPlaceEmail, toldOnWords } from "./words";
@@ -325,21 +320,7 @@ export async function offerFreedPlaces(
 
     // EVERYBODY, the caller's own application included: a place offered has
     // to be really free, and a place somebody holds is taken whoever asks.
-    const [applicationSnaps, decisionSnaps] = await Promise.all([
-      tx.getAll(...uids.map((uid) => applicationRef(db, roundId, uid))),
-      tx.getAll(...uids.map((uid) => decisionRef(db, roundId, uid))),
-    ]);
-    const applications: ApplicationDoc[] = [];
-    const decisions = new Map<string, DecisionDoc>();
-    uids.forEach((uid, at) => {
-      const applicationSnap = applicationSnaps[at];
-      const application = applicationSnap.exists
-        ? normaliseApplication(applicationSnap.id, applicationSnap.data(), live.round.availabilityGrid)
-        : null;
-      if (application?.sent) applications.push(application);
-      const decisionSnap = decisionSnaps[at];
-      if (decisionSnap.exists) decisions.set(uid, normaliseDecision(decisionSnap.id, decisionSnap.data()));
-    });
+    const { applications, decisions } = await readTermInTransaction(tx, db, live, uids);
     const term = planTerm(live, applications, decisions);
     const free = freePlaces(live, term.tally, programmeId);
     const short = placesProblem(liveProgramme, free, request.picks.length);
