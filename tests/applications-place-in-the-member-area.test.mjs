@@ -826,7 +826,7 @@ const PAGE_FILES = [
 /** Where an outcome is worded, or read into words. */
 const OUTCOME_MODULES = /applications\/status\/(?:words|view|standing)|applications\/decisionDay\/|features\/applications\/status\//;
 /** Functions that word an outcome, whatever they were imported as. */
-const OUTCOME_FUNCTIONS = /\b(?:outcomeWords|listWordsFor|loadListWords|statusViewFor|standingOf|placeNextWords|standardSubject|loadStatus)\b/;
+const OUTCOME_FUNCTIONS = /\b(?:outcomeWords|listWordsFor|loadListWords|statusViewFor|standingOf|placeNextWords|comingHelps|standardSubject|loadStatus)\b/;
 
 describe("no file of these pages can word an outcome", () => {
   const files = PAGE_FILES.flatMap((path) => (/\.tsx?$/.test(path) ? [path] : [...sourceFiles(path)]));

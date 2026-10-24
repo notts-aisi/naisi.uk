@@ -405,6 +405,31 @@ describe("ap-offer, as Amara sees it", () => {
       // A fellowship's words, as the board has them. The view carries the
       // sentence because it depends on the kind of programme the place is on.
       next: "You’ll be in a small group with a facilitator, on campus. Before you start, we’ll email you your group and when it meets.",
+      // The line under "I’m coming", after "Optional.". It depends on the kind
+      // too (the owner's decision of 24 October 2026), so the view carries it;
+      // a fellowship's is the line the page has always shown.
+      comingHelps: "It helps us plan groups.",
+      saidComing: false,
+    });
+  });
+
+  test("an incubator place, as Wen sees it, carries the incubator's two lines", () => {
+    const wen = person("Wen", [INCUBATOR], accepted({ result: { kind: "accepted", programmeId: INCUBATOR } }));
+    assert.deepEqual(viewOf(wen), {
+      kind: "place",
+      label: "Autumn 2026",
+      decidedLabel: "Fri 23 Oct",
+      via: "ranking",
+      programme: {
+        name: "Research incubator",
+        shortName: "Research incubator",
+        facts: "10 WEEKS · SELECTIVE · starts w/c 26 Oct",
+        shortFacts: "10 WEEKS · starts w/c 26 Oct",
+      },
+      next: "We’ll email you before you start with how the first week works.",
+      // An incubator has no groups, so the line under "I’m coming" says only
+      // that it helps us plan (the owner's decision of 24 October 2026).
+      comingHelps: "It helps us plan.",
       saidComing: false,
     });
   });
@@ -483,6 +508,9 @@ describe("ap-outcomes, the invitation as Oliver sees it", () => {
       programme: TAIS_VIEW,
       // The card's one line, for a fellowship.
       next: "You’ll be in a small group with a facilitator, on campus.",
+      // Carried for every place, so the page never has to choose it. The card
+      // draws no "I’m coming", so a fellowship's line is held here unseen.
+      comingHelps: "It helps us plan groups.",
       saidComing: true,
     });
   });
@@ -577,9 +605,17 @@ describe("what an applicant reads on decision day", () => {
     assert.ok(page.includes('return programme ? `${standardSubject("accepted", programme.shortName)}.` : "You’re in.";'));
     assert.equal((page.match(/\{youAreIn\(programme\)\}/g) ?? []).length, 2, "the screen and the card both use it");
     assert.equal(`${emailCopy.standardSubject("accepted", "AGI Strategy")}.`, "You’re in AGI Strategy.");
-    for (const fixed of ["\"I’m coming\"", "Optional. It helps us plan groups.", "I can’t make it", "This frees your place for someone else."]) {
+    // The sentence after "Optional." depends on the kind of programme the
+    // place is on (the owner's decision of 24 October 2026), so the buttons
+    // print what the page hands them, the view's `comingHelps`, and type none
+    // of it. Both sentences are the boards' words, held exactly here and
+    // drawn for each kind in `applications-place-next-words`.
+    for (const fixed of ["\"I’m coming\"", "<p className={styles.note}>Optional. {helps}</p>", "I can’t make it", "This frees your place for someone else."]) {
       assert.ok(buttons.includes(fixed), `missing: ${fixed}`);
     }
+    assert.equal(emailCopy.comingHelps("fellowship"), "It helps us plan groups.", "a fellowship's line is the one the page always had");
+    assert.equal(emailCopy.comingHelps("incubator"), "It helps us plan.", "an incubator has no groups, so its line names none");
+    assert.equal((page.match(/helps=\{view\.comingHelps\}/g) ?? []).length, 2, "both places a place is drawn hand the view's line down");
     assert.match(page, /const CONTACT = "ai-safety@uonsu\.com";/);
   });
 

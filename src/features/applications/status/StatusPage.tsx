@@ -360,6 +360,7 @@ export default function StatusPage({
           <PlaceReply
             roundId={roundId}
             said={view.saidComing ? "You’ve told us you’re coming." : null}
+            helps={view.comingHelps}
             locked={viewingAs}
           />
           <p className={styles.questions}>
@@ -393,7 +394,12 @@ export default function StatusPage({
           <div className={styles.body}>
             <p>{view.next}</p>
           </div>
-          <PlaceReply roundId={roundId} said="You’ve accepted your invitation." locked={viewingAs} />
+          <PlaceReply
+            roundId={roundId}
+            said="You’ve accepted your invitation."
+            helps={view.comingHelps}
+            locked={viewingAs}
+          />
         </div>
       </Frame>
     );
