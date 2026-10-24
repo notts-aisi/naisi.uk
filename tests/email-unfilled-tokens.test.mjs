@@ -118,10 +118,13 @@ const { loadTs } = createLoader({
     ],
     [
       "./send",
+      // What the real door answers for a message it handed over, which the
+      // course emails read to say what became of each one.
       "export async function sendEmail(args) {\n" +
         "  const w = globalThis.__placement;\n" +
         "  if (w.refuseMail && w.refuseMail(args)) throw new Error('the mail door refused');\n" +
         "  w.sent.push(args);\n" +
+        "  return { messageId: 'm', delivered: [args.to], suppressed: [], held: [] };\n" +
         "}",
     ],
   ]),
@@ -136,6 +139,14 @@ const enrolmentMail = await loadTs(join("lib", "email", "courseEnrolmentEmails.t
 const admissionMail = await loadTs(join("lib", "email", "admissionEmails.ts"));
 const nudgeMail = await loadTs(join("lib", "email", "courseNudgeEmail.ts"));
 const publish = await loadTs(join("app", "api", "courses", "runs", "[runId]", "allocation", "publish", "route.ts"));
+const publishPlan = await loadTs(join("lib", "courses", "allocationPublish.ts"));
+const courseRows = await loadTs(join("lib", "firestore", "courseApplications.ts"));
+const courseRuns = await loadTs(join("lib", "firestore", "courses.ts"));
+
+// A copy of the site that knows its own address, as every deployed one does:
+// the facilitators' email Publish sends beside the placement email has a
+// button to the group's page, and Publish refuses without one.
+process.env.NEXT_PUBLIC_APP_URL = "https://naisi.invalid";
 
 const SEED = seeds.courseTemplateDefaults["course-allocated"];
 const TOKEN = /\{([a-zA-Z][a-zA-Z0-9_]*)\}/g;
@@ -1123,7 +1134,14 @@ const group = (name, over = {}) => ({ runId: RUN, courseId: "course-1", name, fa
  * `people` is `{ uid: group id }`. Mon 26 Oct 2026 is the run's first day, so
  * a Tuesday group first meets on Tuesday 27 October.
  */
-function stage({ run = {}, groups = { a: group("Group A") }, people = { amara: "a" }, template = null, told = [] } = {}) {
+function stage({
+  run = {},
+  groups = { a: group("Group A") },
+  people = { amara: "a" },
+  template = null,
+  told = [],
+  facilitatorsTold = [],
+} = {}) {
   const docs = {
     [`courseRuns/${RUN}`]: {
       courseId: "course-1",
@@ -1157,6 +1175,12 @@ function stage({ run = {}, groups = { a: group("Group A") }, people = { amara: "
     };
   }
   if (template) docs["courseEmailTemplates/course-allocated"] = { templateId: "course-allocated", ...template };
+  // A group whose facilitators an earlier Publish told already.
+  for (const id of facilitatorsTold) {
+    for (const uid of groups[id].facilitatorUids) {
+      docs[`courseNudges/facilitating__${RUN}__${id}__${uid}`] = { kind: "group-facilitating", runId: RUN, groupId: id, uid, state: "sent" };
+    }
+  }
 
   const db = makeDb(docs, { now: new Date("2026-10-24T12:00:00Z") });
   // The route caps each of its two queries, which the store has no word for.
@@ -1167,7 +1191,30 @@ function stage({ run = {}, groups = { a: group("Group A") }, people = { amara: "
   return db;
 }
 
-const press = () => publish.POST(new Request("http://naisi.invalid/api", { method: "POST" }), { params: Promise.resolve({ runId: RUN }) });
+/**
+ * A press of Publish as the board makes one: with the number its button
+ * shows, worked out by the plan Publish reads, and with a test of the wording
+ * in force already recorded, so these tests are about the emails. The test
+ * itself, and a press refused for the want of one, are executed in
+ * tests/course-hub-publish-routes.test.mjs.
+ */
+async function press() {
+  const run = courseRuns.normalizeCourseRun(RUN, (await world.db.collection("courseRuns").doc(RUN).get()).data());
+  const rows = (await world.db.collection("courseApplications").where("runId", "==", RUN).get()).docs.map((doc) =>
+    courseRows.normalizeCourseApplication(doc.id, doc.data()),
+  );
+  const plan = await publishPlan.loadPublishPlan(world.db, run, {
+    accepted: rows.filter((row) => row.status === "accepted"),
+    adminOnly: false,
+  });
+  await publishPlan.recordPublishTest(world.db, RUN, ADMIN.uid, plan.wording);
+  const body = JSON.stringify({ emails: publishPlan.pressBatch(plan).emails });
+  return publish.POST(new Request("http://naisi.invalid/api", { method: "POST", body }), { params: Promise.resolve({ runId: RUN }) });
+}
+/** The facilitators' email, which Publish sends beside each group's. */
+const isFacilitating = (mail) => mail.subject.startsWith("You’re facilitating");
+/** The emails that told people their group. */
+const placedMail = () => world.sent.filter((mail) => !isFacilitating(mail));
 const stored = async (path) => {
   const [collection, id] = path.split("/");
   return (await world.db.collection(collection).doc(id).get()).data();
@@ -1182,8 +1229,15 @@ describe("publishing an allocation", { concurrency: false }, () => {
   test("everybody is emailed their group, its facilitators, and when and where it first meets", async () => {
     stage({ people: { amara: "a", ben: "a" } });
     const response = await press();
-    assert.deepEqual([response.status, response.body.emailed, response.body.skipped], [200, 2, 0]);
-    assert.deepEqual(world.sent.map((mail) => mail.to), ["amara@example.com", "ben@example.com"]);
+    // The answer says what became of every email, people's and facilitators'
+    // apart (course hub's Publish, October 2026): until then it was
+    // `emailed` and `skipped`, and `skipped` counted failures with the rest.
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.deepEqual(response.body.report.people, { sent: 2, held: 0, suppressed: 0 });
+    assert.deepEqual([response.body.report.failed, response.body.report.noAddress], [[], []]);
+    assert.deepEqual(placedMail().map((mail) => mail.to), ["amara@example.com", "ben@example.com"]);
+    // Each of the group's facilitators is told too, once, after the people.
+    assert.deepEqual(world.sent.filter(isFacilitating).map((mail) => mail.to), ["priya@example.com", "sam@example.com"]);
     const mail = await opened(world.sent[0]);
     assert.equal(mail.subject, "Your AI Safety Fundamentals group: first session Tuesday 27 October, 18:00");
     for (const said of [
@@ -1211,10 +1265,17 @@ describe("publishing an allocation", { concurrency: false }, () => {
       people: { amara: "a", ben: "b", chloe: "c", dev: "d" },
     });
     const response = await press();
-    assert.deepEqual([response.status, response.body.emailed], [200, 4]);
+    assert.deepEqual([response.status, response.body.report.people.sent], [200, 4]);
+    // The facilitators of the two groups that have them, each told once a group.
+    assert.equal(response.body.report.facilitators.sent, 4);
     const mails = await Promise.all(world.sent.map(opened));
     for (const mail of mails) assert.deepEqual(tokensIn(`${mail.subject}\n${mail.html}`), [], mail.to);
     const of = (uid) => mails.find((mail) => mail.to === `${uid}@example.com`).text;
+    const told = (uid) => mails.filter((mail) => mail.to === `${uid}@example.com`).map((mail) => mail.text);
+    // A group with no room yet: its facilitators' email goes, with no line about where.
+    const [aboutA, aboutC] = told("priya");
+    assert.ok(aboutA.includes("Group A meets on Tuesdays at 6pm") && aboutA.includes("Where: Hallward B12"), aboutA);
+    assert.ok(aboutC.includes("Group C meets on Tuesdays at 6pm") && !aboutC.includes("Where:"), aboutC);
     assert.ok(of("amara").includes("facilitated by Priya and Sam") && of("amara").includes("Where: Hallward B12"));
     // No facilitator yet: the email goes, without that sentence.
     assert.ok(!of("ben").includes("facilitated") && of("ben").includes("You're in Group B") && of("ben").includes("Where: Hallward B12"));
@@ -1235,11 +1296,14 @@ describe("publishing an allocation", { concurrency: false }, () => {
       people: Object.fromEntries(ROOMS_WITH_A_LINK.map((_, index) => [`person${index}`, `g${index}`])),
     });
     const response = await press();
-    assert.deepEqual([response.status, response.body.emailed], [200, ROOMS_WITH_A_LINK.length], JSON.stringify(response.body));
+    assert.deepEqual([response.status, response.body.report.people.sent], [200, ROOMS_WITH_A_LINK.length], JSON.stringify(response.body));
+    assert.equal(response.body.report.facilitators.sent, ROOMS_WITH_A_LINK.length * 2);
     for (const mail of await Promise.all(world.sent.map(opened))) {
       const all = `${mail.subject}\n${mail.html}`.toLowerCase();
       for (const part of WAY_IN) assert.ok(!all.includes(part), `${mail.to}: the email carries ${part}`);
-      assert.ok(mail.text.includes(`Where: ${ON_THE_PAGE}`), mail.text);
+      // A facilitator is sent to their group page, and a placed person to their programme's.
+      const where = isFacilitating(mail) ? "You’ll find where it meets on your group page." : ON_THE_PAGE;
+      assert.ok(mail.text.includes(`Where: ${where}`), mail.text);
     }
     assert.ok(!JSON.stringify(response.body).toLowerCase().includes("meet.example"));
   });
@@ -1264,8 +1328,10 @@ describe("publishing an allocation", { concurrency: false }, () => {
         });
         const response = await press();
         assert.equal(response.status, 200, JSON.stringify(response.body));
+        // Every email, the facilitators' as well as the placed people's.
+        assert.equal(world.sent.filter(isFacilitating).length, 4);
         for (const mail of await Promise.all(world.sent.map(opened))) {
-          sent += 1;
+          if (!isFacilitating(mail)) sent += 1;
           for (const part of [LINK, "meet.example", "8675309", "opensesame"]) {
             assert.ok(!`${mail.subject}\n${mail.html}`.includes(part), `${mail.to}: the email carries ${part}`);
           }
@@ -1339,15 +1405,34 @@ describe("publishing an allocation", { concurrency: false }, () => {
   });
 
   test("somebody already told is not written to again, and their group is not asked about", async () => {
-    // Amara was told last time. Her group has since lost its session time, which is nobody's email today.
+    // Amara was told last time, and so were her group's facilitators. Her
+    // group has since lost its session time, which is nobody's email today.
+    stage({
+      groups: { a: group("Group A", { session: slot({ startTimeLocal: "" }) }), b: group("Group B") },
+      people: { amara: "a", ben: "b" },
+      told: ["amara"],
+      facilitatorsTold: ["a"],
+    });
+    const response = await press();
+    assert.deepEqual([response.status, response.body.report.people.sent], [200, 1]);
+    assert.deepEqual(placedMail().map((mail) => mail.to), ["ben@example.com"]);
+  });
+
+  test("a group whose facilitators are still owed their email is asked about, though its people were told", async () => {
+    // The same, with Group A's facilitators never told: their email says when
+    // Group A meets, which nothing can say now, so nothing goes.
     stage({
       groups: { a: group("Group A", { session: slot({ startTimeLocal: "" }) }), b: group("Group B") },
       people: { amara: "a", ben: "b" },
       told: ["amara"],
     });
     const response = await press();
-    assert.deepEqual([response.status, response.body.emailed], [200, 1]);
-    assert.deepEqual(world.sent.map((mail) => mail.to), ["ben@example.com"]);
+    assert.equal(response.status, 409);
+    assert.equal(
+      response.body.error,
+      "Nothing was published and nobody was emailed. Group A has no day and time, so its facilitators cannot be told when it meets. Set its day and time, then publish again.",
+    );
+    assert.deepEqual(world.sent, []);
   });
 
   test("the people who are still unplaced are refused first, as before", async () => {
@@ -1421,9 +1506,22 @@ describe("the designer offers what the composer fills, and proofs through it", (
       "app/api/admin/course-emails/[templateId]/send-test/route.ts",
       "app/api/admin/course-emails/preview/route.ts",
     ]);
-    const route = codeOf("app", "api", "courses", "runs", "[runId]", "allocation", "publish", "route.ts");
-    assert.equal(route.split("composePlacementEmail(").length - 1, 2, "the route writes the email for each group, then for each person");
-    assert.ok(!route.includes("proof"));
+    // Publish's emails are written once each, by the plan both routes read,
+    // before anything is sent (course hub's Publish, October 2026: until then
+    // the route wrote the email for each group, then again for each person).
+    // The route and "Send a test to me" send what it wrote and write nothing.
+    const plan = codeOf("lib", "courses", "allocationPublish.ts");
+    assert.equal(plan.split("composePlacementEmail(").length - 1, 1, "the plan writes each person's email once");
+    assert.equal(plan.split("composeFacilitatingEmail(").length - 1, 1, "and each facilitator's once");
+    for (const parts of [
+      ["app", "api", "courses", "runs", "[runId]", "allocation", "publish", "route.ts"],
+      ["app", "api", "courses", "runs", "[runId]", "allocation", "publish", "test", "route.ts"],
+    ]) {
+      const route = codeOf(...parts);
+      assert.ok(!/compose[A-Za-z]*Email\(/.test(route), `${parts.join("/")} writes an email of its own`);
+      assert.ok(!route.includes("proof"), parts.join("/"));
+    }
+    assert.ok(!plan.includes("proof"));
   });
 });
 
@@ -1437,6 +1535,8 @@ const FILLERS = {
   personaliseBlocks: "lib/firestore/newsletterBlocks.ts",
   renderCourseNudge: "lib/email/courseNudgeEmail.ts",
   composePlacementEmail: "lib/courses/placementEmail.ts",
+  composeWholeEmail: "lib/courses/placementEmail.ts",
+  composeFacilitatingEmail: "lib/courses/facilitatingEmail.ts",
 };
 
 /**
@@ -1457,9 +1557,17 @@ const FILLERS = {
  *  - `helper`: a function of a filler's own module, which sends nothing.
  */
 const CALLERS = {
-  "app/api/courses/runs/[runId]/allocation/publish/route.ts#POST": {
+  "lib/courses/allocationPublish.ts#loadPublishPlan": {
     how: "whole",
-    why: "the placement email: written for every group before anything is sent, and refused when it cannot be",
+    why: "Publish's plan: each person's placement email and each facilitator's email written before anything is sent, and refused when one cannot be",
+  },
+  "lib/courses/placementEmail.ts#composePlacementEmail": {
+    how: "helper",
+    why: "the placement email's composer, which writes it whole with composeWholeEmail under its own token list",
+  },
+  "lib/courses/facilitatingEmail.ts#composeFacilitatingEmail": {
+    how: "helper",
+    why: "the facilitators' email's composer, which writes it whole with composeWholeEmail under its own token list",
   },
   "lib/email/courseNudgeEmail.ts#sendCourseWeekNudgeEmail": {
     how: "leaves-out",
@@ -1549,7 +1657,8 @@ describe("every function that fills tokens is known, and held to what it does wi
   });
 
   test("every seed template of a course email is sent by a path that is run here", () => {
-    const run = new Set(["course-allocated", "course-week-nudge"]);
+    // The facilitators' email is run by the publishing tests above, beside the placement email.
+    const run = new Set(["course-allocated", "course-facilitating", "course-week-nudge"]);
     for (const entry of Object.values(CALLERS)) for (const id of Object.keys(entry.leaves ?? {})) run.add(id);
     assert.deepEqual([...seeds.COURSE_TEMPLATE_IDS].filter((id) => !run.has(id)), [], "a template has no sender run in this file");
   });

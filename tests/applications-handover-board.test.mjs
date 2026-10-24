@@ -216,15 +216,24 @@ describe("6. the allocation board", () => {
       assert.equal((await place("yusuf", [{ uid: "nobody", groupId: GROUP.monday }])).body.placed, 1);
     });
 
-    test("a track lead's publish emails none of them and names none of them", async () => {
+    test("a track lead's publish is refused, emails nobody and names none of them", async () => {
+      // A run the application form fills is an admin's to publish. Until the
+      // course hub's Publish (October 2026) a track lead's press skipped the
+      // form's rows, answered 200 and still stamped the run published; now
+      // it is refused with a sentence, and does nothing at all.
       await place("zach", [{ uid: "amara", groupId: GROUP.monday }]);
       await place("yusuf", [{ uid: "nobody", groupId: GROUP.monday }]);
+      const before = everything();
       const published = await publish("yusuf");
-      assert.equal(published.status, 200, JSON.stringify(published.body));
-      assert.deepEqual(world.mail.map((message) => message.to), ["nobody@example.com"]);
+      assert.deepEqual(short(published), [
+        403,
+        "This run’s people came from the application form, so only an admin can publish it or send its test.",
+      ]);
+      assert.deepEqual(world.mail, [], "a refused press, or its test, emailed somebody");
       const said = JSON.stringify(published.body);
       for (const uid of AGI_HOLDERS) assert.ok(!said.includes(CAST[uid].displayName.split(" ")[0]), uid);
-      assert.equal(world.db.read(`courseEnrolments/${RUN.agi}__amara`).allocatedEmailAt, undefined);
+      assert.equal(everything(), before, "a refused press wrote something");
+      assert.equal(world.db.read(`courseRuns/${RUN.agi}`).allocationPublishedAt, undefined);
     });
 
     test("the run's reviewer cannot decide or annotate one, and is told there is no such application", async () => {
@@ -373,6 +382,9 @@ describe("7. a placement and a publish then work, with the code that was already
   });
 
   test("Publish waits until everybody handed over is in a group, then tells each of them once", async () => {
+    // What Publish sends, apart from the test the presser sends themselves
+    // first ("[TEST]" in its subject, to their own address).
+    const real = () => world.mail.filter((message) => !message.subject.startsWith("[TEST]"));
     await press();
     await place("zach", [
       { uid: "amara", groupId: GROUP.thursday },
@@ -381,7 +393,7 @@ describe("7. a placement and a publish then work, with the code that was already
     const early = await publish();
     assert.equal(early.status, 409);
     assert.deepEqual([...early.body.unplaced].sort(), ["Bea Lindqvist", "Tariq Mensah"]);
-    assert.equal(world.mail.length, 0);
+    assert.equal(real().length, 0);
 
     await place("zach", [
       { uid: "bea", groupId: GROUP.monday },
@@ -389,9 +401,21 @@ describe("7. a placement and a publish then work, with the code that was already
     ]);
     const published = await publish();
     assert.equal(published.status, 200, JSON.stringify(published.body));
-    assert.deepEqual([published.body.emailed, published.body.skipped], [4, 0]);
+    // Since the course hub's Publish (October 2026) the answer says what
+    // became of every email, and the press also tells each facilitator of a
+    // group with somebody in it, once per group: Claudia runs both groups.
+    assert.deepEqual(published.body.report.people, { sent: 4, held: 0, suppressed: 0 });
+    assert.deepEqual(published.body.report.facilitators, { sent: 2, held: 0, suppressed: 0 });
+    assert.deepEqual([published.body.report.failed, published.body.report.noAddress], [[], []]);
     // To the account's own address: a row from the form carries none.
-    assert.deepEqual(world.mail.map((message) => message.to).sort(), AGI_HOLDERS.map((uid) => `${uid}@example.com`));
+    assert.deepEqual(
+      real().filter((message) => !message.subject.startsWith("You’re facilitating")).map((message) => message.to).sort(),
+      AGI_HOLDERS.map((uid) => `${uid}@example.com`),
+    );
+    assert.deepEqual(
+      real().filter((message) => message.subject.startsWith("You’re facilitating")).map((message) => message.to),
+      ["claudia@example.com", "claudia@example.com"],
+    );
     for (const uid of AGI_HOLDERS) {
       assert.ok(world.db.read(`courseEnrolments/${RUN.agi}__${uid}`).allocatedEmailAt instanceof Date, uid);
     }
@@ -402,7 +426,11 @@ describe("7. a placement and a publish then work, with the code that was already
     assert.deepEqual(world.pushes.map((push) => push.uid).sort(), AGI_HOLDERS);
 
     const again = await publish();
-    assert.deepEqual([again.body.emailed, world.mail.length], [0, 4]);
+    assert.equal(again.status, 200, JSON.stringify(again.body));
+    assert.deepEqual(
+      [again.body.report.people.sent, again.body.report.facilitators.sent, real().length],
+      [0, 0, 6],
+    );
   });
 });
 

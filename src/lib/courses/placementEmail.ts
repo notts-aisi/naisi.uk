@@ -130,6 +130,15 @@ import { couldBeFollowed } from "./followable";
  * fill is left as typed for them to notice, as every other template's proof
  * does. Nothing that reaches a placed person is composed that way.
  *
+ * ## One composer, two emails
+ *
+ * What is written above is the rule for any email that tells somebody their
+ * group, and `composeWholeEmail` is that rule with the token list handed in.
+ * The placement email hands it `PLACEMENT_TOKEN_RULES`. The email a
+ * facilitator is sent when groups go out (`./facilitatingEmail.ts`) hands it
+ * its own list, and is written whole or refused by the same code, so the two
+ * cannot come to differ on what is left out.
+ *
  * Pure, with no server import, so the route, the designer and a test all run
  * the same function.
  */
@@ -250,6 +259,9 @@ const WHERE_IS_ON_THE_PAGE = "You'll find where it meets on your programme's pag
 /** A value as plain text (a subject, a heading) and as HTML (a rich-text block). */
 type Value = { text: string; html: string };
 
+/** A value as `composeWholeEmail` takes it. */
+export type EmailValue = Value;
+
 const HTML_ESCAPES: Record<string, string> = {
   "&": "&amp;",
   "<": "&lt;",
@@ -263,7 +275,7 @@ function escapeHtml(input: string): string {
 }
 
 /** Collapse to one line and trim. Also what keeps a typed value out of a header. */
-function oneLine(value: string | null | undefined): string {
+export function oneLine(value: string | null | undefined): string {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 }
 
@@ -273,13 +285,13 @@ function plain(value: string | null | undefined): string {
 }
 
 /** A value, or null when there is nothing to say. */
-function typed(value: string | null | undefined): Value | null {
+export function typed(value: string | null | undefined): Value | null {
   const text = plain(value);
   return text ? { text, html: escapeHtml(text) } : null;
 }
 
 /** A value every placement has. An empty one is printed as nothing, and is never a reason to leave a sentence out. */
-function always(value: string | null | undefined): Value {
+export function always(value: string | null | undefined): Value {
   return typed(value) ?? { text: "", html: "" };
 }
 
@@ -317,8 +329,15 @@ export function unfilledTokens(text: string): string[] {
   return [...new Set([...text.matchAll(TOKEN)].map((match) => match[1]))];
 }
 
-function isPlacementToken(name: string): name is PlacementToken {
-  return Object.prototype.hasOwnProperty.call(PLACEMENT_TOKEN_RULES, name);
+/**
+ * The tokens one email fills, each with its rule. `PLACEMENT_TOKEN_RULES` is
+ * the placement email's; `./facilitatingEmail.ts` has the other.
+ */
+export type TokenRules = Readonly<Record<string, PlacementTokenRule>>;
+
+/** Is `name` one of the tokens this email fills? An own key only, so no name a plain object inherits counts. */
+function isRuleToken(rules: TokenRules, name: string): boolean {
+  return Object.prototype.hasOwnProperty.call(rules, name);
 }
 
 type Filled = {
@@ -327,7 +346,7 @@ type Filled = {
   /** Tokens this email does not fill. */
   unknown: string[];
   /** Tokens it fills, with no value this time. */
-  absent: PlacementToken[];
+  absent: string[];
   /** It also carries an essential token that does have a value. */
   holdsEssential: boolean;
 };
@@ -338,13 +357,18 @@ type Filled = {
  * decides what happens to the unit. A token this email does not fill is left
  * exactly as typed.
  */
-function fillUnit(input: string, values: Record<PlacementToken, Value | null>, as: "text" | "html"): Filled {
+function fillUnit(
+  input: string,
+  values: Readonly<Record<string, Value | null>>,
+  rules: TokenRules,
+  as: "text" | "html",
+): Filled {
   // Sets, so a unit with a great many tokens is read once and not once per token.
   const unknown = new Set<string>();
-  const absent = new Set<PlacementToken>();
+  const absent = new Set<string>();
   let holdsEssential = false;
   const text = input.replace(TOKEN, (match, name: string) => {
-    if (!isPlacementToken(name)) {
+    if (!isRuleToken(rules, name)) {
       unknown.add(name);
       return match;
     }
@@ -353,7 +377,7 @@ function fillUnit(input: string, values: Record<PlacementToken, Value | null>, a
       absent.add(name);
       return "";
     }
-    if (PLACEMENT_TOKEN_RULES[name] === "essential") holdsEssential = true;
+    if (rules[name] === "essential") holdsEssential = true;
     return as === "html" ? value.html : value.text;
   });
   return { text, unknown: [...unknown], absent: [...absent], holdsEssential };
@@ -491,42 +515,61 @@ function showsAnything(html: string): boolean {
 // The email
 // ---------------------------------------------------------------------------
 
+/** Why an email could not be written, whichever email it is. */
+export type WholeEmailProblem =
+  /** An essential token has nothing to fill it with. */
+  | { kind: "missing"; token: string }
+  /** The wording uses a token this email does not fill. */
+  | { kind: "unknown-token"; tokens: string[] }
+  /** An optional token with no value sits where it cannot be left out. */
+  | { kind: "cannot-leave-out"; tokens: string[]; where: "subject" | "paragraph" };
+
+export type ComposedEmail =
+  | { ok: true; subject: string; blocks: Block[] }
+  | { ok: false; problems: WholeEmailProblem[] };
+
 /**
- * The email for one placed person, or the problems that stop it.
+ * One email, written whole from `values` under `rules`, or the problems that
+ * stop it. The rule this file exists for, for any token list: see the header.
  *
  * For a send (`proof` unset) the answer is all or nothing: every token filled
- * and every unit with nothing to say left out, or `ok: false` and why.
+ * and every unit with nothing to say left out, or `ok: false` and why. An
+ * essential token with no value refuses the email whether or not the wording
+ * uses it, because the email exists to say it.
  */
-export function composePlacementEmail(
+export function composeWholeEmail(
   template: PlacementTemplate,
-  facts: PlacementFacts,
+  values: Readonly<Record<string, Value | null>>,
+  rules: TokenRules,
   options: { proof?: boolean } = {},
-): ComposedPlacement {
+): ComposedEmail {
   const proof = options.proof === true;
-  const values = valuesOf(facts);
-  const problems: PlacementProblem[] = [];
+  const problems: WholeEmailProblem[] = [];
   /** Each problem once, however many units have it. */
   const noted = new Set<string>();
-  const note = (problem: PlacementProblem) => {
+  const note = (problem: WholeEmailProblem) => {
     const key = JSON.stringify(problem);
     if (noted.has(key)) return;
     noted.add(key);
     problems.push(problem);
   };
 
-  if (!values.groupName) note({ kind: "no-group-name" });
-  if (!values.firstSessionWhen) note({ kind: "no-first-session" });
+  // In the list's own order, so the problems come back in the order its
+  // author wrote the essentials down.
+  for (const token of Object.keys(rules)) {
+    if (rules[token] === "essential" && !values[token]) note({ kind: "missing", token });
+  }
 
   /**
    * One unit, filled, or null when it is left out. `canGo` is false for a
    * subject, which an email cannot do without.
    */
   const unit = (input: string, as: "text" | "html", canGo: boolean): string | null => {
-    const filled = fillUnit(input, values, as);
+    const filled = fillUnit(input, values, rules, as);
     if (filled.unknown.length > 0 && !proof) note({ kind: "unknown-token", tokens: filled.unknown });
     // An essential token with no value is reported once, above. Here it only
     // has to keep its own sentence from being printed with a hole in it.
-    const missing = filled.absent.filter((token) => PLACEMENT_TOKEN_RULES[token] === "optional");
+    const missing = filled.absent.filter((token) => rules[token] === "optional");
     if (filled.absent.length === 0) return filled.text;
     if (proof) return canGo ? null : filled.text;
     if (missing.length > 0 && (!canGo || filled.holdsEssential)) {
@@ -570,6 +613,33 @@ export function composePlacementEmail(
   if (!subject) note({ kind: "cannot-leave-out", tokens: [], where: "subject" });
 
   return problems.length > 0 ? { ok: false, problems } : { ok: true, subject, blocks };
+}
+
+/**
+ * The email for one placed person, or the problems that stop it: the whole
+ * email under `PLACEMENT_TOKEN_RULES`, with its two essentials named the way
+ * `placementRefusal` reads them.
+ */
+export function composePlacementEmail(
+  template: PlacementTemplate,
+  facts: PlacementFacts,
+  options: { proof?: boolean } = {},
+): ComposedPlacement {
+  const written = composeWholeEmail(template, valuesOf(facts), PLACEMENT_TOKEN_RULES, options);
+  if (written.ok) return written;
+  return { ok: false, problems: written.problems.map(asPlacementProblem) };
+}
+
+/** A problem of the whole-email composer, as the placement email names it. */
+function asPlacementProblem(problem: WholeEmailProblem): PlacementProblem {
+  if (problem.kind === "missing") {
+    // The list has two essentials, and these are their names.
+    return problem.token === "groupName" ? { kind: "no-group-name" } : { kind: "no-first-session" };
+  }
+  if (problem.kind === "cannot-leave-out") {
+    return { kind: "cannot-leave-out", tokens: problem.tokens as PlacementToken[], where: problem.where };
+  }
+  return problem;
 }
 
 /** Every piece of text a block prints. */
