@@ -70,6 +70,11 @@ export type AttendanceState = {
   sessions: AttendanceSession[];
   /** The grid's rows: active members, name-sorted. */
   members: AttendanceMember[];
+  /**
+   * True when somebody placed in the group is not a row yet because Publish
+   * has not told them their group. False until a payload has landed.
+   */
+  notYetTold: boolean;
   /** `sessionKey -> uid -> status`. Sparse: absent means unmarked. */
   records: AttendanceRecords;
   /** `sessionKey -> uid -> note`. Private to staff. */
@@ -407,6 +412,7 @@ export function useAttendance(groupId: string): AttendanceState {
     group: data?.group ?? null,
     sessions: data?.sessions ?? NO_SESSIONS,
     members: data?.members ?? NO_MEMBERS,
+    notYetTold: data?.notYetTold === true,
     records: data?.records ?? NO_RECORDS,
     participantNotes: data?.participantNotes ?? NO_NOTES,
     canEditPushed: data?.canEditPushed ?? false,

@@ -6,7 +6,10 @@ import { reserveNoticeSlots } from "@/lib/email/noticeCaps";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
+import {
+  normalizeCourseEnrolment,
+  placementIsShownTo,
+} from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { newBlockId, type Block } from "@/lib/firestore/newsletterBlocks";
@@ -41,6 +44,9 @@ import { sendNoticePush } from "@/lib/push/noticeNotifications";
  * addresses to each other is the worst failure this lane can produce.
  * Recipients derive server-side from the group's own ACTIVE enrolments; the
  * caller supplies no uids and no addresses, and none come back (counts only).
+ * They are the people the sender's roster lists: for a facilitator, the
+ * members Publish has told their group (`placementIsShownTo`), and for an
+ * admin everybody placed. The group email route says why.
  *
  * ── THE RATE LIMIT: 10/day PER GROUP, ON ITS OWN DURABLE COUNTER ────────────
  * A SEPARATE counter from the 3/hour group-email one
@@ -280,7 +286,10 @@ export async function POST(
 
   let skipped = 0;
   const memberUids = memberSnap.docs
-    .map((d) => normalizeCourseEnrolment(d.id, d.data() ?? {}).uid)
+    .map((d) => normalizeCourseEnrolment(d.id, d.data() ?? {}))
+    // The sender's own roster: nobody Publish has not told, for a facilitator.
+    .filter((e) => placementIsShownTo(e, { isAdmin }))
+    .map((e) => e.uid)
     .filter(Boolean);
   const userDocs = memberUids.length
     ? await db.getAll(...memberUids.map((uid) => db.collection("users").doc(uid)))

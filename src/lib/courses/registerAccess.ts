@@ -5,6 +5,7 @@ import type { SessionUser } from "@/lib/firebase/session";
 import {
   ENROLMENT_STATUSES,
   normalizeCourseEnrolment,
+  placementIsShownTo,
 } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 
@@ -171,17 +172,35 @@ export async function loadMirrorMembers(
   return [...byUid.values()];
 }
 
+/** A group's register rows as one viewer is shown them. */
+export type RegisterRoster = {
+  /** The rows: name-sorted, and only people this viewer may be shown. */
+  members: RegisterMember[];
+  /**
+   * True when somebody placed in the group is left out of `members` because
+   * Publish has not told them their group yet. Never true for an admin.
+   */
+  notYetTold: boolean;
+};
+
 /**
  * The group's ACTIVE members, name-sorted, with the joined week that scopes
  * their row. Scoped by the GROUP's own `runId`, never a caller parameter, so
  * it is an exact match for the existing (runId, groupId, status) composite
  * index, the same query the roster and exercises routes run.
+ *
+ * ONLY PEOPLE WHO HAVE BEEN TOLD, for anybody but an admin. Somebody an admin
+ * has placed and Publish has not yet emailed is not on a facilitator's
+ * register: not named, not markable, not noted (`placementIsShownTo`). The
+ * rows are also the marks a write may carry, so a facilitator cannot mark
+ * somebody they cannot see.
  */
 export async function loadRegisterMembers(
   db: Firestore,
   runId: string,
   groupId: string,
-): Promise<RegisterMember[]> {
+  viewer: { isAdmin: boolean },
+): Promise<RegisterRoster> {
   const memberSnap = await db
     .collection("courseEnrolments")
     .where("runId", "==", runId)
@@ -195,9 +214,15 @@ export async function loadRegisterMembers(
   // become a duplicate React key and a second row in the register, and the Map
   // costs nothing.
   const byUid = new Map<string, ReturnType<typeof normalizeCourseEnrolment>>();
+  let notYetTold = false;
   for (const d of memberSnap.docs) {
     const e = normalizeCourseEnrolment(d.id, d.data() ?? {});
-    if (e.uid && !byUid.has(e.uid)) byUid.set(e.uid, e);
+    if (!e.uid || byUid.has(e.uid)) continue;
+    if (!placementIsShownTo(e, viewer)) {
+      notYetTold = true;
+      continue;
+    }
+    byUid.set(e.uid, e);
   }
 
   const uids = [...byUid.keys()];
@@ -209,7 +234,7 @@ export async function loadRegisterMembers(
     if (doc.exists) nameByUid.set(doc.id, displayNameOf(doc.data() ?? {}));
   }
 
-  return [...byUid.values()]
+  const members = [...byUid.values()]
     .map((e) => ({
       uid: e.uid,
       displayName: nameByUid.get(e.uid) ?? "NAISI member",
@@ -219,4 +244,5 @@ export async function loadRegisterMembers(
       (a, b) =>
         a.displayName.localeCompare(b.displayName) || a.uid.localeCompare(b.uid),
     );
+  return { members, notYetTold };
 }

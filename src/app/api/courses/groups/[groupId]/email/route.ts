@@ -13,7 +13,10 @@ import {
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
+import {
+  normalizeCourseEnrolment,
+  placementIsShownTo,
+} from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { filterSuppressed } from "@/lib/firestore/suppression";
@@ -60,6 +63,13 @@ import { sendNoticePush } from "@/lib/push/noticeNotifications";
  * this route cannot be steered into mailing anyone outside the room, and it
  * never hands an address back — `sent`/`skipped` are counts, and even the
  * console lines log uids, never addresses.
+ *
+ * EXACTLY THE PEOPLE THE SENDER'S ROSTER LISTS. A facilitator's message
+ * reaches the members Publish has told their group, and nobody placed there
+ * who has not been told yet (`placementIsShownTo`): an email about the group
+ * would tell them before Publish does. An admin is shown everybody placed,
+ * and reaches everybody placed. The composer counts the same roster, so the
+ * number on its button is the number this sends to.
  *
  * ── SUBSCRIPTION vs SUPPRESSION (the distinction that matters) ──────────────
  * This is OPERATIONAL mail, so it does NOT require the marketing subscription
@@ -317,7 +327,10 @@ export async function POST(
       );
     }
     const memberUids = memberDocs
-      .map((d) => normalizeCourseEnrolment(d.id, d.data() ?? {}).uid)
+      .map((d) => normalizeCourseEnrolment(d.id, d.data() ?? {}))
+      // The sender's own roster: see WHO RECEIVES above.
+      .filter((e) => placementIsShownTo(e, { isAdmin }))
+      .map((e) => e.uid)
       .filter(Boolean);
     const userDocs = memberUids.length
       ? await db.getAll(...memberUids.map((uid) => db.collection("users").doc(uid)))

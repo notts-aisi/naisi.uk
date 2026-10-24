@@ -7,6 +7,7 @@ import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
+  placementIsShownTo,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
@@ -55,6 +56,10 @@ export type RunAccess = {
    * `status === "active"` is also the write gate: the courseProgress rules
    * require an active enrolment, so a `completed` run is read-only by
    * construction. Check-off UI keys off that, not off `isEnrolled`.
+   *
+   * NULL FOR A PLACEMENT PUBLISH HAS NOT TOLD ITS OWNER ABOUT
+   * (`placementIsShownTo`): until then the run reads to them exactly as it did
+   * before they were placed, which is with no row at all.
    */
   enrolment: CourseEnrolmentDoc | null;
   isAdmin: boolean;
@@ -125,10 +130,16 @@ export const getRunAccess = cache(
     if (runRaw.destroying === true) return null;
 
     const run = normalizeCourseRun(runSnap.id, runRaw);
+    const isAdmin = user.role === "admin";
 
-    const enrolment: CourseEnrolmentDoc | null = enrolSnap.exists
+    const stored: CourseEnrolmentDoc | null = enrolSnap.exists
       ? normalizeCourseEnrolment(enrolSnap.id, enrolSnap.data() ?? {})
       : null;
+    // A placement nobody has told its owner about is not there for them: the
+    // run stays shut and every page under it redirects, as it did before an
+    // admin placed them. Publish's email is what opens it.
+    const enrolment =
+      stored && placementIsShownTo(stored, { isAdmin }) ? stored : null;
     // Withdrawn / removed enrolments lose access the moment they are written,
     // whatever the member's open tab still shows. `completed` keeps reading:
     // a finished cohort is the member's own history, and the overview route
@@ -153,7 +164,6 @@ export const getRunAccess = cache(
           isNamedWithStanding(user, "courseGroups.facilitatorUids", g.facilitatorUids),
       );
 
-    const isAdmin = user.role === "admin";
     const isEnrolled = live?.role === "learner";
     // Three routes to facilitation, matching the overview route: a facilitator
     // enrolment, named on the run itself, or holding a group. The one

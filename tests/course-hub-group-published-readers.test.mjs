@@ -1,0 +1,344 @@
+/**
+ * Every reader of placements in `src` says what it does about a placement
+ * Publish has not told its owner about.
+ *
+ * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
+ *
+ * ## The rule this guards
+ *
+ * A placement is somebody's seat in a group: a `courseEnrolments` row. An
+ * admin's placement on the allocation board makes the row at once, and the
+ * row is the board's working copy until Publish emails its owner their group
+ * (`allocatedEmailAt`; a move clears it). Until then nothing may show it:
+ * not to its owner, not to the group's facilitators or its other members,
+ * and no email or notification about the group may reach them. Admins are
+ * shown everything placed. Two functions in
+ * `src/lib/firestore/courseEnrolments.ts` say it:
+ *
+ *  - `placementIsTold(enrolment)`, the fact;
+ *  - `placementIsShownTo(enrolment, { isAdmin })`, for a reader that shows
+ *    one person's placement, or a name, to the session in front of it.
+ *
+ * The class of failure is "a reader shows a placement before the person was
+ * told". A new route that reads enrolments and forgets the question would put
+ * it back, on a page nobody thought to test.
+ *
+ * ## How it is held
+ *
+ * THE TREE. Every file under `src` that addresses the collection is listed
+ * below with what it does about an untold placement, and each entry's claim
+ * is read out of the source. A new reader fails this file until somebody
+ * decides. A reader that shows placements has to ask the question as many
+ * times as its entry says, and about the caller's own role.
+ *
+ * TWO HELPERS carry the question for the files that call them, and are held
+ * here too: `loadRegisterMembers` (the register, its notes) is handed the
+ * caller's role by every caller, and `resolveCohortAudience` (the register
+ * push's reminder, the week nudge, the run email) asks `placementIsTold`.
+ *
+ * WHAT THE READERS THEN DO is executed in
+ * `tests/course-hub-group-published-{member,facilitator,mail,nudge}.test.mjs`.
+ */
+import { describe, test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join, relative, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+import { walkSource } from "./lib/functionScan.mjs";
+import { stripSource } from "./lib/stripSource.mjs";
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const SRC = join(REPO_ROOT, "src");
+const posix = (path) => path.split(sep).join("/");
+const inSrc = (file) => posix(relative(SRC, file));
+
+/** A file's code with its comments gone and its strings kept. */
+const codeOf = (file) => stripSource(readFileSync(file, "utf8"), { keepStrings: true });
+
+/**
+ * A file ADDRESSES the collection when its code hands the name to a database
+ * call, on the server (`.collection("courseEnrolments")`) or in a browser
+ * (`doc(db, "courseEnrolments", …)`), or to one of the deletion sweeps'
+ * helpers. A file that only says the word (the pause switch that shares it,
+ * a standing check's label, a comment) addresses nothing.
+ */
+const ADDRESSES =
+  /\.collection\(\s*["'`]courseEnrolments["'`]\s*\)|\b(?:collection|doc)\(\s*[^,()]+(?:\([^()]*\))?\s*,\s*["'`]courseEnrolments["'`]|\bbyRunId\(\s*["'`]courseEnrolments["'`]\s*\)|\[\s*["'`]courseEnrolments["'`]\s*,|\bdrainQuery\([^,]+,\s*["'`]courseEnrolments["'`]/;
+
+/** The home of the rule. It defines the two functions and reads nothing. */
+const RULE_HOME = "lib/firestore/courseEnrolments.ts";
+
+/**
+ * What each reader does about a placement Publish has not told.
+ *
+ *  - `shown`: it shows somebody's placement, or a name in a group, to the
+ *    caller, or sends to the people it lists. It asks `placementIsShownTo`
+ *    `asks` times, about the caller's own role.
+ *  - `told`: it sends to a cohort, and leaves out every placement nobody has
+ *    told, whoever sends. It asks `placementIsTold` `asks` times.
+ *  - `board`: the allocation board and Publish. Their callers place people
+ *    and tell them, so they read every placement, and they are this rule's
+ *    source, not its readers. `proof` is the gate.
+ *  - `staff`: a run's own staff tools that show no member a placement and
+ *    name nobody to a facilitator. `proof` is the gate.
+ *  - `writer`: it counts, rebuilds or deletes, and shows nobody anything.
+ *    `proof` is what makes that true.
+ */
+const READERS = {
+  "app/api/courses/me/route.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "the member hub: a seat nobody has told is passed over, and the offer it replaced still reads as an offer",
+  },
+  "features/courses/runAccess.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "the gate of every page under /learn/[runId]: an untold seat opens nothing, as no seat opened nothing",
+  },
+  "app/api/courses/runs/[runId]/overview/route.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "the run home's one read: an untold seat is answered as no seat, and its group card is not drawn from it",
+  },
+  "app/api/courses/groups/[groupId]/roster/route.ts": {
+    kind: "shown",
+    asks: 2,
+    why: "the group's names: an untold member cannot open it, and an untold name is listed to nobody but an admin",
+  },
+  "lib/courses/registerAccess.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "the register's rows for the register and its notes: an untold member is no row, so is neither named nor markable",
+  },
+  "app/api/courses/groups/[groupId]/exercises/route.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "the facilitator's review queue: an untold member's name and work are not a row for anybody but an admin",
+  },
+  "app/api/courses/exercise-responses/[responseId]/review/route.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "a facilitator acts on the work of somebody in their group; an untold owner is answered as an unplaced one",
+  },
+  "app/api/courses/groups/[groupId]/email/route.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "a group email reaches the sender's roster: a facilitator's reaches the people told, an admin's everybody placed",
+  },
+  "app/api/courses/groups/[groupId]/notice/route.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "a room notice reaches the sender's roster, for the group email's reason",
+  },
+  "app/api/courses/runs/[runId]/comments/route.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "the run's comments open to a member of the run: an untold seat does not make one",
+  },
+  "app/api/courses/runs/[runId]/my-exercises/route.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "a member's own answers on the run: an untold seat does not open the run",
+  },
+  "app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "a member answers an exercise on the run: an untold seat does not open the run",
+  },
+  "app/api/courses/runs/[runId]/sync-tasks/route.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "the weekly cards in a member's tasks name the run: an untold seat puts none there",
+  },
+  "app/api/courses/runs/[runId]/enrol/route.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "the caller's own row comes back on GET: an untold seat is reported as no row. Its writes refuse a run that is not open before they read a seat",
+  },
+  "app/api/courses/runs/[runId]/nudge/route.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "the sender's own group picks the week their preview and test show: an untold seat picks none",
+  },
+  "lib/email/courseFacilitatorEmails.ts": {
+    kind: "told",
+    asks: 1,
+    why: "the cohort audience behind the register push's reminder, the week nudge and the run email leaves out untold seats; the unreachable count beside it is a number for the sender",
+  },
+  "app/api/courses/runs/[runId]/allocation/route.ts": {
+    kind: "board",
+    proof: ["if (!isAdmin && !isTrackLead) {"],
+    why: "the allocation board itself, for an admin or the run's track leads, who place people and see every seat",
+  },
+  "app/api/courses/runs/[runId]/allocate/route.ts": {
+    kind: "board",
+    proof: ["if (!isAdmin && !isTrackLead) {"],
+    why: "the board's placements, the writer of every seat and of the move that clears Publish's stamp",
+  },
+  "app/api/courses/runs/[runId]/allocation/publish/route.ts": {
+    kind: "board",
+    proof: ["if (!isAdmin && !isTrackLead) {", "allocatedEmailAt: FieldValue.serverTimestamp()"],
+    why: "Publish: it emails each untold seat its group and then stamps it told, which is the fact this rule reads",
+  },
+  "app/api/courses/groups/[groupId]/facilitators/route.ts": {
+    kind: "staff",
+    proof: ['if (!(actor.role === "admin" || isTrackLead)) {', 'role: "facilitator"'],
+    why: "staffs a group: writes and retires facilitator rows, and reads a learner row only to leave it alone",
+  },
+  "app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts": {
+    kind: "staff",
+    proof: ["if (!isAdmin && !isTrackLead) {"],
+    why: "takes somebody off a run, for an admin or the run's track leads; it answers with counts and names nobody to anybody else",
+  },
+  "app/api/courses/runs/[runId]/enrolments/[uid]/reinstate/route.ts": {
+    kind: "staff",
+    proof: ["if (!isAdmin && !isTrackLead) {", "if (!row.selfEnrolled) {"],
+    why: "puts back somebody who left an open run, which is a seat they chose; an allocated seat is refused",
+  },
+  "app/api/courses/runs/[runId]/enrol-mode/route.ts": {
+    kind: "writer",
+    proof: ['if (actor.role !== "admin") {', ".count().get()"],
+    why: "an admin's switch between open and allocated places counts the run's rows and names nobody",
+  },
+  "app/api/courses/runs/[runId]/retrospective/route.ts": {
+    kind: "writer",
+    proof: [".count()"],
+    why: "a run's retrospective, for its authors and leads, counts the run's active rows and names nobody",
+  },
+  "app/api/courses/[courseId]/templates/route.ts": {
+    kind: "writer",
+    proof: ['if (actor.role !== "admin") {', ".count()"],
+    why: "saving a run as a template counts its active rows into the snapshot and names nobody",
+  },
+  "app/api/courses/groups/[groupId]/pace/route.ts": {
+    kind: "writer",
+    proof: ["if (!isAdmin && !facilitatesLiveGroup) {", "lastTaskSyncedWeek"],
+    why: "a group's own pacing resets each member's task mark, and sends back no member's name or row",
+  },
+  "lib/courses/attendanceMirror.ts": {
+    kind: "writer",
+    proof: ["db.collection(\"courseEnrolments\").doc(courseEnrolmentId(runId, m.uid))"],
+    why: "a register push rebuilds each member's own attendance figures on their own row, and shows them to nobody",
+  },
+  "lib/firestore/accountDeletion.ts": {
+    kind: "writer",
+    proof: ['db.collection("courseEnrolments").where("uid", "==", uid)'],
+    why: "deleting an account deletes its rows, wherever they came from",
+  },
+  "lib/firestore/courseDeletion.ts": {
+    kind: "writer",
+    proof: ['byRunId("courseEnrolments")'],
+    why: "destroying a run counts and deletes its rows, wherever they came from",
+  },
+};
+
+const KINDS = ["shown", "told", "board", "staff", "writer"];
+const SHOWN = /\bplacementIsShownTo\s*\(/g;
+const TOLD = /\bplacementIsTold\s*\(/g;
+
+describe("every reader of placements says what it does about a placement Publish has not told", () => {
+  const files = [...walkSource(SRC)];
+  const readers = files.filter((file) => ADDRESSES.test(codeOf(file))).map(inSrc).sort();
+
+  test("the scan is reading: it finds the readers this file knows by name", () => {
+    assert.ok(readers.length >= 25, `only ${readers.length} readers were found`);
+    for (const known of [
+      "app/api/courses/me/route.ts",
+      "features/courses/runAccess.ts",
+      "lib/courses/registerAccess.ts",
+      "lib/firestore/courseDeletion.ts",
+    ]) {
+      assert.ok(readers.includes(known), `${known} addresses the collection and the scan did not see it`);
+    }
+    assert.ok(!readers.includes(RULE_HOME), "the rule's own module reads a placement");
+  });
+
+  test("each one is listed, and every entry is a file that still reads placements", () => {
+    assert.deepEqual(
+      readers.filter((file) => !Object.hasOwn(READERS, file)),
+      [],
+      "These read placements and are not in READERS. A placement an admin made is shown to " +
+        "nobody but an admin until Publish has told its owner: decide what each does about one, " +
+        "ask placementIsShownTo or placementIsTold where it shows or sends, and list it.",
+    );
+    assert.deepEqual(Object.keys(READERS).filter((file) => !readers.includes(file)), []);
+  });
+
+  for (const [file, entry] of Object.entries(READERS)) {
+    test(`${file} does what its entry says`, () => {
+      assert.ok(KINDS.includes(entry.kind), `\`${entry.kind}\` is not a kind`);
+      assert.ok(typeof entry.why === "string" && entry.why.length >= 40, "a reason is missing or too short to be one");
+      const code = codeOf(join(SRC, ...file.split("/")));
+      const shown = [...code.matchAll(SHOWN)].length;
+      const told = [...code.matchAll(TOLD)].length;
+      if (entry.kind === "shown" || entry.kind === "told") {
+        const question = entry.kind === "shown" ? "placementIsShownTo" : "placementIsTold";
+        assert.ok(Number.isInteger(entry.asks) && entry.asks > 0, "says how many times it asks");
+        assert.equal(
+          entry.kind === "shown" ? shown : told,
+          entry.asks,
+          `It does not ask ${question} the number of times its entry says. A reader that shows a ` +
+            "placement without asking shows it before its owner was told.",
+        );
+        assert.equal(entry.kind === "shown" ? told : shown, 0, "it asks the other question as well");
+        assert.match(
+          code,
+          new RegExp(`import\\s*\\{[^}]*\\b${question}\\b[^}]*\\}\\s*from\\s*"@/lib/firestore/courseEnrolments"`),
+          "it asks a question of its own instead of the collection's",
+        );
+        if (entry.kind === "shown") {
+          // Who is asking is the session's own role, worked out in the file.
+          assert.equal(
+            [...code.matchAll(/\bplacementIsShownTo\s*\(\s*[\w.]+\s*,\s*(?:\{\s*isAdmin(?:\s*:\s*[^}]+)?\s*\}|viewer)\s*\)/g)].length,
+            entry.asks,
+            "each time it asks, it has to ask about the caller's own role",
+          );
+        }
+      } else {
+        assert.equal(shown + told, 0, "it is not listed as a reader that shows, and it asks the question");
+        assert.ok(Array.isArray(entry.proof) && entry.proof.length > 0, "names what the file has to contain");
+        for (const literal of entry.proof) {
+          assert.ok(code.includes(literal), `its reason is about \`${literal}\`, which the file no longer contains`);
+        }
+      }
+    });
+  }
+
+  test("nothing asks the question without being a listed reader, or a caller of a helper that is one", () => {
+    const asking = files
+      .filter((file) => [...codeOf(file).matchAll(SHOWN)].length + [...codeOf(file).matchAll(TOLD)].length > 0)
+      .map(inSrc)
+      .filter((file) => file !== RULE_HOME)
+      .sort();
+    assert.deepEqual(
+      asking,
+      Object.entries(READERS)
+        .filter(([, entry]) => entry.kind === "shown" || entry.kind === "told")
+        .map(([file]) => file)
+        .sort(),
+    );
+  });
+
+  test("every caller of the register's loader hands it the caller's own role", () => {
+    const callers = files
+      .map((file) => [inSrc(file), codeOf(file)])
+      .filter(([file, code]) => file !== "lib/courses/registerAccess.ts" && /\bloadRegisterMembers\s*\(/.test(code));
+    assert.ok(callers.length >= 2, `only ${callers.length} callers of loadRegisterMembers were found`);
+    for (const [file, code] of callers) {
+      const calls = [...code.matchAll(/\bloadRegisterMembers\s*\(([^)]*)\)/g)];
+      for (const [, args] of calls) {
+        assert.match(args, /,\s*\{\s*isAdmin\s*:\s*gated\.isAdmin\s*\}\s*$/, `${file} calls it without the caller's role`);
+      }
+    }
+  });
+
+  test("the rule is two functions, and an admin is the only viewer shown an untold placement", () => {
+    const code = codeOf(join(SRC, ...RULE_HOME.split("/")));
+    assert.match(code, /export function placementIsTold\(/);
+    assert.match(code, /export function placementIsShownTo\(/);
+    assert.match(code, /if \(enrolment\.role !== "learner"\) return true;/);
+    assert.match(code, /if \(enrolment\.selfEnrolled\) return true;/);
+    assert.match(code, /return enrolment\.allocatedEmailAt instanceof Date;/);
+    assert.match(code, /return viewer\.isAdmin \|\| placementIsTold\(enrolment\);/);
+  });
+});

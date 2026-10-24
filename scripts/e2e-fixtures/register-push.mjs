@@ -366,6 +366,9 @@ function enrolmentDoc({ runIdValue, courseIdValue, uid, groupIdValue, now, regis
     dropOutReason: null,
     selfEnrolled: false,
     applicationId: null,
+    // Publish has told them their group (`placementIsTold`): a placement
+    // nobody has told gets no cohort mail, and this spec counts the reminder.
+    allocatedEmailAt: now,
     // WEEK 1, which is what makes every column markable. See the header.
     joinedWeekNumber: 1,
     createdAt: now,

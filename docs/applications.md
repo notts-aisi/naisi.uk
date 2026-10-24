@@ -1148,8 +1148,9 @@ taken by an admin.
 
 Nothing in this section emails anybody, and decision day is unchanged. The
 first email after decision day is the placement email Publish sends from
-the board, as it always was. A hand-over tells an applicant nothing: the
-first thing the course system shows somebody is their group.
+the board, as it always was. A hand-over tells an applicant nothing, and
+neither does a placement: the first thing the course system shows somebody
+is their group, once Publish has emailed it to them.
 
 ### The run a programme names
 
@@ -1424,13 +1425,23 @@ way to their applications is on the page. A hand-over changes none of that.
 It is invisible to the person, which is what the panel beside the button
 tells the admin who presses it.
 
-**The first thing the course system shows them is their group.** An
-admin's first placement of somebody on the board makes their place on the
-run. From then on the run and their group show in their member area and the
-run opens to them, as for anybody in a group, before Publish and after it.
-Publish is what emails them. Once somebody is in a group they are on the
-run whatever they reply later on the form: nothing here takes anybody off a
-run.
+**The first thing the course system shows them is their group, once
+Publish has told them it.** An admin's first placement of somebody on the
+board makes their place on the run, and that place is the board's working
+copy until Publish emails them their group (`allocatedEmailAt` on the
+enrolment, which a move clears). Until then their member area reads exactly
+as it did before the placement and the run stays shut to them, and nobody
+but an admin is shown their name in the group: not its facilitators, not
+its other members. Moving people on the board emails nobody and shows
+nobody anything. Once Publish has emailed them, the run and their group
+show and the run opens to them, as for anybody in a group. Somebody moved
+to another group after Publish is untold again, and reads nothing of the
+run until Publish is pressed again and emails them alone their new group.
+One function decides all of it, `placementIsTold` in
+`src/lib/firestore/courseEnrolments.ts`, and
+`tests/course-hub-group-published-readers.test.mjs` holds every reader of
+placements to it. Once somebody is in a group they are on the run whatever
+they reply later on the form: nothing here takes anybody off a run.
 
 **Nothing of the application is read for any of it.** The route reads the
 collections it read before application forms existed and none of the
@@ -1605,7 +1616,8 @@ All in `src/lib/applications/`.
   before it reads its status, and reads nothing of the application for it.
   What became of an application is said in the two places "One set of
   words for an outcome" names, and the first thing the course system shows
-  somebody the form placed is their group.
+  somebody the form placed is their group, once Publish has emailed it to
+  them.
 - **No query that sorts or ranges on the server.** Every read here is one or
   two equalities, which need no composite index. A term is a few hundred
   documents: filter and sort in memory.

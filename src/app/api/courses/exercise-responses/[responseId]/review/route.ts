@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/firebase/session";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
+  placementIsShownTo,
 } from "@/lib/firestore/courseEnrolments";
 import {
   EXERCISE_LIMITS,
@@ -191,8 +192,11 @@ export async function POST(
         ? normalizeCourseEnrolment(enrolSnap.id, enrolSnap.data() ?? {})
         : null;
       // An unplaced (or un-enrolled) owner has no facilitator, so only an admin
-      // can act — which falls through to the shared refusal below.
-      if (enrolment?.groupId) {
+      // can act, which falls through to the shared refusal below. Nor has an
+      // owner Publish has not told their group yet: the group's facilitators
+      // are not shown that placement, so they cannot act on it either, and the
+      // answer is the same refusal.
+      if (enrolment?.groupId && placementIsShownTo(enrolment, { isAdmin })) {
         const groupSnap = await db
           .collection("courseGroups")
           .doc(enrolment.groupId)

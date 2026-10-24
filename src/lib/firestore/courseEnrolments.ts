@@ -148,6 +148,10 @@ export type CourseEnrolmentDoc = {
    * email and everyone already told does not get it twice. The allocate route
    * clears it whenever `groupId` changes — the stamp certifies "emailed about
    * their current group", and a move invalidates that.
+   *
+   * It is also what lets a placement be SHOWN: an allocated seat without it
+   * is somebody nobody has told yet, and `placementIsTold` below keeps it to
+   * the board until Publish has.
    */
   allocatedEmailAt?: Date | null;
   createdAt?: Date | null;
@@ -163,6 +167,52 @@ export type CourseEnrolmentDoc = {
  */
 export function courseEnrolmentId(runId: string, uid: string): string {
   return `${runId}__${uid}`;
+}
+
+/**
+ * WHETHER A PLACEMENT HAS BEEN TOLD, and so may be shown.
+ *
+ * A placement is somebody's seat in a group. Who may learn of it depends on
+ * whether its owner has been told:
+ *
+ *  - A seat somebody took for themselves on an open run is theirs from the
+ *    moment they take it: they chose the group (`selfEnrolled`).
+ *  - A seat an admin allocated is told when Publish has emailed its owner the
+ *    group they are in NOW (`allocatedEmailAt`). Until then it is the board's
+ *    working copy: moving people around on the board tells nobody anything.
+ *    A move clears the stamp, so somebody moved after Publish is untold again
+ *    until Publish is pressed again and emails them their new group.
+ *  - A facilitator's own enrolment is not a placement in a group, and is
+ *    always told: a facilitator sees the group they run, its day, time and
+ *    room from the moment they are added.
+ *
+ * An untold placement is shown to nobody but an admin (`placementIsShownTo`).
+ * Its owner reads their member area as they did before they were placed, the
+ * group's facilitators and other members are not shown their name, and no
+ * email or notification about their group reaches them.
+ *
+ * Every reader of placements asks one of these two functions;
+ * `tests/course-hub-group-published-readers.test.mjs` lists them all.
+ */
+export function placementIsTold(
+  enrolment: Pick<CourseEnrolmentDoc, "role" | "selfEnrolled" | "allocatedEmailAt">,
+): boolean {
+  if (enrolment.role !== "learner") return true;
+  if (enrolment.selfEnrolled) return true;
+  return enrolment.allocatedEmailAt instanceof Date;
+}
+
+/**
+ * Whether one placement may be shown to one viewer: to an admin always (the
+ * admin places people, and sees the board), and to anybody else, its owner
+ * included, only once it has been told. The viewer is the session's own
+ * role, so an admin viewing the site as a member is the member here.
+ */
+export function placementIsShownTo(
+  enrolment: Pick<CourseEnrolmentDoc, "role" | "selfEnrolled" | "allocatedEmailAt">,
+  viewer: { isAdmin: boolean },
+): boolean {
+  return viewer.isAdmin || placementIsTold(enrolment);
 }
 
 type Raw = Record<string, unknown>;

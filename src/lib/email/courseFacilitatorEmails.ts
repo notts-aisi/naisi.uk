@@ -9,6 +9,7 @@ import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
+  placementIsTold,
 } from "@/lib/firestore/courseEnrolments";
 import {
   courseRunChannel,
@@ -429,6 +430,14 @@ export const MAX_COHORT_CHANNEL_ROWS = 500;
  * SUPPRESSION IS APPLIED HERE, not at the call site, so a preview's count and
  * the send's count are the same number.
  *
+ * A PLACEMENT PUBLISH HAS NOT TOLD IS NOT IN THE COHORT YET. Somebody moved to
+ * another group after Publish keeps their row on the channel, and every lane
+ * here can name their group's time and place (the reminder after a register,
+ * the week nudge). So an enrolment that is not told (`placementIsTold`) is
+ * left out like a member of another group: not this send's audience, and not
+ * counted as skipped. Publish emailing them their new group is what puts them
+ * back.
+ *
  * `notifications.categories.courses` is an OPT-OUT row: nothing sets it on
  * placement, so requiring it to be true would empty the audience on day one.
  * That is not what the toggle is for: the OPT-IN is the subscription row (you
@@ -455,6 +464,8 @@ export async function resolveCohortAudience(
    * dropped.
    */
   let otherGroups = 0;
+  /** Placed, and not told their group yet: see the note above. */
+  let notYetTold = 0;
 
   const rows = await findRecipientsForChannel(db, channel);
   // Refuse rather than slice. A `slice()` here would be a silent truncation
@@ -552,10 +563,22 @@ export async function resolveCohortAudience(
         otherGroups += 1;
         continue;
       }
+      if (!placementIsTold(enrolment)) {
+        notYetTold += 1;
+        continue;
+      }
       enrolled.push({ ...p, groupId: enrolment.groupId });
     }
   }
-  const notEnrolled = memberPending.length - enrolled.length - otherGroups;
+  if (notYetTold > 0) {
+    // Counts only, never addresses.
+    console.log(
+      `[${lane.logTag}] placed and not yet told their group, left out`,
+      runId,
+      notYetTold,
+    );
+  }
+  const notEnrolled = memberPending.length - enrolled.length - otherGroups - notYetTold;
   if (notEnrolled > 0) {
     skipped += notEnrolled;
     // Counts only, never addresses. A stale row (someone left and the remove

@@ -57,6 +57,12 @@ export type GroupRosterState = {
   facilitators: RosterPerson[];
   /** Active members, name-sorted by the route. Names only. */
   members: RosterPerson[];
+  /**
+   * True when somebody placed in the group is not in `members` yet because
+   * Publish has not told them their group (see the roster route). False
+   * until a payload has landed.
+   */
+  notYetTold: boolean;
   /** Active member count, or null while it is genuinely unknown (see header). */
   memberCount: number | null;
   /** True on the first load of a group AND on a manual refresh. */
@@ -140,6 +146,7 @@ export function useGroupRoster(groupId: string): GroupRosterState {
     group: data?.group ?? null,
     facilitators,
     members,
+    notYetTold: data?.notYetTold === true,
     memberCount: data ? data.members.length : null,
     loading: idle ? false : settled !== stamp,
     error: fresh?.error ?? null,

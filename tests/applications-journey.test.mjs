@@ -1462,6 +1462,14 @@ async function ontoACourseRun() {
   for (const who of APPLICANTS) {
     placing.memberArea[who] = (await courseCall(who, courseRoutes.me.GET, {})).body?.runs ?? null;
   }
+  // Publish is what tells somebody their group: once its email to Amara has
+  // gone, it stamps her seat. The stamp is written here as Publish writes it;
+  // Publish itself is driven in tests/applications-handover-member-area.test.mjs.
+  world.db.poke(`courseEnrolments/${RUN.agi}__amara`, { allocatedEmailAt: new Date(WHEN.placing) });
+  placing.memberAreaOnceTold = {};
+  for (const who of APPLICANTS) {
+    placing.memberAreaOnceTold[who] = (await courseCall(who, courseRoutes.me.GET, {})).body?.runs ?? null;
+  }
 
   placing.mailed = world.mail.calls.length - placing.mailBefore;
   placing.formUntouched = formSide() === placing.formBefore;
@@ -3065,11 +3073,17 @@ describe("one term, from nothing to settled", () => {
       assert.deepEqual([seat.groupId, seat.status, seat.role], [GROUP.evening, "active", "learner"]);
     });
 
-    test("the member area says nothing because of a hand-over, and then somebody's group", () => {
+    // CHANGED ON PURPOSE (course hub, Q11 "only once it's published and
+    // emailed"): somebody an admin has put in a group used to read their
+    // group at once. They now read nothing until Publish has told them, and
+    // then the same line as before.
+    test("the member area says nothing because of a hand-over, nor because of a placement, and then somebody's group", () => {
       const area = seen.placing.memberArea;
-      const said = (who) => (area[who] ?? []).map((entry) => [entry.runId, entry.membership, entry.groupName]);
-      // In a group: on the run, with the group named.
-      assert.deepEqual(said("amara"), [[RUN.agi, "enrolled", "Monday evening"]]);
+      const said = (who, from = area) => (from[who] ?? []).map((entry) => [entry.runId, entry.membership, entry.groupName]);
+      // In a group, and not told yet: nothing.
+      assert.deepEqual(said("amara"), []);
+      // Told by Publish: on the run, with the group named.
+      assert.deepEqual(said("amara", seen.placing.memberAreaOnceTold), [[RUN.agi, "enrolled", "Monday evening"]]);
       // Handed over and not in a group yet: the row is there, and it is announced as nothing.
       assert.equal(world.db.read(`courseApplications/${RUN.tais}__oliver`).status, "accepted");
       assert.deepEqual(said("oliver"), []);

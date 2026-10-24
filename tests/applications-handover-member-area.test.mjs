@@ -1,6 +1,7 @@
 /**
  * What somebody the application form placed on a course run reads in their
- * own member area: nothing because of the hand-over, and then their group.
+ * own member area: nothing because of the hand-over, nothing because an admin
+ * placed them, and then their group, once Publish has emailed it to them.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -31,9 +32,13 @@
  *  - NOTHING OF THE APPLICATION IS READ. The route reads the collections it
  *    read before forms existed and none of the application system's, for
  *    the member and for an admin viewing the site as them alike.
- *  - THEN THEIR GROUP. Once an admin puts them in a group, the run and the
- *    group show and the run opens to them, before Publish and after it, as
- *    for anybody in a group. A seat is a seat, whatever they reply later.
+ *  - THEN THEIR GROUP, ONCE PUBLISH HAS TOLD THEM. An admin putting them in a
+ *    group shows them nothing: the member area reads as it did before, and
+ *    the run stays shut. Once Publish has emailed them their group, the run
+ *    and the group show and the run opens to them, as for anybody in a
+ *    group. A seat is a seat, whatever they reply later. (The same rule for
+ *    every reader of placements, and for facilitators, is held in
+ *    `tests/course-hub-group-published-*.test.mjs`.)
  *  - NOBODY ELSE IS CHANGED. Somebody who applied to the run itself reads
  *    the card they always did.
  *
@@ -262,34 +267,51 @@ describe("the member area reads nothing of the application form", () => {
 // Then their group
 // ---------------------------------------------------------------------------
 
-describe("once an admin puts them in a group, the run and the group show", () => {
-  test("before Publish and after it, and the run opens to them", async () => {
+/**
+ * Everybody who holds a place on AGI Strategy, each in a group: Publish
+ * refuses while anybody accepted is not in one, so this is the board an admin
+ * publishes from.
+ */
+const EVERYBODY_IN_A_GROUP = [
+  { uid: "amara", groupId: GROUP.thursday },
+  { uid: "dev", groupId: GROUP.monday },
+  { uid: "bea", groupId: GROUP.monday },
+  { uid: "tariq", groupId: GROUP.thursday },
+];
+
+/** An admin's Publish, which has to work for the step after it to mean anything. */
+async function publishes() {
+  const published = await publish();
+  assert.equal(published.status, 200, JSON.stringify(published.body));
+}
+
+describe("once an admin puts them in a group, the run and the group show when Publish has told them", () => {
+  // CHANGED ON PURPOSE (course hub, Q11 "only once it's published and emailed").
+  // This test used to hold that the run and the group showed as soon as an
+  // admin placed somebody, before Publish. It now holds the opposite at that
+  // moment, and the same five facts as before once Publish has emailed them.
+  test("placed: nothing, and the run stays shut. Told by Publish: the run and the group, and the run opens", async () => {
     await press();
-    await place("zach", [
-      { uid: "amara", groupId: GROUP.thursday },
-      { uid: "dev", groupId: GROUP.monday },
-      { uid: "bea", groupId: GROUP.monday },
-      { uid: "tariq", groupId: GROUP.thursday },
-    ]);
-    const before = await me("amara");
-    assert.equal(before.length, 1);
+    await place("zach", EVERYBODY_IN_A_GROUP);
+    assert.deepEqual(await me("amara"), [], "a placement shows before Publish has told its owner");
+    assert.equal(world.mail.length, 0, "nobody has been emailed yet");
+    assert.equal((await access("amara")).canLearn, false, "the run opens before Publish");
+
+    await publishes();
+    const told = await me("amara");
+    assert.equal(told.length, 1);
     assert.deepEqual(
-      [before[0].runId, before[0].membership, before[0].roles, before[0].groupName, before[0].courseTitle],
+      [told[0].runId, told[0].membership, told[0].roles, told[0].groupName, told[0].courseTitle],
       [RUN.agi, "enrolled", ["learner"], "Thursday morning", "AGI Strategy Fellowship"],
     );
-    assert.equal(world.mail.length, 0, "nobody has been emailed yet");
     const admitted = await access("amara");
     assert.deepEqual([admitted.canLearn, admitted.isEnrolled, admitted.run.id], [true, true, RUN.agi]);
-
-    const published = await publish();
-    assert.equal(published.status, 200, JSON.stringify(published.body));
-    assert.deepEqual(await me("amara"), before, "Publish changed what the member area lists");
-    assert.equal((await access("amara")).canLearn, true);
   });
 
   test("the card is the one anybody in a group reads, with none of the run's own form's words", async () => {
     await press();
-    await place("zach", [{ uid: "amara", groupId: GROUP.thursday }]);
+    await place("zach", EVERYBODY_IN_A_GROUP);
+    await publishes();
     const [entry] = await me("amara");
     assert.deepEqual(Object.keys(entry).sort(), Object.keys((await memberOfTheRunItself())).sort(), "a field only somebody from the form is sent");
     const html = card(entry);
@@ -304,15 +326,25 @@ describe("once an admin puts them in a group, the run and the group show", () =>
     async function memberOfTheRunItself() {
       world.db.seed(rowPath("nobody"), ownRow("nobody", "accepted"));
       await place("zach", [{ uid: "nobody", groupId: GROUP.monday }]);
+      // Placed, and not told yet: they read the card they read before, their offer.
+      const [waiting] = await me("nobody");
+      assert.equal(waiting.membership, "offered");
+      await publishes();
       const [own] = await me("nobody");
       assert.equal(own.membership, "enrolled");
       return own;
     }
   });
 
-  test("somebody not yet in a group still reads nothing, beside people who are", async () => {
+  // CHANGED ON PURPOSE (Q11). The people left out of a group used to stand
+  // beside somebody placed and not yet published; they now stand beside
+  // somebody Publish has told, because nobody is shown a group before that.
+  test("somebody not in a group reads nothing, beside people who are", async () => {
     await press();
-    await place("zach", [{ uid: "amara", groupId: GROUP.thursday }]);
+    await place("zach", EVERYBODY_IN_A_GROUP);
+    await publishes();
+    // Taken out of their groups after Publish: in no group, and told of none.
+    await place("zach", ["dev", "bea", "tariq"].map((uid) => ({ uid, groupId: null })));
     assert.equal((await me("amara")).length, 1);
     for (const who of ["dev", "bea", "tariq"]) {
       assert.deepEqual(await me(who), [], who);
@@ -320,17 +352,30 @@ describe("once an admin puts them in a group, the run and the group show", () =>
     }
   });
 
+  // CHANGED ON PURPOSE (Q11): the reply now comes after Publish has told them.
   test("once somebody is in a group they are on the run, whatever they reply later", async () => {
     await press();
-    await place("zach", [{ uid: "tariq", groupId: GROUP.monday }]);
+    await place("zach", [
+      { uid: "amara", groupId: GROUP.thursday },
+      { uid: "dev", groupId: GROUP.monday },
+      { uid: "bea", groupId: GROUP.monday },
+      { uid: "tariq", groupId: GROUP.monday },
+    ]);
+    await publishes();
     await reply("tariq", { reply: "cant-make-it", reason: { kind: "times", other: "" } });
     const shown = await me("tariq");
     assert.deepEqual([shown.length, shown[0].membership, shown[0].groupName], [1, "enrolled", "Monday evening"]);
   });
 
-  test("when the form has been destroyed: nothing until they are placed, and their group once they are", async () => {
+  // CHANGED ON PURPOSE (Q11): somebody in a group reads it once Publish has
+  // told them, so the people placed here are published before they are read.
+  test("when the form has been destroyed: nothing until they are placed and told, and their group once they are", async () => {
     await press();
-    await place("zach", [{ uid: "dev", groupId: GROUP.monday }]);
+    await place("zach", [
+      { uid: "dev", groupId: GROUP.monday },
+      { uid: "bea", groupId: GROUP.monday },
+      { uid: "tariq", groupId: GROUP.thursday },
+    ]);
     for (const path of world.db.paths()) {
       const [collection, id, more] = path.split("/");
       if (more === undefined && ["admissionRounds", "admissionApplications", "admissionDecisions"].includes(collection)) {
@@ -340,10 +385,13 @@ describe("once an admin puts them in a group, the run and the group show", () =>
     // The rows a hand-over wrote stay on the run, and still say nothing by themselves.
     assert.equal(world.db.read(rowPath("amara")).status, "accepted");
     assert.deepEqual(await me("amara"), []);
+    // Placed and not told: nothing either.
+    assert.deepEqual(await me("dev"), []);
+    // And the board can still place the rest, and Publish still tells them.
+    await place("zach", [{ uid: "amara", groupId: GROUP.thursday }]);
+    await publishes();
     const [placed] = await me("dev");
     assert.deepEqual([placed.membership, placed.groupName], ["enrolled", "Monday evening"]);
-    // And the board can still place the rest.
-    await place("zach", [{ uid: "amara", groupId: GROUP.thursday }]);
     assert.equal((await me("amara"))[0].groupName, "Thursday morning");
   });
 });

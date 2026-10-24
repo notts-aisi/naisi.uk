@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/firebase/session";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
+  placementIsShownTo,
 } from "@/lib/firestore/courseEnrolments";
 import { normalizeExerciseResponse } from "@/lib/firestore/courseExercises";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
@@ -157,11 +158,13 @@ export async function GET(
       ? normalizeCourseEnrolment(enrolSnap.id, enrolSnap.data() ?? {})
       : null;
     // Withdrawn / removed enrolments lose access the moment they are written,
-    // whatever the member's open tab still shows.
+    // whatever the member's open tab still shows. A placement Publish has not
+    // told its owner about is no way in either: the run is shut to them.
     const live =
       enrolment &&
       (enrolment.status === "active" || enrolment.status === "completed") &&
-      isNamedWithStanding(actor, "courseEnrolments.uid", enrolment.uid);
+      isNamedWithStanding(actor, "courseEnrolments.uid", enrolment.uid) &&
+      placementIsShownTo(enrolment, { isAdmin });
     if (!live) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

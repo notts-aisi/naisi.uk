@@ -275,6 +275,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
     group,
     sessions,
     members,
+    notYetTold,
     records,
     participantNotes,
     canEditPushed,
@@ -565,6 +566,11 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
   }
 
   if (members.length === 0) {
+    // Somebody is placed here and has not been told their group yet, so the
+    // register has no row for them until Publish emails them. The roster
+    // above it on the group page already says when the names come, and a
+    // register of nobody would only say it again.
+    if (notYetTold) return null;
     return (
       <EmptyState
         title="Nobody is in this group yet."

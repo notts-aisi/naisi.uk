@@ -10,6 +10,7 @@ import { Field } from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
 import Skeleton from "@/components/ui/Skeleton";
 import type { GroupSessionMode } from "@/lib/firestore/courseGroups";
+import { NAMES_WHEN_GROUPS_GO_OUT } from "./groupNamesWords";
 import { groupNoticeUrl } from "./useGroupWeeks";
 import { useGroupRoster } from "./useGroupRoster";
 import styles from "./RoomNoticeComposer.module.css";
@@ -287,7 +288,9 @@ export default function RoomNoticeComposer({
             </>
           ) : count === 0 ? (
             <p className={styles.recipientsBlocked}>
-              No one is placed in {groupName} yet, so there is nobody to tell.
+              {roster.notYetTold
+                ? `${NAMES_WHEN_GROUPS_GO_OUT} There is nobody to tell until then.`
+                : `No one is placed in ${groupName} yet, so there is nobody to tell.`}
             </p>
           ) : (
             <>
