@@ -153,6 +153,17 @@ const MUST_GUARD = [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/run/hand-over/route.ts",
     "puts everybody who holds a place on a programme onto its course run's allocation list, and logs who pressed it",
   ],
+  // Offering a place given back after decision day changes what a person
+  // was told and emails them, in the caller's name; its test writes a record
+  // on the form and emails the address on the session.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places/route.ts",
+    "offers freed places after decision day, which changes outcomes and emails the people offered one",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places/test/route.ts",
+    "sends a test of the freed-place email to the address on the session, and records it on the form",
+  ],
   // The application form's lifecycle. Opening a form lets real applicants
   // reach it, and settling writes every applicant's member record in the
   // caller's name. An admin viewing as somebody else must not do either.

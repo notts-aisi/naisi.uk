@@ -700,6 +700,25 @@ export const ROUTES = {
         "form, and is told the id is missing.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "The body is checked before anything is read, so every signed-in persona meets the " +
+        "validation (an empty body picks nobody). Who may offer is decided from the form once a " +
+        "valid body arrives: an admin; the programme's lead and reviewer are forbidden; anybody " +
+        "with no role on it is told the programme is not there.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places/test": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "As the press: the body (who, which group, which day to accept by) is checked before " +
+        "anything is read, then the role from the form. A test goes only to the address on the " +
+        "session.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email": {
     POST: {
       expect: signedIn(400),
@@ -2215,6 +2234,15 @@ export const PAGES = {
       "approveCourse) and named reviewers, and sends everyone else to the dashboard. For " +
       "those admitted, a form that is missing and a programme they have no role on both " +
       "render the page's own calm not-here state as ordinary HTML, with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/applications/freed-places": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions console: requireAdmissionsPage admits round authors (admin or " +
+      "approveCourse) and named reviewers, and sends everyone else to the dashboard. For " +
+      "those admitted, a form that is missing and a programme they have no role on render " +
+      "the programme layout's calm not-here state with a 200; a lead or a reviewer on the " +
+      "programme is shown that the page is an admin's.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),

@@ -676,6 +676,18 @@ const NOT_COVERED = {
     coverWhen:
       "Before the first term's groups are formed from a hand-over, because that weekend is the first time the press, the board and Publish are used on real people in one sitting.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places": {
+    reason:
+      "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places is pressed by an admin after decision day and answered on the page that called it; tests/applications-freed-places-offer.test.mjs executes it as every kind of caller across the window's edges, and tests/applications-freed-places-journey.test.mjs takes an accepted offer through Hand over, a placement and Publish.",
+    coverWhen:
+      "Before the first freed place is offered on the live site, alongside a spec for the hand-over and the allocation board, because that is the first time a changed outcome reaches a real person.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places/test": {
+    reason:
+      "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places/test sends a test only to the address on the admin's own session; tests/applications-freed-places-offer.test.mjs executes it and the lock it unlocks.",
+    coverWhen:
+      "With the spec for the press above, because the test is the press's first step.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/roles": {
     reason:
       "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId]/roles is pressed by a programme's lead or an admin, and tests/applications-editor-routes.test.mjs and tests/applications-access.test.mjs execute who may name whom.",
@@ -1407,6 +1419,12 @@ const NOT_COVERED = {
       "Application review: the list screen is reached from the term page, by each programme's card and by the rows under Needs you, and was checked by hand at 1440 and 390 as a lead, a reviewer and an admin.",
     coverWhen:
       "When the end-to-end fixtures can seed an application form with sent applications for a lead to open from the term page.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/applications/freed-places": {
+    reason:
+      "Application forms: the freed-places page is reached from a programme's Applications tab, is rendered to HTML as each caller by tests/applications-freed-places-page.test.mjs, and was checked by hand at 1440 and 390 against a seeded emulator.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a form after decision day with a place given back and a pooled applicant told no offer.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
     reason:

@@ -163,6 +163,20 @@ const READS_THE_LISTS = {
     why: "everybody who holds a place goes onto the run, an admin who applied included. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",
     holds: "after-the-send",
   },
+  "lib/applications/freedPlaces/load.ts#loadOfferBoard": {
+    kind: "viewer",
+    why: "the freed-places page is read for whoever is looking: the term through loadTerm, and the reviews only for the people it lists",
+  },
+  "lib/applications/freedPlaces/offer.ts#offerFreedPlaces": {
+    kind: "everybody",
+    why: "a place offered has to be really free, so the writer counts the whole term inside its transaction, the caller's own application included. It refuses the caller's own id before it reads, reads nobody before decisions have gone out, and lists nothing",
+    holds: "after-the-send",
+  },
+  "lib/applications/freedPlaces/offer.ts#sendOwedFreedPlaceEmails": {
+    kind: "everybody",
+    why: "finds the freed-place emails still to go on one programme, never the caller's own, and answers with how many went and the names of any that did not. It reads nobody before decisions have gone out",
+    holds: "after-the-send",
+  },
   "lib/applications/handover/load.ts#loadRunPanel": {
     kind: "everybody",
     why: "the panel names who a press would hand over, and that is everybody who holds a place. It names and counts nobody until the term is marked as sent",
@@ -183,6 +197,7 @@ const READS_THE_LISTS = {
 const PLANS_THE_TERM = {
   "lib/applications/decisionDay/plan.ts#termsFor": "the one place the viewer's own application is left out",
   "lib/applications/decisionDay/pool.ts#setPooledOutcome": "the writer's own count of free places, inside its transaction",
+  "lib/applications/freedPlaces/offer.ts#offerFreedPlaces": "the freed-place writer's own count of free places, inside its transaction",
 };
 
 /**
@@ -406,6 +421,7 @@ const DECISION_WRITERS = {
   "lib/applications/review/decide.ts": "a lead's decision for a programme, and an admin taking an acceptance back",
   "lib/applications/decisionDay/pool.ts": "the outcome an admin picks for a pooled applicant",
   "lib/applications/decisionDay/send.ts": "decision day: it reads each decision and writes the result onto its applicant's own document",
+  "lib/applications/freedPlaces/term.ts": "reads every application and decision on the form inside the freed-place writer's transaction, to count free places; it writes no decision",
 };
 
 /**
