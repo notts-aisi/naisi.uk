@@ -880,6 +880,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
+  "/api/courses/runs/[runId]/allocation/publish/test": {
+    reason:
+      "Courses: /api/courses/runs/[runId]/allocation/publish/test is staff-facing, taken deliberately, and answered on the screen that called it.",
+    coverWhen:
+      "When a spec drives the allocation board's Publish, since the test is pressed on that board before every Publish and the spec would press it first.",
+  },
   "/api/courses/runs/[runId]/applications": {
     reason:
       "Courses: /api/courses/runs/[runId]/applications is staff-facing, taken deliberately, and answered on the screen that called it.",

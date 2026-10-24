@@ -492,7 +492,7 @@ const REGISTRY = {
     "The decision on that enquiry, approved or rejected, to the person who sent it.",
   ),
   "src/lib/email/courseApplicationEmails.ts#sendEmail": T(
-    "Course application submitted, decided and allocated: three answers to one person about one application.",
+    "Course application submitted, decided and allocated, and the facilitators' email beside the allocation: answers to one person about their own application or their own group, and a marked test of the last two to whoever presses \"Send a test to me\".",
   ),
   "src/app/api/courses/runs/[runId]/apply/route.ts#sendCourseApplicationEmail": T(
     "The receipt for a course application, sent as it is submitted.",
@@ -501,7 +501,10 @@ const REGISTRY = {
     "The decision on that application, accepted or not, to the applicant.",
   ),
   "src/app/api/courses/runs/[runId]/allocation/publish/route.ts#sendCourseApplicationEmail": T(
-    "The placement mail telling an accepted applicant which group they are in.",
+    "The placement mail telling an accepted applicant which group they are in, and, from the same loop, the \"You're facilitating\" mail telling each facilitator of a group with people in it that they facilitate it, once per group. Both are owed to their recipient by the press.",
+  ),
+  "src/app/api/courses/runs/[runId]/allocation/publish/test/route.ts#sendCourseApplicationEmail": T(
+    "\"Send a test to me\" on the allocation board: the first person's placement email and the first facilitator's \"You're facilitating\" email, marked as a test, to the address on the presser's own session and nobody else. One call, in a loop over the two.",
   ),
   "src/lib/email/courseEnrolmentEmails.ts#sendEmail": T(
     "The dropped-out note confirming a member is off a run. A change to their own enrolment.",

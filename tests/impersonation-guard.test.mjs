@@ -108,6 +108,7 @@ const MUST_GUARD = [
   ["src/app/api/courses/progress/[progressId]/moderate/route.ts", "moderates a learner's recorded progress"],
   ["src/app/api/courses/runs/[runId]/allocate/route.ts", "allocates applicants to groups"],
   ["src/app/api/courses/runs/[runId]/allocation/publish/route.ts", "publishes an allocation, which tells applicants their place"],
+  ["src/app/api/courses/runs/[runId]/allocation/publish/test/route.ts", "sends Publish's first emails to the presser as a test, and records the test Publish waits for"],
   ["src/app/api/courses/runs/[runId]/applications/[uid]/decide/route.ts", "accepts, waitlists or rejects an application"],
   ["src/app/api/courses/runs/[runId]/applications/[uid]/notes/route.ts", "writes reviewer notes on an applicant"],
   ["src/app/api/courses/runs/[runId]/apply/route.ts", "creates, edits and withdraws an application in the applicant's own name"],
