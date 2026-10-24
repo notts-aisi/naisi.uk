@@ -282,6 +282,14 @@ describe("2. a test first", () => {
     assert.ok(facilitator.text.includes("Hi Rahul,"), "it is Rahul's email, as Publish would send it");
     await nothingToFollow(world.mail);
     // It told nobody, and stamped nobody: only the record of the test changed.
+    // Whether somebody sees their group is decided by the stamp Publish
+    // writes (`allocatedEmailAt`) and nothing else, so a test that stamped
+    // the person whose email it borrows would show them their group early;
+    // nor does it claim the facilitator's once-only marker.
+    for (const uid of ["amara", "dev", "bea", "tariq"]) {
+      assert.equal(world.db.read(`courseEnrolments/${RUN.agi}__${uid}`).allocatedEmailAt, undefined, uid);
+    }
+    assert.deepEqual(world.db.paths().filter((path) => path.startsWith("courseNudges/facilitating__")), []);
     const after = JSON.parse(everything()).filter(([path]) => !path.startsWith("courseNudges/publishtest__"));
     assert.deepEqual(after, JSON.parse(before));
     assert.deepEqual((await summary()).test, { state: "fresh", when: "5:38pm", who: null });
@@ -397,6 +405,14 @@ describe("3. the count", () => {
       more: 0,
     });
     assert.deepEqual(words.publishResultLines(published.body.report), ["Published. 7 emails sent: 4 to people with their group and 3 to facilitators."]);
+    // Each person whose email was written for sending carries the stamp that
+    // decides whether they see their group; a facilitator's once-only marker
+    // is a document of its own, and touches no enrolment.
+    for (const uid of ["amara", "dev", "bea", "tariq"]) {
+      const seat = world.db.read(`courseEnrolments/${RUN.agi}__${uid}`);
+      assert.ok(seat.allocatedEmailAt instanceof Date, uid);
+      assert.deepEqual(Object.keys(seat).filter((key) => /facilitat/i.test(key)), [], uid);
+    }
     // And then there is nothing to send, which the board says instead of a 0.
     const after = await summary();
     assert.equal(after.emails, 0);
@@ -568,11 +584,17 @@ describe("5. what happened is said", () => {
       "Held, not sent: 1 email to addresses this copy of the site doesn’t email. That is how a rehearsal works.",
     ]);
     for (const line of words.publishResultLines(report)) assert.doesNotMatch(line, /skipped|—|–/);
-    // A held or suppressed email is settled; a failed one is not, and its
-    // facilitator's claim was given back.
-    assert.equal(world.db.read(`courseEnrolments/${RUN.agi}__amara`).allocatedEmailDelivery, "suppressed");
-    assert.equal(world.db.read(`courseEnrolments/${RUN.agi}__dev`).allocatedEmailDelivery, "held");
-    assert.equal(world.db.read(`courseEnrolments/${RUN.agi}__tariq`).allocatedEmailAt, undefined);
+    // The stamp is written exactly when an email was written for sending, as
+    // before: a held or a suppressed email was handed to the mail door and is
+    // stamped (and said for what it is), a failed send and a missing address
+    // are not, and a failed facilitator's claim was given back.
+    const seat = (uid) => world.db.read(`courseEnrolments/${RUN.agi}__${uid}`);
+    assert.ok(seat("amara").allocatedEmailAt instanceof Date);
+    assert.equal(seat("amara").allocatedEmailDelivery, "suppressed");
+    assert.ok(seat("dev").allocatedEmailAt instanceof Date);
+    assert.equal(seat("dev").allocatedEmailDelivery, "held");
+    assert.equal(seat("tariq").allocatedEmailAt, undefined);
+    assert.equal(seat("bea").allocatedEmailAt, undefined);
     assert.equal(world.db.read(`courseNudges/facilitating__${RUN.agi}__${B}__rahul`), undefined);
     // Nobody is pushed whose email did not go.
     assert.deepEqual(world.pushes, []);
