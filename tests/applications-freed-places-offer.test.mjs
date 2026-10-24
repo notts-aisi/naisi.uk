@@ -34,6 +34,7 @@ import {
   GROUP,
   ROUND,
   RUN,
+  TAIS,
   applicationPath,
   decisionPath,
   freedSeed,
@@ -672,6 +673,22 @@ describe("what became of each email, and the ones still to go", () => {
     const pressed = await api.offer("zach", offerBody([pick("omar")]));
     assert.deepEqual(pressed.body.report.unconfirmed, ["Omar Haddad"]);
     assert.equal(read("omar").freedPlace.email, "unconfirmed");
+  });
+
+  test("the press for emails still to go asks who may again inside each claim, of the form it reads", async (t) => {
+    t.mock.method(console, "error", () => {});
+    await api.test("zach", { ...pick("omar"), replyBy: REPLY_BY });
+    world.verdict = () => "throw";
+    await api.offer("zach", offerBody([pick("omar")]));
+    assert.equal(read("omar").freedPlace.email, "owed");
+    world.verdict = null;
+    world.mail.length = 0;
+    // The programme leaves the form while the first claim is being taken: the
+    // claim runs again, reads the form again, and finds nobody may send it.
+    world.db.beforeCommit = () => world.db.poke(FORM_PATH, { programmeIds: [TAIS] });
+    assert.deepEqual(short(await api.offer("zach", { owedOnly: true, emails: 1 })), [403, rules.ADMINS_OFFER]);
+    assert.deepEqual(world.mail, []);
+    assert.equal(read("omar").freedPlace.email, "owed");
   });
 
   test("the press for emails still to go is an admin's, and asks for a test of the wording as it is", async () => {

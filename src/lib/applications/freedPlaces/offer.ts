@@ -533,8 +533,15 @@ export async function sendOwedFreedPlaceEmails(
   const leadName = await leadNameOf(db, programme);
   const report = emptyReport(0);
   const letters: Letter[] = [];
+  let stillMay = true;
   for (const application of owed) {
-    const claimed = await db.runTransaction(async (tx) => {
+    const claimed = await db.runTransaction<Letter | "not-yours" | null>(async (tx) => {
+      // Who may is asked again of the form this transaction reads, so an
+      // email is never taken up for somebody who may no longer send it.
+      const formSnap = await tx.get(formRef(db, roundId));
+      const liveForm =
+        formSnap.exists && isApplicationForm(formSnap.data()) ? normaliseForm(formSnap.id, formSnap.data()) : null;
+      if (!liveForm || !offersFreedPlaces(roleOnProgramme(user, liveForm, programmeId))) return "not-yours";
       const ref = applicationRef(db, roundId, application.uid);
       const snap = await tx.get(ref);
       const live = snap.exists ? normaliseApplication(snap.id, snap.data(), form.round.availabilityGrid) : null;
@@ -563,9 +570,16 @@ export async function sendOwedFreedPlaceEmails(
       });
       return { uid: live.uid, name: nameOf(live), to, email } satisfies Letter;
     });
+    if (claimed === "not-yours") {
+      // Nothing more is taken up. What was taken up already is sent below,
+      // or it would sit as sending and never go.
+      stillMay = false;
+      break;
+    }
     if (claimed) letters.push(claimed);
     else report.failed.push(nameOf(application));
   }
+  if (!stillMay && letters.length === 0) return refuse(403, ADMINS_OFFER);
   await sendLetters(db, form, user.uid, letters, report);
   return { ok: true, report };
 }
