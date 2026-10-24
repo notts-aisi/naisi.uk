@@ -406,6 +406,6 @@ describe("the words are the board's", () => {
       words.groupLine({ weekday: 4, startMinute: H("18:00"), durationMinutes: 120 }, 18, true),
       words.cantLine("Joel Adeyemi", [5], 120),
     ].join(" ");
-    assert.ok(!/[–—]/.test(said));
+    assert.ok(!/[\u2013\u2014]/.test(said), said);
   });
 });
