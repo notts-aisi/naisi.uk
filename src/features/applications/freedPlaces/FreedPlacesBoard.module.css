@@ -239,6 +239,7 @@
   font-weight: 500;
   letter-spacing: 0.01em;
   color: var(--color-text-muted);
+  white-space: nowrap;
   box-sizing: border-box;
 }
 .chipOk {
@@ -297,6 +298,13 @@
   flex-direction: column;
   gap: var(--space-2);
   padding: 0 var(--space-4) var(--space-4) 3.5rem;
+}
+
+.seats {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
 }
 
 /* === Fields === */
@@ -570,14 +578,28 @@
     padding: 18px var(--space-4) var(--space-4);
   }
   .rowMain {
+    flex-wrap: wrap;
     gap: var(--space-3);
     padding: 14px;
   }
+  /* The name takes the line beside the box and the initials; the score goes under it. */
+  .who {
+    flex: 1 1 0;
+  }
   .score {
+    display: flex;
+    flex: 1 0 100%;
+    align-items: baseline;
+    gap: var(--space-2);
     min-width: 0;
+    padding-left: calc(22px + 2rem + 2 * var(--space-3));
+    text-align: left;
   }
   .groupPick {
     padding: 0 14px 14px;
+  }
+  .select.select {
+    font-size: 0.875rem;
   }
   .letterHead,
   .letterBody {

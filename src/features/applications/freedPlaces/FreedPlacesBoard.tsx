@@ -53,11 +53,15 @@ function CheckIcon() {
   );
 }
 
-/** A group as the picker offers it: its name, when it meets, and the seats it can still promise. */
+/** A group as the picker offers it: its name and when it meets. */
 function groupOption(group: OfferGroup): string {
-  const seats =
-    group.seatsFree === null ? "no limit" : `${group.seatsFree} ${group.seatsFree === 1 ? "seat" : "seats"} free`;
-  return `${group.name} · ${group.meets} · ${seats}`;
+  return `${group.name} · ${group.meets}`;
+}
+
+/** The seats the chosen group can still promise, said under the picker. */
+function seatsLine(group: OfferGroup): string {
+  if (group.seatsFree === null) return `${group.name} has no limit on its size.`;
+  return `${group.seatsFree} ${group.seatsFree === 1 ? "seat" : "seats"} free in ${group.name}.`;
 }
 
 export default function FreedPlacesBoard({ board }: { board: OfferBoard }) {
@@ -184,6 +188,11 @@ export default function FreedPlacesBoard({ board }: { board: OfferBoard }) {
     router.refresh();
   }
 
+  const saidLine = said ? (
+    <p className={said.tone === "ok" ? styles.saidOk : styles.saidProblem} role={said.tone === "ok" ? "status" : "alert"}>
+      {said.text}
+    </p>
+  ) : null;
   const heading = offering ? offerHeading(board.free) : offerHeading(0);
   const lede = !board.window.open
     ? board.window.sentence
@@ -201,6 +210,8 @@ export default function FreedPlacesBoard({ board }: { board: OfferBoard }) {
 
       <div className={styles.columns}>
         <div className={styles.main}>
+          {/* With nothing left to offer there is no side column: what a press did is said here. */}
+          {offering ? null : saidLine}
           {offering ? (
             <section className={styles.card} aria-labelledby="freed-pool">
               <div className={styles.cardHead}>
@@ -290,6 +301,10 @@ export default function FreedPlacesBoard({ board }: { board: OfferBoard }) {
                                 </option>
                               ))}
                             </Select>
+                            {(() => {
+                              const group = groupOf.get(picked.get(person.uid) ?? "");
+                              return group ? <p className={styles.seats}>{seatsLine(group)}</p> : null;
+                            })()}
                           </div>
                         ) : null}
                       </div>
@@ -445,16 +460,8 @@ export default function FreedPlacesBoard({ board }: { board: OfferBoard }) {
                 </p>
               ) : null}
             </div>
-            {said ? (
-              <p className={said.tone === "ok" ? styles.saidOk : styles.saidProblem} role={said.tone === "ok" ? "status" : "alert"}>
-                {said.text}
-              </p>
-            ) : null}
+            {saidLine}
           </div>
-        ) : said ? (
-          <p className={said.tone === "ok" ? styles.saidOk : styles.saidProblem} role={said.tone === "ok" ? "status" : "alert"}>
-            {said.text}
-          </p>
         ) : null}
       </div>
     </ApplicationsRoot>
