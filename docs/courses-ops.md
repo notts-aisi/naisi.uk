@@ -978,7 +978,15 @@ order the two are joined in, and it is an admin's job from start to finish.
    they painted on the form, or that they gave no availability.
 6. **Publish** from the board when everybody is in a group. That is the
    email that tells each person their group, and the first email anybody
-   gets after decision day.
+   gets after decision day. First press **Send a test to me**: it sends you
+   the first person's "your group" email and the first facilitator's
+   "You're facilitating" email exactly as Publish would, marked as a test,
+   and Publish stays locked until a test of the wording in force has reached
+   you. The button then says how many emails a press sends ("Publish and send
+   37 emails"), the confirmation says the same number, and afterwards the
+   board says what became of every email: sent, held, on the do-not-email
+   list, failed (named, and tried again by the next press) or no address
+   (named).
 
 ### Things worth knowing before you do it
 
@@ -997,7 +1005,9 @@ order the two are joined in, and it is an admin's job from start to finish.
   run's own applications page and Publish serve somebody the form placed to
   admins only. A track lead still edits the run, staffs its groups and sees
   everybody who applied to the run itself. A row the form wrote is one an
-  admin places and an admin publishes. The run's own counts do include
+  admin places and an admin publishes: a track lead who presses Publish,
+  or its test, on such a run is told so and nothing happens. The run's own
+  counts do include
   them, as numbers: the run's applications page shows a track lead "8
   accepted" above an empty list.
 - **The "Paid" or "Unpaid" badge on a card is the membership record's.** It
@@ -1025,6 +1035,19 @@ order the two are joined in, and it is an admin's job from start to finish.
   roster or register, and gets none of the group's mail. Publish emails just
   them, and then they see their new group. The same goes for anybody placed
   late.
+- **Each facilitator is told once a group, at Publish.** "You're
+  facilitating" goes to every facilitator of every group with somebody in
+  it: the group's weekly time, where it meets, its first and last session
+  on the group's own calendar, who else facilitates it, how many are in it
+  and a button to their group page, signed by the lead of the programme that
+  names the run. Never a meeting link: an online group is told the link is
+  on the group page. A facilitator added later is told by the next press; a
+  group with nobody in it waits, and the board says so. Its wording is in
+  Email designs as "You're facilitating", beside "Placed in a group".
+- **A changed wording needs a fresh test.** Saving either of the two emails
+  in Email designs locks Publish again until somebody sends themselves a
+  test. A test that this copy of the site held, or that went to an address
+  on the do-not-email list, reached nobody and does not count.
 - **Do not destroy the form while its people are waiting for a group.**
   Until somebody is in a group, their member area knows they hold a place
   only from their application. Destroy the form in between and it tells
@@ -1032,7 +1055,10 @@ order the two are joined in, and it is an admin's job from start to finish.
   list and the board still places them. Put everybody in a group first.
 - **Nothing is deployed for any of this.** No rule and no index changes.
   The rows are written by routes into a collection that was already shut to
-  every browser write, and read back by one equality on `runId`.
+  every browser write, and read back by one equality on `runId`. Publish's
+  test record, its once-only facilitator markers and the hold one press keeps
+  on the run live in `courseNudges`, which is shut to browsers too, and each
+  carries `runId`, so destroying the run clears them.
 
 ### When somebody gives their place back
 
