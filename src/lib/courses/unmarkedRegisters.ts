@@ -5,11 +5,15 @@ import { REGISTER_FOLLOW_UP_TASK_SOURCE } from "@/lib/firestore/courseTasks";
 /**
  * THE UNMARKED-REGISTER FOLLOW-UP, everything about it that is arithmetic.
  *
- * A facilitator who never presses PUSH ATTENDANCE costs their group two
- * things at once: the register (so every member of the group carries a
- * session in a denominator reviewers read as a shortfall) and the next
- * week's reminder email, which the push is what sends. Neither failure
- * announces itself. This module is the maths behind the job that does.
+ * A register nobody finishes (pushes) costs the group its record: every
+ * member carries a session in a denominator reviewers read as a shortfall,
+ * and nobody sees their mark. While next week's email is not on its schedule
+ * it costs the group that email too, because the push is what sends it then.
+ * Neither failure announces itself. This module is the maths behind the two
+ * jobs that do: a reminder to the group's facilitators
+ * (`courses-register-reminders`, after `unmarkedRegisterGraceHours`) and,
+ * later, a task for the programme's lead and the admins
+ * (`courses-unmarked-registers`, after `registerTaskHours`).
  *
  * PURE. No Firestore, no clock unless one is passed, no runtime imports at
  * all beyond types and one string constant, so the unit suite can transpile
@@ -17,9 +21,9 @@ import { REGISTER_FOLLOW_UP_TASK_SOURCE } from "@/lib/firestore/courseTasks";
  * The Firestore half is `src/lib/scheduler/jobs/unmarkedRegisters.ts`.
  *
  * ── THE WINDOW IS A BAND, NOT A THRESHOLD ───────────────────────────────────
- * The scan looks only at sessions whose END instant is between the grace
- * (`config/courses.unmarkedRegisterGraceHours`, default 36) and the grace plus
- * 24 hours. A threshold ("older than the grace") would re-derive every unmarked
+ * Each job looks only at sessions whose END instant is between its own hours
+ * (the reminder's `unmarkedRegisterGraceHours`, default 36; the task's
+ * `registerTaskHours`, default 60) and those hours plus 24. A threshold ("older than the grace") would re-derive every unmarked
  * session of the whole term on every tick, which is exactly the read cost the
  * 60s ceiling cannot absorb; the marker would suppress the WRITES, and the
  * reads would still happen. A 24-hour band over a tick every 15 minutes gives
@@ -192,6 +196,27 @@ export function registerFollowUpFallbackTaskId(
 }
 
 /**
+ * Who a register task is for: the lead of the programme that names the run,
+ * when there is one standing behind the name, then every admin.
+ *
+ * The LEAD FIRST, so the completer cap (the tasks rules' ten) can never drop
+ * the one person the task is most about; the admins after, in the stable
+ * order the caller read them in, deduplicated (a lead may be an admin too).
+ */
+export function registerTaskCompleters(
+  leadUid: string | null,
+  adminUids: readonly string[],
+  cap: number,
+): string[] {
+  const out: string[] = [];
+  for (const uid of [leadUid, ...adminUids]) {
+    if (!uid || out.includes(uid)) continue;
+    out.push(uid);
+  }
+  return out.slice(0, Math.max(0, cap));
+}
+
+/**
  * Is the document already at the deterministic id the tick's OWN task?
  *
  * A task's id says nothing about who made it, so the job reads the task back
@@ -249,18 +274,29 @@ export type FollowUpCopyArgs = {
   weekNumber: number;
   occurrence: number;
   dateKey: string;
+  /**
+   * True when next week's email goes on its schedule, so the register's
+   * button is "Finish the register" and finishing it emails nobody. False
+   * while the push still sends that email.
+   */
+  scheduled: boolean;
 };
 
 /** Title, clamped by the caller to `TASK_FIELD_LIMITS.title`. */
 export function registerFollowUpTitle(args: FollowUpCopyArgs): string {
   const where = args.groupName || "a group";
-  return `Unmarked register: ${where}, week ${args.weekNumber}`;
+  return `Register not finished: ${where}, week ${args.weekNumber}`;
 }
 
 /**
  * The card's body. Plain text, rendered as text nodes by the task UI, and it
  * says the same three things every follow-up says: what has not happened, what
  * that costs, and the one press that fixes it.
+ *
+ * Which press, and what it costs, depend on whether next week's email is on
+ * its schedule: while it is, the button is "Finish the register" and the
+ * email is not waiting on it; while it is not, the button is "Push
+ * attendance" and the group has heard nothing about next week either.
  */
 export function registerFollowUpDescription(args: FollowUpCopyArgs): string {
   const day = sessionDateLabel(args.dateKey);
@@ -271,12 +307,15 @@ export function registerFollowUpDescription(args: FollowUpCopyArgs): string {
     args.occurrence > 1 ? ` (session ${args.occurrence} of that week)` : "";
   const course = args.courseTitle || "a course";
   const group = args.groupName || "this group";
+  const button = args.scheduled ? "Finish the register" : "Push attendance";
   return [
-    `${group} on ${course} has not had its register pushed for ${when}${occurrence}.`,
+    `${group} on ${course} has not had its register finished for ${when}${occurrence}.`,
     "",
-    "Two things are waiting on that press: the attendance record, which reviewers read as evidence of who took part, and the reminder email for the next session, which the push is what sends. Until it happens the group looks like a room full of absences and has heard nothing about next week.",
+    args.scheduled
+      ? "Until it is, the session is missing from the attendance record, which reviewers read as evidence of who took part, and nobody in the group can see their mark. Next week's email goes on its own schedule and is not waiting on this."
+      : "Two things are waiting on that press: the attendance record, which reviewers read as evidence of who took part, and the reminder email for the next session, which the push is what sends. Until it happens the group looks like a room full of absences and has heard nothing about next week.",
     "",
-    "What to do: ask the group's facilitator to open the register and press Push attendance. If the session did not happen, the Didn't happen switch on the column says so and the push then works as normal. An admin can do either from the group's register page.",
+    `What to do: ask the group's facilitator to open the register and press ${button}. If the session did not happen, the Didn't happen switch on the column says so, and the button then works as normal. An admin can do either from the group's register page.`,
   ].join("\n");
 }
 
@@ -289,13 +328,18 @@ export type FollowUpTaskArgs = {
   >;
   courseTitle: string;
   groupName: string;
-  /** Every admin, deduplicated and capped by the caller. Completers. */
-  adminUids: readonly string[];
+  /**
+   * Who the task is for, from `registerTaskCompleters`: the run's lead when
+   * it has one, then every admin, deduplicated and capped. Completers.
+   */
+  completerUids: readonly string[];
   /** Who the task is filed as having created it. An admin uid, never "". */
   creatorUid: string;
-  /** The session's end plus the grace. */
+  /** The session's end plus the task's hours. */
   dueDate: Date;
   now: Date;
+  /** Whether next week's email is on its schedule; see `FollowUpCopyArgs`. */
+  scheduled: boolean;
   /** `TASK_FIELD_LIMITS.title` / `.description`, passed so this stays pure. */
   limits: { title: number; description: number };
 };
@@ -306,9 +350,10 @@ export type FollowUpTaskArgs = {
  * WHY THESE FIELDS ARE WHAT THEY ARE:
  *  - `visibility: "committee"`, so the whole SU-recognised committee can see a
  *    cohort being chased. It is operational, not personal.
- *  - completers are the ADMINS. `permissions` and roles both move; "every
- *    admin" is the one audience that is always somebody, and the owner
- *    decision is explicit that unmarked registers land on the admins' board.
+ *  - completers are the programme's LEAD and the ADMINS
+ *    (`registerTaskCompleters`). The lead is who the programme belongs to;
+ *    "every admin" is the one audience that is always somebody, so a run no
+ *    programme names still lands on a board.
  *  - `reviewerUids: []`. The contract's prose asks for the admins as reviewers
  *    too; the rules cap `reviewerUids` at 5 while `completerUids` is capped at
  *    10, so on a committee of six admins a reviewer-mirrored task falls
@@ -333,6 +378,7 @@ export function buildRegisterFollowUpTask(
     weekNumber: args.session.weekNumber,
     occurrence: args.session.occurrence,
     dateKey: args.session.dateKey,
+    scheduled: args.scheduled,
   };
   const sourceRef: SourceRef = {
     cohortId: args.runId,
@@ -340,14 +386,39 @@ export function buildRegisterFollowUpTask(
     groupId: args.groupId,
     sessionKey: args.session.sessionKey,
   };
-  return {
+  return registerTaskPayload({
     title: registerFollowUpTitle(copy).slice(0, args.limits.title),
     description: registerFollowUpDescription(copy).slice(0, args.limits.description),
+    creatorUid: args.creatorUid,
+    completerUids: args.completerUids,
+    dueDate: args.dueDate,
+    sourceRef,
+    now: args.now,
+  });
+}
+
+/**
+ * The `tasks/{id}` payload every register task shares: the unfinished
+ * register's and the held email's. One shape, so the two cannot drift on the
+ * fields the board, the rules and the run's destroy sweep read.
+ */
+export function registerTaskPayload(args: {
+  title: string;
+  description: string;
+  creatorUid: string;
+  completerUids: readonly string[];
+  dueDate: Date;
+  sourceRef: SourceRef;
+  now: Date;
+}): Omit<TaskDoc, "id"> {
+  return {
+    title: args.title,
+    description: args.description,
     source: REGISTER_FOLLOW_UP_TASK_SOURCE,
     kind: "generic",
     projectId: null,
     creatorUid: args.creatorUid,
-    completerUids: [...args.adminUids],
+    completerUids: [...args.completerUids],
     reviewerUids: [],
     status: "todo",
     priority: "normal",
@@ -361,7 +432,7 @@ export function buildRegisterFollowUpTask(
     attachmentCount: 0,
     commentCount: 0,
     tags: [],
-    sourceRef,
+    sourceRef: args.sourceRef,
     // Not about a worksheet response, and about nothing else the artefact
     // union names. Written rather than omitted, like `sourceRef` above.
     artefact: null,

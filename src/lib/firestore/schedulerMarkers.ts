@@ -52,6 +52,7 @@ export const MARKER_FAMILIES = [
   "breakret",
   "wsremind",
   "evannounce",
+  "regremind",
 ] as const;
 
 export type SchedulerMarkerFamily = (typeof MARKER_FAMILIES)[number];
@@ -299,6 +300,37 @@ export function unmarkedRegisterMarker(
   return {
     id: `unmarked__${fields.groupId}__${fields.sessionKey}`,
     family: "unmarked",
+    fields,
+  };
+}
+
+/**
+ * `regremind__{groupId}__{sessionKey}__{uid}`, ONE FACILITATOR'S reminder that
+ * one session's register is not finished.
+ *
+ * Per facilitator, like every other reminder here: each person's email is the
+ * unit of work that can fail on its own, so each gets its own attempt budget,
+ * its own skip reason and its own stamp. One per session, so a facilitator
+ * is reminded about a register once, however long it stays unfinished.
+ *
+ * The group id is stored as a field, so the run's destroy sweep, which drains
+ * scheduler markers by group, takes these with the run.
+ */
+export function registerReminderMarker(
+  groupId: string,
+  sessionKey: string,
+  uid: string,
+): SchedulerMarkerRef {
+  const fields = {
+    groupId: assertDocIdComponent("groupId", groupId),
+    sessionKey: assertKeyComponent("sessionKey", sessionKey),
+    // A Firebase uid is 28 alphanumeric characters, so it belongs in the
+    // stricter bucket even though it is an id rather than a key.
+    uid: assertKeyComponent("uid", uid),
+  };
+  return {
+    id: `regremind__${fields.groupId}__${fields.sessionKey}__${fields.uid}`,
+    family: "regremind",
     fields,
   };
 }

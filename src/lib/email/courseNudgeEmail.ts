@@ -439,6 +439,161 @@ export const COURSE_NUDGE_TOKEN_KEYS = [
  * "every value is a string" invariant the send guarantees, and the same
  * `sessionWhere`-follows-`sessionWhen` pairing.
  */
+// ---------------------------------------------------------------------------
+// Whole or not at all
+// ---------------------------------------------------------------------------
+
+/**
+ * The two tokens an email may go WITHOUT, and why each is a complete email
+ * rather than a broken one:
+ *
+ *  - `feedbackUrl`: no weekly form is set in Site status. The paragraph that
+ *    carries it is a request for feedback, not a fact about the session, and
+ *    an email that asks for nothing is whole.
+ *  - `firstName`: one recipient has no name on their account. The greeting
+ *    goes, the rest of the message is the same for everybody.
+ *
+ * Every OTHER token the template uses is a fact the group needs: when, where,
+ * what to read. Next week's email on the schedule goes out only when every one
+ * of them has a value (`emptyNudgeValues`), because the renderer's own rule
+ * (drop the sentence whose tokens are all empty) would otherwise send a group
+ * an email that silently says nothing about where it meets.
+ */
+export const NUDGE_TOKENS_AN_EMAIL_MAY_GO_WITHOUT: readonly (keyof CourseNudgeTokens)[] = [
+  "feedbackUrl",
+  "firstName",
+];
+
+/** Every token a template refers to, once each, in the order first met. */
+export function nudgeTokensUsed(template: {
+  subject: string;
+  blocks: Block[];
+}): (keyof CourseNudgeTokens)[] {
+  const texts: string[] = [template.subject];
+  for (const block of template.blocks) {
+    if (block.type === "heading") texts.push(block.text);
+    else if (block.type === "richText") texts.push(block.html);
+    else if (block.type === "image") texts.push(block.alt, block.caption ?? "");
+    else if (block.type === "video") texts.push(block.caption ?? "");
+  }
+  const known = new Set<string>(COURSE_NUDGE_TOKEN_KEYS);
+  const used: (keyof CourseNudgeTokens)[] = [];
+  for (const text of texts) {
+    for (const match of text.matchAll(TOKEN_PATTERN)) {
+      const key = match[1];
+      if (known.has(key) && !used.includes(key as keyof CourseNudgeTokens)) {
+        used.push(key as keyof CourseNudgeTokens);
+      }
+    }
+  }
+  return used;
+}
+
+/**
+ * The tokens this template uses that resolved to nothing, leaving out the two
+ * an email may go without. Empty means the email is whole.
+ *
+ * Asked ONCE PER GROUP, with the group's tokens: every token but `firstName`
+ * is the same for everybody in one group's email, and `firstName` is one of
+ * the two left out.
+ */
+export function emptyNudgeValues(
+  template: { subject: string; blocks: Block[] },
+  tokens: CourseNudgeTokens,
+): (keyof CourseNudgeTokens)[] {
+  return nudgeTokensUsed(template).filter(
+    (key) => !NUDGE_TOKENS_AN_EMAIL_MAY_GO_WITHOUT.includes(key) && !tokens[key],
+  );
+}
+
+/**
+ * What an empty token means to the person who has to fill it in, as a phrase
+ * that finishes "missing: ...". `weekNumber` names the week the email is about.
+ */
+export function missingNudgeValueWords(
+  keys: readonly (keyof CourseNudgeTokens)[],
+  weekNumber: number,
+): string[] {
+  const week = `week ${weekNumber}’s`;
+  const words: Record<keyof CourseNudgeTokens, string> = {
+    courseTitle: "the course’s name",
+    runLabel: "the run’s name",
+    weekNumber: "the week’s number",
+    weekTitle: `${week} title`,
+    weekSummary: `${week} summary`,
+    sessionWhen: "the group’s day and time",
+    sessionWhere: "the group’s room",
+    weekUrl: "the site’s address for the week’s page",
+    feedbackUrl: "the weekly feedback form",
+    firstName: "a name",
+    weekPrep: `${week} reading`,
+  };
+  return keys.map((key) => words[key]);
+}
+
+/** "the room", "the room and week 4’s reading", "a, b and c". */
+export function joinWords(items: readonly string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+/**
+ * THE FACTS ONE GROUP'S EMAIL IS ABOUT, resolved the one way both lanes use:
+ * the push after a register, and the schedule. Two lanes that each worked out
+ * "when and where" would be two answers to a question that has one.
+ *
+ * `session` is the session the email is ABOUT (the group's next one). Its date
+ * and slot come from `resolveSessions`, so a week's one-off change of time or
+ * room is already applied; the week's virtual switch is read from the group.
+ */
+export function groupNudgeFacts(args: {
+  courseTitle: string;
+  runLabel: string;
+  runId: string;
+  appUrl: string;
+  feedbackUrl: string;
+  session: { weekNumber: number; dateKey: string; session: GroupSession };
+  mode: GroupSessionMode | null;
+  week: {
+    title?: string | null;
+    summary?: string | null;
+    materials?: readonly { optional?: boolean }[] | null;
+    exercises?: readonly { required?: boolean }[] | null;
+    estimatedMinutes?: number | null;
+  };
+}): { sessionWhen: string; sessionWhere: string; context: CourseNudgeRunContext } {
+  return {
+    sessionWhen: courseNudgeSessionWhen(args.session.session, args.session.dateKey),
+    sessionWhere: courseNudgeSessionWhere(args.session.session, args.mode),
+    context: {
+      courseTitle: args.courseTitle,
+      runLabel: args.runLabel,
+      weekNumber: args.session.weekNumber,
+      weekTitle: args.week.title ?? "",
+      weekSummary: args.week.summary ?? "",
+      weekPrep: courseWeekPrepLine(args.week),
+      weekUrl: courseWeekUrl(args.appUrl, args.runId, args.session.weekNumber),
+      // Empty until an admin sets a form, and the renderer then drops the
+      // paragraph whole rather than shipping a dead link.
+      feedbackUrl: args.feedbackUrl,
+    },
+  };
+}
+
+/** The group's tokens, with no recipient: what `emptyNudgeValues` is asked of. */
+export function groupNudgeTokens(facts: {
+  sessionWhen: string;
+  sessionWhere: string;
+  context: CourseNudgeRunContext;
+}): CourseNudgeTokens {
+  return buildCourseNudgeTokens({
+    ...facts.context,
+    sessionWhen: facts.sessionWhen,
+    sessionWhere: facts.sessionWhere,
+    recipientName: "",
+  });
+}
+
 export function courseNudgeTokensFrom(
   raw: Record<string, string | undefined>,
 ): CourseNudgeTokens {

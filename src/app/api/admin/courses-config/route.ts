@@ -6,13 +6,17 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import {
   COURSE_CONFIG_PATH,
   DEFAULT_COURSES_CONFIG,
+  NEXT_WEEK_EMAIL_MAX_DAYS,
+  REGISTER_CHASE_MAX_HOURS,
   readCoursesConfig,
+  type CoursesConfig,
 } from "@/lib/firestore/config";
 
 /**
- * Admin-only read and write of the two `config/courses` knobs a human ever
- * has cause to change: the anonymous drop-out feedback form, and how long a
- * register may go unmarked before the follow-up job chases the facilitator.
+ * Admin-only read and write of the `config/courses` knobs a human ever has
+ * cause to change: the two feedback forms, how long an unfinished register
+ * waits before its facilitators are reminded and before the lead and admins
+ * get a task, and how many days before each session next week's email goes.
  *
  * ── WHY A ROUTE AT ALL ──────────────────────────────────────────────────────
  * `config` has no client read rule and no client write rule, in either
@@ -20,7 +24,7 @@ import {
  * collection whose whole posture is Admin SDK only. So the panel cannot read
  * or write the doc itself, and this route is the only door.
  *
- * ── WHY ONLY TWO FIELDS ─────────────────────────────────────────────────────
+ * ── WHY ONLY THESE FIELDS ───────────────────────────────────────────────────
  * The other three (`nextSessionMaxDays`, `unmarkedScanBudgetMs`,
  * `maxFollowUpTasksPerTick`) are scheduler cost dials. They have sensible
  * defaults, changing one wrongly degrades a background job in ways nobody
@@ -29,18 +33,31 @@ import {
  * would make the panel a way to break the tick.
  *
  * ── MERGE, NEVER REPLACE ────────────────────────────────────────────────────
- * The write is `set(..., { merge: true })` over the two named keys. A full
- * overwrite from a panel that only knows two fields would silently reset the
- * three it does not, which is exactly the class of bug the narrow surface
+ * The write is `set(..., { merge: true })` over the named keys. A full
+ * overwrite from a panel that only knows some fields would silently reset the
+ * ones it does not, which is exactly the class of bug the narrow surface
  * above is meant to avoid.
+ *
+ * ── THE TASK COMES AFTER THE REMINDER ───────────────────────────────────────
+ * The two chases are read as a pair on the register page ("Not finished 36
+ * hours after the session? ... At 60 hours, ..."), so a task hour at or
+ * before the reminder hour is refused, checked against the stored value of
+ * whichever of the two the request does not carry.
  *
  * This route ADMINISTERS configuration and lives under /api/admin, so nothing
  * here may be gated on the maintenance notice (tests/no-admin-gating.test.mjs).
  */
 
-/** Generous ceiling: a fortnight. Past that the job would chase a register
-    from a session nobody remembers, which is noise rather than a nudge. */
-const MAX_GRACE_HOURS = 336;
+/** The fields an admin reads and writes here, and nothing else on the document. */
+function view(config: CoursesConfig) {
+  return {
+    dropOutFeedbackUrl: config.dropOutFeedbackUrl,
+    weeklyFeedbackUrl: config.weeklyFeedbackUrl,
+    unmarkedRegisterGraceHours: config.unmarkedRegisterGraceHours,
+    registerTaskHours: config.registerTaskHours,
+    nextWeekEmailDaysBefore: config.nextWeekEmailDaysBefore,
+  };
+}
 
 export async function GET() {
   const actor = await getCurrentUser();
@@ -53,15 +70,8 @@ export async function GET() {
   }
   const config = await readCoursesConfig(db);
   return NextResponse.json({
-    dropOutFeedbackUrl: config.dropOutFeedbackUrl,
-    weeklyFeedbackUrl: config.weeklyFeedbackUrl,
-    unmarkedRegisterGraceHours: config.unmarkedRegisterGraceHours,
-    defaults: {
-      dropOutFeedbackUrl: DEFAULT_COURSES_CONFIG.dropOutFeedbackUrl,
-      weeklyFeedbackUrl: DEFAULT_COURSES_CONFIG.weeklyFeedbackUrl,
-      unmarkedRegisterGraceHours:
-        DEFAULT_COURSES_CONFIG.unmarkedRegisterGraceHours,
-    },
+    ...view(config),
+    defaults: view(DEFAULT_COURSES_CONFIG),
   });
 }
 
@@ -135,17 +145,23 @@ export async function POST(req: Request) {
     update.dropOutFeedbackUrl = url;
   }
 
+  /** A number of hours above 0 and up to the ceiling, or null. */
+  const readHours = (key: "unmarkedRegisterGraceHours" | "registerTaskHours") => {
+    const hours = body[key];
+    return typeof hours === "number" &&
+      Number.isFinite(hours) &&
+      hours > 0 &&
+      hours <= REGISTER_CHASE_MAX_HOURS
+      ? hours
+      : null;
+  };
+
   if ("unmarkedRegisterGraceHours" in body) {
-    const hours = body.unmarkedRegisterGraceHours;
-    if (
-      typeof hours !== "number" ||
-      !Number.isFinite(hours) ||
-      hours <= 0 ||
-      hours > MAX_GRACE_HOURS
-    ) {
+    const hours = readHours("unmarkedRegisterGraceHours");
+    if (hours === null) {
       return NextResponse.json(
         {
-          error: `The grace period must be a number of hours between 1 and ${MAX_GRACE_HOURS}.`,
+          error: `The reminder needs a number of hours between 1 and ${REGISTER_CHASE_MAX_HOURS}.`,
         },
         { status: 400 },
       );
@@ -153,8 +169,62 @@ export async function POST(req: Request) {
     update.unmarkedRegisterGraceHours = hours;
   }
 
+  if ("registerTaskHours" in body) {
+    const hours = readHours("registerTaskHours");
+    if (hours === null) {
+      return NextResponse.json(
+        {
+          error: `The task needs a number of hours between 1 and ${REGISTER_CHASE_MAX_HOURS}.`,
+        },
+        { status: 400 },
+      );
+    }
+    update.registerTaskHours = hours;
+  }
+
+  if ("nextWeekEmailDaysBefore" in body) {
+    const days = body.nextWeekEmailDaysBefore;
+    if (
+      typeof days !== "number" ||
+      !Number.isInteger(days) ||
+      days < 1 ||
+      days > NEXT_WEEK_EMAIL_MAX_DAYS
+    ) {
+      return NextResponse.json(
+        {
+          error: `Next week's email needs a whole number of days between 1 and ${NEXT_WEEK_EMAIL_MAX_DAYS}.`,
+        },
+        { status: 400 },
+      );
+    }
+    update.nextWeekEmailDaysBefore = days;
+  }
+
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: "Nothing to change." }, { status: 400 });
+  }
+
+  // The pair is checked as it will be STORED: a request that moves one of the
+  // two is held against the other's current value.
+  if ("unmarkedRegisterGraceHours" in update || "registerTaskHours" in update) {
+    const stored = await readCoursesConfig(db);
+    const reminder =
+      typeof update.unmarkedRegisterGraceHours === "number"
+        ? update.unmarkedRegisterGraceHours
+        : stored.unmarkedRegisterGraceHours;
+    const task =
+      typeof update.registerTaskHours === "number"
+        ? update.registerTaskHours
+        : stored.registerTaskHours;
+    if (task <= reminder) {
+      return NextResponse.json(
+        {
+          error:
+            "The task has to come after the reminder. Give the task more hours than the reminder.",
+        },
+        { status: 400 },
+      );
+    }
   }
 
   update.updatedAt = FieldValue.serverTimestamp();
@@ -167,10 +237,5 @@ export async function POST(req: Request) {
     .set(update, { merge: true });
 
   const config = await readCoursesConfig(db);
-  return NextResponse.json({
-    ok: true,
-    dropOutFeedbackUrl: config.dropOutFeedbackUrl,
-    weeklyFeedbackUrl: config.weeklyFeedbackUrl,
-    unmarkedRegisterGraceHours: config.unmarkedRegisterGraceHours,
-  });
+  return NextResponse.json({ ok: true, ...view(config) });
 }
