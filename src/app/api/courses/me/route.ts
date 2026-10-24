@@ -67,9 +67,29 @@ import {
  *
  * PII: names never travel at all (nobody but the caller is named), and the one
  * cross-collection lookup is a group NAME. No emails, no cohort rosters. The
- * application rows are read for exactly two fields, `runId` and `status`;
- * nothing else on them (the applicant's email, their answers) goes near the
- * payload, and the query cannot see another applicant's row at all.
+ * application rows are read for exactly three fields, `runId`, `status` and
+ * `fromForm`; nothing else on them (the applicant's email, their answers)
+ * goes near the payload, and the query cannot see another applicant's row at
+ * all.
+ *
+ * ── A ROW THE APPLICATION FORM'S HAND-OVER WROTE IS ANNOUNCED AS NOTHING ────
+ * The term's application form decides who holds a place, and an admin's
+ * hand-over then writes a row on a run for each of them (`fromForm` says so),
+ * for the allocation board to place people from. That row is the course
+ * side's working list. It is NOT news for its owner, whatever its status:
+ *
+ *  - what became of their application is said on their own application page
+ *    and on the list of their applications, and nowhere else
+ *    (docs/applications.md, "One set of words for an outcome"), and what
+ *    comes next for their kind of programme is said there too;
+ *  - an offer card speaks in the words of a run's own application form
+ *    ("Place offered", "Waitlisted"), which somebody from the term's form
+ *    never used.
+ *
+ * So such a row is passed over before its status is looked at, and nothing
+ * about the form or the caller's application is read here at all. The first
+ * thing this hub shows somebody the form placed is their GROUP: the enrolment
+ * an admin's placement on the board makes, drawn as it is for anybody.
  */
 
 // ---------------------------------------------------------------------------
@@ -319,6 +339,10 @@ export async function GET() {
     // Belt to the query's braces: the row is only ever the caller's, and a
     // row whose stored uid disagrees is not theirs to be told about.
     if (app.uid !== actor.uid || !app.runId) continue;
+    // A row the application form's hand-over wrote is never an offer, and
+    // never anything else here either: see the note at the top. Asked before
+    // the status, so no status such a row can be given is ever announced.
+    if (app.fromForm !== null) continue;
     if (app.status !== "accepted" && app.status !== "waitlisted") continue;
     applicationStatusByRun.set(app.runId, app.status);
   }

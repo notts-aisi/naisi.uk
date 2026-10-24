@@ -158,6 +158,16 @@ const READS_THE_LISTS = {
     why: "a scheduled job with nobody looking: it reminds people decision day has already told",
     holds: "no-session",
   },
+  "lib/applications/handover/handOver.ts#handOverProgramme": {
+    kind: "everybody",
+    why: "everybody who holds a place goes onto the run, an admin who applied included. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",
+    holds: "after-the-send",
+  },
+  "lib/applications/handover/load.ts#loadRunPanel": {
+    kind: "everybody",
+    why: "the panel names who a press would hand over, and that is everybody who holds a place. It names and counts nobody until the term is marked as sent",
+    holds: "after-the-send",
+  },
 };
 
 /**
@@ -285,6 +295,18 @@ describe("every reader of the committee's lists says what it does about the view
       test(`${key} is called by nothing a screen is built from`, () => {
         const callers = sourceFiles.filter((file) => calls(scan(file).text.replace(fn.text, ""), fn.name));
         assert.deepEqual(callers.map(inSrc), []);
+      });
+    }
+    if (entry.holds === "after-the-send") {
+      test(`${key} reads nobody's application until the term is marked as sent`, () => {
+        // Decision day is what makes an outcome its owner's to know. Until the
+        // term is marked as sent, a list of everybody could tell the person
+        // looking where their own application stands, so the function leaves
+        // before any of the lists is read.
+        const leaves = fn.body.search(/if \(form\.decisionsSentAt === null\) return\b/);
+        const read = Math.min(...LIST_READERS.map((name) => firstCall(fn.body, name)).filter((at) => at >= 0));
+        assert.ok(leaves >= 0, `${key} no longer leaves while decisions have not been sent`);
+        assert.ok(leaves < read, `${key} reads everybody's applications before it has asked whether decisions have been sent`);
       });
     }
     if (entry.holds === "no-session") {

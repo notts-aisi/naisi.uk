@@ -676,6 +676,30 @@ export const ROUTES = {
         "decision, taken from the form once it is read.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run": {
+    GET: {
+      expect: adminOnly(404),
+      why:
+        "Admin only (placing people on a run is part of running the term), decided before the " +
+        "read: every other session is forbidden whether or not the form or the programme " +
+        "exists, a programme's own lead included, and the admin is told the id is missing.",
+    },
+    PUT: {
+      expect: adminOnly(400),
+      why:
+        "Admin only, decided before the body is read: every other session is forbidden and " +
+        "the admin meets the validation. Naming a run has to say which run, or no run.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/hand-over": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Admin only, decided before anything is read: every other session is forbidden " +
+        "whether or not the form exists. It takes no body, so the admin goes straight to the " +
+        "form, and is told the id is missing.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email": {
     POST: {
       expect: signedIn(400),

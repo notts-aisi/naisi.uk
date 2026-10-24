@@ -349,7 +349,7 @@ const HOME = {
 
 const HUB_HEAD =
   "Courses Your courses Every fellowship and reading group you're on: the week your cohort is on, the materials for it, " +
-  "and the exercises you owe. A place you've been offered shows here too, until your group is confirmed.";
+  "and the exercises you owe. A course can show here before your group is set.";
 const HUB_EMPTY =
   "You're not on a course yet NAISI runs fellowships and reading groups each term. The catalogue lists what's open and what's coming. Browse courses";
 const LEARN = {
@@ -362,11 +362,12 @@ const PROGRAMMES = Object.entries(roundDoc().programmes).flatMap(([id, programme
 
 /**
  * Words for an outcome that neither page has any other reason to print. The
- * list of programmes speaks, to everybody, of "a place you've been offered",
- * so the bare words place and offered are not on this list.
+ * bare words place and offered are on it: the list of programmes used to
+ * speak, to everybody, of "a place you've been offered", and now says only
+ * that a course can show there before somebody's group is set.
  */
 const OUTCOME_WORDS =
-  /you[’']re in\b|accepted|invit|no place|can[’']t offer|given back|no thanks|turned down|can[’']t make it|waitlist|declin|reject|withdr[ae]w|unsuccessful|congratulations/i;
+  /you[’']re in\b|accepted|invit|\bplaces?\b|offered|can[’']t offer|given back|no thanks|turned down|can[’']t make it|waitlist|declin|reject|withdr[ae]w|unsuccessful|congratulations/i;
 
 /** What the person's own page says of this application: its chip, its title, and what comes next. */
 async function saidOnTheirOwnPage(uid) {

@@ -349,6 +349,27 @@ const USERS = new Map([
       "running them says so",
   ],
   [
+    "applications-handover-member-area.test.mjs",
+    "executes the member area's own route and the gate every page under /learn/[runId] asks, " +
+      "for somebody an admin's hand-over put on a course run, and renders the run card (.tsx) " +
+      "to HTML, because that the hand-over is announced as nothing, and that the first thing " +
+      "the person is shown is their group, are only true if the route and the card say so",
+  ],
+  [
+    "applications-handover-older-way-in.test.mjs",
+    "executes the older per-run apply route and renders its page (a .tsx server component) to " +
+      "HTML for a run a programme on the application form names, because whether that run " +
+      "takes an application is decided by reading the forms when the request arrives, and the " +
+      "route reaches the course email templates through the mail door it stubs",
+  ],
+  [
+    "applications-handover-panel.test.mjs",
+    "renders a programme's Settings tab (a .tsx server component) for an admin, for the " +
+      "programme's lead and for a reviewer, against a database that records its reads, " +
+      "because whether the \"Course run\" panel is drawn, and whether anything was read to " +
+      "draw it, is decided by the page as it runs",
+  ],
+  [
     "applications-journey-in-term.test.mjs",
     "executes the contract's term arithmetic beside every builder and loader that counts with " +
       "it (the review list, the decision-day plan, the two editor loaders) on one stored term, " +
@@ -361,7 +382,9 @@ const USERS = new Map([
       "writer against one in-memory store, as one term from an empty form to a settled one, " +
       "because a disagreement between two parts of the application system exists only when " +
       "both run on the same documents; the mail door is stubbed to record and the email " +
-      "templates behind it are compiled for real",
+      "templates behind it are compiled for real. Its last chapter also executes the course " +
+      "routes a hand-over feeds (the older apply route, the allocation board, a placement and " +
+      "the member area), on the same documents",
   ],
   [
     "applications-own-application.test.mjs",

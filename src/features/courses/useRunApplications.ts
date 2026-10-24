@@ -35,8 +35,11 @@ export type AdmissionsRow = {
    * never reconstruct one from anywhere else.
    */
   email: string | null;
-  /** Paid-membership snapshot at apply time. A BADGE for reviewers, never a gate. */
-  paidMembership: boolean;
+  /**
+   * Paid-membership snapshot at apply time. A BADGE for reviewers, never a
+   * gate. `null` when it is not known, and the queue then draws no badge.
+   */
+  paidMembership: boolean | null;
   status: CourseApplicationStatus;
   /** Keyed by the run's form-question ids. Member-authored — render as text. */
   answers: Record<string, unknown>;

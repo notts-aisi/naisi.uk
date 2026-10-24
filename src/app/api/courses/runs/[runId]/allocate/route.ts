@@ -4,7 +4,11 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { joinedWeekFor } from "@/lib/courses/groupResolve";
-import { courseApplicationId } from "@/lib/firestore/courseApplications";
+import {
+  courseApplicationId,
+  normalizeCourseApplication,
+  rowIsServedTo,
+} from "@/lib/firestore/courseApplications";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
@@ -20,6 +24,12 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * WHO MAY ALLOCATE: admins ∪ the run's `trackLeadUids` (the people who staff
  * the run). Admissions reviewers decided WHO gets in; this route decides
  * WHERE they sit, and the two powers are deliberately separate.
+ *
+ * SOMEBODY THE APPLICATION FORM PLACED ON THIS RUN IS PLACED BY AN ADMIN. A
+ * row an admin's hand-over wrote (`fromForm`) is an admin's on every staff
+ * route (`rowIsServedTo`), so a track lead who sends that person's uid is
+ * answered exactly as for somebody with no accepted application at all, and
+ * learns nothing from the answer.
  *
  * ── WHY THERE IS NO UNIQUENESS SEARCH ───────────────────────────────────────
  * Double-placement is structurally impossible, so nothing here queries for
@@ -227,10 +237,18 @@ export async function POST(req: Request, ctx: Ctx) {
 
           // Only ACCEPTED applicants may be placed — allocation follows
           // admissions, never sidesteps it. (Direct enrolment without an
-          // application is a different, future path.)
+          // application is a different, future path.) A row the application
+          // form put here is an admin's to place, and anybody else is told
+          // what they would be told about a uid with no accepted row.
           const appSnap = applicationByUid.get(uid);
-          const appStatus = appSnap?.exists ? (appSnap.data() ?? {}).status : null;
-          if (appStatus !== "accepted") {
+          const application = appSnap?.exists
+            ? normalizeCourseApplication(appSnap.id, appSnap.data() ?? {})
+            : null;
+          if (
+            !application ||
+            application.status !== "accepted" ||
+            !rowIsServedTo(application, { isAdmin })
+          ) {
             chunkRejected.push({ uid, reason: "not-accepted" });
             continue;
           }

@@ -59,6 +59,14 @@ export type CourseAuditKind =
   /** A run was settled: enrolments closed out and completion decided. */
   | "run-settled"
   /**
+   * An admin handed the people who hold a place on a programme of the
+   * application form over to this run's allocation board. One row for each
+   * press that put anybody there, saying how many and from which programme.
+   * It is about the run, so it is keyed to the run like every kind above, and
+   * it names no member.
+   */
+  | "run-hand-over"
+  /**
    * Somebody read an applicant's access-requirements answer. Logged because
    * that answer is health and disability information held deliberately
    * outside the scored payload, and "who has read it" is the only control
@@ -93,6 +101,7 @@ export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "enrolment-dropout",
   "enrol-mode-change",
   "run-settled",
+  "run-hand-over",
   "access-requirements-read",
   "application-decision",
   "application-decision-revoked",
@@ -113,6 +122,7 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "enrolment-dropout": "Member dropped out",
   "enrol-mode-change": "Enrolment mode changed",
   "run-settled": "Run settled",
+  "run-hand-over": "People handed over from the application form",
   "access-requirements-read": "Access requirements read",
   "application-decision": "Application decided",
   "application-decision-revoked": "Acceptance revoked",

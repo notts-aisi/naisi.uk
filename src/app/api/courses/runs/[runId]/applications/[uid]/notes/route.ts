@@ -6,6 +6,8 @@ import { getCurrentUser } from "@/lib/firebase/session";
 import {
   APPLICATION_FIELD_LIMITS,
   courseApplicationId,
+  normalizeCourseApplication,
+  rowIsServedTo,
 } from "@/lib/firestore/courseApplications";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
@@ -86,6 +88,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
   // Structural (the doc id is built from the pair), asserted anyway so a
   // hand-written doc fails closed instead of being annotated by mistake.
   if (existing.uid !== uid || existing.runId !== runId) {
+    return NextResponse.json({ error: "Application not found" }, { status: 404 });
+  }
+  // A row the application form put here is an admin's (`rowIsServedTo`). The
+  // run's own reviewer is answered as for a row that is not there.
+  if (!rowIsServedTo(normalizeCourseApplication(appSnap.id, existing), { isAdmin })) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 });
   }
 

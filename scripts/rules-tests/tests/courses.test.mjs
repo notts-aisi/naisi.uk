@@ -891,6 +891,51 @@ describe("server-owned course collections", () => {
     await assertSucceeds(admin.collection("courseApplications").doc("run1__learner").get());
   });
 
+  it("a row the application form put on a run is read by its own person and by an admin, and by nobody the run names", async () => {
+    // An admin's hand-over writes an accepted row for somebody who applied on
+    // the term's application form (`fromForm` says which form and programme).
+    // The staff routes serve such a row to admins only, and that is the whole
+    // boundary only if no browser can read one directly. So this holds the
+    // other half: the run's track lead, its admissions reviewer, a course
+    // approver and SU-recognised committee are each refused the document and
+    // every list that could return it, and the person themself reads it.
+    await seedCast();
+    await seedUser("sucom", { role: "committee", suRecognised: true });
+    await seed(async (db) => {
+      await db
+        .collection("courseRuns")
+        .doc("run1")
+        .set(runDoc("run1", { trackLeadUids: ["lead"], admissionsReviewerUids: ["facil"] }));
+      await db.collection("courseApplications").doc("run1__learner").set({
+        runId: "run1",
+        courseId: "course1",
+        uid: "learner",
+        displayName: "A Learner",
+        status: "accepted",
+        fromForm: { roundId: "autumn-2026", programmeId: "agi-strategy" },
+      });
+    });
+    const row = (db) => db.collection("courseApplications").doc("run1__learner");
+
+    await assertSucceeds(row(await asUser("learner")).get());
+    await assertSucceeds(row(await asUser("admin1")).get());
+    for (const uid of ["lead", "facil", "approver", "drafter", "sucom", "pending1"]) {
+      const db = await asUser(uid);
+      await assertFails(row(db).get());
+      await assertFails(db.collection("courseApplications").where("runId", "==", "run1").get());
+      await assertFails(db.collection("courseApplications").where("status", "==", "accepted").get());
+    }
+    await assertFails(row(await asAnon()).get());
+
+    // And nobody writes one from a browser, the person and an admin included.
+    for (const uid of ["learner", "admin1", "lead"]) {
+      const db = await asUser(uid);
+      await assertFails(row(db).update({ status: "withdrawn" }));
+      await assertFails(row(db).update({ fromForm: null }));
+      await assertFails(row(db).delete());
+    }
+  });
+
   it("attendance registers are unreadable by everyone from the client — each row maps ALL uids", async () => {
     await seedCast();
     await seed(async (db) => {

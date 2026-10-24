@@ -695,9 +695,18 @@ test("SOURCE: the apply page sends an open-enrolment run to the picker", () => {
   // render a live application form whose submit the route refused.
   assert.match(FETCH_COURSES, /openEnrol: boolean;/);
   assert.match(FETCH_COURSES, /run\.enrolMode === "open"/);
+  // The context has since gained `placedFromForm`, for a run the term's
+  // application form places people on. An open run is never one of those, so
+  // the same return carries it as false, and the open-enrolment answer still
+  // comes first and still reads no group.
   assert.match(
     FETCH_COURSES,
-    /return \{ course, run, window, groups: \[\], openEnrol: true \};/,
+    /return \{ course, run, window, groups: \[\], openEnrol: true, placedFromForm: false \};/,
+  );
+  assert.ok(
+    FETCH_COURSES.indexOf('run.enrolMode === "open"', FETCH_COURSES.indexOf("export async function getApplyContext")) <
+      FETCH_COURSES.indexOf("runTakesPeopleFromForm(db, run.id)"),
+    "an open-enrolment run is answered before anything is asked about a form",
   );
   assert.match(APPLY_PAGE, /if \(context\.openEnrol\) redirect\(/);
   // The redirect has to come before the form's own props are read, or the

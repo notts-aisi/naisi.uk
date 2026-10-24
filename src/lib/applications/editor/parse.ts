@@ -408,7 +408,7 @@ const PROGRAMME_FOREIGN_FIELDS: Record<string, string> = {
   reviewerUids: "Reviewers are added and removed in the Reviewing section.",
   kind: "Whether a programme is a fellowship or an incubator is fixed when it is added.",
   id: "A programme’s id never changes.",
-  runId: "The course run a programme places people on is not set here.",
+  runId: "The course run a programme places people on is named by an admin, in the Course run section.",
 };
 
 function readWording(raw: unknown, title: string): Parsed<EmailWording | null> {

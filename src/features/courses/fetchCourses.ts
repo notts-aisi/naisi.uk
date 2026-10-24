@@ -23,6 +23,7 @@ import {
   toPublicCoursePage,
   type PublicCoursePage,
 } from "@/lib/firestore/coursePages";
+import { runTakesPeopleFromForm } from "@/lib/applications/lifecycle/openForm";
 import { fetchFormRoundsByCourse, speakingRoundFor } from "./fetchFormRound";
 import {
   listLiveRoundsByCourse,
@@ -746,6 +747,14 @@ export type ApplyContext = {
    * form whose submit the route then turned away.
    */
   openEnrol: boolean;
+  /**
+   * True when the term's application form places people on this run
+   * (`runTakesPeopleFromForm`). Such a run takes no application of its own,
+   * whatever its status and dates say, so the page draws a card in words
+   * where the form would be and reads nobody's application. The apply route
+   * refuses on the same answer.
+   */
+  placedFromForm: boolean;
 };
 
 /** Index = `Date.getDay()`, matching `GroupSession.weekday` (0 = Sunday). */
@@ -825,7 +834,14 @@ export async function getApplyContext(
   // read is skipped too and the page sends the visitor to the course page
   // where the session picker lives.
   if (run.enrolMode === "open") {
-    return { course, run, window, groups: [], openEnrol: true };
+    return { course, run, window, groups: [], openEnrol: true, placedFromForm: false };
+  }
+
+  // A RUN THE APPLICATION FORM PLACES PEOPLE ON short-circuits the same way,
+  // and for the same reason: there is no form of this run's own to render,
+  // so there are no session chips to read either.
+  if (await runTakesPeopleFromForm(db, run.id)) {
+    return { course, run, window, groups: [], openEnrol: false, placedFromForm: true };
   }
 
   const groupSnap = await db
@@ -854,5 +870,12 @@ export async function getApplyContext(
   // a week. "HH:MM" is zero-padded, so a string compare IS time order.
   rows.sort((a, b) => a.day - b.day || a.start.localeCompare(b.start));
 
-  return { course, run, window, groups: rows.map((r) => r.option), openEnrol: false };
+  return {
+    course,
+    run,
+    window,
+    groups: rows.map((r) => r.option),
+    openEnrol: false,
+    placedFromForm: false,
+  };
 }

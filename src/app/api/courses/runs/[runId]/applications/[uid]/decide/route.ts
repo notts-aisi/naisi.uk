@@ -8,6 +8,8 @@ import { COURSE_TZ } from "@/lib/courses/weekPlan";
 import {
   APPLICATION_FIELD_LIMITS,
   courseApplicationId,
+  normalizeCourseApplication,
+  rowIsServedTo,
   type CourseApplicationStatus,
 } from "@/lib/firestore/courseApplications";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
@@ -146,6 +148,13 @@ export async function POST(req: Request, ctx: Ctx) {
       // The doc id is built from (runId, uid), so this can only fail if a doc
       // was written by hand. Fail closed rather than decide the wrong row.
       if (existing.uid !== uid || existing.runId !== runId) {
+        throw new DecideError("Application not found", 404);
+      }
+
+      // A row the application form put here is an admin's (`rowIsServedTo`).
+      // The run's own reviewer is answered as for a row that is not there, so
+      // the answer says nothing about who the form placed.
+      if (!rowIsServedTo(normalizeCourseApplication(snap.id, existing), { isAdmin })) {
         throw new DecideError("Application not found", 404);
       }
 

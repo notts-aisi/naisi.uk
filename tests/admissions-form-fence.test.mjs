@@ -436,6 +436,21 @@ const ROUND_SURFACES = {
       "names a programme's lead and reviewers through setProgrammeRoles, the one writer, " +
       "which asks whether the round is a form before its transaction and again inside it",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run": {
+    kind: "form",
+    why:
+      "names the course run a programme places people on, through setProgrammeRun, and reads " +
+      "the panel beside it through loadRunPanel. The writer is a transaction that reads the " +
+      "round and stops unless it is a form, and the panel starts from the form's own loader",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/hand-over": {
+    kind: "form",
+    why:
+      "hands the people who hold a place on a programme over to its course run, through " +
+      "handOverProgramme. It loads the round with the form's own loader before it reads " +
+      "anybody's application, and every transaction that writes a row reads the round again " +
+      "and stops unless it is a form",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email": {
     kind: "form",
     why:
@@ -1200,6 +1215,30 @@ const ROUND_READERS = new Map([
         "the decision writers and the reviewers' switch. A decision and a revocation are each a " +
         "transaction that reads the round and asks before it writes anything. The gate in front " +
         "of them and the switch load the round through the form's own loader, which asks too",
+    },
+  ],
+  [
+    "src/lib/applications/handover/handOver.ts",
+    {
+      kind: "form",
+      asks: 1,
+      proof: ["const form = await loadForm(db, roundId);", "await tx.get(formRef(db, roundId))"],
+      why:
+        "the hand-over of a programme's place holders to its course run. The press starts from " +
+        "the form's own loader, which answers null for a round that is not a form, and each " +
+        "transaction that creates rows reads the round again and asks before it writes",
+    },
+  ],
+  [
+    "src/lib/applications/handover/run.ts",
+    {
+      kind: "form",
+      asks: 2,
+      proof: ['.where("formVersion", "==", FORM_VERSION)', "const snap = await tx.get(roundRef);"],
+      why:
+        "the one writer of the course run a programme names. Its transaction reads the round " +
+        "and asks before it writes. To see whether another programme already names the run it " +
+        "asks the database for forms only, and asks each stored document the question again",
     },
   ],
   [

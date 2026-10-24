@@ -80,8 +80,8 @@ export default function LearnHub({ instead }: Props) {
         <h1 className={styles.title}>Your courses</h1>
         <p className={styles.lede}>
           Every fellowship and reading group you&apos;re on: the week your cohort is
-          on, the materials for it, and the exercises you owe. A place you&apos;ve
-          been offered shows here too, until your group is confirmed.
+          on, the materials for it, and the exercises you owe. A course can show
+          here before your group is set.
         </p>
       </div>
 
