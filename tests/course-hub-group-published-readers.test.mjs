@@ -180,6 +180,19 @@ const READERS = {
     proof: ["if (!isAdmin && !isTrackLead) {", "allocatedEmailAt: FieldValue.serverTimestamp()"],
     why: "Publish: it emails each untold seat its group and then stamps it told, which is the fact this rule reads",
   },
+  "lib/courses/allocationPublish.ts": {
+    kind: "board",
+    proof: [
+      "if (input.adminOnly) return { ...empty, adminOnly: true };",
+      "!enrolmentByUid.get(row.uid)?.allocatedEmailAt",
+      "groupSize: placedIn.get(group.id) ?? 0",
+    ],
+    why:
+      "Publish's plan, read behind the board's gate by the board's count, \"Send a test to me\" and Publish, and an admin's " +
+      "alone on a run the form fills: it reads each seat Publish has not told to write its owner's email, which a press " +
+      "sends to them and a test, the first one only, to the presser alone; it counts a group's seats, told or not, into " +
+      "its facilitators' email; and its answers name only the people it cannot write to",
+  },
   "app/api/courses/groups/[groupId]/facilitators/route.ts": {
     kind: "staff",
     proof: ['if (!(actor.role === "admin" || isTrackLead)) {', 'role: "facilitator"'],

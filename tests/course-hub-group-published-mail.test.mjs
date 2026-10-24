@@ -94,12 +94,60 @@ describe("the cohort lanes reach the people Publish has told, and nobody it has 
   });
 });
 
+/**
+ * What one message the mail door was handed is: Publish's placement email,
+ * its facilitators' email ("You’re facilitating"), or the presser's test of
+ * either, which is marked in its subject and logged as a test. Anything else
+ * is answered with its own kind and subject, so a comparison names it.
+ */
+function whatItIs(mail) {
+  const test = mail.subject.startsWith("[TEST] ");
+  if (mail.kind !== (test ? "course-test" : "course-application")) return `${mail.kind}: ${mail.subject}`;
+  const subject = test ? mail.subject.slice("[TEST] ".length) : mail.subject;
+  const what = subject.startsWith("Your AGI Strategy Fellowship group: first session ")
+    ? "placement"
+    : subject.startsWith("You’re facilitating ")
+      ? "facilitating"
+      : `${mail.kind}: ${mail.subject}`;
+  return test ? `test of ${what}` : what;
+}
+
+/** The addresses the messages of one kind went to, sorted. */
+const sentTo = (what) =>
+  world.mail
+    .filter((mail) => whatItIs(mail) === what)
+    .map((mail) => mail.to)
+    .sort();
+
+const addressOf = (uid) => world.db.read(`users/${uid}`).email;
+
 describe("Publish itself is the one email before which nothing reaches them", () => {
   test("placing everybody emails nobody; Publish emails each person once; a move emails nobody", async () => {
     await steps.placed();
     assert.equal(world.mail.length, 0);
     await steps.publishes();
-    assert.equal(world.mail.length, 4);
+    // Eight messages and nothing else, in the order the board's press makes
+    // them: the presser's test of Publish's two emails, then the people's
+    // emails, then the facilitators'.
+    assert.deepEqual(world.mail.map(whatItIs), [
+      "test of placement",
+      "test of facilitating",
+      "placement",
+      "placement",
+      "placement",
+      "placement",
+      "facilitating",
+      "facilitating",
+    ]);
+    // Each person placed is emailed their group once, at their own address.
+    assert.deepEqual(sentTo("placement"), ["amara", "bea", "dev", "tariq"].map(addressOf).sort());
+    // Each group with people in it tells its facilitator once.
+    assert.deepEqual(sentTo("facilitating"), ["claudia", "tess"].map(addressOf).sort());
+    // The test reaches the presser and nobody else.
+    assert.deepEqual(
+      [...sentTo("test of placement"), ...sentTo("test of facilitating")],
+      [addressOf("zach"), addressOf("zach")],
+    );
     world.mail.length = 0;
     await steps.place([{ uid: "dev", groupId: GROUP.thursday }]);
     assert.equal(world.mail.length, 0, "a move after Publish emailed somebody");
