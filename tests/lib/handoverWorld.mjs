@@ -447,10 +447,21 @@ const NEXT_SERVER_STUB =
   "  async json() { return this.body; }\n" +
   "}";
 
-/** A stand-in for `sendEmail`: it writes down what it was handed, and that is all. */
+/**
+ * A stand-in for `sendEmail`: it writes down what it was handed, and that is
+ * all. `world.mailFate`, when a suite sets it, says what the real door would
+ * have answered for one message: "held" (this copy of the site may not write
+ * to the address), "suppressed" (the do-not-email list) or "fail" (the send
+ * throws, and nothing is written down). Unset, every message is handed over.
+ */
 const MAIL_DOOR = (handle) =>
   "export async function sendEmail(args) {\n" +
-  `  ${handle}.mail.push(args);\n` +
+  `  const w = ${handle};\n` +
+  "  const fate = w.mailFate ? w.mailFate(args) : 'sent';\n" +
+  "  if (fate === 'fail') throw new Error('the mail door refused');\n" +
+  "  w.mail.push(args);\n" +
+  "  if (fate === 'held') return { messageId: '', delivered: [], suppressed: [], held: [args.to] };\n" +
+  "  if (fate === 'suppressed') return { messageId: '', delivered: [], suppressed: [args.to], held: [] };\n" +
   "  return { messageId: 'm', delivered: [args.to], suppressed: [], held: [] };\n" +
   "}";
 
@@ -481,6 +492,8 @@ export function makeWorld(key = "__handover") {
     viewAs: false,
     /** Every message handed to the one mail door. */
     mail: [],
+    /** What the door answers for a message, when a suite says: see `MAIL_DOOR`. */
+    mailFate: null,
     /** Every notification handed to the push mirror. */
     pushes: [],
   };
@@ -533,6 +546,7 @@ export function makeWorld(key = "__handover") {
     world.user = null;
     world.viewAs = false;
     world.mail.length = 0;
+    world.mailFate = null;
     world.pushes.length = 0;
     return world.db;
   }
