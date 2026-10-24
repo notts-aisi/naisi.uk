@@ -35,6 +35,6 @@ export const FELLOWSHIP_QUESTIONS: CoursePageFaq[] = [
   },
   {
     q: "What happens after?",
-    a: "You could apply to the research incubator next time. Socials and talks carry on all year.",
+    a: "You could apply to a research incubator next time. Socials and talks carry on all year.",
   },
 ];
