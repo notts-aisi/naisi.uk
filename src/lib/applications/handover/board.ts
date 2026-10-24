@@ -1,16 +1,13 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import {
-  markedSlotCount,
-  maskCoversSession,
-  type SessionSlot,
-} from "@/lib/admissions/availability";
+import type { SessionSlot } from "@/lib/admissions/availability";
 import type { CourseApplicationDoc } from "@/lib/firestore/courseApplications";
 import type { ApplicationDoc, DecisionDoc } from "../model";
 import type { ApplicationForm } from "../normalise";
 import { loadForm } from "../repo";
 import { loadApplication, loadDecision } from "../staffRepo";
 import { holdsPlaceOn } from "./holders";
+import { paintedWeekOf } from "./paintedWeek";
 
 /**
  * WHAT THE ALLOCATION BOARD IS TOLD about somebody the application form
@@ -27,7 +24,9 @@ import { holdsPlaceOn } from "./holders";
  * read, this module reads the application that row came from and answers
  * with the outcome of the comparison and nothing else, the ids of the groups
  * whose WHOLE weekly session the painted week covers (`maskCoversSession`,
- * the availability module's own test). The week itself never leaves here.
+ * the availability module's own test, asked through `paintedWeekOf` in
+ * `./paintedWeek.ts`, the one reading the times picture shares). The week
+ * itself never leaves this folder.
  *
  * So there is one copy of what somebody painted, the one on their
  * application, and whatever deletes that application leaves the board saying
@@ -77,18 +76,15 @@ function factsFor(
   decision: DecisionDoc | null,
   groups: readonly BoardGroup[],
 ): FormPlaceFacts {
-  if (!application || !application.sent) return NOT_ON_FILE;
-  const mask = application.sent.availability;
-  const grid = form.round.availabilityGrid;
+  const week = paintedWeekOf(form.round.availabilityGrid, application);
+  if (!application || week.kind === "not-on-file") return NOT_ON_FILE;
   const holdsPlace = holdsPlaceOn(form, programmeId, application, decision);
-  if (markedSlotCount(mask, grid) === 0) {
+  if (week.kind === "none-given") {
     return { availability: "none-given", canMakeGroupIds: [], holdsPlace };
   }
   return {
     availability: "given",
-    canMakeGroupIds: groups
-      .filter((group) => maskCoversSession(mask, grid, group.session))
-      .map((group) => group.id),
+    canMakeGroupIds: groups.filter((group) => week.covers(group.session)).map((group) => group.id),
     holdsPlace,
   };
 }

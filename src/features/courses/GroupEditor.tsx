@@ -9,6 +9,7 @@ import { Field, Input } from "@/components/ui/Input";
 import PersonSelector from "@/components/ui/PersonSelector";
 import Switch from "@/components/ui/Switch";
 import type { UserDoc } from "@/lib/firestore/users";
+import { NEW_GROUP_SESSION_MINUTES } from "@/lib/courses/sessionLength";
 import {
   validateSubmissionUrl,
   type CourseEnrolMode,
@@ -49,7 +50,7 @@ type ToastRun = (
 const DEFAULT_SESSION: GroupSession = {
   weekday: 2,
   startTimeLocal: "18:00",
-  durationMinutes: 90,
+  durationMinutes: NEW_GROUP_SESSION_MINUTES,
   location: "",
   meetingUrl: null,
   notes: "",
