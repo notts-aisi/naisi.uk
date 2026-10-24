@@ -198,11 +198,18 @@ const {
   courseNudgeTokensFrom,
   courseWeekPrepLine,
   courseWeekUrl,
+  emptyNudgeValues,
+  groupNudgeFacts,
   groupNudgeMarkerId,
+  groupNudgeTokens,
+  joinWords,
+  missingNudgeValueWords,
   nudgeMarkerId,
+  nudgeTokensUsed,
   nudgeWeekMarkerIds,
   renderCourseNudge,
   COURSE_NUDGE_TOKEN_KEYS,
+  NUDGE_TOKENS_AN_EMAIL_MAY_GO_WITHOUT,
 } = await loadTs("lib/email/courseNudgeEmail.ts");
 const { courseTemplateDefaults } = await loadTs("lib/firestore/courseEmails.ts");
 const { weekDocId } = await loadTs("lib/firestore/courses.ts");
@@ -1260,3 +1267,117 @@ test("courseNudgeSessionDateKey agrees with the session resolver", () => {
     }
   }
 });
+
+// ---------------------------------------------------------------------------
+// Whole or not at all (next week's email on its schedule)
+// ---------------------------------------------------------------------------
+
+/** One group's facts for week 4, everything filled in. */
+function groupFacts(over = {}) {
+  return groupNudgeFacts({
+    courseTitle: "AGI Strategy Fellowship",
+    runLabel: "Autumn 2026",
+    runId: "run1",
+    appUrl: "https://naisi.example",
+    feedbackUrl: "",
+    session: {
+      weekNumber: 4,
+      dateKey: "2026-11-24",
+      session: {
+        weekday: 2,
+        startTimeLocal: "18:00",
+        durationMinutes: 120,
+        location: "Room C20",
+        meetingUrl: "https://meet.example.com/abc",
+        notes: "",
+      },
+    },
+    mode: null,
+    week: {
+      title: "Week 4 theme",
+      summary: "What week 4 is about.",
+      materials: [{ optional: false }],
+      exercises: [],
+      estimatedMinutes: 75,
+    },
+    ...over,
+  });
+}
+
+test("the seed template uses the tokens the email is about, and two it may go without", () => {
+  const used = nudgeTokensUsed(SEED);
+  for (const key of ["weekTitle", "sessionWhen", "sessionWhere", "weekPrep", "weekUrl"]) {
+    assert.ok(used.includes(key), `${key} is a fact the email carries`);
+  }
+  assert.deepEqual([...NUDGE_TOKENS_AN_EMAIL_MAY_GO_WITHOUT].sort(), ["feedbackUrl", "firstName"]);
+  // Every one of them is a real token: a typo in the template is not counted.
+  assert.ok(used.every((key) => COURSE_NUDGE_TOKEN_KEYS.includes(key)));
+  assert.deepEqual(nudgeTokensUsed({ subject: "{weekTtile}", blocks: [] }), []);
+});
+
+test("a whole group's email has no empty value, with no feedback form set", () => {
+  assert.deepEqual(emptyNudgeValues(SEED, groupNudgeTokens(groupFacts())), []);
+});
+
+test("an empty room, reading, time or summary is a value the email is missing", () => {
+  const roomless = groupFacts();
+  roomless.sessionWhere = "";
+  assert.deepEqual(emptyNudgeValues(SEED, groupNudgeTokens(roomless)), ["sessionWhere"]);
+
+  const readingless = groupFacts({
+    week: { title: "Week 4 theme", summary: "x", materials: [], exercises: [], estimatedMinutes: null },
+  });
+  assert.deepEqual(emptyNudgeValues(SEED, groupNudgeTokens(readingless)), ["weekPrep"]);
+
+  const timeless = groupFacts();
+  timeless.sessionWhen = "";
+  // No time takes the room with it, by the pairing rule: both are missing.
+  assert.deepEqual(
+    emptyNudgeValues(SEED, groupNudgeTokens(timeless)).sort(),
+    ["sessionWhen", "sessionWhere"],
+  );
+  assert.deepEqual(
+    missingNudgeValueWords(["sessionWhere", "weekPrep", "weekSummary"], 4),
+    ["the group’s room", "week 4’s reading", "week 4’s summary"],
+  );
+  assert.equal(joinWords(["the group’s room", "week 4’s reading"]), "the group’s room and week 4’s reading");
+});
+
+test("a template that does not use a value is not held for it", () => {
+  const template = { subject: "Week {weekNumber}", blocks: [{ id: "b", type: "richText", html: "<p>{weekTitle}</p>" }] };
+  const roomless = groupFacts();
+  roomless.sessionWhere = "";
+  assert.deepEqual(emptyNudgeValues(template, groupNudgeTokens(roomless)), []);
+});
+
+test("an online week says Online and never the meeting link", () => {
+  const online = groupFacts({ mode: "virtual" });
+  assert.equal(online.sessionWhere, "Online");
+  const rendered = renderCourseNudge(SEED, groupNudgeTokens(online));
+  assert.doesNotMatch(JSON.stringify(rendered), /meet\.example\.com/);
+  // A room holding a link prints no room at all, which the check then holds.
+  const room = groupNudgeFacts({
+    courseTitle: "C",
+    runLabel: "R",
+    runId: "run1",
+    appUrl: "https://naisi.example",
+    feedbackUrl: "",
+    mode: null,
+    week: { title: "T", summary: "S", materials: [{}], exercises: [], estimatedMinutes: 30 },
+    session: {
+      weekNumber: 4,
+      dateKey: "2026-11-24",
+      session: {
+        weekday: 2,
+        startTimeLocal: "18:00",
+        durationMinutes: 120,
+        location: "zoom.example.com/j/123456789",
+        meetingUrl: null,
+        notes: "",
+      },
+    },
+  });
+  assert.equal(room.sessionWhere, "");
+  assert.deepEqual(emptyNudgeValues(SEED, groupNudgeTokens(room)), ["sessionWhere"]);
+});
+

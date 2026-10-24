@@ -25,9 +25,12 @@ import "server-only";
  * facilitators. The email simply waits for the pause to end, and goes then if
  * its session is still ahead.
  *
- * IT IMPORTS THE REGISTRATION AND NOT THE REGISTRY, for the reason
- * `announcementQueue.ts` gives: the registry imports every job, and this is
- * asked by a request.
+ * IT IMPORTS NEITHER THE REGISTRY NOR THE JOB. `announcementQueue.ts` imports
+ * its job's registration to avoid the registry; this goes one step further and
+ * reads the job's id and default from `registerJobs.ts`, because the job
+ * imports its sends and the push route asks this on every press. The test
+ * that holds `registerJobs.ts` equal to the registrations is what keeps that
+ * honest.
  */
 
 import type { Firestore } from "firebase-admin/firestore";
@@ -36,16 +39,11 @@ import {
   readSchedulerConfig,
   type SchedulerConfig,
 } from "@/lib/firestore/schedulerConfig";
-import { nextWeekEmailJob } from "@/lib/scheduler/jobs/nextWeekEmail";
+import { NEXT_WEEK_EMAIL_JOB } from "@/lib/scheduler/registerJobs";
 
 /** The answer, from a scheduler config the caller has already read. */
 export function nextWeekEmailScheduledIn(config: SchedulerConfig): boolean {
-  return jobStateFor(
-    config,
-    nextWeekEmailJob.id,
-    // `jobDefaultEnabled` inlined; importing it costs the whole registry.
-    nextWeekEmailJob.enabledByDefault !== false,
-  ).enabled;
+  return jobStateFor(config, NEXT_WEEK_EMAIL_JOB.id, NEXT_WEEK_EMAIL_JOB.enabledByDefault).enabled;
 }
 
 export async function nextWeekEmailIsScheduled(db: Firestore): Promise<boolean> {

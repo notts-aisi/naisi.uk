@@ -28,6 +28,7 @@ import {
 import { jobStateFor, readSchedulerConfig } from "@/lib/firestore/schedulerConfig";
 import { isSuppressed } from "@/lib/firestore/suppression";
 import { nextWeekEmailScheduledIn } from "@/lib/scheduler/nextWeekEmailSchedule";
+import { UNMARKED_REGISTERS_JOB } from "@/lib/scheduler/registerJobs";
 import {
   claim,
   isStaleWork,
@@ -37,7 +38,6 @@ import {
   stampSkipped,
 } from "../markers";
 import type { JobContext, JobRegistration, JobResult } from "../registry";
-import { unmarkedRegistersJob } from "./unmarkedRegisters";
 
 /**
  * `courses-register-reminders`: ONE EMAIL TO A GROUP'S FACILITATORS when a
@@ -277,8 +277,8 @@ async function handler(ctx: JobContext): Promise<JobResult> {
     scheduled: nextWeekEmailScheduledIn(scheduler),
     tasksOn: jobStateFor(
       scheduler,
-      unmarkedRegistersJob.id,
-      unmarkedRegistersJob.enabledByDefault !== false,
+      UNMARKED_REGISTERS_JOB.id,
+      UNMARKED_REGISTERS_JOB.enabledByDefault,
     ).enabled,
     appUrl,
     deadlineMs: Date.now() + Math.max(0, Math.min(SCAN_BUDGET_MS, ctx.budget.remainingMs())),

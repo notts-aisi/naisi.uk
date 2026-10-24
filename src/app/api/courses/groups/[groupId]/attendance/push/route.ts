@@ -227,9 +227,10 @@ const MAX_FOLLOW_UPS_CLOSED = 5;
  * archived tasks by default, and the chase stays on the record.
  *
  * TWO LOOKUPS, cheapest first, and neither of them runs on the ordinary path.
- *  0. NO READS AT ALL before the grace has passed. A register pushed the same
- *     evening cannot have a card, and that is the overwhelming majority of
- *     pushes, so the whole helper returns on one date comparison.
+ *  0. NO READS AT ALL before the task's hours have passed
+ *     (`registerTaskHours`). A register finished the same evening cannot have
+ *     a card, and that is the overwhelming majority of presses, so the whole
+ *     helper returns on one date comparison.
  *  1. THE DETERMINISTIC ID, which is where the card is in every normal case.
  *  2. A QUERY ON THE POINTER, which is where it is when the deterministic id
  *     was already occupied by somebody else's task and the job fell back to
@@ -526,16 +527,16 @@ export async function POST(
   // second press also closes a card the first press could not.
   //
   // The config is read here rather than further down because the archive
-  // needs the grace to know whether a card can exist at all. It is still read
-  // BEFORE the send marker is claimed, which is the property the reminder
-  // lane below depends on.
+  // needs the task's hours to know whether a card can exist at all. It is
+  // still read BEFORE the send marker is claimed, which is the property the
+  // reminder lane below depends on.
   //
   // GUARDED, because this read now sits above the already-pushed early return
   // and therefore on the path of an ordinary second press. An unguarded throw
   // there would turn a harmless second press into a 500 AFTER the register was
   // committed, which reads to the facilitator as "the push failed" about a
   // push that succeeded. A failure leaves `config` null instead; the archive
-  // falls back to the default grace (best effort over a card that may not
+  // falls back to the default hours (best effort over a card that may not
   // exist) and the reminder lane below refuses to send rather than mailing the
   // cohort with default copy.
   let config: CoursesConfig | null = null;
@@ -549,7 +550,8 @@ export async function POST(
     groupId,
     session,
     now,
-    graceHours: (config ?? DEFAULT_COURSES_CONFIG).unmarkedRegisterGraceHours,
+    // The TASK's hours: before them no card can exist, so nothing is read.
+    graceHours: (config ?? DEFAULT_COURSES_CONFIG).registerTaskHours,
   });
 
   // WHO SENDS NEXT WEEK'S EMAIL. Read after the commit, like everything below:
