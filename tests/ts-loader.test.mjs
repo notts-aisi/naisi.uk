@@ -363,6 +363,13 @@ const USERS = new Map([
       "route reaches the course email templates through the mail door it stubs",
   ],
   [
+    "course-hub-group-published-pages.test.mjs",
+    "renders the facilitator's Home, the group page's roster, the run home's panel, the " +
+      "register, the review queue and the two group composers (.tsx) to HTML with their data " +
+      "hooks stood in, because what a facilitator reads before the people in their group have " +
+      "been told it is only right if each of those pages says so",
+  ],
+  [
     "applications-handover-panel.test.mjs",
     "renders a programme's Settings tab (a .tsx server component) for an admin, for the " +
       "programme's lead and for a reviewer, against a database that records its reads, " +
