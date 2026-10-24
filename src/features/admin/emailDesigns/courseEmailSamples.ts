@@ -27,6 +27,33 @@ export const COURSE_PREVIEW_SAMPLE = {
 } as const;
 
 /**
+ * Sample values for the facilitators' email ("You’re facilitating"), whose
+ * tokens no other course template resolves. Shaped like a real send: the
+ * weekly slot and the two dates are the words Publish writes ("Tuesdays at
+ * 6pm", "Tue 3 Nov"), `groupSize` is the count the email turns into its
+ * sentence, and `where` is a room, never a meeting link. The names are made
+ * up, as every sample here is.
+ *
+ * Hard-coded rather than imported from the composer's module for the same
+ * reason the nudge's are: the token NAMES are the contract, and
+ * `FACILITATING_TOKENS` in `src/lib/courses/facilitatingEmail.ts` is their
+ * source of truth. `tests/email-unfilled-tokens.test.mjs` fails if the two
+ * drift apart.
+ */
+export const COURSE_FACILITATING_PREVIEW_SAMPLE = {
+  groupName: "Group B",
+  weeklySlot: "Tuesdays at 6pm",
+  firstSession: "Tue 7 Oct",
+  lastSession: "Tue 11 Nov",
+  groupSize: "8",
+  groupUrl: "https://naisi.uk/learn/asf-autumn-2026/group/group-b",
+  where: "Hallward Library, B12",
+  coFacilitators: "Sam",
+  leadName: "Jordan",
+  programmeName: "AI Safety Fundamentals",
+} as const;
+
+/**
  * Sample values for the weekly nudge's own tokens, which no other course
  * template resolves. Hard-coded rather than imported from
  * `src/lib/email/courseNudgeEmail.ts` because that module is `server-only` and
@@ -245,6 +272,18 @@ export function courseTemplateUsesGroupTokens(templateId: CourseTemplateId): boo
 }
 
 /**
+ * Templates whose send path resolves the facilitators' tokens. One: the email
+ * Publish sends each facilitator, written by `composeFacilitatingEmail`.
+ */
+export const COURSE_FACILITATING_TOKEN_TEMPLATES: readonly CourseTemplateId[] = [
+  "course-facilitating",
+];
+
+export function courseTemplateUsesFacilitatingTokens(templateId: CourseTemplateId): boolean {
+  return COURSE_FACILITATING_TOKEN_TEMPLATES.includes(templateId);
+}
+
+/**
  * Templates whose send path resolves the week-scoped tokens. One today; the
  * predicate exists so the editor and the preview ask the same question the
  * group-token pair does, rather than string-matching an id in two places.
@@ -321,6 +360,18 @@ export function courseSampleTokens(
       if (supplied.has(key)) out[key] = value;
     }
     return out;
+  }
+
+  if (courseTemplateUsesFacilitatingTokens(templateId)) {
+    // Its own map, as Publish's plan builds it: the facilitator's name, the
+    // course and run, and the group's own facts. Nothing of a placement.
+    return {
+      courseTitle: COURSE_PREVIEW_SAMPLE.courseTitle,
+      runLabel: COURSE_PREVIEW_SAMPLE.runLabel,
+      firstName: firstWord(name),
+      preferredName: name,
+      ...COURSE_FACILITATING_PREVIEW_SAMPLE,
+    };
   }
 
   if (courseTemplateUsesWeekTokens(templateId)) {

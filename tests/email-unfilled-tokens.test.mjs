@@ -131,6 +131,7 @@ const { loadTs } = createLoader({
 });
 
 const placement = await loadTs(join("lib", "courses", "placementEmail.ts"));
+const facilitating = await loadTs(join("lib", "courses", "facilitatingEmail.ts"));
 const links = await loadTs(join("lib", "courses", "followable.ts"));
 const seeds = await loadTs(join("lib", "firestore", "courseEmails.ts"));
 const samples = await loadTs(join("features", "admin", "emailDesigns", "courseEmailSamples.ts"));
@@ -1485,6 +1486,24 @@ describe("the designer offers what the composer fills, and proofs through it", (
     assert.ok(read(proof).includes("Where: Hallward Library, B12"));
   });
 
+  test("the tokens the designer lists for the facilitators' email are its composer's own", () => {
+    const block = /const FACILITATING_TOKENS: TokenHelp\[\] = \[(.*?)\];/.exec(EDITOR);
+    assert.ok(block, "FACILITATING_TOKENS is no longer where this test can find it");
+    const listed = [...block[1].matchAll(/token: "([a-zA-Z]+)"/g)].map((match) => match[1]);
+    assert.deepEqual(listed.sort(), [...facilitating.FACILITATING_TOKENS].sort());
+  });
+
+  test("the facilitators' samples fill every one of its tokens, and its proof leaves no token", () => {
+    const sample = samples.courseSampleTokens("course-facilitating", "Alex Taylor");
+    assert.deepEqual(Object.keys(sample).sort(), [...facilitating.FACILITATING_TOKENS].sort());
+    const seed = seeds.courseTemplateDefaults["course-facilitating"];
+    const proof = facilitating.composeFacilitatingEmail(seed, facilitating.facilitatingFactsFromSample(sample), { proof: true });
+    assert.equal(proof.ok, true);
+    assert.deepEqual(tokensIn(`${proof.subject}\n${printed(proof.blocks)}`), []);
+    assert.ok(read(proof).includes("Where: Hallward Library, B12"), read(proof));
+    assert.ok(read(proof).includes("There are 8 people in the group."), read(proof));
+  });
+
   test("a proof leaves a paragraph out as a send would, and leaves a token it cannot fill as typed", () => {
     const sample = { ...samples.courseSampleTokens("course-allocated", "Alex Taylor"), facilitatorNames: "" };
     const template = { subject: "Your group", blocks: [...SEED.blocks, rich("<p>Typed wrongly: {facilitatorName}</p>")] };
@@ -1615,6 +1634,7 @@ const CALLERS = {
   "app/api/admin/course-emails/preview/route.ts#renderCourseTemplatePreview": { how: "proof", why: "the course email designer's preview" },
   "app/api/admin/course-emails/preview/route.ts#renderNudgePreview": { how: "proof", why: "the designer's preview of the weekly reminder" },
   "app/api/admin/course-emails/preview/route.ts#renderPlacementPreview": { how: "proof", why: "the designer's preview of the placement email" },
+  "app/api/admin/course-emails/preview/route.ts#renderFacilitatingPreview": { how: "proof", why: "the designer's preview of the facilitators' email" },
   "app/api/admin/course-emails/[templateId]/send-test/route.ts#POST": { how: "proof", why: "a test send of a course email to the admin who asked" },
   "app/api/admin/application-emails/preview/route.ts#POST": { how: "proof", why: "the application email designer's preview" },
   "app/api/admin/application-emails/[templateId]/send-test/route.ts#POST": { how: "proof", why: "a test send of an application email to the admin who asked" },

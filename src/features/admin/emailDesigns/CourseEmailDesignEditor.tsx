@@ -25,6 +25,7 @@ import {
   admissionsTokensFor,
   courseSampleTokens,
   courseTemplateUsesAdmissionsTokens,
+  courseTemplateUsesFacilitatingTokens,
   courseTemplateUsesGroupTokens,
   courseTemplateUsesWeekTokens,
 } from "./courseEmailSamples";
@@ -84,6 +85,39 @@ const GROUP_TOKENS: TokenHelp[] = [
     description:
       "Where that first session is, e.g. Hallward Library, B12. Online groups say Online, and that the link to join is on their programme's page. Never the meeting link, and never a room that has a link typed into it: that group is told to look on their programme's page.",
   },
+];
+
+/**
+ * The facilitators' email's own map, written by `composeFacilitatingEmail`
+ * (`src/lib/courses/facilitatingEmail.ts`), whose `FACILITATING_TOKENS` this
+ * list has to match: tests/email-unfilled-tokens.test.mjs compares them. It
+ * REPLACES the lifecycle lists above when this template is open.
+ */
+const FACILITATING_TOKENS: TokenHelp[] = [
+  { token: "firstName", description: "The facilitator's first name, best for greetings." },
+  { token: "preferredName", description: "Their preferred name, falling back to their display name." },
+  { token: "courseTitle", description: "The course's title, e.g. AI Safety Fundamentals." },
+  { token: "runLabel", description: "Which run this is, e.g. Autumn 2026." },
+  { token: "groupName", description: "The group they facilitate, e.g. Group B." },
+  { token: "weeklySlot", description: "When it meets each week, e.g. Tuesdays at 6pm." },
+  { token: "firstSession", description: "Its first session, on the group's own calendar, e.g. Tue 3 Nov." },
+  { token: "lastSession", description: "Its last session, e.g. Tue 8 Dec." },
+  {
+    token: "groupSize",
+    description: "A whole sentence saying how many are in the group, e.g. There are 8 people in the group.",
+  },
+  { token: "groupUrl", description: "The address of their group page, for the button." },
+  {
+    token: "where",
+    description:
+      "Where it meets each week, e.g. Hallward Library, B12. An online group says Online, and that the link to join is on their group page. Never the meeting link, and never a room that has a link typed into it: that facilitator is told to look on their group page.",
+  },
+  {
+    token: "coFacilitators",
+    description: "The first names of the others who facilitate the group, e.g. Sam. Nothing for somebody facilitating alone.",
+  },
+  { token: "leadName", description: "The first name of the lead of the programme that names the run." },
+  { token: "programmeName", description: "That programme's short name. Nothing on a run no programme names." },
 ];
 
 /**
@@ -310,6 +344,7 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
   const showsGroupTokens = courseTemplateUsesGroupTokens(templateId);
   const showsWeekTokens = courseTemplateUsesWeekTokens(templateId);
   const showsAdmissionsTokens = courseTemplateUsesAdmissionsTokens(templateId);
+  const showsFacilitatingTokens = courseTemplateUsesFacilitatingTokens(templateId);
   const admissionsTokens = showsAdmissionsTokens
     ? ADMISSIONS_TOKENS.filter((t) => admissionsTokensFor(templateId).has(t.token))
     : [];
@@ -344,7 +379,9 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
             ? admissionsTokens
             : showsWeekTokens
               ? WEEK_TOKENS
-              : ALWAYS_TOKENS
+              : showsFacilitatingTokens
+                ? FACILITATING_TOKENS
+                : ALWAYS_TOKENS
           ).map((t) => (
             <div key={t.token} className={styles.tokenRow}>
               <dt>
@@ -355,6 +392,7 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
           ))}
           {!showsWeekTokens &&
             !showsAdmissionsTokens &&
+            !showsFacilitatingTokens &&
             GROUP_TOKENS.map((t) => (
               <div
                 key={t.token}
@@ -376,7 +414,20 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
             want it in a sentence of your own.
           </p>
         )}
-        {!showsWeekTokens && !showsAdmissionsTokens && !showsGroupTokens && (
+        {showsFacilitatingTokens && (
+          <p className={styles.tokensNote}>
+            Publish sends this to each facilitator of each group with people in it, once a group. A
+            group can have no room yet, one facilitator, or a run no programme names. So keep{" "}
+            <code>{"{where}"}</code>, <code>{"{coFacilitators}"}</code> and the sign-off (
+            <code>{"{leadName}"}</code>, <code>{"{programmeName}"}</code>) each in a paragraph of its
+            own: that paragraph is left out when there is nothing to put in it, and the rest of the
+            email goes. None can go in the subject, or in a paragraph with <code>{"{groupName}"}</code>
+            , <code>{"{weeklySlot}"}</code> or the two dates. A group with no name or no day and time
+            cannot be published at all, and neither can wording that uses a token not on this list:
+            publishing says which.
+          </p>
+        )}
+        {!showsWeekTokens && !showsAdmissionsTokens && !showsGroupTokens && !showsFacilitatingTokens && (
           <p className={styles.tokensNote}>
             The last four only resolve on the group placement email: nobody has a group
             yet when this one sends. Used here they arrive as the literal{" "}
