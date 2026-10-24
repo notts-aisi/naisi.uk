@@ -1,0 +1,619 @@
+/*
+  "Offer freed places", drawn from the board st-offer: a heading and one
+  line, then two columns that wrap, the pooled applicants on the left and
+  the email with its two buttons on the right. Every colour is a theme token
+  (src/theme/tokens.css); the sizes are the board's.
+*/
+
+.page {
+  margin-top: var(--space-6);
+  min-width: 0;
+  color: var(--color-text);
+}
+
+.heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.625rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.lede {
+  margin: var(--space-2) 0 0;
+  max-width: 46rem;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+
+.aside {
+  margin: var(--space-2) 0 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.columns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-6);
+  margin-top: var(--space-6);
+}
+
+.main {
+  flex: 3 1 32.5rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.side {
+  flex: 2 1 23.75rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* === The card of pooled applicants === */
+
+.card {
+  min-width: 0;
+  padding: 22px var(--space-6) var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.cardHeadText {
+  flex: 1 1 13.75rem;
+  min-width: 0;
+}
+
+.cardTitle,
+.cardTitleSmall {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.cardTitle {
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+.cardTitleSmall {
+  font-size: 1.125rem;
+  line-height: 1.2;
+}
+
+.cardLede {
+  margin: 6px 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.picked {
+  flex: none;
+  font-family: var(--font-meta);
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent-text);
+}
+
+.empty {
+  margin: var(--space-3) 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: var(--space-4);
+}
+
+.row {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+}
+.row[data-on] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.rowMain {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-height: 44px;
+  padding: var(--space-4);
+  cursor: pointer;
+}
+.rowMain[data-cannot] {
+  cursor: not-allowed;
+}
+
+/* The real checkbox, kept in the page and in the tab order, drawn by the face beside it. */
+.box {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.boxFace {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border: 1.5px solid var(--color-control-border);
+  border-radius: 5px;
+  background: var(--color-bg);
+  box-sizing: border-box;
+}
+.row[data-on] .boxFace {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+.box:focus-visible + .boxFace {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+.box:disabled + .boxFace {
+  opacity: 0.45;
+}
+
+.check {
+  display: block;
+}
+
+.who {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.name {
+  display: block;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.detail {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+.row[data-on] .detail {
+  color: var(--color-text);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--space-2);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+.chipOk {
+  border-color: var(--color-ok-line);
+  background: var(--color-success-soft);
+  color: var(--color-ok);
+}
+.chipWarn {
+  border-color: var(--color-warning-line);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.chipDot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.cannot {
+  display: block;
+  margin-top: var(--space-2);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.score {
+  flex: none;
+  min-width: 6rem;
+  text-align: right;
+}
+
+.scoreValue {
+  display: block;
+  font-family: var(--font-meta);
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.scoreLabel {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+.row[data-on] .scoreLabel {
+  color: var(--color-text);
+}
+
+/* The group whose time the email names, under somebody picked. */
+.groupPick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-4) 3.5rem;
+}
+
+.seats {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+/* === Fields === */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.input,
+.select.select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  box-sizing: border-box;
+}
+.input {
+  padding: 0 14px;
+}
+.input:focus,
+.select.select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--focus-ring);
+}
+.input:disabled,
+.select.select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* === The email, as the person will get it === */
+
+.letterBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.letter {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+}
+
+.letterHead {
+  margin: 0;
+  padding: var(--space-3) 18px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.letterRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: 5px 0;
+}
+
+.letterKey {
+  flex: 0 0 5.25rem;
+  font-family: var(--font-meta);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.letterValue {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.letterSubject {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.letterBody {
+  padding: var(--space-4) 18px 18px;
+}
+
+.letterText {
+  margin: 0 0 var(--space-3);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--color-text-soft);
+}
+
+.letterButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: var(--space-1) 0 var(--space-4);
+}
+
+.letterPrimary,
+.letterQuiet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+}
+.letterPrimary {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+.letterQuiet {
+  color: var(--color-accent-text);
+}
+
+.letterSign {
+  margin: var(--space-1) 0 0;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--color-text-soft);
+}
+
+.letterRole {
+  color: var(--color-text-muted);
+}
+
+.letterEmpty {
+  margin: 0;
+  padding: var(--space-4) 18px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-row);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+/* === The buttons, and what they did === */
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.outline {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.outline:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+.outline:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+.outline:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.send {
+  padding: 0 18px;
+  font-size: 0.9375rem;
+  white-space: nowrap;
+}
+
+.muted {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.saidOk,
+.saidProblem {
+  margin: 0;
+  padding: var(--space-3) 14px;
+  border: 1px solid;
+  border-radius: var(--radius-row);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+.saidOk {
+  border-color: var(--color-ok-line);
+  background: var(--color-success-soft);
+}
+.saidProblem {
+  border-color: var(--color-danger-line);
+  background: var(--color-danger-soft);
+}
+
+/* === Offered so far === */
+
+.offered {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: var(--space-3) 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+
+.offeredRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+}
+
+@media (max-width: 48rem) {
+  .columns {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .main,
+  .side {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+  .card {
+    padding: 18px var(--space-4) var(--space-4);
+  }
+  .rowMain {
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: 14px;
+  }
+  /* The name takes the line beside the box and the initials; the score goes under it. */
+  .who {
+    flex: 1 1 0;
+  }
+  .score {
+    display: flex;
+    flex: 1 0 100%;
+    align-items: baseline;
+    gap: var(--space-2);
+    min-width: 0;
+    padding-left: calc(22px + 2rem + 2 * var(--space-3));
+    text-align: left;
+  }
+  .groupPick {
+    padding: 0 14px 14px;
+  }
+  .select.select {
+    font-size: 0.875rem;
+  }
+  .letterHead,
+  .letterBody {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .letterKey {
+    flex-basis: 4.5rem;
+  }
+  .buttons {
+    flex-direction: column;
+  }
+  .outline,
+  .send {
+    width: 100%;
+  }
+}

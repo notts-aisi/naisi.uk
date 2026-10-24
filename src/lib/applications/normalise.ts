@@ -39,6 +39,8 @@ import {
   type DecisionDoc,
   type DecisionEmailTest,
   type EmailWording,
+  type FreedPlace,
+  type FreedPlaceTest,
   type Invitation,
   type PlacementException,
   type PoolReason,
@@ -170,6 +172,22 @@ function asDecisionEmailTest(v: unknown): DecisionEmailTest | null {
   return { byUid: str(raw.byUid, 128), at: tsToDate(raw.at), wording: str(raw.wording, 128) };
 }
 
+/**
+ * The last test of each programme's freed-place email, by programme id. Each
+ * an id, and each a whole record by the rule above with the day it was sent
+ * for: a test that cannot be read unlocks nothing.
+ */
+function asFreedPlaceTests(v: unknown): Record<string, FreedPlaceTest> {
+  const out: Record<string, FreedPlaceTest> = {};
+  for (const [programmeId, entry] of Object.entries(asRecord(v))) {
+    if (!isId(programmeId)) continue;
+    const test = asDecisionEmailTest(entry);
+    const replyBy = dateKey(asRecord(entry).replyBy);
+    if (test && replyBy) out[programmeId] = { ...test, replyBy };
+  }
+  return out;
+}
+
 export function normaliseProgramme(id: string, v: unknown): ProgrammeSettings {
   const raw = asRecord(v);
   const L = APPLICATION_LIMITS;
@@ -242,6 +260,7 @@ export function normaliseFormFields(data: unknown): ApplicationFormFields {
     revealOtherReviews: bool(raw.revealOtherReviews),
     noOfferWording: asWording(raw.noOfferWording),
     decisionEmailTest: asDecisionEmailTest(raw.decisionEmailTest),
+    freedPlaceTests: asFreedPlaceTests(raw.freedPlaceTests),
     decisionsSentAt: tsToDate(raw.decisionsSentAt),
     decisionsSentByUid:
       typeof raw.decisionsSentByUid === "string" && raw.decisionsSentByUid
@@ -504,6 +523,25 @@ function asInvitation(v: unknown): Invitation | null {
   };
 }
 
+/**
+ * A freed place offered after decision day. It has to name the group whose
+ * time its email named, or it is not one: a record half there reads as none.
+ * A record that does not say what became of its email reads as unconfirmed,
+ * never as owed, as a result does: nothing is sent to anybody on a guess.
+ */
+function asFreedPlace(v: unknown): FreedPlace | null {
+  const raw = asRecord(v);
+  if (!isId(raw.groupId)) return null;
+  const email = raw.email as ResultEmailState;
+  return {
+    groupId: raw.groupId,
+    offeredAt: tsToDate(raw.offeredAt),
+    email: RESULT_EMAIL_STATES.includes(email) ? email : "unconfirmed",
+    emailedAt: tsToDate(raw.emailedAt),
+    emailClaimedAt: tsToDate(raw.emailClaimedAt),
+  };
+}
+
 function asAttendance(v: unknown): Attendance | null {
   const raw = asRecord(v);
   if (raw.answer !== "coming" && raw.answer !== "cant-make-it") return null;
@@ -557,6 +595,7 @@ export function normaliseApplication(
     withdrawnAt: tsToDate(raw.withdrawnAt),
     result: asResult(raw.result),
     invitation: asInvitation(raw.invitation),
+    freedPlace: asFreedPlace(raw.freedPlace),
     attendance: asAttendance(raw.attendance),
     releaseReason: asReleaseReason(raw.releaseReason),
     createdAt: tsToDate(raw.createdAt),

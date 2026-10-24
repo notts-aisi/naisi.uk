@@ -349,6 +349,13 @@ const USERS = new Map([
       "running them says so",
   ],
   [
+    "applications-freed-places-person.test.mjs",
+    "executes the standing, the replies, every count of places, the account approval and the " +
+      "record kept at settling for a freed place, and renders the person's own page " +
+      "(StatusPage.tsx) to HTML, because whether a freed place reads as decision day's " +
+      "invitation is decided by the code that draws it",
+  ],
+  [
     "applications-handover-member-area.test.mjs",
     "executes the member area's own route and the gate every page under /learn/[runId] asks, " +
       "for somebody an admin's hand-over put on a course run, and renders the run card (.tsx) " +

@@ -515,6 +515,10 @@ const REGISTRY = {
   "src/lib/applications/decisionDay/deliver.ts#sendEmail": T(
     "The decision-day template's send door: You're in, Invitation and No offer this time, and the daily reminder that repeats an invitation. It consults nothing itself; the one scheduled caller consults the courses row before it reaches it and carries its own grid entry.",
   ),
+  "src/lib/applications/freedPlaces/offer.ts#sendDecisionEmail": T(
+    "A freed place offered after decision day: the answer to the person's own application (\"A place has come up\"), one message to each person a press offers a place to or whose email is still to go, and a rehearsal of one to the address on the session of the admin who asked. One call each.",
+    2,
+  ),
   "src/lib/applications/decisionDay/send.ts#sendDecisionEmail": T(
     "Decision day itself, one message per applicant after their result is published (or, on a later press, the one email an earlier press left owed), and a rehearsal of one email to the address on the session of whoever asked for it: an admin from Send decisions, or a programme's lead from its settings. One call each.",
     2,

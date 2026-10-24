@@ -68,7 +68,9 @@ import type { PoolBoard, PoolComment, PoolLeftRow, PoolProgramme, PoolRow } from
  *    transaction (every application and every decision document on the form),
  *    so two people inviting to a programme's last place cannot both succeed.
  *  - NOBODY ALREADY TOLD IS CHANGED. Once decision day has reached a person,
- *    or has finished for the form, their outcome is what they were told.
+ *    or has finished for the form, their outcome is what they were told,
+ *    here. A place given back after the send is offered by its own writer
+ *    (`../freedPlaces/offer.ts`), on its own terms.
  *  - THE DECISION DOCUMENT ALWAYS SAYS WHOSE IT IS. Every write carries
  *    `roundId` and `uid` beside the outcome, because that is how a form's
  *    decisions are found again when the form is removed.
@@ -269,6 +271,14 @@ function stored(choice: PoolChoice, actorUid: string) {
  */
 const OUTCOME_FIELDS = ["roundId", "uid", "pooledOutcome", "updatedAt"];
 
+/** What the writer answers once the term is sent: nothing is picked here, and where a freed place goes. */
+export function pickedNoMore(termLabel: string): string {
+  return (
+    `Decisions for ${termLabel} have gone out, so an outcome can no longer be picked here. ` +
+    "A place given back can be offered from its programme’s Applications tab until the end of week 1."
+  );
+}
+
 /** Who is acting: their uid, and the name the audit log shows. */
 export type PoolActor = { uid: string; displayName?: string };
 
@@ -302,12 +312,11 @@ export async function setPooledOutcome(
       return refuse(404, "There is no application form here.");
     }
     const live = normaliseForm(formSnap.id, formSnap.data());
-    if (live.decisionsSentAt) {
-      return refuse(
-        409,
-        `Decisions for ${live.round.label} have gone out, so an outcome can no longer change.`,
-      );
-    }
+    // Nothing is picked here once the term is sent. The one outcome that can
+    // still change after the send, "No offer this time" to an invitation for
+    // a place somebody gave back, has its own writer, window and test
+    // (`../freedPlaces/`), and the sentence says where it is.
+    if (live.decisionsSentAt) return refuse(409, pickedNoMore(live.round.label));
     if (uids.length === 0) return { ok: true, changed: 0 } satisfies PoolWrite;
 
     const [applicationSnaps, decisionSnaps] = await Promise.all([

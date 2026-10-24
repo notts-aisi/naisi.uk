@@ -322,6 +322,16 @@ export type DecisionEmailTest = {
   wording: string;
 };
 
+/**
+ * The last test of one programme's freed-place email: decision day's record,
+ * with the day to accept by the test was sent for. A send for another day is
+ * a send nobody has read, so it is held until that day has been tested too.
+ */
+export type FreedPlaceTest = DecisionEmailTest & {
+  /** A civil date, Europe/London. */
+  replyBy: string;
+};
+
 /** The fields an admission round carries when it is an application form. */
 export type ApplicationFormFields = {
   formVersion: typeof FORM_VERSION;
@@ -340,6 +350,13 @@ export type ApplicationFormFields = {
   noOfferWording: EmailWording | null;
   /** The last test of the decision-day emails. Null until an admin sends one. */
   decisionEmailTest: DecisionEmailTest | null;
+  /**
+   * The last test of each programme's freed-place email, by programme id:
+   * who sent it, when, for which day to accept by, and the fingerprint the
+   * offer's send compares (`freedPlaces/tested.ts`). Empty until an admin
+   * sends one.
+   */
+  freedPlaceTests: Record<string, FreedPlaceTest>;
   /** Stamped once, by the send. Null until decision day. */
   decisionsSentAt: Date | null;
   decisionsSentByUid: string | null;
@@ -494,7 +511,14 @@ export type ApplicationResult = {
   emailClaimedAt: Date | null;
 };
 
-/** An offer of a programme they did not get through their own ranking. */
+/**
+ * An offer of a programme they did not get through their own ranking.
+ *
+ * Decision day writes one beside an `invited` result. A freed place offered
+ * after decision day writes one beside a `no-offer` result, with
+ * {@link FreedPlace} next to it: the same shape, answered on the same page
+ * through the same route, with the reply-by day chosen when it was offered.
+ */
 export type Invitation = {
   programmeId: string;
   /** A civil date, Europe/London. */
@@ -503,6 +527,30 @@ export type Invitation = {
   respondedAt: Date | null;
   /** The civil date of the last reminder, so a day sends at most one. */
   lastReminderOn: string | null;
+};
+
+/**
+ * A FREED PLACE: a place somebody gave back after decision day, offered by
+ * an admin to a pooled applicant who was told "No offer this time" and who
+ * ranked the programme (`src/lib/applications/freedPlaces/`).
+ *
+ * The offer itself is the application's `invitation`. This is what decision
+ * day's `result` records for its own email and the offer needs for its own:
+ * when it was made, the group of the course run whose weekly time the email
+ * named, and what became of that email (`ResultEmailState`, read the same way
+ * through `decisionDay/emailState.ts`). `result` is never changed by an offer:
+ * it is what decision day told them, and decision day's page reports it.
+ */
+export type FreedPlace = {
+  /** The group whose weekly time the email named. Never the group's name, room or link in the email. */
+  groupId: string;
+  offeredAt: Date | null;
+  /** What became of the email that offered it. */
+  email: ResultEmailState;
+  /** When that email was handed to the mail provider. Null unless it was. */
+  emailedAt: Date | null;
+  /** When a press took the email up. Read only while `email` is "sending". */
+  emailClaimedAt: Date | null;
 };
 
 /**
@@ -558,6 +606,8 @@ export type ApplicationFields = {
   sentHistoryDropped: number;
   result: ApplicationResult | null;
   invitation: Invitation | null;
+  /** A freed place offered after decision day, beside its `invitation`. Null for everybody else. */
+  freedPlace: FreedPlace | null;
   attendance: Attendance | null;
   /**
    * The reason given with the reply that gave a place or an invitation back,
@@ -578,7 +628,8 @@ export type ApplicationDoc = ApplicationFields & {
   /**
    * On an application form: `submitted` from the first send until decision
    * day, then what decision day said (`accepted`, `invited`, `no-offer`,
-   * `declined`). A reply moves it twice more: `accepted` also covers an
+   * `declined`). A freed place offered after decision day moves `no-offer`
+   * to `invited`. A reply moves it twice more: `accepted` also covers an
    * invitation the person accepted, and `withdrawn` also covers a place or an
    * invitation they gave back. `result` keeps what decision day said.
    */

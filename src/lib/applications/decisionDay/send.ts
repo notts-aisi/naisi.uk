@@ -59,8 +59,11 @@ import type { EmailPreview, ReadinessRow, SendBoard, SendGroup, SendReport } fro
  * DECISION DAY: the one send that tells every applicant what happened.
  *
  * Until this runs, nothing an applicant can see has changed since they
- * applied. This module is the only writer of `result` and `invitation` on an
- * applicant's own document, and the only sender of the three emails.
+ * applied. This module is the only writer of `result` on an applicant's own
+ * document, and the only sender of the three emails. It writes `invitation`
+ * beside an invitation result; the one other writer of `invitation` is a
+ * freed place offered after the send, beside a "No offer this time" result
+ * (`../freedPlaces/offer.ts`), which never touches `result`.
  *
  * ## The order, per person, and why it is that order
  *

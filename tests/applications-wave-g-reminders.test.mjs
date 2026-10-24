@@ -446,7 +446,16 @@ describe("who is reminded about an invitation", () => {
     assert.deepEqual(due({ status: "submitted" }), { due: false, why: "not-invited" });
     assert.deepEqual(due({ invitation: null }), { due: false, why: "not-invited" });
     assert.deepEqual(due({ result: null }), { due: false, why: "not-invited" });
-    assert.deepEqual(due({ result: { kind: "no-offer", programmeId: null } }), { due: false, why: "not-invited" });
+    // "No offer this time" with nothing beside it is not an invitation.
+    assert.deepEqual(due({ result: { kind: "no-offer", programmeId: null }, invitation: null }), {
+      due: false,
+      why: "not-invited",
+    });
+    // With an invitation beside it, it is a freed place offered after decision
+    // day (Q15, approved Sat 24 Oct 2026), which this job leaves alone by name:
+    // still not due, and the reason says why
+    // (tests/applications-freed-places-offer.test.mjs runs the job against one).
+    assert.deepEqual(due({ result: { kind: "no-offer", programmeId: null } }), { due: false, why: "freed-place" });
   });
 
   test("one a day: somebody reminded today is not due again, and is due again tomorrow", () => {

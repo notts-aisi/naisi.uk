@@ -104,6 +104,7 @@ const KIND_CONSTANTS = [
   "REVOCATION_AUDIT_KIND",
   "POOLED_OUTCOME_AUDIT_KIND",
   "DECISIONS_SENT_AUDIT_KIND",
+  "FREED_PLACES_AUDIT_KIND",
 ];
 
 function namesAKind(code) {
@@ -166,6 +167,14 @@ const NAMES_AN_APPLICATION_KIND = new Map([
     },
   ],
   [
+    "src/lib/applications/freedPlaces/offer.ts",
+    {
+      role: "writes",
+      why: "one row for each press that offers freed places, with no subject: how many, on which programme, and the day to accept by",
+      ran: "a press that offers two freed places",
+    },
+  ],
+  [
     "src/lib/applications/decisionDay/send.ts",
     {
       role: "writes",
@@ -176,12 +185,13 @@ const NAMES_AN_APPLICATION_KIND = new Map([
 ]);
 
 describe("who names an application kind", () => {
-  test("the five kinds are the ones this file was written for", () => {
+  test("the six kinds are the ones this file was written for", () => {
     assert.deepEqual([...APPLICATION_KINDS].sort(), [
       "application-decision",
       "application-decision-revoked",
       "application-decisions-sent",
       "application-exception",
+      "application-freed-places-offered",
       "application-pooled-outcome",
     ]);
   });
@@ -440,5 +450,33 @@ describe("the two sentences a decision writes", () => {
     }
     assert.equal(audit.decisionSentence.length, 1);
     assert.equal(audit.revocationSentence.length, 1);
+  });
+});
+
+describe("a press that offers freed places", () => {
+  test("one row for the press, about no one person, naming nobody it offered a place to", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-10-27T12:00:00Z") });
+    const { GROUP, freedSeed, loadRoutes, makeFreedWorld } = await import("./lib/freedPlacesWorld.mjs");
+    const made = makeFreedWorld("__auditFreed");
+    const api = await loadRoutes(made);
+    made.reset(freedSeed());
+    const picks = [
+      { uid: "omar", groupId: GROUP.monday },
+      { uid: "george", groupId: GROUP.monday },
+    ];
+    await api.test("zach", { ...picks[0], replyBy: "2026-10-29" });
+    const pressed = await api.offer("zach", { picks, replyBy: "2026-10-29", invitations: 2 });
+    assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
+    const rows = made.world.db
+      .paths()
+      .filter((path) => path.startsWith("courseAudit/"))
+      .map((path) => made.world.db.read(path));
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].kind, "application-freed-places-offered");
+    assert.equal(rows[0].subjectUid, null);
+    const strings = stringsIn(rows[0]);
+    for (const name of ["Omar", "Haddad", "George", "Lambert", "omar@example.com", "george@example.com"]) {
+      assert.ok(!strings.some((text) => text.includes(name)), `the row holds "${name}"`);
+    }
   });
 });

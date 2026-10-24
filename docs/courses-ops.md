@@ -1060,6 +1060,73 @@ Each press that puts anybody on a run appends one line to the course log
 programme, and how many people. It names none of them. Destroying the run
 clears it with the run's other lines.
 
+## Offering a place somebody gave back
+
+A place given back after decision day can be offered, on the site, to
+somebody who was told "No offer this time" and ranked that programme (see
+[docs/applications.md](applications.md), "A place given back after decision
+day"). It uses decision day's invitation and its Accept, with an email of its
+own, and it is an admin's job this term.
+
+The window is from the send until the end of week 1 of the course run the
+programme names: midnight in London at the end of the last day of the week
+its plan numbers 1. The page says the day. After it, nobody new can be
+offered a place, and the page and the route say so.
+
+### The order
+
+1. **Take the person who gave the place back off the run**, as above ("When
+   somebody gives their place back"). The place is free from the moment they
+   reply; this only tidies the board.
+2. **Open the programme's Applications tab** and press "Offer freed places",
+   under the count of places left. It is drawn once decisions have gone out.
+3. **Pick who to offer a place to.** The list is the people told "No offer
+   this time" who ranked the programme and whom it pooled, with their score,
+   when they are free and which groups they can make. For each one picked,
+   choose the group whose time their email names: only groups whose whole
+   session they can make, with a seat, are offered.
+4. **Choose "Invitations accepted by"**, the day the email asks them to
+   accept by. There is no default.
+5. **Press "Send a test to me".** The first person's real email arrives at
+   your own address, marked as a test. Read it.
+6. **Press "Send N invitations".** It is refused until a test for the same
+   day to accept by has reached you.
+7. **When somebody accepts** (on their own application page, as on decision
+   day), press **Hand over** on the programme's Settings tab: it adds only
+   who is missing. Put them in the group their email named on the allocation
+   board, then press **Publish**, which emails only them.
+8. **When somebody says no thanks**, the place is free again: offer it to
+   somebody else while the window is open.
+
+### Things worth knowing before you do it
+
+- **The day to accept by is not a wall**, as on decision day: somebody who
+  accepts late still has the place. The window closing stops new offers,
+  not replies.
+- **An unanswered offer keeps its place**, and a seat in the group its email
+  named, until it is answered. The page counts both.
+- **The daily invitation reminder does not remind a freed place.** Chase it
+  by hand if you need to; the page lists every offer and where it stands.
+- **An email that did not go** is listed as "Email still to go" with a button
+  that sends it. One nobody can vouch for is never sent again: the person can
+  still read their offer on their own page.
+- **Decision day's page does not change.** It reports what decision day
+  sent, so somebody offered a freed place is still under "No offer this
+  time" there.
+- **Settle the term after the window has closed.** A settled form offers
+  nothing, and settling writes each person's record of the term, which then
+  says "no-offer, then invited" for somebody who was offered a freed place.
+- **Nothing is deployed for any of this.** No rule and no index changes: the
+  offer is written by a route onto the person's own application, in a
+  collection already shut to every browser.
+
+### What is logged
+
+Each press appends one line to the course log (`courseAudit`, kind
+`application-freed-places-offered`), keyed to the form: who pressed, how
+many places, on which programme and the day to accept by. It names nobody
+offered one. A test leaves no line: it is recorded on the form instead.
+
 ## Cutover: membership periods
 
 Membership is a period-per-year object (`membershipPeriods/{periodId}`), and

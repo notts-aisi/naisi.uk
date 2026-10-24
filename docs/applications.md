@@ -156,8 +156,10 @@ round that is not a form, so the fence holds in the other direction too.
 
 ## The four rules everything else follows from
 
-**1. An applicant's own document changes only when the applicant acts, or when
-decision day publishes.** Scores and comments are in `admissionReviews`. Each
+**1. An applicant's own document changes only when the applicant acts, when
+decision day publishes, or when an admin offers a place somebody gave back
+after it** (see "A place given back after decision day"). Scores and comments
+are in `admissionReviews`. Each
 lead's decision, each pooled applicant's outcome and each exception are in
 `admissionDecisions`. Neither is reachable from anything that serves an
 applicant: `tests/applications-boundary.test.mjs` walks the import graph of
@@ -206,7 +208,8 @@ their mind needs no recount.
 | Reviewer of a programme | those that ranked it, and anybody who joined it by invitation | that programme | no | no | no |
 
 "Runs the term" is the form itself, the outcome each pooled applicant hears,
-revoking an acceptance, an exception, and the decision-day send.
+revoking an acceptance, an exception, the decision-day send, and offering a
+place given back after it.
 
 **A refusal says nothing about an application its caller may not read.**
 Deciding is a right over a programme, and reading is a right over one
@@ -934,7 +937,7 @@ page until it goes.
 ### What was sent is a record
 
 A person's `result`, and what became of its email, are written once by the
-send and no reply changes them. A reply does take its owner out of the term.
+send, and no reply and no offer of a freed place changes them. A reply does take its owner out of the term.
 So the decision-day page reports the send from everybody it addressed
 (`everybodyAddressed()` in `decisionDay/plan.ts`): the people in the term,
 and anybody already told who has since left it (`left` on the plan), each
@@ -958,7 +961,11 @@ refused for that person, inside the transaction that would have written, with
 a sentence that says what can still be done. Otherwise the committee's
 screens could come to say one thing while the person holds another. After
 that, a place changes hands only when its holder gives it back (see
-"Replies").
+"Replies"), and a place given back can be offered, once, to somebody told
+"No offer this time": that is the one outcome that changes after the send,
+and it has a writer of its own (see "A place given back after decision
+day"). The pooled applicants' writer still picks nothing after the send, and
+its refusal says where a freed place is offered instead.
 
 ### Once decision day has begun
 
@@ -997,7 +1004,9 @@ Somebody invited is reminded once a day, from 10:00 in London, from the day
 after they were told up to their own reply-by day, until they reply
 (`decisionDay/reminders.ts`). The job ships switched off. The decision-day
 page says invited people are reminded only while a scheduled run has
-actually run it (`decisionDay/armed.ts`).
+actually run it (`decisionDay/armed.ts`). A freed place offered after
+decision day is not reminded, by name (`freed-place`): see "A place given
+back after decision day".
 
 ## Replies
 
@@ -1112,6 +1121,11 @@ screen that shows a place shows the same one.
   exception names), and by somebody invited to it who accepted.
 - **A place is kept for an invitation** only while that invitation is
   unanswered and its person is still in the term.
+- **A freed place is read the same way**: kept while it is unanswered, held
+  once it is accepted, through the person's standing like decision day's
+  own invitation. It is on a programme they ranked, so `joined` (somebody on
+  a programme's list by an invitation alone) does not count them: they are
+  among its applications by their ranking already.
 
 It reads both halves of the record, because neither is enough: only the
 decision documents know a lead's Accept and an exception, and only the
@@ -1125,6 +1139,149 @@ whether they are in.
 Every caller of `tallyTerm()` hands each applicant over with its application.
 `tests/applications-wave-h-places.test.mjs` runs one stored term, in which
 every kind of reply has been made, through each of them.
+
+## A place given back after decision day
+
+Decision day tells everybody at once, and until this was built nothing could
+change an outcome after it: the send was the only writer of one, somebody
+told "No offer this time" had nothing to answer, and the run a programme
+names takes no application of its own. So a place given back after the send
+could only be offered by email, and the person could not then be put on the
+run.
+
+One change is now made after the send, and it is held strictly:
+
+- **only from "No offer this time" to an invitation.** The invitation is
+  written beside the result, which stays what decision day said;
+- **only to a pooled applicant who ranked the programme**, and whom its own
+  lead pooled. Somebody it declined is not offered its place: its lead said
+  they were not eligible;
+- **only while a place is free**, by `freePlaces()`, read and never
+  rewritten, so a place kept for an invitation nobody has answered is not
+  free;
+- **only while the window is open**: from the send until midnight in London
+  at the end of the last day of week 1 of the course run the programme
+  names, worked out from that run's start date and week plan
+  (`freedPlaceWindow`). No date is typed in code. A programme that names no
+  run, or a run with no start date or no week 1, has no window;
+- **only by whoever `offersFreedPlaces()` admits**, asked of the caller's role
+  on the programme: an admin, this term. It is one line in
+  `freedPlaces/rules.ts`, asked by the page, both routes and the writer's own
+  transaction, so giving it to a programme's lead is that line;
+- **with one line in the log for each press**, of kind
+  `application-freed-places-offered`, saying how many and on which
+  programme, and naming nobody.
+
+A settled, cancelled or archived form offers nothing, and neither does a
+closed programme or one with no number of places.
+
+### What a press writes
+
+`offerFreedPlaces` (`freedPlaces/offer.ts`) is the one writer. One
+transaction, for everybody picked at once, so a press offers all of them or
+none. It reads the form, the run, every sent application and every decision
+on the form, the groups it names and the places on the run of anybody an
+earlier offer is waiting on, and asks everything above of what it read. Two
+presses at once read the same documents, so the one that commits second runs
+again and meets the refusal: the last place is offered once.
+
+| Document | What |
+| --- | --- |
+| The person's own application | `invitation` in decision day's own shape, with the day to accept by the admin chose; `freedPlace` (`groupId`, `offeredAt`, and the email's own state, read like a result's through `decisionDay/emailState.ts`); `status` from `no-offer` to `invited` |
+| The form | `applicationCounts`: `no-offer` down and `invited` up by as many, in the same transaction |
+| `courseAudit/{auto}` | one line, `subjectUid: null`, `runId: ""`, the form's `roundId` |
+
+`result` is not touched, and no decision document is written. So decision
+day's page goes on reporting what decision day sent, and the pooled
+applicants' page goes on saying what was picked before it.
+
+### The email, and the test that comes first
+
+"A place has come up on AGI Strategy", in the board's words, composed by
+`composeFreedPlaceEmail` (`freedPlaces/words.ts`) from records: when the
+person was told, the weekly time and next session of a group of the run, the
+part of the week that time falls in, the day to accept by, and the lead who
+signs it. It names when the group meets, so it goes WHOLE OR NOT AT ALL: a
+slot with nothing in it refuses the press with a sentence, before anything
+is written. It never names the group, its room or a link: "Once you accept,
+we'll email you your group and room", and Publish is what does. It goes
+through decision day's own mail door (`sendDecisionEmail`), with the same
+reply-to, after the offer has committed, because its buttons open the
+person's own page.
+
+THE GROUP whose time it names is picked for each person on the page, from
+the run's groups whose whole weekly session their painted week covers
+(`maskCoversSession`, #67's fit reading) and that have a seat: its places,
+less the people in it and less the offers already waiting on a seat in it
+(unanswered, or accepted and not yet placed). Somebody whose week covers no
+group, or who painted nothing, cannot be picked: no true sentence says when
+they are free.
+
+NO PRESS GOES UNTIL THE ADMIN HAS SENT THEMSELVES A TEST: the first person's
+real email, to the address on the admin's own session, marked as a test. A
+test that reaches the mail provider is recorded on the form
+(`freedPlaceTests.<programmeId>`: who, when, the day to accept by, and a
+fingerprint of the email's wording with its slots marked,
+`freedPlaces/tested.ts`). The press is refused unless the fingerprint it works
+out for its own day to accept by is the one recorded, so choosing another day
+asks for another test, and a build that changes the words makes every older
+test stale. A press carries the number its button named ("Send 2
+invitations") and is refused when the people picked are not that many.
+
+What became of each email is recorded on `freedPlace` the way decision day
+records its own. One known not to have gone is still to go, and a smaller
+press ("Send the 1 email still to go") takes it up in a transaction that
+requires that; one nobody can vouch for is never sent again.
+
+### What the person sees, and how they answer
+
+`standingOf()` reads an invitation beside a "No offer this time" result
+exactly as it reads decision day's: an invitation until they answer, a place
+once they accept, a place given back once they say no thanks. An invitation
+beside a declined result is never read. So the person answers on their own
+application page, with decision day's invitation card and its Accept and No
+thanks, through the same reply route and the same transaction, which moves
+the counters as it always did (`invited` to `accepted` or `withdrawn`), and
+an acceptance approves an account that is still waiting
+(`holdsAcceptance()`, which reads the standing). The card's first sentence is
+the offer's own ("On Fri 23 Oct we couldn't offer you a place this term.
+Someone has given theirs back, and we'd love you to have it."), because
+decision day's "a great fit for it instead" is untrue of a programme they
+ranked. The view says which it is (`freed`).
+
+The day to accept by is decision day's soft rule (`REPLY_BY_IS_A_DEADLINE`):
+shown, and not a wall. The board's email says "Please accept by" and draws no
+wall, and the window closing stops offers, not replies.
+
+Once they accept they hold a place, and `holdingOf()` says so with no second
+reading: the hand-over, places left, the status page and the list of their
+applications all see it. So an admin presses Hand over again (it adds only
+who is missing), puts them in the group whose time their email named, and
+presses Publish, which emails only them. `tests/applications-freed-places-journey.test.mjs`
+runs that whole path through the real handlers.
+
+The daily invitation reminder leaves a freed place alone: its day to accept
+by is days away and chosen by the admin, who can see who has answered, and a
+reminder would have to name the group's time again. The record kept when a
+term settles says "no-offer, then invited (AGI Strategy)", with the run.
+
+### The page
+
+"Offer freed places" (`.../programmes/[programmeId]/applications/freed-places`),
+under the programme's Applications tab, which links to it under its count of
+places left. It lists who gave a place on the programme back, how many places
+are free and until when, and the people a freed place can be offered to, each
+with their score for the programme, when they are free in a few words
+(`freeInWords`), and the groups their week covers. Nothing it is sent carries
+an address or a painted week. The preview is composed by the function the
+send uses, from the page's own fields. A lead or a reviewer who opens it is
+told it is an admin's; anybody with no role on the programme is not shown it.
+
+`tests/applications-freed-places-offer.test.mjs` breaks each part of the rule
+through the routes, as every kind of caller and across the window's edges in
+London; `tests/applications-freed-places-person.test.mjs` holds the standing,
+the replies, every count and the person's page; and
+`tests/applications-freed-places-page.test.mjs` holds the page and the link.
 
 ## From the form onto a course run
 
@@ -1505,6 +1662,9 @@ row, and draws the card somebody in a group then reads.
 - **An application's earlier versions go with the application.** They are
   fields of its own document, so every delete above takes them in the same
   write, and nothing else holds a copy.
+- **So does a freed place offered on it** (`freedPlace` and its
+  `invitation`), and the record of a freed-place test goes with the form
+  (`freedPlaceTests`). Neither has a collection of its own.
 
 ## The modules
 
@@ -1537,6 +1697,9 @@ All in `src/lib/applications/`.
 | `handover/handOver.ts` | `handOverProgramme`, the one writer of a place holder's row on a course run, and what stops a press | server, staff |
 | `handover/load.ts`, `handover/views.ts` | The read behind naming a run and handing people over, for an admin | server, staff; the shapes anywhere |
 | `handover/board.ts` | What the allocation board is told about somebody the form placed: which groups they can make, and whether they still hold the place | server, staff |
+| `freedPlaces/rules.ts`, `freedPlaces/words.ts`, `freedPlaces/views.ts` | Offering a place given back: who may, the window, who can be offered one, seats, what a request may carry; the email and the page's words; what the page is sent | anywhere |
+| `freedPlaces/tested.ts` | The fingerprint a freed-place test is recorded with and a send compares | server |
+| `freedPlaces/groups.ts`, `freedPlaces/load.ts`, `freedPlaces/offer.ts` | The run's calendar and groups; the page's read; the one writer of an offer, its emails and its test | server, staff |
 
 ## Rules for anything built on this
 
@@ -1604,6 +1767,12 @@ All in `src/lib/applications/`.
   course side needs to know about what they wrote, it asks for when it is
   drawn and is handed the answer, as the board is handed which groups a
   person can make and never the week they painted.
+- **An outcome changes after the send in one way, through one writer.**
+  "No offer this time" to an invitation for a place given back, by
+  `offerFreedPlaces` (`freedPlaces/offer.ts`), on the terms in "A place given
+  back after decision day". Nothing else writes `invitation` after the send,
+  and nothing at all rewrites `result`. A new writer of either is the rule
+  changing again, and needs saying so.
 - **The hand-over only creates.** It never changes a row that is there and
   never takes anybody off a run, so pressing it again is always safe. A
   person is handed over only once decision day has reached them.

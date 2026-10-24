@@ -302,6 +302,13 @@ const ROUND_SURFACES = {
       "starts from the form's own loader, so a round of the older kind has no programme and no " +
       "applications to list and the page says there is nothing here",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/applications/freed-places": {
+    kind: "form",
+    why:
+      "the page that offers a programme's freed places. It loads through loadOfferBoard, which " +
+      "starts from the form's own loader, so a round of the older kind has no programme here " +
+      "and the page says there is nothing here",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
     kind: "form",
     why:
@@ -457,6 +464,20 @@ const ROUND_SURFACES = {
       "handOverProgramme. It loads the round with the form's own loader before it reads " +
       "anybody's application, and every transaction that writes a row reads the round again " +
       "and stops unless it is a form",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places": {
+    kind: "form",
+    why:
+      "offers a programme's freed places after decision day, through offerFreedPlaces, and sends " +
+      "the emails still to go. Each press loads the round with the form's own loader before it " +
+      "reads anybody's application, and every transaction that writes reads the round again and " +
+      "stops unless it is a form",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places/test": {
+    kind: "form",
+    why:
+      "sends the admin a test of a freed-place email, through sendFreedPlaceTest, which loads " +
+      "the round with the form's own loader and finds nothing for a round that is not a form",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email": {
     kind: "form",
@@ -1222,6 +1243,18 @@ const ROUND_READERS = new Map([
         "the decision writers and the reviewers' switch. A decision and a revocation are each a " +
         "transaction that reads the round and asks before it writes anything. The gate in front " +
         "of them and the switch load the round through the form's own loader, which asks too",
+    },
+  ],
+  [
+    "src/lib/applications/freedPlaces/offer.ts",
+    {
+      kind: "form",
+      asks: 2,
+      proof: ["const form = await loadForm(db, roundId);", "const formSnap = await tx.get(formRef(db, roundId));"],
+      why:
+        "the one writer of a freed place. Each press, resend and test starts from the form's own " +
+        "loader, which answers null for a round that is not a form; the press's transaction and " +
+        "each claim of an email still to go read the round again and ask before they write",
     },
   ],
   [

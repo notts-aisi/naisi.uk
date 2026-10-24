@@ -2,6 +2,7 @@ import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
 import ApplicationsBoard from "@/features/applications/review/ApplicationsBoard";
 import NotHere from "@/features/applications/review/NotHere";
 import { isAddressableId } from "@/lib/addressableId";
+import { offersFreedPlaces } from "@/lib/applications/freedPlaces/rules";
 import { loadProgrammeBoard } from "@/lib/applications/review/load";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -39,12 +40,16 @@ export default async function ProgrammeApplicationsPage({
     );
   }
   const base = `forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/applications`;
+  // Freed places are offered after decision day, by whoever offersFreedPlaces
+  // admits: the link is drawn for them alone, and its page asks again.
+  const offers = result.board.round.decisionsSent && offersFreedPlaces(result.board.viewer.role);
   return (
     <ApplicationsRoot>
       <ApplicationsBoard
         board={result.board}
         listPath={`/admin/admissions/${base}`}
         apiPath={`/api/admissions/${base}`}
+        freedPlacesPath={offers ? `/admin/admissions/${base}/freed-places` : null}
       />
     </ApplicationsRoot>
   );

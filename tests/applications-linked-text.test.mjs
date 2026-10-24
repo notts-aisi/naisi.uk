@@ -937,8 +937,10 @@ const BUILT = new Map([
   [
     "src/features/applications/review/ApplicationsBoard.tsx",
     {
-      built: ["`${listPath}/${nextUid}`", "`${listPath}/${row.uid}`", "href"],
-      from: "a programme's list of applications, and one application by its owner's account id",
+      built: ["`${listPath}/${nextUid}`", "`${listPath}/${row.uid}`", "freedPlacesPath", "href"],
+      from:
+        "a programme's list of applications, one application by its owner's account id, and the " +
+        "programme's freed-places page, which the list's own page builds from the form's and the programme's ids",
     },
   ],
   [
@@ -965,6 +967,13 @@ const BUILT = new Map([
     {
       built: ["joinReturnFor(bare[1])", "marked"],
       from: "the form's own address with its mark, built from an id alone after the whole shape of a return address has matched",
+    },
+  ],
+  [
+    "src/lib/applications/freedPlaces/words.ts",
+    {
+      built: ["input.link", "input.link"],
+      from: "a freed-place email's two buttons, both the person's own application page, from the address the offer's writer builds for the form",
     },
   ],
   [
