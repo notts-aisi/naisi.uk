@@ -924,11 +924,13 @@ const BUILT = new Map([
         "`${programmePath}/attendance`",
         "`${programmePath}/messages`",
         "`${programmePath}/messages`",
+        "`${programmePath}/setup#who-finished`",
       ],
       from:
         "the programme's own path and the run's own ids, worked out on the server by buildProgrammeOverview: its " +
         "Attendance tab, with a group's id to open on, its Messages tab (Write an update, and each update's title), " +
-        "and for an admin the week's editor under /admin/courses. Nothing anybody typed",
+        "its Settings tab at the card for who finished (Set who counts as finished, before the end and while " +
+        "there is no rule), and for an admin the week's editor under /admin/courses. Nothing anybody typed",
     },
   ],
   [

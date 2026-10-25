@@ -11,6 +11,7 @@ import { loadProgrammeForStaff } from "@/lib/applications/editor/load";
 import { applicationFormPath } from "@/lib/applications/editor/olderRounds";
 import { readTeamsTab } from "@/lib/applications/handover/teamsLoad";
 import { stageSummaryFor } from "@/lib/applications/lifecycle/view";
+import { readRunEndById } from "@/lib/courses/finishing/record";
 import { readRunHeader } from "@/lib/courses/programmeAttendance";
 import { formatRunStartShort } from "@/lib/courses/window";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -46,6 +47,11 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * lead and admins, who open the run's tabs; a reviewer keeps the form's line.
  * Before the run's first day the form's line stays.
  *
+ * ONCE THE RUN'S LAST SESSION IS OVER the chip reads "Finished · Wed 9 Dec",
+ * the day of that session (`readRunEndById`, the moment the lead can say who
+ * finished), and the line says how many "took part": the same people the
+ * running line counted as taking part.
+ *
  * An incubator's head also says "Teams by", the day its run's teams are made
  * (the run's own setting, `readTeamsTab`), as its last fact.
  */
@@ -66,9 +72,14 @@ export default async function ProgrammeLayout({
     db && programme.runId && opensProgrammeGroups(role)
       ? await readRunHeader(db, programme.runId, { isAdmin: role === "admin" }, context.now)
       : null;
+  // "Finished · Wed 9 Dec" once the last session is over, from the run's own sessions.
+  const runEnd = db && runHeader && programme.runId ? await readRunEndById(db, programme.runId, context.now) : null;
+  const finishedOn = runEnd?.over ? runEnd.lastDay : null;
   // An incubator's Teams tab and the day its teams are made; null for a fellowship.
   const teamsTab = db ? await readTeamsTab(db, programme) : null;
-  const state = runHeader
+  const state = finishedOn
+    ? { label: `Finished · ${finishedOn}`, live: false, tone: "neutral" as const }
+    : runHeader
     ? { label: runHeader.chip, live: runHeader.live, tone: runHeader.live ? ("live" as const) : ("neutral" as const) }
     : programme.closed
     ? { label: "Closed", live: false, tone: "neutral" as const }
@@ -109,7 +120,13 @@ export default async function ProgrammeLayout({
       </span>,
     );
   }
-  if (runHeader) {
+  if (runHeader && finishedOn) {
+    facts.push(
+      <span className={styles.metaItem} key="took-part">
+        {`${runHeader.takingPart} took part`}
+      </span>,
+    );
+  } else if (runHeader) {
     facts.push(
       <span className={styles.metaItem} key="taking-part">
         {`${runHeader.takingPart} taking part in ${runHeader.groups} ${runHeader.groups === 1 ? "group" : "groups"}`}

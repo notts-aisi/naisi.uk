@@ -15,6 +15,7 @@ import {
   type CourseRunDoc,
 } from "./courses";
 import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
+import { FINISHING_COLLECTION } from "@/lib/courses/finishing/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
 import { COURSE_AUDIT_COLLECTION } from "./courseAudit";
 import { COURSE_PAGES_COLLECTION } from "./coursePages";
@@ -175,6 +176,13 @@ export type RunDestroyCounts = {
    * run: a team names a group this cascade deletes.
    */
   teams: number;
+  /**
+   * `courseFinishing` rows: the run's rule for who finished and the lead's
+   * decisions about who did (`src/lib/courses/finishing/`). Keyed by `runId`
+   * on the row like every other leaf here, and it dies with the run: a
+   * decision names a person's place on a run this cascade deletes.
+   */
+  finishing: number;
   mirroredTasks: number;
   /**
    * `tasks` carrying `source: "course-register"` and pointing at this run: the
@@ -914,6 +922,7 @@ export async function countRunDestroyTargets(
     materialNotes,
     pitches,
     teams,
+    finishing,
     mirroredTasks,
     registerTasks,
     subscriptionRows,
@@ -941,6 +950,8 @@ export async function countRunDestroyTargets(
     countAgg(db.collection(PITCHES_COLLECTION).where("runId", "==", runId)),
     // The same single equality the teams stage drains on.
     countAgg(db.collection(TEAMS_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the finishing stage drains on.
+    countAgg(db.collection(FINISHING_COLLECTION).where("runId", "==", runId)),
     // Both halves of the mirror predicate, exactly as drainSourcedTasks
     // deletes them: a manifest that counted on the pointer alone would
     // promise to destroy rows the cascade (rightly) leaves alone.
@@ -992,6 +1003,7 @@ export async function countRunDestroyTargets(
     materialNotes,
     pitches,
     teams,
+    finishing,
     mirroredTasks,
     registerTasks,
     subscriptionRows,
@@ -1425,6 +1437,14 @@ export async function destroyRunCascade(
       // teams routes, which refuse a run being destroyed. Drained with the
       // pitches the teams were made from, before the enrolments.
       drain: () => drainQuery(db, TEAMS_COLLECTION, byRunId(TEAMS_COLLECTION), budget),
+    },
+    {
+      key: "finishing",
+      // Who finished: the run's rule and the lead's decisions, a leaf keyed
+      // by `runId`, written only by the finishing routes, which read the run
+      // (and so find nothing once it is being destroyed). Drained before the
+      // enrolments the decisions are about.
+      drain: () => drainQuery(db, FINISHING_COLLECTION, byRunId(FINISHING_COLLECTION), budget),
     },
     {
       key: "enrolments",

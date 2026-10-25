@@ -5,6 +5,7 @@ import frame from "@/features/applications/editor/ProgrammeSetup.module.css";
 import { loadSetup } from "@/lib/applications/editor/load";
 import { projectProgrammeForSetup } from "@/lib/applications/editor/views";
 import { loadRunPanel } from "@/lib/applications/handover/load";
+import { readFinishRule } from "@/lib/courses/finishing/record";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
@@ -22,6 +23,13 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * allocation board. Its read answers nothing for anybody who is not an
  * admin, before it reads anything, so a programme's lead is drawn the
  * settings and no panel, and nothing of the panel is in their page.
+ *
+ * THE RULE FOR WHO FINISHED is the run's, set here by the programme's lead
+ * or an admin while the programme names a run. Only its own document is
+ * read, by the run id the form names, and only once `loadSetup` has said
+ * the caller is the lead or an admin: nobody else is ever shown it, and a
+ * lead's page still reads nothing of the run itself. Its route asks the
+ * gate again, and refuses a run that is no longer on the site.
  */
 export default async function ProgrammeSetupPage({
   params,
@@ -36,10 +44,18 @@ export default async function ProgrammeSetupPage({
     return <SettingsAreTheLeads roundId={roundId} programmeId={programmeId} />;
   }
   const { form, sets, programme, context } = outcome.setup;
-  const run = db ? await loadRunPanel(db, user, roundId, programmeId) : null;
+  const [run, rule] = db
+    ? await Promise.all([
+        loadRunPanel(db, user, roundId, programmeId),
+        programme.runId ? readFinishRule(db, programme.runId) : Promise.resolve(null),
+      ])
+    : [null, null];
   return (
     <div className={frame.stack}>
-      <ProgrammeSetup programme={projectProgrammeForSetup(form, sets, programme, context)} />
+      <ProgrammeSetup
+        programme={projectProgrammeForSetup(form, sets, programme, context)}
+        finishing={programme.runId ? { atLeast: rule?.atLeast ?? null } : null}
+      />
       {run?.status === "ok" && (
         <RunHandOver roundId={form.round.id} programmeId={programme.id} initial={run.panel} />
       )}

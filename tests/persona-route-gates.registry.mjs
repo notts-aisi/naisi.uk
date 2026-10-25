@@ -396,7 +396,7 @@ export const ROUTES = {
   "/api/admin/registrations/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFinishingCleared", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -485,7 +485,7 @@ export const ROUTES = {
   "/api/admin/users/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFinishingCleared", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -744,6 +744,26 @@ export const ROUTES = {
         "it emails) is checked before anything is read, so every signed-in persona meets the same " +
         "400 on an empty body. Then the role from the form, as the Overview's own gate: only the " +
         "programme's lead and admins email a group's facilitators.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "One person's Finished switch on the Overview, once the run's last session is over. View-as " +
+        "is refused first, then the session, then the body (whose switch, and which way) is checked " +
+        "before anything is read, so every signed-in persona meets the same 400 on an empty one. Who " +
+        "may (the programme's lead or an admin) is decided from the form once a valid body arrives; a " +
+        "reviewer is refused and anybody with no role on it is told the programme is not there.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing/rule": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "The rule for who finished, from the Settings tab: as the switch's route, the body (a whole " +
+        "number of sessions, or null) is checked before anything is read, then the role from the " +
+        "form. Only the programme's lead and admins are ever shown the number.",
     },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams": {

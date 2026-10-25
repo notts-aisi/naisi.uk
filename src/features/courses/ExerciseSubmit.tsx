@@ -433,7 +433,7 @@ export default function ExerciseSubmit({
           <p className={styles.lockNote}>
             {reviewed
               ? "Your facilitator has reviewed this — ask them to reopen it if you need to change your answer."
-              : "This cohort has finished, so your answers are read-only now."}
+              : "Your answers are read-only now."}
           </p>
         </div>
       ) : (

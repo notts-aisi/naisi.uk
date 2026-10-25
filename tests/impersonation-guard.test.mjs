@@ -184,6 +184,16 @@ const MUST_GUARD = [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell/test/route.ts",
     "sends a test of the team email to the address on the session, which during view-as is the member's, and records that it reached them",
   ],
+  // Who finished: the run's rule, and the lead's decision about one person,
+  // each recorded as whoever the session says is acting.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing/route.ts",
+    "records whether one person finished a programme, stored with whoever the session says pressed the switch",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing/rule/route.ts",
+    "sets the rule that decides who finished a programme, which changes what its members are told once it is over",
+  ],
   // A programme's run as its lead reads and chases it. The attendance CSV
   // takes every register of the run off the platform and writes the
   // dataExports row that is the only record it happened; Remind emails a

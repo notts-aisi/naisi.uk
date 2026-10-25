@@ -7,6 +7,7 @@ import {
   type QueryDocumentSnapshot,
   type QuerySnapshot,
 } from "firebase-admin/firestore";
+import { FINISHING_COLLECTION } from "@/lib/courses/finishing/model";
 import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
 import { TEAMS_MARKERS, TEAMS_TEST_KIND } from "@/lib/courses/teams/told";
@@ -71,6 +72,13 @@ export type AccountDeletionSummary = {
    * of tests of the team email they sent themselves go too.
    */
   courseTeamsCleared: number;
+  /**
+   * Who finished (`courseFinishing`): the programme lead's decisions about
+   * this account are deleted, and on decisions this account made about other
+   * people as a lead or an admin, who made them is cleared and the decision
+   * stays. Counted once per document.
+   */
+  courseFinishingCleared: number;
   /** Admission applications (drafts included) written by this account. */
   admissionApplicationsDeleted: number;
   /** Their access-requirements rows, deleted in the SAME batch. See below. */
@@ -471,6 +479,42 @@ export async function clearCourseTeams(db: Firestore, uid: string): Promise<numb
     await batch.commit();
   }
   return teams.docs.length;
+}
+
+/**
+ * Take one account out of who finished (`courseFinishing`, described in
+ * `src/lib/courses/finishing/model.ts`).
+ *
+ * A decision about a person carries their `uid`, found by that one equality
+ * and deleted: it is about them, and nothing else reads it. A decision this
+ * account made about somebody else carries it as `byUid`, found by that one
+ * equality, and keeps its finished or not with `byUid` cleared: it is about
+ * the other person, and their record must not change because whoever pressed
+ * the switch has gone. The run's rule names nobody. Counted once per document.
+ */
+export async function clearCourseFinishing(db: Firestore, uid: string): Promise<number> {
+  const rows = db.collection(FINISHING_COLLECTION);
+  const [about, made] = await Promise.all([
+    rows.where("uid", "==", uid).get(),
+    rows.where("byUid", "==", uid).get(),
+  ]);
+  const writes: Array<(batch: ReturnType<Firestore["batch"]>) => void> = [];
+  const touched = new Set<string>();
+  for (const doc of about.docs) {
+    touched.add(doc.id);
+    writes.push((batch) => batch.delete(doc.ref));
+  }
+  for (const doc of made.docs) {
+    if (touched.has(doc.id)) continue;
+    touched.add(doc.id);
+    writes.push((batch) => batch.update(doc.ref, { byUid: null }));
+  }
+  for (let at = 0; at < writes.length; at += 400) {
+    const batch = db.batch();
+    for (const write of writes.slice(at, at + 400)) write(batch);
+    await batch.commit();
+  }
+  return touched.size;
 }
 
 /**
@@ -991,6 +1035,7 @@ export async function deleteAccountCascade(
     courseAttendanceMarksCleared: 0,
     coursePitchesCleared: 0,
     courseTeamsCleared: 0,
+    courseFinishingCleared: 0,
     admissionApplicationsDeleted: 0,
     admissionApplicationPrivateDeleted: 0,
     admissionDecisionsDeleted: 0,
@@ -1279,6 +1324,16 @@ export async function deleteAccountCascade(
     summary.courseTeamsCleared = await clearCourseTeams(db, uid);
   } catch (err) {
     console.error("[deleteAccount] courseTeams clear failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c'''. WHO FINISHED. The lead's decisions about this account go; on the
+  //      ones this account made about other people, who made them is cleared
+  //      (see clearCourseFinishing).
+  try {
+    summary.courseFinishingCleared = await clearCourseFinishing(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseFinishing clear failed:", uid, err);
     partialFailure = true;
   }
 

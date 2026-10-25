@@ -16,6 +16,7 @@ import type {
 } from "@/lib/applications/editor/views";
 import { Chip, DialogFrame, MenuButton, SavedStatus, Toggle, type SaveState } from "./controls";
 import { patchProgramme, putProgrammeRoles, type ProgrammePatch } from "./editorClient";
+import FinishingRule from "./FinishingRule";
 import {
   ArrowRightIcon,
   CalendarIcon,
@@ -39,6 +40,10 @@ import styles from "./ProgrammeSetup.module.css";
  *
  * WHAT A LEAD CANNOT DO HERE is drawn and explained, never hidden: changing
  * the lead and closing the programme are an admin's.
+ *
+ * THE RULE FOR WHO FINISHED is the run's, drawn here (`FinishingRule`, saved
+ * through its own route) when the page hands it in: for a programme that
+ * names a run.
  */
 
 const L = APPLICATION_LIMITS;
@@ -114,7 +119,14 @@ function changesIn(draft: Draft, view: ProgrammeSetupView): { patch: ProgrammePa
   return { patch, problem };
 }
 
-export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetupView }) {
+export default function ProgrammeSetup({
+  programme,
+  finishing = null,
+}: {
+  programme: ProgrammeSetupView;
+  /** The run's rule for who finished, for a programme that names a run; null draws no card. */
+  finishing?: { atLeast: number | null } | null;
+}) {
   const ids = useId();
   // The boxes are read-only until the page is live, so nothing typed before
   // its JavaScript arrives is written over when it does.
@@ -751,6 +763,10 @@ export default function ProgrammeSetup({ programme }: { programme: ProgrammeSetu
           <span>The “No offer this time” email is the same for every programme. Admins edit it.</span>
         </div>
       </section>
+
+      {finishing && (
+        <FinishingRule roundId={view.roundId} programmeId={view.id} initial={{ atLeast: finishing.atLeast }} />
+      )}
 
       <section className={`${shared.card} ${styles.careful}`} aria-labelledby={`${ids}-careful`}>
         <div className={styles.carefulMain}>

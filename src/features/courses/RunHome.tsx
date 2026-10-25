@@ -19,6 +19,7 @@ import WeekRail from "./WeekRail";
 import { useRunOverview } from "./useRunOverview";
 import { useSyncTasks } from "./useSyncTasks";
 import { LEAVE_LINK } from "@/lib/courses/leavingWords";
+import { ENDED_SUB, FINISHED_SUB, hasEnded, youFinished } from "@/lib/courses/finishing/words";
 import { ATTENDANCE_STATUS_LABEL } from "@/lib/firestore/courseAttendance";
 import leavingStyles from "./leaving/Leaving.module.css";
 import { weekDocId } from "@/lib/firestore/courses";
@@ -183,11 +184,15 @@ function heroCopy(
     };
   }
 
+  // After the last week. "You finished" only where the member's own finished
+  // record says so (`overview.finished`, the one answer every page asks);
+  // everybody else, staff included, is told the course has ended, and nothing
+  // here claims they finished it.
   if (currentWeek.phase === "after") {
-    return {
-      headline: { kind: "text", text: "Course complete" },
-      sub: "The cohort has finished. Every week stays open — revisit whatever you like.",
-    };
+    const name = run.courseTitle.trim() || "This course";
+    return overview.finished
+      ? { headline: { kind: "text", text: youFinished(name) }, sub: FINISHED_SUB }
+      : { headline: { kind: "text", text: hasEnded(name) }, sub: ENDED_SUB };
   }
 
   // Running. A break slot names itself and has no week number of its own, so it
