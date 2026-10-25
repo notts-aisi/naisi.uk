@@ -2923,6 +2923,17 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === courseGroupNotes ===
+    // The notes a group's facilitators share (C30,
+    // src/lib/firestore/courseGroupNotes.ts): written only by the notes route
+    // on the Admin SDK, by a live facilitator of the group, and read only on
+    // the server by the group page and the programme's Attendance tab, after
+    // their own gates. So every browser is refused, admins, the programme's
+    // lead and a note's own writer included.
+    match /courseGroupNotes/{noteId} {
+      allow read, write: if false;
+    }
+
     // === config ===
     // Server-only runtime config, written by the Admin SDK and read only by
     // routes: `config/taskEmails` (the task-email kill switch),
