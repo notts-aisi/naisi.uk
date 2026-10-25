@@ -1257,8 +1257,12 @@ already open; nothing under `/admin/courses` is needed.
 - **Groups tab, Facilitators**: who facilitates each group, changed by hand.
   The list to pick from is names only. Changing it emails nobody; somebody
   added after groups have gone out is told by the next press of Publish.
-- **Attendance tab**: every register of the run, group by group, read only.
-  Marking stays with the group's facilitators and admins.
+- **Overview tab**: the run's week, each group's session this week and its
+  register, what needs attention, who came by week and how many are taking
+  part (see "The lead's Overview and Attendance" below).
+- **Attendance tab**: every register of the run as one grid, By person or
+  By week, read only, with Download CSV. Marking stays with the group's
+  facilitators and admins.
 - **Applications tab, Offer freed places** (see the next section).
 - Everything else a run's track lead may do on the run, through the same
   routes: the run's own applications queue, putting somebody back on the
@@ -1284,6 +1288,38 @@ account changes, or whose programme stops naming the run has none of it at
 the next request, and the new lead has it at once. A lead of one programme
 is nobody on another programme's run, and a programme's reviewers gain
 nothing. Nothing is deployed for any of this: no rule and no index changes.
+
+### The lead's Overview and Attendance
+
+Both tabs, and the line under the programme's name once the run is under
+way ("Running · week 3 of 6", how many are taking part in how many groups,
+the day of the last sessions), are worked out on the server from the run's
+own records, once, by `src/lib/courses/programmeAttendance.ts`, so every
+number agrees between them and the CSV.
+
+- **Who is a row** follows the register: the lead sees the people Publish
+  has told; an admin sees everybody placed. Somebody who left (withdrawn,
+  or taken off the run) stays listed with the marks they had, only in the
+  group whose register marked them; somebody who left before any register
+  marked them is nobody's row.
+- **"Came"** counts present, late and left early; excused and absent count
+  in "of". A mark saved on a register not finished yet counts, drawn with a
+  ring. A session the register says did not happen counts for nobody.
+- **Download CSV** is logged in the export log before the file is handed
+  over, and refused when the log cannot be written. It holds group, name,
+  each week's mark in words, "Came" and "Of", and when somebody left: never
+  an address or a note.
+- **Needs attention** lists what the records say, and each item goes with
+  its record: somebody absent at two sessions in a row without saying, a
+  week not published that a group has reached, a register not finished
+  once its session has ended (with the reminder's and the task's times from
+  Course settings and their jobs' switches), and somebody who left.
+- **Remind** emails the register reminder to that group's facilitators
+  only, after a confirm with the count, and claims the reminder job's own
+  marker for each, so a facilitator hears about one register once, whether
+  the press or the job comes first. It works while the job is switched off:
+  the press is a person's decision. A facilitator who has turned off their
+  "Tasks and worksheets" emails is not offered.
 
 ## Updates on a run
 
