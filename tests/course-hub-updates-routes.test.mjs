@@ -505,7 +505,9 @@ describe("3. the email reaches each person the update is to, and nobody else", (
     assert.equal(stored().length, 10);
   });
 
-  test("what the email did is kept: written unsettled before the first message, settled after the last", async () => {
+  test("what the email did is kept: written unsettled before the first message, settled after the last", async (t) => {
+    // The send that throws is logged with its stack, which is expected here.
+    t.mock.method(console, "error", () => {});
     const seen = [];
     world.mailFate = (args) => {
       seen.push(stored()[0].email.settled);

@@ -30,9 +30,12 @@ export const UPDATE_WRITER_GONE = "NAISI";
 /** What a group with no name is called. The same words the run's other tabs use. */
 export const UNNAMED_GROUP = "Untitled group";
 
+/** Counts, grouped the British way: "4,000". A number format, so no time zone is involved. */
+const COUNT_FORMAT = new Intl.NumberFormat("en-GB");
+
 /** "1,200": the site's numbers, grouped. */
 export function countWords(n: number): string {
-  return Math.max(0, Math.floor(n)).toLocaleString("en-GB");
+  return COUNT_FORMAT.format(Math.max(0, Math.floor(n)));
 }
 
 /** "1 person", "31 people". */
