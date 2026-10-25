@@ -14,6 +14,7 @@ import {
   type CourseDoc,
   type CourseRunDoc,
 } from "./courses";
+import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
 import { COURSE_AUDIT_COLLECTION } from "./courseAudit";
 import { COURSE_PAGES_COLLECTION } from "./coursePages";
 // The ONLY two `tasks.source` values a run's cascade may delete. See
@@ -157,6 +158,14 @@ export type RunDestroyCounts = {
    * be told that the team's written assessment of it goes too.
    */
   materialNotes: number;
+  /**
+   * `coursePitches` rows: pitching week's pitches on this run, each with who
+   * pitched it and who said they would join it (`src/lib/courses/pitching/`).
+   * Member-authored text, keyed by `runId` on the row like every other leaf
+   * here, and it dies with the run: a pitch names a week and a group this
+   * cascade deletes.
+   */
+  pitches: number;
   mirroredTasks: number;
   /**
    * `tasks` carrying `source: "course-register"` and pointing at this run: the
@@ -884,6 +893,7 @@ export async function countRunDestroyTargets(
     exerciseResponses,
     attendanceRegisters,
     materialNotes,
+    pitches,
     mirroredTasks,
     registerTasks,
     subscriptionRows,
@@ -906,6 +916,8 @@ export async function countRunDestroyTargets(
     countAgg(
       db.collection(COURSE_MATERIAL_NOTES_COLLECTION).where("runId", "==", runId),
     ),
+    // The same single equality the pitches stage drains on.
+    countAgg(db.collection(PITCHES_COLLECTION).where("runId", "==", runId)),
     // Both halves of the mirror predicate, exactly as drainSourcedTasks
     // deletes them: a manifest that counted on the pointer alone would
     // promise to destroy rows the cascade (rightly) leaves alone.
@@ -953,6 +965,7 @@ export async function countRunDestroyTargets(
     exerciseResponses,
     attendanceRegisters,
     materialNotes,
+    pitches,
     mirroredTasks,
     registerTasks,
     subscriptionRows,
@@ -1370,6 +1383,14 @@ export async function destroyRunCascade(
           byRunId(COURSE_MATERIAL_NOTES_COLLECTION),
           budget,
         ),
+    },
+    {
+      key: "pitches",
+      // Pitching week's pitches and who would join each: member-authored, a
+      // leaf keyed by `runId`. The only writers are the pitching routes, which
+      // refuse anybody without a live seat on the run, so the row is drained
+      // here, before the enrolments that open that door.
+      drain: () => drainQuery(db, PITCHES_COLLECTION, byRunId(PITCHES_COLLECTION), budget),
     },
     {
       key: "enrolments",

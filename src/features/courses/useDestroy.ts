@@ -235,6 +235,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "Staff assessments of how each piece of the curriculum landed — the written half of this run's retrospective. A snapshot saved from this run keeps its frozen summary; these notes do not survive.",
   },
+  pitches: {
+    label: "Pitches",
+    fate: "destroyed",
+    note: "Pitching week's pitches: what each person or pair pitched, and who said they'd join each. Member-authored text.",
+  },
   mirroredTasks: {
     label: "Mirrored My Work tasks",
     fate: "destroyed",
