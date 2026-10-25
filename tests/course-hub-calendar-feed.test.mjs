@@ -199,6 +199,33 @@ describe("1. whose sessions the calendar holds", () => {
     assert.deepEqual(await w.fetchFeed(token), await nobodysAnswer());
   });
 
+  test("the route asks first: an account that does not stand has none of its seats read", async () => {
+    const { token } = await w.linkOf("chloe");
+    w.world.db.poke("users/chloe", { role: "rejected" });
+    const reads = w.world.db.stats.reads;
+    await w.fetchFeed(token);
+    // The token's one equality and the account: nothing of a seat or a group.
+    assert.equal(w.world.db.stats.reads - reads, 2);
+  });
+
+  test("the feed asks too: read for an account that does not stand, it holds nothing", async () => {
+    const owner = (role) => ({
+      uid: "chloe",
+      email: null,
+      role,
+      suRecognised: false,
+      permissions: {},
+    });
+    const standing = await w.cal.feed.readCalendarFeed(w.world.courseDb, owner("member"));
+    assert.equal(standing.events.length, 6);
+    for (const role of ["rejected", "pending"]) {
+      assert.deepEqual(await w.cal.feed.readCalendarFeed(w.world.courseDb, owner(role)), { events: [], groups: [] }, role);
+    }
+    // A facilitator's groups ask it of their own array.
+    const rahul = { ...owner("rejected"), uid: "rahul" };
+    assert.deepEqual(await w.cal.feed.readCalendarFeed(w.world.courseDb, rahul), { events: [], groups: [] });
+  });
+
   test("a draft or cancelled run, a run being destroyed, and an archived group add nothing", async () => {
     const { token } = await w.linkOf("chloe");
     const run = w.world.db.read(`courseRuns/${RUN.agi}`);
