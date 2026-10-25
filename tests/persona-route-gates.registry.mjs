@@ -1529,6 +1529,22 @@ export const ROUTES = {
         "forbidden before the body is read.",
     },
   },
+  "/api/courses/runs/[runId]/updates": {
+    GET: {
+      expect: adminOnly(404),
+      why:
+        "A run's updates are read by somebody they are to: its lead, track leads and admins, a facilitator " +
+        "of one of its live groups, or somebody placed on it whom Publish has told. A missing run is the " +
+        "same 403 as a run the caller reads nothing on, so a run id says nothing; an admin is told it is missing.",
+    },
+    POST: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the body is checked before anything is read, " +
+        "so every signed-in persona meets the same 400 on an empty one. Who may write to whom is asked " +
+        "once a valid body arrives.",
+    },
+  },
   "/api/courses/runs/[runId]/sync-tasks": {
     POST: {
       expect: approvedOnly(403),
@@ -2343,6 +2359,13 @@ export const PAGES = {
       "is no programme here' in place of the page with a 200, and a reviewer of the programme is " +
       "told the list is the lead's and admins'.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/messages": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: Messages is the " +
+      "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme " +
+      "the caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
     why:
@@ -2534,6 +2557,13 @@ export const PAGES = {
     why:
       "A run under /learn: the run layout sends every approved account back to /learn when " +
       "the run is missing, and the run's own roster decides the rest once it exists.",
+  },
+  "/(app)/learn/[runId]/group/[groupId]/update": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page sends anybody who does not facilitate the live group, or is not an admin, to " +
+      "the run's home.",
   },
   "/(app)/learn/[runId]/nudge": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),

@@ -110,6 +110,16 @@ const READERS = {
     asks: 2,
     why: "pitching week's people: an untold seat cannot pitch or pick, is offered as nobody's partner, is named to nobody and is not counted on the lead's list",
   },
+  "lib/courses/updates/readers.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "who reads a run's updates: an untold seat reads nothing, as no seat read nothing, so no update to its group is shown to it",
+  },
+  "lib/courses/updates/audience.ts": {
+    kind: "told",
+    asks: 1,
+    why: "who an update is to and who its email reaches: an untold seat counts as nobody, and the email goes through the cohort audience, which leaves it out",
+  },
   "lib/courses/registerAccess.ts": {
     kind: "shown",
     asks: 1,
