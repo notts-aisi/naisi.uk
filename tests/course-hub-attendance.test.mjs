@@ -267,6 +267,11 @@ describe("1. the grid's marks and counts", () => {
     assert.deepEqual(cellsOf(sam), ["present", "absent", "after", "after", "after", "after"]);
     assert.deepEqual([sam.came, sam.of], [1, 2]);
     assert.equal(sam.absentInARow, 0, "somebody who left is not chased about absences");
+    // Even two in a row before they went.
+    world.db.poke(registerPath(A, 1), { "records.sam": "absent" });
+    const twice = rowOf(await gridFor(false), A, "sam");
+    assert.deepEqual(cellsOf(twice).slice(0, 3), ["absent", "absent", "after"]);
+    assert.deepEqual([twice.absentInARow, twice.absentWeeks], [0, []]);
   });
 
   test("left early counts as came, as present and late do", async () => {
@@ -295,6 +300,13 @@ describe("1. the grid's marks and counts", () => {
     assert.deepEqual(cellsOf(freya), ["present", "absent", "absent*", "not-yet", "not-yet", "not-yet"]);
     assert.deepEqual([freya.came, freya.of, freya.absentInARow], [1, 3, 2]);
     assert.deepEqual(cellsOf(rowOf(model, D, "yasmin")).slice(0, 3), ["present", "present", "present*"]);
+  });
+
+  test("a session under way is still Tonight, and Not finished only once it has ended", async () => {
+    mock.timers.setTime(new Date("2026-11-17T19:00:00Z").getTime());
+    assert.equal(groupOf(await gridFor(false), B).weeks[2].tag, "tonight");
+    mock.timers.setTime(new Date("2026-11-17T20:01:00Z").getTime());
+    assert.equal(groupOf(await gridFor(false), B).weeks[2].tag, "not-finished");
   });
 
   test("a session that started at 1pm today is Today, not Tonight", async () => {
