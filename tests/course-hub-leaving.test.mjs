@@ -386,12 +386,17 @@ describe("2. leaving a run the application form placed you on", () => {
     assert.equal(read(taskPath("amara")), undefined);
 
     // One log line, naming her and her group.
+    // CHANGED ON PURPOSE (the privacy review for version 7, its item 7): the
+    // log of course actions outlives the account and says what was done, so
+    // it no longer copies what she said. Her reason is kept with her seat
+    // alone (above), for the programme's lead and admins.
     const logged = world.db.paths().filter((path) => path.startsWith("courseAudit/")).map(read);
     assert.equal(logged.length, 1);
     assert.deepEqual(
       [logged[0].kind, logged[0].runId, logged[0].groupId, logged[0].subjectUid, logged[0].actorUid, logged[0].detail],
-      ["enrolment-dropout", RUN.agi, A, "amara", "amara", `Left the course. Reason given: ${AMARA_SAID}`],
+      ["enrolment-dropout", RUN.agi, A, "amara", "amara", "Left the course."],
     );
+    assert.ok(!JSON.stringify(logged[0]).includes(AMARA_SAID), "the log line copies her reason");
   });
 
   test("she is emailed, word for word, and nobody else is", async () => {
@@ -422,11 +427,14 @@ describe("2. leaving a run the application form placed you on", () => {
     assert.equal(world.mail.length, 1);
   });
 
-  test("with no reason, none is kept, and the log says so", async () => {
+  // CHANGED ON PURPOSE (the privacy review for version 7, its item 7): the log
+  // line no longer says whether a reason was given, as it no longer carries
+  // one; it is the same line with a reason and without.
+  test("with no reason, none is kept, and the log line is the one a leave with a reason writes", async () => {
     await leave("amara", { confirmName: TITLE });
     assert.equal(read(enrolmentPath("amara")).dropOutReason, null);
     const logged = world.db.paths().filter((path) => path.startsWith("courseAudit/")).map(read);
-    assert.equal(logged[0].detail, "Left the course. No reason given.");
+    assert.equal(logged[0].detail, "Left the course.");
     assert.deepEqual((await overviewLeft()).items[0], ["Amara Okafor left on Tue 17 Nov", "Amara’s off Group A’s register from week 4."]);
   });
 
