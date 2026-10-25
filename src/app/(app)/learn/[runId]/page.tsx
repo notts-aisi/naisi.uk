@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { pitchingCard } from "@/lib/courses/pitching/load";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import RunHome from "@/features/courses/RunHome";
 import { getRunAccess } from "@/features/courses/runAccess";
@@ -72,7 +74,18 @@ export default async function RunHomePage({
       access.run.runFacilitatorUids,
     );
 
+  // Pitching week's card, for somebody taking part, while it is on (see
+  // `pitchingCard`). Worked out here so the run home's one fetch stays as it
+  // is; a run with no pitching week costs one query.
+  const db = getAdminDb();
+  const pitching = access.isEnrolled && db ? await pitchingCard(db, access.user, runId) : null;
+
   return (
-    <RunHome runId={runId} isAdmin={access.isAdmin} canEmailCohort={canEmailCohort} />
+    <RunHome
+      runId={runId}
+      isAdmin={access.isAdmin}
+      canEmailCohort={canEmailCohort}
+      pitching={pitching}
+    />
   );
 }

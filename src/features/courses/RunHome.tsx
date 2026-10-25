@@ -60,6 +60,12 @@ type Props = {
    * it and the send route is the boundary.
    */
   canEmailCohort: boolean;
+  /**
+   * Pitching week's card, worked out by the server page for somebody taking
+   * part (`pitchingCard`): its line, and whether pitching is still open. Null
+   * draws nothing.
+   */
+  pitching?: { lede: string; open: boolean } | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -443,7 +449,7 @@ function ProgressPanel({
 // RunHome
 // ---------------------------------------------------------------------------
 
-export default function RunHome({ runId, isAdmin, canEmailCohort }: Props) {
+export default function RunHome({ runId, isAdmin, canEmailCohort, pitching = null }: Props) {
   const { data, error, reload } = useRunOverview(runId);
 
   /*
@@ -651,6 +657,24 @@ export default function RunHome({ runId, isAdmin, canEmailCohort }: Props) {
                 : undefined
             }
           />
+        )}
+
+        {pitching && (
+          /* Pitching week, for somebody taking part, from the moment the week
+             is published until the end of their group's session day in it. */
+          <Card as="section" padding="md" className={styles.panel}>
+            <h3 className={styles.panelTitle}>Pitching week</h3>
+            <p className={styles.panelNote}>{pitching.lede}</p>
+            <Link
+              className={styles.panelLink}
+              href={`/learn/${encodeURIComponent(runId)}/pitching`}
+            >
+              {pitching.open ? "Pitch and pick" : "See the pitches"}
+              <span className={styles.arrow} aria-hidden="true">
+                →
+              </span>
+            </Link>
+          </Card>
         )}
 
         {/* Learners only. A facilitator has no attendance of their own, and an
