@@ -85,6 +85,9 @@ const { default: ApplicationsPage } = await loadTs(join(PROGRAMME, "page.tsx"));
 const { default: ApplicationPage } = await loadTs(
   join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "applications", "[uid]", "page.tsx"),
 );
+// The list's own rows and its own filter, which its tabs use.
+const reviewLoad = await lib("applications", "review", "load.ts");
+const listModel = await loadTs(join("features", "applications", "review", "listModel.ts"));
 
 const REPLY_BY = "2026-10-29";
 const LIST = `/admin/admissions/forms/${ROUND}/programmes/${AGI}/applications`;
@@ -445,13 +448,22 @@ describe("the Applications tab leads there, under the places left", () => {
     assert.equal(row.includes("Pooled"), false, row);
     assert.equal(row.includes("Invited"), false, row);
     assert.ok(row.includes("1st"), row);
+    // And the row is under the Accepted tab and not the Pooled one: the
+    // list's own filter, asked of the rows the page was drawn from.
+    const loaded = await reviewLoad.loadProgrammeBoard(world.db, sessionOf("zach"), ROUND, AGI);
+    assert.equal(loaded.ok, true);
+    const omar = loaded.board.rows.find((entry) => entry.uid === "omar");
+    assert.deepEqual([omar.standing, omar.byInvitation, omar.freedPlace], ["accepted", false, true]);
+    const under = (status) => listModel.filterRows(loaded.board.rows, { ...listModel.DEFAULT_QUERY, status }).map((entry) => entry.uid);
+    assert.ok(under("accepted").includes("omar"), JSON.stringify(under("accepted")));
+    assert.equal(under("pooled").includes("omar"), false);
 
-    // The application itself says the same, and keeps the lead's decision as
-    // the record of what was decided.
+    // The application itself says the same: its chip reads Accepted, beside
+    // the lead's decision kept as the record of what was decided.
     const application = await applicationAs("zach", "omar");
+    assert.ok(application.includes("Decision Accepted Pooled by"), application);
     assert.ok(application.includes("Omar accepted an invitation to AGI Strategy. There’s no decision to make here."), application);
     assert.equal(application.includes("has been told their result"), false, application);
-    assert.ok(application.includes("Pooled by"), application);
   });
 
   test("a freed place said no to, or given back, is not read as accepted", async () => {

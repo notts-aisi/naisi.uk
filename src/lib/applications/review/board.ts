@@ -353,7 +353,7 @@ export function buildProgrammeBoard(input: {
       all: applications,
       toReview,
       accepted: (tally?.accepted ?? 0) + joined + freed,
-      // Never below nothing: each of them is one the tally counted as pooled.
+      // Never below zero: each of them is one the tally counted as pooled.
       pooled: (tally?.pooled ?? 0) - freed,
       declined: tally?.declined ?? 0,
     },

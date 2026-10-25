@@ -458,8 +458,8 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
         )}
         {showsIncubatorTokens && (
           <p className={styles.tokensNote}>
-            Publish sends this, in place of Placed in a group, to everybody on a run an incubator
-            names. An incubator is one weekly session for everybody, and its people are never told
+            Publish sends this to everybody on a run an incubator names, in place of the Placed in a
+            group email. An incubator is one weekly session for everybody, and its people are never told
             about a group, so nothing on this list names one. A run can have no room yet, or a
             programme with no lead. So keep <code>{"{where}"}</code> and <code>{"{leadName}"}</code>{" "}
             each in a paragraph of its own: that paragraph is left out when there is nothing to put in

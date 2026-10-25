@@ -1126,6 +1126,13 @@ screen that shows a place shows the same one.
   own invitation. It is on a programme they ranked, so `joined` (somebody on
   a programme's list by an invitation alone) does not count them: they are
   among its applications by their ranking already.
+- **On the programme's list, a freed place accepted reads as accepted**, as
+  a place joined by an invitation does (`holdsFreedPlace` in
+  `src/lib/applications/review/board.ts`, asked by the list and by the
+  application itself): the row stands as accepted with the line "Accepted
+  an invitation", it is counted under Accepted and not Pooled, and the
+  lead's Pool stays on the application as the record of what was decided.
+  So the tabs, the row and the places line say one thing.
 
 It reads both halves of the record, because neither is enough: only the
 decision documents know a lead's Accept and an exception, and only the

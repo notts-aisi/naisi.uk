@@ -1181,9 +1181,7 @@ programme names" below).
   it: the group's weekly time, where it meets, its first and last session
   on the group's own calendar, who else facilitates it, how many in it have
   been told their group and a button to their group page, signed by the lead
-  of the programme that names the run. That lead is never sent it, whatever
-  group they facilitate (an incubator's lead facilitates its one group), and
-  the button's count leaves them out. That number counts only the people
+  of the programme that names the run. That number counts only the people
   told by the end of the press, so it is the number of names on their
   roster: somebody with no address on file, or whose email failed, is
   counted once a later press tells them. Never a meeting link: an online
@@ -1191,8 +1189,11 @@ programme names" below).
   told by the next press. A group with nobody in it waits, and the board
   says so; so does a group nobody in which can be told yet (the board names
   whoever has no address, and a press whose every send to the group failed
-  counts the facilitators' email as still to send). Its wording is in Email
-  designs as "You're facilitating", beside "Placed in a group".
+  counts the facilitators' email as still to send). The lead who signs it
+  is never sent it, whatever group they facilitate (an incubator's lead
+  facilitates its one group), and the button's count leaves them out. Its
+  wording is in Email designs as "You're facilitating", beside "Placed in a
+  group".
 - **A changed wording needs a fresh test.** Saving either of the two emails
   a run sends in Email designs ("You're facilitating", and "Placed in a
   group" or, on a run an incubator names, "Placed on an incubator") locks

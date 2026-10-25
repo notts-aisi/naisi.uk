@@ -831,8 +831,8 @@ describe("the email Publish sends an incubator's people names no group either", 
   });
 
   test("the scanners find the word in what a fellowship's people are sent at Publish", () => {
-    // So the scan above reads the email: the same scan, run on "Placed in a
-    // group" with the same kind of values, finds the word.
+    // So the scan above reads the email: the same scan, run on the seed copy
+    // of "Placed in a group", finds the word.
     const fellowship = courseEmails.courseTemplateDefaults["course-allocated"];
     const words = `${fellowship.subject} ${textOf(fellowship.blocks.map((block) => block.html ?? block.text ?? "").join(" "))}`;
     assert.match(words, A_GROUP);
