@@ -1748,13 +1748,13 @@ describe("stage three of the course hub, one term from week 3 to after its end",
     });
 
     // His place on the form goes back as "I can’t make it" does, and the
-    // reason he typed stays on the run's row. So his own application page is
-    // drawn from a place given back ("You’ve told us you can’t make it.",
-    // "Your place in AGI Strategy has gone back so someone else can take
-    // it.") and the lead's Applications tab says he said "I can’t make it",
-    // with no reason given, while the programme's page says he left and the
-    // Overview quotes his reason; after week 1 nobody can take the place (the
-    // walk of stage three, H4).
+    // reason he typed stays on the run's row. The lead's Applications tab
+    // says he said "I can’t make it", with no reason given, while the
+    // programme's page says he left and the Overview quotes his reason; after
+    // week 1 nobody can take the place. (His own application page, which the
+    // walk of stage three found drawn from a place given back, its H4, now
+    // says he left the programme and when: held in
+    // `tests/course-hub-cant-make-it-after-placement.test.mjs`.)
     test("his place on the form is given back, and the form's places and the lead's Applications tab say so", () => {
       assert.deepEqual(l().application, { status: "withdrawn", attendance: "cant-make-it", releaseReason: null, standing: ["released", "cant-make-it"] });
       assert.equal(l().formCounts.accepted, 8);
