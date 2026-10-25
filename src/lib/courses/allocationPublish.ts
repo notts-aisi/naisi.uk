@@ -1,7 +1,6 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
-import { ROUNDS_COLLECTION } from "@/lib/firestore/admissionRounds";
 import { firstWord } from "@/lib/firestore/applicationEmails";
 import type { CourseApplicationDoc } from "@/lib/firestore/courseApplications";
 import {
@@ -18,10 +17,6 @@ import {
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
 import { loadCourseEmailTemplate, type CourseEmailTemplate } from "@/lib/email/courseApplicationEmails";
-import { programmeNaming } from "@/lib/applications/handover/run";
-import { own } from "@/lib/applications/keys";
-import { FORM_VERSION } from "@/lib/applications/model";
-import { isApplicationForm, normaliseForm, type ApplicationForm } from "@/lib/applications/normalise";
 // The two composers by their `@/` paths, as every caller of a token filler
 // imports one, so the tree walk in tests/email-unfilled-tokens.test.mjs
 // finds these calls and holds them to "whole".
@@ -43,6 +38,7 @@ import {
   type RefusedGroup,
 } from "@/lib/courses/placementEmail";
 import { resolveCalendar } from "./groupResolve";
+import { readNamingProgramme, readRunLead } from "./programmeLead";
 import { resolveSessions, sessionRange, type ResolvedSession } from "./sessions";
 import { COURSE_TZ, isValidDateKey } from "./weekPlan";
 import { formatRunStart, formatRunStartShort } from "./window";
@@ -101,14 +97,15 @@ import { formatRunStart, formatRunStartShort } from "./window";
  * refusal is a sentence an admin can act on, and Publish sends nothing while
  * there is one.
  *
- * ## A run the application form fills is an admin's to publish
+ * ## A run the application form fills is published by an admin or its lead
  *
- * A row the form put on a run is an admin's (`rowIsServedTo`). Each route
- * reads the run's rows itself and asks that of each, as every staff reader
- * of the list does (`tests/applications-handover-row-readers.test.mjs`), and
- * hands this module the rows it may act on. When the run holds any row from
- * the form and the caller is not an admin, the route says so (`adminOnly`)
- * and the plan is only that.
+ * A row the form put on a run is served to an admin and to the lead of the
+ * programme that names the run (`rowIsServedTo`). Each route reads the run's
+ * rows itself and asks that of each, as every staff reader of the list does
+ * (`tests/applications-handover-row-readers.test.mjs`), and hands this
+ * module the rows it may act on. When the run holds a row from the form the
+ * caller is not served, which is to say the caller is a track lead and no
+ * more, the route says so (`adminOnly`) and the plan is only that.
  *
  * ## What lives where
  *
@@ -139,10 +136,14 @@ const NUDGES = "courseNudges";
 export type PlanInput = {
   /**
    * The run's ACCEPTED rows the caller may act on: each asked
-   * `rowIsServedTo` with the caller's own role, by the route.
+   * `rowIsServedTo` with the caller's own standing on the run, by the route.
    */
   accepted: CourseApplicationDoc[];
-  /** The run holds a row from the application form and the caller is not an admin. */
+  /**
+   * The run holds a row from the application form this caller is not served:
+   * only an admin or the lead of the programme that names the run may
+   * publish it.
+   */
   adminOnly: boolean;
 };
 
@@ -190,7 +191,7 @@ export type PublishTestStanding = {
 };
 
 export type PublishPlan = {
-  /** Rows from the application form are on this run and the viewer is not an admin. */
+  /** Rows from the application form are on this run and the viewer is neither an admin nor its programme's lead. */
   adminOnly: boolean;
   /** Accepted people with no active place in a group, by name. */
   unplaced: string[];
@@ -523,30 +524,22 @@ export async function releasePressLock(db: Firestore, runId: string, token: stri
 // The programme that names the run
 // ---------------------------------------------------------------------------
 
-/** Every application form, read the way the hand-over reads them: one equality on one field. */
-async function loadForms(db: Firestore): Promise<ApplicationForm[]> {
-  const snap = await db.collection(ROUNDS_COLLECTION).where("formVersion", "==", FORM_VERSION).get();
-  const forms: ApplicationForm[] = [];
-  for (const doc of snap.docs) {
-    const data = doc.data();
-    if (!isApplicationForm(data)) continue;
-    forms.push(normaliseForm(doc.id, data));
-  }
-  return forms;
-}
-
-/** Who signs the facilitators' email: the lead of the programme that names this run, and its short name. */
+/**
+ * Who signs the facilitators' email: the first name of the lead of the
+ * programme that names this run, and that programme's short name. The lead
+ * is `readRunLead`'s answer (`./programmeLead.ts`), the one answer to who
+ * leads that programme and whether they still meet the bar, so a lead who
+ * has been replaced, or no longer stands, signs nothing: the email's
+ * sign-off is an optional unit, and goes without them.
+ */
 async function signerOf(
   db: Firestore,
   runId: string,
-): Promise<{ leadUid: string | null; programmeName: string | null }> {
-  const forms = await loadForms(db);
-  const named = programmeNaming(forms, runId);
-  if (!named) return { leadUid: null, programmeName: null };
-  const form = forms.find((candidate) => candidate.round.id === named.roundId);
-  const programme = form ? own(form.programmes, named.programmeId) : undefined;
-  if (!programme) return { leadUid: null, programmeName: null };
-  return { leadUid: programme.leadUid, programmeName: programme.shortName.trim() || null };
+): Promise<{ leadName: string | null; programmeName: string | null }> {
+  const naming = await readNamingProgramme(db, runId);
+  if (!naming) return { leadName: null, programmeName: null };
+  const lead = await readRunLead(db, runId, naming);
+  return { leadName: lead?.firstName || null, programmeName: naming.shortName };
 }
 
 // ---------------------------------------------------------------------------
@@ -565,8 +558,9 @@ async function readUsers(db: Firestore, uids: Iterable<string>): Promise<Map<str
 /**
  * Everything a press of Publish would do for this caller, read and decided
  * now. Writes nothing and sends nothing. The route has already decided that
- * the caller is an admin or one of the run's track leads, and has read the
- * run's rows (see `PlanInput`).
+ * the caller is an admin, one of the run's track leads or the lead of the
+ * programme that names it (`doesTrackLeadWork`), and has read the run's rows
+ * (see `PlanInput`).
  */
 export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: PlanInput): Promise<PublishPlan> {
   const runId = run.id;
@@ -598,8 +592,9 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
     test,
     names: new Map(),
   };
-  // A RUN THE APPLICATION FORM FILLS IS AN ADMIN'S TO PUBLISH, and the
-  // plan for anybody else says only that, and nothing about who is on it.
+  // A RUN THE APPLICATION FORM FILLS IS PUBLISHED BY AN ADMIN OR THE LEAD OF
+  // ITS PROGRAMME, and the plan for anybody else says only that, and nothing
+  // about who is on it.
   if (input.adminOnly) return { ...empty, adminOnly: true };
 
   const accepted = input.accepted;
@@ -678,17 +673,16 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   ];
 
   // One read for every account this needs: the people owed an email
-  // (address and greeting), every facilitator of their groups and of the
+  // (address and greeting), and every facilitator of their groups and of the
   // groups that may be owed a facilitators' email (names, and for those owed
-  // one, the address), and the programme's lead.
-  const signer = mayTell.length > 0 ? await signerOf(db, runId) : { leadUid: null, programmeName: null };
+  // one, the address). The programme's lead is read by `signerOf`.
+  const signer = mayTell.length > 0 ? await signerOf(db, runId) : { leadName: null, programmeName: null };
   const uids = new Set<string>();
   for (const { row, group } of owed) {
     uids.add(row.uid);
     for (const uid of group.facilitatorUids) uids.add(uid);
   }
   for (const slot of mayTell) for (const uid of slot.group.facilitatorUids) uids.add(uid);
-  if (signer.leadUid) uids.add(signer.leadUid);
   const users = await readUsers(db, uids);
   const names = new Map<string, string>();
   for (const [uid, data] of users) names.set(uid, displayNameOf(data));
@@ -755,8 +749,6 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   // Publish sends the one that is true once the people's emails are done
   // (`facilitatorEmailFor`). `email` is the one for every send going, which
   // is what "Send a test to me" shows.
-  const leadData = signer.leadUid ? users.get(signer.leadUid) : undefined;
-  const leadName = leadData ? firstNameOf(leadData) || null : null;
   const facilitators: PlannedFacilitator[] = [];
   const refusedFacilitators = new Map<string, RefusedFacilitatorGroup>();
   const writeFacilitating = (facts: FacilitatingFacts) => composeFacilitatingEmail(templates.facilitating, facts);
@@ -787,7 +779,7 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
       coFacilitators: others.length > 0 ? namesInWords(others) : null,
       groupSize: size,
       groupUrl: groupPageUrl(runId, group.id),
-      leadName: signer.programmeName ? leadName : null,
+      leadName: signer.programmeName ? signer.leadName : null,
       programmeName: signer.programmeName,
     };
     const written = writeFacilitating(facts);

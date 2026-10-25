@@ -2,6 +2,7 @@ import "server-only";
 import { Timestamp, type Firestore } from "firebase-admin/firestore";
 import ApplicationEmail from "@/emails/ApplicationEmail";
 import NewsletterEmail from "@/emails/NewsletterEmail";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { wantsEmailForProfile } from "@/lib/email/preferences";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
@@ -155,7 +156,8 @@ export type RunStaffGate =
 
 /**
  * WHO MAY ADDRESS A WHOLE RUN: the run's `runFacilitatorUids` ∪ its
- * `trackLeadUids` ∪ admins. Facilitating ONE GROUP of the run is deliberately
+ * `trackLeadUids` ∪ the lead of the programme that names the run
+ * (`runStaffingOf`) ∪ admins. Facilitating ONE GROUP of the run is deliberately
  * not enough — a group facilitator mails their own room through the group
  * route; addressing the whole cohort is a run-level act. Admissions reviewers
  * get nothing here: admissions is a separate lane from the cohort (locked
@@ -187,6 +189,8 @@ export async function gateRunStaff(runId: string): Promise<RunStaffGate> {
     : null;
 
   const isAdmin = actor.role === "admin";
+  // A track lead's place here is shared with the lead of the programme that
+  // names the run (`runStaffingOf`).
   const staffsRun = Boolean(
     run &&
       (isNamedWithStanding(
@@ -194,7 +198,7 @@ export async function gateRunStaff(runId: string): Promise<RunStaffGate> {
         "courseRuns.runFacilitatorUids",
         run.runFacilitatorUids,
       ) ||
-        isNamedWithStanding(actor, "courseRuns.trackLeadUids", run.trackLeadUids)),
+        doesTrackLeadWork(await runStaffingOf(db, actor, run))),
   );
   if (!isAdmin && !staffsRun) {
     return { ok: false, status: 403, error: "Forbidden" };

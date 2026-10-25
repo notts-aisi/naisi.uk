@@ -369,6 +369,12 @@ const USERS = new Map([
       "are filled is only real when the composer runs. Only `server-only` is stubbed",
   ],
   [
+    "course-hub-lead-pages.test.mjs",
+    "renders a programme's Groups tab (People in groups, Facilitators) and Attendance tab (.tsx server components), the " +
+      "registers view and the allocation board itself to HTML, as every kind of caller, against a stored term, because " +
+      "who is handed the board, the run editor's link and the run's groups is decided by the pages as they run",
+  ],
+  [
     "applications-handover-older-way-in.test.mjs",
     "executes the older per-run apply route and renders its page (a .tsx server component) to " +
       "HTML for a run a programme on the application form names, because whether that run " +

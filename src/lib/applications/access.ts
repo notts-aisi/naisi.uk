@@ -112,6 +112,22 @@ export function canEditProgramme(user: SessionUser, form: Form, programmeId: str
 }
 
 /**
+ * May this caller open the programme's Groups and Attendance tabs: the course
+ * run the programme names, who is in which group, when the people holding a
+ * place are free, and the run's registers? Its lead, or an admin. A reviewer
+ * reads and scores applications, and is not shown the people once they hold
+ * a place.
+ *
+ * Asked of `roleOnProgramme`'s answer, so a lead is held to the bar a lead is
+ * appointed behind at the point of use. What the run's own routes let the
+ * lead do is decided again from the run (`runStaffingOf` in
+ * `src/lib/courses/runStaffing.ts`), for the run the programme names.
+ */
+export function opensProgrammeGroups(role: ProgrammeRole | null): boolean {
+  return role === "admin" || role === "lead";
+}
+
+/**
  * The form itself (its questions, its dates, which programmes are on it), the
  * outcome each pooled applicant hears, revoking an acceptance, the exception
  * that gives somebody a second place, and the decision-day send. Admin only.

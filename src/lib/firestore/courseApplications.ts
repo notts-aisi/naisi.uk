@@ -294,15 +294,39 @@ export function buildApplication(
 // ---------------------------------------------------------------------------
 
 /**
+ * Who is asking about a run's rows, as far as `rowIsServedTo` needs it: an
+ * admin, and the programme the caller leads that names the run. Routes hand
+ * over the whole of `runStaffingOf`'s answer (`src/lib/courses/runStaffing.ts`),
+ * which works both out from the live session and the form.
+ */
+export type RowViewer = {
+  isAdmin: boolean;
+  /**
+   * The programme on the application form the caller leads, set only while
+   * that programme names this run and the caller still meets the bar a lead
+   * is appointed behind. Null for everybody else.
+   */
+  leadOf: CourseApplicationFromForm | null;
+};
+
+/**
  * WHO A ROW IS SERVED TO, AMONG STAFF.
  *
  * A row from this run's own form is read by the people the run names: its
  * admissions reviewers decide it and its track leads place it. A row the
  * application form put here is different. The person applied on the form,
  * where who may read an application is decided programme by programme, and
- * being named on a run gives nobody that right. So such a row is an ADMIN'S,
- * on every staff route that reads or acts on rows: nobody else is listed it,
- * may place it, is named it in a refusal, or may decide or annotate it.
+ * being named on a run gives nobody that right. So such a row is served on
+ * every staff route that reads or acts on rows to two people only:
+ *
+ *  - an ADMIN, every such row;
+ *  - the LEAD OF THE PROGRAMME THAT NAMES THE RUN, the rows that programme's
+ *    hand-over wrote, and no other: they already read those people's
+ *    applications on their programme's Applications tab.
+ *
+ * Nobody else is listed such a row, may place it, is named it in a refusal,
+ * or may decide or annotate it: not the run's track leads, not its reviewers,
+ * not the lead of another programme.
  *
  * The run's own gates are unchanged. A track lead still opens the board and
  * still sees and places everybody who applied to the run itself.
@@ -313,9 +337,15 @@ export function buildApplication(
  */
 export function rowIsServedTo(
   row: Pick<CourseApplicationDoc, "fromForm">,
-  viewer: { isAdmin: boolean },
+  viewer: RowViewer,
 ): boolean {
-  return row.fromForm === null || viewer.isAdmin;
+  if (row.fromForm === null || viewer.isAdmin) return true;
+  const lead = viewer.leadOf;
+  return (
+    lead !== null &&
+    row.fromForm.roundId === lead.roundId &&
+    row.fromForm.programmeId === lead.programmeId
+  );
 }
 
 /**

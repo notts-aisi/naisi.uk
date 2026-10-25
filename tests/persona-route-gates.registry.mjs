@@ -1414,6 +1414,16 @@ export const ROUTES = {
         "read, so every signed-in persona meets the same 400 on an empty one.",
     },
   },
+  "/api/courses/runs/[runId]/facilitators": {
+    GET: {
+      expect: { anonymous: 401, "*": 403, suCommittee: 404, admin: 404 },
+      why:
+        "The run's groups and the approved accounts by name, for the Facilitators view of a programme's Groups tab. " +
+        "Refused from the session alone to anybody outside the roster's own tier (an admin or SU-recognised " +
+        "committee, as firestore.rules reads users); for those inside it, a run that is not there is a 404, and a run " +
+        "they do not staff (admin, track lead, or the lead of the programme that names it) is a 403.",
+    },
+  },
   "/api/courses/runs/[runId]/material-notes": {
     POST: {
       expect: signedIn(400),
@@ -2272,11 +2282,31 @@ export const PAGES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
     why:
-      "The admissions tree's gate, then the programme layout's and the page's own: the Groups " +
-      "tab is an admin's, so a lead or a reviewer on the form is shown a notice that it is, " +
-      "decided from the session before anything is read, and a programme the caller has no " +
-      "role on, or one that does not exist, renders 'there is no programme here' in place of " +
-      "the page with a 200.",
+      "The admissions tree's gate, then the programme layout's and the page's own: People in groups is the run's " +
+      "allocation board, the programme's lead's and an admin's, so a reviewer on the form is told so before the run is " +
+      "read, and a programme the caller has no role on, or one that does not exist, renders 'there is no programme " +
+      "here' in place of the page with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/times": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: the Times view is the programme's " +
+      "lead's and an admin's, so a reviewer on the form is told so once the form's settings are read, and a programme " +
+      "the caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/facilitators": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: the Facilitators view is the " +
+      "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme the caller " +
+      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: every register of the run is the " +
+      "programme's lead's and an admin's to read, so a reviewer is told so before the run is read, and a programme the " +
+      "caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),

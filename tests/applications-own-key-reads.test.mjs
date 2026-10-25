@@ -214,21 +214,15 @@ const HELD = new Map([
     },
   ],
   [
-    "src/lib/courses/allocationPublish.ts",
+    "src/lib/courses/programmeLead.ts",
     {
-      why: "Publish's plan reads the programme that names a run by the programme id programmeNaming found on that form, for the lead who signs the facilitators' email",
+      why: "the one answer to who leads the programme that names a course run: it reads each form's programmes by the ids on that form's own programmeIds, to find the programme whose runId names the run and take its lead",
     },
   ],
   [
     "src/lib/firestore/memberRecords.ts",
     {
       why: "builds the kept member record: it reads a form's programmes by a programme id off the application, and a review's scores by a criterion id off the round",
-    },
-  ],
-  [
-    "src/lib/courses/runLead.ts",
-    {
-      why: "the lead of a course run: it reads an application form's programmes by the programme id that names the run, found by programmeNaming, to take that programme's lead",
     },
   ],
   [

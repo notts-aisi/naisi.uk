@@ -5,6 +5,7 @@ import { memberCurrentWeek, resolveCalendar } from "@/lib/courses/groupResolve";
 import { readMirrorPlan, type RegisterOverride } from "@/lib/courses/attendanceMirror";
 import {
   gateGroupRegister,
+  gateGroupRegisterRead,
   isAddressableId,
   loadMirrorMembers,
   loadRegisterMembers,
@@ -42,8 +43,9 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * `courseAttendance` is `read/write: if false` in firestore.rules, so no
  * client ever touches it. This file and its two siblings (`attendance/push`,
  * `participant-notes`) are the only paths to the data in either direction.
- * The access rule lives in `src/lib/courses/registerAccess.ts` so all four
- * verbs answer to one predicate.
+ * The access rule lives in `src/lib/courses/registerAccess.ts`: every write
+ * answers to `gateGroupRegister`, and this GET to `gateGroupRegisterRead`,
+ * which also lets the lead of the programme that names the run read.
  *
  * ── A COLUMN IS A SESSION, NOT A WEEK ───────────────────────────────────────
  * Columns come from `resolveSessions`, so a group that meets twice in a week
@@ -457,7 +459,9 @@ export async function GET(
     );
   }
 
-  const gated = await gateGroupRegister(groupId, actor, db);
+  // Reading is one person wider than marking: the lead of the programme
+  // that names the run reads every register of it (`gateGroupRegisterRead`).
+  const gated = await gateGroupRegisterRead(groupId, actor, db);
   if (!gated.ok) {
     return NextResponse.json({ error: gated.error }, { status: gated.status });
   }

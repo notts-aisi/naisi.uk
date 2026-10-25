@@ -69,6 +69,7 @@ const REMOVE_ROUTE = readFileSync(
   ),
   "utf8",
 );
+const RUN_STAFFING = readFileSync(join(SRC, "lib", "courses", "runStaffing.ts"), "utf8");
 const ENROL_MODE_ROUTE = readFileSync(
   join(SRC, "app", "api", "courses", "runs", "[runId]", "enrol-mode", "route.ts"),
   "utf8",
@@ -792,11 +793,21 @@ test("SOURCE: reinstating exists, and is the repair the copy promises", () => {
     REINSTATE_ROUTE.indexOf("export async function POST(") + 400,
   );
   assert.match(head, /const blocked = await assertNotImpersonating\(\);/);
-  // Admins and the run's track leads: the remove route's gate, because
-  // reinstating is its exact inverse.
+  // Admins, the run's track leads and the lead of the programme that names
+  // the run: the remove route's gate, because reinstating is its exact
+  // inverse. Both ask the one gate a track lead passes, before anything else
+  // is read, and that gate holds a track lead to the bar through
+  // isNamedWithStanding.
+  for (const route of [REINSTATE_ROUTE, REMOVE_ROUTE]) {
+    assert.match(route, /const staffing = await runStaffingOf\(db, actor, run\);/);
+    assert.match(
+      route,
+      /if \(!doesTrackLeadWork\(staffing\)\) \{\s*return NextResponse\.json\(\{ error: "Forbidden" \}, \{ status: 403 \}\);/,
+    );
+  }
   assert.match(
-    REINSTATE_ROUTE,
-    /isNamedWithStanding\(\s*actor,\s*"courseRuns\.trackLeadUids",\s*run\.trackLeadUids,?\s*\)/,
+    RUN_STAFFING,
+    /isTrackLead: isNamedWithStanding\(actor, "courseRuns\.trackLeadUids", run\.trackLeadUids\)/,
   );
 
   // Withdrawn AND self-enrolled only. A `removed` row was staff's own

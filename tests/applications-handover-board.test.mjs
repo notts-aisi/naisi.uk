@@ -225,9 +225,12 @@ describe("6. the allocation board", () => {
       await place("yusuf", [{ uid: "nobody", groupId: GROUP.monday }]);
       const before = everything();
       const published = await publish("yusuf");
+      // The sentence names who does publish such a run: since the course
+      // hub's lead access (Q1), an admin or the lead of the programme that
+      // names the run (tests/course-hub-lead-rows.test.mjs).
       assert.deepEqual(short(published), [
         403,
-        "This run’s people came from the application form, so only an admin can publish it or send its test.",
+        "This run’s people came from the application form, so only an admin or its programme’s lead can publish it or send its test.",
       ]);
       assert.deepEqual(world.mail, [], "a refused press, or its test, emailed somebody");
       const said = JSON.stringify(published.body);

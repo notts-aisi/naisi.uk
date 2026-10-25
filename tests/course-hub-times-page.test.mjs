@@ -1,20 +1,24 @@
 /**
- * The Groups tab of a programme: the times picture, as every kind of caller.
+ * The Groups tab of a programme, its Times view: the times picture, as every
+ * kind of caller.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
- *   /admin/admissions/forms/[roundId]/programmes/[programmeId]/groups
+ *   /admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/times
  *   src/lib/applications/handover/timesLoad.ts, src/features/applications/times/
  *
  * ## What this guards
  *
- *  - AN ADMIN'S, DECIDED BEFORE ANYTHING IS READ. The page counts the people
- *    holding a place by when they are free and names the ones no group
- *    suits. A programme's lead and its reviewers are told the tab is an
- *    admin's, and nothing was read to tell them. The tree's own gate sends
- *    a run's track lead, a member, a member placed on the run and somebody
- *    signed out to the dashboard. The tab itself is a link for an admin and
- *    is drawn greyed for a lead and a reviewer.
+ *  - AN ADMIN'S AND THE PROGRAMME'S LEAD'S, DECIDED BEFORE ANYBODY IS READ.
+ *    The page counts the people holding a place by when they are free and
+ *    names the ones no group suits. Since the course hub's lead access (Q1)
+ *    the programme's lead is drawn it as an admin is, without what only an
+ *    admin can do from it (naming the run, the run editor). A reviewer is
+ *    told the tab is the lead's and an admin's, and only the form's settings
+ *    were read to tell them. The tree's own gate sends a run's track lead, a
+ *    member, a member placed on the run and somebody signed out to the
+ *    dashboard. The tab itself is a link for an admin and the lead and is
+ *    drawn greyed for a reviewer.
  *  - WHO IS COUNTED IS WHO HOLDS A PLACE, by `holdingOf()`: somebody who gave
  *    their place back is not counted, an invitation is counted once it is
  *    accepted and not before, and somebody who painted nothing is counted
@@ -88,6 +92,7 @@ const { loadTs: loadPage } = createLoader({
       "export function Chip({ children }) { return globalThis.__hubTimesUi.h('span', null, children); }",
     ],
     ["./TimesPicture.module.css", CLASS_NAMES],
+    ["./GroupsViews.module.css", CLASS_NAMES],
     ["./editor.module.css", CLASS_NAMES],
     ["@/features/applications/editor/editor.module.css", CLASS_NAMES],
     ["./ProgrammeFrame.module.css", CLASS_NAMES],
@@ -95,7 +100,7 @@ const { loadTs: loadPage } = createLoader({
   ]),
 });
 const TABS = join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "(tabs)");
-const { default: GroupsPage } = await loadPage(join(TABS, "groups", "page.tsx"));
+const { default: TimesPage } = await loadPage(join(TABS, "groups", "times", "page.tsx"));
 const { default: ProgrammeLayout } = await loadPage(join(TABS, "layout.tsx"));
 const { loadTimesPicture } = await loadPage(join("lib", "applications", "handover", "timesLoad.ts"));
 
@@ -142,7 +147,7 @@ async function draw(who, { programmeId = AGI, length, session, withLayout = fals
   const before = made.everything();
   const params = Promise.resolve({ roundId: ROUND, programmeId });
   try {
-    let element = await GroupsPage({
+    let element = await TimesPage({
       params,
       searchParams: Promise.resolve(length === undefined ? {} : { length }),
     });
@@ -178,7 +183,7 @@ const NOT_HOLDING = ["nina", "ines", "omar", "wen", "nobody"];
 // Who is answered what
 // ---------------------------------------------------------------------------
 
-describe("the Groups tab is an admin's, decided before anything is read", () => {
+describe("the Groups tab is the lead's and an admin's, decided before anybody is read", () => {
   test("an admin is drawn the picture, and nothing is written", async () => {
     const drawn = await draw("zach");
     assert.equal(drawn.to, null);
@@ -187,28 +192,34 @@ describe("the Groups tab is an admin's, decided before anything is read", () => 
     assert.equal(drawn.wrote, false);
   });
 
-  test("the programme's lead and its reviewer are told it is an admin's, and nothing was read", async () => {
-    for (const who of ["claudia", "lloyd"]) {
-      const drawn = await draw(who);
-      assert.equal(drawn.to, null, who);
-      assert.match(drawn.text, /Only an admin can open Groups/, who);
-      assert.match(drawn.html, new RegExp(`href="${PAGE_PATH}/applications"`), who);
-      assert.deepEqual(drawn.reads, [], `${who}'s page asked the database for something`);
-      for (const uid of ["amara", "dev", "tariq", "bea"]) {
-        assert.ok(!drawn.text.includes(CAST[uid].displayName), `${who} was shown ${uid}`);
-      }
+  test("the programme's lead is drawn the picture, as an admin is, and nothing is written", async () => {
+    const drawn = await draw("claudia");
+    assert.equal(drawn.to, null);
+    assert.match(drawn.text, /Who can make a 90-minute session starting at…/);
+    assert.match(drawn.text, /Monday 6pm: 2 of 3 free\. Monday evening meets then\./);
+    assert.equal(drawn.wrote, false);
+  });
+
+  test("the programme's reviewer is told it is the lead's and an admin's, and only the form's settings were read", async () => {
+    const drawn = await draw("lloyd");
+    assert.equal(drawn.to, null);
+    assert.match(drawn.text, /Only the programme’s lead and admins can open Groups/);
+    assert.match(drawn.html, new RegExp(`href="${PAGE_PATH}/applications"`));
+    assert.deepEqual(drawn.reads, ["admissionRounds"], "the reviewer's page read more than the form");
+    for (const uid of ["amara", "dev", "tariq", "bea"]) {
+      assert.ok(!drawn.text.includes(CAST[uid].displayName), `the reviewer was shown ${uid}`);
     }
   });
 
-  test("a group's facilitator who leads another programme, and a run's track lead who authors rounds, are told the same", async () => {
+  test("a group's facilitator who leads another programme, and a run's track lead who authors rounds, have no role here and are told there is no programme here", async () => {
     world.db.poke(`courseGroups/${GROUP.thursday}`, { facilitatorUids: ["tess"] });
     const facilitator = await draw("tess");
-    assert.match(facilitator.text, /Only an admin can open Groups/);
-    assert.deepEqual(facilitator.reads, []);
+    assert.match(facilitator.text, /There is no programme here/);
+    assert.deepEqual(facilitator.reads, ["admissionRounds"]);
 
     const author = await draw("yusuf", { session: sessionFor("yusuf", { approveCourse: true }) });
-    assert.match(author.text, /Only an admin can open Groups/);
-    assert.deepEqual(author.reads, []);
+    assert.match(author.text, /There is no programme here/);
+    assert.deepEqual(author.reads, ["admissionRounds"]);
   });
 
   test("a run's track lead, a member holding a place, a member placed on the run, a member with none, and somebody signed out go to the dashboard", async () => {
@@ -227,7 +238,9 @@ describe("the Groups tab is an admin's, decided before anything is read", () => 
     }
   });
 
-  test("the loader answers nobody but an admin, before it opens the form", async () => {
+  test("the loader answers an admin and the lead, and anybody else from the form's settings alone", async () => {
+    assert.equal((await loadTimesPicture(world.db, sessionFor("claudia"), ROUND, AGI, undefined)).view.viewer, "lead");
+    assert.equal((await loadTimesPicture(world.db, sessionFor("zach"), ROUND, AGI, undefined)).view.viewer, "admin");
     const reads = [];
     const collection = world.db.collection;
     world.db.collection = (path) => {
@@ -235,14 +248,26 @@ describe("the Groups tab is an admin's, decided before anything is read", () => 
       return collection(path);
     };
     try {
-      for (const who of ["claudia", "lloyd", "yusuf", "amara", "nobody"]) {
-        const outcome = await loadTimesPicture(world.db, sessionFor(who), ROUND, AGI, undefined);
-        assert.deepEqual(outcome, { status: "not-admin" }, who);
+      const answers = {};
+      for (const who of ["lloyd", "yusuf", "amara", "nobody"]) {
+        answers[who] = (await loadTimesPicture(world.db, sessionFor(who), ROUND, AGI, undefined)).status;
       }
-      assert.deepEqual(reads, []);
+      assert.deepEqual(answers, { lloyd: "not-yours", yusuf: "none", amara: "none", nobody: "none" });
+      assert.deepEqual([...new Set(reads)], ["admissionRounds"]);
     } finally {
       world.db.collection = collection;
     }
+  });
+
+  test("a lead is not offered what only an admin can do: the run editor, and naming the run", async () => {
+    const lead = await draw("claudia");
+    assert.ok(!lead.html.includes(`/admin/courses/`), "the lead was offered the run editor");
+    assert.ok(!lead.text.includes("run editor"));
+    reset(seedWorld());
+    flagReviewers();
+    const blank = await draw("claudia");
+    assert.match(blank.text, /AGI Strategy doesn’t name a course run yet\. An admin names it on the Settings tab, under Course run/);
+    assert.ok(!blank.html.includes(`href="${PAGE_PATH}/setup"`), "the lead was sent to name a run");
   });
 
   test("a programme that is not on the form is not there, for an admin as for anybody", async () => {
@@ -253,25 +278,31 @@ describe("the Groups tab is an admin's, decided before anything is read", () => 
   });
 });
 
-describe("the tab is a link for an admin, and greyed for everybody else with a role", () => {
+describe("the tab is a link for an admin and the lead, and greyed for a reviewer", () => {
   test("an admin's Groups tab links to the page, and is the current tab on it", async () => {
     const drawn = await draw("zach", { withLayout: true });
     assert.match(drawn.html, new RegExp(`<a href="${PAGE_PATH}/groups" class="tab tabCurrent" aria-current="page">Groups`));
     assert.match(drawn.text, /Who can make a 90-minute session/);
   });
 
-  test("a lead's and a reviewer's Groups tab is drawn and is not a link", async () => {
-    for (const who of ["claudia", "lloyd"]) {
-      const drawn = await draw(who, { withLayout: true });
-      assert.ok(!drawn.html.includes(`${PAGE_PATH}/groups"`), `${who} was handed a link to the tab`);
-      assert.match(drawn.html, /<span class="tab tabPending" aria-disabled="true" title="Not built yet">Groups/, who);
-    }
+  test("the lead's Groups tab links to the page too, and so does Attendance", async () => {
+    const drawn = await draw("claudia", { withLayout: true });
+    assert.match(drawn.html, new RegExp(`<a href="${PAGE_PATH}/groups" class="tab tabCurrent" aria-current="page">Groups`));
+    assert.match(drawn.html, new RegExp(`<a href="${PAGE_PATH}/attendance" class="tab ?">Attendance</a>`));
+  });
+
+  test("a reviewer's Groups and Attendance tabs are drawn and are not links", async () => {
+    const drawn = await draw("lloyd", { withLayout: true });
+    assert.ok(!drawn.html.includes(`${PAGE_PATH}/groups"`), "the reviewer was handed a link to the tab");
+    assert.ok(!drawn.html.includes(`${PAGE_PATH}/attendance"`), "the reviewer was handed a link to Attendance");
+    assert.match(drawn.html, /<span class="tab tabPending" aria-disabled="true" title="Not built yet">Groups/);
+    assert.match(drawn.html, /<span class="tab tabPending" aria-disabled="true" title="Not built yet">Attendance/);
   });
 
   test("somebody with no role on the programme is told there is no programme here, in place of the page", async () => {
     const drawn = await draw("tess", { withLayout: true });
     assert.match(drawn.text, /There is no programme here/);
-    assert.ok(!drawn.text.includes("Only an admin can open Groups"));
+    assert.ok(!drawn.text.includes("can open Groups"));
   });
 });
 
@@ -351,21 +382,28 @@ describe("what the cards say", () => {
     assert.ok(!said.includes("Bea Lindqvist"));
   });
 
-  test("the views name the run's allocation board, and the card the run editor; nothing else is offered", async () => {
+  test("the views are the tab's three, and the card names the run editor for an admin; nothing else is offered", async () => {
     const { html, text: said } = await draw("zach");
-    assert.match(html, new RegExp(`<a href="/admin/courses/${COURSE.agi}/runs/${RUN.agi}/allocation" class="view">People in groups</a>`));
     const editor = new RegExp(`<a href="/admin/courses/${COURSE.agi}/runs/${RUN.agi}" class="see editorLink">(.*?)</a>`).exec(html);
     assert.ok(editor, "no link to the run editor");
     assert.equal(text(editor[1]), "Add or change groups in the run editor");
-    for (const absent of ["Use for a group", "Change Group", "Add a group", "Facilitators", "set in Settings"]) {
+    for (const absent of ["Use for a group", "Change Group", "Add a group", "set in Settings"]) {
       assert.ok(!said.includes(absent), `the page offers ${absent}`);
     }
     assert.ok(!/<button/.test(html), "the page has a button");
-    // The views are the two that exist: this one, and the board.
+    // The views are the three that exist, each a page of the tab: the run's
+    // allocation board (People in groups), this one, and Facilitators.
     const views = /<nav class="views" aria-label="Groups views">(.*?)<\/nav>/.exec(html);
     assert.ok(views, "no views");
-    assert.deepEqual([...views[1].matchAll(/<a [^>]*>([^<]+)<\/a>/g)].map((m) => m[1]), ["Times", "People in groups"]);
-    assert.match(views[1], new RegExp(`<a href="${PAGE_PATH}/groups" class="view viewCurrent" aria-current="page">Times</a>`));
+    assert.deepEqual(
+      [...views[1].matchAll(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/g)].map((m) => [m[2], m[1]]),
+      [
+        ["People in groups", `${PAGE_PATH}/groups`],
+        ["Times", `${PAGE_PATH}/groups/times`],
+        ["Facilitators", `${PAGE_PATH}/groups/facilitators`],
+      ],
+    );
+    assert.match(views[1], new RegExp(`<a href="${PAGE_PATH}/groups/times" class="view viewCurrent" aria-current="page">Times</a>`));
   });
 });
 
@@ -377,7 +415,7 @@ describe("the length counted", () => {
     // Counting hour-long sessions, Tariq is free on Mondays: still no group.
     assert.match(said, /Tariq Mensah can’t: free on Mondays only\./);
     for (const minutes of [60, 90, 120]) {
-      assert.match(html, new RegExp(`href="${PAGE_PATH}/groups\\?length=${minutes}"`));
+      assert.match(html, new RegExp(`href="${PAGE_PATH}/groups/times\\?length=${minutes}"`));
     }
     assert.match(html, /<a href="[^"]+\?length=60" class="segment segmentCurrent" aria-current="true">1 hour<\/a>/);
   });

@@ -167,17 +167,19 @@ const READERS = {
   },
   "app/api/courses/runs/[runId]/allocation/route.ts": {
     kind: "board",
-    proof: ["if (!isAdmin && !isTrackLead) {"],
-    why: "the allocation board itself, for an admin or the run's track leads, who place people and see every seat",
+    proof: ["if (!doesTrackLeadWork(staffing)) {"],
+    why:
+      "the allocation board itself, for an admin, the run's track leads or the lead of the programme that names the " +
+      "run, who place people and see every seat",
   },
   "app/api/courses/runs/[runId]/allocate/route.ts": {
     kind: "board",
-    proof: ["if (!isAdmin && !isTrackLead) {"],
+    proof: ["if (!doesTrackLeadWork(staffing)) {"],
     why: "the board's placements, the writer of every seat and of the move that clears Publish's stamp",
   },
   "app/api/courses/runs/[runId]/allocation/publish/route.ts": {
     kind: "board",
-    proof: ["if (!isAdmin && !isTrackLead) {", "allocatedEmailAt: FieldValue.serverTimestamp()"],
+    proof: ["if (!doesTrackLeadWork(staffing)) {", "allocatedEmailAt: FieldValue.serverTimestamp()"],
     why: "Publish: it emails each untold seat its group and then stamps it told, which is the fact this rule reads",
   },
   "lib/courses/allocationPublish.ts": {
@@ -196,17 +198,19 @@ const READERS = {
   },
   "app/api/courses/groups/[groupId]/facilitators/route.ts": {
     kind: "staff",
-    proof: ['if (!(actor.role === "admin" || isTrackLead)) {', 'role: "facilitator"'],
+    proof: ["if (!doesTrackLeadWork(staffing)) {", 'role: "facilitator"'],
     why: "staffs a group: writes and retires facilitator rows, and reads a learner row only to leave it alone",
   },
   "app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts": {
     kind: "staff",
-    proof: ["if (!isAdmin && !isTrackLead) {"],
-    why: "takes somebody off a run, for an admin or the run's track leads; it answers with counts and names nobody to anybody else",
+    proof: ["if (!doesTrackLeadWork(staffing)) {"],
+    why:
+      "takes somebody off a run, for an admin, the run's track leads or the lead of the programme that names the run; " +
+      "it answers with counts and names nobody to anybody else",
   },
   "app/api/courses/runs/[runId]/enrolments/[uid]/reinstate/route.ts": {
     kind: "staff",
-    proof: ["if (!isAdmin && !isTrackLead) {", "if (!row.selfEnrolled) {"],
+    proof: ["if (!doesTrackLeadWork(staffing)) {", "if (!row.selfEnrolled) {"],
     why: "puts back somebody who left an open run, which is a seat they chose; an allocated seat is refused",
   },
   "app/api/courses/runs/[runId]/enrol-mode/route.ts": {

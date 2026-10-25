@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { asUidList } from "@/lib/firestore/events";
 import { COURSE_FIELD_LIMITS, normalizeCourseWeek } from "@/lib/firestore/courses";
 import {
@@ -18,10 +19,11 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * one run. The FACILITATOR half of the retrospective loop (v2 decision 3);
  * the anonymous ratings half comes out of `courseProgress`.
  *
- * WHO MAY WRITE: admins ∪ this run's track leads ∪ its `runFacilitatorUids`
- * ∪ anyone facilitating ANY GROUP in the run. The last clause is why this is
- * a route and not a rule: "facilitator of some group in this run" is a query
- * over `courseGroups`, and Firestore rules cannot run one.
+ * WHO MAY WRITE: admins ∪ this run's track leads ∪ the lead of the programme
+ * that names the run (`runStaffingOf`) ∪ its `runFacilitatorUids` ∪ anyone
+ * facilitating ANY GROUP in the run. The last clause is why this is a route
+ * and not a rule: "facilitator of some group in this run" is a query over
+ * `courseGroups`, and Firestore rules cannot run one.
  *
  * Refusals are a single indistinguishable 403 — a caller who is none of the
  * above learns nothing about whether the run exists.
@@ -175,14 +177,14 @@ export async function POST(
   const isGroupFacilitator = ownGroupIds.length > 0;
   // The trusted tier, named once: it is both an access lane AND the thing that
   // licenses scanning a group the actor does not staff (see the module header).
+  // A track lead's place in it is shared with the lead of the programme that
+  // names the run (`runStaffingOf`).
+  const staffing = runSnap.exists
+    ? await runStaffingOf(db, actor, { id: runId, trackLeadUids: asUidList(runRaw.trackLeadUids) })
+    : null;
   const isTrusted =
     runSnap.exists &&
-    (actor.role === "admin" ||
-      isNamedWithStanding(
-        actor,
-        "courseRuns.trackLeadUids",
-        asUidList(runRaw.trackLeadUids),
-      ) ||
+    ((staffing !== null && doesTrackLeadWork(staffing)) ||
       isNamedWithStanding(
         actor,
         "courseRuns.runFacilitatorUids",

@@ -3153,10 +3153,14 @@ test("GUARD — a retrospective note can be written about a fork-only material",
   // boundary the review queue draws. Only the trusted tier scans the rest.
   assert.match(MATERIAL_NOTES, /isTrusted\s*\?\s*otherGroupIds\.map\(/);
   assert.match(MATERIAL_NOTES, /const isTrusted =/);
+  // The run's track leads are in it through the one gate a track lead passes
+  // (`runStaffingOf`, which holds them to the bar through isNamedWithStanding),
+  // shared with the lead of the programme that names the run.
   assert.match(
     MATERIAL_NOTES,
-    /isNamedWithStanding\(\s*actor,\s*"courseRuns\.trackLeadUids",\s*asUidList\(runRaw\.trackLeadUids\),?\s*\)/,
+    /runStaffingOf\(db, actor, \{ id: runId, trackLeadUids: asUidList\(runRaw\.trackLeadUids\) \}\)/,
   );
+  assert.match(MATERIAL_NOTES, /\(staffing !== null && doesTrackLeadWork\(staffing\)\)/);
   // The split that feeds it, and the bound it inherits.
   assert.match(MATERIAL_NOTES, /const ownGroupIds: string\[\] = \[\];/);
   assert.match(MATERIAL_NOTES, /\.limit\(MAX_GROUPS_SCANNED\)/);

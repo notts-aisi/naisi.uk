@@ -7,7 +7,7 @@ import {
   type ResolvedSession,
 } from "@/lib/courses/sessions";
 import { readAdminUids, registerTaskPeople } from "@/lib/courses/registerTaskPeople";
-import type { RunLead } from "@/lib/courses/runLead";
+import type { RunLead } from "@/lib/courses/programmeLead";
 import {
   buildRegisterFollowUpTask,
   isOurFollowUpTask,

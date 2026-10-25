@@ -9,8 +9,8 @@
  * time" to an invitation, ONLY for a pooled applicant who ranked the
  * programme and whom it pooled, ONLY while a place is free and the window is
  * open (from the send until the end of week 1 of the run the programme
- * names, in London), ONLY by an admin this term, and with a log line naming
- * nobody. The person accepts on their own page with decision day's Accept
+ * names, in London), ONLY by an admin or the programme's own lead (since the
+ * course hub's lead access, Q1), and with a log line naming nobody. The person accepts on their own page with decision day's Accept
  * and No thanks. Every part of that is broken here once, and every other way
  * of asking is refused with the store untouched.
  *
@@ -84,11 +84,14 @@ const auditRows = () =>
 // 1. Who may press
 // ---------------------------------------------------------------------------
 
-describe("who may offer a freed place: an admin, this term", () => {
-  /** [caller, who they are, the answer to a press, the answer to a test]. */
+describe("who may offer a freed place: an admin, or the programme's lead", () => {
+  /**
+   * [caller, who they are, the answer to a press, the answer to a test].
+   * AGI Strategy's lead, Claudia, offers since the course hub's lead access
+   * (Q1): she meets the rule below, as an admin does.
+   */
   const CALLERS = [
     [null, "signed out", 401, 401],
-    ["claudia", "AGI Strategy's lead", 403, 403],
     ["lloyd", "AGI Strategy's reviewer", 403, 403],
     ["yusuf", "the run's track lead, named on nothing on the form", 404, 404],
     ["tess", "another programme's lead", 404, 404],
@@ -121,10 +124,25 @@ describe("who may offer a freed place: an admin, this term", () => {
     assert.equal((await testThenOffer([pick("omar")])).status, 200);
   });
 
-  test("the gate is one predicate of the caller's role on the programme, and only an admin's role passes it", () => {
+  test("the programme's lead meets the same rule, the same test first, and offers", async () => {
+    const press = await api.offer("claudia", offerBody([pick("omar")]));
+    assert.deepEqual(short(press), [
+      409,
+      "Send yourself a test of this email first. The page’s “Send a test to me” does it.",
+    ]);
+    const tested = await api.test("claudia", { ...pick("omar"), replyBy: REPLY_BY });
+    assert.equal(tested.status, 200, JSON.stringify(tested.body));
+    assert.deepEqual(world.mail.map((mail) => mail.to), ["claudia@example.com"], "the lead's test reached somebody else");
+    const offered = await api.offer("claudia", offerBody([pick("omar")]));
+    assert.equal(offered.status, 200, JSON.stringify(offered.body));
+    assert.equal(read("omar").invitation.programmeId, AGI);
+  });
+
+  test("the gate is one predicate of the caller's role on the programme, and only an admin's and the lead's roles pass it", () => {
+    // The lead's role passes since the course hub's lead access (Q1).
     assert.deepEqual(
       ["admin", "lead", "reviewer", null].map((role) => rules.offersFreedPlaces(role)),
-      [true, false, false, false],
+      [true, true, false, false],
     );
   });
 
@@ -691,8 +709,12 @@ describe("what became of each email, and the ones still to go", () => {
     assert.equal(read("omar").freedPlace.email, "owed");
   });
 
-  test("the press for emails still to go is an admin's, and asks for a test of the wording as it is", async () => {
-    assert.deepEqual(short(await api.offer("claudia", { owedOnly: true, emails: 1 })), [403, rules.ADMINS_OFFER]);
+  test("the press for emails still to go is an admin's and the lead's, and asks for a test of the wording as it is", async () => {
+    assert.deepEqual(short(await api.offer("lloyd", { owedOnly: true, emails: 1 })), [403, rules.ADMINS_OFFER]);
+    assert.deepEqual(short(await api.offer("claudia", { owedOnly: true, emails: 1 })), [
+      409,
+      "This email’s wording has changed since your last test. Send yourself a test again before you send.",
+    ]);
     assert.deepEqual(short(await api.offer("zach", { owedOnly: true, emails: 1 })), [
       409,
       "This email’s wording has changed since your last test. Send yourself a test again before you send.",

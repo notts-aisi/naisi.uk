@@ -9,7 +9,7 @@ import {
   nextWeekEmailTiming,
   sessionLine,
 } from "@/lib/courses/registerChase";
-import { firstNameOfUser, readRunLead, standingUserOf } from "@/lib/courses/runLead";
+import { firstNameOfUser, readRunLead, standingUserOf } from "@/lib/courses/programmeLead";
 import { sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import {
   courseNudgeSessionWhere,

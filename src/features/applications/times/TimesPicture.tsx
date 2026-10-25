@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { ArrowRightIcon } from "@/features/applications/editor/Icons";
 import shared from "@/features/applications/editor/editor.module.css";
 import { WEEK_FROM_MONDAY, type TimesPicture as Picture } from "@/lib/applications/handover/times";
@@ -33,8 +33,12 @@ import {
  *
  * What the board draws and this leaves out, because the feature does not
  * exist: "Use for a group", "Change" and "Add a group" (groups are made and
- * changed in the run editor, which the card links to), and the Sessions and
- * Facilitators views. "People in groups" is the run's allocation board.
+ * changed in the run editor, which an admin's card links to), and the
+ * Sessions view. The row of views is the page's (`GroupsViews`), handed in.
+ *
+ * It is drawn for an admin and for the programme's lead. A lead is not
+ * offered what only an admin can do from here: naming the run on the
+ * Settings tab, and the run editor.
  *
  * Every address here is a page of this site built from stored ids.
  */
@@ -65,28 +69,6 @@ function ArrowedWords({ words }: { words: string }) {
   );
 }
 
-function GroupsViews({ view }: { view: TimesView }) {
-  if (!view.run) return null;
-  const { run } = view;
-  return (
-    <nav className={styles.views} aria-label="Groups views">
-      <Link
-        href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups`}
-        className={`${styles.view} ${styles.viewCurrent}`}
-        aria-current="page"
-      >
-        Times
-      </Link>
-      <Link
-        href={`/admin/courses/${encodeURIComponent(run.courseId)}/runs/${encodeURIComponent(run.id)}/allocation`}
-        className={styles.view}
-      >
-        People in groups
-      </Link>
-    </nav>
-  );
-}
-
 function LengthPicker({ view }: { view: TimesView }) {
   return (
     <div className={styles.lengths} role="group" aria-labelledby="times-length-label">
@@ -99,7 +81,7 @@ function LengthPicker({ view }: { view: TimesView }) {
           return (
             <Link
               key={minutes}
-              href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups?length=${minutes}`}
+              href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/times?length=${minutes}`}
               scroll={false}
               className={`${styles.segment} ${current ? styles.segmentCurrent : ""}`}
               aria-current={current ? "true" : undefined}
@@ -113,25 +95,33 @@ function LengthPicker({ view }: { view: TimesView }) {
   );
 }
 
-/** A calm sentence in place of the picture, with the one place to go next. */
+/**
+ * A calm sentence in place of the picture, with the one place to go next.
+ * Naming the run is an admin's (the Settings tab's Course run panel), so an
+ * admin is sent there and a lead is told who does it.
+ */
 function Blank({ view }: { view: TimesView }) {
   const name = view.programmeName;
-  const settings = (
-    <Link
-      href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/setup`}
-      className={shared.btn}
-    >
-      Go to Settings
-    </Link>
-  );
+  const admin = view.viewer === "admin";
+  const settings = admin ? (
+    <div className={styles.blankActions}>
+      <Link
+        href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/setup`}
+        className={shared.btn}
+      >
+        Go to Settings
+      </Link>
+    </div>
+  ) : null;
   if (view.blank === "no-run") {
     return (
       <section className={`${styles.card} ${styles.blank}`}>
         <p className={styles.blankText}>
-          {name} doesn’t name a course run yet. Name it on the Settings tab, under Course run, and
-          this shows when the people holding a place are free.
+          {admin
+            ? `${name} doesn’t name a course run yet. Name it on the Settings tab, under Course run, and this shows when the people holding a place are free.`
+            : `${name} doesn’t name a course run yet. An admin names it on the Settings tab, under Course run, and this then shows when the people holding a place are free.`}
         </p>
-        <div className={styles.blankActions}>{settings}</div>
+        {settings}
       </section>
     );
   }
@@ -139,10 +129,11 @@ function Blank({ view }: { view: TimesView }) {
     return (
       <section className={`${styles.card} ${styles.blank}`}>
         <p className={styles.blankText}>
-          The course run {name} names is no longer on the site. Name another on the Settings tab,
-          under Course run.
+          {admin
+            ? `The course run ${name} names is no longer on the site. Name another on the Settings tab, under Course run.`
+            : `The course run ${name} names is no longer on the site. An admin names another on the Settings tab, under Course run.`}
         </p>
-        <div className={styles.blankActions}>{settings}</div>
+        {settings}
       </section>
     );
   }
@@ -341,30 +332,30 @@ function YourGroups({ view, picture }: { view: TimesView; picture: Picture }) {
           )}
         </div>
       )}
-      <Link
-        href={`/admin/courses/${encodeURIComponent(run.courseId)}/runs/${encodeURIComponent(run.id)}`}
-        className={`${styles.see} ${styles.editorLink}`}
-      >
-        <ArrowedWords
-          words={picture.groups.length === 0 ? "Add groups in the run editor" : "Add or change groups in the run editor"}
-        />
-      </Link>
+      {view.viewer === "admin" ? (
+        <Link
+          href={`/admin/courses/${encodeURIComponent(run.courseId)}/runs/${encodeURIComponent(run.id)}`}
+          className={`${styles.see} ${styles.editorLink}`}
+        >
+          <ArrowedWords
+            words={picture.groups.length === 0 ? "Add groups in the run editor" : "Add or change groups in the run editor"}
+          />
+        </Link>
+      ) : null}
     </section>
   );
 }
 
-export default function TimesPicture({ view }: { view: TimesView }) {
+export default function TimesPicture({ view, views }: { view: TimesView; views: ReactNode }) {
   const picture = view.picture;
   const drawn = picture !== null && picture.said > 0;
   const names = new Map((picture?.groups ?? []).map((group) => [group.id, group.name] as const));
   return (
     <div className={styles.page}>
-      {(view.run || drawn) && (
-        <div className={styles.toolbar}>
-          <GroupsViews view={view} />
-          {drawn && <LengthPicker view={view} />}
-        </div>
-      )}
+      <div className={styles.toolbar}>
+        {views}
+        {drawn && <LengthPicker view={view} />}
+      </div>
       {picture === null ? (
         <Blank view={view} />
       ) : (

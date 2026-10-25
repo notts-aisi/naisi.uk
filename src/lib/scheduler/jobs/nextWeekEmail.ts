@@ -4,7 +4,7 @@ import { buildHeldEmailTask, heldEmailTaskId } from "@/lib/courses/heldEmailTask
 import { nextWeekEmailMarkerId, sendNextWeekEmail } from "@/lib/courses/nextWeekEmail";
 import { nextWeekEmailTiming } from "@/lib/courses/registerChase";
 import { readAdminUids, registerTaskPeople } from "@/lib/courses/registerTaskPeople";
-import type { RunLead } from "@/lib/courses/runLead";
+import type { RunLead } from "@/lib/courses/programmeLead";
 import { resolveSessions, type ResolvedSession } from "@/lib/courses/sessions";
 import { isOurFollowUpTask } from "@/lib/courses/unmarkedRegisters";
 import {

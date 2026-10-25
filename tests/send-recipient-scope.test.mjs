@@ -328,24 +328,6 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
-    "src/app/api/courses/runs/[runId]/allocation/publish/test/route.ts#run.trackLeadUids",
-    {
-      reads: 1,
-      origin: "gate",
-      why:
-        "Whether the CALLER may send themselves a test of Publish's emails. Not an audience: the test goes to " +
-        "the address on the caller's own session.",
-    },
-  ],
-  [
-    "src/app/api/courses/runs/[runId]/allocation/publish/route.ts#run.trackLeadUids",
-    {
-      reads: 1,
-      origin: "gate",
-      why:"Whether the CALLER may publish an allocation. Not an audience.",
-    },
-  ],
-  [
     "src/app/api/courses/runs/[runId]/applications/[uid]/decide/route.ts#run.admissionsReviewerUids",
     {
       reads: 1,
@@ -859,16 +841,6 @@ const RECIPIENT_SOURCES = new Map([
       reads: 1,
       origin: "gate",
       why:"Whether the CALLER may address a whole run. Not an audience.",
-    },
-  ],
-  [
-    "src/lib/email/courseFacilitatorEmails.ts#run.trackLeadUids",
-    {
-      reads: 1,
-      origin: "gate",
-      why:
-        "The other half of the same question about the caller: a track lead may address the " +
-        "run they lead.",
     },
   ],
   [

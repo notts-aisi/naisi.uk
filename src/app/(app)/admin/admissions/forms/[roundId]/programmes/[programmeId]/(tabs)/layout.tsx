@@ -6,6 +6,7 @@ import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import shared from "@/features/applications/editor/editor.module.css";
 import styles from "@/features/applications/editor/ProgrammeFrame.module.css";
 import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
+import { opensProgrammeGroups } from "@/lib/applications/access";
 import { loadProgrammeForStaff } from "@/lib/applications/editor/load";
 import { applicationFormPath } from "@/lib/applications/editor/olderRounds";
 import { stageSummaryFor } from "@/lib/applications/lifecycle/view";
@@ -19,7 +20,8 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  *
  * WHICH PAGES THAT IS. This file is in a route group, `(tabs)`, which adds
  * nothing to an address. The pages inside the group (Settings, the list of
- * applications, and Groups) are drawn under this head. The single application at
+ * applications, Groups with its three views, and Attendance) are drawn under
+ * this head. The single application at
  * `applications/[uid]` is OUTSIDE the group on purpose: it is a screen of its
  * own, drawn with no programme head and no tabs, so it must not inherit this
  * layout. A page that should carry the tabs goes inside `(tabs)`; one that
@@ -136,7 +138,7 @@ export default async function ProgrammeLayout({
         applications={applications}
         groups={programme.groupCount}
         canEdit={role === "admin" || role === "lead"}
-        groupsOpen={role === "admin"}
+        groupsOpen={opensProgrammeGroups(role)}
       />
       {children}
     </ApplicationsRoot>

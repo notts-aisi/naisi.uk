@@ -5,7 +5,7 @@ import { londonDateKey } from "@/lib/courses/weekPlan";
 import { formatRunStartShort } from "@/lib/courses/window";
 import { admissionApplicationUrl } from "@/lib/email/admissionEmails";
 import type { SessionUser } from "@/lib/firebase/session";
-import { roleOnProgramme } from "../access";
+import { programmeRolesFor, roleOnProgramme } from "../access";
 import { freePlaces } from "../decisions";
 import { DECISION_REPLY_TO } from "../decisionDay/emailCopy";
 import { emailStanding } from "../decisionDay/emailState";
@@ -17,7 +17,8 @@ import { paintedWeekOf } from "../handover/paintedWeek";
 import { own } from "../keys";
 import type { ApplicationDoc } from "../model";
 import { loadForm, loadQuestionSets } from "../repo";
-import { formatScore, scorableKeysFor, sectionScore } from "../scoring";
+import { lookingAt, termPictureFor, type Viewer } from "../review/term";
+import { formatScore, reviewsVisibleTo, scorableKeysFor, sectionScore } from "../scoring";
 import { orderedSets } from "../sections";
 import { listReviews } from "../staffRepo";
 import { standingOf } from "../status/standing";
@@ -41,9 +42,14 @@ import {
  * EVERYTHING THE "OFFER FREED PLACES" PAGE SHOWS, for whoever is looking.
  *
  * Who may look is `offersFreedPlaces` and nothing else, asked of the caller's
- * role on the programme before anybody's application is read: an admin, this
- * term. Anybody with no role on it is answered as for a programme that is not
- * there; anybody else with a role is told the page is an admin's.
+ * role on the programme before anybody's application is read: an admin, or
+ * the programme's lead. Anybody with no role on it is answered as for a
+ * programme that is not there; a reviewer is told who offers.
+ *
+ * A SCORE IS SHOWN AS ON EVERY LIST OF APPLICATIONS: an admin sees each one,
+ * and anybody else sees a person's score once their own review of that
+ * application is done (`reviewsVisibleTo`, asked of the one `looking` per
+ * application that `lookingAt` makes). Until then the score is held back.
  *
  * NOBODY READS THEIR OWN APPLICATION HERE. The term is read through
  * `loadTerm` for the viewer, so their own application is in no list, no
@@ -136,14 +142,31 @@ export async function loadOfferBoard(
   // Nobody has been told anything before the send, so nobody is read.
   if (form.decisionsSentAt === null) return { ok: true, board: base };
 
-  const [{ shown, shownApplications, leftApplications, own: ownApplication }, reviews, sets, groups] =
+  const [{ shown, shownApplications, leftApplications, own: ownApplication }, reviews, storedSets, groups] =
     await Promise.all([
       loadTerm(db, form, user.uid),
       listReviews(db, form.round.id),
       loadQuestionSets(db, form.round.id),
       run ? readGroups(db, run.id) : Promise.resolve([]),
     ]);
-  const ordered = orderedSets(form, sets);
+  const sets = orderedSets(form, storedSets);
+  // Who is looking, and the term as they may see it, for the one rule that
+  // decides whose scores they are shown (`reviewsVisibleTo`).
+  const viewer: Viewer = {
+    uid: user.uid,
+    name: "",
+    isAdmin: user.role === "admin",
+    roles: Object.fromEntries(programmeRolesFor(user, form).map((held) => [held.programmeId, held.role])),
+  };
+  const term = termPictureFor({
+    form,
+    applications: [...shownApplications.values(), ...leftApplications.values()],
+    decisions: new Map(
+      shown.people.flatMap((person) => (person.decision ? [[person.uid, person.decision] as const] : [])),
+    ),
+    reviews,
+    viewerUid: user.uid,
+  });
   const free = freePlaces(form, shown.tally, programme.id) ?? 0;
 
   // The groups an email can name, with the seats each can still promise.
@@ -226,9 +249,15 @@ export async function loadOfferBoard(
         : groupIds.length === 0
           ? "No group whose time they can make has a seat and a session still to come."
           : null;
-    const score = programme.useScores
-      ? sectionScore(reviewsOf.get(person.uid) ?? [], scorableKeysFor(form, ordered, programme.id, sent)).score
-      : null;
+    // Shown only as far as this viewer is shown the reviews behind it.
+    const looking = lookingAt({ form, sets, term, viewer, application });
+    const score =
+      programme.useScores && looking
+        ? sectionScore(
+            reviewsVisibleTo(viewer.uid, reviewsOf.get(person.uid) ?? [], looking),
+            scorableKeysFor(form, sets, programme.id, sent),
+          ).score
+        : null;
     const toldAt = application.result?.publishedAt ?? form.decisionsSentAt;
     toldDays.push(formatRoundDate(toldAt));
     people.push({

@@ -4,6 +4,7 @@ import { groupWeekRef } from "@/lib/courses/groupResolve";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { runStaffingOf } from "@/lib/courses/runStaffing";
 import {
   normalizeCourseGroup,
   normalizeGroupWeek,
@@ -37,8 +38,9 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * `guideBlocks` — the `dangerouslySetInnerHTML` surface — is NEVER accepted
  * from a facilitator: a request carrying the key is REFUSED outright (403),
  * not silently stripped, because a probe at a trust boundary deserves an
- * answer the sender can see. Admins and the run's track leads edit forks
- * through this same route WITH `guideBlocks` — the handler branches on role,
+ * answer the sender can see. Admins, the run's track leads and the lead of
+ * the programme that names the run edit forks through this same route WITH
+ * `guideBlocks`, and the handler branches on role,
  * so the boundary holds against a crafted request whatever the UI offers.
  * `title` and `weekNumber` are accepted from nobody here: the week's name and
  * number stay canonical-shaped so the rail, the mirror ids and the register
@@ -77,7 +79,8 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  *
  * ── WHO MAY EDIT ────────────────────────────────────────────────────────────
  * A facilitator of THIS group while it is LIVE, ∪ the parent run's track
- * leads (live group, trusted tier), ∪ admins (trusted tier, archived
+ * leads and the lead of the programme that names the run (live group,
+ * trusted tier, `runStaffingOf`), ∪ admins (trusted tier, archived
  * included). AUTHORIZATION BEFORE EXISTENCE: missing, archived and
  * someone-else's group collapse onto ONE indistinguishable 403.
  *
@@ -220,9 +223,12 @@ export async function PATCH(
     const run = runSnap.exists
       ? normalizeCourseRun(runSnap.id, runSnap.data() ?? {})
       : null;
-    isLead = Boolean(
-      run && isNamedWithStanding(actor, "courseRuns.trackLeadUids", run.trackLeadUids),
-    );
+    // A run's track lead, or the lead of the programme that names the run
+    // (`runStaffingOf`): the trusted tier below.
+    if (run) {
+      const staffing = await runStaffingOf(db, actor, run);
+      isLead = staffing.isTrackLead || staffing.leadOf !== null;
+    }
   }
   const facilitatesLiveGroup = Boolean(
     group &&

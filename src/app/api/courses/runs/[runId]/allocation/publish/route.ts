@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { sendCourseApplicationEmail, type CourseEmailDelivery } from "@/lib/email/courseApplicationEmails";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
 import {
   claimFacilitatorEmail,
@@ -17,6 +16,7 @@ import {
   type PlannedPerson,
 } from "@/lib/courses/allocationPublish";
 import { emptyPublishReport, PUBLISH_ADMIN_ONLY, type PublishReport } from "@/lib/courses/publishWords";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { normalizeCourseApplication, rowIsServedTo } from "@/lib/firestore/courseApplications";
 import { courseEnrolmentId } from "@/lib/firestore/courseEnrolments";
 import { courseRunChannel, normalizeCourseRun } from "@/lib/firestore/courses";
@@ -30,10 +30,12 @@ import { mirrorCourseDecisionToPush } from "@/lib/push/courseNotifications";
  * joins the run's cohort channel, and each facilitator of a group with
  * somebody in it gets "You’re facilitating", once per group.
  *
- * WHO MAY PUBLISH: admins ∪ the run's `trackLeadUids`, the same gate as the
- * board and the allocate route. A RUN THE APPLICATION FORM FILLS IS AN
- * ADMIN'S: when any row the form wrote is on the run, anybody else is refused
- * with a sentence, before anything is done.
+ * WHO MAY PUBLISH: admins ∪ the run's `trackLeadUids` ∪ the lead of the
+ * programme that names the run (`runStaffingOf`), the same gate as the board
+ * and the allocate route. A RUN THE APPLICATION FORM FILLS IS PUBLISHED BY AN
+ * ADMIN OR BY THAT LEAD: when a row the form wrote is on the run and the
+ * caller is not served it (`rowIsServedTo`), they are refused with a
+ * sentence, before anything is done.
  *
  * WHAT A PRESS DOES, AND WHAT STOPS IT, is worked out by `loadPublishPlan`
  * (`src/lib/courses/allocationPublish.ts`), the same plan the board's count
@@ -151,13 +153,8 @@ export async function POST(req: Request, ctx: Ctx) {
   }
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
 
-  const isAdmin = actor.role === "admin";
-  const isTrackLead = isNamedWithStanding(
-    actor,
-    "courseRuns.trackLeadUids",
-    run.trackLeadUids,
-  );
-  if (!isAdmin && !isTrackLead) {
+  const staffing = await runStaffingOf(db, actor, run);
+  if (!doesTrackLeadWork(staffing)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -176,15 +173,17 @@ export async function POST(req: Request, ctx: Ctx) {
   }
 
   try {
-    // A row the application form put here is an admin's (`rowIsServedTo`):
-    // a run that holds one is an admin's to publish, and anybody else's press
-    // is refused below without a word about who is on it.
+    // A row the application form put here is served to an admin and to the
+    // lead of the programme that names the run (`rowIsServedTo`): a run that
+    // holds one this caller is not served is theirs to publish, and this
+    // press is refused below without a word about who is on it.
     const appSnap = await db.collection("courseApplications").where("runId", "==", runId).limit(500).get();
     const rows = appSnap.docs.map((d) => normalizeCourseApplication(d.id, d.data() ?? {}));
-    const accepted = rows.filter((a) => a.status === "accepted" && rowIsServedTo(a, { isAdmin }));
+    const served = rows.filter((a) => rowIsServedTo(a, staffing));
+    const accepted = served.filter((a) => a.status === "accepted");
     const plan = await loadPublishPlan(db, run, {
       accepted,
-      adminOnly: !isAdmin && rows.some((row) => row.fromForm !== null),
+      adminOnly: served.length < rows.length,
     });
     if (plan.adminOnly) {
       return NextResponse.json({ error: PUBLISH_ADMIN_ONLY, unplaced: [] }, { status: 403 });
@@ -240,7 +239,8 @@ export async function POST(req: Request, ctx: Ctx) {
 
     const channel = courseRunChannel(runId);
     const actorLabel =
-      actor.displayName?.trim() || (isAdmin ? "Admin" : "Track lead");
+      actor.displayName?.trim() ||
+      (staffing.isAdmin ? "Admin" : staffing.leadOf ? "Programme lead" : "Track lead");
     const report: PublishReport = { ...emptyPublishReport(), noAddress: batch.noAddress, more: batch.more };
     const fromName = {
       allocated: plan.templates.allocated.fromName,
@@ -300,7 +300,7 @@ export async function POST(req: Request, ctx: Ctx) {
             audienceId: who.uid,
             source: "course-allocation",
             actor: {
-              kind: isAdmin ? "admin" : "member",
+              kind: staffing.isAdmin ? "admin" : "member",
               uid: actor.uid,
               label: actorLabel,
             },

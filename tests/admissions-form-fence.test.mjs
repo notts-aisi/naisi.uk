@@ -325,9 +325,28 @@ const ROUND_SURFACES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": {
     kind: "form",
     why:
-      "one programme's Groups tab, the times picture, an admin's. It reaches the round only " +
-      "through loadTimesPicture, which starts from the form's own loader and answers 'none' " +
-      "for a round that is not a form, and the page then says there is no programme here",
+      "one programme's Groups tab, People in groups: the run's allocation board, the programme's lead's and an " +
+      "admin's. It reaches the round only through loadProgrammeRun, which starts from the form's own loader and " +
+      "answers 'none' for a round that is not a form, and the page then says there is no programme here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/times": {
+    kind: "form",
+    why:
+      "one programme's Groups tab, its Times view, the programme's lead's and an admin's. It reaches the round only " +
+      "through loadTimesPicture, which starts from the form's own loader and answers 'none' for a round that is not a " +
+      "form, and the page then says there is no programme here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/facilitators": {
+    kind: "form",
+    why:
+      "one programme's Groups tab, its Facilitators view. It reaches the round only through loadProgrammeRun, which " +
+      "starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance": {
+    kind: "form",
+    why:
+      "one programme's Attendance tab, every register of the run it names. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     kind: "form",
@@ -1302,18 +1321,6 @@ const ROUND_READERS = new Map([
         "form the reply route loaded with the form's own loader, which asks and answers null " +
         "for a round that is not a form, and it touches the round only to move its counters in " +
         "the transaction that moves the application's status",
-    },
-  ],
-  [
-    "src/lib/courses/allocationPublish.ts",
-    {
-      kind: "form",
-      asks: 1,
-      proof: ['.where("formVersion", "==", FORM_VERSION)', "if (!isApplicationForm(data)) continue;"],
-      why:
-        "Publish's plan finds the programme that names the run, to sign the facilitators' email " +
-        "with its lead's name. It asks the database for forms only, and asks each stored " +
-        "document the question again before it reads it as one",
     },
   ],
   [

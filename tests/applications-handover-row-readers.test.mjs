@@ -14,8 +14,10 @@
  * application is decided programme by programme. Being named on a run gives
  * nobody that right.
  *
- * So A ROW FROM THE FORM IS AN ADMIN'S, on every staff route that reads or
- * acts on rows. One function says it (`rowIsServedTo` in
+ * So A ROW FROM THE FORM IS SERVED TO AN ADMIN AND TO THE LEAD OF THE
+ * PROGRAMME THAT NAMES THE RUN (the rows that programme's hand-over wrote),
+ * on every staff route that reads or acts on rows, and to nobody else. One
+ * function says it (`rowIsServedTo` in
  * `src/lib/firestore/courseApplications.ts`), and a route that forgot to ask
  * would hand a track lead the name of everybody a programme accepted.
  *
@@ -24,11 +26,16 @@
  * THE TREE. Every file under `src` that addresses the collection is listed
  * below with what it does about such a row, and each entry's claim is read
  * out of the source. A new reader fails this file until somebody decides. A
- * staff reader has to ask `rowIsServedTo` as many times as it reads rows.
+ * staff reader has to ask `rowIsServedTo` as many times as it reads rows, and
+ * each time with the caller's whole standing on the run, worked out by
+ * `runStaffingOf` (`src/lib/courses/runStaffing.ts`): whether they are an
+ * admin, and the programme they lead that names the run.
  *
  * WHAT THE ROUTES THEN DO is executed in
  * `tests/applications-handover-board.test.mjs`, as an admin, a track lead and
- * the run's reviewer, on every one of the staff routes listed here.
+ * the run's reviewer, and in `tests/course-hub-lead-rows.test.mjs` as the
+ * lead of the programme that names the run, on every one of the staff routes
+ * listed here.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -59,7 +66,8 @@ const ADDRESSES =
  * What each reader does about a row from the form.
  *
  *  - `staff`: it reads or acts on rows for the people a run names, so it asks
- *    `rowIsServedTo` before each. `asks` is how many times.
+ *    `rowIsServedTo` before each, with the standing `runStaffingOf` worked
+ *    out for the caller. `asks` is how many times.
  *  - `own`: it reads the caller's own row and nobody else's. `proof` is the
  *    text that makes that true.
  *  - `admin`: every caller is an admin before a row is read. `proof` is the
@@ -71,7 +79,7 @@ const READERS = {
   "app/api/courses/runs/[runId]/allocation/route.ts": {
     kind: "staff",
     asks: 1,
-    why: "the allocation board's list of accepted people, for an admin or the run's track leads",
+    why: "the allocation board's list of accepted people, for an admin, the run's track leads or the lead of the programme that names it",
   },
   "app/api/courses/runs/[runId]/allocate/route.ts": {
     kind: "staff",
@@ -81,17 +89,17 @@ const READERS = {
   "app/api/courses/runs/[runId]/allocation/publish/route.ts": {
     kind: "staff",
     asks: 1,
-    why: "Publish lists accepted people, names the unplaced in a refusal and emails the rest",
+    why: "Publish lists accepted people, names the unplaced in a refusal and emails the rest, and is held for a caller the run holds a row they are not served",
   },
   "app/api/courses/runs/[runId]/allocation/publish/test/route.ts": {
     kind: "staff",
     asks: 1,
-    why: "\"Send a test to me\" reads the run's accepted people to write the first person's real email, for an admin or the run's track leads",
+    why: "\"Send a test to me\" reads the run's accepted people to write the first person's real email, for an admin, the run's track leads or the lead of the programme that names it",
   },
   "app/api/courses/runs/[runId]/applications/route.ts": {
     kind: "staff",
     asks: 1,
-    why: "the run's own queue, for an admin, its admissions reviewers and its track leads",
+    why: "the run's own queue, for an admin, its admissions reviewers, its track leads and the lead of the programme that names it",
   },
   "app/api/courses/runs/[runId]/applications/[uid]/decide/route.ts": {
     kind: "staff",
@@ -203,13 +211,29 @@ describe("every reader of a run's own applications list says what it does about 
           /import\s*\{[^}]*\browIsServedTo\b[^}]*\}\s*from\s*"@\/lib\/firestore\/courseApplications"/,
           "it asks a question of its own instead of the collection's rowIsServedTo",
         );
-        // Who is asking is the caller's own role, worked out in the route.
+        // Who is asking is the caller's own standing on the run, worked out
+        // once in the route by the one function that knows it: whether they
+        // are an admin, and the programme they lead that names the run.
         assert.equal(
-          [...code.matchAll(/\browIsServedTo\s*\([\s\S]{0,160}?,\s*\{\s*isAdmin\s*\}\s*\)/g)].length,
+          [...code.matchAll(/\browIsServedTo\s*\([\s\S]{0,160}?,\s*staffing\s*\)/g)].length,
           entry.asks,
-          "each time it asks, it has to ask about the caller's own role",
+          "each time it asks, it has to ask with the caller's own standing on the run",
         );
-        assert.match(code, /const isAdmin = actor\.role === "admin";/);
+        assert.match(
+          code,
+          /const staffing = await runStaffingOf\(db, actor, /,
+          "the standing it asks with is the caller's, from runStaffingOf",
+        );
+        assert.equal(
+          [...code.matchAll(/\bconst staffing\b/g)].length,
+          1,
+          "the standing is worked out once, and is the only thing called that",
+        );
+        assert.match(
+          code,
+          /import\s*\{[^}]*\brunStaffingOf\b[^}]*\}\s*from\s*"@\/lib\/courses\/runStaffing"/,
+          "it takes runStaffingOf from the one module that answers it",
+        );
       } else {
         assert.equal(asked, 0, "it is not listed as a staff reader, and it asks who a row is served to");
         assert.ok(Array.isArray(entry.proof) && entry.proof.length > 0, "names what the file has to contain");
@@ -235,9 +259,17 @@ describe("every reader of a run's own applications list says what it does about 
     );
   });
 
-  test("the rule is one function, and it gives a row from the form to an admin alone", () => {
+  test("the rule is one function: a row from the form to an admin, and to the lead of the programme it came from", () => {
     const code = codeOf(join(SRC, "lib", "firestore", "courseApplications.ts"));
     assert.match(code, /export function rowIsServedTo\(/);
-    assert.match(code, /return row\.fromForm === null \|\| viewer\.isAdmin;/);
+    // Its whole body. The lead's programme has to be the row's own, both ids.
+    assert.match(
+      code,
+      /if \(row\.fromForm === null \|\| viewer\.isAdmin\) return true;\s*const lead = viewer\.leadOf;\s*return \(\s*lead !== null &&\s*row\.fromForm\.roundId === lead\.roundId &&\s*row\.fromForm\.programmeId === lead\.programmeId\s*\);\s*\}/,
+    );
+    // And the programme the lead leads is worked out in one place, from the
+    // form, at the moment of asking (`programmeLedBy`), never stored.
+    const staffing = codeOf(join(SRC, "lib", "courses", "runStaffing.ts"));
+    assert.match(staffing, /leadOf: isAdmin \? null : await programmeLedBy\(db, actor, run\.id\),/);
   });
 });

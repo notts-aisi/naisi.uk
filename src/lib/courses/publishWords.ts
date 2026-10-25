@@ -12,9 +12,12 @@
  * named, with why.
  */
 
-/** The sentence a track lead reads on a run the application form fills. */
+/**
+ * The sentence a track lead reads on a run the application form fills, which
+ * an admin or the lead of the programme that names the run publishes.
+ */
 export const PUBLISH_ADMIN_ONLY =
-  "This run’s people came from the application form, so only an admin can publish it or send its test.";
+  "This run’s people came from the application form, so only an admin or its programme’s lead can publish it or send its test.";
 
 /** What one press did. */
 export type PublishReport = {
