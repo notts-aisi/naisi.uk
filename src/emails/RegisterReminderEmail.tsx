@@ -12,7 +12,7 @@ type Props = {
   effect: string;
   /** "Open the register". */
   buttonLabel: string;
-  /** Absolute link to the group's page, where the register is. */
+  /** Absolute link to the register's own page. */
   registerLink: string;
   /** What to do when the session did not happen, in the register's word for ending it. */
   notHeld: string;

@@ -1,6 +1,7 @@
 /**
  * The follow-ups to Publish: Remove gives the place on the form back, as
- * leaving does, and what the person's own page then says.
+ * leaving does, and what the person's own page then says; and the register
+ * reminder opens the register.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -10,6 +11,8 @@
  *   GET   /api/courses/runs/[runId]/allocation                   the cards, and Publish's count
  *   POST  /api/courses/runs/[runId]/allocation/publish(/test)
  *   "Your application" (`loadStatus`, drawn by `StatusPage`), and the list of applications
+ *   POST  /api/admissions/forms/[roundId]/programmes/[programmeId]/registers/remind
+ *   the `courses-register-reminders` job
  *
  * ## What this guards
  *
@@ -30,6 +33,9 @@
  *  4. PUTTING SOMEBODY BACK after a removal follows the Publish fix's rule:
  *     their card stops saying "Gave their place back" and Publish tells them.
  *     Their place on the form stays given back.
+ *  5. THE REGISTER REMINDER'S "Open the register" goes to the register's own
+ *     page, whichever sends it: the lead's Remind (as an admin and as the
+ *     programme's lead) or the job.
  *
  * Built on `tests/lib/leavingWorld.mjs`: week 3 of AGI Strategy's run, the
  * clock at noon on Tue 17 Nov 2026 in London. Amara is in Group A, told, and
@@ -38,11 +44,17 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { render } from "@react-email/render";
+import { switches } from "./lib/hubAttendanceWorld.mjs";
 import {
   A,
+  AGI,
+  D,
   NOW,
   ROUND,
   RUN,
@@ -56,6 +68,8 @@ import {
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
+const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
+
 const w = await makeLeavingWorld("__publishFollowUps");
 const { world, call, routes } = w;
 
@@ -63,6 +77,8 @@ const statusLoad = await w.loadTs(join("lib", "applications", "status", "load.ts
 const { default: StatusPage } = await w.loadTs(join("features", "applications", "status", "StatusPage.tsx"));
 const fit = await w.loadTs(join("features", "courses", "allocationFit.ts"));
 const record = await w.loadTs(join("lib", "courses", "finishing", "record.ts"));
+const remindRoute = await w.formRoute("programmes", "[programmeId]", "registers", "remind");
+const { registerRemindersJob } = await w.loadTs(join("lib", "scheduler", "jobs", "registerReminders.ts"));
 
 const CALLERS = [
   ["an admin", "zach"],
@@ -350,4 +366,69 @@ describe("4. putting somebody back after a removal follows the Publish fix's rul
       assert.equal(applicationOf("amara").status, "withdrawn");
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// 5. The register reminder opens the register
+// ---------------------------------------------------------------------------
+
+/** Every address an email's links lead to, and its words, as its reader gets it. */
+async function opened(mail) {
+  const html = await render(mail.react);
+  return {
+    links: [...html.matchAll(/href="([^"]*)"/g)].map((match) => match[1].replace(/&amp;/g, "&")),
+    // The button sits between hair spaces, written as numeric entities.
+    text: textOf(html.replace(/<head[\s\S]*?<\/head>/i, "").replace(/&#\d+;/g, " ")),
+  };
+}
+
+/** The register's own page for a group, as a whole address on the world's own site. */
+const registerPage = (groupId) =>
+  `${process.env.NEXT_PUBLIC_APP_URL}/learn/${encodeURIComponent(RUN.agi)}/group/${encodeURIComponent(groupId)}/register`;
+
+/** One run of the reminder job at `instant`, as the tick hands it over. */
+async function runReminderJob(instant) {
+  mock.timers.setTime(instant.getTime());
+  world.course = true;
+  try {
+    return await registerRemindersJob.handler({
+      now: instant,
+      budget: { remainingMs: () => 20_000, expired: () => false },
+      log: () => {},
+      policy: { reclaimAfterMinutes: 20, maxAttempts: 3 },
+      maxPerTick: registerRemindersJob.maxPerTick,
+      maxLateHours: registerRemindersJob.maxLateHours,
+    });
+  } finally {
+    world.course = false;
+  }
+}
+
+describe("5. the register reminder's \"Open the register\" goes to the register's own page", () => {
+  test("the address it names is a page of the site", () => {
+    assert.ok(existsSync(join(SRC, "app", "(app)", "learn", "[runId]", "group", "[groupId]", "register", "page.tsx")));
+  });
+
+  for (const [label, who] of CALLERS) {
+    test(`as ${label}: Remind emails Grace a link to Group D's register, and to nothing else`, async () => {
+      const pressed = await call(who, remindRoute.POST, { roundId: ROUND, programmeId: AGI }, { body: { groupId: D, sessionKey: "w03", emails: 1 } });
+      assert.deepEqual([pressed.status, pressed.body.emailed], [200, 1], JSON.stringify(pressed.body));
+      assert.deepEqual(world.mail.map((mail) => [mail.to, mail.subject]), [["grace@example.com", "Group D’s register isn’t pushed"]]);
+      const mail = await opened(world.mail[0]);
+      assert.deepEqual(mail.links, [registerPage(D), registerPage(D)]);
+      assert.ok(mail.text.includes(`Open the register Or paste this into your browser: ${registerPage(D)} `), mail.text);
+    });
+  }
+
+  test("the job's reminder links to the same page", async () => {
+    world.db.seed("config/scheduler", switches({ reminders: true }));
+    await runReminderJob(new Date("2026-11-18T09:00:00Z"));
+    const reminders = world.mail.filter((mail) => mail.subject.endsWith("register isn’t pushed"));
+    assert.ok(reminders.some((mail) => mail.to === "grace@example.com"), JSON.stringify(world.mail.map((mail) => mail.to)));
+    const grace = await opened(reminders.find((mail) => mail.to === "grace@example.com"));
+    assert.deepEqual(grace.links, [registerPage(D), registerPage(D)]);
+    for (const mail of reminders) {
+      for (const link of (await opened(mail)).links) assert.match(link, /\/group\/[^/]+\/register$/, `${mail.to}: ${link}`);
+    }
+  });
 });

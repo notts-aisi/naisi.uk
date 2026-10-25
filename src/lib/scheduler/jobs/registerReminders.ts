@@ -195,7 +195,8 @@ async function remindForSession(
         name: person.name,
         uid,
         runId: run.id,
-        registerLink: `${state.appUrl}/learn/${encodeURIComponent(run.id)}/group/${encodeURIComponent(group.id)}`,
+        groupId: group.id,
+        appUrl: state.appUrl,
         facts,
       });
       if (sent === "sent") {

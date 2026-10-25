@@ -145,7 +145,6 @@ export async function sendReminders(
     scheduled: args.switches.scheduled,
     task: args.switches.tasksOn ? { hours: args.config.registerTaskHours, leadName: lead?.firstName ?? "" } : null,
   };
-  const registerLink = `${args.appUrl}/learn/${encodeURIComponent(args.run.id)}/group/${encodeURIComponent(args.group.id)}`;
   const outcome: RemindOutcome = { emailed: 0, failed: 0, names: [] };
   for (const person of args.sendable) {
     const marker = markerFor(args.group.id, args.sessionKey, person.uid);
@@ -161,7 +160,8 @@ export async function sendReminders(
       name: person.firstName,
       uid: person.uid,
       runId: args.run.id,
-      registerLink,
+      groupId: args.group.id,
+      appUrl: args.appUrl,
       facts,
     });
     if (sent === "sent") {

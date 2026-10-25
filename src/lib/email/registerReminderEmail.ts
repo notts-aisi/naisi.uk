@@ -79,10 +79,22 @@ export type RegisterReminderOptions = {
   /** The facilitator, logged as the send's actor. */
   uid: string;
   runId: string;
-  /** Absolute link to the group's page. */
-  registerLink: string;
+  /** The group whose register it is. */
+  groupId: string;
+  /** This site's own address, with no trailing slash. */
+  appUrl: string;
   facts: RegisterReminderFacts;
 };
+
+/**
+ * Where "Open the register" goes: the register's own page for the group
+ * (`/learn/[runId]/group/[groupId]/register`), where the session is marked
+ * and ended, as a whole address on this site. Built here, behind the one
+ * door, so the job and a lead's Remind cannot come to link to two pages.
+ */
+function registerPageUrl(appUrl: string, runId: string, groupId: string): string {
+  return `${appUrl}/learn/${encodeURIComponent(runId)}/group/${encodeURIComponent(groupId)}/register`;
+}
 
 /**
  * One facilitator's reminder. NEVER THROWS: the caller holds a claimed marker,
@@ -108,7 +120,7 @@ export async function sendRegisterReminderEmail(
         lead: words.lead,
         effect: words.effect,
         buttonLabel: "Open the register",
-        registerLink: opts.registerLink,
+        registerLink: registerPageUrl(opts.appUrl, opts.runId, opts.groupId),
         notHeld: words.notHeld,
         next: words.next,
       }),
