@@ -56,13 +56,7 @@ export default function SessionTicket({ facts, eyebrow, heading, roomChanged, fa
     ) : null;
 
   return (
-    <section
-      className={home ? `${styles.ticket} ${styles.ticketHome}` : styles.ticket}
-      aria-label="Your next session"
-      // Addressed by the browser end-to-end suite, which reads a member's
-      // first session off their programme's page once groups go out.
-      data-testid="session-card"
-    >
+    <section className={home ? `${styles.ticket} ${styles.ticketHome}` : styles.ticket} aria-label="Your next session">
       {tile && (
         <time className={styles.stub} dateTime={facts.dateKey}>
           <span className={styles.stubWeekday}>{tile.weekday}</span>
