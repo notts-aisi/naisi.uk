@@ -74,6 +74,7 @@ rather than the record.
 | `register-push` | The facilitator's register: the roster, marking attendance and pushing it, with the participant notes beside it. | Yes | Both |
 | `course-hub-groups-go-out` | Groups going out on a term just after decision day: the admin names the course run on the programme's Settings tab, moves it on from draft, hands the people holding a place over (a second press writes nothing), reads the Times view, places each person with the Move to menu, appoints a facilitator, sends the test of Publish's emails and presses Publish with its count. The person placed sees their group and first session, a person moved after Publish sees nothing until Publish again emails only them, and the facilitator sees their roster and register. Every email is held to the board's words and checked for the meeting link. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the test of Publish's emails goes to the admin's own address |
 | `course-hub-lead-week-three` | The lead's third week on the same term, three weeks in (places told, registers marked, one left unfinished, week 1's update): the admin names the running run and hands its people over, appoints a facilitator, reads the Overview (the week, this week's sessions and registers, what needs attention, the newest update), presses Remind and reads its email, reads the Attendance grid and downloads its CSV through the download log, sends a test of an update to one group and posts it with the count on its button. A member of that group reads it on their programme page and a member of the other group does not; every email is held to its words and checked for the meeting link. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the update's test goes to the admin's own address |
+| `course-hub-facilitators-week` | A facilitator's week on the same term, three weeks in, with one group's register for the week never opened: the admin appoints the group's facilitator on the Facilitators view, and the facilitator, signed in as themselves, opens the group's page (the roster, this week's session, the register), marks the register in every state it offers, finishes it in the words of the target's ending (it then locks against them), and moves next week's session with a reason and the count on its button. A member reads their own marks only once the register is finished, both members read the change on their programme page, the update's email reaches exactly the group, word for word, with no meeting link, and the lead's Overview and Sessions view show the register finished and the session moved. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because it reads the update's email out of each member's mailbox |
 | `events-rsvp` | A guest RSVP against a real event, through the public event page to the submitted confirmation. | Yes | Both |
 
 ## Safety properties
@@ -325,7 +326,8 @@ several specs stand on (the course hub's term after decision day,
 runner does not walk: it exports no `SPEC`, a spec module imports it, and
 `tests/funnel-harness-guards.test.mjs` holds both. A world can be asked for at
 a point: the course hub's term exists just after decision day
-(`decisions-sent`) and three weeks into its run (`week-three`). A spec module
+(`decisions-sent`), three weeks into its run (`week-three`), and three weeks in
+with one group's register for the week never opened (`week-three-unmarked`). A spec module
 looks like this:
 
 ```js
