@@ -41,6 +41,7 @@ import { eventAnnouncementsJob } from "./jobs/eventAnnouncements";
 import { heartbeatJob } from "./jobs/heartbeat";
 import { nextWeekEmailJob } from "./jobs/nextWeekEmail";
 import { registerRemindersJob } from "./jobs/registerReminders";
+import { surveyNamesOffJob } from "./jobs/surveyNamesOff";
 import { unmarkedRegistersJob } from "./jobs/unmarkedRegisters";
 import { worksheetDueRemindersJob } from "./jobs/worksheetDueReminders";
 
@@ -80,6 +81,10 @@ export const SCHEDULER_JOB_IDS = [
   // has shipped and the publish route starts reading a switch nobody set.
   "event-announcements",
   "newsletter-drain",
+  // Names come off confidential survey answers a year after the programme
+  // (docs/surveys.md). It emails nobody, so it registers on: the privacy
+  // policy's promise rests on it running.
+  "surveys-names-off",
   // Worksheet due-soon reminders (docs/worksheets.md). The id was reserved
   // here ahead of its handler for the reason the header gives: the panel and
   // `config/scheduler` key on these strings, so the id had to be the one the
@@ -237,6 +242,7 @@ export const JOBS: readonly JobRegistration[] = [
   unmarkedRegistersJob,
   eventAnnouncementsJob,
   heartbeatJob,
+  surveyNamesOffJob,
   worksheetDueRemindersJob,
 ];
 
