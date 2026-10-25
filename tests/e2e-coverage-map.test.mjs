@@ -585,7 +585,7 @@ const NOT_COVERED = {
   },
   "/api/admissions/forms/[roundId]/application/reply": {
     reason:
-      "An applicant's reply to their offer or invitation on the new application form. Executed against an in-memory store by tests/applications-wave-f-reply-route.test.mjs (the gate, the body, hidden forms, every state of an application against every reply, the counters, a refusal writing nothing, the waiting account an accepted invitation approves), and pressed by hand at 390 for each outcome, but no browser spec drives it yet.",
+      "An applicant's reply to their offer or invitation on the new application form. Executed against an in-memory store by tests/applications-wave-f-reply-route.test.mjs (the gate, the body, hidden forms, every state of an application against every reply, the counters, a refusal writing nothing, the waiting account an accepted invitation approves), and, for somebody in a group Publish has told them about, whose I can’t make it is leaving the programme, by tests/course-hub-cant-make-it-after-placement.test.mjs; pressed by hand at 390 for each outcome, but no browser spec drives it yet.",
     coverWhen:
       "Before the first decision day on an application form: an applicant spec that opens /applications/<form> after a send, says they are coming, and gives a place back.",
   },
@@ -1602,7 +1602,7 @@ const NOT_COVERED = {
   },
   "/(public)/applications/[roundId]": {
     reason:
-      "The per-round applicant status page. For an older round it is the detail behind the hub the funnel already asserts. For an application form it is now the sent status, the outcome and the reply buttons, drawn from a view model that tests/applications-wave-f-status.test.mjs and tests/applications-wave-f-replies.test.mjs execute, with no browser spec yet.",
+      "The per-round applicant status page. For an older round it is the detail behind the hub the funnel already asserts. For an application form it is now the sent status, the outcome and the reply buttons, drawn from a view model that tests/applications-wave-f-status.test.mjs and tests/applications-wave-f-replies.test.mjs execute, and, once the place is a group or the person has left it, tests/course-hub-cant-make-it-after-placement.test.mjs, with no browser spec yet.",
     coverWhen:
       "When the first round publishes its decisions, because this is the screen an applicant refreshes.",
   },

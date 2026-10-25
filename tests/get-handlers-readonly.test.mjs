@@ -92,6 +92,9 @@ const MUTATION_HELPERS = {
   // Leaving a run gives the place on the form back, in the transaction that
   // takes somebody off the run; the write is in the same file.
   givePlaceBack: "gives an applicant's place on the form back and moves the round's counters, inside the transaction that takes them off a run",
+  // The one leave, which the enrol route's DELETE and the reply route take.
+  // Its writes are in `src/lib/courses/leaveRun.ts`, out of every handler's body.
+  leaveRun: "takes the caller off a run: their seat, their group's count, their place on the form, the cohort list, their week cards, a log line and an email",
   // What follows from accepting an invitation, called by the same route once
   // the reply is written. The write is `approveWaitingAccount`, one file down.
   approveAfterAcceptedInvitation: "makes the account of somebody who accepted an invitation a member's, if it was still waiting",

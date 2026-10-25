@@ -523,8 +523,8 @@ const REGISTRY = {
   "src/lib/email/courseEnrolmentEmails.ts#sendEmail": T(
     "The dropped-out note confirming a member is off a run. A change to their own enrolment.",
   ),
-  "src/app/api/courses/runs/[runId]/enrol/route.ts#sendCourseDroppedOutEmail": T(
-    "The call site of that note, on the route that takes a member off a run.",
+  "src/lib/courses/leaveRun.ts#sendCourseDroppedOutEmail": T(
+    "The call site of that note, in the one leave both doors take: Leave the programme on the programme page, and I can’t make it from somebody in a group on their application page. It goes to the person who left and nobody else.",
   ),
   "src/lib/email/admissionEmails.ts#sendEmail": T(
     "The admissions template's send door, shared by five callers. It consults nothing itself; the two scheduled callers consult the courses row before they reach it and carry their own grid entries.",

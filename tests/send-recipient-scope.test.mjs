@@ -387,13 +387,13 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
-    "src/app/api/courses/runs/[runId]/enrol/route.ts#data.completerUids",
+    "src/lib/courses/leaveRun.ts#data.completerUids",
     {
       reads: 2,
       origin: "record",
       why:
-        "Read off an existing mirrored task to ask whether this member is already on it, so a " +
-        "re-sync does not duplicate one. Not a recipient list.",
+        "Read off a mirrored week card to check it is the leaving member's own before the leave " +
+        "deletes it, since a card's id says nothing about who made it. Not a recipient list.",
     },
   ],
   [
