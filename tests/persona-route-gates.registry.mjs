@@ -1226,6 +1226,16 @@ export const ROUTES = {
         "is missing.",
     },
   },
+  "/api/courses/groups/[groupId]/session/change": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the body is checked before anything is read, " +
+        "so every signed-in persona meets the same 400 on an empty one. Who may change a session of the " +
+        "group (its live facilitators, the lead of the programme naming its run, the run's track leads, " +
+        "admins) is asked once a valid body arrives.",
+    },
+  },
   "/api/courses/groups/[groupId]/weeks/[weekId]": {
     PATCH: {
       expect: everyone(404),
@@ -2378,6 +2388,13 @@ export const PAGES = {
       "read, and a programme the caller has no role on, or one that does not exist, renders 'there is no programme " +
       "here' in place of the page with a 200.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: the Sessions view is the " +
+      "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme the caller " +
+      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/times": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
     why:
@@ -2621,6 +2638,13 @@ export const PAGES = {
     why:
       "A run under /learn: the run layout sends every approved account back to /learn when " +
       "the run is missing, and the run's own roster decides the rest once it exists.",
+  },
+  "/(app)/learn/[runId]/group/[groupId]/sessions": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page sends anybody who does not facilitate the live group, or is not an admin, to " +
+      "the run's home.",
   },
   "/(app)/learn/[runId]/group/[groupId]/update": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),

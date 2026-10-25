@@ -329,6 +329,13 @@ const ROUND_SURFACES = {
       "admin's. It reaches the round only through loadProgrammeRun, which starts from the form's own loader and " +
       "answers 'none' for a round that is not a form, and the page then says there is no programme here",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": {
+    kind: "form",
+    why:
+      "one programme's Groups tab, its Sessions view, each group's session in one week of the run it names. It " +
+      "reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' " +
+      "for a round that is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/times": {
     kind: "form",
     why:

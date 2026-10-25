@@ -2330,6 +2330,16 @@ service cloud.firestore {
         return request.resource.data.get('sessionModes', {})
           == resource.data.get('sessionModes', {});
       }
+      // `sessionChanges` (Q25) is the record of what "Change a session" did
+      // and why: an evening that is off, a week moved or held online, the
+      // reason its group reads. Server-owned like `sessionModes`: the change
+      // route is its one writer, so a cancellation a group acts on, and the
+      // reason it reads, only ever come from the press that also told them.
+      // One whole-map comparison, as for `sessionModes`.
+      function groupSessionChangesUnchanged() {
+        return request.resource.data.get('sessionChanges', {})
+          == resource.data.get('sessionChanges', {});
+      }
       // Caps mirror GROUP_FIELD_LIMITS (courseGroups.ts) — the session fields
       // are client-editable by facilitators, so these ARE the boundary.
       // `meetingUrl` is null when the group meets in person, hence the
@@ -2421,6 +2431,7 @@ service cloud.firestore {
         && request.resource.data.get('paceStartDate', null) == null
         && request.resource.data.get('paceWeekPlan', null) == null
         && request.resource.data.get('sessionModes', {}).size() == 0
+        && request.resource.data.get('sessionChanges', {}).size() == 0
         // V3 W1 PR5: the birth pins for the two fields added to
         // groupPinnedFieldsUnchanged(). Update only PINS them, so without
         // these a group could be BORN tagged to a stream the enrol route
@@ -2442,6 +2453,7 @@ service cloud.firestore {
           (canApproveCourse() || isParentRunTrackLead() || isGroupFacilitator())
           && groupPinnedFieldsUnchanged()
           && groupSessionModesUnchanged()
+          && groupSessionChangesUnchanged()
           && groupContentOk()
         );
 
