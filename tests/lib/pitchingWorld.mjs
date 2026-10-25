@@ -261,6 +261,9 @@ export async function makePitchingWorld(key = "__pitching") {
         "export default ({ href, className, children, scroll, prefetch, ...rest }) =>\n" +
           `  ${handle}.h('a', { href, className, ...rest }, children);`,
       ],
+      // Whether the page's script has arrived: false, as in the server's own
+      // markup, unless a suite says otherwise.
+      ["@/hooks/useHydrated", `export function useHydrated() { return ${handle}.ui.hydrated === true; }`],
       ["./PitchingWeek.module.css", CLASS_NAMES],
       ["./ProgrammePitches.module.css", CLASS_NAMES],
       ["./Select.module.css", CLASS_NAMES],
@@ -307,7 +310,7 @@ export async function makePitchingWorld(key = "__pitching") {
     world.courseDb = courseView(world.db);
     world.user = null;
     world.viewAs = false;
-    world.ui = { pathname: `/learn/${INC.run}/pitching`, replaced: [] };
+    world.ui = { pathname: `/learn/${INC.run}/pitching`, replaced: [], hydrated: false };
     return world.db;
   }
 

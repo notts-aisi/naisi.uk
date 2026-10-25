@@ -231,8 +231,13 @@ describe("the page", () => {
   test("the times picture's views name Pitches only for a run with a pitching week", async () => {
     world.user = sessionOf("zach");
     const incubator = await made.lib.times.loadTimesPicture(world.courseDb, world.user, ROUND, INCUBATOR, undefined);
-    const html = renderToStaticMarkup(world.h(TimesPicture, { view: incubator.view }));
-    const views = /<nav class="views" aria-label="Groups views">(.*?)<\/nav>/.exec(html);
-    assert.deepEqual([...views[1].matchAll(/<a [^>]*>([^<]+)<\/a>/g)].map((m) => m[1]), ["Times", "People in groups", "Pitches"]);
+    const viewsOf = (view) => {
+      const html = renderToStaticMarkup(world.h(TimesPicture, { view }));
+      const views = /<nav class="views" aria-label="Groups views">(.*?)<\/nav>/.exec(html);
+      return [...views[1].matchAll(/<a [^>]*>([^<]+)<\/a>/g)].map((m) => m[1]);
+    };
+    assert.deepEqual(viewsOf(incubator.view), ["Times", "People in groups", "Pitches"]);
+    const agi = await made.lib.times.loadTimesPicture(world.courseDb, world.user, ROUND, AGI, undefined);
+    assert.deepEqual(viewsOf(agi.view), ["Times", "People in groups"]);
   });
 });

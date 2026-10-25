@@ -125,6 +125,28 @@ describe("the page, open", () => {
   });
 });
 
+describe("once the page's script has arrived", () => {
+  test("open: the toggles and the form's button can be pressed, except a pick past the limit", async () => {
+    reset(pitchingSeed({ settings: { pickLimit: 1, teamSizeMin: 2, teamSizeMax: 4, teamsMadeOn: "2026-11-19" } }));
+    await othersPitch();
+    world.ui.hydrated = true;
+    const { html } = await draw("amara");
+    // Amara picked Tariq's, which is her one: she may take it off, and may not add Bea's.
+    assert.match(html, /<button type="button" class="join joinOn" aria-pressed="true" aria-label="I’d join this: Unlearning check">/);
+    assert.match(html, /<button type="button" class="join " aria-pressed="false" aria-label="I’d join this: Steering at scale" disabled="">/);
+    assert.match(html, /<button type="submit" class="primary">Send pitch<\/button>/);
+  });
+
+  test("closed: every toggle is held as it was, and none can be pressed", async () => {
+    await othersPitch();
+    mock.timers.setTime(AT.sessionStarts.getTime());
+    world.ui.hydrated = true;
+    const { html } = await draw("amara");
+    assert.match(html, /aria-pressed="true" aria-label="I’d join this: Unlearning check" disabled=""/);
+    assert.match(html, /aria-pressed="false" aria-label="I’d join this: Steering at scale" disabled=""/);
+  });
+});
+
 describe("the page, closed", () => {
   test("after the group's session starts it is all read only: no form, no edit link, toggles held as they were", async () => {
     await ask.pitch("amara", pitchBody());

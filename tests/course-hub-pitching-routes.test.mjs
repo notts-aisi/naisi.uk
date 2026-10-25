@@ -109,6 +109,13 @@ describe("who takes part", () => {
     assert.deepEqual(short(await ask.view("amara")), [403, NOT_IN_A_GROUP]);
   });
 
+  test("a group that has been archived takes no part", async () => {
+    world.db.poke(`courseGroups/${INC.thursday}`, { archived: true });
+    assert.deepEqual(short(await ask.view("amara")), [403, NOT_IN_A_GROUP]);
+    assert.deepEqual(short(await ask.pitch("amara", pitchBody())), [403, NOT_IN_A_GROUP]);
+    assert.equal((await ask.view("omar")).status, 200);
+  });
+
   test("a week ticked and not published is no pitching week yet, and nor is a run with none ticked", async () => {
     world.db.poke(`courseRuns/${INC.run}/weeks/w03`, { published: false });
     assert.deepEqual(short(await ask.view("amara")), [404, "There’s no pitching week on this programme."]);
