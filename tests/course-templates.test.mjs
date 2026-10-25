@@ -327,6 +327,8 @@ test("GUARD §1.3 templateWeekFields carries content but not the audit stamp", (
     "guideBlocks",
     "materials",
     "published",
+    // "Questions to think about" (C29) are a week's content, and travel with it.
+    "questions",
     "summary",
     "title",
     "weekNumber",

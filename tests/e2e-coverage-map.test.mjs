@@ -1534,6 +1534,18 @@ const NOT_COVERED = {
     coverWhen:
       "When the facilitator's week spec writes a note on the group page and reads it back.",
   },
+  "/api/courses/groups/[groupId]/shared-notes": {
+    reason:
+      "Course hub: the notes a group shares on its week pages (C29); who adds one, who is refused, what a note keeps and what takes it away are executed by tests/course-hub-shared-notes.test.mjs, with the week page and the Attendance tab that draw them; added in a browser on the preview kit at 390 and 1440.",
+    coverWhen:
+      "When a browser spec signs in a member of a group Publish has told, opens a week's page, adds a note and reads it back.",
+  },
+  "/api/courses/groups/[groupId]/shared-notes/[noteId]": {
+    reason:
+      "Course hub: a note shared with a group, deleted by the person who wrote it (C29); its writer and every other caller are executed by tests/course-hub-shared-notes.test.mjs; deleted in a browser on the preview kit.",
+    coverWhen:
+      "When the same browser spec deletes the note it added.",
+  },
   "/api/courses/groups/[groupId]/summary": {
     reason:
       "Course hub: what a facilitator's Home says about their group (board wk-fac-home-phone); every caller and every field executed by tests/course-hub-facilitator-pages.test.mjs, and Home checked at 390 and 1440 on the preview kit.",

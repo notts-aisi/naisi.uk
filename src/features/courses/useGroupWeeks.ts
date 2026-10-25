@@ -161,6 +161,8 @@ export type GroupWeekPatch = {
   materials?: Material[];
   exercises?: Exercise[];
   checklist?: ChecklistItem[];
+  /** "Questions to think about" (C29): one line each, in order. */
+  questions?: string[];
   /** Set only after the person has read the real counts and ticked the box. */
   acknowledgeOrphans?: boolean;
 };

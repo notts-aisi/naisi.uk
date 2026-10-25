@@ -439,6 +439,9 @@ test("MODEL §4.3 the template field list is the week's content, unabridged", ()
     "guideBlocks",
     "materials",
     "published",
+    // "Questions to think about" (C29): a week's content, so every snapshot,
+    // every applied template and every group's own copy carries them.
+    "questions",
     "summary",
     "title",
     "weekNumber",

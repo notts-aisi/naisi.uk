@@ -509,6 +509,13 @@ export type CourseWeekDoc = {
   materials: Material[];
   exercises: Exercise[];
   checklist: ChecklistItem[];
+  /**
+   * "Questions to think about" (board wk-week-phone, C29): each one line of
+   * plain text, in the order the week page numbers them (01, 02, 03). Empty
+   * on a week nobody has given any, which draws no heading. Carried wherever
+   * a week is copied, as the materials are. See `sanitizeWeekQuestions`.
+   */
+  questions: string[];
   /** Rough total for the week's materials, shown in the week header. */
   estimatedMinutes: number | null;
   /** Unpublished weeks are hidden from learners and the public curriculum. */
@@ -886,6 +893,35 @@ export function sanitizeChecklist(raw: unknown): ChecklistItem[] {
     });
 }
 
+// ---- Questions to think about ----
+
+/**
+ * One question as a week keeps it: a single line of plain text, its runs of
+ * spaces and line breaks folded to one space and its ends trimmed. "" for
+ * anything that is not text.
+ */
+export function oneLineQuestion(raw: unknown): string {
+  return typeof raw === "string" ? raw.replace(/\s+/g, " ").trim() : "";
+}
+
+/**
+ * A week's "Questions to think about" (board wk-week-phone, C29), as stored:
+ * each one line of text, blanks dropped, at most
+ * `COURSE_FIELD_LIMITS.maxWeekQuestions`, each at most
+ * `COURSE_FIELD_LIMITS.weekQuestion` characters. Every writer keeps to those
+ * limits (the rules for the run's own weeks, the group week route for a
+ * group's copy); this is the reader's half, so a hand-edited row draws
+ * nothing it should not.
+ */
+export function sanitizeWeekQuestions(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map(oneLineQuestion)
+    .filter(Boolean)
+    .slice(0, COURSE_FIELD_LIMITS.maxWeekQuestions)
+    .map((question) => question.slice(0, COURSE_FIELD_LIMITS.weekQuestion));
+}
+
 // ---- Field limits ----
 
 /**
@@ -910,6 +946,16 @@ export const COURSE_FIELD_LIMITS = {
   exerciseHelpText: 600,
   checklistTitle: 160,
   checklistDetail: 500,
+  /**
+   * "Questions to think about" on a week (C29). Each question is one line,
+   * as long as a checklist item's title. At most five on a week: the board
+   * draws three, a handful is what a group can think about before one
+   * session, and the rules check each question's length by its place in the
+   * list (a rule cannot loop), so the number has to stay small. Keep both in
+   * step with the weeks block in firestore.rules.
+   */
+  weekQuestion: 160,
+  maxWeekQuestions: 5,
   maxSummaryBlocks: 40,
   maxGuideBlocks: 40,
   /**
@@ -1223,6 +1269,7 @@ export function normalizeCourseWeek(id: string, data: Raw): CourseWeekDoc {
     materials: sanitizeMaterials(data.materials),
     exercises: sanitizeExercises(data.exercises),
     checklist: sanitizeChecklist(data.checklist),
+    questions: sanitizeWeekQuestions(data.questions),
     estimatedMinutes: asPositiveIntOrNull(data.estimatedMinutes),
     published: data.published === true,
     pitching: data.pitching === true,

@@ -1292,6 +1292,280 @@ a.weekItem:focus-visible {
   color: var(--color-text);
 }
 
+/* === Questions to think about (C29): numbered 01, 02, 03 in mono === */
+
+.questions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.question {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  min-width: 0;
+}
+
+.question + .question {
+  border-top: 1px solid var(--color-border);
+}
+
+.questionNumber {
+  flex: none;
+  padding-top: 2px;
+  font-family: var(--font-meta);
+  font-size: 0.8125rem;
+  color: var(--color-live);
+}
+
+.questionText {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+/* === Notes shared with your group (C29): each note in a dark box, "Add a
+   note", and the sentence naming who reads them === */
+
+.sharedNotesHead {
+  margin-bottom: 10px;
+}
+
+.sharedNotes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sharedNote {
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+}
+
+.sharedNoteHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  margin-bottom: 6px;
+}
+
+.sharedNoteBy {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.sharedNoteBy strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.sharedNoteBody {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* The writer's own way to delete a note: a word, with a 44px target that
+   does not make the note's head any taller. */
+.sharedNoteDelete {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  margin: -10px -8px -10px auto;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sharedNoteDelete:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.sharedNoteDelete:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.sharedNoteConfirm {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+}
+
+.sharedNotesActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-top: 12px;
+}
+
+.noteButton,
+.noteButtonPrimary,
+.noteButtonDanger {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.noteButton {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
+}
+
+.noteButtonPrimary {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  border: 1px solid var(--color-accent);
+}
+
+/* Words in the danger colour on its soft ground: white on the danger fill
+   is under 4.5:1. */
+.noteButtonDanger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+  border: 1px solid var(--color-danger-line);
+}
+
+.noteButton:focus-visible,
+.noteButtonPrimary:focus-visible,
+.noteButtonDanger:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+.noteButton:disabled,
+.noteButtonPrimary:disabled,
+.noteButtonDanger:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+@media (hover: hover) {
+  .noteButton:hover:not(:disabled) {
+    background: var(--color-surface-hover);
+  }
+
+  .noteButtonPrimary:hover:not(:disabled) {
+    background: var(--color-accent-hover);
+    border-color: var(--color-accent-hover);
+  }
+
+  .sharedNoteDelete:hover:not(:disabled) {
+    color: var(--color-danger-text);
+  }
+}
+
+.sharedNoteForm {
+  margin-top: 12px;
+  min-width: 0;
+}
+
+.sharedNoteLabel {
+  display: block;
+  margin-bottom: 8px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.sharedNoteBox {
+  display: block;
+  width: 100%;
+  min-height: 6rem;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-ui);
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.sharedNoteBox::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+.sharedNoteBox:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--focus-ring);
+}
+
+.sharedNotesStatus,
+.sharedNotesError {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.sharedNotesStatus {
+  color: var(--color-text-muted);
+}
+
+.sharedNotesError {
+  color: var(--color-danger-text);
+}
+
+.sharedNotesStatus:not(:empty),
+.sharedNotesError:not(:empty) {
+  margin-top: 10px;
+}
+
+.sharedNotesWho {
+  margin: 10px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
 /* === The programme home in one column, as the phone boards draw it ===
    The columns step aside and every card takes its place in the phone's
    order: the session, this week, updates, marks, the weeks, the group. */

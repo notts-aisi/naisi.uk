@@ -196,6 +196,7 @@ export async function POST(
         materials: week.materials,
         exercises: week.exercises,
         checklist: week.checklist,
+        questions: week.questions,
         estimatedMinutes: week.estimatedMinutes,
         // Carried verbatim: the copy is a faithful clone of authored state, and
         // publication is scoped to this run anyway (the public catalogue reads

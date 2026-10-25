@@ -1,12 +1,14 @@
 import { redirect } from "next/navigation";
-import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
+import { getRunAccess, getSessionUser, type RunAccess } from "@/features/courses/runAccess";
 import WeekNotOpen from "@/features/courses/weekly/WeekNotOpen";
 import WeekView from "@/features/courses/WeekView";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
+import { sharedNotesForWeekPage, type WeekSharedNotes } from "@/lib/courses/sharedNotes/readers";
 import { resolveSessions } from "@/lib/courses/sessions";
 import { isOpenAt, weekOpening } from "@/lib/courses/weekOpening";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { runSharesGroupNotes } from "@/lib/firestore/courseGroupSharedNotes";
 import { weekDocId } from "@/lib/firestore/courses";
 
 /**
@@ -111,6 +113,30 @@ export default async function WeekPage({
       weekNumber={weekNumber}
       uid={access.user.uid}
       viewerRole={viewerRole}
+      sharedNotes={await sharedNotesFor(access)}
     />
   );
+}
+
+/**
+ * NOTES SHARED WITH THE GROUP (C29), read here on the server for this reader
+ * and handed to the page: a section for the group their place is in and one
+ * for each group they facilitate (`sharedNotesForWeekPage`, which asks who
+ * they are first). Null on a run whose groups share none, or with no live
+ * group, so the page keeps the run's comments on each reading there.
+ *
+ * A read that fails leaves the sections empty rather than putting the run's
+ * comments back on a run with groups.
+ */
+async function sharedNotesFor(access: RunAccess): Promise<WeekSharedNotes> {
+  if (!runSharesGroupNotes(access.run) || access.groups.length === 0) return null;
+  const db = getAdminDb();
+  if (!db) return { sections: [] };
+  try {
+    const programme = await runProgrammeOf(db, access.run.id).catch(() => null);
+    return await sharedNotesForWeekPage(db, access.user, access.run, access.groups, programme?.leadFirstName ?? null);
+  } catch (err) {
+    console.error("[week page] shared notes read failed", access.run.id, err);
+    return { sections: [] };
+  }
 }

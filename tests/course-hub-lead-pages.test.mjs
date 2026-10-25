@@ -344,15 +344,18 @@ describe("4. the Attendance tab is handed the run's grid, worked out on the serv
       { roundId: ROUND, programmeId: AGI, programmeName: "AGI Strategy", initialGroup: "all" },
     );
     // The run, its groups, its enrolments and registers, the accounts they
-    // name, the switch the register's ending reads, and (since board
+    // name, the switch the register's ending reads, (since board
     // wk-fac-group's notes, C30) the notes its groups' facilitators share,
-    // which the lead reads under the grid: nothing else.
+    // and (since board wk-week-phone's, C29) the notes each group shares on
+    // its week pages, both of which the lead reads under the grid: nothing
+    // else.
     assert.deepEqual([...new Set(drawn.reads)].sort(), [
       "admissionRounds",
       "config",
       "courseAttendance",
       "courseEnrolments",
       "courseGroupNotes",
+      "courseGroupSharedNotes",
       "courseGroups",
       "courseRuns",
       "users",

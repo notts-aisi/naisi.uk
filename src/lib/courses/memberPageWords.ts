@@ -270,6 +270,14 @@ export const REVIEWED_CHIP = "A facilitator reviews it";
 export const DUE_BEFORE = "Due before your session";
 export const START_EXERCISE = "Start the exercise";
 
+/** The card of a week's questions (C29). A week with none draws no card. */
+export const QUESTIONS_TO_THINK_ABOUT = "Questions to think about";
+
+/** "01", "02": a question's place, as the board numbers them. */
+export function questionNumber(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
 /** "Rahul or Sofia will read it and reply.", from the group's facilitators' first names. */
 export function readerLine(firstNames: readonly string[]): string {
   if (firstNames.length === 0) return "Your facilitators will read it and reply.";

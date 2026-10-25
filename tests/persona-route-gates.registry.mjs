@@ -396,7 +396,7 @@ export const ROUTES = {
   "/api/admin/registrations/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -485,7 +485,7 @@ export const ROUTES = {
   "/api/admin/users/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -1264,6 +1264,25 @@ export const ROUTES = {
         "so every signed-in persona meets the same 400 on an empty one. Who may change a session of the " +
         "group (its live facilitators, the lead of the programme naming its run, the run's track leads, " +
         "admins) is asked once a valid body arrives.",
+    },
+  },
+  "/api/courses/groups/[groupId]/shared-notes": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the body is checked before anything is read, " +
+        "so every signed-in persona meets the same 400 on an empty one. Who may add a note to the group " +
+        "(its people told by Publish and its live facilitators, and nobody else: the programme's lead and " +
+        "admins read the notes) is asked once a valid body arrives.",
+    },
+  },
+  "/api/courses/groups/[groupId]/shared-notes/[noteId]": {
+    DELETE: {
+      expect: adminOnly(404),
+      why:
+        "Only a note's own writer deletes it. The roster floor is asked first, so a waiting or refused " +
+        "account meets a 403; then a note that is not there, or not the caller's, is one 403 for a " +
+        "non-admin, and an admin is told it is missing. The battery's ids address no note.",
     },
   },
   "/api/courses/groups/[groupId]/summary": {
