@@ -73,6 +73,9 @@ describe("the page, open", () => {
     // Before the page's script arrives the form does not pretend to work.
     assert.match(html, /<button type="submit" class="primary" disabled="">Send pitch<\/button>/);
     assert.match(said, /Pitches \(0\) 0 of 3 picked/);
+    // The form says who sees a pitch before it is sent (privacy policy
+    // version 7, "Pitching week").
+    assert.match(said, /No partner, I’m pitching alone Bea Dev Tariq Your group sees your pitch and who pitched it\. Send pitch/);
     assert.match(said, /Tess makes the teams on Thu 19 Nov\. Teams are 2 to 4 people\.$/);
   });
 
