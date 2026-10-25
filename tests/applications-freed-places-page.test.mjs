@@ -212,11 +212,13 @@ describe("what an admin is shown", () => {
       name: "Omar Haddad",
       firstName: "Omar",
       detail: "Pooled: capacity · Free Thu mornings, Thu afternoons and Mon evenings",
+      // The groups in People in groups' order, Monday first, as every tab of
+      // the programme's page lists them (the walk of stage two's fixes, G10).
       chips: [
-        { label: "Fits Group A", tone: "ok" },
         { label: "Fits Group B", tone: "ok" },
+        { label: "Fits Group A", tone: "ok" },
       ],
-      groupIds: [GROUP.thursday, GROUP.monday],
+      groupIds: [GROUP.monday, GROUP.thursday],
       score: "3.5",
       toldOn: "Friday",
       cannot: null,
@@ -241,9 +243,10 @@ describe("what an admin is shown", () => {
   test("the run's groups an email can name, with their times, next sessions and seats", async () => {
     const { board } = await boardFor("zach");
     assert.equal(board.timedGroups, 2);
+    // Monday first, as every tab of the programme's page lists groups (the walk of stage two's fixes, G10).
     assert.deepEqual(board.groups, [
-      { id: GROUP.thursday, name: "Group A", meets: "Thursdays at 10am", freeOn: "Thursday mornings", startsOn: "Thu 29 Oct", seatsFree: 8 },
       { id: GROUP.monday, name: "Group B", meets: "Mondays at 6pm", freeOn: "Monday evenings", startsOn: "Mon 2 Nov", seatsFree: 8 },
+      { id: GROUP.thursday, name: "Group A", meets: "Thursdays at 10am", freeOn: "Thursday mornings", startsOn: "Thu 29 Oct", seatsFree: 8 },
     ]);
   });
 

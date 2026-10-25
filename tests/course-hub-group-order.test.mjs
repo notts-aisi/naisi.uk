@@ -74,6 +74,10 @@ const READS_WITHOUT_A_LIST = new Map([
     { why: "Reads the run's groups only to name the group each pitch comes from: it lists pitches, never groups." },
   ],
   [
+    "src/lib/applications/handover/teamsLoad.ts",
+    { why: "Reads the run's groups only to name the group each team and each pitch is in: it lists teams and pitches, never groups." },
+  ],
+  [
     "src/lib/scheduler/jobs/registerReminders.ts",
     {
       why:
@@ -93,6 +97,11 @@ const READS_WITHOUT_A_LIST = new Map([
 
 /** Modules the walk reaches that fetch an address it cannot read, each with what they fetch and why it lists no run's groups. */
 const FETCHES_IT_CANNOT_READ = new Map([
+  [
+    "src/features/applications/teams/ProgrammeTeams.tsx",
+    "The Teams tab's own actions (making a team, a move, removing one, the email and its test), at the address the " +
+      "page hands it: teams, never a run's groups.",
+  ],
   [
     "src/features/applications/review/ReviewScreen.tsx",
     "The review screen's own routes, under the round's admissions address it is handed (`apiBase`): they read " +

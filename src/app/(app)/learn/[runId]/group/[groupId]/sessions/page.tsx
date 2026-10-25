@@ -76,7 +76,7 @@ export default async function GroupSessionsPage({
   if (group.runId !== runId || group.archived || !(access.isAdmin || facilitatesThisGroup)) redirect(runHome);
 
   const groupPath = `${runHome}/group/${encodeURIComponent(groupId)}`;
-  const cards = await loadGroupSessions(db, access.run, group, new Date());
+  const cards = await loadGroupSessions(db, access.run, group, new Date(), access.user.uid);
   const eyebrow = [access.run.courseTitle, access.run.label].filter(Boolean).join(" · ");
 
   return (

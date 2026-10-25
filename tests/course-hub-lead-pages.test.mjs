@@ -319,16 +319,19 @@ describe("3. a programme with no run, in words for each", () => {
 // ---------------------------------------------------------------------------
 
 describe("4. the Attendance tab is handed the run's grid, worked out on the server", () => {
-  test("each group that still meets, in name order, with names and marks and nothing else", async () => {
+  test("each group that still meets, in People in groups' order, with names and marks and nothing else", async () => {
     world.db.poke(`courseGroups/${C}`, { archived: true });
     const drawn = await draw(AttendancePage, "claudia");
     const [grid] = find(drawn.element, "ProgrammeAttendance");
-    // The board's order is by name (A, B, C, D), where the cards ran Monday first.
+    // The order every tab of the programme's page lists its groups in, the
+    // order People in groups draws its columns (Monday first), since the walk
+    // of stage two's fixes (G10). wk-attendance draws them by name, A to D,
+    // and until then this grid did too.
     assert.deepEqual(
       grid.props.model.groups.map((group) => ({ id: group.id, name: group.name, tag: group.tag, line: group.line })),
       [
-        { id: A, name: "Group A", tag: "A", line: "Thursdays 6pm · Sofia" },
         { id: B, name: "Group B", tag: "B", line: "Tuesdays 6pm · Rahul and Sofia" },
+        { id: A, name: "Group A", tag: "A", line: "Thursdays 6pm · Sofia" },
       ],
     );
     assert.deepEqual(
@@ -353,7 +356,8 @@ describe("4. the Attendance tab is handed the run's grid, worked out on the serv
   test("the grid draws By person and By week, a filter of groups, the CSV, the legend, and marks nothing", async () => {
     const drawn = await draw(AttendancePage, "claudia");
     const said = drawn.text;
-    assert.match(said, /By person By week Group All A B C Download CSV/);
+    // The filter lists the groups in People in groups' order (the walk of stage two's fixes, G10).
+    assert.match(said, /By person By week Group All B C A Download CSV/);
     assert.match(drawn.html, /aria-pressed="true"[^>]*>By person<\/button>/);
     assert.match(drawn.html, /aria-pressed="true"[^>]*>All<\/button>/);
     assert.match(said, /Group A Thursdays 6pm · Sofia/);
@@ -364,6 +368,6 @@ describe("4. the Attendance tab is handed the run's grid, worked out on the serv
     );
     // Nothing that marks: the only buttons are the views, the filter and the download.
     const buttons = [...drawn.html.matchAll(/<button[^>]*>([\s\S]*?)<\/button>/g)].map((m) => text(m[1]));
-    assert.deepEqual(buttons, ["By person", "By week", "All", "A", "B", "C", "Download CSV"]);
+    assert.deepEqual(buttons, ["By person", "By week", "All", "B", "C", "A", "Download CSV"]);
   });
 });

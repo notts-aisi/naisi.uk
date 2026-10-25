@@ -1186,6 +1186,7 @@ async function tabsOf(who, name, runId) {
           sessions: overview.props.model.sessions.map((session) => ({
             group: session.groupName,
             when: session.when,
+            dateKey: session.dateKey,
             where: session.where,
             facilitators: session.facilitators.map((person) => person.name),
             pill: session.pill,
@@ -2476,6 +2477,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.deepEqual(b, {
         group: "Group B",
         when: "Tue 17 Nov · 6pm",
+        dateKey: "2026-11-17",
         where: "Room C20",
         // By their whole names, as wk-overview draws them (the walk of stage two's fixes, G10).
         facilitators: ["Rahul Mehta", "Sofia Rossi"],
@@ -2589,7 +2591,9 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     // Groups were Monday first on People in groups and Facilitators, A to D on
     // Attendance and the Times view, in meeting order on the Overview's
     // sessions and in stored order on Messages (the walk of stage two, G10).
-    // Every tab now lists them in People in groups' order.
+    // Every tab now lists them in People in groups' order, but for the
+    // Overview's sessions this week, which read in time, as wk-overview draws
+    // them.
     test("every tab of the programme page lists the groups in one order, the order People in groups draws them in", () => {
       for (const label of MOMENTS) {
         const look = lookAt(label);
@@ -2604,17 +2608,23 @@ describe("stage two of the course hub, one term from Publish to the end of week 
             order,
             `${where}, Messages`,
           );
-          const sessions = look[tabs].overview.sessions.map((session) => session.group);
-          assert.deepEqual(sessions, order.filter((name) => sessions.includes(name)), `${where}, the Overview's sessions`);
+          // The Overview's sessions this week are a list of what happens when,
+          // and read in time, as wk-overview draws them: by their day, and two
+          // on one day in the tabs' order.
+          const sessions = look[tabs].overview.sessions;
+          const inTime = [...sessions].sort(
+            (a, b) => a.dateKey.localeCompare(b.dateKey) || order.indexOf(a.group) - order.indexOf(b.group),
+          );
+          assert.deepEqual(sessions, inTime, `${where}, the Overview's sessions in time`);
         }
       }
-      // Monday first: Group B meets on Tuesdays, Group A on Thursdays, and in
-      // week 3 the Overview shows both, Thursday's first session of the week
-      // after Tuesday's.
+      // Monday first: Group B meets on Tuesdays, Group A on Thursdays, so the
+      // tabs list B before A; in week 3 the Overview shows both sessions in
+      // time, Thursday's (the week's first) before Tuesday's.
       assert.deepEqual(lookAt("the end of week 3").lead.people.groups.map(([name]) => name), ["Group B", "Group A"]);
       assert.deepEqual(lookAt("Group B's register not finished").lead.overview.sessions.map((session) => [session.group, session.when]), [
-        ["Group B", "Tue 17 Nov · 6pm"],
         ["Group A", "Thu 12 Nov · 6pm"],
+        ["Group B", "Tue 17 Nov · 6pm"],
       ]);
     });
 

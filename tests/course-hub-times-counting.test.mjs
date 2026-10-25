@@ -224,12 +224,15 @@ describe("the picture counts who is free for a whole session at each start", () 
 
   test("each group is counted at its own session, and a group with no time set is said in words", () => {
     const shown = picture();
+    // In People in groups' order, Monday first, as every tab of the
+    // programme's page lists its groups (the walk of stage two's fixes, G10):
+    // a group with a day and no time yet sits on its day.
     assert.deepEqual(
       shown.groups.map((one) => [one.name, one.canMake]),
       [
         ["Monday evening", 2],
-        ["Thursday morning", 1],
         ["To be arranged", null],
+        ["Thursday morning", 1],
       ],
     );
     // Counted at the group's own length, whatever length the grid counts.

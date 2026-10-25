@@ -1849,9 +1849,11 @@ describe("stage one of the course hub, one term from decision day to the first s
     test("her seat is not free until then: the place is free, and no group Hannah can make has a seat", () => {
       const page = g().offerPage;
       assert.deepEqual([page.free, page.heading, page.gaveBack], [1, "Offer 1 freed place", "Ella Robinson gave theirs back."]);
+      // In People in groups' order, Monday first, as every tab of the
+      // programme's page lists groups (the walk of stage two's fixes, G10).
       assert.deepEqual(page.groups, [
-        ["Group A", "Thursdays at 6pm", "Thursday evenings", "Thu 29 Oct", 0],
         ["Group B", "Tuesdays at 6pm", "Tuesday evenings", "Tue 3 Nov", 0],
+        ["Group A", "Thursdays at 6pm", "Thursday evenings", "Thu 29 Oct", 0],
       ]);
       const NO_SEAT = "No group whose time they can make has a seat and a session still to come.";
       assert.deepEqual(
@@ -1880,11 +1882,22 @@ describe("stage one of the course hub, one term from decision day to the first s
       assert.deepEqual(read.sofia, FACILITATING(["Amara", "Kofi"], false));
     });
 
-    test("Publish then waits for her, naming her, until her row is changed from Accepted, which emails nobody", () => {
+    // Until the walk of stage two's fixes (G4) Publish waited for her row to
+    // be changed from Accepted, naming her. Somebody who has left the run is
+    // nobody to place now, so the press between goes, and sends nothing.
+    test("Publish then no longer waits for her, and her row changed from Accepted emails nobody", () => {
       assert.equal(g().summaryBetween.emails, 0);
       assert.deepEqual(g().publishBetween.body, {
-        error: "1 accepted applicant is not placed in a group yet. Everyone must be placed before allocation can be published.",
-        unplaced: ["Ella Robinson"],
+        ok: true,
+        report: {
+          people: { sent: 0, held: 0, suppressed: 0 },
+          facilitators: { sent: 0, held: 0, suppressed: 0 },
+          failed: [],
+          noAddress: [],
+          alreadyTold: 0,
+          more: 0,
+        },
+        unplaced: [],
       });
       assert.deepEqual(g().decided.body, { ok: true });
       assert.deepEqual(g().mailedByTheRowChange, []);
@@ -1923,9 +1936,10 @@ describe("stage one of the course hub, one term from decision day to the first s
           toldOn: "Friday",
         },
       ]);
+      // Monday first, as every tab lists groups (the walk of stage two's fixes, G10).
       assert.deepEqual(page.groups, [
-        ["Group A", "Thursdays at 6pm", "Thursday evenings", "Thu 29 Oct", 0],
         ["Group B", "Tuesdays at 6pm", "Tuesday evenings", "Tue 3 Nov", 1],
+        ["Group A", "Thursdays at 6pm", "Thursday evenings", "Thu 29 Oct", 0],
       ]);
     });
 
@@ -1964,7 +1978,8 @@ describe("stage one of the course hub, one term from decision day to the first s
       );
       const after = f().pageAfterTheOffer;
       assert.deepEqual([after.free, after.heading], [0, "No freed places to offer"]);
-      assert.deepEqual(after.groups[1], ["Group B", "Tuesdays at 6pm", "Tuesday evenings", "Tue 3 Nov", 0]);
+      // Group B is listed first, Monday first (the walk of stage two's fixes, G10).
+      assert.deepEqual(after.groups[0], ["Group B", "Tuesdays at 6pm", "Tuesday evenings", "Tue 3 Nov", 0]);
       assert.deepEqual(after.offered, [["hannah", "Waiting for an answer, by Fri 30 Oct", "Email sent"]]);
       assert.deepEqual(f().handOverBeforeTheAnswer.body.receipt, { handedOver: 0, alreadyThere: 5 });
     });

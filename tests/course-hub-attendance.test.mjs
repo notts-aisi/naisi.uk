@@ -328,10 +328,11 @@ describe("1. the grid's marks and counts", () => {
     const model = await gridFor(false);
     assert.deepEqual(
       model.totals.map((total) => [total.weekNumber, total.percent, total.came, total.of, total.soFar, total.from]),
+      // In the grid's order, which is People in groups' (the walk of stage two's fixes, G10).
       [
-        [1, 92, 11, 12, false, ["Group A", "Group B", "Group C", "Group D"]],
-        [2, 64, 7, 11, false, ["Group A", "Group B", "Group C", "Group D"]],
-        [3, 67, 4, 6, true, ["Group A", "Group D"]],
+        [1, 92, 11, 12, false, ["Group D", "Group B", "Group C", "Group A"]],
+        [2, 64, 7, 11, false, ["Group D", "Group B", "Group C", "Group A"]],
+        [3, 67, 4, 6, true, ["Group D", "Group A"]],
         [4, null, 0, 0, false, []],
         [5, null, 0, 0, false, []],
         [6, null, 0, 0, false, []],
@@ -397,7 +398,8 @@ describe("2. who is a row", () => {
   test("a group that stopped meeting is no block, and nobody's address or note is in the grid", async () => {
     world.db.poke(`courseGroups/${C}`, { archived: true });
     const model = await gridFor(true);
-    assert.deepEqual(model.groups.map((group) => group.name), ["Group A", "Group B", "Group D"]);
+    // People in groups' order, Monday first (the walk of stage two's fixes, G10).
+    assert.deepEqual(model.groups.map((group) => group.name), ["Group D", "Group B", "Group A"]);
     const json = JSON.stringify(model);
     assert.ok(!json.includes("@"), "an address reached the grid");
     assert.ok(!json.includes(SECRET_NOTE), "a participant note reached the grid");
@@ -509,20 +511,23 @@ describe("3. the Attendance tab, as every caller", () => {
 // 4. The CSV
 // ---------------------------------------------------------------------------
 
+// The groups in People in groups' order, Monday first (the walk of stage
+// two's fixes, G10): Group D meets on Mondays, B on Tuesdays, C on
+// Wednesdays and A on Thursdays. Until then A to D.
 const LEAD_CSV = [
   "﻿Group,Name,Week 1,Week 2,Week 3,Week 4,Week 5,Week 6,Came,Of,Left",
-  "Group A,Amara Okafor,Present,Present,Present,,,,3,3,",
-  "Group A,Bea Lindqvist,Present,Excused,Present,,,,2,3,",
-  "Group A,Dev Patel,Late,Present,Present,,,,3,3,",
-  "Group A,Sam Whitfield,Present,Absent,,,,,1,2,2026-11-06",
-  "Group A,Tariq Mensah,Present,Absent,Absent,,,,1,3,",
+  "Group D,Freya Thompson,Present,Absent,Absent (not pushed),,,,1,3,",
+  "Group D,Yasmin Farouk,Present,Present,Present (not pushed),,,,3,3,",
   "Group B,Chloe Nguyen,Present,Present,,,,,2,2,",
   "Group B,Farah Hussain,Present,Late,,,,,2,2,",
   "Group B,Kofi Asante,Excused,Present,,,,,1,2,",
   "Group B,Omar Haddad,Present,,,,,,1,1,Yes",
   "Group C,Hamza Qureshi,Present,Present,,,,,2,2,",
-  "Group D,Freya Thompson,Present,Absent,Absent (not pushed),,,,1,3,",
-  "Group D,Yasmin Farouk,Present,Present,Present (not pushed),,,,3,3,",
+  "Group A,Amara Okafor,Present,Present,Present,,,,3,3,",
+  "Group A,Bea Lindqvist,Present,Excused,Present,,,,2,3,",
+  "Group A,Dev Patel,Late,Present,Present,,,,3,3,",
+  "Group A,Sam Whitfield,Present,Absent,,,,,1,2,2026-11-06",
+  "Group A,Tariq Mensah,Present,Absent,Absent,,,,1,3,",
 ].join("\n");
 
 describe("4. the CSV", () => {

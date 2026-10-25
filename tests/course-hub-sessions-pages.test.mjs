@@ -183,10 +183,12 @@ describe("1. the Sessions view is the lead's and an admin's", () => {
       assert.deepEqual(board.next, { href: `${PAGE_PATH}/groups/sessions?week=5`, label: "Week 5" });
       assert.deepEqual(
         board.cards.map((each) => [each.heading, each.sub, each.peopleLine, each.eyebrow, each.when, each.state, each.note]),
+        // In the order every tab of the programme's page lists its groups
+        // (`compareGroupsByMeeting`, Monday first: the walk of stage two's fixes, G10).
         [
-          ["Group A", "Thursdays 6pm · Portland A13", "Sofia Rossi", "Week 4", "Today, 6pm", null, null],
           ["Group B", "Tuesdays 6pm · Hallward B12", "Rahul Mehta and Sofia Rossi", "Week 4", "Tue 24 Nov, 6pm", null, null],
           ["Group C", "Wednesdays 1pm · Room B8", "Tom Fletcher", "Week 4", "Wed 25 Nov, 1pm", null, null],
+          ["Group A", "Thursdays 6pm · Portland A13", "Sofia Rossi", "Week 4", "Today, 6pm", null, null],
         ],
       );
       assert.deepEqual(card("Group B").people.map((person) => person.name), ["Rahul Mehta", "Sofia Rossi"]);
@@ -498,7 +500,7 @@ describe("4. what the group's people read after each kind of change", () => {
     // The card under it: the next session, with the weeks it covers.
     const card = render(SessionCard, cardFacts.nextSessionCard(group));
     assert.match(card, /^Tue 1 Dec · weeks 4 and 5 /);
-    assert.match(card, /Tuesday 1 December · 18:00\u201320:00/);
+    assert.match(card, /Tue 1 Dec, 6pm to 8pm/);
     assert.match(card, /Hallward B12/);
 
     // The update is on their page too.
@@ -576,7 +578,7 @@ describe("4. what the group's people read after each kind of change", () => {
       mode: null,
       cancelled: cardFacts.cancelledIn(group, 4),
     });
-    assert.match(card, /Wednesday 25 November · 19:00\u201321:00/);
+    assert.match(card, /Wed 25 Nov, 7pm to 9pm/);
     assert.match(card, /Portland A13/);
     assert.doesNotMatch(card, /Hallward B12/);
   });

@@ -365,9 +365,10 @@ describe("what the cards say", () => {
 
   test("each group with its day, its time and how many can make it, and a group with no time in words", async () => {
     const { text: said } = await draw("zach");
+    // Monday first, as People in groups lists them (the walk of stage two's fixes, G10).
     assert.match(
       said,
-      /Your 3 groups Monday evening Mon 6pm · 2 can make it Thursday morning Thu 10am · 1 can make it To be arranged No session time set/,
+      /Your 3 groups Monday evening Mon 6pm · 2 can make it To be arranged No session time set Thursday morning Thu 10am · 1 can make it/,
     );
   });
 

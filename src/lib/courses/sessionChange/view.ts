@@ -8,6 +8,7 @@ import { programmeWeekNow } from "@/lib/courses/programmeAttendance";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import {
+  compareGroupsByMeeting,
   normalizeCourseGroup,
   sessionChangeForWeek,
   sessionModeForWeek,
@@ -162,13 +163,14 @@ async function contextFor(
   run: CourseRunDoc,
   groups: readonly CourseGroupDoc[],
   now: Date,
+  viewerUid: string | null,
 ): Promise<Context> {
   const trackLeadUids = Array.isArray(run.trackLeadUids) ? run.trackLeadUids.filter((uid) => typeof uid === "string") : [];
   const [names, lead, counted] = await Promise.all([
     namesOf(db, [...groups.flatMap((group) => group.facilitatorUids), ...trackLeadUids]),
     readRunLead(db, run.id),
     groups.length
-      ? updateAudienceCounts(db, run, groups, { groupIds: groups.map((group) => group.id) })
+      ? updateAudienceCounts(db, run, groups, { groupIds: groups.map((group) => group.id) }, viewerUid)
       : Promise.resolve([]),
   ]);
   const counts = new Map<string, { people: number; emails: number; refused: boolean }>();
@@ -314,13 +316,17 @@ function cardFor(
   };
 }
 
-/** The live groups of a run, by name, as the Sessions view lists them (Group A to Group D). */
+/**
+ * The live groups of a run, in the order every tab of the programme's page
+ * lists them (`compareGroupsByMeeting`: Monday first), as the Sessions view
+ * draws its cards.
+ */
 export async function loadLiveGroups(db: Firestore, runId: string): Promise<CourseGroupDoc[]> {
   const snap = await db.collection("courseGroups").where("runId", "==", runId).get();
   return snap.docs
     .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
     .filter((group) => group.runId === runId && !group.archived)
-    .sort((a, b) => groupNameOf(a).localeCompare(groupNameOf(b), "en-GB", { numeric: true }) || a.id.localeCompare(b.id));
+    .sort(compareGroupsByMeeting);
 }
 
 /**
@@ -337,6 +343,8 @@ export async function loadSessionsWeek(
   run: CourseRunDoc,
   requestedWeek: number | null,
   now: Date,
+  /** Who is looking: the update a change posts is theirs, and never emailed to its own writer. */
+  viewerUid: string | null,
 ): Promise<SessionsWeekView> {
   const empty = (blank: string): SessionsWeekView => ({ heading: "", previous: null, next: null, cards: [], blank });
   if (!isValidDateKey(run.startDate) || run.weekPlan.length === 0) return empty(NO_DATES_YET);
@@ -370,7 +378,7 @@ export async function loadSessionsWeek(
 
   const groups = await loadLiveGroups(db, run.id);
   if (groups.length === 0) return { heading, previous, next, cards: [], blank: NO_GROUPS_YET };
-  const context = await contextFor(db, run, groups, now);
+  const context = await contextFor(db, run, groups, now, viewerUid);
 
   const cards = groups.map((group): SessionCardView => {
     const sessions = resolveSessions(run, group);
@@ -405,8 +413,10 @@ export async function loadGroupSessions(
   run: CourseRunDoc,
   group: CourseGroupDoc,
   now: Date,
+  /** Who is looking: the update a change posts is theirs, and never emailed to its own writer. */
+  viewerUid: string | null,
 ): Promise<SessionCardView[]> {
-  const context = await contextFor(db, run, [group], now);
+  const context = await contextFor(db, run, [group], now, viewerUid);
   const sessions = resolveSessions(run, group);
   return sessions
     .filter((session) => session.occurrence === 1 && session.dateKey !== "")
