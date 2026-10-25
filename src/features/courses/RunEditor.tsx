@@ -1371,6 +1371,7 @@ export default function RunEditor({ courseId, runId }: Props) {
       <PitchSettingsEditor
         runId={runId}
         settings={run.pitchSettings}
+        teamsFrom={run.teamsFrom}
         weekPlan={run.weekPlan}
         weeks={weeks}
         runAction={runAction}

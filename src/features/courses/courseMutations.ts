@@ -13,6 +13,7 @@ import { getClientAuth, getClientDb } from "@/lib/firebase/client";
 import { slugId } from "@/lib/firestore/slugId";
 import { isValidDateKey, type WeekPlanEntry } from "@/lib/courses/weekPlan";
 import { cohortError, type RunCohort } from "@/lib/courses/cohortLabel";
+import { normalizeTeamsFrom, type TeamsFrom } from "@/lib/courses/teams/model";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
 import type { FormQuestion } from "@/lib/firestore/events";
 import {
@@ -288,6 +289,8 @@ export type CourseRunPatch = Partial<{
   startHereBlocks: Block[];
   /** Pitching week's settings, stored whole (`storedPitchSettings`). */
   pitchSettings: RunPitchSettings;
+  /** How the run's teams are made, or null for nobody has said. Stored as written, or null. */
+  teamsFrom: TeamsFrom | null;
 }>;
 
 export async function updateRun(runId: string, patch: CourseRunPatch): Promise<void> {
@@ -356,6 +359,10 @@ export async function updateRun(runId: string, patch: CourseRunPatch): Promise<v
     const error = pitchSettingsError(patch.pitchSettings);
     if (error) throw new Error(error);
     out.pitchSettings = storedPitchSettings(patch.pitchSettings);
+  }
+  if (patch.teamsFrom !== undefined) {
+    // One of the two ways, or null: never a string the reader would not keep.
+    out.teamsFrom = normalizeTeamsFrom(patch.teamsFrom);
   }
 
   if (Object.keys(out).length === 0) return;

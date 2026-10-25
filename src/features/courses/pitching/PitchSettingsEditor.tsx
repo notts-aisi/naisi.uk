@@ -4,6 +4,7 @@ import { useState } from "react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { Field, Input } from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
 import {
   COURSE_FIELD_LIMITS,
   pitchSettingsError,
@@ -11,6 +12,7 @@ import {
   type RunPitchSettings,
 } from "@/lib/firestore/courses";
 import type { WeekPlanEntry } from "@/lib/courses/weekPlan";
+import { normalizeTeamsFrom, type TeamsFrom } from "@/lib/courses/teams/model";
 import { updateRun } from "../courseMutations";
 import styles from "./PitchSettingsEditor.module.css";
 
@@ -24,6 +26,11 @@ import styles from "./PitchSettingsEditor.module.css";
  * and the day the teams are made. Each is blank until somebody types it, and
  * a blank one is left out of what people are shown.
  *
+ * Beside them, how the run's teams are made (`CourseRunDoc.teamsFrom`): from
+ * the pitches, or from the agenda the application form asked people to rank.
+ * The programme page's Teams tab makes them that way. It has no default, and
+ * the sizes and the day above are the teams' whichever way they are made.
+ *
  * Saved client-direct through `updateRun`, like every other run setting on
  * this page, by whoever may edit the run.
  */
@@ -31,6 +38,8 @@ import styles from "./PitchSettingsEditor.module.css";
 type Props = {
   runId: string;
   settings: RunPitchSettings;
+  /** How the run's teams are made, or null while nobody has said. */
+  teamsFrom: TeamsFrom | null;
   weekPlan: WeekPlanEntry[];
   /** The run's week documents, for which of them is ticked. */
   weeks: CourseWeekDoc[];
@@ -73,6 +82,7 @@ function wholeOrNull(value: string): number | null {
 export default function PitchSettingsEditor({
   runId,
   settings,
+  teamsFrom,
   weekPlan,
   weeks,
   runAction,
@@ -82,11 +92,17 @@ export default function PitchSettingsEditor({
   const [teamMin, setTeamMin] = useState(text(settings.teamSize?.min ?? null));
   const [teamMax, setTeamMax] = useState(text(settings.teamSize?.max ?? null));
   const [teamsMadeOn, setTeamsMadeOn] = useState(settings.teamsMadeOn ?? "");
+  const [madeFrom, setMadeFrom] = useState<string>(teamsFrom ?? "");
   const [error, setError] = useState<string | null>(null);
 
   // Reseed the boxes whenever the saved settings are read again (adjusted
   // during render, the RunEditor precedent).
   const [synced, setSynced] = useState(settings);
+  const [syncedFrom, setSyncedFrom] = useState(teamsFrom);
+  if (teamsFrom !== syncedFrom) {
+    setSyncedFrom(teamsFrom);
+    setMadeFrom(teamsFrom ?? "");
+  }
   if (settings !== synced) {
     setSynced(settings);
     setPickLimit(text(settings.pickLimit));
@@ -120,7 +136,7 @@ export default function PitchSettingsEditor({
     let ok = false;
     await runAction(
       async () => {
-        await updateRun(runId, { pitchSettings: next });
+        await updateRun(runId, { pitchSettings: next, teamsFrom: normalizeTeamsFrom(madeFrom) });
         ok = true;
       },
       { savingMessage: "Saving pitching week…", successMessage: "Pitching week saved" },
@@ -140,6 +156,18 @@ export default function PitchSettingsEditor({
       </p>
 
       <div className={styles.fields}>
+        <Field
+          id="teams-made-from"
+          label="Teams are made from"
+          hint="How the programme page’s Teams tab makes this run’s teams. The sizes and the day below are the teams’ either way."
+        >
+          <Select id="teams-made-from" value={madeFrom} onChange={(event) => setMadeFrom(event.target.value)}>
+            <option value="">Not set yet</option>
+            <option value="pitches">The pitches from pitching week</option>
+            <option value="agenda">The agenda people ranked on the application form</option>
+          </Select>
+        </Field>
+
         <Field
           id="pitch-pick-limit"
           label="Pitches a person may pick"

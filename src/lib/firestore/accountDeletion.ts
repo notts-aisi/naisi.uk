@@ -8,6 +8,8 @@ import {
   type QuerySnapshot,
 } from "firebase-admin/firestore";
 import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
+import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
+import { TEAMS_MARKERS, TEAMS_TEST_KIND } from "@/lib/courses/teams/told";
 import { normalizeCourseEnrolment } from "./courseEnrolments";
 import {
   MEMBER_RECORDS_COLLECTION,
@@ -62,6 +64,13 @@ export type AccountDeletionSummary = {
    * pitch's list of people who would join it. Counted once per pitch.
    */
   coursePitchesCleared: number;
+  /**
+   * An incubator's teams (`courseTeams`) this account was taken off: their uid
+   * comes off the team's people and off its record of who was told, and the
+   * team stays with whoever else is in it. Counted once per team. The markers
+   * of tests of the team email they sent themselves go too.
+   */
+  courseTeamsCleared: number;
   /** Admission applications (drafts included) written by this account. */
   admissionApplicationsDeleted: number;
   /** Their access-requirements rows, deleted in the SAME batch. See below. */
@@ -423,6 +432,45 @@ export async function clearCoursePitches(db: Firestore, uid: string): Promise<nu
     await batch.commit();
   }
   return touched.size;
+}
+
+/**
+ * Take one account off an incubator's teams (`courseTeams`, described in
+ * `src/lib/courses/teams/model.ts`).
+ *
+ * A team names its people in `memberUids`, found by a single-field
+ * `array-contains` served by the automatic indexes, and what each of them was
+ * last told in `toldAs`, whose entries are always its members'. The person
+ * comes off both, and the team stays, with whoever else is in it: it is the
+ * lead's, not theirs. A test of the team email somebody sent themselves is a
+ * marker in `courseNudges` that names them (kind `teams-test`, with `byUid`),
+ * found by that one equality and deleted; the other markers there that carry
+ * a `byUid` are not this sweep's. Counted once per team.
+ */
+export async function clearCourseTeams(db: Firestore, uid: string): Promise<number> {
+  const [teams, markers] = await Promise.all([
+    db.collection(TEAMS_COLLECTION).where("memberUids", "array-contains", uid).get(),
+    db.collection(TEAMS_MARKERS).where("byUid", "==", uid).get(),
+  ]);
+  const writes: Array<(batch: ReturnType<Firestore["batch"]>) => void> = [];
+  for (const doc of teams.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    const people = Array.isArray(data.memberUids) ? data.memberUids.filter((other) => other !== uid) : [];
+    const told = Array.isArray(data.toldAs)
+      ? data.toldAs.filter((entry) => !(entry && typeof entry === "object" && (entry as { uid?: unknown }).uid === uid))
+      : [];
+    writes.push((batch) => batch.update(doc.ref, { memberUids: people, toldAs: told }));
+  }
+  for (const doc of markers.docs) {
+    if ((doc.data() ?? {}).kind !== TEAMS_TEST_KIND) continue;
+    writes.push((batch) => batch.delete(doc.ref));
+  }
+  for (let at = 0; at < writes.length; at += 400) {
+    const batch = db.batch();
+    for (const write of writes.slice(at, at + 400)) write(batch);
+    await batch.commit();
+  }
+  return teams.docs.length;
 }
 
 /**
@@ -942,6 +990,7 @@ export async function deleteAccountCascade(
     schedulerMarkersDeleted: 0,
     courseAttendanceMarksCleared: 0,
     coursePitchesCleared: 0,
+    courseTeamsCleared: 0,
     admissionApplicationsDeleted: 0,
     admissionApplicationPrivateDeleted: 0,
     admissionDecisionsDeleted: 0,
@@ -1220,6 +1269,16 @@ export async function deleteAccountCascade(
     summary.coursePitchesCleared = await clearCoursePitches(db, uid);
   } catch (err) {
     console.error("[deleteAccount] coursePitches clear failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c''. TEAMS. A team holds its people, and who of them was told, as uids,
+  //      so this account is taken off it rather than a row of its own being
+  //      deleted (see clearCourseTeams).
+  try {
+    summary.courseTeamsCleared = await clearCourseTeams(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseTeams clear failed:", uid, err);
     partialFailure = true;
   }
 

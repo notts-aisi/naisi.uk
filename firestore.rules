@@ -2803,9 +2803,22 @@ service cloud.firestore {
     // person or pair pitched, and who said they would join it. Written only by
     // the two pitching routes and read only on the server, which decide who
     // is shown what: a person their own picks and nobody else's, the lead and
-    // admins how many would join each. So every browser is refused, admins
-    // included, and a row's own pitcher too.
+    // admins how many would join each, and the people of a team made from
+    // one. So every browser is refused, admins included, and a row's own
+    // pitcher too.
     match /coursePitches/{pitchId} {
+      allow read, write: if false;
+    }
+
+    // === courseTeams ===
+    // An incubator's teams (src/lib/courses/teams/model.ts): each team's
+    // name, project line and people, and a fingerprint of what each of them
+    // was last emailed. Written only by the teams routes and read only on the
+    // server, which decide who is shown what: the programme's lead and admins
+    // see the teams on the Teams tab, and each person is told their own by
+    // email. So every browser is refused, admins included, and a team's own
+    // people too.
+    match /courseTeams/{teamId} {
       allow read, write: if false;
     }
 

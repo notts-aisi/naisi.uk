@@ -255,6 +255,10 @@ const RUN_COUNT_KEYS = [
   // (src/lib/courses/pitching/). Member-authored, keyed by `runId`, and on
   // the manifest because the cascade has a stage for it.
   "pitches",
+  // `courseTeams`, an incubator's teams and who has been told theirs
+  // (src/lib/courses/teams/). Keyed by `runId`, and on the manifest because
+  // the cascade has a stage for it.
+  "teams",
   "mirroredTasks",
   // The SECOND sweep on `tasks`, for the source the unmarked-register
   // scheduler job mints (V3 W2 PR25). Counted separately from the mirrors
@@ -346,16 +350,16 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   const counts = Object.fromEntries(
     [...RUN_COUNT_KEYS, ...COURSE_COUNT_KEYS].map((k) => [k, 10]),
   );
-  // Twenty-one counters at ten rows each: seventeen that die, `materialNotes`,
+  // Twenty-two counters at ten rows each: eighteen that die, `materialNotes`,
   // `auditRows`, `schedulerMarkers`, the V3 `coursePages`, the V3 W2
-  // `registerTasks` and the course hub's `pitches` and `updates` among them,
-  // plus the four survivors (`admissionSeatOffers` is released,
+  // `registerTasks` and the course hub's `pitches`, `updates` and `teams`
+  // among them, plus the four survivors (`admissionSeatOffers` is released,
   // `dataExportRows` is retained).
-  assert.equal(sumCounts(counts), 210);
+  assert.equal(sumCounts(counts), 220);
   // The progress denominator counts only what actually dies, so a large
   // retained counter cannot inflate it into a bar that never fills. Adding a
   // survivor must not move this number; adding a DESTROYED counter must.
-  assert.equal(destroyedTotal(counts), 170);
+  assert.equal(destroyedTotal(counts), 180);
 });
 
 test("MODEL — every key the cascade can report has copy, including the ones the manifest never shows", () => {
@@ -516,6 +520,9 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     // pitching routes refuse anybody without a live seat, so it drains before
     // the enrolments that open them.
     "pitches",
+    // An incubator's teams: a run-keyed leaf, drained with the pitches they
+    // were made from, before the enrolments.
+    "teams",
     "enrolments",
     "applications",
     // Immediately after the seat rows it points at: until those are deleted,

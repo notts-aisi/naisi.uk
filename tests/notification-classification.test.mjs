@@ -540,6 +540,16 @@ const REGISTRY = {
     "Decision day itself, one message per applicant after their result is published (or, on a later press, the one email an earlier press left owed), and a rehearsal of one email to the address on the session of whoever asked for it: an admin from Send decisions, or a programme's lead from its settings. One call each.",
     2,
   ),
+  "src/lib/applications/handover/teamsTell.ts#sendEmail": T(
+    "Telling each person in an incubator's teams which team they are in, its project and who else is in it: owed to them by the lead's press, as a placement is by Publish's, once for each team that is new to them or has changed; and a rehearsal of the first such email, marked as a test, to the address on the presser's own session and nobody else. One call each.",
+    2,
+  ),
+  "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell/route.ts#sendTeamEmails": T(
+    "The call site of those emails: the lead's or an admin's press of \"Tell everyone their team\", which consults nobody's notification row, as the placement email does not.",
+  ),
+  "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell/test/route.ts#sendTeamEmailTest": T(
+    "\"Send a test to me\" beside that button: the first person's team email, marked as a test, to the address on the presser's own session and nobody else.",
+  ),
   "src/app/api/admissions/rounds/[roundId]/apply/route.ts#sendAdmissionEmail": T(
     "The receipt for starting an admissions application.",
   ),
