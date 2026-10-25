@@ -95,6 +95,8 @@ export async function POST(_req: Request, ctx: Ctx) {
           recipientName: preferredName,
           unsubscribeUrl,
         }),
+        // A rehearsal comes from the address the issue itself will.
+        sender: "newsletter",
       });
       sentTo.push(address);
     } catch (err) {
