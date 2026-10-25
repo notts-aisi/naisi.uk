@@ -4,6 +4,7 @@ import { isValidDateKey } from "@/lib/courses/weekPlan";
 import { memberCurrentWeek, resolveCalendar } from "@/lib/courses/groupResolve";
 import { readMirrorPlan, type RegisterOverride } from "@/lib/courses/attendanceMirror";
 import {
+  displayNameOf,
   gateGroupRegister,
   gateGroupRegisterRead,
   isAddressableId,
@@ -11,6 +12,7 @@ import {
   loadRegisterMembers,
   type RegisterMember,
 } from "@/lib/courses/registerAccess";
+import { leaversOfGroup, readRunRecords } from "@/lib/courses/programmeAttendance";
 import { readRegisterEnding, type RegisterEnding } from "@/lib/courses/registerEnding";
 import {
   resolveSessions,
@@ -125,6 +127,16 @@ export type AttendancePayload = {
    */
   notYetTold: boolean;
   /**
+   * SOMEBODY WHO LEFT THE GROUP, read only, as wk-fac-group draws "Sam
+   * Whitfield, Left Fri 13 Nov": the people the lead's Attendance tab lists
+   * in this group as having left (`leaversOfGroup`, the grid's own rule, so
+   * the two agree), name-sorted, each with the marks this group's registers
+   * hold for them. They are NOT rows of the register: nobody can mark them
+   * (a write's marks are checked against `members`), they count in no tally,
+   * and nothing chases a session after they left, which is blank.
+   */
+  leavers: AttendanceLeaver[];
+  /**
    * The marks, `sessionKey -> uid -> status`. Sparse in BOTH directions: an
    * absent key means "not marked", which is a real and common state (nobody
    * has opened the register yet) and is deliberately distinct from "absent".
@@ -145,6 +157,17 @@ export type AttendancePayload = {
    * nobody finishes. The page words it (`registerEndingWords.ts`).
    */
   ending: RegisterEnding;
+};
+
+/** Somebody who left the group, as the register lists them: read only. */
+export type AttendanceLeaver = {
+  uid: string;
+  /** Their name, as the register names everybody: never an address. */
+  displayName: string;
+  /** "Left Fri 13 Nov", or "Left" when the day is not on record. */
+  left: string;
+  /** Their marks on this group's registers, `sessionKey -> status`. */
+  records: Record<string, AttendanceStatus>;
 };
 
 /** POST's answer. `marked` counts cells written, including cells cleared. */
@@ -466,14 +489,21 @@ export async function GET(
     return NextResponse.json({ error: gated.error }, { status: gated.status });
   }
   const { group, runId } = gated;
+  const now = new Date();
 
-  const [runSnap, { members, notYetTold }] = await Promise.all([
+  // The run's records too, for who left this group: the lead's grid works
+  // that out from the whole run (somebody staff took off is listed where a
+  // register last marked them), and the register asks the same function.
+  const [runSnap, { members, notYetTold }, runRecords] = await Promise.all([
     db.collection("courseRuns").doc(runId).get(),
     loadRegisterMembers(db, runId, groupId, { isAdmin: gated.isAdmin }),
+    readRunRecords(db, runId),
   ]);
   if (!runSnap.exists) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
+  const leaving = runRecords ? leaversOfGroup(runRecords, groupId, now) : [];
+  const leaverMarks = new Map(leaving.map((leaver) => [leaver.uid, {} as Record<string, AttendanceStatus>]));
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const sessions = resolveSessions(run, group);
   const columns = columnsFor(run, group, sessions, requestedWeek);
@@ -535,11 +565,19 @@ export async function GET(
     const raw = (data.records ?? {}) as Record<string, unknown>;
     const week: Record<string, AttendanceStatus> = {};
     for (const [uid, status] of Object.entries(raw)) {
-      // THE ROSTER IS THE FILTER: a mark left behind by someone since removed
-      // from the group has no row to sit in, and shipping their uid would hand
-      // out an identifier for a person no longer in this facilitator's group.
-      if (!memberUids.has(uid)) continue;
       if (!ATTENDANCE_STATUSES.includes(status as AttendanceStatus)) continue;
+      // Somebody who left the group: their marks are theirs to keep, read
+      // only, beside the register and never in it.
+      const left = leaverMarks.get(uid);
+      if (left) {
+        left[column.sessionKey] = status as AttendanceStatus;
+        continue;
+      }
+      // THE ROSTER IS THE FILTER: a mark left behind by someone no longer in
+      // the group, and not listed as having left it, has no row to sit in,
+      // and shipping their uid would hand out an identifier for a person no
+      // longer in this facilitator's group.
+      if (!memberUids.has(uid)) continue;
       week[uid] = status as AttendanceStatus;
     }
     if (Object.keys(week).length > 0) records[column.sessionKey] = week;
@@ -571,8 +609,17 @@ export async function GET(
       session,
       finished: Boolean(stateByKey.get(session.sessionKey)?.pushedAt),
     })),
-    now: new Date(),
+    now,
   });
+
+  const leavers: AttendanceLeaver[] = leaving
+    .map((leaver) => ({
+      uid: leaver.uid,
+      displayName: displayNameOf(runRecords?.accounts.get(leaver.uid) ?? {}),
+      left: leaver.left,
+      records: leaverMarks.get(leaver.uid) ?? {},
+    }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName) || a.uid.localeCompare(b.uid));
 
   const payload: AttendancePayload = {
     group: { id: group.id, name: group.name },
@@ -594,6 +641,7 @@ export async function GET(
     }),
     members,
     notYetTold,
+    leavers,
     records,
     participantNotes,
     canEditPushed: gated.isAdmin,
