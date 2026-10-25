@@ -9,6 +9,7 @@ import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
 import { opensProgrammeGroups } from "@/lib/applications/access";
 import { loadProgrammeForStaff } from "@/lib/applications/editor/load";
 import { applicationFormPath } from "@/lib/applications/editor/olderRounds";
+import { readTeamsTab } from "@/lib/applications/handover/teamsLoad";
 import { stageSummaryFor } from "@/lib/applications/lifecycle/view";
 import { readRunHeader } from "@/lib/courses/programmeAttendance";
 import { formatRunStartShort } from "@/lib/courses/window";
@@ -44,6 +45,9 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * everybody hears. From the run's own records (`readRunHeader`), for the
  * lead and admins, who open the run's tabs; a reviewer keeps the form's line.
  * Before the run's first day the form's line stays.
+ *
+ * An incubator's head also says "Teams by", the day its run's teams are made
+ * (the run's own setting, `readTeamsTab`), as its last fact.
  */
 export default async function ProgrammeLayout({
   children,
@@ -62,6 +66,8 @@ export default async function ProgrammeLayout({
     db && programme.runId && opensProgrammeGroups(role)
       ? await readRunHeader(db, programme.runId, { isAdmin: role === "admin" }, context.now)
       : null;
+  // An incubator's Teams tab and the day its teams are made; null for a fellowship.
+  const teamsTab = db ? await readTeamsTab(db, programme) : null;
   const state = runHeader
     ? { label: runHeader.chip, live: runHeader.live, tone: runHeader.live ? ("live" as const) : ("neutral" as const) }
     : programme.closed
@@ -131,6 +137,13 @@ export default async function ProgrammeLayout({
       </span>,
     );
   }
+  if (teamsTab?.teamsBy) {
+    facts.push(
+      <span className={styles.metaItem} key="teams-by">
+        Teams by <strong>{teamsTab.teamsBy}</strong>
+      </span>,
+    );
+  }
 
   return (
     <ApplicationsRoot className={shared.page}>
@@ -167,6 +180,7 @@ export default async function ProgrammeLayout({
         groups={programme.groupCount}
         canEdit={role === "admin" || role === "lead"}
         groupsOpen={opensProgrammeGroups(role)}
+        teams={teamsTab ? { count: teamsTab.count } : null}
       />
       {children}
     </ApplicationsRoot>

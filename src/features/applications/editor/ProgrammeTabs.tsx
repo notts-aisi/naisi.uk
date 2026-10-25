@@ -25,11 +25,14 @@ import styles from "./ProgrammeFrame.module.css";
  *
  * Messages, where updates are written to the people taking part, is a link
  * for the same two, by the same answer, and its page refuses anybody else.
+ *
+ * An incubator has a Teams tab after Groups (`teams`, with how many teams its
+ * run has), a link on the same terms as Groups. A fellowship has none.
  */
 
 type Tab = {
   /** The route segment under the programme, for the tabs that have a page. */
-  segment: "overview" | "applications" | "groups" | "attendance" | "messages" | "setup" | null;
+  segment: "overview" | "applications" | "groups" | "teams" | "attendance" | "messages" | "setup" | null;
   label: string;
   count?: number | null;
 };
@@ -40,6 +43,7 @@ export default function ProgrammeTabs({
   groups,
   canEdit,
   groupsOpen,
+  teams = null,
 }: {
   /** The programme's own address, with no trailing slash. */
   base: string;
@@ -48,8 +52,10 @@ export default function ProgrammeTabs({
   groups: number | null;
   /** True for the programme's lead and for an admin. */
   canEdit: boolean;
-  /** True for an admin and the programme's lead: Overview, Groups, Attendance and Messages are links. */
+  /** True for an admin and the programme's lead: Overview, Groups, Teams, Attendance and Messages are links. */
   groupsOpen: boolean;
+  /** An incubator's Teams tab, with how many teams its run has; null for a fellowship. */
+  teams?: { count: number | null } | null;
 }) {
   const active = useSelectedLayoutSegment();
   const tabs: Tab[] = [
@@ -57,6 +63,7 @@ export default function ProgrammeTabs({
     { segment: null, label: "Interest" },
     { segment: "applications", label: "Applications", count: applications },
     { segment: groupsOpen ? "groups" : null, label: "Groups", count: groups },
+    ...(teams ? [{ segment: groupsOpen ? ("teams" as const) : null, label: "Teams", count: teams.count }] : []),
     { segment: groupsOpen ? "attendance" : null, label: "Attendance" },
     { segment: groupsOpen ? "messages" : null, label: "Messages" },
   ];

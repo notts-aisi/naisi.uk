@@ -258,6 +258,8 @@ export type PitchTeamRowView = {
   pitchedBy: string;
   /** People still in its group, told, and standing, who would join it. */
   wouldJoin: number;
+  /** "6 would join", pitching week's own words for that number. */
+  wouldJoinLine: string;
   groupName: string | null;
   /** A team was made from it; it was not, and other pitches were; or no team exists yet. */
   state: "became-a-team" | "not-taken-forward" | "no-team-yet";

@@ -4,7 +4,7 @@ import { pitchesOnRun } from "@/lib/courses/pitching/load";
 import type { PitchDoc } from "@/lib/courses/pitching/model";
 import { seatsOn } from "@/lib/courses/pitching/people";
 import { readPitchingWeek, type PitchingWeek } from "@/lib/courses/pitching/week";
-import { pitchedByWords } from "@/lib/courses/pitching/words";
+import { pitchedByWords, wouldJoinWords } from "@/lib/courses/pitching/words";
 import { firstNameOfUser, standingUserOf } from "@/lib/courses/programmeLead";
 import { displayNameOf } from "@/lib/courses/registerAccess";
 import {
@@ -316,23 +316,27 @@ export function buildTeamsView(context: TeamsContext, tested: boolean, now: Date
     );
     const severalPitchGroups = new Set(weekPitches.map((pitch) => pitch.groupId)).size > 1;
     const rows: PitchTeamRowView[] = weekPitches
-      .map((pitch) => ({
-        id: pitch.id,
-        title: pitch.title,
-        twist: pitch.twist,
-        pitchedBy: pitchedByWords(
-          pitch.pitcherUids.map((uid) => accounts.get(uid)?.name ?? SOMEBODY),
-          undefined,
-        ),
+      .map((pitch) => {
         // A pick counts while its owner takes part in the pitch's own group.
-        wouldJoin: pitch.wouldJoinUids.filter((uid) => takingPart.get(uid)?.groupId === pitch.groupId).length,
-        groupName: severalPitchGroups ? groupName(pitch.groupId) : null,
-        state: fromPitch.has(pitch.id)
-          ? ("became-a-team" as const)
-          : fromPitch.size > 0
-            ? ("not-taken-forward" as const)
-            : ("no-team-yet" as const),
-      }))
+        const wouldJoin = pitch.wouldJoinUids.filter((uid) => takingPart.get(uid)?.groupId === pitch.groupId).length;
+        return {
+          id: pitch.id,
+          title: pitch.title,
+          twist: pitch.twist,
+          pitchedBy: pitchedByWords(
+            pitch.pitcherUids.map((uid) => accounts.get(uid)?.name ?? SOMEBODY),
+            undefined,
+          ),
+          wouldJoin,
+          wouldJoinLine: wouldJoinWords(wouldJoin),
+          groupName: severalPitchGroups ? groupName(pitch.groupId) : null,
+          state: fromPitch.has(pitch.id)
+            ? ("became-a-team" as const)
+            : fromPitch.size > 0
+              ? ("not-taken-forward" as const)
+              : ("no-team-yet" as const),
+        };
+      })
       .sort((a, b) => b.wouldJoin - a.wouldJoin || a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
     pitches = { weekNumber: week?.weekNumber ?? null, published: week?.published === true, rows };
   }
