@@ -916,10 +916,19 @@ const BUILT = new Map([
   [
     "src/features/applications/overview/ProgrammeOverview.tsx",
     {
-      built: ["week.open.href", "session.seeIt", "item.link.href", "item.link.href", "`${programmePath}/attendance`"],
+      built: [
+        "week.open.href",
+        "session.seeIt",
+        "item.link.href",
+        "item.link.href",
+        "`${programmePath}/attendance`",
+        "`${programmePath}/messages`",
+        "`${programmePath}/messages`",
+      ],
       from:
         "the programme's own path and the run's own ids, worked out on the server by buildProgrammeOverview: its " +
-        "Attendance tab, with a group's id to open on, and for an admin the week's editor under /admin/courses. Nothing anybody typed",
+        "Attendance tab, with a group's id to open on, its Messages tab (Write an update, and each update's title), " +
+        "and for an admin the week's editor under /admin/courses. Nothing anybody typed",
     },
   ],
   [

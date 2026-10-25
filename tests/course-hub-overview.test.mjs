@@ -607,3 +607,42 @@ describe("5. Remind emails the group's facilitators and nobody else", () => {
     assert.deepEqual(world.mail.map((message) => message.to).sort(), ["grace@example.com", "tom@example.com"]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 6. The Updates card
+// ---------------------------------------------------------------------------
+
+describe("6. the Updates card shows the newest updates and leads to Messages", () => {
+  const update = (id, fields) => world.db.seed(`courseUpdates/${id}`, { runId: RUN.agi, message: "Same time, 6pm.", ...fields });
+  const settled = (sent) => ({ planned: sent, sent, held: 0, suppressed: 0, failed: 0, settled: true });
+
+  test("with none yet, it says so and offers to write one", async () => {
+    const { element, html, text: said } = await draw("claudia");
+    assert.deepEqual(find(element, "ProgrammeOverview")[0].props.updates, []);
+    assert.match(said, /Updates Write an update No updates yet\./);
+    assert.match(html, new RegExp(`href="${PAGE_PATH}/messages"[^>]*>Write an update`));
+  });
+
+  test("the two newest, worded as the Messages tab words them, for the lead and an admin alike", async () => {
+    update("u1", { to: "everyone", title: "Week 3 readings are up", authorUid: "claudia", postedAt: new Date("2026-11-12T10:00:00Z"), email: settled(10) });
+    update("u2", { to: "group", groupId: D, title: "Room change for Group D this week", authorUid: "grace", postedAt: new Date("2026-11-16T09:00:00Z"), email: settled(3) });
+    update("u3", { to: "facilitators", title: "Facilitators’ notes for week 3", authorUid: "zach", postedAt: new Date("2026-11-10T09:00:00Z") });
+    for (const who of ["claudia", "zach"]) {
+      const { element, html, wrote } = await draw(who);
+      const shown = find(element, "ProgrammeOverview")[0].props.updates;
+      assert.deepEqual(
+        shown.map((row) => [row.id, row.title, row.authorUid, row.meta]),
+        [
+          ["u2", "Room change for Group D this week", "grace", "Grace → Group D · Mon 16 Nov · Emailed to 3"],
+          ["u1", "Week 3 readings are up", "claudia", "Claudia → Everyone · Thu 12 Nov · Emailed to 10"],
+        ],
+        who,
+      );
+      for (const title of ["Room change for Group D this week", "Week 3 readings are up"]) {
+        assert.match(html, new RegExp(`href="${PAGE_PATH}/messages"[^>]*>${title}<`), `${who}: ${title}`);
+      }
+      assert.ok(!html.includes("Facilitators’ notes for week 3"), `${who} was shown a third update`);
+      assert.equal(wrote, false, who);
+    }
+  });
+});
