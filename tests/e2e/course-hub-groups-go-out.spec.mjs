@@ -868,14 +868,19 @@ test(
         const card = memberPage.getByTestId("session-card");
         await card.waitFor({ timeout: WAIT_MS });
         const said = flat(await card.innerText());
+        // Since the programme page was drawn to board st-programme, the
+        // session is a ticket that says when, where and with whom, and the
+        // group's name heads the page: "Group A · Thursdays 6pm · room · with".
         for (const expected of [
           "Your first session",
-          `${groupA.name} with ${fern.first}`,
+          `with ${fern.first}`,
           sessionWhenLabel(groupA, groupA.firstDateKey),
           groupA.room,
         ]) {
           assert.ok(said.includes(expected), `Ben's session card does not say ${JSON.stringify(expected)}: ${said}`);
         }
+        const head = flat(await memberPage.locator("main").innerText());
+        assert.ok(head.includes(`${groupA.name} · `), `Ben's programme page does not head with his group: ${head}`);
         // The way to join is here, on the site, for the group's own people.
         const join = card.getByRole("link", { name: "Join online", exact: true });
         await join.waitFor({ timeout: WAIT_MS });
@@ -978,13 +983,15 @@ test(
         const said = flat(await card.innerText());
         for (const expected of [
           "Your first session",
-          groupB.name,
           sessionWhenLabel(groupB, groupB.firstDateKey),
           groupB.room,
         ]) {
           assert.ok(said.includes(expected), `Ben's card after the move does not say ${JSON.stringify(expected)}: ${said}`);
         }
-        assert.ok(!said.includes(groupA.name), `Ben's card still names the group he left: ${said}`);
+        // The group is named at the head of the page (board st-programme).
+        const head = flat(await memberPage.locator("main").innerText());
+        assert.ok(head.includes(`${groupB.name} · `), `Ben's page after the move does not head with his new group: ${head}`);
+        assert.ok(!head.includes(groupA.name) && !said.includes(groupA.name), `Ben's page still names the group he left: ${head} ${said}`);
         assert.equal(await card.getByRole("link", { name: "Join online" }).count(), 0, "Group B has no link to join");
       });
 
