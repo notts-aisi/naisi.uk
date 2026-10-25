@@ -114,13 +114,24 @@ export type CourseEnrolmentDoc = {
   /**
    * WHEN THEY LEFT THE RUN: by themselves (the enrol route's leave, which
    * cannot be undone by the person taking it), or taken off by staff (the
-   * remove route). Somebody who left and was then removed keeps the day they
-   * left. Every page that says "Left Fri 13 Nov" reads it from here, and
+   * remove route). Somebody who left by themselves is never removed (the
+   * remove route refuses them), so the day they left stays. Every page that
+   * says "Left Fri 13 Nov" reads it from here, and
    * putting somebody back (reinstate, or a placement on the board) clears it.
    * Null on every enrolment that has not left, and on a row removed before
    * the remove route recorded the day.
    */
   droppedOutAt: Date | null;
+  /**
+   * WHEN STAFF LAST PUT THEM BACK on the run after they had left it (by
+   * themselves or by Remove): the allocate route writes it as it brings the
+   * seat back. Putting somebody back is a deliberate act on a card that says
+   * they left, so from then on they are not somebody who gave their place
+   * back (`gaveTheirPlaceBack` in `src/lib/courses/placeGivenBack.ts`), and
+   * the next Publish tells them their group, though their place on the
+   * application form stays given back. Null on a seat never put back.
+   */
+  putBackAt: Date | null;
   /**
    * Optional free text from the leave form (see `ENROLMENT_LIMITS`). Read by
    * the programme's lead and admins (the programme's Overview), and by nobody
@@ -197,6 +208,18 @@ export function courseEnrolmentId(runId: string, uid: string): string {
  */
 export function enrolmentHasLeft(status: string): boolean {
   return status === "withdrawn" || status === "removed";
+}
+
+/**
+ * WHETHER STAFF HAVE PUT THIS SEAT BACK ON THE RUN since it left, and it is
+ * on the run still (`putBackAt`, written by the allocate route as it brings
+ * the seat back). The allocation board's row and Publish's plan both read it
+ * here, and hand it to `gaveTheirPlaceBack` (`src/lib/courses/placeGivenBack.ts`):
+ * somebody put back is not somebody who gave their place back. A seat that
+ * has left again is not back.
+ */
+export function enrolmentIsPutBack(enrolment: Pick<CourseEnrolmentDoc, "putBackAt" | "status">): boolean {
+  return enrolment.putBackAt !== null && !enrolmentHasLeft(enrolment.status);
 }
 
 /**
@@ -295,6 +318,7 @@ export function normalizeCourseEnrolment(id: string, data: Raw): CourseEnrolment
     attendance: asAttendanceRollup(data.attendance),
     submissionDone: data.submissionDone === true,
     droppedOutAt: tsToDate(data.droppedOutAt),
+    putBackAt: tsToDate(data.putBackAt),
     dropOutReason:
       typeof data.dropOutReason === "string" && data.dropOutReason
         ? data.dropOutReason.slice(0, ENROLMENT_LIMITS.dropOutReason)

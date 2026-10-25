@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
+import { formPlaceFactsFor } from "@/lib/applications/handover/board";
 import { sendCourseApplicationEmail, type CourseEmailDelivery } from "@/lib/email/courseApplicationEmails";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
@@ -46,7 +47,9 @@ import { mirrorCourseDecisionToPush } from "@/lib/push/courseNotifications";
  *     names) while any accepted applicant lacks an active, grouped
  *     enrolment. Somebody with no seat would silently never be told.
  *     Somebody who has left the run (withdrawn, or removed) is not waited
- *     for, whatever their row on the run's list still says.
+ *     for, whatever their row on the run's list still says. Somebody placed
+ *     who gave their place back on the form is not written to: their card
+ *     says "Gave their place back", and the plan leaves them out.
  *  2. SO IS "EVERY EMAIL CAN BE WRITTEN". Each person's email and each
  *     facilitator's is composed before anything goes, and publishing refuses
  *     (409) with sentences an admin can act on when one cannot be. NO EMAIL
@@ -190,9 +193,15 @@ export async function POST(req: Request, ctx: Ctx) {
     const rows = appSnap.docs.map((d) => normalizeCourseApplication(d.id, d.data() ?? {}));
     const served = rows.filter((a) => rowIsServedTo(a, staffing));
     const accepted = served.filter((a) => a.status === "accepted");
+    // Whether each person the form put here still holds their place, read
+    // as the board's cards are (`formPlaceFactsFor`): a card that says "Gave
+    // their place back" is nobody this press writes to. Publish reads only
+    // that, so it hands over no groups to compare a painted week with.
+    const formPlaces = await formPlaceFactsFor(db, staffing, accepted.filter((a) => a.fromForm !== null), []);
     const plan = await loadPublishPlan(db, run, {
       accepted,
       adminOnly: served.length < rows.length,
+      formPlaces,
     });
     if (plan.adminOnly) {
       return NextResponse.json({ error: PUBLISH_ADMIN_ONLY, unplaced: [] }, { status: 403 });

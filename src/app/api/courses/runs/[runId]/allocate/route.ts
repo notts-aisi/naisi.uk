@@ -372,6 +372,12 @@ export async function POST(req: Request, ctx: Ctx) {
             patch.allocatedEmailAt = FieldValue.delete();
             patch.droppedOutAt = null;
             patch.dropOutReason = null;
+            // And when they were put back: a deliberate act on a card that
+            // says they left, so their card stops saying they gave their
+            // place back and the next Publish tells them, though their place
+            // on the application form stays given back (`putBackAt` on the
+            // enrolment's type says who reads it).
+            patch.putBackAt = FieldValue.serverTimestamp();
           }
           tx.update(enrolmentRef, patch);
           if (wasCounted && enrolment.groupId) bumpDelta(enrolment.groupId, -1);

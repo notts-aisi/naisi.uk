@@ -1623,7 +1623,13 @@ the tree for a gate that admits a track lead and not the lead.
   place back", so that an admin can act: take them out of their group on
   the board, then take their row off the run's own list (its applications
   page). A row from the form carries no address, so the run's own decide
-  route emails nobody about it.
+  route emails nobody about it. Publish never writes to somebody whose card
+  says it: the card and Publish's plan ask the one answer
+  (`gaveTheirPlaceBack` in `src/lib/courses/placeGivenBack.ts`) of the same
+  facts, so the count on Publish's button, its test and its press leave them
+  out, and the board says how many. Somebody staff put back on the run
+  after they left is back: their card stops saying it, and Publish tells
+  them.
 - **Once Publish has told them their group**, giving the place back is
   leaving the programme, the person's own act (next section): their reply
   takes them out of their group. Their row on the run's own list stays.

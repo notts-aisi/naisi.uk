@@ -341,8 +341,9 @@ const RECIPIENT_SOURCES = new Map([
       origin: "assembled",
       sourceOutsideScan:
         "The people `loadPublishPlan` (src/lib/courses/allocationPublish.ts) found owed their group's email: " +
-        "the run's accepted rows this caller is served, each with an active enrolment in a group and no " +
-        "`allocatedEmailAt`, at the account's own address. The plan sends nothing, so the scan does not read it.",
+        "the run's accepted rows this caller is served, each with an active enrolment in a group, no " +
+        "`allocatedEmailAt` and no card that says they gave their place back (`gaveTheirPlaceBack`), at the " +
+        "account's own address. The plan sends nothing, so the scan does not read it.",
       why:
         "Each person placed in a group and not yet told, emailed their own group once. Nothing in the " +
         "request names a recipient: the body carries only how many emails the board showed.",

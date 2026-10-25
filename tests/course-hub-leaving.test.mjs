@@ -42,8 +42,9 @@
  *     refuses a mark for them; the lead's grid and Overview say the day and
  *     what they said; the register and the grid agree for every group, for
  *     the lead, an admin and each facilitator.
- *  6. REMOVE records the day, and keeps the day of somebody who had left by
- *     themselves; somebody removed is not shown the page that says they left.
+ *  6. REMOVE records the day; somebody who left by themselves is not removed
+ *     (refused with the day they left, nothing written, so their day stays);
+ *     somebody removed is not shown the page that says they left.
  *  7. PUTTING SOMEBODY BACK clears the day, the reason and Publish's stamp, so
  *     they read the run again only once Publish has told them.
  *  8. NOBODY LEAVES ONCE THE RUN'S LAST SESSION IS OVER, the moment who
@@ -824,9 +825,26 @@ describe("6. Remove records the day somebody was taken off", () => {
     );
   });
 
-  test("somebody who left and is then removed keeps the day they left", async () => {
-    assert.equal((await remove("zach", "sam")).status, 200);
-    assert.equal(at(read(enrolmentPath("sam")).droppedOutAt), SAM_LEFT.toISOString());
+  // CHANGED ON PURPOSE (the board's Remove, October 2026): somebody who left
+  // by themselves is not removed. Until then Remove turned their seat into a
+  // removal that kept the day they left, which closed the run to them and
+  // took back the page that says they left. The route now refuses it in a
+  // sentence that says they left and when, for an admin and for the lead,
+  // and writes nothing: the day, the status and the grid's line stay as they
+  // were. Held for both doors in tests/course-publish-place-given-back.test.mjs.
+  test("somebody who left is not removed: the route says when they left, writes nothing, and the day stays", async () => {
+    for (const who of ["zach", "claudia"]) {
+      const before = snapshot();
+      const refused = await remove(who, "sam");
+      assert.deepEqual(
+        [refused.status, refused.body.error],
+        [409, "They left on Fri 6 Nov, so their seat is already free and there’s nothing to remove."],
+        who,
+      );
+      assert.deepEqual(changedSince(before), [], who);
+    }
+    const row = read(enrolmentPath("sam"));
+    assert.deepEqual([row.status, at(row.droppedOutAt)], ["withdrawn", SAM_LEFT.toISOString()]);
     assert.deepEqual((await gridLeavers())[A], [["sam", "Left Fri 6 Nov"]]);
   });
 
