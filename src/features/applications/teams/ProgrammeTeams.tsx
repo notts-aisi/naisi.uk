@@ -333,7 +333,9 @@ export default function ProgrammeTeams({ view: initial }: { view: TeamsView }) {
           ) : null}
         </div>
       ) : (
-        <div className={styles.teamGrid}>{view.teams.map(teamCard)}</div>
+        <div className={view.madeFrom === "agenda" ? `${styles.teamGrid} ${styles.teamGridWide}` : styles.teamGrid}>
+          {view.teams.map(teamCard)}
+        </div>
       )}
       {view.noTeam.length > 0 ? (
         <section className={styles.noTeam} aria-labelledby="no-team-heading">

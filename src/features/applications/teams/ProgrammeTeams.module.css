@@ -352,6 +352,11 @@
   gap: 14px;
 }
 
+/* in-agenda's cards are wider: each row carries what the person ranked. */
+.teamGridWide {
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+}
+
 .team,
 .noTeam {
   min-width: 0;

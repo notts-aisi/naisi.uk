@@ -155,6 +155,7 @@ describe("in-teams, option C: the pitches beside the teams", () => {
     assert.ok(!found.some((menu) => menu.label === "Move to… (Omar)"));
     assert.equal(found.length, 8);
     assert.ok(!/draggable/i.test(html), "something on the page drags");
+    assert.match(html, /<div class="teamGrid">/);
   });
 
   test("nothing works before the page's script has arrived; once it has, the press waits for the presser's test", async () => {
@@ -222,6 +223,8 @@ describe("in-agenda: what people ranked, and the teams", () => {
     // The choices above the one a person got are drawn apart from it.
     assert.match(html, /<span class="rankAbove">1st: Open-weight models<\/span><span class="rankAbove">2nd: Compute governance<\/span><span class="rank">3rd: Frontier lab safety policies<\/span>/);
     assert.ok(!html.includes("Make teams from first choices"));
+    // in-agenda's cards are wider than in-teams': each row carries its ranks.
+    assert.match(html, /<div class="teamGrid teamGridWide">/);
   });
 
   test("a reviewer of the programme is never shown a ranking", async () => {
