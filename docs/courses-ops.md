@@ -1760,6 +1760,80 @@ are the only writers and readers). No index: every query is one equality or
 one `array-contains`. The run's `teamsFrom` rides the run editor's existing
 write, and the run's rules cap no key set, so it needs nothing.
 
+## Who finished
+
+Once a programme's last session is over, its lead (or an admin) says who
+finished it. The site ticks everybody who came to at least the run's rule,
+the lead changes any they disagree with, and a member's own pages say they
+finished only where their record says so: everybody else is told the
+programme has ended. The code is `src/lib/courses/finishing/` (the record,
+the suggestion, the list, the words) and
+`src/lib/applications/handover/finishingAct.ts` (who may, and the writes).
+
+### Setting the rule
+
+On the programme's **Settings** tab, the **Who finished** card, for a
+programme that names a run: **Came to at least [ ] sessions**, of the
+sessions their group held. There is no default: with no number the site
+ticks nobody, and the lead ticks people by hand. A number above the most
+sessions any of the run's groups is due to hold is refused. It can be set or
+changed at any time, before the end or after it. Only the lead and admins are
+ever shown it: no member's page and no member's payload carries it.
+
+### What counts
+
+- **Came** is the Attendance tab's own count: present, late and left early,
+  on the registers of the person's group, from the week they joined. Excused
+  counts in "of" and never as came. A session cancelled through Change a
+  session, or a register that says it was not held, counts for nobody, and
+  the list says so under it ("Group B met 5 times. Its session on Tue 24 Nov
+  was cancelled, and it doesn’t count against anyone.").
+- **The end** is the end of the run's last session: the latest end among its
+  groups' dated sessions, a cancelled one left out. Before then the Overview
+  has no list (its People card says when it can be done), a switch is
+  refused, and nobody is told they finished.
+- **Exercises** beside each person are the ones set on the weeks their group
+  was taught (its own copy of a week where it has one), published weeks only,
+  and how many of those they sent.
+
+### The list
+
+It leads the **Overview** once the last session is over, above the rest of
+the page: everybody who took part (the lead sees the people Publish told, an
+admin everybody placed), fewest sessions first, each with a **Finished**
+switch. A switch saves at once. A change is stored only where it disagrees
+with the rule, with who made it and when, and is marked "Changed by you" (or
+by whoever made it); putting a switch back to what the rule says removes the
+change, so a register corrected afterwards still counts for that person.
+Somebody who left is listed under **Left the programme** with the day they
+left, and has no switch: they are never "not finished".
+
+A register that is still not finished after the last session changes who
+came: Needs attention, lower on the same page, names it.
+
+### What members see
+
+Each member's run home, their card on My programmes and Home ask their own
+record (`finishedForMember`): "You finished [course]." and "Finished" where it
+says so, "[course] has ended." and "Ended" for everybody else, staff
+included. Nobody is told they did not finish, and no page names the rule. The
+programme's head reads "Finished · [the last session's day]" and how many
+took part, from the moment that session ends.
+
+### Deleting
+
+- **Deleting an account** deletes the lead's decisions about that person; on
+  decisions they made about other people, who made them is cleared and the
+  decision stays.
+- **Destroying the run** deletes its rule and decisions, and the destroy
+  dialog counts them as "Who finished".
+
+### Deploy
+
+One new rules block, `courseFinishing` shut to every browser (the two
+finishing routes are the only writers, and only the server reads it). No
+index: every query is one equality on one field.
+
 ## Cutover: membership periods
 
 Membership is a period-per-year object (`membershipPeriods/{periodId}`), and
