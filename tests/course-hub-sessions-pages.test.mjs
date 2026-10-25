@@ -191,6 +191,16 @@ describe("1. the Sessions view is the lead's and an admin's", () => {
       );
       assert.deepEqual(card("Group B").people.map((person) => person.name), ["Rahul Mehta", "Sofia Rossi"]);
       // The views, with Sessions first and on screen.
+      const views = /<nav class="views" aria-label="Groups views">(.*?)<\/nav>/.exec(drawn.html);
+      assert.deepEqual(
+        [...views[1].matchAll(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/g)].map((m) => [m[2], m[1]]),
+        [
+          ["Sessions", `${PAGE_PATH}/groups/sessions`],
+          ["People in groups", `${PAGE_PATH}/groups`],
+          ["Times", `${PAGE_PATH}/groups/times`],
+          ["Facilitators", `${PAGE_PATH}/groups/facilitators`],
+        ],
+      );
       assert.match(drawn.html, new RegExp(`<a href="${PAGE_PATH}/groups/sessions" class="view viewCurrent" aria-current="page">Sessions</a>`));
       assert.match(drawn.text, /Week 4 of 6 · Thu 19 to Wed 25 Nov/);
       // The facilitators' initials, then their names, as the board draws them.
