@@ -98,6 +98,34 @@
  * nobody leads the programme, so the pages say "The teams are made on" and
  * the team email is signed by nobody.
  *
+ * ## The fifth point ("week-four")
+ *
+ * The fellowship in week 4, read as the second point reads its run, with a
+ * cast of its own (`WEEK_FOUR`): Group A has three people (Ada, Ben and Dan),
+ * so two of them can leave it while one stays, and Group B one (Cleo). Every
+ * register of the first four weeks is finished, so whoever leaves has marks
+ * that must stay theirs, and weeks 1 to 5 are published, so no week a group
+ * has reached is waiting to be. Week 1 lists a reading, and Ben rated it,
+ * commented on it and kept a note on it in week 1: what stays Ben's to read
+ * once Ben leaves. Fern is the account the admin appoints to Group A.
+ *
+ * ## The sixth point ("after-the-end")
+ *
+ * A fellowship whose run's last session is over (`AFTER_THE_END`), so who
+ * finished has opened and leaving has closed: one group, one person (Ivy)
+ * placed in it and told by Publish, every register finished and every week
+ * published. Nobody facilitates it and nobody leads it.
+ *
+ * ## Two points at once
+ *
+ * A spec may need the term at two points in one run (the leaving spec reads
+ * a run in week 4 and another past its last session). `seedTerms` seeds a
+ * term for each, every one with its own form, course, run, groups and
+ * accounts, so no record is shared; `countTerms` and `teardownTerms` add the
+ * manifests up. The first term is keyed on the runner's run id, as every
+ * single-point spec's is, and each later one on the run id and a letter of
+ * its own, so a sweep by the run id finds every row of all of them.
+ *
  * ## No term facts
  *
  * Every date is worked out from the moment the seed runs, in London: the run
@@ -138,7 +166,14 @@ import { loadSecrets } from "../../e2e/lib/env.mjs";
 const log = (msg) => console.log(`[term-seed] ${msg}`);
 
 /** The points in the term a spec can ask for, in term order. */
-export const TERM_POINTS = Object.freeze(["decisions-sent", "week-three", "week-three-unmarked", "pitching-week"]);
+export const TERM_POINTS = Object.freeze([
+  "decisions-sent",
+  "week-three",
+  "week-three-unmarked",
+  "pitching-week",
+  "week-four",
+  "after-the-end",
+]);
 
 /** The form's one programme at the first three points. Fixed: a programme id is unique on its own form. */
 export const PROGRAMME_ID = "e2e-fellowship";
@@ -332,6 +367,8 @@ export function laterPlanOf(point) {
   if (point === "week-three") return WEEK_THREE;
   if (point === "week-three-unmarked") return WEEK_THREE_UNMARKED;
   if (point === "pitching-week") return PITCHING_WEEK;
+  if (point === "week-four") return WEEK_FOUR;
+  if (point === "after-the-end") return AFTER_THE_END;
   return null;
 }
 
@@ -344,11 +381,97 @@ const FELLOWSHIP = Object.freeze({
   questionSetLabel: "Fellowships",
 });
 
+/** The reading week 1 lists at the fifth point, and the one Ben wrote about. */
+export const WEEK_ONE_READING = Object.freeze({ id: "e2e-reading-week-1", title: "The week 1 paper", minutes: 20 });
+
+/**
+ * THE FELLOWSHIP IN WEEK 4, EVERY REGISTER FINISHED: the fifth point. Its run
+ * began `daysIn` days before the seed, so the seed's day is in week 4 (days
+ * 21 to 27 of the plan): both groups' week 4 sessions are over (Group A two
+ * days before, Group B the day before) and their week 5 sessions are days
+ * ahead, so a run that crosses midnight is still in week 4 with nothing today
+ * or tomorrow, and its last session is weeks away, so leaving is open.
+ *
+ * Its cast is the fellowship's with one more person in Group A (`people`),
+ * so two of its three can leave it while one stays. `marks` are every
+ * register of the first four weeks, all finished, chosen so that nobody has
+ * missed two sessions in a row; `published` says weeks 1 to 5 are out, so no
+ * week a group has reached waits to be. `readings` are what an editor listed
+ * on a week, and `notes` what a person wrote on one in that week (a rating, a
+ * comment for the run and a note for themselves), which their notes page
+ * keeps once they leave. `facilitated` is the group the admin appoints Fern
+ * to on the real page.
+ */
+export const WEEK_FOUR = Object.freeze({
+  daysIn: 24,
+  programme: FELLOWSHIP,
+  groups: GROUP_PLAN,
+  people: Object.freeze([...PEOPLE_PLAN, Object.freeze({ key: "dan", first: "Dan", canMake: Object.freeze(["A"]) })]),
+  facilitator: FACILITATOR_PLAN,
+  places: Object.freeze({ ada: "A", ben: "A", cleo: "B", dan: "A" }),
+  marks: Object.freeze({
+    A: Object.freeze({
+      1: Object.freeze({ ada: "present", ben: "present", dan: "present" }),
+      2: Object.freeze({ ada: "late", ben: "absent", dan: "present" }),
+      3: Object.freeze({ ada: "present", ben: "present", dan: "excused" }),
+      4: Object.freeze({ ada: "present", ben: "left-early", dan: "late" }),
+    }),
+    B: Object.freeze({
+      1: Object.freeze({ cleo: "present" }),
+      2: Object.freeze({ cleo: "present" }),
+      3: Object.freeze({ cleo: "late" }),
+      4: Object.freeze({ cleo: "present" }),
+    }),
+  }),
+  unfinished: null,
+  facilitated: "A",
+  published: 5,
+  readings: Object.freeze({ 1: Object.freeze([WEEK_ONE_READING]) }),
+  notes: Object.freeze([
+    Object.freeze({
+      person: "ben",
+      weekNumber: 1,
+      itemId: WEEK_ONE_READING.id,
+      rating: 4,
+      comment: "Clearer than I expected.",
+      note: "Reread the second half before the session.",
+    }),
+  ]),
+});
+
+/** Every one of the six weeks, for the one person at the sixth point: Ivy came to each. */
+const IVY_CAME = Object.freeze({ ivy: "present" });
+
+/**
+ * A FELLOWSHIP PAST ITS LAST SESSION: the sixth point. Its run began `daysIn`
+ * days before the seed, and its one group meets on the run's second day each
+ * week, so the group's sixth and last session was nine days before the seed:
+ * the run is over (`runEndOf(...).over`, the answer who finished and leaving
+ * ask), and stays over across midnight. One person, Ivy, placed in that group
+ * and told by Publish before the start, came to every session; every
+ * register is finished and every week is published. Nobody facilitates, and
+ * nobody leads the programme.
+ */
+export const AFTER_THE_END = Object.freeze({
+  daysIn: 45,
+  programme: FELLOWSHIP,
+  groups: Object.freeze([GROUP_PLAN[0]]),
+  people: Object.freeze([Object.freeze({ key: "ivy", first: "Ivy", canMake: Object.freeze(["A"]) })]),
+  facilitator: null,
+  places: Object.freeze({ ivy: "A" }),
+  marks: Object.freeze({
+    A: Object.freeze({ 1: IVY_CAME, 2: IVY_CAME, 3: IVY_CAME, 4: IVY_CAME, 5: IVY_CAME, 6: IVY_CAME }),
+  }),
+  unfinished: null,
+  published: 6,
+});
+
 /**
  * Who and what a point is made of: the form's one programme, its run's
  * groups, the people the programme accepted, and the account with no
  * application. The first three points are the fellowship's; a plan that
- * names a programme of its own (the fourth) brings its whole cast.
+ * names a programme of its own (the fourth to the sixth) brings its whole
+ * cast.
  */
 function castOf(plan) {
   if (plan?.programme) {
@@ -950,9 +1073,26 @@ function groupDoc({ state, group, now }) {
 // ---------------------------------------------------------------------------
 
 /**
+ * A reading a week lists, as the week editor stores one (`sanitizeMaterials`
+ * in src/lib/firestore/courses.ts): not optional, with its minutes, at a
+ * reserved domain nothing answers on.
+ */
+function listedReading(reading) {
+  return {
+    id: reading.id,
+    title: reading.title,
+    optional: false,
+    estimatedMinutes: reading.minutes,
+    type: "reading",
+    url: `https://example.com/${reading.id}`,
+  };
+}
+
+/**
  * One taught week, as an editor publishes it (the shape register-push seeds).
  * The run's pitching week, at a point that has one, is also ticked as one in
  * the week editor and lists its readings, which a pitch's paper is picked from.
+ * A week a point's plan lists readings for (`readings`) carries them.
  */
 function publishedWeekDoc({ state, weekNumber, at }) {
   const week = {
@@ -969,7 +1109,10 @@ function publishedWeekDoc({ state, weekNumber, at }) {
     updatedAt: at,
     updatedByUid: null,
   };
-  if (state.pitching?.weekNumber !== weekNumber) return week;
+  const listed = state.readings?.[weekNumber] ?? [];
+  if (state.pitching?.weekNumber !== weekNumber) {
+    return listed.length > 0 ? { ...week, materials: listed.map(listedReading) } : week;
+  }
   return {
     ...week,
     pitching: true,
@@ -1122,6 +1265,36 @@ function registerDoc({ state, group, weekNumber, marks, finished }) {
   };
 }
 
+/**
+ * What a person wrote on one of a week's readings in that week, as the week
+ * page saves it (`buildProgressWrite` in src/lib/firestore/courseProgress.ts,
+ * restated, with the save's own stamp): the reading ticked, a rating, a
+ * comment the run reads and a note for themselves. Written by their own
+ * account, so it names nobody else's.
+ */
+function progressDoc({ state, person, entry, at }) {
+  return {
+    e2eTermRunId: state.termRunId,
+    runId: state.runId,
+    uid: person.uid,
+    weekNumber: entry.weekNumber,
+    itemKind: "material",
+    itemId: entry.itemId,
+    completed: true,
+    completedAt: at,
+    rating: entry.rating,
+    hasPublicComment: true,
+    publicComment: entry.comment,
+    privateNote: entry.note,
+    updatedAt: at,
+  };
+}
+
+/** `courseProgressId` from src/lib/firestore/courseProgress.ts, restated. Construct-only. */
+function progressId(runIdValue, uid, itemId) {
+  return `${runIdValue}__${uid}__${itemId}`;
+}
+
 /** The update from week 1: to everyone, posted without an email, by nobody's account. */
 function earlierUpdateDoc({ state, postedAt }) {
   return {
@@ -1243,6 +1416,9 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
         }
       : {}),
     ...(laterPlan?.pitching ? { pitching: pitchingOf(laterPlan.pitching, groups) } : {}),
+    // The readings a plan's weeks list, and what its people wrote on them.
+    ...(laterPlan?.readings ? { readings: laterPlan.readings } : {}),
+    ...(laterPlan?.notes ? { notes: laterPlan.notes.map((entry) => ({ ...entry })) } : {}),
   };
 
   // Published BEFORE the first write and filled in place from here on.
@@ -1325,7 +1501,10 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
     `Seeded form ${state.formId} (${state.programmeKind}, decisions sent, ${state.people.length} accepted and coming), ` +
       `course ${state.courseId}, ${weekThree ? "running" : "draft"} run ${state.runId} starting ${startDate}, ` +
       `${state.groups.length} ${state.groups.length === 1 ? "group" : "groups"}, and ${plans.length} waiting accounts` +
-      (weekThree ? `; three weeks in: places told, ${laterPlan.published} weeks published, registers, one update` : "") +
+      (weekThree
+        ? `; ${laterPlan.daysIn} days into its run: places told, ${laterPlan.published} weeks published, registers, one update` +
+          (state.notes ? `, ${state.notes.length} ${state.notes.length === 1 ? "note" : "notes"} on a reading` : "")
+        : "") +
       (state.pitching ? `; week ${state.pitching.weekNumber} is pitching week, teams made on ${state.pitching.teamsMadeOn}.` : "."),
   );
   return state;
@@ -1375,8 +1554,8 @@ function weekThreeInstants(state, plan) {
 /**
  * What the weeks after decision day wrote, on top of decision day's records:
  * the published weeks, each person's told place and cohort row, every
- * register the plan has marks for, and the update from week 1. See the module
- * header.
+ * register the plan has marks for, the update from week 1, and what the
+ * plan's people wrote on its readings. See the module header.
  */
 async function seedWeekThree(state, plan, at) {
   for (let weekNumber = 1; weekNumber <= plan.published; weekNumber += 1) {
@@ -1406,6 +1585,16 @@ async function seedWeekThree(state, plan, at) {
   await fixtureDoc("courseUpdates", state.weekThree.earlierUpdateId).set(
     earlierUpdateDoc({ state, postedAt: at.earlierUpdate }),
   );
+  // What a person wrote on a reading, saved an hour after their group's
+  // session of that week.
+  for (const entry of state.notes ?? []) {
+    const person = state.people.find((each) => each.key === entry.person);
+    const group = state.groups.find((each) => each.key === person.groupKey);
+    const savedAt = new Date(sessionOf(group, entry.weekNumber).endsAt.getTime() + HOUR_MS);
+    await fixtureDoc("courseProgress", progressId(state.runId, person.uid, entry.itemId)).set(
+      progressDoc({ state, person, entry, at: savedAt }),
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1542,6 +1731,25 @@ function reminderMarkersOf(state) {
  *  - "Tell everyone their team": the press's lock in `courseNudges` (`runId`
  *    on it, let go when the press ends), what each person was told on their
  *    team, and the send rows (`to ==` each person, about the run).
+ *
+ * And at the fifth point, as its people and the lead drive it:
+ *  - leaving, by either door ("Leave the programme", the enrol route's leave,
+ *    or "I can’t make it", the reply route), which is one leave
+ *    (src/lib/courses/leaveRun.ts): the person's `courseEnrolments` row
+ *    (withdrawn, the day, the reason), their group's counter, their
+ *    application and the form's counters (the place given back), one
+ *    `courseAudit` row (`runId` on it), their cohort row unsubscribed with its
+ *    `subscriptionEvents` line, their mirrored `tasks` cards deleted, and the
+ *    leave's email (`to ==` them, about the run);
+ *  - the page that says they left, their notes and the reading list, the
+ *    facilitator's group page and register, the lead's Overview,
+ *    Applications and Attendance tabs and the allocation board: they only
+ *    read (the attendance CSV writes its `dataExports` row, as at the second
+ *    point).
+ *
+ * And at the sixth point, past the approval, the naming and the hand-over
+ * every point has: nothing. Both doors refuse a leave once the run's last
+ * session is over, before they write anything.
  */
 export async function countTerm(state) {
   const counts = {};
@@ -1710,4 +1918,112 @@ export async function teardownTerm(state) {
     counts.total += failures.length;
   }
   return counts;
+}
+
+// ---------------------------------------------------------------------------
+// Two points at once
+// ---------------------------------------------------------------------------
+
+/**
+ * The letter each term after the first adds to the runner's run id: the
+ * second term is `<runId>b`, the third `<runId>c`. A letter, so an account's
+ * harness id (`f<termRunId><index>`) can never be one of the first term's.
+ */
+const LATER_TERM_LETTERS = "bcdefgh";
+
+/**
+ * Every term a two-point state holds, the ones the seed never reached left
+ * out. A state of any other shape is refused: counted or torn down as if it
+ * held no term, it would read zero by looking nowhere.
+ */
+function termsOf(state) {
+  if (!Array.isArray(state?.terms)) {
+    throw new Error(
+      "REFUSING to count or tear down a state seedTerms did not make: it holds no list of terms. " +
+        "A single term's state is countTerm's and teardownTerm's.",
+    );
+  }
+  return state.terms.filter(Boolean);
+}
+
+/**
+ * Seeds the term at each of `points`, in order, each as a term of its own
+ * (see "Two points at once" in the module header), and returns
+ * `{ termRunId, terms }` with the terms in the order asked for.
+ *
+ * The state is published (`onState`) before anything is written, and each
+ * term's own state goes into it before that term's first write, so a seed
+ * that stops part way leaves a ledger naming everything any term had made.
+ */
+export async function seedTerms({ runId: termRunId, suppress = true, onState, points } = {}) {
+  if (!Array.isArray(points) || points.length === 0 || points.length > LATER_TERM_LETTERS.length + 1) {
+    throw new Error(`Ask for between 1 and ${LATER_TERM_LETTERS.length + 1} points, in order.`);
+  }
+  const state = { termRunId, points: [...points], terms: points.map(() => null) };
+  onState?.(state);
+  for (const [index, point] of points.entries()) {
+    const ownRunId = index === 0 ? termRunId : `${termRunId}${LATER_TERM_LETTERS[index - 1]}`;
+    await seedTerm({
+      runId: ownRunId,
+      suppress,
+      point,
+      onState: (published) => {
+        state.terms[index] = published;
+      },
+    });
+  }
+  return state;
+}
+
+/**
+ * Several manifests as one: each count added up, every term's run id listed,
+ * and every teardown failure kept. Zero only when every term's is.
+ */
+function addCounts(list) {
+  const counts = {};
+  let total = 0;
+  for (const one of list) {
+    for (const [key, value] of Object.entries(one)) {
+      if (key === "termRunId") continue;
+      if (key === "total") {
+        total += value;
+        continue;
+      }
+      if (key === "teardownFailures") {
+        counts.teardownFailures = [...(counts.teardownFailures ?? []), ...value];
+        continue;
+      }
+      counts[key] = (counts[key] ?? 0) + value;
+    }
+  }
+  counts.total = total;
+  counts.termRunIds = list.map((one) => one.termRunId);
+  return counts;
+}
+
+/** Every row of every term a two-point state holds, counted as `countTerm` counts one. */
+export async function countTerms(state) {
+  const list = [];
+  for (const term of termsOf(state)) list.push(await countTerm(term));
+  return addCounts(list);
+}
+
+/**
+ * Tears every term down, each with `teardownTerm` (which checks every
+ * address it holds before it deletes anything), and every one even when an
+ * earlier one throws: the first error is thrown once they have all been
+ * tried, so a teardown that fails for one term still drains the others.
+ */
+export async function teardownTerms(state) {
+  const list = [];
+  let failed = null;
+  for (const term of termsOf(state)) {
+    try {
+      list.push(await teardownTerm(term));
+    } catch (err) {
+      failed ??= err;
+    }
+  }
+  if (failed) throw failed;
+  return addCounts(list);
 }
