@@ -53,10 +53,13 @@ import styles from "./home.module.css";
  * here and a tick on the week's page are the same record of the same item.
  * Only somebody taking part, on an active enrolment, ticks.
  *
- * WHAT IS NOT HERE, though the board draws it: "Add to calendar" and "Can’t
- * make it" on the ticket (neither feature exists yet). The member's marks are
- * on their programme's own page, with no count (C26), and not on Home, which
- * the board draws without them.
+ * "Add to calendar" fills the row under the ticket (st-calendar-phone: the
+ * member's own calendar link).
+ *
+ * WHAT IS NOT HERE, though the board draws it: "Can’t make it" beside it on
+ * the ticket (it does not exist yet). The member's marks are on their
+ * programme's own page, with no count (C26), and not on Home, which the board
+ * draws without them.
  */
 
 /** "AGI Strategy Fellowship · Group B · week 3 of 6", and the shorter "AGI Strategy · week 3 of 6". */
@@ -180,6 +183,7 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
           heading={groupHoursWords(group.name, hoursWords(facts.startTimeLocal, facts.durationMinutes))}
           roomChanged={schedule?.roomChanged === true}
           facilitators={facilitators}
+          calendar={learner !== null && learner.groupId === group.id}
         />
       )}
 

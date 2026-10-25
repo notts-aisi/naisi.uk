@@ -7,6 +7,7 @@ import {
   type QueryDocumentSnapshot,
   type QuerySnapshot,
 } from "firebase-admin/firestore";
+import { deleteCalendarLink } from "@/lib/courses/calendarLink";
 import { FINISHING_COLLECTION } from "@/lib/courses/finishing/model";
 import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
@@ -41,6 +42,13 @@ export type AccountDeletionSummary = {
    * buzzing a phone for somebody who no longer has an account here.
    */
   pushSubscriptionsDeleted: number;
+  /**
+   * The account's calendar link (`calendarLinks/{uid}`, Add to calendar):
+   * the secret a calendar app fetches their sessions with. Deleted, so the
+   * link answers as one that never was, and a calendar still holding it
+   * empties on its next fetch.
+   */
+  calendarLinkDeleted: boolean;
   registrationDeleted: boolean;
   collaboratorDeleted: boolean;
   userDocDeleted: boolean;
@@ -1057,6 +1065,7 @@ export async function deleteAccountCascade(
   const summary: AccountDeletionSummary = {
     subscriptionsDeleted: 0,
     pushSubscriptionsDeleted: 0,
+    calendarLinkDeleted: false,
     registrationDeleted: false,
     collaboratorDeleted: false,
     userDocDeleted: false,
@@ -1150,6 +1159,25 @@ export async function deleteAccountCascade(
     );
   } catch (err) {
     console.error("[deleteAccount] pushSubscriptions delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 1d. The CALENDAR LINK, the account's third channel to a device: the
+  //     secret a calendar app fetches their sessions with
+  //     (`src/lib/firestore/calendarLinks.ts`), one document at their uid,
+  //     deleted by `deleteCalendarLink`.
+  //     Deleted, so the link answers as one that never was and a calendar
+  //     still holding it empties on its next fetch.
+  //
+  //     BEST-EFFORT, as the push rows are, and for the same bounded reason: a
+  //     link that survives a failure here opens nothing once the account is
+  //     gone (the feed asks the account's standing and finds no account), and
+  //     the 207 keeps the registration row so the sweep is retried. The error
+  //     is logged without its message, which can carry the document it read.
+  try {
+    summary.calendarLinkDeleted = await deleteCalendarLink(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] calendar link delete failed:", uid, (err as { code?: unknown } | null)?.code ?? "unknown");
     partialFailure = true;
   }
 

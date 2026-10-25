@@ -352,12 +352,31 @@
 
 .ticket {
   display: flex;
-  align-items: stretch;
+  flex-direction: column;
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--color-border-strong);
   border-radius: 14px;
   background: var(--color-surface);
+}
+
+/* The stub and the body, side by side; Home's row of buttons sits under both. */
+.ticketRow {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+
+/* Home's row under the ticket (wk-home-phone). On a phone its buttons are the
+   width of the card, as drawn; wider, each keeps its own width, as the
+   programme page's ticket does (no board draws Home wider than a phone). */
+.ticketFoot {
+  display: grid;
+  grid-template-columns: max-content;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-bg) 35%, transparent);
 }
 
 .stub {
@@ -555,6 +574,281 @@
 .joinButton:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
+}
+
+/* === Add to calendar: the ticket's button and its dialog (st-calendar-phone) === */
+
+.calendarButton {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  box-sizing: border-box;
+  cursor: pointer;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
+}
+
+.calendarButton svg {
+  display: block;
+  flex: none;
+}
+
+.calendarButton:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.calendarButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.calendarButton:disabled {
+  cursor: default;
+}
+
+/* Home's: on a phone the whole row under the card, in the board's smaller words (below). */
+.calendarButtonHome {
+  width: auto;
+}
+
+.calendarDialog {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* The sheet's handle, drawn only where the dialog is a sheet. */
+.calendarGrabber {
+  display: none;
+  width: 40px;
+  height: 4px;
+  margin: 0 auto;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+}
+
+.calendarHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.calendarTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 6px 0 0;
+  font-family: var(--font-display);
+  font-size: 1.3125rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+.calendarClose {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.calendarClose svg {
+  display: block;
+}
+
+.calendarClose:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.calendarClose:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.calendarLine,
+.calendarRenewed {
+  margin: -6px 0 0;
+  font-size: var(--text-ui);
+  line-height: 1.55;
+  color: var(--color-text-soft);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+.calendarRenewed {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.calendarRenewed:focus {
+  outline: none;
+}
+
+.calendarActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.calendarAction,
+.calendarCopy {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  text-decoration: none;
+  white-space: nowrap;
+  box-sizing: border-box;
+  cursor: pointer;
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
+}
+
+.calendarAction {
+  background: var(--color-surface);
+}
+
+.calendarCopy {
+  background: transparent;
+}
+
+.calendarCopy svg {
+  display: block;
+  flex: none;
+}
+
+.calendarAction:hover,
+.calendarCopy:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.calendarAction:focus-visible,
+.calendarCopy:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.calendarByHand {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-soft);
+}
+
+.calendarByHandInput {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+.calendarByHandInput:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.calendarNote {
+  margin: 0;
+  text-align: center;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+
+/* "Get a new link": quiet, under the note, still a 44px target. */
+.calendarQuiet {
+  appearance: none;
+  -webkit-appearance: none;
+  align-self: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.calendarQuiet:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.calendarQuiet:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.calendarConfirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-warning-line);
+  background: var(--color-warning-soft);
+}
+
+.calendarConfirmLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.calendarConfirmButtons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 /* Home's ticket: the narrower stub and the smaller heading of wk-home-phone. */
@@ -1636,6 +1930,22 @@ a.weekItem:focus-visible {
 
   .foot {
     margin-top: var(--space-6);
+  }
+
+  /* The dialog is a sheet here (the Modal's `sheet`): it has a handle. */
+  .calendarGrabber {
+    display: block;
+  }
+
+  /* Home's row: the whole width of the card, as wk-home-phone draws it. */
+  .ticketFoot {
+    grid-template-columns: 1fr;
+  }
+
+  .calendarButtonHome {
+    width: 100%;
+    padding: 0 10px;
+    font-size: var(--text-sm);
   }
 }
 

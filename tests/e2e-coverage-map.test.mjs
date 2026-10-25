@@ -796,6 +796,18 @@ const NOT_COVERED = {
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
+  "/api/courses/calendar": {
+    reason:
+      "Course hub: a person's own calendar link (st-calendar-phone), made on their first ask, the same after, and replaced on request; tests/course-hub-calendar-link.test.mjs executes the handler as every kind of caller, its four targets, replacing and deletion with the account.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a run Publish has told, with a member signed in to open Add to calendar on their programme page.",
+  },
+  "/api/courses/calendar/[token]/sessions.ics": {
+    reason:
+      "Course hub: the calendar a person's link fills, fetched with no session; tests/course-hub-calendar-feed.test.mjs fetches it for every kind of person and every change to a session, reads it as strictly as RFC 5545 asks, and finds no meeting link, address or other group in it.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a run Publish has told, and a spec can fetch the link a member's dialog shows.",
+  },
   "/api/courses/exercise-responses/[responseId]/review": {
     reason:
       "Learn hub: /api/courses/exercise-responses/[responseId]/review belongs to the curriculum surface being rebuilt in October.",

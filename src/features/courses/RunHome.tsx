@@ -63,9 +63,12 @@ import styles from "./RunHome.module.css";
  * and when the next one opens (C17), their marks with no count (C26), the
  * updates, their group, and the way out.
  *
- * WHAT IS NOT HERE, though the boards draw it: "Add to calendar" and "Can’t
- * make it" on the ticket. Neither feature exists yet, and the page draws no
- * control for one that does not.
+ * "Add to calendar" is on the ticket for somebody whose group it is, taking
+ * part or facilitating (st-calendar-phone: their own calendar link).
+ *
+ * WHAT IS NOT HERE, though the boards draw it: "Can’t make it" on the ticket.
+ * It does not exist yet, and the page draws no control for a feature that
+ * does not.
  *
  * STAFF (a facilitator, an admin) read the same head, ticket and weeks, every
  * published week open, with their own panels below; no marks, no ticks.
@@ -444,6 +447,7 @@ export default function RunHome({
               ) || hoursWords(facts.startTimeLocal, facts.durationMinutes)}
               roomChanged={factsSchedule?.roomChanged === true}
               facilitators={facilitatorPeople}
+              calendar={learnerGroup !== null || access.isFacilitator}
             />
           )}
         </div>

@@ -2970,6 +2970,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === calendarLinks ===
+    // One private calendar link per person (Add to calendar,
+    // src/lib/firestore/calendarLinks.ts): the secret a calendar app fetches
+    // the person's sessions with. Written only by the link route on the
+    // Admin SDK, and read only by it and the feed route, on the server. So
+    // every browser is refused, the link's own owner and admins included: a
+    // readable token is a readable calendar, and the owner is shown their
+    // link by the link route.
+    match /calendarLinks/{uid} {
+      allow read, write: if false;
+    }
+
     // === config ===
     // Server-only runtime config, written by the Admin SDK and read only by
     // routes: `config/taskEmails` (the task-email kill switch),

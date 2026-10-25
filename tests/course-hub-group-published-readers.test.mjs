@@ -216,6 +216,13 @@ const READERS = {
     asks: 1,
     why: "what pressing a register emails, said before the press: the people its count is out of are the group's placements Publish has told, the email itself goes through the cohort audience, which leaves an untold seat out, and it names nobody",
   },
+  "lib/courses/calendarFeed.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "a person's calendar link holds their own seats' sessions: a seat Publish has not told them about adds " +
+      "nothing of its run to it, whoever they are, an admin included, and it names nobody",
+  },
   "app/api/courses/runs/[runId]/allocation/route.ts": {
     kind: "board",
     proof: ["if (!doesTrackLeadWork(staffing)) {"],

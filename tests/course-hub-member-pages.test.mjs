@@ -11,10 +11,11 @@
  *  1. THE PROGRAMME HOME, before the start and in week 3, word for word: the
  *     head (the programme, the group's usual day, time and room, with whom),
  *     the next session's ticket (tonight, a room changed this week, a session
- *     cancelled as Change a session says), "This week" or week 1's readings to
- *     tick, the weeks with their dates and states and when the next one opens,
- *     the updates, the group by first names, and nothing the boards draw that
- *     does not exist yet ("Add to calendar", "Can’t make it").
+ *     cancelled as Change a session says, and "Add to calendar" under it),
+ *     "This week" or week 1's readings to tick, the weeks with their dates and
+ *     states and when the next one opens, the updates, the group by first
+ *     names, and nothing the boards draw that does not exist yet ("Can’t make
+ *     it").
  *  2. YOUR MARKS: one per session with its mark, a legend of the marks used,
  *     the board's line, and NO COUNT anywhere a member reads: no "of", no "in
  *     full", no "so far". Late and left early are drawn as having come.
@@ -72,7 +73,9 @@ describe("1. the programme home", () => {
       text,
       "My programmes AGI Strategy " +
         "Fellowship · Autumn 2026 AGI Strategy Fellowship Group B · Tuesdays 6pm · Hallward B12 · with Rahul and Sofia " +
-        "Tue 3 Nov Your first session · week 1 Tue 3 Nov, 6pm to 8pm Hallward B12 R S with Rahul and Sofia " +
+        // "Add to calendar" under the room, as st-programme draws it: built
+        // since st-calendar-phone (the member's own calendar link).
+        "Tue 3 Nov Your first session · week 1 Tue 3 Nov, 6pm to 8pm Hallward B12 R S with Rahul and Sofia Add to calendar " +
         "Before your first session 0 of 3 done Week 1 · Week 1 readings Thu 29 Oct to Wed 4 Nov " +
         "Week 1 reading one Reading 25 min Open Week 1 reading one " +
         "Week 1 talk Video 20 min Open Week 1 talk " +
@@ -84,7 +87,9 @@ describe("1. the programme home", () => {
         "Week 5 Week 5 readings Tue 1 Dec Week 6 Week 6 readings Tue 8 Dec " +
         "Each week opens straight after your previous session. See your progress week by week →",
     );
-    assert.doesNotMatch(text, /Week \d of 6|Your marks|Add to calendar|Can’t make it/);
+    // "Add to calendar" exists now, once and on the ticket; "Can’t make it" still does not.
+    assert.equal(text.match(/Add to calendar/g)?.length, 1);
+    assert.doesNotMatch(text, /Week \d of 6|Your marks|Can’t make it/);
   });
 
   test("in week 3, the day of the session (wk-programme)", async () => {
@@ -95,7 +100,8 @@ describe("1. the programme home", () => {
       text,
       "My programmes AGI Strategy " +
         "Fellowship · Autumn 2026 AGI Strategy Fellowship Week 3 of 6 Group B · Tuesdays 6pm · Hallward B12 · with Rahul and Sofia " +
-        "Tue 17 Nov Tonight · week 3 Tue 17 Nov, 6pm to 8pm Hallward B12 R S with Rahul and Sofia " +
+        // "Add to calendar" under the room, as wk-programme draws it (st-calendar-phone).
+        "Tue 17 Nov Tonight · week 3 Tue 17 Nov, 6pm to 8pm Hallward B12 R S with Rahul and Sofia Add to calendar " +
         "This week 1 of 3 done Week 3 · Who decides what AGI means Thu 12 to Wed 18 Nov Open week 3 → " +
         "The 6 weeks Week 1 Week 1 readings Tue 3 Nov · Done 0 of 3 Week 2 Week 2 readings Tue 10 Nov · Done 0 of 3 " +
         "Week 3 Who decides what AGI means Tonight 1 of 3 " +
@@ -109,7 +115,9 @@ describe("1. the programme home", () => {
     for (const n of [1, 2, 3]) assert.match(html, new RegExp(`href="/learn/[^"]+/weeks/${n}"`));
     for (const n of [4, 5, 6]) assert.doesNotMatch(html, new RegExp(`href="/learn/[^"]+/weeks/${n}"`));
     assert.match(html, /aria-current="step"/);
-    assert.doesNotMatch(text, /Add to calendar|Can’t make it|Names only/);
+    // "Add to calendar" exists now, once and on the ticket; "Can’t make it" still does not.
+    assert.equal(text.match(/Add to calendar/g)?.length, 1);
+    assert.doesNotMatch(text, /Can’t make it|Names only/);
   });
 
   test("only the next week to open says when: a later published week shows its date alone", async () => {
@@ -123,7 +131,8 @@ describe("1. the programme home", () => {
     changeGroupB(w, { sessionOverrides: { w03: { location: "Room C21" } } });
     await w.asBrowser("chloe");
     const { text } = w.programmeHome("chloe");
-    assert.match(text, /Group B · Tuesdays 6pm · Hallward B12 · with Rahul and Sofia Tue 17 Nov Tonight · week 3 Tue 17 Nov, 6pm to 8pm Room C21 Room changed this week This week/);
+    // "Add to calendar" closes the ticket (st-calendar-phone), before "This week".
+    assert.match(text, /Group B · Tuesdays 6pm · Hallward B12 · with Rahul and Sofia Tue 17 Nov Tonight · week 3 Tue 17 Nov, 6pm to 8pm Room C21 Room changed this week Add to calendar This week/);
   });
 
   test("a session cancelled through Change a session: the notice, the next session covering both weeks, and the week says so", async () => {
@@ -265,13 +274,16 @@ describe("3. Home's card (wk-home-phone)", () => {
     assert.equal(
       home.text,
       "AGI Strategy · week 3 of 6 Hi Chloe. AGI Strategy Fellowship · Group B · week 3 of 6 " +
-        "Tue 17 Nov Tonight · week 3 Group B, 6pm to 8pm Hallward B12 R S with Rahul and Sofia " +
+        // "Add to calendar" in the row under the card, as wk-home-phone draws it (st-calendar-phone).
+        "Tue 17 Nov Tonight · week 3 Group B, 6pm to 8pm Hallward B12 R S with Rahul and Sofia Add to calendar " +
         "Before tonight 0 of 3 done Week 3 · Who decides what AGI means " +
         "Week 3 reading one Reading 25 min Week 3 talk Video 20 min Week 3 reading two Reading 30 min Open week 3 → " +
         "Your group Group B CN Chloe (you) FH Farah KA Kofi R S Facilitators: Rahul and Sofia",
     );
     assert.equal((home.html.match(/type="checkbox"/g) ?? []).length, 3);
-    assert.doesNotMatch(home.text, /Your attendance|Add to calendar|Can’t make it/);
+    // "Add to calendar" exists now, once and under the ticket; "Can’t make it" still does not.
+    assert.equal(home.text.match(/Add to calendar/g)?.length, 1);
+    assert.doesNotMatch(home.text, /Your attendance|Can’t make it/);
   });
 
   test("on the day of the first session: tonight, your first session", async () => {
