@@ -191,6 +191,11 @@ const READERS = {
     asks: 1,
     why: "the cohort audience behind the register push's reminder, the week nudge and the run email leaves out untold seats; the unreachable count beside it is a number for the sender",
   },
+  "lib/courses/pushEmail.ts": {
+    kind: "told",
+    asks: 1,
+    why: "what pressing a register emails, said before the press: the people its count is out of are the group's placements Publish has told, the email itself goes through the cohort audience, which leaves an untold seat out, and it names nobody",
+  },
   "app/api/courses/runs/[runId]/allocation/route.ts": {
     kind: "board",
     proof: ["if (!doesTrackLeadWork(staffing)) {"],

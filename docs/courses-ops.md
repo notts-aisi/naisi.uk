@@ -903,6 +903,23 @@ The register's page says which, in the board's words, every value read from
 records: the group, when next week's email goes, who is reminded and who gets
 a task if nobody finishes.
 
+While the push sends the email, the page also says what each press will email
+before anybody presses. The foot under the register and the confirm in front
+of its button read one answer, which the register's GET works out for every
+register on the page from the push's own decision (`src/lib/courses/pushEmail.ts`):
+the session after the one being finished, in the group's whole schedule with
+each week's changes applied, and whether its email can go and to how many. So
+the confirm names the group and how many it reaches ("Everyone in Group B gets
+one email about week 4 on Tue 10 Nov: 3 people.", or "2 of the 3 people in
+Group B get one email ..." when somebody has switched course emails off or
+their address is suppressed), says that the email about a cancelled session
+tells them it is off, and says why nobody is emailed when nobody is: the
+group's last session, a week not published yet ("Nobody is emailed: week 4
+isn’t published yet, so the group won’t be sent a reminder."), an email that
+has already gone, nobody in the group set up to receive email. The push asks
+the same decision again when it is pressed, so a week published after the
+page was read is sent about, and the push's answer says what happened.
+
 ### What finishing does, in the order it does it
 
 1. **One transaction** stamps `pushedAt` and `pushedByUid` on the register, and

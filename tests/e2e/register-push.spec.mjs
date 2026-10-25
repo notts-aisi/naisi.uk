@@ -574,12 +574,21 @@ test(
         if (scheduled) {
           assert.match(copy, /Nobody’s emailed/, `the confirm did not say nobody is emailed: ${copy}`);
           assert.doesNotMatch(copy, /gets one email/, `the confirm promised an email: ${copy}`);
-        } else {
+        } else if (mailFlows) {
           assert.match(
             copy,
-            new RegExp(`Everyone in ${state.groupName} gets one email about week ${NEXT_WEEK}`),
-            `the confirm did not name who is emailed and what about: ${copy}`,
+            new RegExp(`Everyone in ${state.groupName} gets one email about week ${NEXT_WEEK} on [A-Z][a-z]{2} \\d{1,2} [A-Z][a-z]{2}: ${state.members.length} people\\.`),
+            `the confirm did not name who is emailed, how many and what about: ${copy}`,
           );
+        } else {
+          // Every fixture address is suppressed on a deployed target, so the
+          // push emails nobody, and the confirm says so before the press.
+          assert.match(
+            copy,
+            new RegExp(`Nobody is emailed: nobody in ${state.groupName} is set up to receive email\\.`),
+            `the confirm did not say nobody is emailed: ${copy}`,
+          );
+          assert.doesNotMatch(copy, /gets one email/, `the confirm promised an email: ${copy}`);
         }
         assert.match(copy, /The register locks/, `the confirm did not say it locks: ${copy}`);
 

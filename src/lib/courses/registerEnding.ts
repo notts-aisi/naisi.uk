@@ -10,6 +10,7 @@ import {
   sessionLine,
 } from "@/lib/courses/registerChase";
 import { firstNameOfUser, readRunLead, standingUserOf } from "@/lib/courses/programmeLead";
+import { readPushEmails, sessionAfter, type PushEmailLine } from "@/lib/courses/pushEmail";
 import { sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import {
   courseNudgeSessionWhere,
@@ -33,6 +34,9 @@ import { registerSwitchesIn } from "@/lib/scheduler/registerSwitches";
  *
  *  - which button it is, from the next-week email's switch;
  *  - the session the button finishes, and its day, time and room;
+ *  - what pressing the button of each register on the page emails, from the
+ *    push's own decision (`src/lib/courses/pushEmail.ts`), which the foot and
+ *    the confirm in front of the button both put into words;
  *  - when next week's email goes, from the same timing the job keeps, and
  *    whether it has gone, from the same claim the job and the push take;
  *  - who is reminded and who gets a task, from those jobs' switches, the
@@ -79,6 +83,13 @@ export type RegisterEnding = {
   } | null;
   /** True when the focus session has a session after it. */
   hasNext: boolean;
+  /**
+   * What pressing the button of each register that is not finished yet emails,
+   * by session key: the focus's, and every other column's, since each column
+   * has its own button. One answer, from the push's own decision
+   * (`readPushEmails`), so the foot, the confirm and the push agree.
+   */
+  pushEmails: Record<string, PushEmailLine>;
   /** Next week's email for the session after the focus. Only while it is on its schedule. */
   nextEmail: NextEmailLine | null;
   /** The facilitators' reminder, when its job is on and the group has facilitators. */
@@ -163,9 +174,19 @@ export async function readRegisterEnding(
       line: sessionLine(pick.startsAt, where),
       finished: pick.column.finished,
     };
-    const index = sessions.findIndex((s) => s.sessionKey === session.sessionKey);
-    nextSession = index >= 0 ? (sessions[index + 1] ?? null) : null;
+    nextSession = sessionAfter(sessions, session.sessionKey);
   }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const pushEmails = await readPushEmails(db, {
+    run,
+    group,
+    sessions,
+    sessionKeys: columns.filter((column) => !column.finished).map((column) => column.session.sessionKey),
+    scheduled: switches.scheduled,
+    config,
+    appUrl,
+  });
 
   let nextEmail: NextEmailLine | null = null;
   const next = nextSession;
@@ -188,7 +209,7 @@ export async function readRegisterEnding(
         session: next,
         template: await resolveCourseNudgeTemplate(db),
         feedbackUrl: config.weeklyFeedbackUrl,
-        appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "",
+        appUrl,
       });
       if (!reading.published) {
         nextEmail = { state: "waiting-for-week", weekNumber: next.weekNumber };
@@ -213,6 +234,7 @@ export async function readRegisterEnding(
     groupName: group.name,
     focus,
     hasNext: nextSession !== null,
+    pushEmails,
     nextEmail,
     // The job skips a group with nobody facilitating it, so the page does too.
     reminder:

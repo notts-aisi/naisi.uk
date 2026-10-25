@@ -259,7 +259,9 @@ function listOfNames(names) {
 /**
  * Everything the foot of a register says, from the `ending` its GET answered:
  * `registerEndingWords` in src/features/courses/registerEndingWords.ts,
- * restated with its helpers (`nextEmailSentence`, `chaseSentence`).
+ * restated with its helpers (`nextEmailSentence`, `chaseSentence`, and
+ * `pushEffect` with `heldFootSentence`, which word what pressing the register
+ * emails from the GET's own answer, `ending.pushEmails`).
  */
 function endingWords(ending) {
   const hours = (n) => (Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10));
@@ -269,6 +271,25 @@ function endingWords(ending) {
   const capitalise = (text) => (text ? text[0].toUpperCase() + text.slice(1) : text);
   const lowerFirst = (text) => (text.startsWith("The group’s") ? `t${text.slice(1)}` : text);
   const group = ending.groupName.trim() || "the group";
+
+  const heldFootSentence = (line) => {
+    switch (line.why) {
+      case "unpublished":
+        return `Week ${line.weekNumber} isn’t published yet, so nobody’s emailed.`;
+      case "claimed":
+        return `${capitalise(group)} has already had its email about week ${line.weekNumber}, so nobody’s emailed.`;
+      case "nobody":
+        return `Nobody in ${group} is set up to receive email.`;
+      case "no-date":
+        return `${capitalise(group)} has no dates set, so nobody’s emailed.`;
+      case "refused":
+        return `There are too many people in ${group} for one email, so nobody’s emailed.`;
+      case "missing":
+        return `Week ${line.weekNumber}’s email is missing something it needs, so nobody’s emailed.`;
+      default:
+        throw new Error(`the register's GET answered a reason for emailing nobody this spec does not know: ${line.why}`);
+    }
+  };
 
   const nextEmailSentence = (line) => {
     switch (line.state) {
@@ -324,16 +345,25 @@ function endingWords(ending) {
       notes,
     };
   }
+  const line = ending.focus && !finished ? ending.pushEmails?.[ending.focus.sessionKey] : undefined;
+  const sends = line ? line.kind === "sends" : ending.hasNext;
   const notes = [];
   if (finished) notes.push("This register is pushed. Everyone can see their mark.");
-  if (!finished && ending.hasNext) notes.push("If nobody pushes, nobody gets next week’s email.");
+  if (!finished && sends) notes.push("If nobody pushes, nobody gets next week’s email.");
   if (!finished && chase) notes.push(chase);
+  const locks = "Locks the register and shows everyone their mark.";
+  const kind = line?.kind ?? (ending.hasNext ? "sends" : "last");
   return {
     button: "Push attendance",
     columnButton: "Push",
-    effect: ending.hasNext
-      ? `Locks the register, shows everyone their mark and emails ${group} about next week.`
-      : "Locks the register and shows everyone their mark. It’s the group’s last session, so nobody’s emailed.",
+    effect:
+      kind === "sends"
+        ? `Locks the register, shows everyone their mark and emails ${group} about next week.`
+        : kind === "last"
+          ? `${locks} It’s the group’s last session, so nobody’s emailed.`
+          : line?.kind === "held"
+            ? `${locks} ${heldFootSentence(line)}`
+            : `${locks} Nobody’s emailed.`,
     notes,
   };
 }
@@ -959,6 +989,19 @@ test(
           "the register's session line",
         );
         assert.equal(ending.hasNext, true, "the register says this is the group's last session");
+        // What pressing this week's register emails, as the GET answers it for
+        // the foot and the confirm alike, from the push's own decision: week 4
+        // is not published, so while the push sends next week's email it sends
+        // nobody one, and on the schedule finishing never does.
+        assert.deepEqual(
+          ending.pushEmails,
+          {
+            [weekDocId(thisWeek)]: ending.scheduled
+              ? { kind: "scheduled" }
+              : { kind: "held", why: "unpublished", weekNumber: nextWeek },
+          },
+          "the register's GET does not say what pressing this week's register emails",
+        );
         await assertFoot(ending);
       });
 
@@ -1029,20 +1072,15 @@ test(
           [
             ending.scheduled
               ? "Nobody’s emailed. Next week’s email goes on its own schedule, whatever happens here."
-              : // PINNED DEFECT. While next week's email is not on its schedule,
-                // the confirm names the session after the one being finished
-                // from the register's columns, and those hold only sessions
-                // that have started. So for this week's register, finished
-                // before next week's session (the ordinary case), it says the
-                // group's last session has gone, while the foot under the grid
-                // says the press emails the group about next week and the push
-                // does email them once that week is published. The fix: the
-                // register's GET names the session after the one being
-                // finished from the group's whole schedule, and whether its
-                // week is published, and the confirm says what the push will
-                // do. When it lands, this line becomes the confirm's corrected
-                // sentence for a next week that is not published yet.
-                "Nobody is emailed: this is the group’s last session, so there is nothing to remind them about.",
+              : // While next week's email is not on its schedule, the confirm
+                // says what the push will do with it, from the register's GET:
+                // the session after this one in the group's whole schedule
+                // (week 4, not the register's columns, which hold only the
+                // sessions that have started), and the push's own decision
+                // about it. Week 4 is not published, so nobody is emailed, and
+                // the confirm says why before the press, as the push's answer
+                // says it after.
+                `Nobody is emailed: week ${nextWeek} isn’t published yet, so the group won’t be sent a reminder.`,
             "The register locks. An admin can still correct it afterwards, and every change they make is recorded.",
             "Everyone sees their mark, and everyone’s attendance figures are rebuilt from this register.",
           ],

@@ -379,9 +379,12 @@ process.env.NEXT_PUBLIC_APP_URL = "https://naisi.invalid";
 
 /**
  * A world, its loader and the way to make a request in it. `key` names the
- * handle on `globalThis` the stubs read.
+ * handle on `globalThis` the stubs read. `extraStubs` are `[specifier,
+ * source]` pairs added after the world's own, as the hand-over world takes
+ * them, for a suite that also draws a page component (its stylesheets, its
+ * data hook): an extra wins over a default of the same name.
  */
-export function makeWorld(key = "__register") {
+export function makeWorld(key = "__register", extraStubs = []) {
   const world = {
     db: null,
     user: null,
@@ -412,6 +415,7 @@ export function makeWorld(key = "__register") {
       ["@/lib/email/send", MAIL_DOOR(handle)],
       ["./send", MAIL_DOOR(handle)],
       ["@/lib/push/courseNotifications", "export async function mirrorCourseDecisionToPush() {}"],
+      ...extraStubs,
     ]),
   });
 

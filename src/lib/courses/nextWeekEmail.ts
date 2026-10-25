@@ -6,6 +6,7 @@ import { resolveSessions, type ResolvedSession } from "@/lib/courses/sessions";
 import { dispatchSends } from "@/lib/email/dispatch";
 import {
   resolveCohortAudience,
+  type CohortAudience,
   type CohortRecipient,
 } from "@/lib/email/courseFacilitatorEmails";
 import {
@@ -66,6 +67,12 @@ import { signToken } from "@/lib/signedTokens";
  * the group's email when a value the template uses is empty, and says which,
  * rather than letting the renderer drop the sentence. `whole: false` is the
  * push lane as it has always been: a missing value drops its sentence.
+ *
+ * ── WHAT A PRESS WOULD DO, SAID BEFORE IT ───────────────────────────────────
+ * The register's page says what pressing its button emails before anybody
+ * presses (`previewNextWeekEmails`, through `src/lib/courses/pushEmail.ts`).
+ * It asks the very decision the send makes (`prepareNextWeekEmail`), so the
+ * page and the press cannot disagree about who is emailed, or why nobody is.
  */
 
 /** Who is sending, recorded on the marker. */
@@ -197,13 +204,190 @@ export async function readNextWeekEmail(
   };
 }
 
+/** An outcome in which nothing went, and why. */
+function heldOutcome(
+  held: NextWeekEmailOutcome["held"],
+  reason: string,
+  extra: Partial<NextWeekEmailOutcome> = {},
+): NextWeekEmailOutcome {
+  return { sent: 0, skipped: 0, forced: false, reason, held, missing: [], ...extra };
+}
+
+/** One group's email once nothing stops it: what it says and who it goes to, nothing claimed yet. */
+type PreparedEmail = {
+  ready: true;
+  markerId: string;
+  template: CourseNudgeTemplate;
+  reading: NextWeekEmailReading;
+  /** Who it goes to: the group's deliverable members, as `resolveCohortAudience` answers. */
+  members: CohortRecipient[];
+  skipped: number;
+};
+
+/**
+ * EVERYTHING `sendNextWeekEmail` DECIDES BEFORE IT CLAIMS, and nothing it
+ * does after: read only. Whether the email can go (a date to key its claim
+ * on, a published week, every value when it goes whole, a group small enough
+ * for one send, somebody set up to receive it) and, when it can, what it says
+ * and who it goes to. The send and the register's preview below both ask
+ * this, so the register's page cannot say a press emails people the press
+ * would not email.
+ */
+async function prepareNextWeekEmail(
+  db: Firestore,
+  args: {
+    run: CourseRunDoc;
+    group: CourseGroupDoc;
+    session: ResolvedSession;
+    /** Who is asking: the push's words for an unpublished week say what to do next. */
+    lane: NextWeekEmailSender["kind"];
+    whole: boolean;
+    config: CoursesConfig;
+    appUrl: string;
+    template?: CourseNudgeTemplate;
+    /** The group's audience, for a caller asking about several of its sessions; read here otherwise. */
+    audience?: () => Promise<CohortAudience>;
+  },
+): Promise<{ ready: false; outcome: NextWeekEmailOutcome } | PreparedEmail> {
+  const { run, group, session } = args;
+  const markerId = nextWeekEmailMarkerId(run.id, group.id, session);
+  if (!markerId) {
+    // The marker id is keyed on the session's slot. Without dates there is no
+    // key, and a send with no once-only marker is one that can repeat.
+    return {
+      ready: false,
+      outcome: heldOutcome("no-date", "This group has no dates set, so no reminder could be sent."),
+    };
+  }
+
+  const template = args.template ?? (await resolveCourseNudgeTemplate(db));
+  const reading = await readNextWeekEmail(db, {
+    run,
+    group,
+    session,
+    template,
+    feedbackUrl: args.config.weeklyFeedbackUrl,
+    appUrl: args.appUrl,
+  });
+
+  // Read BEFORE anything is claimed: an unpublished week is a reason to wait,
+  // and claiming first would silence the email for good.
+  if (!reading.week || !reading.published) {
+    return {
+      ready: false,
+      outcome: heldOutcome(
+        "unpublished",
+        args.lane === "push"
+          ? `Week ${session.weekNumber} isn't published yet, so the group wasn't sent a reminder. Publish it and use the run's catch-up send.`
+          : `Week ${session.weekNumber} isn't published yet, so its email is waiting.`,
+      ),
+    };
+  }
+  if (args.whole && reading.missing.length > 0) {
+    return {
+      ready: false,
+      outcome: heldOutcome(
+        "missing",
+        `Next week's email to ${group.name || "this group"} is held: a value it uses is empty.`,
+        { missing: reading.missing },
+      ),
+    };
+  }
+
+  // SCOPED TO THIS GROUP INSIDE the derivation: the recipient ceiling has to
+  // be counted on the group being mailed, not on the whole run.
+  const audience = args.audience
+    ? await args.audience()
+    : await resolveCohortAudience(db, run.id, LANE, { groupId: group.id });
+  if (audience.refusal) {
+    return { ready: false, outcome: heldOutcome("refused", audience.refusal, { skipped: audience.skipped }) };
+  }
+  if (audience.members.length === 0) {
+    // Deliberately does NOT claim: an audience empty today (everyone opted
+    // out, nobody placed yet) must not suppress the email for whoever becomes
+    // deliverable tomorrow.
+    return {
+      ready: false,
+      outcome: heldOutcome(
+        "nobody",
+        "Nobody in this group is set up to receive email, so none was sent.",
+        { skipped: audience.skipped },
+      ),
+    };
+  }
+  return { ready: true, markerId, template, reading, members: audience.members, skipped: audience.skipped };
+}
+
+/** What a press of a register's button would do with the group's email about one session. */
+export type NextWeekEmailPreview =
+  /** It goes, to this many people. */
+  | { goes: true; emails: number }
+  /** It does not go, and why: the reason `sendNextWeekEmail` would answer with. */
+  | { goes: false; why: Exclude<NextWeekEmailOutcome["held"], null> };
+
+/**
+ * WHAT PUSHING A REGISTER WOULD DO with the group's email about each of
+ * `sessions`, worked out now and sent to nobody: the push's own decision
+ * (`prepareNextWeekEmail`, with the push's rule that an empty value drops its
+ * sentence rather than holding the email), then whether the email has already
+ * gone, because the push's claim is a create and a claim already taken sends
+ * nothing. Read only: nothing is claimed, nothing is sent. The template and
+ * the group's audience are read once for every session asked about.
+ */
+export async function previewNextWeekEmails(
+  db: Firestore,
+  args: {
+    run: CourseRunDoc;
+    group: CourseGroupDoc;
+    sessions: readonly ResolvedSession[];
+    config: CoursesConfig;
+    appUrl: string;
+  },
+): Promise<Map<string, NextWeekEmailPreview>> {
+  const { run, group } = args;
+  const out = new Map<string, NextWeekEmailPreview>();
+  if (args.sessions.length === 0) return out;
+  const template = await resolveCourseNudgeTemplate(db);
+  let audience: Promise<CohortAudience> | null = null;
+  const audienceOnce = () =>
+    (audience ??= resolveCohortAudience(db, run.id, LANE, { groupId: group.id }));
+  for (const session of args.sessions) {
+    if (out.has(session.sessionKey)) continue;
+    const prepared = await prepareNextWeekEmail(db, {
+      run,
+      group,
+      session,
+      lane: "push",
+      // The push's rule while it sends the email (`whole: scheduled` in the
+      // push route, and this is only asked while the schedule is off).
+      whole: false,
+      config: args.config,
+      appUrl: args.appUrl,
+      template,
+      audience: audienceOnce,
+    });
+    if (!prepared.ready) {
+      const { held } = prepared.outcome;
+      out.set(session.sessionKey, { goes: false, why: held ?? "refused" });
+      continue;
+    }
+    const claimed = (await db.collection("courseNudges").doc(prepared.markerId).get()).exists;
+    out.set(
+      session.sessionKey,
+      claimed ? { goes: false, why: "claimed" } : { goes: true, emails: prepared.members.length },
+    );
+  }
+  return out;
+}
+
 /**
  * Send one group its email about `session`, once.
  *
  * The caller has already decided the email is due: the push because a
  * register was pushed with the schedule off, the schedule because the session
  * is inside its window, an admin because they asked for a resend. This
- * function decides only whether it CAN go, and makes sure it goes once.
+ * function decides only whether it CAN go (`prepareNextWeekEmail`, which the
+ * register's preview asks too), and makes sure it goes once.
  */
 export async function sendNextWeekEmail(args: {
   db: Firestore;
@@ -225,73 +409,20 @@ export async function sendNextWeekEmail(args: {
   template?: CourseNudgeTemplate;
 }): Promise<NextWeekEmailOutcome> {
   const { db, run, group, session } = args;
-  const outcome = (
-    held: NextWeekEmailOutcome["held"],
-    reason: string,
-    extra: Partial<NextWeekEmailOutcome> = {},
-  ): NextWeekEmailOutcome => ({
-    sent: 0,
-    skipped: 0,
-    forced: false,
-    reason,
-    held,
-    missing: [],
-    ...extra,
-  });
-
-  const markerId = nextWeekEmailMarkerId(run.id, group.id, session);
-  if (!markerId) {
-    // The marker id is keyed on the session's slot. Without dates there is no
-    // key, and a send with no once-only marker is one that can repeat.
-    return outcome("no-date", "This group has no dates set, so no reminder could be sent.");
-  }
-
-  const template = args.template ?? (await resolveCourseNudgeTemplate(db));
-  const reading = await readNextWeekEmail(db, {
+  const prepared = await prepareNextWeekEmail(db, {
     run,
     group,
     session,
-    template,
-    feedbackUrl: args.config.weeklyFeedbackUrl,
+    lane: args.by.kind,
+    whole: args.whole,
+    config: args.config,
     appUrl: args.appUrl,
+    template: args.template,
   });
-
-  // Read BEFORE anything is claimed: an unpublished week is a reason to wait,
-  // and claiming first would silence the email for good.
-  if (!reading.week || !reading.published) {
-    return outcome(
-      "unpublished",
-      args.by.kind === "push"
-        ? `Week ${session.weekNumber} isn't published yet, so the group wasn't sent a reminder. Publish it and use the run's catch-up send.`
-        : `Week ${session.weekNumber} isn't published yet, so its email is waiting.`,
-    );
-  }
-  if (args.whole && reading.missing.length > 0) {
-    return outcome(
-      "missing",
-      `Next week's email to ${group.name || "this group"} is held: a value it uses is empty.`,
-      { missing: reading.missing },
-    );
-  }
-
-  // SCOPED TO THIS GROUP INSIDE the derivation: the recipient ceiling has to
-  // be counted on the group being mailed, not on the whole run.
-  const audience = await resolveCohortAudience(db, run.id, LANE, { groupId: group.id });
-  if (audience.refusal) {
-    return outcome("refused", audience.refusal, { skipped: audience.skipped });
-  }
-  const recipients: CohortRecipient[] = audience.members;
-  let skipped = audience.skipped;
-  if (recipients.length === 0) {
-    // Deliberately does NOT claim: an audience empty today (everyone opted
-    // out, nobody placed yet) must not suppress the email for whoever becomes
-    // deliverable tomorrow.
-    return outcome(
-      "nobody",
-      "Nobody in this group is set up to receive email, so none was sent.",
-      { skipped },
-    );
-  }
+  if (!prepared.ready) return prepared.outcome;
+  const { markerId, template, reading } = prepared;
+  const recipients: CohortRecipient[] = prepared.members;
+  let skipped = prepared.skipped;
 
   // ── THE CLAIM ────────────────────────────────────────────────────────────
   const markerRef = db.collection("courseNudges").doc(markerId);
@@ -324,7 +455,7 @@ export async function sendNextWeekEmail(args: {
     if (!args.force || args.by.kind !== "push") {
       // Another push, the schedule or the catch-up already claimed this
       // group's email about this session.
-      return outcome(
+      return heldOutcome(
         "claimed",
         "This group has already had the reminder for its next session.",
         { skipped },
