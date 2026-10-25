@@ -1,6 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { readRunLead, type RunLead } from "@/lib/courses/runLead";
+import { readRunLead, type RunLead } from "@/lib/courses/programmeLead";
 import { registerTaskCompleters } from "@/lib/courses/unmarkedRegisters";
 import { TASK_FIELD_LIMITS } from "@/lib/firestore/tasks";
 

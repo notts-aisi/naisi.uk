@@ -1,6 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { firstNameOfUser, readRunLead, standingUserOf, type RunLead } from "@/lib/courses/runLead";
+import { firstNameOfUser, readRunLead, standingUserOf, type RunLead } from "@/lib/courses/programmeLead";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import {
   followUpDueAt,

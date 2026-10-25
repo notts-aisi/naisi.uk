@@ -2166,7 +2166,7 @@ describe("who is shown other reviewers' scores is one rule, and an admin is neve
         }
       }
     }
-    assert.equal(calls, 7, "the list asks twice and the single-application screen five times; a new caller is read here");
+    assert.equal(calls, 8, "the list asks twice, the single-application screen five times and the freed-places page once; a new caller is read here");
     for (const file of askers) {
       const code = sources.find(([name]) => name === file)[1];
       const made = [...code.matchAll(/\bconst looking\b\s*=\s*([^;]+);/g)].map((match) => match[1]);

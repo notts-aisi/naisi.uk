@@ -1000,6 +1000,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the October curriculum rebuild lands, because a spec written against today's shape would be thrown away with it.",
   },
+  "/api/courses/runs/[runId]/facilitators": {
+    reason:
+      "Course hub: /api/courses/runs/[runId]/facilitators is a read for the Facilitators view of a programme's Groups tab; its every caller, its names-only payload and its two gates are executed by tests/course-hub-lead-routes.test.mjs.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a term whose decisions have been sent, with a programme naming a run and its lead signed in.",
+  },
   "/api/courses/runs/[runId]/material-notes": {
     reason:
       "Learn hub: /api/courses/runs/[runId]/material-notes belongs to the curriculum surface being rebuilt in October.",
@@ -1440,9 +1446,27 @@ const NOT_COVERED = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": {
     reason:
-      "Course hub: the Groups tab's times picture is an admin's read-only page. Its counting, its every caller and every state it can be in are executed by tests/course-hub-times-counting.test.mjs and tests/course-hub-times-page.test.mjs, and it was checked by hand at 1440 and 390.",
+      "Course hub: the Groups tab's People in groups view is the run's own allocation board, mounted for the programme's lead and admins; its every caller is executed by tests/course-hub-lead-pages.test.mjs, the board's routes by tests/course-hub-lead-routes.test.mjs and tests/applications-handover-board.test.mjs, and it was checked by hand at 1440 and 390.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a programme that names a run with groups, with its lead signed in.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/times": {
+    reason:
+      "Course hub: the Times view of a programme's Groups tab (the times picture, moved here from the tab's own address) is read only; its counting, every caller and every state are executed by tests/course-hub-times-counting.test.mjs and tests/course-hub-times-page.test.mjs, and it was checked by hand at 1440 and 390.",
     coverWhen:
       "When the end-to-end fixtures can seed a term whose decisions have been sent, because only then does anybody hold a place for the picture to count.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/facilitators": {
+    reason:
+      "Course hub: the Facilitators view, where a programme's lead or an admin staffs the run's groups through the facilitators route; the page's every caller is executed by tests/course-hub-lead-pages.test.mjs and its routes by tests/course-hub-lead-routes.test.mjs, and it was checked by hand at 1440 and 390.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a programme that names a run with groups, with its lead signed in.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance": {
+    reason:
+      "Course hub: every register of the run a programme names, read only, for its lead and admins; the page's every caller is executed by tests/course-hub-lead-pages.test.mjs and the register's read gate by tests/course-hub-lead-registers.test.mjs, and it was checked by hand at 1440 and 390.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a published run with registers, with the programme's lead signed in.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     reason:
