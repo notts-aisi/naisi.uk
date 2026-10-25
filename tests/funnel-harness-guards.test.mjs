@@ -505,6 +505,11 @@ test("the funnel fixture declares every collection its teardown must drain", () 
     // attendance CSV writes before it hands the file over.
     "courseUpdates",
     "dataExports",
+    // An incubator in its pitching week: the pitches (and the picks on them)
+    // the two pitching routes write, and the teams the teams route makes from
+    // them, with who was told their team.
+    "coursePitches",
+    "courseTeams",
   ]) {
     assert.ok(
       FIXTURE_COLLECTIONS.includes(required),
