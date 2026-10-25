@@ -70,6 +70,7 @@
  * and the course routes, which page their reads with a limit, on
  * `courseView` of the same documents (`tests/lib/courseRunStore.mjs`).
  */
+import { isDeepStrictEqual } from "node:util";
 import { before, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
@@ -792,6 +793,13 @@ async function timesAndBoard(label) {
   seen.times[label] = {
     blank: loaded.status === "ok" ? loaded.view.blank : loaded.status,
     asLead: asLead.status,
+    // The same view in every field but who is looking, which keeps what only
+    // an admin can do from the page (naming the run, the run editor) off hers.
+    leadSeesTheAdminsPicture:
+      loaded.status === "ok" &&
+      asLead.status === "ok" &&
+      asLead.view.viewer === "lead" &&
+      isDeepStrictEqual({ ...asLead.view, viewer: "admin" }, loaded.view),
     picture: picture
       ? {
           holders: picture.holders,
@@ -1003,7 +1011,7 @@ async function testThenPublish() {
   p.untested = await courseCall("zach", courseRoutes.publish.POST, { runId: RUN }, { body: { emails: p.before?.emails ?? -1 } });
   p.mailedByTheUntestedPress = world.mail.length - beforeTheUntestedPress;
   p.trackLeadTests = await courseCall("yusuf", courseRoutes.publishTest.POST, { runId: RUN });
-  p.leadTests = await courseCall("claudia", courseRoutes.publishTest.POST, { runId: RUN });
+  p.leadSummary = await publishSummary("claudia");
   p.trackLeadSummary = await publishSummary("yusuf");
   const beforeTheTest = world.mail.length;
   p.test = await courseStep("Send a test to me", 200, "zach", courseRoutes.publishTest.POST, { runId: RUN });
@@ -1109,14 +1117,11 @@ async function aFreedPlace() {
   seen.freed = f;
   f.page = await offerPage("zach");
   f.leadPage = await offerPage("claudia");
-  f.leadOffers = await call("claudia", routes.freedPlaces.POST, of("agi"), {
-    body: { picks: [{ uid: "hannah", groupId: GROUP.B }], replyBy: REPLY_BY, invitations: 1 },
-  });
   f.mailBefore = world.mail.length;
-  f.test = await step("a test of the freed place's email", 200, "zach", routes.freedPlacesTest.POST, of("agi"), {
+  f.test = await step("the programme's lead tests the freed place's email", 200, "claudia", routes.freedPlacesTest.POST, of("agi"), {
     body: { uid: "hannah", groupId: GROUP.B, replyBy: REPLY_BY },
   });
-  f.offer = await step("Hannah is offered the freed place", 200, "zach", routes.freedPlaces.POST, of("agi"), {
+  f.offer = await step("the programme's lead offers Hannah the freed place", 200, "claudia", routes.freedPlaces.POST, of("agi"), {
     body: { picks: [{ uid: "hannah", groupId: GROUP.B }], replyBy: REPLY_BY, invitations: 1 },
   });
   f.offerMail = await Promise.all(mailSince(f.mailBefore).map(opened));
@@ -1449,10 +1454,10 @@ describe("stage one of the course hub, one term from decision day to the first s
       assert.equal(accepted.board.cards.hannah, undefined);
     });
 
-    test("the picture is an admin's: the programme's lead is answered that it is not theirs, at every moment", () => {
+    test("the picture is the programme's lead's as well as an admin's: she is shown exactly the admin's, at every moment", () => {
       assert.deepEqual(
-        [...new Set(Object.values(seen.times).map((times) => times.asLead))],
-        ["not-admin"],
+        [...new Set(Object.values(seen.times).map((times) => [times.asLead, times.leadSeesTheAdminsPicture].join(" ")))],
+        ["ok true"],
       );
     });
   });
@@ -1515,12 +1520,16 @@ describe("stage one of the course hub, one term from decision day to the first s
       assert.equal(p().mailedByTheUntestedPress, 0);
     });
 
-    test("the run's track lead is told the run is an admin's; the programme's lead, who is not on the run, is refused", () => {
-      const ADMINS = "This run’s people came from the application form, so only an admin can publish it or send its test.";
-      assert.deepEqual(short(p().trackLeadTests), [403, ADMINS]);
-      assert.deepEqual(short(p().trackLeadPresses), [403, ADMINS]);
-      assert.deepEqual(short(p().leadTests), [403, "Forbidden"]);
+    test("the run's track lead is told the run is an admin's or its programme's lead's; that lead is shown Publish as an admin is", () => {
+      const WHO =
+        "This run’s people came from the application form, so only an admin or its programme’s lead can publish it or send its test.";
+      assert.deepEqual(short(p().trackLeadTests), [403, WHO]);
+      assert.deepEqual(short(p().trackLeadPresses), [403, WHO]);
       assert.equal(p().trackLeadSummary.adminOnly, true);
+      // The programme's lead is on the run through her programme, not its
+      // track leads: she is served every row it holds, so her board's Publish
+      // is the admin's, count, test and all.
+      assert.deepEqual(p().leadSummary, p().before);
     });
 
     test("the test is the first person's and the first facilitator's real email, marked, to the presser alone", () => {
@@ -1871,18 +1880,17 @@ describe("stage one of the course hub, one term from decision day to the first s
       ]);
     });
 
-    test("the programme's lead is shown that the page is an admin's, and her offer is refused", () => {
-      assert.deepEqual(f().leadPage, { refused: "not-yours" });
-      assert.deepEqual(short(f().leadOffers), [403, "Only an admin can offer freed places this term."]);
+    test("the programme's lead is shown the page an admin is shown", () => {
+      assert.deepEqual(f().leadPage, f().page);
     });
 
-    test("the test and the offer email the presser and Hannah, in the board's words, and nobody else", () => {
+    test("the lead's test and offer email her and Hannah, in the board's words, and nobody else", () => {
       assert.deepEqual(f().test.body, { ok: true, delivery: "sent", subject: "A place has come up on AGI Strategy", recorded: true });
       assert.deepEqual(f().offer.body, { ok: true, report: { offered: 1, emailed: 1, held: 0, suppressed: 0, failed: [], unconfirmed: [] } });
       assert.deepEqual(
         f().offerMail.map((mail) => [mail.to, mail.subject, mail.kind, mail.replyTo]),
         [
-          [address("zach"), "[TEST] A place has come up on AGI Strategy", "admin-test", "ai-safety@uonsu.com"],
+          [address("claudia"), "[TEST] A place has come up on AGI Strategy", "admin-test", "ai-safety@uonsu.com"],
           [address("hannah"), "A place has come up on AGI Strategy", "admissions", "ai-safety@uonsu.com"],
         ],
       );
@@ -1956,9 +1964,9 @@ describe("stage one of the course hub, one term from decision day to the first s
       });
       assert.deepEqual(f().pressMail.map((mail) => [mail.to, mail.subject]), [[address("hannah"), B_SUBJECT]]);
       assert.equal(readFrom(f().pressMail[0], "You've been placed"), B_PLACED("Hannah"));
-      // From the freed place's test to the end: the presser's test, the offer, and her group.
+      // From the freed place's test to the end: the lead's test, the offer, and her group.
       assert.deepEqual(f().allMail, [
-        [address("zach"), "[TEST] A place has come up on AGI Strategy"],
+        [address("claudia"), "[TEST] A place has come up on AGI Strategy"],
         [address("hannah"), "A place has come up on AGI Strategy"],
         [address("hannah"), B_SUBJECT],
       ]);
