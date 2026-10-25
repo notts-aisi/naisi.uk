@@ -119,7 +119,17 @@ export type SessionsWeekView = {
   blank: string | null;
 };
 
-/** People's names and first names, by uid, for the accounts given. */
+/**
+ * The account's whole name, then the name they go by: the Sessions view names
+ * a group's facilitators in full ("Rahul Mehta and Sofia Rossi"), as the
+ * Facilitators view does. Never an address.
+ */
+function fullNameOf(data: Record<string, unknown>): string {
+  const display = typeof data.displayName === "string" ? data.displayName.trim() : "";
+  return display || displayNameOf(data);
+}
+
+/** People's whole names and first names, by uid, for the accounts given. */
 async function namesOf(
   db: Firestore,
   uids: readonly string[],
@@ -131,7 +141,7 @@ async function namesOf(
   for (const doc of docs) {
     if (!doc.exists) continue;
     const data = (doc.data() ?? {}) as Record<string, unknown>;
-    out.set(doc.id, { name: displayNameOf(data), first: firstNameOfUser(data), data });
+    out.set(doc.id, { name: fullNameOf(data), first: firstNameOfUser(data), data });
   }
   return out;
 }
@@ -304,16 +314,13 @@ function cardFor(
   };
 }
 
-/** The live groups of a run, Monday first, as the run's other tabs order them. */
+/** The live groups of a run, by name, as the Sessions view lists them (Group A to Group D). */
 export async function loadLiveGroups(db: Firestore, runId: string): Promise<CourseGroupDoc[]> {
   const snap = await db.collection("courseGroups").where("runId", "==", runId).get();
   return snap.docs
     .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
     .filter((group) => group.runId === runId && !group.archived)
-    .sort((a, b) => {
-      const day = ((a.session.weekday + 6) % 7) - ((b.session.weekday + 6) % 7);
-      return day || a.session.startTimeLocal.localeCompare(b.session.startTimeLocal) || a.name.localeCompare(b.name);
-    });
+    .sort((a, b) => groupNameOf(a).localeCompare(groupNameOf(b), "en-GB", { numeric: true }) || a.id.localeCompare(b.id));
 }
 
 /**
