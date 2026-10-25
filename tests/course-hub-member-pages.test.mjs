@@ -112,6 +112,13 @@ describe("1. the programme home", () => {
     assert.doesNotMatch(text, /Add to calendar|Can’t make it|Names only/);
   });
 
+  test("only the next week to open says when: a later published week shows its date alone", async () => {
+    w.world.db.poke(`courseRuns/${RUN.agi}/weeks/w05`, { published: true });
+    await w.asBrowser("chloe");
+    const { text } = w.programmeHome("chloe");
+    assert.match(text, /Week 4 Week 4 readings Tue 24 Nov · Opens tonight, after your session Week 5 Week 5 readings Tue 1 Dec Week 6 /);
+  });
+
   test("a room changed for this week only: the ticket says so, the head keeps the group's own room", async () => {
     changeGroupB(w, { sessionOverrides: { w03: { location: "Room C21" } } });
     await w.asBrowser("chloe");
