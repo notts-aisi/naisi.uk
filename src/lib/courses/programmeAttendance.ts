@@ -59,7 +59,9 @@ import { registerSwitchesIn, type RegisterSwitches } from "@/lib/scheduler/regis
  * absent included. A mark saved on a register not finished yet counts too,
  * drawn with a ring, because the board counts it ("Saved, not finished").
  * A session the register says did not happen counts for nobody, and nor
- * does one cancelled through "Change a session".
+ * does one cancelled through "Change a session". Each row also counts the
+ * sessions its group held while the person was in it, marked or not, which
+ * is what who finished's rule weighs "every session" against.
  *
  * ── ONE SESSION A WEEK ──────────────────────────────────────────────────────
  * A column is a taught week, and each group's first session of it. Every
@@ -136,6 +138,13 @@ export type GridPerson = {
   cells: GridCell[];
   came: number;
   of: number;
+  /**
+   * The sessions their group held while they were in it, marked or not: from
+   * the week they joined, and for somebody who left, until they left; held,
+   * not cancelled, and started. What "came to every session their group
+   * held" is counted against (who finished's rule).
+   */
+  groupHeld: number;
 };
 
 export type GridGroup = {
@@ -455,6 +464,7 @@ function personRow(
   const cells: GridCell[] = [];
   let came = 0;
   let of = 0;
+  let groupHeld = 0;
   for (const weekNumber of weeks) {
     const facts = sessions.get(weekNumber);
     if (!facts) {
@@ -481,6 +491,7 @@ function personRow(
       cells.push({ weekNumber, state: "not-held", mark: null, saved: false });
       continue;
     }
+    if (happened(facts)) groupHeld += 1;
     if (mark) {
       cells.push({ weekNumber, state: "mark", mark, saved: !facts.finished });
       if (happened(facts)) {
@@ -518,6 +529,7 @@ function personRow(
     cells,
     came,
     of,
+    groupHeld,
   };
 }
 

@@ -1787,8 +1787,11 @@ the suggestion, the list, the words) and
 
 On the programme's **Settings** tab, the **Who finished** card, for a
 programme that names a run: **Came to at least [ ] sessions**, of the
-sessions their group held. There is no default: with no number the site
-ticks nobody, and the lead ticks people by hand. A number above the most
+sessions their group held. Somebody whose group held fewer than that while
+they were in it (a session was cancelled, or they joined after the start)
+meets the rule by coming to every session it held; a group that held none
+while they were in it meets nobody's. There is no default: with no number
+the site ticks nobody, and the lead ticks people by hand. A number above the most
 sessions any of the run's groups is due to hold is refused. It can be set or
 changed at any time, before the end or after it. Only the lead and admins are
 ever shown it: no member's page and no member's payload carries it.

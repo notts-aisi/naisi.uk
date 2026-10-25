@@ -8,8 +8,10 @@
  * own pages and the header can never disagree:
  *
  *  - THE RULE, a setting of the run: the least number of sessions a person
- *    must have come to, of the sessions their group held. There is no
- *    default. The programme's lead or an admin sets it on the programme's
+ *    must have come to, of the sessions their group held. A group that held
+ *    fewer (a session cancelled, say) holds nobody to more than it held:
+ *    coming to every session it held meets the rule (`meetsRule`). There is
+ *    no default. The programme's lead or an admin sets it on the programme's
  *    Settings tab, and nobody else is ever shown the number.
  *  - THE SUGGESTION, worked out each time it is asked from the rule and the
  *    run's registers ("came" is the Attendance tab's own count: present,
@@ -103,6 +105,20 @@ function asDate(value: unknown): Date | null {
     return date instanceof Date && !Number.isNaN(date.getTime()) ? date : null;
   }
   return null;
+}
+
+/**
+ * WHETHER SOMEBODY MEETS THE RULE: they came to at least `atLeast` sessions,
+ * or to every session their group held while they were in it when it held
+ * fewer, as the rule's card promises ("Of the sessions their group held: a
+ * cancelled session doesn’t count against anyone"). A group that held none
+ * while they were in it meets nobody's rule: nobody finishes having come to
+ * nothing. The one rule: the lead's list, the switch's suggestion and every
+ * member's own record all ask it.
+ */
+export function meetsRule(came: number, groupHeld: number, atLeast: number): boolean {
+  if (came >= atLeast) return true;
+  return groupHeld > 0 && groupHeld < atLeast && came >= groupHeld;
 }
 
 /** A whole number of sessions a rule may ask for, or null for anything else. */

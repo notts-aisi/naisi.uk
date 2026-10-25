@@ -16,6 +16,7 @@ import {
   FINISHING_COLLECTION,
   finishDecisionId,
   finishRuleId,
+  meetsRule,
   normalizeFinishDecision,
   normalizeFinishRule,
   type FinishDecision,
@@ -174,19 +175,28 @@ export type FinishRecord = {
 };
 
 /**
+ * What the rule says of one person, from their row of the grid: false with no
+ * rule. The switch's route asks this too, so a decision is stored exactly
+ * where it differs from what the lead's list shows.
+ */
+export function suggestedBy(rule: FinishRule | null, row: Pick<GridPerson, "came" | "groupHeld">): boolean {
+  return rule !== null && meetsRule(row.came, row.groupHeld, rule.atLeast);
+}
+
+/**
  * A person's record, from their row of the grid. Null before the run is over
  * and for somebody who left: they are listed as having left, and have no
  * finished record at all.
  */
 export function recordOf(
-  row: Pick<GridPerson, "uid" | "came" | "left">,
+  row: Pick<GridPerson, "uid" | "came" | "groupHeld" | "left">,
   finishing: Finishing,
   end: RunEnd,
 ): FinishRecord | null {
   if (!end.over || row.left !== null) return null;
   const decision = finishing.decisions.get(row.uid) ?? null;
   const rule = finishing.rule;
-  const suggested = rule !== null && row.came >= rule.atLeast;
+  const suggested = suggestedBy(rule, row);
   if (decision) {
     return { finished: decision.finished, suggested, decidedBy: "lead", at: decision.at, decision };
   }

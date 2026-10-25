@@ -1968,19 +1968,22 @@ describe("stage three of the course hub, one term from week 3 to after its end",
     });
 
     // The rule is a number of sessions, the same for every group, while a
-    // group that had a session cancelled held fewer. At "at least 6 of 6"
-    // Amara, who came to every one of the 5 sessions her group held, is not
-    // ticked, though the card's hint and the note under the list say a
-    // cancelled session "doesn’t count against anyone" (H3).
-    test("at least 6: only Dev is ticked; Amara, at every session Group B held, is not", () => {
+    // group that had a session cancelled held fewer. Until the walk of stage
+    // three, at "at least 6 of 6" Amara, who came to every one of the 5
+    // sessions her group held, was not ticked, though the card's hint and the
+    // note under the list say a cancelled session "doesn’t count against
+    // anyone" (H3). Coming to every session one's group held now meets the
+    // rule when the group held fewer, as the hint promises; the rule's
+    // ceiling is still the most sessions any group is due to hold (7, below).
+    test("at least 6: Dev, at all six of Group A's, and Amara, at all five Group B held, are ticked; Isaac, at four of them, is not", () => {
       assert.deepEqual(r().six.answer, [200, { atLeast: 6, sessions: 6 }]);
-      assert.deepEqual(r().six.section.rows, listOf(["dev"]));
-      assert.equal(r().six.section.counts, "1 finished · 6 not");
+      assert.deepEqual(r().six.section.rows, listOf(["amara", "dev"]));
+      assert.equal(r().six.section.counts, "2 finished · 5 not");
     });
 
     test("7 is refused with a sentence and changes nothing; an empty box clears the rule; 4 again", () => {
       assert.deepEqual(r().seven.answer, [409, "This programme’s groups meet 6 times, so nobody can come to more sessions than that."]);
-      assert.deepEqual([r().seven.card, r().seven.section.rows], [{ atLeast: 6 }, listOf(["dev"])]);
+      assert.deepEqual([r().seven.card, r().seven.section.rows], [{ atLeast: 6 }, listOf(["amara", "dev"])]);
       assert.deepEqual([r().cleared.answer, r().cleared.card, r().cleared.section.sentence], [[200, { atLeast: null, sessions: 6 }], { atLeast: null }, NO_RULE]);
       assert.deepEqual(r().back.section, r().four.section);
       assert.deepEqual([r().stored.kind, r().stored.atLeast], ["rule", 4]);

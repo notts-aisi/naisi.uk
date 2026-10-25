@@ -17,7 +17,8 @@
  *     and nothing is over before then.
  *  4. THE SUGGESTION is "came" (present, late and left early) against the
  *     rule, at the rule's edges; excused never counts as came; a cancelled
- *     session counts for nobody; no rule ticks nobody.
+ *     session counts for nobody, so coming to every session one's group held
+ *     meets a rule that asks for more than it held; no rule ticks nobody.
  *  5. EACH PERSON'S RECORD: finished or not, who decided (the lead or the
  *     suggestion) and when, none for somebody who left or before the end.
  *  6. THE EXERCISES set to a group (its own copy of a week where it has one,
@@ -242,12 +243,60 @@ describe("4. the suggestion, at the rule's edges", () => {
     assert.deepEqual([tick.Chloe, tick.Yasmin, tick.Dev, tick.Amara], [true, true, false, true]);
   });
 
+  // Until the walk of stage three this left out Chloe, who came to all five
+  // sessions Group B held (its week 4 was cancelled), though the rule's card
+  // promises a cancelled session counts against nobody (H3). Every session a
+  // group held now meets a rule that asks for more than it held.
   test("at least 6, the most there is, ticks only those who came to every session their group held", async () => {
     world.db.seed(rulePath, RULE(6));
     assert.deepEqual(
       (await section()).rows.filter((row) => row.finished).map((row) => row.name.split(" ")[0]).sort(),
-      ["Amara", "Hamza"],
+      ["Amara", "Chloe", "Hamza"],
     );
+  });
+
+  test("the rule on its own: at least its number, or every session a group held when it held fewer, and never nothing", () => {
+    const { meetsRule } = lib.model;
+    // [came, sessions the group held while they were in it, the rule's number] -> meets it
+    for (const [came, held, atLeast, meets] of [
+      [6, 6, 6, true],
+      [5, 6, 6, false],
+      [5, 5, 6, true],
+      [4, 5, 6, false],
+      [4, 5, 4, true],
+      [3, 5, 4, false],
+      [1, 1, 3, true],
+      [0, 0, 3, false],
+      [0, 0, 1, false],
+      [2, 3, 2, true],
+    ]) {
+      assert.equal(meetsRule(came, held, atLeast), meets, `came ${came} of ${held}, at least ${atLeast}`);
+    }
+  });
+
+  test("each row counts the sessions its group held while they were in it, marked or not: a cancelled one is not among them", async () => {
+    const rows = lib.attendance
+      .listGroups(await records(), { isAdmin: false }, new Date(), lib.attendance.weeksOf(await records()))
+      .flatMap((listed) => listed.people.map(({ row }) => [row.name.split(" ")[0], row.came, row.of, row.groupHeld]));
+    const of = Object.fromEntries(rows.map(([name, ...counts]) => [name, counts]));
+    assert.deepEqual(of.Chloe, [5, 5, 5]);
+    assert.deepEqual(of.Kofi, [3, 5, 5], "his two excused sessions were held, and he did not come to them");
+    assert.deepEqual(of.Yasmin, [5, 6, 6]);
+    // Sam left on Fri 6 Nov, after his group's second session: two were held while he was in it.
+    assert.deepEqual(of.Sam, [1, 2, 2]);
+  });
+
+  test("somebody who joined after the start is held to the sessions their group held while they were in it", async () => {
+    // Amara came to all six; had she joined in week 3, she came to all four
+    // after, and meets "at least 6". Bea, joining in week 4, came to none of
+    // the three after, and does not.
+    world.db.poke(`courseEnrolments/${RUN.agi}__amara`, { joinedWeekNumber: 3 });
+    world.db.poke(`courseEnrolments/${RUN.agi}__bea`, { joinedWeekNumber: 4 });
+    world.db.seed(rulePath, RULE(6));
+    const model = await section();
+    const row = (name) => model.rows.find((each) => each.name.startsWith(name));
+    assert.deepEqual([row("Amara").came, row("Amara").finished], ["4 of 4", true]);
+    assert.deepEqual([row("Bea").came, row("Bea").finished], ["0 of 3", false]);
   });
 
   test("with no rule nobody is ticked, and the sentence says so without a number", async () => {
