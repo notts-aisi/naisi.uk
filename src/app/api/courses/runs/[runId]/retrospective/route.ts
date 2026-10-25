@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { canApproveCourse, canDraftCourse } from "@/lib/firestore/users";
 import { asUidList } from "@/lib/firestore/events";
 import { normalizeCourseWeek } from "@/lib/firestore/courses";
@@ -24,8 +24,9 @@ import {
  * facilitators wrote about how it landed.
  *
  * WHO MAY READ: admins ∪ `approveCourse` ∪ `draftCourse` ∪ this run's track
- * leads. The people who author and steer curricula, which is the entire point
- * — this view exists to be read while drafting the next version.
+ * leads ∪ the lead of the programme that names the run (`runStaffingOf`). The
+ * people who author and steer curricula, which is the entire point — this
+ * view exists to be read while drafting the next version.
  *
  * ── THE ANONYMITY BOUNDARY ──────────────────────────────────────────────────
  * RATINGS ARE ANONYMOUS AGGREGATES. Members rate materials from inside their
@@ -102,12 +103,15 @@ export async function GET(
   const runSnap = await db.collection("courseRuns").doc(runId).get();
   const staff = canApproveCourse(actor) || canDraftCourse(actor);
   if (!staff) {
+    // A track lead's place here is shared with the lead of the programme that
+    // names the run (`runStaffingOf`).
     const isLead =
       runSnap.exists &&
-      isNamedWithStanding(
-        actor,
-        "courseRuns.trackLeadUids",
-        asUidList((runSnap.data() ?? {}).trackLeadUids),
+      doesTrackLeadWork(
+        await runStaffingOf(db, actor, {
+          id: runId,
+          trackLeadUids: asUidList((runSnap.data() ?? {}).trackLeadUids),
+        }),
       );
     if (!isLead) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

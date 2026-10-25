@@ -1,13 +1,14 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import type { SessionSlot } from "@/lib/admissions/availability";
-import type { CourseApplicationDoc } from "@/lib/firestore/courseApplications";
+import type { CourseApplicationDoc, RowViewer } from "@/lib/firestore/courseApplications";
 import type { ApplicationDoc, DecisionDoc } from "../model";
 import type { ApplicationForm } from "../normalise";
 import { loadForm } from "../repo";
 import { loadApplication, loadDecision } from "../staffRepo";
 import { holdsPlaceOn } from "./holders";
 import { paintedWeekOf } from "./paintedWeek";
+import { isRowFrom } from "./run";
 
 /**
  * WHAT THE ALLOCATION BOARD IS TOLD about somebody the application form
@@ -42,12 +43,14 @@ import { paintedWeekOf } from "./paintedWeek";
  *    was destroyed). The person keeps their place on the run, and nothing is
  *    claimed about when they are free.
  *
- * ## For an admin, and for nobody else
+ * ## For an admin, and for the lead of the programme the row came from
  *
- * A row from the form is served to admins only (`rowIsServedTo`), and an
- * admin may read every application. This function is handed who is asking
- * and answers nothing for anybody else, so a caller that forgot to ask first
- * still gets nothing.
+ * A row from the form is served to an admin and to the lead of the programme
+ * that names the run (`rowIsServedTo`). An admin may read every application,
+ * and that lead reads the applications to their own programme. This function
+ * is handed who is asking and answers for an admin every row, for the lead
+ * the rows their own programme's hand-over wrote (`isRowFrom`), and nothing
+ * for anybody else, so a caller that forgot to ask first still gets nothing.
  */
 
 /** A group, reduced to what the comparison reads: its id and its weekly session. */
@@ -96,16 +99,19 @@ function factsFor(
  */
 export async function formPlaceFactsFor(
   db: Firestore,
-  viewer: { isAdmin: boolean },
+  viewer: RowViewer,
   rows: readonly FormRow[],
   groups: readonly BoardGroup[],
 ): Promise<Map<string, FormPlaceFacts>> {
   const facts = new Map<string, FormPlaceFacts>();
-  if (!viewer.isAdmin) return facts;
+  const lead = viewer.leadOf;
+  if (!viewer.isAdmin && lead === null) return facts;
 
   const byRound = new Map<string, { uid: string; programmeId: string }[]>();
   for (const row of rows) {
     if (!row.fromForm || !row.uid) continue;
+    // A lead is answered about their own programme's rows, and no others.
+    if (!viewer.isAdmin && (lead === null || !isRowFrom(row, lead.roundId, lead.programmeId))) continue;
     const list = byRound.get(row.fromForm.roundId) ?? [];
     list.push({ uid: row.uid, programmeId: row.fromForm.programmeId });
     byRound.set(row.fromForm.roundId, list);

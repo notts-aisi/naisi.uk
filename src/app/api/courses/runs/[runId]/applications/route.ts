@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import {
   membershipKnownFromRow,
   normalizeCourseApplication,
@@ -22,11 +23,13 @@ import { hasPaidMembership, normalizeUser } from "@/lib/firestore/users";
  * The admissions review queue for one run — the read half of P5.
  *
  * WHO MAY READ (locked product decision): admins ∪ the run's
- * `admissionsReviewerUids` ∪ its `trackLeadUids`. Admissions is deliberately a
- * SEPARATE role from facilitation: being a group facilitator grants no sight of
- * anyone's application, and reviewing applications grants no access to the
- * cohort. Track leads are here to READ (they staff and steer the run); only
- * admins and admissions reviewers may decide — see the decide route.
+ * `admissionsReviewerUids` ∪ its `trackLeadUids` ∪ the lead of the programme
+ * that names the run (`runStaffingOf`), who reads it as a track lead does.
+ * Admissions is deliberately a SEPARATE role from facilitation: being a group
+ * facilitator grants no sight of anyone's application, and reviewing
+ * applications grants no access to the cohort. Track leads are here to READ
+ * (they staff and steer the run); only admins and admissions reviewers may
+ * decide — see the decide route.
  *
  * ── THE PII BOUNDARY ────────────────────────────────────────────────────────
  * `email` is populated ONLY when the caller is an admin. A non-admin reviewer
@@ -212,18 +215,14 @@ export async function GET(
   }
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
 
-  const isAdmin = actor.role === "admin";
+  const staffing = await runStaffingOf(db, actor, run);
+  const isAdmin = staffing.isAdmin;
   const isReviewer = isNamedWithStanding(
     actor,
     "courseRuns.admissionsReviewerUids",
     run.admissionsReviewerUids,
   );
-  const isTrackLead = isNamedWithStanding(
-    actor,
-    "courseRuns.trackLeadUids",
-    run.trackLeadUids,
-  );
-  if (!isAdmin && !isReviewer && !isTrackLead) {
+  if (!doesTrackLeadWork(staffing) && !isReviewer) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -238,13 +237,14 @@ export async function GET(
     db.collection("courseGroups").where("runId", "==", runId).limit(50).get(),
   ]);
 
-  // A row the application form put on this run is an admin's to see
-  // (`rowIsServedTo`): the run's reviewers and track leads are listed the
-  // people who applied to the run itself, and nobody else. The run's own
-  // counters above still count every row, as numbers.
+  // A row the application form put on this run is seen by an admin and by
+  // the lead of the programme whose hand-over wrote it (`rowIsServedTo`): the
+  // run's reviewers and track leads are listed the people who applied to the
+  // run itself, and nobody else. The run's own counters above still count
+  // every row, as numbers.
   const applications = appSnap.docs
     .map((d) => normalizeCourseApplication(d.id, d.data() ?? {}))
-    .filter((a) => rowIsServedTo(a, { isAdmin }));
+    .filter((a) => rowIsServedTo(a, staffing));
 
   // Archived groups are dropped: a reviewer must not be able to record a
   // preference for a group that no longer runs.

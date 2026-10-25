@@ -478,9 +478,12 @@ process.env.NEXT_PUBLIC_APP_URL = "https://naisi.invalid";
 /**
  * A world, its loader and the way to make a request in it. `key` names the
  * handle on `globalThis` the stubs read, so two suites in one process would
- * not share one.
+ * not share one. `extraStubs` are `[specifier, source]` pairs added after the
+ * world's own, for a suite that loads a route this world's stubs do not
+ * cover (a door it would otherwise reach): an extra wins over a default of
+ * the same name.
  */
-export function makeWorld(key = "__handover") {
+export function makeWorld(key = "__handover", extraStubs = []) {
   const world = {
     /** The store, as the application system's code is handed it. */
     db: null,
@@ -535,6 +538,7 @@ export function makeWorld(key = "__handover") {
           `  ${handle}.pushes.push({ uid, ...note });\n` +
           "}",
       ],
+      ...extraStubs,
     ]),
   });
 

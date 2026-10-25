@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import type { DocumentReference } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { canApproveCourse } from "@/lib/firestore/users";
 import { asUidList } from "@/lib/firestore/events";
 import {
@@ -121,16 +121,13 @@ export async function POST(
   const target = targetSnap.data() ?? {};
   const source = sourceSnap.data() ?? {};
 
-  // Admins, approvers, and the TARGET run's track leads — the people who own
-  // this run's curriculum. Authority over the source run isn't required
+  // Admins, approvers, the TARGET run's track leads and the lead of the
+  // programme that names the target run (`runStaffingOf`) — the people who
+  // own this run's curriculum. Authority over the source run isn't required
   // separately because of the same-course check below: a track lead can only
   // ever pull content out of a run of the course they already lead.
-  const isTrackLead = isNamedWithStanding(
-    actor,
-    "courseRuns.trackLeadUids",
-    asUidList(target.trackLeadUids),
-  );
-  if (!(canApproveCourse(actor) || isTrackLead)) {
+  const staffing = await runStaffingOf(db, actor, { id: runId, trackLeadUids: asUidList(target.trackLeadUids) });
+  if (!(canApproveCourse(actor) || doesTrackLeadWork(staffing))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

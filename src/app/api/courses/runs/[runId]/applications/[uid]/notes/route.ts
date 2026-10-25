@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { runStaffingOf } from "@/lib/courses/runStaffing";
 import {
   APPLICATION_FIELD_LIMITS,
   courseApplicationId,
@@ -67,7 +68,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
 
-  const isAdmin = actor.role === "admin";
+  // Who is asking, as far as the rows go: an admin, or the lead of the
+  // programme that names the run (`runStaffingOf`). Neither of those is a
+  // reason to pass this gate, which stays the run's own reviewers and admins.
+  const staffing = await runStaffingOf(db, actor, run);
+  const isAdmin = staffing.isAdmin;
   const isReviewer = isNamedWithStanding(
     actor,
     "courseRuns.admissionsReviewerUids",
@@ -90,9 +95,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (existing.uid !== uid || existing.runId !== runId) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 });
   }
-  // A row the application form put here is an admin's (`rowIsServedTo`). The
+  // A row the application form put here is served to an admin and to the
+  // lead of the programme whose hand-over wrote it (`rowIsServedTo`). The
   // run's own reviewer is answered as for a row that is not there.
-  if (!rowIsServedTo(normalizeCourseApplication(appSnap.id, existing), { isAdmin })) {
+  if (!rowIsServedTo(normalizeCourseApplication(appSnap.id, existing), staffing)) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 });
   }
 

@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import type { Firestore } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { asUidList } from "@/lib/firestore/events";
 import { GROUP_FIELD_LIMITS } from "@/lib/firestore/courseGroups";
 import { courseEnrolmentId } from "@/lib/firestore/courseEnrolments";
@@ -19,8 +19,9 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  *     makes the group appear on that person's /learn hub ("every run you
  *     touch" is one query over enrolments).
  *
- * Gated to admins and the parent run's track leads — the people who staff a
- * run. Facilitators cannot add each other.
+ * Gated to admins, the parent run's track leads and the lead of the programme
+ * that names the run (`runStaffingOf`) — the people who staff a run.
+ * Facilitators cannot add each other.
  */
 
 const ELIGIBLE_ROLES = ["member", "committee", "admin"] as const;
@@ -79,12 +80,10 @@ export async function POST(
   }
   const run = runSnap.data() ?? {};
 
-  const isTrackLead = isNamedWithStanding(
-    actor,
-    "courseRuns.trackLeadUids",
-    asUidList(run.trackLeadUids),
-  );
-  if (!(actor.role === "admin" || isTrackLead)) {
+  // An admin, one of the run's track leads, or the lead of the programme that
+  // names the run (`runStaffingOf`).
+  const staffing = await runStaffingOf(db, actor, { id: runId, trackLeadUids: asUidList(run.trackLeadUids) });
+  if (!doesTrackLeadWork(staffing)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

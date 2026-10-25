@@ -68,8 +68,10 @@ mock.timers.enable({ apis: ["Date"], now: NOW });
 
 const LINK = "https://meet.example/j/8675309?pwd=opensesame";
 const WAY_IN = ["meet.example", "8675309", "opensesame"];
+// Since the course hub's lead access (Q1) the lead of the programme that
+// names the run publishes it too, so the sentence names both.
 const ADMIN_ONLY =
-  "This run’s people came from the application form, so only an admin can publish it or send its test.";
+  "This run’s people came from the application form, so only an admin or its programme’s lead can publish it or send its test.";
 
 /** Six taught weeks from Thu 29 Oct: a Tuesday group meets from Tue 3 Nov to Tue 8 Dec. */
 const SIX_WEEKS = Array.from({ length: 6 }, (_, i) => ({
@@ -176,14 +178,16 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("1. who may press", () => {
-  test("signed out is refused, and so is everybody but an admin and the run's track lead", async () => {
+  test("signed out is refused, and so is everybody but an admin, the run's track lead and the programme's lead", async () => {
     await placed();
     const before = everything();
     for (const route of [routes.publishTest.POST, routes.publish.POST]) {
       assert.deepEqual(short(await call(null, route, { runId: RUN.agi }, { body: { emails: 7 }, course: true })), [401, "Not signed in"]);
-      // A member placed on the run, one who is not, the run's reviewer, the
-      // programme's lead and one of the group's facilitators.
-      for (const who of ["amara", "omar", "lloyd", "claudia", "rahul"]) {
+      // A member placed on the run, one who is not, the run's reviewer and
+      // one of the group's facilitators. The programme's lead, Claudia,
+      // presses both since the course hub's lead access (Q1): that is held
+      // in tests/course-hub-lead-routes.test.mjs.
+      for (const who of ["amara", "omar", "lloyd", "rahul"]) {
         assert.deepEqual(short(await call(who, route, { runId: RUN.agi }, { body: { emails: 7 }, course: true })), [403, "Forbidden"], who);
       }
     }

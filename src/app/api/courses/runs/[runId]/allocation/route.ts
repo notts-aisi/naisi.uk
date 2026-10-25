@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
 import {
   formPlaceFactsFor,
@@ -12,6 +11,7 @@ import {
   testWhen,
   type TestState,
 } from "@/lib/courses/allocationPublish";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import type { WeekPlanEntry } from "@/lib/courses/weekPlan";
 import {
   membershipKnownFromRow,
@@ -35,7 +35,8 @@ import { hasPaidMembership, normalizeUser } from "@/lib/firestore/users";
  * the run, its groups (with live member counts), and every ACCEPTED applicant
  * joined with their enrolment (if any).
  *
- * WHO MAY READ: admins ∪ the run's `trackLeadUids`. Allocation is a staffing
+ * WHO MAY READ: admins ∪ the run's `trackLeadUids` ∪ the lead of the
+ * programme that names the run (`runStaffingOf`). Allocation is a staffing
  * act — placing accepted people into groups — so it belongs to the people who
  * staff and steer the run, NOT to admissions reviewers (whose job ended at the
  * decision) and not to facilitators (who see only their own group's roster,
@@ -52,15 +53,17 @@ import { hasPaidMembership, normalizeUser } from "@/lib/firestore/users";
  * "Everyone placed" is a count of rows with a null/inactive placement — the
  * publish route refuses while that count is non-zero.
  *
- * SOMEBODY THE APPLICATION FORM PLACED HERE IS AN ADMIN'S TO SEE. A row an
- * admin's hand-over wrote (`fromForm`) is for a person who applied on the
- * term's form, where who may read an application is decided programme by
- * programme, and being this run's track lead gives nobody that right. So
- * such a row is listed for an admin and for nobody else (`rowIsServedTo`).
- * A track lead still opens the board and still sees everybody who applied to
- * the run itself. For those rows the payload also carries which groups the
- * person can make, worked out from the week they painted on the form when
- * the board is read: see `AllocRow.fromForm`.
+ * SOMEBODY THE APPLICATION FORM PLACED HERE IS SEEN BY AN ADMIN AND BY THE
+ * LEAD OF THE PROGRAMME THAT NAMES THE RUN. A row an admin's hand-over wrote
+ * (`fromForm`) is for a person who applied on the term's form, where who may
+ * read an application is decided programme by programme, and being this
+ * run's track lead gives nobody that right. So such a row is listed for an
+ * admin, and for the lead of the programme whose hand-over wrote it, and for
+ * nobody else (`rowIsServedTo`). A track lead still opens the board and still
+ * sees everybody who applied to the run itself. For the rows from the form
+ * the payload also carries which groups the person can make, worked out from
+ * the week they painted on the form when the board is read: see
+ * `AllocRow.fromForm`.
  */
 
 // ---------------------------------------------------------------------------
@@ -76,6 +79,11 @@ export type AllocGroup = {
   sessionLabel: string;
   /** Names only — this board is shown to non-admin track leads too. */
   facilitatorNames: string[];
+  /**
+   * The same facilitators by uid, in the same order, so the Groups tab's
+   * Facilitators view can say who is ticked. A uid is an id, not an address.
+   */
+  facilitatorUids: string[];
   /** The server-owned counter maintained by the allocation transaction. */
   memberCount: number;
   /**
@@ -152,7 +160,10 @@ export type AllocRow = {
  * only: no address is in it.
  */
 export type PublishSummary = {
-  /** The run takes its people from the application form and the viewer is not an admin. */
+  /**
+   * The run takes its people from the application form and the viewer is
+   * neither an admin nor the lead of the programme that names it.
+   */
   adminOnly: boolean;
   /** Emails a press sends now. */
   emails: number;
@@ -311,13 +322,10 @@ export async function GET(
   const runData = runSnap.data() ?? {};
   const run = normalizeCourseRun(runSnap.id, runData);
 
-  const isAdmin = actor.role === "admin";
-  const isTrackLead = isNamedWithStanding(
-    actor,
-    "courseRuns.trackLeadUids",
-    run.trackLeadUids,
-  );
-  if (!isAdmin && !isTrackLead) {
+  // An admin, one of the run's track leads, or the lead of the programme that
+  // names the run, worked out from the form now (`runStaffingOf`).
+  const staffing = await runStaffingOf(db, actor, run);
+  if (!doesTrackLeadWork(staffing)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -331,10 +339,11 @@ export async function GET(
     db.collection("courseGroups").where("runId", "==", runId).limit(50).get(),
   ]);
 
-  // A row the application form put here is listed for an admin only: see the
-  // note at the top.
+  // A row the application form put here is listed for an admin and for the
+  // lead of the programme whose hand-over wrote it: see the note at the top.
   const rows = appSnap.docs.map((d) => normalizeCourseApplication(d.id, d.data() ?? {}));
-  const accepted = rows.filter((a) => a.status === "accepted" && rowIsServedTo(a, { isAdmin }));
+  const served = rows.filter((a) => rowIsServedTo(a, staffing));
+  const accepted = served.filter((a) => a.status === "accepted");
 
   // Archived groups are dropped: the board must not offer a column that no
   // longer runs (the allocate route refuses them independently).
@@ -428,7 +437,7 @@ export async function GET(
   // week they painted and hands back only the answer.
   const formFacts = await formPlaceFactsFor(
     db,
-    { isAdmin },
+    staffing,
     accepted.filter((a) => a.fromForm !== null),
     groups.map((g) => ({ id: g.id, session: g.session })),
   );
@@ -468,9 +477,10 @@ export async function GET(
   });
 
   // What a press of Publish would do now, read through the plan Publish reads.
+  // A row this caller is not served holds the press for somebody who is.
   const plan = await loadPublishPlan(db, run, {
     accepted,
-    adminOnly: !isAdmin && rows.some((row) => row.fromForm !== null),
+    adminOnly: served.length < rows.length,
   });
   const batch = pressBatch(plan);
   let testedBy: string | null = null;
@@ -512,6 +522,7 @@ export async function GET(
       facilitatorNames: g.facilitatorUids.map(
         (uid) => nameByUid.get(uid) ?? "NAISI member",
       ),
+      facilitatorUids: [...g.facilitatorUids],
       memberCount: g.memberCount,
       // The autonomy triple, straight off the normalised doc plus the keys-only
       // subcollection read above. `normalizeCourseGroup` already coerces a

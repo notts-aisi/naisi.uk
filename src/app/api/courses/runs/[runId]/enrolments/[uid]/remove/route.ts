@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import {
   courseEnrolmentId,
   type CourseEnrolmentStatus,
@@ -17,7 +17,8 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * and its `groupId` clears, releasing the seat, in one transaction with the
  * group's `memberCount` decrement.
  *
- * WHO MAY REMOVE: admins ∪ the run's `trackLeadUids` — the allocation gate.
+ * WHO MAY REMOVE: admins ∪ the run's `trackLeadUids` ∪ the lead of the
+ * programme that names the run (`runStaffingOf`) — the allocation gate.
  *
  * A SOFT removal, deliberately: the enrolment doc survives. The deterministic
  * doc id (`courseEnrolments/{runId}__{uid}`) is the one-enrolment-per-(run,
@@ -66,13 +67,9 @@ export async function POST(_req: Request, ctx: Ctx) {
   }
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
 
-  const isAdmin = actor.role === "admin";
-  const isTrackLead = isNamedWithStanding(
-    actor,
-    "courseRuns.trackLeadUids",
-    run.trackLeadUids,
-  );
-  if (!isAdmin && !isTrackLead) {
+  const staffing = await runStaffingOf(db, actor, run);
+  const isAdmin = staffing.isAdmin;
+  if (!doesTrackLeadWork(staffing)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -180,7 +177,7 @@ export async function POST(_req: Request, ctx: Ctx) {
           kind: isAdmin ? "admin" : "member",
           uid: actor.uid,
           label:
-            actor.displayName?.trim() || (isAdmin ? "Admin" : "Track lead"),
+            actor.displayName?.trim() || (isAdmin ? "Admin" : staffing.leadOf ? "Programme lead" : "Track lead"),
         },
       });
     }

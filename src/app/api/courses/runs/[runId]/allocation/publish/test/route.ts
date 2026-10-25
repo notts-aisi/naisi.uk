@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { loadPublishPlan, pressBatch, recordPublishTest } from "@/lib/courses/allocationPublish";
 import { PUBLISH_ADMIN_ONLY } from "@/lib/courses/publishWords";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { sendCourseApplicationEmail, type CourseEmailDelivery } from "@/lib/email/courseApplicationEmails";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { normalizeCourseApplication, rowIsServedTo } from "@/lib/firestore/courseApplications";
@@ -15,11 +15,12 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * email, exactly as a press of Publish would send them now, each marked as a
  * test, to the address on the caller's own session.
  *
- * THE SAME CALLERS AS PUBLISH, decided the same way: an admin, or one of the
- * run's track leads on a run the application form does not fill. The address
- * is the session's and is never taken from the request, so a test reaches
- * nobody but whoever asked for it. It tells no applicant or facilitator
- * anything, and stamps no enrolment and no marker.
+ * THE SAME CALLERS AS PUBLISH, decided the same way: an admin, the lead of
+ * the programme that names the run, or one of the run's track leads on a run
+ * the application form does not fill. The address is the session's and is
+ * never taken from the request, so a test reaches nobody but whoever asked
+ * for it. It tells no applicant or facilitator anything, and stamps no
+ * enrolment and no marker.
  *
  * A TEST THAT REACHES ITS SENDER IS RECORDED against the run, with the
  * wording it was made from (`recordPublishTest`), and Publish refuses to send
@@ -57,19 +58,21 @@ export async function POST(_req: Request, ctx: Ctx) {
   if (!runSnap.exists) return NextResponse.json({ error: "Run not found" }, { status: 404 });
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
 
-  const isAdmin = actor.role === "admin";
-  if (!isAdmin && !isNamedWithStanding(actor, "courseRuns.trackLeadUids", run.trackLeadUids)) {
+  const staffing = await runStaffingOf(db, actor, run);
+  if (!doesTrackLeadWork(staffing)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   // The run's rows, each asked who it is served to with the caller's own
-  // role, exactly as Publish reads them: the test is Publish's first emails.
+  // standing on the run, exactly as Publish reads them: the test is
+  // Publish's first emails.
   const appSnap = await db.collection("courseApplications").where("runId", "==", runId).limit(500).get();
   const rows = appSnap.docs.map((d) => normalizeCourseApplication(d.id, d.data() ?? {}));
-  const accepted = rows.filter((a) => a.status === "accepted" && rowIsServedTo(a, { isAdmin }));
+  const served = rows.filter((a) => rowIsServedTo(a, staffing));
+  const accepted = served.filter((a) => a.status === "accepted");
   const plan = await loadPublishPlan(db, run, {
     accepted,
-    adminOnly: !isAdmin && rows.some((row) => row.fromForm !== null),
+    adminOnly: served.length < rows.length,
   });
   if (plan.adminOnly) return NextResponse.json({ error: PUBLISH_ADMIN_ONLY }, { status: 403 });
   if (plan.refusals.length > 0) {
