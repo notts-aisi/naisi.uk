@@ -1,7 +1,7 @@
 /**
- * Rules tests for TOLD PLACEMENTS: a placement an admin made is read and
- * written from a browser by nobody but an admin until Publish has told its
- * owner. That is the rule every page already keeps.
+ * Rules tests for TOLD PLACEMENTS: a placement an admin made is read from a
+ * browser by nobody but an admin, and opens nobody's progress pen, until
+ * Publish has told its owner. That is the rule every page already keeps.
  *
  * A placement is one `courseEnrolments` row, and it is told when it is a
  * facilitator's row, when its owner took the seat themselves on an open run
@@ -35,9 +35,37 @@
  * the pages call the row told. So the two cannot drift apart in either
  * direction without this file going red.
  *
- * EVERY CASE BUT THE ADMIN ONES RUNS AS A MEMBER. An admin's read branch is
- * resource-independent, so testing as an admin would pass whatever the
- * member-facing half of the rule said.
+ * EVERY CASE BUT THE ADMIN AND SIGNED-OUT ONES RUNS AS A MEMBER. An admin's
+ * read branch is resource-independent, so testing as an admin would pass
+ * whatever the member-facing half of the rule said.
+ *
+ * ## Mutation check (each run against the whole rules suite; restore byte for byte afterwards)
+ *
+ *  1. Drop `&& isToldPlacement(resource.data)` from the `courseEnrolments`
+ *     read -> 4 go red: the untold seat, the moved seat, the own-rows list
+ *     and the table.
+ *  2. Drop the told clause from `isEnrolledActive` -> 4: the untold seat's
+ *     write, the moved seat losing the pen, the admin's own untold seat and
+ *     the table.
+ *  3. Drop the facilitator half of `isToldPlacement` -> 3: the told shapes'
+ *     reads, their writes and the table. Drop the `selfEnrolled` half -> the
+ *     same 3.
+ *  4. Drop the Publish stamp half -> 14: six here, and the eight tests in
+ *     `courses.test.mjs` and `courses-schedule.test.mjs` that stand on a told
+ *     seed.
+ *  5. Loosen `selfEnrolled == true` to `!= false`, the stamp's
+ *     `is timestamp` to `!= null`, or `role == 'facilitator'` to
+ *     `!= 'learner'` -> the table, each time: only it holds the rows a looser
+ *     reading would call told (a null or "true" flag, a stamp stored as
+ *     text, a null or "Facilitator" role).
+ *  6. Read `row.role` without its default -> nothing goes red, and nothing
+ *     can: in a rule, an `||` with one half that errors and another that is
+ *     true is true, and a row refused by an error is refused all the same.
+ *     The default keeps the helper from erroring, which the comment beside it
+ *     asks a maintainer to keep.
+ *  7. In src/lib/firestore/courseEnrolments.ts, drop `placementIsTold`'s
+ *     facilitator line -> the table, naming the rows the pages no longer
+ *     call told: the pages drifting from the rule.
  *
  * Namespace: `course-placements-told` (see `getTestEnv`: one project id per
  * file, or a parallel file's `clearFirestore()` wipes these fixtures).
@@ -381,10 +409,11 @@ describe("the rule and the pages agree on every row", () => {
       }
     }
 
+    // The rows that differ first, so a drift on either side says which.
+    assert.deepEqual(disagreements, [], `firestore.rules and placementIsTold disagree:\n  ${disagreements.join("\n  ")}`);
     // Not vacuous: the table holds both kinds of row, in proportions that
     // follow from it (only "facilitator", only true and only a timestamp tell).
     assert.equal(rows.length, ROLES.length * SELF_ENROLLED.length * STAMPS.length);
     assert.equal(rows.length - told, 4 * 4 * 3, "the untold rows: every other role, flag and stamp");
-    assert.deepEqual(disagreements, [], `firestore.rules and placementIsTold disagree:\n  ${disagreements.join("\n  ")}`);
   });
 });

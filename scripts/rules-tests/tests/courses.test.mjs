@@ -880,8 +880,8 @@ describe("server-owned course collections", () => {
         runId: "run1",
         uid: "learner",
         status: "active",
-        // Told by Publish: an untold placement is its owner's to read only
-        // once Publish has emailed them (course-placements-told.test.mjs).
+        // Told by Publish: its owner reads a placement only once Publish has
+        // emailed them their group (course-placements-told.test.mjs).
         allocatedEmailAt: TOLD_AT,
       });
       await db.collection("courseExerciseResponses").doc("run1__learner__w01__x1").set({

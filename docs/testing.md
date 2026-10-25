@@ -222,6 +222,17 @@ The same shape, older:
   straight off a profile, so a second reading cannot appear unlisted. And the
   rule holds the three fields to text, or nothing, in whatever an account
   writes to its own document, on a create and on an update.
+- `scripts/rules-tests/tests/course-placements-told.test.mjs`: a page rule
+  versus the database rule that mirrors it. A placement an admin makes is
+  shown to nobody but an admin until Publish has told its owner: the pages
+  ask `placementIsTold` (`src/lib/firestore/courseEnrolments.ts`), and
+  `firestore.rules` asks `isToldPlacement` before a person reads their own
+  `courseEnrolments` row or writes `courseProgress`. The suite loads the
+  pages' function from source and runs it and the rules over a hundred
+  stored rows (every role, self-enrolled flag and Publish stamp that is
+  absent, null, the right type or the wrong one, each read back through the
+  SDK as a route reads it), and fails on any row the two answer differently,
+  whichever side moved.
 - `tests/authority-at-use.test.mjs`: being named on a document is not a
   standing grant. A dozen documents carry an array of uids that decides what
   the people in it may do (a run's `trackLeadUids`, a round's `reviewerUids`,
