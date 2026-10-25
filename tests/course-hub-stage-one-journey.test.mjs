@@ -1203,6 +1203,13 @@ const facilitatingWords = ({ first, group, slot, from, to, room, withWhom = null
   `There are ${size} people in the group. Open your group Take the register on your phone during the session. ` +
   `${lead} ${programme} lead, NAISI ${FOOTER}`;
 
+/** Kofi's own application page while he holds his place and has not said he is coming, word for word. */
+const KOFI_PAGE =
+  "Your application AGI Strategy Fellowship Accepted Autumn 2026 · Fri 23 Oct You’re in AGI Strategy. 6 WEEKS · " +
+  "starts w/c 26 Oct You’ll be in a small group with a facilitator, on campus. Before you start, we’ll email you " +
+  "your group and when it meets. I’m coming Optional. It helps us plan groups. I can’t make it This frees your " +
+  "place for someone else. Questions? ai-safety@uonsu.com";
+
 const B_WHEN = "Tuesday 3 November, 18:00";
 const A_WHEN = "Thursday 29 October, 18:00";
 const B_PLACED = (first) => placementWords({ first, group: "Group B", facilitators: "Rahul and Sofia", when: B_WHEN, room: "Room C20" });
@@ -1283,7 +1290,7 @@ describe("stage one of the course hub, one term from decision day to the first s
       );
     });
 
-    test("the incubator's people are told it helps us plan, and never about a group; the fellowship's, that it helps us plan groups", async () => {
+    test("the incubator's people are told it helps us plan, and never about a group; the fellowship's, that it helps us plan groups", () => {
       const mailTo = (uid) => seen.decisionDayMail.find((mail) => mail.to === address(uid));
       for (const uid of INCUBATOR_PLACES) {
         assert.equal(
@@ -1667,13 +1674,7 @@ describe("stage one of the course hub, one term from decision day to the first s
     // plan groups: word for word what it said before Publish.
     test("after Publish a placed person's application page says what it said before it", () => {
       for (const uid of AGI_PLACES) assert.equal(seen.pages.published[uid].text, seen.pages.placed[uid].text, uid);
-      assert.equal(
-        seen.pages.published.kofi.text,
-        "Your application AGI Strategy Fellowship Accepted Autumn 2026 · Fri 23 Oct You’re in AGI Strategy. 6 WEEKS · " +
-          "starts w/c 26 Oct You’ll be in a small group with a facilitator, on campus. Before you start, we’ll email you " +
-          "your group and when it meets. I’m coming Optional. It helps us plan groups. I can’t make it This frees your " +
-          "place for someone else. Questions? ai-safety@uonsu.com",
-      );
+      assert.equal(seen.pages.published.kofi.text, KOFI_PAGE);
     });
   });
 
@@ -2010,7 +2011,7 @@ describe("stage one of the course hub, one term from decision day to the first s
           assert.doesNotMatch(text, /group/i, `${moment}: ${uid}`);
         }
         assert.equal(seen.pages[moment].kofi.view.comingHelps, "It helps us plan groups.", moment);
-        assert.match(seen.pages[moment].kofi.text, /I’m coming Optional\. It helps us plan groups\./, moment);
+        assert.equal(seen.pages[moment].kofi.text, KOFI_PAGE, moment);
       }
     });
   });
