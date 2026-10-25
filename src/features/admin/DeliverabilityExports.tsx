@@ -79,6 +79,7 @@ function formatScope(scope: Record<string, string>): string {
   if (scope.groupId) parts.push(`Group ${scope.groupId}`);
   if (scope.periodId) parts.push(`Membership ${scope.periodId}`);
   if (scope.circulationId) parts.push(`Circulation ${scope.circulationId}`);
+  if (scope.surveyId) parts.push(`Survey ${scope.surveyId}`);
   return parts.length > 0 ? parts.join(" · ") : "Whole site";
 }
 

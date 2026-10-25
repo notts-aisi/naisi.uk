@@ -74,7 +74,9 @@ export type DataExportKind =
   /** Attendance rolled up per person rather than per session. */
   | "attendance-summary"
   /** Every response to one worksheet circulation, answers included. */
-  | "worksheet-responses";
+  | "worksheet-responses"
+  /** One survey's answers, with the names of the people who sent them. */
+  | "survey-answers";
 
 export const DATA_EXPORT_KINDS: DataExportKind[] = [
   "register",
@@ -83,6 +85,7 @@ export const DATA_EXPORT_KINDS: DataExportKind[] = [
   "membership",
   "attendance-summary",
   "worksheet-responses",
+  "survey-answers",
 ];
 
 /** The label for a kind this build has never heard of. */
@@ -95,6 +98,7 @@ export const DATA_EXPORT_KIND_LABEL: Record<DataExportKind, string> = {
   membership: "Membership list",
   "attendance-summary": "Attendance summary",
   "worksheet-responses": "Worksheet responses",
+  "survey-answers": "Survey answers",
 };
 
 export function isDataExportKind(kind: unknown): kind is DataExportKind {
@@ -137,6 +141,8 @@ export type DataExportScope = {
    * answers.
    */
   circulationId?: string;
+  /** The survey whose answers a survey export held. */
+  surveyId?: string;
 };
 
 /**
@@ -156,6 +162,7 @@ export const DATA_EXPORT_SCOPE_KEYS: (keyof DataExportScope)[] = [
   "roundId",
   "periodId",
   "circulationId",
+  "surveyId",
 ];
 
 /** What a route hands {@link logExport}. `at` is stamped server-side. */
