@@ -159,21 +159,21 @@ function serialise(lines: readonly string[]): string {
  * made. The property order is the event download's own, so its file is the
  * one it always was.
  */
-function eventLines(event: IcsEvent, stamp: Date): string[] {
+function eventLines(entry: IcsEvent, stamp: Date): string[] {
   const lines = [
     "BEGIN:VEVENT",
-    `UID:${escapeIcsText(event.uid)}@naisi.uk`,
+    `UID:${escapeIcsText(entry.uid)}@naisi.uk`,
     `DTSTAMP:${formatUtc(stamp)}`,
-    `SEQUENCE:${icsSequenceFor(event.updatedAt)}`,
-    `DTSTART:${formatUtc(event.startAt)}`,
-    `DTEND:${formatUtc(endFor(event))}`,
-    `SUMMARY:${escapeIcsText(event.title)}`,
+    `SEQUENCE:${icsSequenceFor(entry.updatedAt)}`,
+    `DTSTART:${formatUtc(entry.startAt)}`,
+    `DTEND:${formatUtc(endFor(entry))}`,
+    `SUMMARY:${escapeIcsText(entry.title)}`,
   ];
-  if (event.updatedAt) lines.push(`LAST-MODIFIED:${formatUtc(event.updatedAt)}`);
-  if (event.description) lines.push(`DESCRIPTION:${escapeIcsText(event.description)}`);
-  if (event.location) lines.push(`LOCATION:${escapeIcsText(event.location)}`);
-  if (event.url) lines.push(`URL:${escapeIcsText(event.url)}`);
-  if (event.status) lines.push(`STATUS:${event.status === "cancelled" ? "CANCELLED" : "CONFIRMED"}`);
+  if (entry.updatedAt) lines.push(`LAST-MODIFIED:${formatUtc(entry.updatedAt)}`);
+  if (entry.description) lines.push(`DESCRIPTION:${escapeIcsText(entry.description)}`);
+  if (entry.location) lines.push(`LOCATION:${escapeIcsText(entry.location)}`);
+  if (entry.url) lines.push(`URL:${escapeIcsText(entry.url)}`);
+  if (entry.status) lines.push(`STATUS:${entry.status === "cancelled" ? "CANCELLED" : "CONFIRMED"}`);
   lines.push("END:VEVENT");
   return lines;
 }
@@ -233,7 +233,7 @@ export function buildCalendarIcs(calendar: IcsCalendar): string {
     `REFRESH-INTERVAL;VALUE=DURATION:${every}`,
     `X-PUBLISHED-TTL:${every}`,
   ];
-  for (const event of calendar.events) lines.push(...eventLines(event, stamp));
+  for (const entry of calendar.events) lines.push(...eventLines(entry, stamp));
   lines.push("END:VCALENDAR");
   return serialise(lines);
 }
