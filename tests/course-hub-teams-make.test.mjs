@@ -335,7 +335,7 @@ describe("the words", () => {
       words.tooFewForATeam("Chess", 1, 2),
       words.madeFromAgendaWords(4, 2),
     ];
-    for (const sentence of said) assert.ok(!/[–—]/.test(sentence), sentence);
+    for (const sentence of said) assert.ok(!/[\u2013\u2014]/.test(sentence), sentence);
   });
 });
 

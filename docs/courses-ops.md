@@ -1462,8 +1462,9 @@ offered one. A test leaves no line: it is recorded on the form instead.
 An incubator's pitching week: each person in a group pitches a paper and a
 twist, alone or with one partner from their own group, then says which of
 their group's other pitches they would join, up to a limit, before their
-group's session that week starts. The lead makes teams from that (making
-teams on the site is not built yet). The code is `src/lib/courses/pitching/`.
+group's session that week starts. The lead makes teams from that on the
+programme's Teams tab (see Teams, below). The code is
+`src/lib/courses/pitching/`.
 
 ### Setting it up
 
@@ -1526,6 +1527,128 @@ teams on the site is not built yet). The code is `src/lib/courses/pitching/`.
 - **Nobody is emailed** by any of this.
 - **Deploy**: one new rules block, `coursePitches` shut to every browser
   (the routes are the only writers and readers). No index.
+
+## Teams
+
+An incubator meets as one weekly group, and its people work in small teams
+inside it. The programme's lead (or an admin) makes the teams on the
+programme page's **Teams** tab, in one of two ways, moves people between
+them, and tells everyone their team by email. The weekly session stays as it
+is. The code is `src/lib/courses/teams/` (the record, the making, the words)
+and `src/lib/applications/handover/teams*.ts` (who may, the tab, the writes,
+the email); the agenda's answers are read by
+`src/lib/applications/handover/agenda.ts`.
+
+### Setting it up
+
+In the run editor's **Pitching week** section, by whoever may edit the run
+(an admin, a course approver, the run's drafter or its track lead; a
+programme's lead who is none of these asks an admin):
+
+1. **Teams are made from**: the pitches from pitching week, or the agenda
+   people ranked on the application form. It has no default, and the Teams
+   tab makes no team until it is set.
+2. **Smallest team** and **Largest team**: teams are made within them. With
+   no sizes set, nothing is made.
+3. **Teams are made on**: the day the teams are due. The programme's head
+   says "Teams by" that day on every tab, and the Teams tab says "You can
+   change them until" it, up to and on that day. Nothing locks the teams
+   after it: the lead can still move somebody who leaves or joins late.
+
+### Who takes part, and who sees what
+
+- **Taking part** is a live seat in one of the run's groups that Publish has
+  told, with an account that stands, the same rule pitching week keeps, for
+  an admin too. Somebody placed and not yet told is put in no team, named
+  nowhere and emailed nothing. Somebody who leaves, moves to another group,
+  or whose account no longer stands drops off their team at once.
+- **A team works inside one group.** It is made from the people of one
+  group, and a person moves only between their own group's teams.
+- **The tab is the lead's and admins'.** A reviewer of the programme is told
+  so; the run's track lead, a group's facilitator and the people taking part
+  never reach it. People taking part see nothing new on a page: the email
+  tells them.
+- **What each person ranked** on the form ("1st: Compute governance") is read
+  only for the lead and admins, only for a run whose teams come from the
+  agenda, and only from an application the caller may read.
+
+### From the pitches
+
+Each pitch from pitching week is listed with how many would join it, who
+pitched it and its twist, with **Make it a team**. Pressing it makes a team
+named after the pitch, with its project line ("Replicate [the paper], then:
+[the twist]"), of:
+
+- the people who pitched it, taken out of any team they were in (a pitch's
+  pitchers belong to its team);
+- then the people who said they would join it and are in no team yet, the
+  ones who picked fewest pitches first, then by name, up to the largest team.
+
+It is refused when the team would be smaller than the smallest, and a pitch
+is a team once. Once any team exists, a pitch with none says **Not taken
+forward**, and can still be made a team.
+
+### From the agenda
+
+The agenda is the first question that asks for a ranking among the
+programme's own question sets on the form (the questions only its applicants
+were asked). **Make teams from first choices** (while the run has no team)
+makes each group's teams from its own people: in rounds by rank, each item
+takes people up to the largest team, the people who ranked fewest items first
+where more ask than it has room for, and somebody turned away tries their next
+choice; then a team below the smallest is let go, one at a time (the smallest,
+then the one fewest put first, then the one fewest ranked at all), and its
+people try their next choices. Somebody who ranked nothing, or whose choices
+all filled, is left in no team for the lead to place. To make them again from
+first choices, remove every team first.
+
+### Changing them
+
+- **Move to…** beside each person is a menu of their group's other teams and
+  **No team**. A move may take a team past the largest size or below the
+  smallest; the team's card says so.
+- **Remove team** puts its people in no team, and its pitch can be made a
+  team again.
+
+### Telling everyone their team
+
+- **Send a test to me** first: the first person's email, marked as a test,
+  to the address on your own session. Nothing else goes until a test of
+  yours has reached you (a test this copy of the site held, or the
+  do-not-email list stopped, does not count). Each presser sends their own.
+- **Tell everyone their team** says how many people it emails. Each person in
+  a team gets their team's name, its project line and their teammates' names,
+  never an address, signed with the lead's first name; replies go to
+  ai-safety@uonsu.com. The press sends the number back, and is refused with
+  the new number if the teams changed under it.
+- **Pressing again** emails only the people whose team changed: each email's
+  facts (the team, its name and project line, and who else is in it) are
+  stored on the team as a fingerprint when it goes, and a person is owed an
+  email when theirs would now say something else. So after a move, the person
+  moved and the people of the two teams are told again, and nobody else.
+  Somebody moved to no team is not emailed.
+- A send that fails stays owed and the next press tries it; one held by this
+  copy of the site, or stopped by the do-not-email list, is settled. Somebody
+  with no address on file is named on the tab and not emailed. One press at a
+  time on a run.
+- Every email is written before any is sent: one that cannot be written whole
+  (a team with no name) stops the press, and nothing goes.
+
+### Deleting
+
+- **Deleting an account** takes the person off every team and off its record
+  of who was told; the team stays with whoever else is in it. Their test
+  markers go too.
+- **Destroying the run** deletes its teams, and the destroy dialog counts
+  them as "Teams". The email's markers in `courseNudges` carry the run and
+  go with it.
+
+### Deploy
+
+One new rules block, `courseTeams` shut to every browser (the teams routes
+are the only writers and readers). No index: every query is one equality or
+one `array-contains`. The run's `teamsFrom` rides the run editor's existing
+write, and the run's rules cap no key set, so it needs nothing.
 
 ## Cutover: membership periods
 

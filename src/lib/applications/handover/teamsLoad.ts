@@ -19,7 +19,7 @@ import {
   type TeamsView,
 } from "@/lib/courses/teams/model";
 import { standingTeams, teamOfEach, type Participant, type StandingTeam } from "@/lib/courses/teams/standing";
-import { TEAMS_MARKERS, membersAsTold, teamsTestId } from "@/lib/courses/teams/told";
+import { MAX_TEAM_EMAILS_PER_PRESS, TEAMS_MARKERS, membersAsTold, teamsTestId } from "@/lib/courses/teams/told";
 import { changeUntilWords, placeWords, sizeNoteWords, teamsByDay } from "@/lib/courses/teams/words";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { holdsStanding } from "@/lib/firebase/eligibility";
@@ -384,7 +384,8 @@ export function buildTeamsView(context: TeamsContext, tested: boolean, now: Date
     noTeam,
     tell: {
       owed: owed.length,
-      emails: emailed.length,
+      // What one press sends: the same cap the press applies.
+      emails: Math.min(emailed.length, MAX_TEAM_EMAILS_PER_PRESS),
       noAddress: owed
         .filter((member) => !accounts.get(member.uid)?.address)
         .map((member) => takingPart.get(member.uid)?.name ?? SOMEBODY),

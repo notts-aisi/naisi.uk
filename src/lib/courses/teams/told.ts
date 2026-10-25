@@ -71,6 +71,14 @@ export function teamsTestId(runId: string, uid: string): string {
 /** The kind written on a test's marker, which account deletion looks for. */
 export const TEAMS_TEST_KIND = "teams-test";
 
+/**
+ * Hard cap on emails per press: App Hosting's 60 second request budget, each
+ * send being SMTP plus a pause. The tab's count is capped the same way, so
+ * the number on the button is what a press sends; whoever is past it is
+ * still owed, and the next press carries on.
+ */
+export const MAX_TEAM_EMAILS_PER_PRESS = 200;
+
 /** A press in progress on one run (`takeTellLock`). */
 export function teamsTellLockId(runId: string): string {
   return `teamstell__${runId}`;

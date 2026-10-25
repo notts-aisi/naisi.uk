@@ -5,6 +5,7 @@ import TeamEmail from "@/emails/TeamEmail";
 import { readRunLead } from "@/lib/courses/programmeLead";
 import { TEAMS_COLLECTION, normalizeTeam, type TeamsView } from "@/lib/courses/teams/model";
 import {
+  MAX_TEAM_EMAILS_PER_PRESS,
   TEAMS_MARKERS,
   TEAMS_TEST_KIND,
   membersAsTold,
@@ -75,13 +76,6 @@ import {
 
 /** Where replies to the team email go. */
 export const TEAMS_REPLY_TO = "ai-safety@uonsu.com";
-
-/**
- * Hard cap on emails per press: App Hosting's 60 second request budget, each
- * send being SMTP plus a pause. Whoever is past it is still owed, and the
- * next press carries on.
- */
-export const MAX_TEAM_EMAILS_PER_PRESS = 200;
 
 /** The pause between two sends, as Publish paces its own. */
 const PACE_MS = 200;

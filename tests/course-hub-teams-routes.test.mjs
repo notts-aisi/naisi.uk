@@ -19,6 +19,7 @@
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  AGENDA,
   AGI,
   AT,
   CALLERS,
@@ -128,6 +129,14 @@ describe("1. who may make and change teams", () => {
     assert.deepEqual(short(answer), [404, NO_PROGRAMME]);
   });
 
+  test("a group that no longer meets takes no part: its people are nobody's to put in a team", async () => {
+    world.db.poke(`courseGroups/${INC.wednesday}`, { archived: true });
+    const view = await viewOf();
+    assert.equal(view.takingPart, 8);
+    assert.ok(!view.noTeam.some((person) => person.uid === "omar"));
+    assert.deepEqual(short(await ask.move("tess", "omar", null)), [404, "That person isn’t taking part in this programme."]);
+  });
+
   test("a programme that names no run, or a run being destroyed, has nobody to put in a team", async () => {
     world.db.poke(`courseRuns/${INC.run}`, { destroying: true });
     assert.deepEqual(short(await ask.fromPitch("tess", PITCH.probe)), [409, "The course run this programme names is no longer on the site."]);
@@ -221,6 +230,14 @@ describe("2. teams from the pitches", () => {
     assert.equal(view.teams.find((team) => team.name === "Reward hacking evals").sizeNote, null);
   });
 
+  test("somebody in another group who said they would join counts for nothing and is never put in", async () => {
+    world.db.poke(`coursePitches/${PITCH.chess}`, { wouldJoinUids: ["omar", "kai"] });
+    const chess = (await viewOf()).pitches.rows.find((row) => row.title === "Interpretability of chess models");
+    assert.equal(chess.wouldJoin, 1);
+    assert.equal((await ask.fromPitch("tess", PITCH.chess)).status, 200);
+    assert.deepEqual(people("Interpretability of chess models"), ["tariq", "kai"]);
+  });
+
   test("a pitch is a team once", async () => {
     await ask.fromPitch("tess", PITCH.probe);
     const before = everything();
@@ -304,6 +321,17 @@ describe("3. moving people, and removing a team", () => {
     world.db.poke(`courseTeams/${probe.id}`, { toldAs: [{ uid: "lena", fingerprint: "f" }, { uid: "amara", fingerprint: "g" }] });
     await ask.move("tess", "lena", null);
     assert.deepEqual(teamNamed("Probe transfer").toldAs, [{ uid: "amara", fingerprint: "g" }]);
+  });
+
+  test("stored data that names somebody in two teams shows them in the team made first, and counts them once", async () => {
+    await ask.fromPitch("tess", PITCH.probe);
+    await ask.fromPitch("tess", PITCH.reward);
+    const reward = teamNamed("Reward hacking evals");
+    world.db.poke(`courseTeams/${reward.id}`, { memberUids: [...reward.memberUids, "lena"] });
+    const view = await viewOf();
+    const where = view.teams.filter((team) => team.people.some((person) => person.uid === "lena")).map((team) => team.name);
+    assert.deepEqual(where, ["Probe transfer"]);
+    assert.equal(view.inATeam, 7);
   });
 
   test("removing a team puts its people in no team, and its pitch can be made a team again", async () => {
@@ -427,6 +455,23 @@ describe("4. teams from the agenda", () => {
     assert.equal(everything(), before);
   });
 
+  test("an answer that is no longer one of the agenda's items is not a choice, and is shown nowhere", async () => {
+    world.db.poke(`admissionApplications/${ROUND}__kai`, { "sent.answers.incubator.agenda": ["A project since renamed", "Open-weight models"] });
+    const view = await viewOf();
+    assert.deepEqual(view.noTeam.find((person) => person.uid === "kai").ranks, [{ place: "1st", item: "Open-weight models", above: false }]);
+    assert.ok(!JSON.stringify(view).includes("A project since renamed"));
+    assert.deepEqual(view.agenda.rows.find((row) => row.item === "Open-weight models").ranked, [2, 1, 2]);
+  });
+
+  test("a ranking asked of another programme's applicants, earlier on the form, is not this programme's agenda", async () => {
+    world.db.poke(`admissionRounds/${ROUND}/questionSets/${AGI}`, {
+      questions: [
+        { id: "topics", text: "Rank these topics.", help: "", type: "rank", options: ["Forecasting", "Compute"], optionsFromRanking: false, wordLimit: null, required: true, scored: false },
+      ],
+    });
+    assert.deepEqual((await viewOf()).agenda.rows.map((row) => row.item), AGENDA);
+  });
+
   test("a run whose teams come from the pitches does not make them from the agenda", async () => {
     reset(teamsSeed({ madeFrom: "pitches" }));
     assert.deepEqual(short(await ask.fromAgenda("tess")), [409, "This programme’s teams are made from the pitches, not from the agenda."]);
@@ -467,6 +512,16 @@ describe("5. the rankings reach the programme's lead and admins, and nobody else
       assert.ok(!JSON.stringify(outcome).includes("Compute governance"), `${words} was shown a ranking`);
       assert.equal(outcome.status, who === "yusuf" ? "not-yours" : "none", words);
     }
+  });
+
+  test("an application the lead may not read gives no ranks to the lead, even with the answer stored; an admin reads it", async () => {
+    // Omar's application ranked only AGI Strategy, which Tess has no role on,
+    // though an older answer to the incubator's agenda is still stored on it.
+    world.db.poke(`admissionApplications/${ROUND}__omar`, { "sent.rankedProgrammeIds": [AGI] });
+    const omar = async (who) => (await viewOf(who)).noTeam.find((person) => person.uid === "omar");
+    assert.equal((await omar("tess")).rankedNothing, true);
+    assert.deepEqual((await omar("tess")).ranks, []);
+    assert.deepEqual((await omar("zach")).ranks.map((rank) => rank.item), ["AI in elections", "Compute governance", "Open-weight models"]);
   });
 
   test("a press's answer carries ranks only for the lead and admins who made it, and never an address", async () => {
