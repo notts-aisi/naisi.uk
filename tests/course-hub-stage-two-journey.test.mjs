@@ -304,6 +304,8 @@ const lib = {
   reminderWords: (await loadTs(join("lib", "email", "registerReminderEmail.ts"))).registerReminderWords,
   /** The Groups tab's Times view. */
   times: await loadTs(join("lib", "applications", "handover", "timesLoad.ts")),
+  /** The cohort list's own writer, as Publish subscribes somebody it tells. */
+  subscriptions: await loadTs(join("lib", "firestore", "subscriptions.ts")),
 };
 const TABS = join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "(tabs)");
 const LEARN = join("app", "(app)", "learn", "[runId]");
@@ -1752,6 +1754,46 @@ async function weekThree() {
     message: "The same as week 3.",
     email: true,
   });
+
+  // An admin who is also placed in Group A, told, and on the run's list
+  // writes to the group: their own email is not one the update sends either.
+  later();
+  const a = {};
+  seen.adminInTheGroup = a;
+  world.db.seed(`courseEnrolments/${RUN}__zach`, {
+    runId: RUN,
+    courseId: COURSE,
+    uid: "zach",
+    groupId: GROUP.A,
+    status: "active",
+    role: "learner",
+    selfEnrolled: false,
+    applicationId: null,
+    joinedWeekNumber: 1,
+    allocatedEmailAt: new Date(),
+    allocatedEmailDelivery: "sent",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+  await lib.subscriptions.subscribe(world.db, {
+    email: address("zach"),
+    channel: `cohort:${RUN}`,
+    audience: "user",
+    audienceId: "zach",
+    source: "course-allocation",
+    actor: { kind: "admin", uid: "zach", label: "Zach Levin" },
+    inboxProven: true,
+    name: "Zach Levin",
+  });
+  a.offered = (await tabsOf("zach", "agi", RUN)).messages.to.find(([label]) => label.startsWith("Group A"));
+  later();
+  a.posted = await post("an admin placed in Group A writes to it, emailed", "zach", RUN, {
+    to: "group",
+    groupId: GROUP.A,
+    title: "Week 4 room",
+    message: "The same room as week 3.",
+    email: true,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -2716,6 +2758,14 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.deepEqual(l.offered, ["The facilitators (5)", 4]);
       assert.deepEqual([l.posted.counted, l.posted.answer.body.email], [4, { sent: 4, held: 0, suppressed: 0, failed: 0 }]);
       assert.deepEqual(l.posted.mail.map((mail) => mail.to).sort(), ["amelia", "rahul", "sofia", "tom"].map(address));
+    });
+
+    test("a writer who is in the group they write to, and on its list, is left out of its email", () => {
+      const a = seen.adminInTheGroup;
+      // Four read it, the writer among them; Joel stopped the list, and the writer is not emailed.
+      assert.deepEqual(a.offered, ["Group A (4)", 2]);
+      assert.deepEqual([a.posted.counted, a.posted.answer.body.email], [2, { sent: 2, held: 0, suppressed: 0, failed: 0 }]);
+      assert.deepEqual(a.posted.mail.map((mail) => mail.to).sort(), [address("dev"), address("priya")]);
     });
   });
 });
