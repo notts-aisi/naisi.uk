@@ -775,9 +775,11 @@ describe("6. the emails", () => {
     await sendTest();
     await pressNow();
     const bea = await opened(realMail().find((mail) => mail.to === "bea@example.com"));
-    assert.equal(bea.subject, "Your AGI Strategy Fellowship group: first session Thursday 5 November, 18:00");
+    // The first session in the boards' words ("Thu 5 Nov", "6pm"), since the
+    // walk of stage one (October 2026): until then this email wrote "Thursday 5 November, 18:00".
+    assert.equal(bea.subject, "Your AGI Strategy Fellowship group: first session Thu 5 Nov, 6pm");
     const amara = await opened(realMail().find((mail) => mail.to === "amara@example.com"));
-    assert.equal(amara.subject, "Your AGI Strategy Fellowship group: first session Tuesday 3 November, 18:00");
+    assert.equal(amara.subject, "Your AGI Strategy Fellowship group: first session Tue 3 Nov, 6pm");
     const sofiaA = await opened(realMail().find((mail) => mail.to === "sofia@example.com" && mail.subject.includes("Group A")));
     assert.ok(sofiaA.text.includes("from Thu 5 Nov to Thu 10 Dec"), sofiaA.text);
   });

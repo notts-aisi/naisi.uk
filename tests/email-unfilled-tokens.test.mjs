@@ -108,7 +108,16 @@ const { loadTs } = createLoader({
     ["@/lib/firebase/impersonation", "export async function assertNotImpersonating() { return null; }"],
     [
       "@/lib/firebase/eligibility",
-      "export function isNamedWithStanding() { return false; }\nexport function holdsStanding() { return false; }",
+      // Nobody stands on a run here (a track lead, a run facilitator), and the
+      // lead of a programme stands as the standing table says a lead does: an
+      // admin, or an SU-recognised committee member, read off their account.
+      "const leadBar = (user) => user.role === 'admin' || (user.role === 'committee' && user.suRecognised === true);\n" +
+        "export function holdsStanding(user, authority) {\n" +
+        "  return authority === 'admissionRounds.leadUid' && leadBar(user);\n" +
+        "}\n" +
+        "export function isNamedWithStanding(user, authority, named) {\n" +
+        "  return holdsStanding(user, authority) && [named].flat().includes(user.uid);\n" +
+        "}",
     ],
     ["@/lib/firestore/suppression", "export async function isSuppressed() { return false; }"],
     [
@@ -1187,6 +1196,15 @@ function stage({
   if (incubatorTemplate) {
     docs["courseEmailTemplates/course-allocated-incubator"] = { templateId: "course-allocated-incubator", ...incubatorTemplate };
   }
+  if (naming?.leadUid) {
+    // The programme's lead meets the bar a lead is appointed behind: an
+    // SU-recognised committee member. `leadStands: false` stages one who no
+    // longer does.
+    docs[`users/${naming.leadUid}`] = {
+      ...(docs[`users/${naming.leadUid}`] ?? {}),
+      ...(naming.leadStands === false ? { role: "member" } : { role: "committee", suRecognised: true }),
+    };
+  }
   if (naming) {
     // The term's form, as the form editor stores one, with the one programme
     // that names this run.
@@ -1737,6 +1755,23 @@ describe("Publish on a run a programme names", { concurrency: false }, () => {
       // And nothing is left for her: a second plan owes nothing.
       const after = publishPlan.pressBatch(await planNow());
       assert.deepEqual([after.emails, after.more], [0, 0], naming.kind);
+    }
+  });
+
+  test("a lead who no longer meets the lead's bar signs nothing, and is told they are facilitating like anybody else", async () => {
+    stage({
+      naming: { ...FELLOWSHIP, leadStands: false },
+      groups: { a: group("Group A"), b: group("Group B", { facilitatorUids: ["priya"] }) },
+      people: { amara: "a", ben: "a" },
+    });
+    const plan = await planNow();
+    assert.deepEqual(plan.facilitators.map((facilitator) => facilitator.uid).sort(), ["priya", "sam"]);
+    const response = await press();
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.deepEqual(world.sent.filter(isFacilitating).map((mail) => mail.to).sort(), ["priya@example.com", "sam@example.com"]);
+    for (const mail of world.sent.filter(isFacilitating)) {
+      const text = (await opened(mail)).text;
+      assert.ok(!text.includes("lead, NAISI"), text);
     }
   });
 

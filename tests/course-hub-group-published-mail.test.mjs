@@ -126,9 +126,12 @@ describe("Publish itself is the one email before which nothing reaches them", ()
     await steps.placed();
     assert.equal(world.mail.length, 0);
     await steps.publishes();
-    // Eight messages and nothing else, in the order the board's press makes
+    // Seven messages and nothing else, in the order the board's press makes
     // them: the presser's test of Publish's two emails, then the people's
-    // emails, then the facilitators'.
+    // emails, then the facilitators'. Claudia, who facilitates Monday's
+    // group, leads AGI Strategy, the programme that names the run: she signs
+    // the facilitators' email and is never sent it (the walk of stage one,
+    // October 2026), so only Tess is.
     assert.deepEqual(world.mail.map(whatItIs), [
       "test of placement",
       "test of facilitating",
@@ -137,12 +140,12 @@ describe("Publish itself is the one email before which nothing reaches them", ()
       "placement",
       "placement",
       "facilitating",
-      "facilitating",
     ]);
     // Each person placed is emailed their group once, at their own address.
     assert.deepEqual(sentTo("placement"), ["amara", "bea", "dev", "tariq"].map(addressOf).sort());
-    // Each group with people in it tells its facilitator once.
-    assert.deepEqual(sentTo("facilitating"), ["claudia", "tess"].map(addressOf).sort());
+    // Each group with people in it tells its facilitator once, but never
+    // the programme's lead, who signs the email.
+    assert.deepEqual(sentTo("facilitating"), ["tess"].map(addressOf).sort());
     // The test reaches the presser and nobody else.
     assert.deepEqual(
       [...sentTo("test of placement"), ...sentTo("test of facilitating")],

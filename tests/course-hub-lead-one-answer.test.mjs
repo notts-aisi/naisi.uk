@@ -73,12 +73,14 @@ describe("1. one programme names a run, or nobody does", () => {
       programmeId: AGI,
       leadUid: "claudia",
       shortName: "AGI Strategy",
+      kind: "fellowship",
     });
     assert.deepEqual(await lead.readNamingProgramme(world.db, RUN.tais), {
       roundId: ROUND,
       programmeId: TAIS,
       leadUid: "tess",
       shortName: "Technical AI Safety",
+      kind: "fellowship",
     });
   });
 
@@ -113,6 +115,7 @@ describe("1. one programme names a run, or nobody does", () => {
       programmeId: AGI,
       leadUid: "nadia",
       shortName: "AGI Strategy",
+      kind: "fellowship",
     });
     assert.deepEqual(await lead.programmeLedBy(world.db, sessionOf("nadia"), RUN.agiSpring), {
       roundId: "spring-2027__sprngfrm",
@@ -123,8 +126,14 @@ describe("1. one programme names a run, or nobody does", () => {
   });
 
   test("a name every object carries is not a programme", () => {
-    const form = { round: { id: ROUND }, programmeIds: ["constructor", "__proto__", AGI], programmes: { [AGI]: { runId: "x", leadUid: "claudia", shortName: "AGI Strategy" } } };
-    assert.deepEqual(lead.namingProgrammeIn([form], "x"), { roundId: ROUND, programmeId: AGI, leadUid: "claudia", shortName: "AGI Strategy" });
+    const form = { round: { id: ROUND }, programmeIds: ["constructor", "__proto__", AGI], programmes: { [AGI]: { runId: "x", leadUid: "claudia", shortName: "AGI Strategy", kind: "incubator" } } };
+    assert.deepEqual(lead.namingProgrammeIn([form], "x"), {
+      roundId: ROUND,
+      programmeId: AGI,
+      leadUid: "claudia",
+      shortName: "AGI Strategy",
+      kind: "incubator",
+    });
     assert.equal(lead.namingProgrammeIn([form], "y"), null);
   });
 });
@@ -210,7 +219,7 @@ describe("2. the lead, asked at the moment of use", () => {
     assert.deepEqual(value, {
       uid: "claudia",
       firstName: "Claudia",
-      naming: { roundId: ROUND, programmeId: AGI, leadUid: "claudia", shortName: "AGI Strategy" },
+      naming: { roundId: ROUND, programmeId: AGI, leadUid: "claudia", shortName: "AGI Strategy", kind: "fellowship" },
     });
     assert.deepEqual([...new Set(reads)].sort(), ["admissionRounds", "users"]);
     assert.equal(made.everything(), before, "asking wrote something");

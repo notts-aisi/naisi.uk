@@ -251,9 +251,12 @@ describe("a test of Publish's emails shows nobody their group, and a press shows
     // stamps is a person it wrote to, and every person it wrote to is stamped.
     world.mail.length = 0;
     const pressed = await steps.publishes();
+    // One facilitators' email: Monday's group is Claudia's, and she leads
+    // AGI Strategy, which names the run, so she signs that email and is
+    // never sent it (the walk of stage one, October 2026). Tess is told.
     assert.deepEqual(pressed.report, {
       people: { sent: 4, held: 0, suppressed: 0 },
-      facilitators: { sent: 2, held: 0, suppressed: 0 },
+      facilitators: { sent: 1, held: 0, suppressed: 0 },
       failed: [],
       noAddress: [],
       alreadyTold: 0,
@@ -282,9 +285,11 @@ describe("a test of Publish's emails shows nobody their group, and a press shows
     const before = await everythingTheyRead("tariq", GROUP.thursday);
     world.mailFate = (args) => (args.to === addressOf("tariq") ? "fail" : "sent");
     const pressed = await steps.publishes();
+    // Tess is told about Thursday's group; Claudia, Monday's facilitator
+    // and the programme's lead, signs that email and is never sent it.
     assert.deepEqual(pressed.report, {
       people: { sent: 3, held: 0, suppressed: 0 },
-      facilitators: { sent: 2, held: 0, suppressed: 0 },
+      facilitators: { sent: 1, held: 0, suppressed: 0 },
       failed: ["Tariq"],
       noAddress: [],
       alreadyTold: 0,
