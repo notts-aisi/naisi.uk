@@ -3,6 +3,7 @@ import RunBlank from "@/features/applications/groups/RunBlank";
 import ProgrammeOverview from "@/features/applications/overview/ProgrammeOverview";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { loadForm } from "@/lib/applications/repo";
+import { loadWhoFinished } from "@/lib/courses/finishing/whoFinished";
 import { readRunRecords } from "@/lib/courses/programmeAttendance";
 import { buildProgrammeOverview } from "@/lib/courses/programmeOverview";
 import { loadRunGroups, loadUpdatesFor, updateReadingOf } from "@/lib/courses/updates/readers";
@@ -23,6 +24,10 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * out, and the page only draws them. The one thing it does is "Remind",
  * which goes through its own route. Its Updates card shows the newest
  * updates on the run, read as the Messages tab reads them, and links there.
+ *
+ * Once the run's last session is over, Who finished (board en-finish) leads
+ * the page, and its switches save through their own route; before then the
+ * People card says when it can be done (`loadWhoFinished`).
  */
 export default async function ProgrammeOverviewPage({
   params,
@@ -51,17 +56,20 @@ export default async function ProgrammeOverviewPage({
   const [records, form] = await Promise.all([readRunRecords(db, view.run.id), loadForm(db, view.roundId)]);
   if (!records) return <RunBlank view={{ ...view, blank: "run-gone" }} />;
   const groups = await loadRunGroups(db, records.run.id);
-  const [model, loaded] = await Promise.all([
+  const now = new Date();
+  const viewer = { isAdmin: view.viewer === "admin", uid: user.uid };
+  const [model, loaded, finishing] = await Promise.all([
     buildProgrammeOverview(
       db,
       records,
-      { isAdmin: view.viewer === "admin", uid: user.uid },
+      viewer,
       { programmePath, courseId: view.run.courseId, decisionsSentAt: form?.decisionsSentAt ?? null },
-      new Date(),
+      now,
     ),
     updateReadingOf(db, user, records.run, groups).then((reading) =>
       loadUpdatesFor(db, records.run, reading, groups, view.programmeName),
     ),
+    loadWhoFinished(db, records, viewer, now),
   ]);
   return (
     <ProgrammeOverview
@@ -70,6 +78,7 @@ export default async function ProgrammeOverviewPage({
       roundId={view.roundId}
       programmeId={view.programmeId}
       programmePath={programmePath}
+      finishing={finishing}
     />
   );
 }

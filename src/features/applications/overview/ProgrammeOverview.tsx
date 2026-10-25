@@ -1,8 +1,11 @@
 import Link from "next/link";
 import InitialsChip from "@/components/ui/InitialsChip";
+import type { WhoFinishedModel } from "@/lib/courses/finishing/whoFinished";
+import { SET_THE_RULE } from "@/lib/courses/finishing/words";
 import type { OverviewAttention, OverviewModel, OverviewSession } from "@/lib/courses/programmeOverview";
 import type { OverviewUpdate } from "@/lib/courses/updates/views";
 import RemindButton from "./RemindButton";
+import WhoFinished from "./WhoFinished";
 import styles from "./ProgrammeOverview.module.css";
 
 /**
@@ -14,6 +17,11 @@ import styles from "./ProgrammeOverview.module.css";
  * Not drawn, because it is not built: the board's "Email Freya". The
  * Updates card shows the newest updates and leads to the Messages tab, where
  * they are written and read in full.
+ *
+ * WHO FINISHED (board en-finish) leads the page once the run's last session
+ * is over, above everything else here, which stays: a register still not
+ * finished, named under Needs attention, changes who came. Before then the
+ * People card says when it can be done. Both from `loadWhoFinished`.
  */
 
 function Arrow() {
@@ -122,6 +130,7 @@ export default function ProgrammeOverview({
   roundId,
   programmeId,
   programmePath,
+  finishing = null,
 }: {
   model: OverviewModel;
   /** The newest updates on the run, worded on the server (`overviewUpdateRows`). */
@@ -130,10 +139,15 @@ export default function ProgrammeOverview({
   programmeId: string;
   /** The programme's own address, no trailing slash. */
   programmePath: string;
+  /** Who finished, or when it can be said (`loadWhoFinished`). */
+  finishing?: WhoFinishedModel | null;
 }) {
   const { week, sessions, attention, chart, people } = model;
   return (
     <div className={styles.page}>
+      {finishing?.state === "open" && (
+        <WhoFinished model={finishing} roundId={roundId} programmeId={programmeId} />
+      )}
       {week ? (
         <section className={styles.weekCard} aria-labelledby="overview-week">
           <div className={styles.weekTop}>
@@ -279,6 +293,17 @@ export default function ProgrammeOverview({
               <span className={styles.bigNumber}>{people.takingPart}</span> taking part
             </p>
             <p className={styles.peopleLine}>{people.line}</p>
+            {finishing?.state === "not-yet" && (
+              <>
+                <p className={styles.peopleLine}>{finishing.line}</p>
+                {finishing.needsRule && (
+                  <Link href={`${programmePath}/setup#who-finished`} className={styles.textLink}>
+                    {SET_THE_RULE}
+                    <Arrow />
+                  </Link>
+                )}
+              </>
+            )}
           </section>
           <section className={styles.card} aria-labelledby="overview-updates">
             <h2 id="overview-updates" className={styles.cardTitle}>

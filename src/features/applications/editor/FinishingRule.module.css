@@ -1,0 +1,43 @@
+/*
+  The rule for who finished, on a programme's Settings tab: one number, its
+  unit, and what it does. The card, label, box and hint are the editor's own
+  (editor.module.css); this file lays them out.
+*/
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.body {
+  margin-top: 18px;
+  max-width: 40rem;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Two digits wide, and still a 44px target. */
+.number {
+  width: 5rem;
+  flex: none;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.unit {
+  font-size: 15px;
+  color: var(--color-text);
+}
+
+@media (max-width: 48rem) {
+  .body {
+    margin-top: 14px;
+  }
+}
