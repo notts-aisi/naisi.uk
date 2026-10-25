@@ -24,6 +24,7 @@ import {
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
 import {
+  compareGroupsByMeeting,
   normalizeCourseGroup,
   type GroupSession,
 } from "@/lib/firestore/courseGroups";
@@ -347,19 +348,12 @@ export async function GET(
   const accepted = served.filter((a) => a.status === "accepted");
 
   // Archived groups are dropped: the board must not offer a column that no
-  // longer runs (the allocate route refuses them independently).
+  // longer runs (the allocate route refuses them independently). Monday
+  // first: the order every tab of a programme's page lists groups in.
   const groups = groupSnap.docs
     .map((d) => normalizeCourseGroup(d.id, d.data() ?? {}))
     .filter((g) => !g.archived)
-    .sort((a, b) => {
-      // Monday-first for display; `weekday` is stored Sunday-first.
-      const day = ((a.session.weekday + 6) % 7) - ((b.session.weekday + 6) % 7);
-      return (
-        day ||
-        a.session.startTimeLocal.localeCompare(b.session.startTimeLocal) ||
-        a.name.localeCompare(b.name)
-      );
-    });
+    .sort(compareGroupsByMeeting);
 
   // The join is by CONSTRUCTION, not by query: the enrolment doc id is
   // `courseEnrolmentId(runId, uid)`, so each accepted applicant's enrolment —

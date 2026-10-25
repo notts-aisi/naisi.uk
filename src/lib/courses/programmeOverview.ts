@@ -338,10 +338,14 @@ export async function buildProgrammeOverview(
         if (key && key >= card.startKey && key <= endKey) inWeek.push({ entry, facts });
       }
     }
+    // In the order every tab of the programme's page lists its groups (the
+    // order `listed` is in, `compareGroupsByMeeting`), and a group's sessions
+    // by when they start.
+    const groupAt = new Map(listed.map((entry, index) => [entry.group.id, index]));
     inWeek.sort(
       (a, b) =>
-        (a.facts.startsAt?.getTime() ?? Infinity) - (b.facts.startsAt?.getTime() ?? Infinity) ||
-        a.entry.group.name.localeCompare(b.entry.group.name, "en-GB", { numeric: true }),
+        (groupAt.get(a.entry.group.id) ?? 0) - (groupAt.get(b.entry.group.id) ?? 0) ||
+        (a.facts.startsAt?.getTime() ?? Infinity) - (b.facts.startsAt?.getTime() ?? Infinity),
     );
     for (const { entry, facts } of inWeek) {
       const { group } = entry;

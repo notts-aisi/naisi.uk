@@ -285,6 +285,8 @@ const lib = {
   boardTally: (await loadTs(join("features", "courses", "allocationTally.ts"))).boardTally,
   /** The register reminder's words: the function the job and Remind both ask. */
   reminderWords: (await loadTs(join("lib", "email", "registerReminderEmail.ts"))).registerReminderWords,
+  /** The Groups tab's Times view. */
+  times: await loadTs(join("lib", "applications", "handover", "timesLoad.ts")),
 };
 const TABS = join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "(tabs)");
 const LEARN = join("app", "(app)", "learn", "[runId]");
@@ -418,6 +420,9 @@ const CAST = [
   ["tariq", "Tariq Mensah", "member", false],
 ];
 const FIRST = Object.fromEntries(CAST.map(([uid, name]) => [uid, name.split(" ")[0]]));
+/** Each person's whole name, as the lead's tabs name them, and the name they go by, from it. */
+const FULL = Object.fromEntries(CAST.map(([uid, name]) => [uid, name]));
+const FIRST_OF = Object.fromEntries(CAST.map(([uid, name]) => [name, FIRST[uid]]));
 const address = (uid) => `${uid}@example.com`;
 
 function userDoc([uid, name, role, suRecognised]) {
@@ -1082,6 +1087,15 @@ async function tabsOf(who, name, runId) {
   const [grid] = find(attendancePage.element, "ProgrammeAttendance");
   const overviewPage = await draw(pages.overview, who, of(name));
   const [overview] = find(overviewPage.element, "ProgrammeOverview");
+  world.user = sessionOf(who);
+  world.course = true;
+  let times;
+  try {
+    const outcome = await lib.times.loadTimesPicture(world.courseDb, world.user, ROUND, P[name], undefined);
+    times = outcome.status === "ok" ? (outcome.view.picture?.groups.map((group) => group.name) ?? outcome.view.blank) : outcome.status;
+  } finally {
+    world.course = false;
+  }
   return {
     messages: {
       to: (composer?.props.audiences ?? []).map((audience) => [audience.label, audience.emails]),
@@ -1106,6 +1120,8 @@ async function tabsOf(who, name, runId) {
         : { refused: staffing.status },
     /** Each group's register through the register's own route, as the lead may read it. */
     registers,
+    /** The Groups tab's Times view: its list of who can make each group, by group. */
+    times,
     /** The Attendance tab's grid: each group's rows, each person's marks week by week, Came and Of. */
     attendance: grid
       ? {
@@ -1750,7 +1766,8 @@ function lookAt(label) {
 
 /** Each run as its lead's tabs name it, and its groups as the story names them and as its people read them. */
 const RUNS = [
-  { runId: RUN, tabs: "lead", programme: "AGI Strategy", groups: { "Group A": "Group A", "Group B": "Group B" } },
+  // In People in groups' order: Group B meets on Tuesdays, Group A on Thursdays.
+  { runId: RUN, tabs: "lead", programme: "AGI Strategy", groups: { "Group B": "Group B", "Group A": "Group A" } },
   { runId: INC_RUN, tabs: "incubatorLead", programme: "Research incubator", groups: { "the incubator's Group A": "Group A" } },
 ];
 
@@ -1806,11 +1823,13 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     // nothing on the tab says the six will read what is written now once
     // they are told (the walk of stage two, G1).
     test("the Messages tab counts nobody in a group until Publish, while People in groups shows the six placed", () => {
+      // To offers the groups in People in groups' order, Monday first, since
+      // the walk of stage two's fixes (G10): Group B meets on Tuesdays.
       assert.deepEqual(e().leadTabs.messages, {
         to: [
           ["Everyone on AGI Strategy (0)", 0],
-          ["Group A (0)", 0],
           ["Group B (0)", 0],
+          ["Group A (0)", 0],
           ["The facilitators (3)", 3],
         ],
         updates: [],
@@ -1854,13 +1873,15 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         assert.deepEqual(look.members[uid], { programmes: [], updates: { refused: 403 }, marks: { refused: 403 } }, uid);
       }
       // The told rule: an admin is shown everybody placed, the lead the people Publish has told.
+      // In People in groups' order and by their whole names, since the walk of
+      // stage two's fixes (G10); until then A to D, by first names.
       assert.deepEqual(
         look.lead.attendance.groups.map((group) => [group.name, group.notYetTold, group.people.length]),
-        [["Group A", true, 0], ["Group B", true, 0]],
+        [["Group B", true, 0], ["Group A", true, 0]],
       );
       assert.deepEqual(
         look.admin.attendance.groups.map((group) => [group.name, group.notYetTold, group.people.map((person) => person.name)]),
-        [["Group A", false, ["Dev", "Joel", "Priya"]], ["Group B", false, ["Amara", "Ella", "Kofi"]]],
+        [["Group B", false, ["Amara Okafor", "Ella Robinson", "Kofi Mensah"]], ["Group A", false, ["Dev Patel", "Joel Adeyemi", "Priya Nair"]]],
       );
       assert.deepEqual([look.lead.overview.people.takingPart, look.admin.overview.people.takingPart], [0, 6]);
       assert.deepEqual(look.lead.overview.week, ["Before the start", "Week 1 of 6", "Thu 29 Oct to Wed 4 Nov"]);
@@ -2123,9 +2144,11 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     test("the lead's Attendance keeps Kofi, with his finished mark, while his facilitators' register drops him and it", () => {
       const look = lookAt("Kofi removed");
       const b = look.lead.attendance.groups.find((group) => group.name === "Group B");
-      assert.deepEqual(b.people.find((person) => person.name === "Kofi"), { name: "Kofi", left: "Left", marks: [[1, "excused", "finished"]], came: "0 of 1", inARow: 0 });
+      // The lead's tabs name him in full, the sentence about him by the name
+      // he goes by (the walk of stage two's fixes, G10).
+      assert.deepEqual(b.people.find((person) => person.name === "Kofi Mensah"), { name: "Kofi Mensah", left: "Left", marks: [[1, "excused", "finished"]], came: "0 of 1", inARow: 0 });
       assert.deepEqual(look.facilitators["rahul (Group B)"].register, { members: ["Amara", "Ella"], notYetTold: false, marks: { "week 1, finished": { Amara: "present", Ella: "present" } } });
-      assert.deepEqual(look.lead.overview.attention, [["left", "Kofi left", "Kofi’s off Group B’s register."]]);
+      assert.deepEqual(look.lead.overview.attention, [["left", "Kofi Mensah left", "Kofi’s off Group B’s register."]]);
       assert.equal(look.lead.overview.people.line, "1 left. Freed places can be offered until Wed 4 Nov, the end of week 1.");
     });
 
@@ -2294,7 +2317,8 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         group: "Group B",
         when: "Tue 17 Nov · 6pm",
         where: "Room C20",
-        facilitators: ["Rahul", "Sofia"],
+        // By their whole names, as wk-overview draws them (the walk of stage two's fixes, G10).
+        facilitators: ["Rahul Mehta", "Sofia Rossi"],
         pill: "Register not pushed",
         line: "Saved, not pushed. 2 of 2 so far.",
         remind: ["Remind Rahul and Sofia", 2, "Emails 2 people", "Remind Rahul and Sofia to push Group B’s register for Tue 17 Nov? This emails 2 people.", "w03"],
@@ -2303,7 +2327,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.deepEqual(look.lead.overview.attention, [
         ["week", "Week 4 isn’t ready, and Groups A and B have reached it", "Groups A and B meet again from Thu 19 Nov. Week 4 isn’t published, so people in these groups can’t open it yet."],
         ["register", "Group B’s register for Tue 17 Nov isn’t pushed", "If it’s still not pushed on Fri 20 Nov at 8am, you and admins get a task."],
-        ["left", "Kofi left", "Kofi’s off Group B’s register."],
+        ["left", "Kofi Mensah left", "Kofi’s off Group B’s register."],
       ]);
     });
 
@@ -2359,21 +2383,31 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.equal(lookAt("Group B's register not finished").lead.overview.sessions.find((session) => session.group === "Group B").pill, "Register not pushed");
     });
 
+    // Its Name column holds whole names, so two people who go by one first
+    // name are told apart, and its groups come in People in groups' order
+    // (the walk of stage two's fixes, G10); until then first names, A to D.
     test("the CSV is the grid: every row, every mark in words, Came and Of, and Kofi's leaving", () => {
       assert.equal(
         seen.csv,
         `${BOM}Group,Name,Week 1,Week 2,Week 3,Week 4,Week 5,Week 6,Came,Of,Left\n` +
-          "Group A,Dev,Present,Present,Present,,,,3,3,\n" +
-          "Group A,Joel,Late,Present,Absent,,,,2,3,\n" +
-          "Group A,Priya,Absent,Late,Present,,,,2,3,\n" +
-          "Group B,Amara,Present,Late,Present,,,,3,3,\n" +
-          "Group B,Ella,Present,Present,Left early,,,,3,3,\n" +
-          "Group B,Kofi,Excused,,,,,,0,1,Yes",
+          "Group B,Amara Okafor,Present,Late,Present,,,,3,3,\n" +
+          "Group B,Ella Robinson,Present,Present,Left early,,,,3,3,\n" +
+          "Group B,Kofi Mensah,Excused,,,,,,0,1,Yes\n" +
+          "Group A,Dev Patel,Present,Present,Present,,,,3,3,\n" +
+          "Group A,Joel Adeyemi,Late,Present,Absent,,,,2,3,\n" +
+          "Group A,Priya Nair,Absent,Late,Present,,,,2,3,",
       );
       const grid = lookAt("the end of week 3").lead.attendance;
       assert.deepEqual(
         grid.groups.flatMap((group) => group.people.map((person) => [group.name, person.name, person.came])),
-        [["Group A", "Dev", "3 of 3"], ["Group A", "Joel", "2 of 3"], ["Group A", "Priya", "2 of 3"], ["Group B", "Amara", "3 of 3"], ["Group B", "Ella", "3 of 3"], ["Group B", "Kofi", "0 of 1"]],
+        [
+          ["Group B", "Amara Okafor", "3 of 3"],
+          ["Group B", "Ella Robinson", "3 of 3"],
+          ["Group B", "Kofi Mensah", "0 of 1"],
+          ["Group A", "Dev Patel", "3 of 3"],
+          ["Group A", "Joel Adeyemi", "2 of 3"],
+          ["Group A", "Priya Nair", "2 of 3"],
+        ],
       );
     });
   });
@@ -2390,6 +2424,38 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         }
         assert.deepEqual(asLead(look.admin), look.lead, label);
       }
+    });
+
+    // Groups were Monday first on People in groups and Facilitators, A to D on
+    // Attendance and the Times view, in meeting order on the Overview's
+    // sessions and in stored order on Messages (the walk of stage two, G10).
+    // Every tab now lists them in People in groups' order.
+    test("every tab of the programme page lists the groups in one order, the order People in groups draws them in", () => {
+      for (const label of MOMENTS) {
+        const look = lookAt(label);
+        for (const { tabs, programme } of RUNS) {
+          const order = look[tabs].people.groups.map(([name]) => name);
+          const where = `${label}: ${programme}`;
+          assert.deepEqual(look[tabs].facilitators.map(([name]) => name), order, `${where}, Facilitators`);
+          assert.deepEqual(look[tabs].times, order, `${where}, Times`);
+          assert.deepEqual(look[tabs].attendance.groups.map((group) => group.name), order, `${where}, Attendance`);
+          assert.deepEqual(
+            look[tabs].messages.to.slice(1, 1 + order.length).map(([option]) => option.replace(/ \(\d+\)$/, "")),
+            order,
+            `${where}, Messages`,
+          );
+          const sessions = look[tabs].overview.sessions.map((session) => session.group);
+          assert.deepEqual(sessions, order.filter((name) => sessions.includes(name)), `${where}, the Overview's sessions`);
+        }
+      }
+      // Monday first: Group B meets on Tuesdays, Group A on Thursdays, and in
+      // week 3 the Overview shows both, Thursday's first session of the week
+      // after Tuesday's.
+      assert.deepEqual(lookAt("the end of week 3").lead.people.groups.map(([name]) => name), ["Group B", "Group A"]);
+      assert.deepEqual(lookAt("Group B's register not finished").lead.overview.sessions.map((session) => [session.group, session.when]), [
+        ["Group B", "Tue 17 Nov · 6pm"],
+        ["Group A", "Thu 12 Nov · 6pm"],
+      ]);
     });
 
     test("each group's count on the Messages tab is the people its facilitators' pages, rosters and registers name, and who read it as their group", () => {
@@ -2435,11 +2501,14 @@ describe("stage two of the course hub, one term from Publish to the end of week 
             const grid = look[tabs].attendance.groups.find((group) => group.name === name);
             const marks = marksByPerson(lead);
             const staying = grid.people.filter((person) => person.left === null);
-            assert.deepEqual(staying.map((person) => person.name), shownIn(look, runId, name), `${label}: ${name}'s rows`);
-            for (const person of staying) assert.deepEqual(person.marks, marks[person.name] ?? [], `${label}: ${person.name}`);
+            // The grid names each person in full, the register by the name
+            // they go by (the walk of stage two's fixes, G10): the same
+            // people, with the same marks.
+            assert.deepEqual(staying.map((person) => person.name), shownIn(look, runId, name).map((first) => FULL[uidOf[first]]), `${label}: ${name}'s rows`);
+            for (const person of staying) assert.deepEqual(person.marks, marks[FIRST_OF[person.name]] ?? [], `${label}: ${person.name}`);
             assert.deepEqual(
               grid.people.filter((person) => person.left !== null).map((person) => person.name),
-              runId === RUN && name === "Group B" && AFTER_PUBLISH.indexOf(label) >= AFTER_PUBLISH.indexOf("Kofi removed") ? ["Kofi"] : [],
+              runId === RUN && name === "Group B" && AFTER_PUBLISH.indexOf(label) >= AFTER_PUBLISH.indexOf("Kofi removed") ? ["Kofi Mensah"] : [],
               `${label}: ${name}'s leavers`,
             );
           }

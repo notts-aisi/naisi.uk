@@ -4,7 +4,7 @@ import { namesInWords, weeklySlotWords } from "@/lib/courses/facilitatingEmail";
 import { readPitchingWeek } from "@/lib/courses/pitching/week";
 import { displayNameOf } from "@/lib/courses/registerAccess";
 import type { SessionUser } from "@/lib/firebase/session";
-import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import { compareGroupsByMeeting, normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { opensProgrammeGroups, roleOnProgramme } from "../access";
 import { own } from "../keys";
 import { isId } from "../normalise";
@@ -98,8 +98,8 @@ export type RunGroupHeading = {
 
 /**
  * The run's groups that still meet, Monday first, as the allocation board
- * orders its columns: names, the weekly time and who facilitates. Nobody's
- * address, and nothing about the people in them.
+ * orders its columns (`compareGroupsByMeeting`): names, the weekly time and
+ * who facilitates. Nobody's address, and nothing about the people in them.
  */
 export async function loadRunGroupHeadings(db: Firestore, runId: string): Promise<RunGroupHeading[]> {
   // One equality on one field, so no declared index, as the times picture reads them.
@@ -107,10 +107,7 @@ export async function loadRunGroupHeadings(db: Firestore, runId: string): Promis
   const groups = snap.docs
     .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
     .filter((group) => !group.archived)
-    .sort((a, b) => {
-      const day = ((a.session.weekday + 6) % 7) - ((b.session.weekday + 6) % 7);
-      return day || a.session.startTimeLocal.localeCompare(b.session.startTimeLocal) || a.name.localeCompare(b.name);
-    });
+    .sort(compareGroupsByMeeting);
   const uids = [...new Set(groups.flatMap((group) => group.facilitatorUids))];
   const accounts = uids.length ? await db.getAll(...uids.map((uid) => db.collection("users").doc(uid))) : [];
   const nameOf = new Map(accounts.filter((doc) => doc.exists).map((doc) => [doc.id, displayNameOf(doc.data() ?? {})] as const));
