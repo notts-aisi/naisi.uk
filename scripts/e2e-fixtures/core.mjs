@@ -342,6 +342,14 @@ export const FIXTURE_COLLECTIONS = [
   // (`<runId>__<uid>`), one per person handed over, which the allocation board
   // reads. Written by the hand-over route and nothing else a spec drives.
   "courseApplications",
+  // An incubator's pitching week: one row per pitch (`runId` on every one),
+  // the picks of who would join it included. Written by the two pitching
+  // routes a member presses, and by nothing a fixture seeds.
+  "coursePitches",
+  // An incubator's teams, made from the pitches on the programme's Teams tab
+  // (`runId` on every one), with what each person was told by email. Written
+  // by the teams routes the lead presses, and by nothing a fixture seeds.
+  "courseTeams",
   "courseEnrolments",
   "courseProgress",
   "courseAudit",

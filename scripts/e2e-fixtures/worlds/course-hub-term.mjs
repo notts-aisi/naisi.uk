@@ -77,6 +77,27 @@
  * people and an email to the group has a link it must never carry. The admin
  * appoints Fern to Group A on the real page, as at the second point.
  *
+ * ## The fourth point ("pitching-week")
+ *
+ * An incubator in its pitching week (`PITCHING_WEEK`), read as the second
+ * point reads its run, three weeks in, with its own cast: the form's one
+ * programme is an INCUBATOR, whose run meets as one weekly group, and the
+ * programme accepted five people, all placed in that group and told by
+ * Publish. The run began `daysIn` days before the seed, so the seed's day is
+ * early in week 3, and week 3 is the pitching week: published, ticked as one,
+ * with two readings to pitch a paper from. The group's week 3 session is days
+ * ahead, so pitching is open for the whole of a run, and its day is never the
+ * seed's. The run's pitching settings are set as the run editor saves them
+ * (how many pitches a person may pick, the smallest and largest team, and the
+ * day the teams are made, the group's session the week after) and its teams
+ * are made from the pitches. Weeks 1 and 2's registers are finished.
+ *
+ * Nobody has pitched, picked or made a team: those are the people's own
+ * presses and the lead's, on the real pages. The admin still names the run on
+ * the programme's Settings tab, as at every point; nobody facilitates, and
+ * nobody leads the programme, so the pages say "The teams are made on" and
+ * the team email is signed by nobody.
+ *
  * ## No term facts
  *
  * Every date is worked out from the moment the seed runs, in London: the run
@@ -117,14 +138,18 @@ import { loadSecrets } from "../../e2e/lib/env.mjs";
 const log = (msg) => console.log(`[term-seed] ${msg}`);
 
 /** The points in the term a spec can ask for, in term order. */
-export const TERM_POINTS = Object.freeze(["decisions-sent", "week-three", "week-three-unmarked"]);
+export const TERM_POINTS = Object.freeze(["decisions-sent", "week-three", "week-three-unmarked", "pitching-week"]);
 
-/** The form's one programme. Fixed: a programme id is unique on its own form. */
+/** The form's one programme at the first three points. Fixed: a programme id is unique on its own form. */
 export const PROGRAMME_ID = "e2e-fellowship";
 
 /** The form's one question set and its one question. */
 export const QUESTION_SET_ID = "fellowships";
 export const QUESTION_ID = "why";
+
+/** The form's one programme at the fourth point, an incubator, and its question set. */
+export const INCUBATOR_PROGRAMME_ID = "e2e-incubator";
+export const INCUBATOR_QUESTION_SET_ID = "incubators";
 
 /**
  * A question set's own kind, which is NOT an account's role. Written through a
@@ -244,11 +269,97 @@ export const WEEK_THREE_UNMARKED = Object.freeze({
   published: WEEK_THREE.published,
 });
 
+/** Weeks 1 and 2 of the incubator's group: everybody came. */
+const ALL_FIVE_PRESENT = Object.freeze({ ada: "present", ben: "present", cleo: "present", dan: "present", eve: "present" });
+
+/**
+ * AN INCUBATOR IN ITS PITCHING WEEK, THREE WEEKS IN: the fourth point. Its
+ * run began `daysIn` days before the seed, so the seed's day is in week 3
+ * (days 14 to 20 of the plan), and its one group meets `dayAfterStart` days
+ * into each week, so the group's week 3 session is two days after the seed.
+ * So a run that crosses midnight is still in week 3, its pitching session is
+ * still a day or more away (never "tonight’s", and pitching never closes
+ * under it), and weeks 1 and 2's sessions are over.
+ *
+ * `programme` is the form's one programme, an incubator; `groups` the one
+ * weekly group its run meets as (with a meeting link, so no email can be
+ * shown to carry it); `people` the five it accepted, all placed in that group
+ * (`places`); and nobody facilitates (`facilitator`). `marks` are weeks 1 and
+ * 2's registers. `pitching` is what the run editor has saved: which week is
+ * pitching week, the readings that week lists, how many pitches a person may
+ * pick, the smallest and largest team, and that the teams are made from the
+ * pitches. The day the teams are made is the group's session the week after
+ * pitching week, worked out by the seed from its clock.
+ */
+export const PITCHING_WEEK = Object.freeze({
+  daysIn: 15,
+  programme: Object.freeze({
+    id: INCUBATOR_PROGRAMME_ID,
+    kind: "incubator",
+    word: "incubator",
+    questionSetId: INCUBATOR_QUESTION_SET_ID,
+    questionSetLabel: "Incubators",
+  }),
+  groups: Object.freeze([
+    Object.freeze({ key: "A", name: "Weekly session", dayAfterStart: 3, startTimeLocal: "17:00", room: "Room E3", online: true }),
+  ]),
+  people: Object.freeze([
+    Object.freeze({ key: "ada", first: "Ada", canMake: Object.freeze(["A"]) }),
+    Object.freeze({ key: "ben", first: "Ben", canMake: Object.freeze(["A"]) }),
+    Object.freeze({ key: "cleo", first: "Cleo", canMake: Object.freeze(["A"]) }),
+    Object.freeze({ key: "dan", first: "Dan", canMake: Object.freeze(["A"]) }),
+    Object.freeze({ key: "eve", first: "Eve", canMake: Object.freeze(["A"]) }),
+  ]),
+  facilitator: null,
+  places: Object.freeze({ ada: "A", ben: "A", cleo: "A", dan: "A", eve: "A" }),
+  marks: Object.freeze({ A: Object.freeze({ 1: ALL_FIVE_PRESENT, 2: ALL_FIVE_PRESENT }) }),
+  unfinished: null,
+  published: 3,
+  pitching: Object.freeze({
+    weekNumber: 3,
+    readings: Object.freeze([
+      Object.freeze({ id: "e2e-reading-probes", title: "Probes that transfer" }),
+      Object.freeze({ id: "e2e-reading-chess", title: "Board features in chess models" }),
+    ]),
+    pickLimit: 2,
+    teamSize: Object.freeze({ min: 2, max: 3 }),
+    teamsFrom: "pitches",
+  }),
+});
+
 /** What a point after decision day is seeded from, or null for decision day itself. */
 export function laterPlanOf(point) {
   if (point === "week-three") return WEEK_THREE;
   if (point === "week-three-unmarked") return WEEK_THREE_UNMARKED;
+  if (point === "pitching-week") return PITCHING_WEEK;
   return null;
+}
+
+/** The fellowship the first three points are about, as the form names it. */
+const FELLOWSHIP = Object.freeze({
+  id: PROGRAMME_ID,
+  kind: "fellowship",
+  word: "fellowship",
+  questionSetId: QUESTION_SET_ID,
+  questionSetLabel: "Fellowships",
+});
+
+/**
+ * Who and what a point is made of: the form's one programme, its run's
+ * groups, the people the programme accepted, and the account with no
+ * application. The first three points are the fellowship's; a plan that
+ * names a programme of its own (the fourth) brings its whole cast.
+ */
+function castOf(plan) {
+  if (plan?.programme) {
+    return {
+      programme: plan.programme,
+      groupPlan: plan.groups,
+      peoplePlan: plan.people,
+      facilitatorPlan: plan.facilitator,
+    };
+  }
+  return { programme: FELLOWSHIP, groupPlan: GROUP_PLAN, peoplePlan: PEOPLE_PLAN, facilitatorPlan: FACILITATOR_PLAN };
 }
 
 /** True for the one register of a plan that was saved and not finished. */
@@ -595,10 +706,10 @@ function formDoc({ state, now }) {
     archived: false,
     clonedFromRoundId: null,
     authorUid: "",
-    programmeIds: [PROGRAMME_ID],
+    programmeIds: [state.programmeId],
     programmes: {
-      [PROGRAMME_ID]: {
-        kind: "fellowship",
+      [state.programmeId]: {
+        kind: state.programmeKind,
         name: state.programmeName,
         shortName: state.programmeName,
         pitch: "A programme that exists so an automated run has somebody to place.",
@@ -618,7 +729,7 @@ function formDoc({ state, now }) {
         emailWording: {},
       },
     },
-    questionSetIds: [QUESTION_SET_ID],
+    questionSetIds: [state.questionSetId],
     asksFacilitating: false,
     revealOtherReviews: false,
     noOfferWording: null,
@@ -635,8 +746,8 @@ function questionSetDoc({ state, now }) {
     e2eTermRunId: state.termRunId,
     roundId: state.formId,
     role: GENERAL_SET,
-    scope: { type: "kind", kind: "fellowship" },
-    label: "Fellowships",
+    scope: { type: "kind", kind: state.programmeKind },
+    label: state.questionSetLabel,
     applicantLine: "",
     intro: "",
     questions: [
@@ -657,7 +768,7 @@ function questionSetDoc({ state, now }) {
   };
 }
 
-function contentFor(person) {
+function contentFor(state, person) {
   return {
     aboutYou: {
       preferredName: person.first,
@@ -670,9 +781,9 @@ function contentFor(person) {
       motivation: "I want to find out which arguments hold up.",
       interests: "",
     },
-    rankedProgrammeIds: [PROGRAMME_ID],
+    rankedProgrammeIds: [state.programmeId],
     wantsToFacilitate: null,
-    answers: { [QUESTION_SET_ID]: { [QUESTION_ID]: "To read and argue with people who disagree with me." } },
+    answers: { [state.questionSetId]: { [QUESTION_ID]: "To read and argue with people who disagree with me." } },
     availability: person.week,
     suMembership: "not-yet",
   };
@@ -682,7 +793,7 @@ function contentFor(person) {
 function applicationDoc({ state, person, now }) {
   const appliedAt = new Date(now.getTime() - 14 * DAY_MS);
   const sentAt = new Date(now.getTime() - 2 * DAY_MS);
-  const content = contentFor(person);
+  const content = contentFor(state, person);
   return {
     e2eTermRunId: state.termRunId,
     formVersion: 2,
@@ -701,7 +812,7 @@ function applicationDoc({ state, person, now }) {
     withdrawnAt: null,
     result: {
       kind: "accepted",
-      programmeId: PROGRAMME_ID,
+      programmeId: state.programmeId,
       publishedAt: sentAt,
       email: "sent",
       emailedAt: sentAt,
@@ -723,7 +834,7 @@ function decisionDoc({ state, person, now }) {
     roundId: state.formId,
     uid: person.uid,
     programmes: {
-      [PROGRAMME_ID]: {
+      [state.programmeId]: {
         decision: "accept",
         poolReason: null,
         couldSuitProgrammeId: null,
@@ -838,9 +949,13 @@ function groupDoc({ state, group, now }) {
 // The second point's records: what the weeks after decision day wrote
 // ---------------------------------------------------------------------------
 
-/** One taught week, as an editor publishes it (the shape register-push seeds). */
+/**
+ * One taught week, as an editor publishes it (the shape register-push seeds).
+ * The run's pitching week, at a point that has one, is also ticked as one in
+ * the week editor and lists its readings, which a pitch's paper is picked from.
+ */
 function publishedWeekDoc({ state, weekNumber, at }) {
-  return {
+  const week = {
     e2eTermRunId: state.termRunId,
     weekNumber,
     title: `E2E week ${weekNumber} reading`,
@@ -853,6 +968,34 @@ function publishedWeekDoc({ state, weekNumber, at }) {
     published: true,
     updatedAt: at,
     updatedByUid: null,
+  };
+  if (state.pitching?.weekNumber !== weekNumber) return week;
+  return {
+    ...week,
+    pitching: true,
+    // A reserved domain: nothing answers there.
+    materials: state.pitching.readings.map((reading) => ({
+      id: reading.id,
+      type: "reading",
+      title: reading.title,
+      url: `https://example.com/${reading.id}`,
+    })),
+  };
+}
+
+/**
+ * The run's pitching settings and how its teams are made, as the run
+ * editor's Pitching week section saves them (`storedPitchSettings` and
+ * `normalizeTeamsFrom` in src/lib/firestore/courses.ts and
+ * src/lib/courses/teams/model.ts, restated), or nothing at a point with no
+ * pitching week.
+ */
+function pitchingFieldsOf(state) {
+  if (!state.pitching) return {};
+  const { pickLimit, teamSize, teamsMadeOn, teamsFrom } = state.pitching;
+  return {
+    pitchSettings: { pickLimit, teamSizeMin: teamSize.min, teamSizeMax: teamSize.max, teamsMadeOn },
+    teamsFrom,
   };
 }
 
@@ -1029,9 +1172,11 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
   const target = assertFixtureTarget();
   const now = new Date();
   const todayKey = londonDateKey(now);
-  // Both later points are three weeks in, and differ only in their plan.
+  // Every later point is three weeks in, and they differ only in their plan.
   const laterPlan = laterPlanOf(point);
   const weekThree = laterPlan !== null;
+  // The fellowship's programme, groups and people, or the plan's own.
+  const cast = castOf(laterPlan);
   // The moment decision day's records describe: the seed itself at the first
   // point, and at a later one the same moment of a term whose run began
   // `daysIn` days ago, so every record of the first point is written as it
@@ -1041,7 +1186,7 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
   const startWeekday = weekdayOf(startDate);
   const runIdValue = fixtureId("e2e-term-run", termRunId);
 
-  const groups = GROUP_PLAN.map((plan) => {
+  const groups = cast.groupPlan.map((plan) => {
     const firstDateKey = shiftDateKey(startDate, plan.dayAfterStart);
     return {
       key: plan.key,
@@ -1067,9 +1212,11 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
     suppress,
     formId: fixtureId("e2e-term-form", termRunId),
     formLabel: `E2E term form ${termRunId}`,
-    programmeId: PROGRAMME_ID,
-    programmeName: `E2E fellowship ${termRunId}`,
-    questionSetId: QUESTION_SET_ID,
+    programmeId: cast.programme.id,
+    programmeKind: cast.programme.kind,
+    programmeName: `E2E ${cast.programme.word} ${termRunId}`,
+    questionSetId: cast.programme.questionSetId,
+    questionSetLabel: cast.programme.questionSetLabel,
     courseId: fixtureId("e2e-term-course", termRunId),
     courseTitle: `E2E term course ${termRunId}`,
     runId: runIdValue,
@@ -1079,7 +1226,7 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
     weekCount: WEEK_COUNT,
     channel: cohortChannel(runIdValue),
     groups,
-    /** Filled below, one per account made, in `PEOPLE_PLAN` order. */
+    /** Filled below, one per account made, in the order of the cast's people. */
     people: [],
     facilitator: null,
     suppressed: [],
@@ -1095,6 +1242,7 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
           adminUid: null,
         }
       : {}),
+    ...(laterPlan?.pitching ? { pitching: pitchingOf(laterPlan.pitching, groups) } : {}),
   };
 
   // Published BEFORE the first write and filled in place from here on.
@@ -1105,7 +1253,7 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
 
   // Accounts first: everything else can be torn down without them, and an
   // account with nothing to belong to is the harmless failure.
-  const plans = [...PEOPLE_PLAN, FACILITATOR_PLAN];
+  const plans = [...cast.peoplePlan, ...(cast.facilitatorPlan ? [cast.facilitatorPlan] : [])];
   for (const [index, plan] of plans.entries()) {
     const names = { preferred: plan.first, display: `${plan.first} Fixture ${termRunId}` };
     const account = await createFixtureUser({ runId: termRunId, index, suppress, names });
@@ -1118,7 +1266,7 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
       first: names.preferred,
       displayName: names.display,
     };
-    if (plan === FACILITATOR_PLAN) {
+    if (plan === cast.facilitatorPlan) {
       state.facilitator = person;
     } else {
       state.people.push({
@@ -1136,8 +1284,16 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
   const run = runDoc({ state, now: anchor });
   await fixtureDoc("courseRuns", state.runId).set(
     weekThree
-      ? // Moved on from draft before the start, and published: its people were told their groups.
-        { ...run, status: "running", allocationPublishedAt: at.published, updatedAt: at.published }
+      ? // Moved on from draft before the start, and published: its people were
+        // told their groups. A run with a pitching week also carries what its
+        // run editor saved for that week and for its teams.
+        {
+          ...run,
+          status: "running",
+          allocationPublishedAt: at.published,
+          updatedAt: at.published,
+          ...pitchingFieldsOf(state),
+        }
       : run,
   );
   for (const group of state.groups) {
@@ -1151,7 +1307,7 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
 
   await fixtureDoc("admissionRounds", state.formId).set(formDoc({ state, now: anchor }));
   await fixtureSubcollection("admissionRounds", state.formId, "questionSets")
-    .doc(QUESTION_SET_ID)
+    .doc(state.questionSetId)
     .set(questionSetDoc({ state, now: anchor }));
   for (const person of state.people) {
     const week = weekFor(person.canMake, state.groups);
@@ -1166,12 +1322,31 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
   if (weekThree) await seedWeekThree(state, laterPlan, at);
 
   log(
-    `Seeded form ${state.formId} (decisions sent, ${state.people.length} accepted and coming), ` +
+    `Seeded form ${state.formId} (${state.programmeKind}, decisions sent, ${state.people.length} accepted and coming), ` +
       `course ${state.courseId}, ${weekThree ? "running" : "draft"} run ${state.runId} starting ${startDate}, ` +
-      `${state.groups.length} groups, and ${plans.length} waiting accounts` +
-      (weekThree ? `; three weeks in: places told, ${laterPlan.published} weeks published, registers, one update.` : "."),
+      `${state.groups.length} ${state.groups.length === 1 ? "group" : "groups"}, and ${plans.length} waiting accounts` +
+      (weekThree ? `; three weeks in: places told, ${laterPlan.published} weeks published, registers, one update` : "") +
+      (state.pitching ? `; week ${state.pitching.weekNumber} is pitching week, teams made on ${state.pitching.teamsMadeOn}.` : "."),
   );
   return state;
+}
+
+/**
+ * A point's pitching week, as its spec reads it: the plan's settings, and the
+ * day the teams are made, which is the first session of the week after
+ * pitching week, from the groups' own calendars.
+ */
+function pitchingOf(plan, groups) {
+  const teamsMadeOn = groups.map((group) => sessionOf(group, plan.weekNumber + 1).dateKey).sort()[0];
+  return {
+    weekNumber: plan.weekNumber,
+    weekId: weekDocId(plan.weekNumber),
+    readings: plan.readings.map((reading) => ({ id: reading.id, title: reading.title })),
+    pickLimit: plan.pickLimit,
+    teamSize: { min: plan.teamSize.min, max: plan.teamSize.max },
+    teamsMadeOn,
+    teamsFrom: plan.teamsFrom,
+  };
 }
 
 /** The instants a later point's records are dated by, from the seed's clock. */
@@ -1354,6 +1529,19 @@ function reminderMarkersOf(state) {
  *  - changing a session: the group document itself;
  *  - the update that tells the group: as an update above, with the
  *    facilitator as the presser.
+ *
+ * And at the fourth point, as its people and its lead drive it:
+ *  - a pitch saved, and a pick pressed or taken back: one `coursePitches` row
+ *    a pitch (`runId` on it), the picks on the pitch itself;
+ *  - the Pitches view and the Teams tab: they only read;
+ *  - making a team from a pitch, moving somebody, removing a team: the
+ *    `courseTeams` rows (`runId` on them);
+ *  - "Send a test to me" beside "Tell everyone their team": the test's
+ *    marker in `courseNudges` (`runId` on it) and its send row (about the
+ *    run);
+ *  - "Tell everyone their team": the press's lock in `courseNudges` (`runId`
+ *    on it, let go when the press ends), what each person was told on their
+ *    team, and the send rows (`to ==` each person, about the run).
  */
 export async function countTerm(state) {
   const counts = {};
@@ -1399,6 +1587,8 @@ export async function countTerm(state) {
   counts.courseAttendance = (await fixtureQuery("courseAttendance").where("runId", "==", runId).get()).size;
   counts.courseUpdates = (await fixtureQuery("courseUpdates").where("runId", "==", runId).get()).size;
   counts.dataExports = (await fixtureQuery("dataExports").where("scope.runId", "==", runId).get()).size;
+  counts.coursePitches = (await fixtureQuery("coursePitches").where("runId", "==", runId).get()).size;
+  counts.courseTeams = (await fixtureQuery("courseTeams").where("runId", "==", runId).get()).size;
   let counters = 0;
   for (const id of sendCounterIdsOf(state)) {
     if ((await fixtureDoc("courseNudges", id).get()).exists) counters += 1;
@@ -1471,6 +1661,9 @@ export async function teardownTerm(state) {
   await deleteQuery(fixtureQuery("courseAttendance").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseUpdates").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("dataExports").where("scope.runId", "==", runId));
+  // The fourth point's: the pitches (with the picks on them) and the teams.
+  await deleteQuery(fixtureQuery("coursePitches").where("runId", "==", runId));
+  await deleteQuery(fixtureQuery("courseTeams").where("runId", "==", runId));
   for (const id of sendCounterIdsOf(state)) await fixtureDoc("courseNudges", id).delete();
   for (const ref of reminderMarkersOf(state)) await ref.delete();
 
