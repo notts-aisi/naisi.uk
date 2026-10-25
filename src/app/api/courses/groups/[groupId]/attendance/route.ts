@@ -12,7 +12,7 @@ import {
   loadRegisterMembers,
   type RegisterMember,
 } from "@/lib/courses/registerAccess";
-import { leaversOfGroup, readRunRecords } from "@/lib/courses/programmeAttendance";
+import { didNotHappenLine, leaversOfGroup, readRunRecords } from "@/lib/courses/programmeAttendance";
 import { readRegisterEnding, type RegisterEnding } from "@/lib/courses/registerEnding";
 import {
   resolveSessions,
@@ -84,6 +84,14 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * facilitator to mark a room full of people absent from a class that never
  * happened. Column TITLES resolve group-first too, so a week the facilitator
  * has forked and renamed reads under the name their members see.
+ *
+ * ── A SESSION CANCELLED THROUGH "CHANGE A SESSION" ─────────────────────────
+ * Its column reads as not held, as the lead's tabs and the register jobs
+ * read it, whatever its register says, and its register needs nothing: a
+ * mark, the held switch, a note and an admin's correction are refused in the
+ * register's words for a session that did not happen (the push route refuses
+ * it the same way). Putting the session back is "Change a session"'s own
+ * "Hold it as usual", never the register's switch.
  */
 
 // ---------------------------------------------------------------------------
@@ -101,7 +109,10 @@ export type AttendanceSession = {
   title: string;
   /** Civil date of the session, or "" when the calendar cannot resolve one. */
   dateKey: string;
-  /** False = the session did not happen. Out of every denominator. */
+  /**
+   * False = the session did not happen: its register says so, or it was
+   * cancelled through "Change a session". Out of every denominator.
+   */
   held: boolean;
   /** The facilitator's note on the session as a whole. */
   notes: string;
@@ -451,6 +462,20 @@ async function prepareWrite(
   };
 }
 
+/**
+ * A session cancelled through "Change a session" met nobody: its register
+ * needs nothing, and nothing written to it could count. Each write verb asks
+ * this once its own gate has answered, so a refusal it gave before still
+ * comes first.
+ */
+function cancelledSessionRefusal(ctx: WriteContext): NextResponse | null {
+  if (!ctx.session.cancelled) return null;
+  return NextResponse.json(
+    { error: didNotHappenLine(ctx.group.name.trim() || "This group", ctx.session.dateKey) },
+    { status: 409 },
+  );
+}
+
 // ---------------------------------------------------------------------------
 // GET
 // ---------------------------------------------------------------------------
@@ -633,8 +658,10 @@ export async function GET(
         title: titleByWeekId.get(c.weekId) ?? "",
         dateKey: c.dateKey,
         // A session with no register yet HELD, which is the same default the
-        // normaliser applies: nobody has said otherwise.
-        held: state?.held ?? true,
+        // normaliser applies: nobody has said otherwise. A session cancelled
+        // through "Change a session" did not happen, whatever its register
+        // says, as the lead's tabs and the register jobs read it.
+        held: !c.cancelled && (state?.held ?? true),
         notes: state?.notes ?? "",
         pushedAt: state?.pushedAt ?? null,
       };
@@ -674,6 +701,8 @@ export async function POST(
   const { groupId } = await ctx.params;
   const prepared = await prepareWrite(groupId, req);
   if (!prepared.ok) return prepared.response;
+  const cancelled = cancelledSessionRefusal(prepared.ctx);
+  if (cancelled) return cancelled;
   const { actor, db, runId, session, members, body } = prepared.ctx;
 
   const parsedMarks = parseMarks(body.marks);
@@ -824,6 +853,8 @@ export async function PATCH(
       { status: 403 },
     );
   }
+  const cancelled = cancelledSessionRefusal(prepared.ctx);
+  if (cancelled) return cancelled;
 
   const parsedMarks = parseMarks(body.marks);
   if (!parsedMarks.ok) {

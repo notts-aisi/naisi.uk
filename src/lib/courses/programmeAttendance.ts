@@ -285,6 +285,20 @@ export function dayLabel(dateKey: string): string {
   return formatRunStartShort(dateKey) ?? "";
 }
 
+/**
+ * The register's answer to a press about a session that did not happen: its
+ * register says so, or it was cancelled through "Change a session". Remind on
+ * the Overview, and the facilitators' register and its push, all refuse in
+ * these words. "Group B’s session on Tue 24 Nov didn’t happen, so its
+ * register needs nothing."
+ */
+export function didNotHappenLine(groupName: string, dateKey: string): string {
+  const day = dayLabel(dateKey);
+  return day
+    ? `${groupName}’s session on ${day} didn’t happen, so its register needs nothing.`
+    : `${groupName}’s session didn’t happen, so its register needs nothing.`;
+}
+
 /** "Thursdays 6pm", the board's line for a group's weekly slot. Null with no day or time. */
 export function slotLine(session: { weekday: number; startTimeLocal: string }): string | null {
   const day = WEEKDAYS[session.weekday];

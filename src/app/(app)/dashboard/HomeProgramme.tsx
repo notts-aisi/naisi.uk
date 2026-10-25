@@ -8,8 +8,9 @@ import PageHead from "@/components/ui/PageHead";
 import ProgressBar from "@/components/ui/ProgressBar";
 import Skeleton from "@/components/ui/Skeleton";
 import type { MyRunEntry } from "@/app/api/courses/me/route";
-import type { OverviewPayload } from "@/app/api/courses/runs/[runId]/overview/route";
+import type { OverviewGroup, OverviewPayload } from "@/app/api/courses/runs/[runId]/overview/route";
 import { weekHref } from "@/features/courses/links";
+import { cancelledIn } from "@/features/courses/sessionChange/cardFacts";
 import { useRunOverview } from "@/features/courses/useRunOverview";
 import { useRunProgress } from "@/features/courses/useRunProgress";
 import { useWeek } from "@/features/courses/useWeek";
@@ -295,6 +296,7 @@ export default function HomeProgramme({
           {data?.ownAttendance && (
             <Attendance
               own={data.ownAttendance}
+              group={group}
               totalWeeks={data.run.totalWeeks}
               href={`${runHref}/progress`}
             />
@@ -319,14 +321,20 @@ const MARK: Record<string, { letter: string; word: string }> = {
  * The member's own attendance: how many sessions in full, and one box a week.
  *
  * A week has a mark only once its register is finished, which the route
- * decides. A week with no finished register is a dash, never an absence.
+ * decides. A week with no finished register is a dash, never an absence. A
+ * week whose session was cancelled through "Change a session" is "no
+ * session", from the run's own record of the change (`cancelledIn`): such a
+ * session has no register to say so.
  */
 function Attendance({
   own,
+  group,
   totalWeeks,
   href,
 }: {
   own: NonNullable<OverviewPayload["ownAttendance"]>;
+  /** Their own group's card, which carries its cancelled sessions. */
+  group: OverviewGroup | null;
   totalWeeks: number;
   href: string;
 }) {
@@ -362,12 +370,14 @@ function Attendance({
         <ol className={styles.pips} role="list">
           {weeks.map((n) => {
             const session = byWeek.get(n);
-            const mark = session?.held && session.status ? MARK[session.status] : null;
-            const word = !session
-              ? "not marked yet"
-              : !session.held
+            const cancelled = group !== null && cancelledIn(group, n) !== null;
+            const mark = !cancelled && session?.held && session.status ? MARK[session.status] : null;
+            const word =
+              cancelled || (session && !session.held)
                 ? "no session"
-                : (mark?.word ?? "not marked");
+                : !session
+                  ? "not marked yet"
+                  : (mark?.word ?? "not marked");
             return (
               <li key={n} className={styles.pip}>
                 <span

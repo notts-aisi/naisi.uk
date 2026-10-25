@@ -1015,6 +1015,8 @@ async function registerOf(who, groupId) {
       left: leaver.left,
       marks: Object.fromEntries(Object.entries(leaver.records).map(([key, status]) => [`week ${weekOf.get(key)}`, status])),
     })),
+    /** The session the register's foot is about, and whether its register is finished. */
+    focus: answer.body.ending.focus ? [answer.body.ending.focus.weekNumber, answer.body.ending.focus.finished] : null,
   };
 }
 
@@ -1320,6 +1322,20 @@ async function theDayAfterTheCancelled() {
     body: { groupId: GROUP.B, sessionKey: card?.remind?.[2] ?? sessionKey(CANCELLED_WEEK, 1), emails: card?.remind?.[1] ?? 2 },
   });
   c.remindMail = mailSince(before).map((mail) => [mail.to.split("@")[0], mail.subject]);
+  // Rahul, on his register: a mark, the switch, a note, and the push, each
+  // for the session he cancelled. What they wrote and sent is written down.
+  const store = storeNow();
+  const beforePresses = world.mail.length;
+  const press = (method, body) =>
+    courseCall("rahul", method, { groupId: GROUP.B }, { body: { weekNumber: CANCELLED_WEEK, ...body } }).then(short);
+  c.presses = {
+    mark: await press(courseRoutes.register.POST, { marks: [{ uid: "amara", status: "present" }] }),
+    held: await press(courseRoutes.register.POST, { held: true }),
+    note: await press(courseRoutes.register.POST, { notes: "The room was closed." }),
+    push: await press(courseRoutes.finish.POST, {}),
+  };
+  c.pressesWrote = changedSince(store);
+  c.pressesMail = world.mail.length - beforePresses;
 }
 
 // ---------------------------------------------------------------------------
@@ -1621,13 +1637,15 @@ const THE_LEAVING_EMAIL = (first) =>
  * at its foot: leaving closed at the run's last session, H1), the hub's
  * card, and Home's line and attendance, which is drawn with no session to
  * come. Group B's week 4 is missing from the run home's marks (it had no
- * register) and reads "not marked yet" on Home's strip (H2).
+ * register), and Home's strip reads it as "no session" from the run's own
+ * record of the cancellation (until the walk of stage three it read "not
+ * marked yet", from the register alone: H2).
  */
 const MEMBER_PAGES = {
   amara: {
     home: "AGI Strategy Fellowship · Autumn 2026 You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 5 of 5 sessions in full so far. Week 1, Tue 3 Nov Present Week 2, Tue 10 Nov Present Week 3, Tue 17 Nov Present Week 5, Tue 1 Dec Present Week 6, Tue 8 Dec Present See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Finished Group B",
-    homeLine: "Group B · finished Hi You. AGI Strategy Fellowship · Group B · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 5 of 5 so far P W1 Week 1: Present P W2 Week 2: Present P W3 Week 3: Present - W4 Week 4: not marked yet P W5 Week 5: Present P W6 Week 6: Present Your progress week by week",
+    homeLine: "Group B · finished Hi You. AGI Strategy Fellowship · Group B · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 5 of 5 so far P W1 Week 1: Present P W2 Week 2: Present P W3 Week 3: Present - W4 Week 4: no session P W5 Week 5: Present P W6 Week 6: Present Your progress week by week",
   },
   dev: {
     home: "AGI Strategy Fellowship · Autumn 2026 You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 5 of 6 sessions in full so far. Week 1, Thu 29 Oct Late Week 2, Thu 5 Nov Present Week 3, Thu 12 Nov Present Week 4, Thu 19 Nov Present Week 5, Thu 26 Nov Present Week 6, Thu 3 Dec Present See your progress week by week →",
@@ -1637,17 +1655,17 @@ const MEMBER_PAGES = {
   farah: {
     home: "AGI Strategy Fellowship · Autumn 2026 AGI Strategy Fellowship has ended. Thanks for being part of it. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 2 of 5 sessions in full so far. Week 1, Tue 3 Nov Present Week 2, Tue 10 Nov Late Week 3, Tue 17 Nov Present Week 5, Tue 1 Dec Absent Week 6, Tue 8 Dec Absent See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Ended Group B",
-    homeLine: "Group B · ended Hi You. AGI Strategy Fellowship · Group B · ended No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 2 of 5 so far P W1 Week 1: Present L W2 Week 2: Late P W3 Week 3: Present - W4 Week 4: not marked yet A W5 Week 5: Absent A W6 Week 6: Absent Your progress week by week",
+    homeLine: "Group B · ended Hi You. AGI Strategy Fellowship · Group B · ended No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 2 of 5 so far P W1 Week 1: Present L W2 Week 2: Late P W3 Week 3: Present - W4 Week 4: no session A W5 Week 5: Absent A W6 Week 6: Absent Your progress week by week",
   },
   isaac: {
     home: "AGI Strategy Fellowship · Autumn 2026 You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 4 of 5 sessions in full so far. Week 1, Tue 3 Nov Present Week 2, Tue 10 Nov Present Week 3, Tue 17 Nov Absent Week 5, Tue 1 Dec Present Week 6, Tue 8 Dec Present See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Finished Group B",
-    homeLine: "Group B · finished Hi You. AGI Strategy Fellowship · Group B · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 4 of 5 so far P W1 Week 1: Present P W2 Week 2: Present A W3 Week 3: Absent - W4 Week 4: not marked yet P W5 Week 5: Present P W6 Week 6: Present Your progress week by week",
+    homeLine: "Group B · finished Hi You. AGI Strategy Fellowship · Group B · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 4 of 5 so far P W1 Week 1: Present P W2 Week 2: Present A W3 Week 3: Absent - W4 Week 4: no session P W5 Week 5: Present P W6 Week 6: Present Your progress week by week",
   },
   kofi: {
     home: "AGI Strategy Fellowship · Autumn 2026 You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 3 of 5 sessions in full so far. Week 1, Tue 3 Nov Excused Week 2, Tue 10 Nov Present Week 3, Tue 17 Nov Excused Week 5, Tue 1 Dec Present Week 6, Tue 8 Dec Present See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Finished Group B",
-    homeLine: "Group B · finished Hi You. AGI Strategy Fellowship · Group B · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 3 of 5 so far EX W1 Week 1: Excused P W2 Week 2: Present EX W3 Week 3: Excused - W4 Week 4: not marked yet P W5 Week 5: Present P W6 Week 6: Present Your progress week by week",
+    homeLine: "Group B · finished Hi You. AGI Strategy Fellowship · Group B · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 3 of 5 so far EX W1 Week 1: Excused P W2 Week 2: Present EX W3 Week 3: Excused - W4 Week 4: no session P W5 Week 5: Present P W6 Week 6: Present Your progress week by week",
   },
   mei: {
     home: "AGI Strategy Fellowship · Autumn 2026 AGI Strategy Fellowship has ended. Thanks for being part of it. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 3 of 6 sessions in full so far. Week 1, Thu 29 Oct Present Week 2, Thu 5 Nov Excused Week 3, Thu 12 Nov Present Week 4, Thu 19 Nov Absent Week 5, Thu 26 Nov Absent Week 6, Thu 3 Dec Present See your progress week by week →",
@@ -1862,11 +1880,19 @@ describe("stage three of the course hub, one term from week 3 to after its end",
       assert.deepEqual(c().remindMail, []);
     });
 
-    // The facilitators' register still lists the cancelled week as a session
-    // held and not finished, and the member's Home its week as "not marked
-    // yet": both ask the register only (H2, still open).
-    test("the facilitators' register still lists week 4 as held and not finished", () => {
-      assert.deepEqual(c().register.sessions, [[1, true, true], [2, true, true], [3, true, true], [4, true, false]]);
+    // Until the walk of stage three the facilitators' register listed the
+    // cancelled week as a session held and not finished, its foot offered to
+    // finish it and promised a task, and the member's Home read its week as
+    // "not marked yet": both asked the register only (H2). The register now
+    // reads it as not held, its foot is about the last session that met, and
+    // every press of its register is refused in the register's own words for
+    // a session that did not happen, writing and sending nothing.
+    test("the facilitators' register reads week 4 as not held, its foot leaves it, and its register needs nothing", () => {
+      assert.deepEqual(c().register.sessions, [[1, true, true], [2, true, true], [3, true, true], [4, false, false]]);
+      assert.deepEqual(c().register.focus, [3, true]);
+      const refused = [409, "Group B’s session on Tue 24 Nov didn’t happen, so its register needs nothing."];
+      assert.deepEqual(c().presses, { mark: refused, held: refused, note: refused, push: refused });
+      assert.deepEqual([c().pressesWrote, c().pressesMail], [[], 0]);
     });
   });
 

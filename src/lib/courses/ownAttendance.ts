@@ -17,8 +17,9 @@ import type { ResolvedSession } from "./sessions";
  * one, never passes a normalised register doc along. It reads exactly four
  * facts out of each one and builds a new object from them:
  *
- *   the session it belongs to, whether that session was held, its date, and
- *   THIS uid's mark.
+ *   the session it belongs to, whether that session was held (a session
+ *   cancelled through "Change a session" never was), its date, and THIS
+ *   uid's mark.
  *
  * Nothing else can leak, because nothing else is ever read. A field added to
  * `courseAttendance` next term travels nowhere by default, which is the
@@ -139,8 +140,9 @@ export function ownAttendanceSessions(
       dateKey: session.dateKey,
       // Absent means HELD, the same default `normalizeCourseAttendance` takes:
       // every register written before the field existed recorded a session
-      // that happened.
-      held: raw.held !== false,
+      // that happened. A session cancelled through "Change a session" did not
+      // happen, whatever its register says.
+      held: !session.cancelled && raw.held !== false,
       status: statusOf(raw.records, uid),
     });
   }

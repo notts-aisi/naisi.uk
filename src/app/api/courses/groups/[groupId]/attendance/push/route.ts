@@ -17,6 +17,7 @@ import {
   registerFollowUpTaskId,
 } from "@/lib/courses/unmarkedRegisters";
 import { reserveSendSlot } from "@/lib/email/courseFacilitatorEmails";
+import { didNotHappenLine } from "@/lib/courses/programmeAttendance";
 import { joinWords, missingNudgeValueWords } from "@/lib/email/courseNudgeEmail";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
@@ -117,6 +118,12 @@ import { nextWeekEmailIsScheduled } from "@/lib/scheduler/nextWeekEmailSchedule"
  * it is refused with the same sentence a missing register gets. Both refusals
  * are read BEFORE the throttle slot is spent: eight taps on an empty column
  * must not lock a facilitator out of pushing the register they then mark.
+ *
+ * ── A SESSION CANCELLED THROUGH "CHANGE A SESSION" IS REFUSED ─────────────
+ * It met nobody, so its register is nobody's to finish: the register reads
+ * its column as not held, nothing chases it, and a press of it is answered in
+ * the register's words for a session that did not happen, before anything is
+ * read or a throttle slot is spent. Nothing is locked, mirrored or sent.
  *
  * ── WHAT THIS ROUTE DOES NOT DO ─────────────────────────────────────────────
  * THE SESSION-1 WELCOME. There is no push before a run's first session, so
@@ -403,6 +410,12 @@ export async function POST(
   }
   const session = sessions[index];
   const nextSession: ResolvedSession | null = sessions[index + 1] ?? null;
+  if (session.cancelled) {
+    return NextResponse.json(
+      { error: didNotHappenLine(group.name.trim() || "This group", session.dateKey) },
+      { status: 409 },
+    );
+  }
 
   const ref = db
     .collection("courseAttendance")

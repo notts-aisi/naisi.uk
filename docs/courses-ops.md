@@ -1079,7 +1079,10 @@ the push sends it while the schedule is off, and the schedule sends it on time
 while it is on.
 
 A session cancelled ahead of time, through "Change a session", is never chased
-either, and its own email says it is off: see Changing a session.
+either, and its own email says it is off: see Changing a session. Its column
+reads **Not held** and its register needs nothing: a mark, the switch, a note
+and the push are each refused. To hold it after all, use Hold it as usual in
+Change a session.
 
 ## Placing a term's accepted people on a course run
 
@@ -1495,7 +1498,11 @@ group meets next, until that evening has passed.
   about the session after it says it covers both weeks. A moved session's email
   names its new day, time and room, and an online one says Online.
 - **The register chase** skips a cancelled session: no reminder, no task. Its
-  register still has a column; leave it empty.
+  register still has a column, which reads Not held and takes nothing, and the
+  register's foot is about another session.
+- **Everybody's figures** leave it out: the lead's tabs, the stored figures on
+  each person's row and their own marks, and Home's attendance reads the week
+  as no session.
 - **The run's catch-up email** names no cancelled evening.
 
 ### Rules
