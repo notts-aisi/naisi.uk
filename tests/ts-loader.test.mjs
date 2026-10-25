@@ -464,6 +464,16 @@ const USERS = new Map([
       "email templates behind it are compiled for real",
   ],
   [
+    "course-hub-stage-three-journey.test.mjs",
+    "executes every route handler leaving a placed run and who finished cross (the leave and its email, Remove, the " +
+      "registers and their finishing, Change a session, Remind, the attendance CSV, the rule and the switch for who " +
+      "finished, the exercises sent, the member area, the run's status and its destroy with its manifest) and draws the " +
+      "programme's head and its Overview, Attendance and Settings tabs, the run's page, the leaving confirmation, the notes " +
+      "and the reading list (.tsx server components), and the member's run home, card, programmes list and Home line, as " +
+      "one term on one in-memory store, because a seam between two of those pieces shows only when both run on the same " +
+      "documents; the mail door records, and the email templates behind it are compiled for real",
+  ],
+  [
     "applications-own-application.test.mjs",
     "executes the pooled applicants, decision day, test email and decision handlers for an " +
       "admin who has applied, beside what a second admin is sent, against an in-memory term, " +
