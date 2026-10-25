@@ -7,6 +7,7 @@ import {
   type QueryDocumentSnapshot,
   type QuerySnapshot,
 } from "firebase-admin/firestore";
+import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
 import { normalizeCourseEnrolment } from "./courseEnrolments";
 import {
   MEMBER_RECORDS_COLLECTION,
@@ -54,6 +55,13 @@ export type AccountDeletionSummary = {
    * participant note about them (both keys go, in one batch).
    */
   courseAttendanceMarksCleared: number;
+  /**
+   * Pitches in an incubator's pitching week (`coursePitches`) this account was
+   * taken off: a pitch only they pitched is deleted, one they pitched with a
+   * partner stays the partner's without them, and their name comes off every
+   * pitch's list of people who would join it. Counted once per pitch.
+   */
+  coursePitchesCleared: number;
   /** Admission applications (drafts included) written by this account. */
   admissionApplicationsDeleted: number;
   /** Their access-requirements rows, deleted in the SAME batch. See below. */
@@ -366,6 +374,55 @@ export async function deleteMembershipImportRows(
     );
   }
   return deleted;
+}
+
+/**
+ * Take one account off pitching week (`coursePitches`, described in
+ * `src/lib/courses/pitching/model.ts`).
+ *
+ * A pitch names its people in two arrays, `pitcherUids` (one or two people,
+ * the first having sent it) and `wouldJoinUids` (the picks), so each is
+ * found by a single-field `array-contains`, served by the automatic indexes:
+ *
+ *  - a pitch only this account pitched is DELETED: its words are theirs;
+ *  - a pitch they pitched with a partner stays, the partner's alone, so the
+ *    partner keeps the pitch they also wrote;
+ *  - every pitch they said they would join loses their name from that list.
+ *
+ * A person is on one pitch a week and picks a handful, so one batch is
+ * plenty; it is written in batches of 400 all the same.
+ */
+export async function clearCoursePitches(db: Firestore, uid: string): Promise<number> {
+  const pitches = db.collection(PITCHES_COLLECTION);
+  const [pitched, picked] = await Promise.all([
+    pitches.where("pitcherUids", "array-contains", uid).get(),
+    pitches.where("wouldJoinUids", "array-contains", uid).get(),
+  ]);
+  const writes: Array<(batch: ReturnType<Firestore["batch"]>) => void> = [];
+  const touched = new Set<string>();
+  for (const doc of pitched.docs) {
+    touched.add(doc.id);
+    const pitchers = (doc.data()?.pitcherUids as unknown[] | undefined) ?? [];
+    const others = pitchers.filter((other) => typeof other === "string" && other !== uid);
+    if (others.length === 0) {
+      writes.push((batch) => batch.delete(doc.ref));
+    } else {
+      writes.push((batch) =>
+        batch.update(doc.ref, { pitcherUids: others, wouldJoinUids: FieldValue.arrayRemove(uid) }),
+      );
+    }
+  }
+  for (const doc of picked.docs) {
+    if (touched.has(doc.id)) continue;
+    touched.add(doc.id);
+    writes.push((batch) => batch.update(doc.ref, { wouldJoinUids: FieldValue.arrayRemove(uid) }));
+  }
+  for (let at = 0; at < writes.length; at += 400) {
+    const batch = db.batch();
+    for (const write of writes.slice(at, at + 400)) write(batch);
+    await batch.commit();
+  }
+  return touched.size;
 }
 
 /**
@@ -884,6 +941,7 @@ export async function deleteAccountCascade(
     courseExerciseResponsesDeleted: 0,
     schedulerMarkersDeleted: 0,
     courseAttendanceMarksCleared: 0,
+    coursePitchesCleared: 0,
     admissionApplicationsDeleted: 0,
     admissionApplicationPrivateDeleted: 0,
     admissionDecisionsDeleted: 0,
@@ -1153,6 +1211,16 @@ export async function deleteAccountCascade(
       console.error(`[deleteAccount] ${collection} delete failed:`, uid, err);
       partialFailure = true;
     }
+  }
+
+  // 5c'. PITCHING WEEK. A pitch holds who pitched it and who would join it as
+  //      two arrays of uids, so this account is taken off both rather than a
+  //      row of its own being deleted (see clearCoursePitches).
+  try {
+    summary.coursePitchesCleared = await clearCoursePitches(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] coursePitches clear failed:", uid, err);
+    partialFailure = true;
   }
 
   // 5d. ADMISSIONS. Same tier as the course rows above and for the same

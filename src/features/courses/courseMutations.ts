@@ -19,6 +19,8 @@ import {
   COURSE_FIELD_LIMITS,
   EMPTY_APPLICATION_COUNTS,
   courseRunChannel,
+  pitchSettingsError,
+  storedPitchSettings,
   weekDocId,
   type ChecklistItem,
   type CourseEnrolMode,
@@ -29,6 +31,7 @@ import {
   type CourseWeekDoc,
   type Exercise,
   type Material,
+  type RunPitchSettings,
 } from "@/lib/firestore/courses";
 import {
   GROUP_FIELD_LIMITS,
@@ -283,6 +286,8 @@ export type CourseRunPatch = Partial<{
    */
   cohort: RunCohort | null;
   startHereBlocks: Block[];
+  /** Pitching week's settings, stored whole (`storedPitchSettings`). */
+  pitchSettings: RunPitchSettings;
 }>;
 
 export async function updateRun(runId: string, patch: CourseRunPatch): Promise<void> {
@@ -346,6 +351,11 @@ export async function updateRun(runId: string, patch: CourseRunPatch): Promise<v
       0,
       COURSE_FIELD_LIMITS.maxStartHereBlocks,
     );
+  }
+  if (patch.pitchSettings !== undefined) {
+    const error = pitchSettingsError(patch.pitchSettings);
+    if (error) throw new Error(error);
+    out.pitchSettings = storedPitchSettings(patch.pitchSettings);
   }
 
   if (Object.keys(out).length === 0) return;
@@ -829,6 +839,7 @@ export async function saveWeek(
     out.estimatedMinutes = positiveIntOrNull(patch.estimatedMinutes);
   }
   if (patch.published !== undefined) out.published = patch.published === true;
+  if (patch.pitching !== undefined) out.pitching = patch.pitching === true;
 
   if (Object.keys(out).length === 0) return;
   out.updatedAt = serverTimestamp();

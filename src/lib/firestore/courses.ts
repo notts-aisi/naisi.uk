@@ -330,9 +330,113 @@ export type CourseRunDoc = {
    */
   templateId: string | null;
   templateLabel: string | null;
+  /**
+   * Pitching week's settings (see `RunPitchSettings`). Authored content,
+   * edited in the run editor beside the run's other settings and written
+   * client-direct like them. Every part reads as null until somebody sets it.
+   */
+  pitchSettings: RunPitchSettings;
   createdAt?: Date | null;
   updatedAt?: Date | null;
 };
+
+/**
+ * PITCHING WEEK, AND THE TEAMS IT LEADS TO.
+ *
+ * In an incubator's pitching week each person pitches a paper and a twist,
+ * alone or with one partner from their group, and picks the pitches they
+ * would join; the lead makes teams from that. WHICH week is pitching week is
+ * a flag on that week's own document (`CourseWeekDoc.pitching`). The rest is
+ * the run's, here, stored as `courseRuns.pitchSettings`:
+ *
+ *  - `pickLimit`: how many pitches one person may say they would join;
+ *  - `teamSize`: how small and how large a team may be, set as a pair;
+ *  - `teamsMadeOn`: the London civil date the teams are made.
+ *
+ * NONE OF THESE HAS A DEFAULT. They are facts about one term, typed by
+ * whoever sets the programme up, so an unset value is null and every
+ * sentence built from it is left out. A run with no `pickLimit` takes
+ * pitches and lets nobody pick until it is set.
+ *
+ * Stored as `{ pickLimit, teamSizeMin, teamSizeMax, teamsMadeOn }`, each a
+ * number, a "YYYY-MM-DD" string or null, and read through
+ * `normalizePitchSettings`, which treats anything else as unset.
+ */
+export type RunPitchSettings = {
+  pickLimit: number | null;
+  teamSize: { min: number; max: number } | null;
+  teamsMadeOn: string | null;
+};
+
+/** Nothing set. */
+export const NO_PITCH_SETTINGS: RunPitchSettings = {
+  pickLimit: null,
+  teamSize: null,
+  teamsMadeOn: null,
+};
+
+/**
+ * The stored `pitchSettings` map, read. A whole number in range is kept and
+ * anything else is unset; a team size counts only when both ends are set and
+ * the smaller is not above the larger.
+ */
+export function normalizePitchSettings(raw: unknown): RunPitchSettings {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return NO_PITCH_SETTINGS;
+  const data = raw as Record<string, unknown>;
+  const whole = (value: unknown, max: number): number | null =>
+    typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= max
+      ? value
+      : null;
+  const pickLimit = whole(data.pickLimit, COURSE_FIELD_LIMITS.maxPitchPicks);
+  const min = whole(data.teamSizeMin, COURSE_FIELD_LIMITS.maxTeamSize);
+  const max = whole(data.teamSizeMax, COURSE_FIELD_LIMITS.maxTeamSize);
+  const teamsMadeOn =
+    typeof data.teamsMadeOn === "string" && isValidDateKey(data.teamsMadeOn)
+      ? data.teamsMadeOn
+      : null;
+  return {
+    pickLimit,
+    teamSize: min !== null && max !== null && min <= max ? { min, max } : null,
+    teamsMadeOn,
+  };
+}
+
+/**
+ * Why these settings cannot be saved, in a sentence for whoever typed them,
+ * or null when they can. The run editor asks before it writes, and the write
+ * asks again.
+ */
+export function pitchSettingsError(settings: RunPitchSettings): string | null {
+  const { pickLimit, teamSize, teamsMadeOn } = settings;
+  const inRange = (n: number, max: number) => Number.isInteger(n) && n >= 1 && n <= max;
+  if (pickLimit !== null && !inRange(pickLimit, COURSE_FIELD_LIMITS.maxPitchPicks)) {
+    return `How many pitches a person may pick is a whole number from 1 to ${COURSE_FIELD_LIMITS.maxPitchPicks}.`;
+  }
+  if (
+    teamSize !== null &&
+    (!inRange(teamSize.min, COURSE_FIELD_LIMITS.maxTeamSize) ||
+      !inRange(teamSize.max, COURSE_FIELD_LIMITS.maxTeamSize) ||
+      teamSize.min > teamSize.max)
+  ) {
+    return `A team’s size is two whole numbers from 1 to ${COURSE_FIELD_LIMITS.maxTeamSize}, the smaller first.`;
+  }
+  if (teamsMadeOn !== null && !isValidDateKey(teamsMadeOn)) {
+    return "Give the day the teams are made as a real date.";
+  }
+  return null;
+}
+
+/** The stored shape of these settings: four fields, each set or null. */
+export function storedPitchSettings(
+  settings: RunPitchSettings,
+): Record<"pickLimit" | "teamSizeMin" | "teamSizeMax" | "teamsMadeOn", number | string | null> {
+  return {
+    pickLimit: settings.pickLimit,
+    teamSizeMin: settings.teamSize?.min ?? null,
+    teamSizeMax: settings.teamSize?.max ?? null,
+    teamsMadeOn: settings.teamsMadeOn,
+  };
+}
 
 /**
  * The subscription channel for a run's cohort email. Deterministic from the
@@ -399,6 +503,13 @@ export type CourseWeekDoc = {
   estimatedMinutes: number | null;
   /** Unpublished weeks are hidden from learners and the public curriculum. */
   published: boolean;
+  /**
+   * This week is the run's pitching week (see `RunPitchSettings`). Ticked in
+   * the week editor by whoever edits the run's weeks, and read only off the
+   * RUN's week: a group's copy of a week does not carry it. Only a stored
+   * `true` is on.
+   */
+  pitching: boolean;
   updatedAt?: Date | null;
   updatedByUid?: string | null;
 };
@@ -819,6 +930,12 @@ export const COURSE_FIELD_LIMITS = {
    * as leaving it core, but there is no reason to refuse the write.
    */
   maxItemStreamIds: 6,
+  /**
+   * Bounds on pitching week's settings (`RunPitchSettings`). They catch a
+   * typo; they are not the settings, which have no default.
+   */
+  maxPitchPicks: 10,
+  maxTeamSize: 12,
 } as const;
 
 // ---- Submission URL validation ----
@@ -1071,6 +1188,7 @@ export function normalizeCourseRun(id: string, data: Raw): CourseRunDoc {
       typeof data.templateLabel === "string" && data.templateLabel
         ? data.templateLabel
         : null,
+    pitchSettings: normalizePitchSettings(data.pitchSettings),
     createdAt: tsToDate(data.createdAt),
     updatedAt: tsToDate(data.updatedAt),
   };
@@ -1096,6 +1214,7 @@ export function normalizeCourseWeek(id: string, data: Raw): CourseWeekDoc {
     checklist: sanitizeChecklist(data.checklist),
     estimatedMinutes: asPositiveIntOrNull(data.estimatedMinutes),
     published: data.published === true,
+    pitching: data.pitching === true,
     updatedAt: tsToDate(data.updatedAt),
     updatedByUid: (data.updatedByUid as string | null | undefined) ?? null,
   };

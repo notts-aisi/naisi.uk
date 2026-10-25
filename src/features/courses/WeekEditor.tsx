@@ -174,6 +174,9 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
   const [summary, setSummary] = useState("");
   const [minutes, setMinutes] = useState("");
   const [published, setPublished] = useState(false);
+  // Pitching week: a setting on the week, off until somebody ticks it. See
+  // `CourseWeekDoc.pitching` and docs/courses-ops.md, "Pitching week".
+  const [pitching, setPitching] = useState(false);
   const [headerError, setHeaderError] = useState<string | null>(null);
 
   // ---- Guide ----
@@ -196,6 +199,7 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
       setSummary(week.summary);
       setMinutes(week.estimatedMinutes == null ? "" : String(week.estimatedMinutes));
       setPublished(week.published);
+      setPitching(week.pitching);
       setHeaderError(null);
       setGuide(week.guideBlocks);
       setGuideError(null);
@@ -255,7 +259,8 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
     title !== saved.title ||
     summary !== saved.summary ||
     minutes !== savedMinutes ||
-    published !== saved.published;
+    published !== saved.published ||
+    pitching !== saved.pitching;
   const guideDirty = JSON.stringify(guide) !== JSON.stringify(saved.guideBlocks);
   const checklistDirty =
     JSON.stringify(checklist) !== JSON.stringify(toChecklistRows(saved.checklist));
@@ -291,6 +296,7 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
           summary: summary.trim().slice(0, COURSE_FIELD_LIMITS.weekSummary),
           estimatedMinutes,
           published,
+          pitching,
         });
         ok = true;
       },
@@ -457,6 +463,16 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
                 size="lg"
               />
             </div>
+          </div>
+
+          <div className={styles.switchCell}>
+            <Switch
+              checked={pitching}
+              onChange={setPitching}
+              label="This is pitching week"
+              description="People pitch a paper and a twist, alone or with a partner from their group, and pick the pitches they’d join until their group’s session this week starts. It opens once the week is published. How many they may pick is set on the run."
+              size="lg"
+            />
           </div>
         </div>
 

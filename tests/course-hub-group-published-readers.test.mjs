@@ -105,6 +105,11 @@ const READERS = {
     asks: 2,
     why: "the group's names: an untold member cannot open it, and an untold name is listed to nobody but an admin",
   },
+  "lib/courses/pitching/people.ts": {
+    kind: "shown",
+    asks: 2,
+    why: "pitching week's people: an untold seat cannot pitch or pick, is offered as nobody's partner, is named to nobody and is not counted on the lead's list",
+  },
   "lib/courses/registerAccess.ts": {
     kind: "shown",
     asks: 1,
