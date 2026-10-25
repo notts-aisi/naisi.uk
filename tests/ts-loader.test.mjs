@@ -407,6 +407,16 @@ const USERS = new Map([
       "the member area), on the same documents",
   ],
   [
+    "course-hub-stage-one-journey.test.mjs",
+    "executes every route handler stage one of the course hub crosses (decision day, naming a run, " +
+      "the hand-over, the allocation board, a placement, Publish and its test, Remove, the run's own " +
+      "decide, freed places and their test, the member area, a group's roster and register) and the " +
+      "loaders behind the Groups tab, the freed-places page and the run gate, as one term on one " +
+      "in-memory store, and renders the person's own application page (.tsx) to HTML, because a seam " +
+      "between two of those pieces shows only when both run on the same documents; the mail door " +
+      "records, and the email templates behind it are compiled for real",
+  ],
+  [
     "applications-own-application.test.mjs",
     "executes the pooled applicants, decision day, test email and decision handlers for an " +
       "admin who has applied, beside what a second admin is sent, against an in-memory term, " +
