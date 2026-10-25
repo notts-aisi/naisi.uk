@@ -2490,15 +2490,48 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // === told placements (courseEnrolments, courseProgress) ===
+    // WHETHER ONE courseEnrolments ROW IS A PLACEMENT ITS OWNER HAS BEEN TOLD.
+    // Told is any one of three things:
+    //  - the row is a facilitator's (`role == 'facilitator'`): a facilitator
+    //    sees the group they run from the moment they are added to it;
+    //  - its owner took the seat themselves on an open run (`selfEnrolled`);
+    //  - an admin allocated it and Publish has emailed its owner the group
+    //    they are in now (`allocatedEmailAt`, stamped after the send). A move
+    //    deletes the stamp, so somebody moved is untold again until Publish
+    //    emails them their new group.
+    // The pages keep the same rule in `placementIsTold`
+    // (src/lib/firestore/courseEnrolments.ts), which every reader of
+    // placements there asks. Change the two together:
+    // scripts/rules-tests/tests/course-placements-told.test.mjs runs that
+    // function and this one over the same rows and fails where they differ.
+    // Each field is read with its default, as the normaliser reads it, so a
+    // row without one of them answers rather than erroring: no `role` is a
+    // learner, `selfEnrolled` counts only when it is exactly true, and only a
+    // timestamp is a stamp.
+    function isToldPlacement(row) {
+      return row.get('role', 'learner') == 'facilitator'
+        || row.get('selfEnrolled', false) == true
+        || row.get('allocatedEmailAt', null) is timestamp;
+    }
+
     // === courseEnrolments ===
     // The no-double-placement invariant lives in this collection's doc id
     // (one per (run, uid)) and its single scalar groupId — which is exactly
     // why clients can never write: a client-side "move groups" would bypass
-    // the allocation transaction that keeps memberCount honest. Own-row read
-    // powers the /learn hub's "your runs" view.
+    // the allocation transaction that keeps memberCount honest.
+    // An admin reads every row. Anybody else reads their own row once it is
+    // a told placement (`isToldPlacement` above), and not before: a row
+    // carries its group's id, and the pages show a placement to nobody but an
+    // admin until Publish has told its owner (`placementIsShownTo`). Every
+    // page reads enrolments through a route. A browser list of a person's own
+    // rows is judged on its query, which `uid` alone cannot show told, so it
+    // is refused whole.
     match /courseEnrolments/{docId} {
       allow read: if isAdmin()
-        || (isSignedIn() && resource.data.uid == request.auth.uid);
+        || (isSignedIn()
+            && resource.data.uid == request.auth.uid
+            && isToldPlacement(resource.data));
       allow write: if false;
     }
 
@@ -2520,10 +2553,17 @@ service cloud.firestore {
       // The enrolment ROW is an authority like a named array is, so it carries
       // the roster floor too: `courseProgress` is the single client-direct
       // member write in this feature and it hangs off this predicate.
+      // The row must also be a told placement (`isToldPlacement`): nobody
+      // writes progress on a run Publish has not told them they are on, an
+      // admin included. The week page offers the check-off on the enrolment
+      // the overview route serves, which for anybody but an admin is a told
+      // one (`placementIsShownTo`). The three lookups share one document.
       function isEnrolledActive(runId) {
         return exists(/databases/$(database)/documents/courseEnrolments/$(runId + '__' + request.auth.uid))
           && get(/databases/$(database)/documents/courseEnrolments/$(runId + '__' + request.auth.uid))
                .data.status == 'active'
+          && isToldPlacement(
+               get(/databases/$(database)/documents/courseEnrolments/$(runId + '__' + request.auth.uid)).data)
           && isApprovedAccount();
       }
       // The full shape contract, shared by create and update:

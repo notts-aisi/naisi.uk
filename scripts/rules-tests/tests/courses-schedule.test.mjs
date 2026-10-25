@@ -90,6 +90,9 @@ async function seedRun(id, overrides = {}) {
   });
 }
 
+/** When Publish emailed the placed member their group (`allocatedEmailAt`). */
+const TOLD_AT = new Date("2026-10-27T18:00:00Z");
+
 async function seedEnrolment(runId, uid, overrides = {}) {
   await seed(async (db) => {
     await db.collection("courseEnrolments").doc(`${runId}__${uid}`).set({
@@ -102,6 +105,10 @@ async function seedEnrolment(runId, uid, overrides = {}) {
       applicationId: null,
       joinedWeekNumber: 1,
       createdAt: new Date(),
+      // Publish has told them: a placed member writes progress only once it
+      // has (course-placements-told.test.mjs). The tests here are about the
+      // enrolment's status and the run's, so they start from a told seat.
+      allocatedEmailAt: TOLD_AT,
       ...overrides,
     });
   });
