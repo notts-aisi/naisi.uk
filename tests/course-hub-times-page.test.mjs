@@ -391,13 +391,15 @@ describe("what the cards say", () => {
       assert.ok(!said.includes(absent), `the page offers ${absent}`);
     }
     assert.ok(!/<button/.test(html), "the page has a button");
-    // The views are the three that exist, each a page of the tab: the run's
-    // allocation board (People in groups), this one, and Facilitators.
+    // The views are the four that exist, each a page of the tab: Sessions
+    // (first since changing a session landed, as wk-session draws the row), the
+    // run's allocation board (People in groups), this one, and Facilitators.
     const views = /<nav class="views" aria-label="Groups views">(.*?)<\/nav>/.exec(html);
     assert.ok(views, "no views");
     assert.deepEqual(
       [...views[1].matchAll(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/g)].map((m) => [m[2], m[1]]),
       [
+        ["Sessions", `${PAGE_PATH}/groups/sessions`],
         ["People in groups", `${PAGE_PATH}/groups`],
         ["Times", `${PAGE_PATH}/groups/times`],
         ["Facilitators", `${PAGE_PATH}/groups/facilitators`],

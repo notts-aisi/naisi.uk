@@ -167,6 +167,18 @@ export const NO_SESSION_THIS_WEEK = "No session this week";
 /** A card whose session has started: it is the register's now. */
 export const SESSION_STARTED = "Started";
 
+/** A group's own page of its sessions: "Group B’s sessions". */
+export function groupSessionsHeading(groupName: string): string {
+  return `${groupName}’s sessions`;
+}
+
+export const GROUP_SESSIONS_LEDE =
+  "Each session from today to the group’s last. Changing one asks for a reason, and can tell the group.";
+
+export const NO_MORE_SESSIONS = "There are no more sessions to change.";
+
+export const BACK_TO_GROUP = "Back to the group";
+
 /** A Groups tab with groups but no dates yet. */
 export const NO_DATES_YET =
   "This programme’s run has no start date yet, so there are no sessions to change.";
@@ -271,9 +283,10 @@ export function tellLine(groupName: string, people: number, emails: number): str
 /** Over what one send can take. */
 export const TOO_MANY_TO_TELL = "Too many people to email in one send. Tell them with an update from Messages.";
 
-/** The button, which names the session: "Cancel Tue 24 Nov’s session". */
-export function pressWords(kind: ChangeKind, dateKey: string): string {
+/** The button, which names the session: "Cancel Tue 24 Nov’s session". Before a choice, "Change Tue 24 Nov’s session". */
+export function pressWords(kind: ChangeKind | null, dateKey: string): string {
   const day = dayWords(dateKey);
+  if (kind === null) return `Change ${day}’s session`;
   if (kind === "online") return `Hold ${day}’s session online`;
   if (kind === "move") return `Move ${day}’s session`;
   if (kind === "restore") return `Hold ${day}’s session as usual`;

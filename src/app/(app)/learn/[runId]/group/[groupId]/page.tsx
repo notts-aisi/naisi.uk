@@ -7,6 +7,7 @@ import GroupRoster from "@/features/courses/GroupRoster";
 import SessionCard from "@/features/courses/SessionCard";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
 import updateStyles from "@/features/courses/updates/Messages.module.css";
+import { CHANGE_A_SESSION } from "@/lib/courses/sessionChange/words";
 import { StaffUpdatesSection } from "@/features/courses/updates/UpdatesList";
 import { updateAudienceCounts } from "@/lib/courses/updates/audience";
 import { loadRunGroups, loadUpdatesFor, narrowToGroup, updateReadingOf } from "@/lib/courses/updates/readers";
@@ -139,6 +140,15 @@ const linkRowStyle: CSSProperties = {
   display: "flex",
   flexWrap: "wrap",
   gap: "var(--space-2)",
+  marginTop: "var(--space-4)",
+};
+
+/** The row of "Write to Group B (7)" and "Change a session", wrapping on a phone. */
+const groupActionsStyle: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  gap: "var(--space-2) 10px",
   marginTop: "var(--space-4)",
 };
 
@@ -327,12 +337,25 @@ export default async function GroupHomePage({
           </Link>
         </div>
 
-        {groupCount && (
-          <div className={updateStyles.write}>
-            <Link href={`${groupPath}/update`} className={updateStyles.writeLink}>
-              {writeToGroupWords(groupCount.groupName ?? group.name, groupCount.people)}
+        {/* "Write to Group B (7)" and "Change a session" side by side, the
+            write link's line under both (wk-fac-group). The line comes second
+            in the page and is drawn last. An archived group has neither:
+            nobody writes to it or changes it. */}
+        {!group.archived && (
+          <div style={groupActionsStyle}>
+            {groupCount && (
+              <>
+                <Link href={`${groupPath}/update`} className={updateStyles.writeLink}>
+                  {writeToGroupWords(groupCount.groupName ?? group.name, groupCount.people)}
+                </Link>
+                <p className={updateStyles.writeLine} style={{ order: 1, flexBasis: "100%" }}>
+                  {writeToGroupLine(groupCount.emails)}
+                </p>
+              </>
+            )}
+            <Link href={`${groupPath}/sessions`} className={updateStyles.writeLink}>
+              {CHANGE_A_SESSION}
             </Link>
-            <p className={updateStyles.writeLine}>{writeToGroupLine(groupCount.emails)}</p>
           </div>
         )}
       </div>
