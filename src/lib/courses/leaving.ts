@@ -1,7 +1,8 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { readRunEnd } from "@/lib/courses/finishing/record";
+import { liveGroupsOf, runEndOf } from "@/lib/courses/finishing/runEnd";
 import { courseApplicationId, normalizeCourseApplication } from "@/lib/firestore/courseApplications";
+import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 
 /**
@@ -28,10 +29,14 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
  * finished record, and nothing after the end gives a place on the form back.
  * A run whose sessions cannot be dated is never over, so it can still be left.
  *
- * The route that takes somebody off a run (`DELETE .../enrol`) and every page
- * that offers "Leave the programme" ask this one function, so the link is
- * drawn exactly where the route will take the press, and the line is drawn
- * here and nowhere else.
+ * TWO DOORS, ONE LEAVE. Somebody leaves from their programme page ("Leave the
+ * programme", the enrol route's `DELETE`), and somebody in a group Publish
+ * has told them about who replies "I can’t make it" on their application page
+ * leaves the same way (the reply route, through `readPlaceOnRun` in
+ * `./placeOnRun.ts`, which asks this function). Both routes, and every page
+ * that offers either way out, ask this one function, so a way out is offered
+ * exactly where a press will be taken, and the line is drawn here and nowhere
+ * else. What leaving then writes is `leaveRun` (`./leaveRun.ts`), for both.
  *
  * Reads the caller's OWN row on the run's list, at the one id that is theirs,
  * and nothing else of it but where it came from; then, only for somebody who
@@ -64,9 +69,25 @@ async function wayOut(db: Firestore, run: Pick<CourseRunDoc, "id" | "enrolMode">
   return { kind: "form", roundId: row.fromForm.roundId, programmeId: row.fromForm.programmeId };
 }
 
+/**
+ * Whether the run's last session is over: who finished's own answer
+ * (`runEndOf`) over the run's live groups, read with one equality on the
+ * run's groups. Read here rather than through who finished's record module
+ * because the person's own application page asks it too, and nothing that
+ * builds an applicant's page loads the staff side's modules.
+ */
+async function runIsOver(db: Firestore, run: CourseRunDoc, now: Date): Promise<boolean> {
+  const snap = await db.collection("courseGroups").where("runId", "==", run.id).get();
+  const groups = liveGroupsOf(
+    run.id,
+    snap.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})),
+  );
+  return runEndOf(run, groups, now).over;
+}
+
 export async function leavePathFor(db: Firestore, run: CourseRunDoc, uid: string, now: Date): Promise<LeaveAnswer> {
   const path = await wayOut(db, run, uid);
   if (!path) return { closed: "not-theirs" };
-  if ((await readRunEnd(db, run, now)).end.over) return { closed: "ended" };
+  if (await runIsOver(db, run, now)) return { closed: "ended" };
   return { path };
 }

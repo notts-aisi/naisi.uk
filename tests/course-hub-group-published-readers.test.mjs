@@ -175,11 +175,26 @@ const READERS = {
   },
   "app/api/courses/runs/[runId]/enrol/route.ts": {
     kind: "shown",
-    asks: 2,
+    asks: 1,
     why:
-      "the caller's own row comes back on GET, and leaving asks again of the row it reads inside its transaction: an " +
-      "untold seat is reported as no row and cannot be left. Joining and changing session refuse a run that is not " +
-      "open before they read a seat",
+      "the caller's own row comes back on GET: an untold seat is reported as no row. Joining and changing session " +
+      "refuse a run that is not open before they read a seat, and leaving is the one leave's (lib/courses/leaveRun.ts)",
+  },
+  "lib/courses/leaveRun.ts": {
+    kind: "shown",
+    asks: 1,
+    why:
+      "the one leave, for both doors (Leave the programme, and I can’t make it from somebody in a group): it asks of " +
+      "the caller's own seat inside its transaction, so an untold seat is reported as no seat and cannot be left, and " +
+      "it names and shows nobody",
+  },
+  "lib/courses/placeOnRun.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "where a place on the form stands on the run its programme names, for the reply and for the person's own " +
+      "application page: a seat Publish has not told its owner about reads as no group, to them and whoever they are, " +
+      "so neither says anything of a placement before Publish has",
   },
   "app/api/courses/runs/[runId]/nudge/route.ts": {
     kind: "shown",

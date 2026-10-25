@@ -673,9 +673,19 @@ describe("the settings page shows the subject that is sent, and empty means stan
      * still fails, and so does an entry whose sentence has moved or gone.
      */
     const NOT_A_SUBJECT = new Map([
-      // Empty today. The one sentence that was here, the heading of the
-      // applicant's own page once they have a place, now takes its words from
-      // `standardSubject`, so the page holds no copy of a subject to set aside.
+      // The heading of the applicant's own page once they have a place takes
+      // its words from `standardSubject`, so the page holds no copy of a
+      // subject to set aside.
+      [
+        "lib/applications/status/runWords.ts",
+        {
+          text: "`You’re in ${groupName}. ${page}`",
+          times: 1,
+          why:
+            "the line on somebody's own application page once Publish has told them their group: it names the " +
+            "group they are in, never a programme, under the heading the standard subject gives, and is no email's subject",
+        },
+      ],
     ]);
     const offenders = [];
     const seen = new Set();

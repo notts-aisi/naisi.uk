@@ -115,6 +115,11 @@ const UNSCANNABLE_FIELDS = {
         "account on purpose: the pre-course opens during Welcome Week when every fresher who has " +
         "just registered is still pending. Its module comment says so, and says that access to " +
         "/learn afterwards is a separate decision, which is the decision the floor makes.",
+      "src/lib/courses/leaveRun.ts":
+        "The one leave, moved out of the enrol route's DELETE so that a reply of I can't make it " +
+        "from somebody in a group takes the same code. It WRITES the caller's own row rather than " +
+        "reading it as a grant, and admits whom that route admits, a pending account leaving an " +
+        "open run included, for the reason that route's own exception gives.",
     },
   },
   "circulationResponses.uid": {

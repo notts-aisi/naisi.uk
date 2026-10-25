@@ -1239,12 +1239,25 @@ programme names" below).
 
 Before the hand-over, they are simply not handed over.
 
-After it, nothing takes them off the run. The panel names them under "No
-longer hold a place", and their card on the board says "Gave their place
-back". Then, by hand:
+**Once Publish has told them their group**, "I can’t make it" on their
+application page is leaving the programme (Q12): it takes them out of their
+group at once, exactly as "Leave the programme" does (the next section), so
+there is nothing to do on the board. Their application page no longer
+offers the button by then: it points them to their programme's page, where
+leaving is, and the reply only reaches somebody whose page was open from
+before. Their row on the run's own list can still be changed from Accepted
+(step 2 below), but nothing waits for it: Publish waits for nobody who has
+left.
+
+**Before that** (handed over and not placed, or placed and not told yet),
+nothing takes them off the run. The panel names them under "No longer hold
+a place", and their card on the board says "Gave their place back". Then,
+by hand:
 
 1. on the board, **Remove** them if they are in a group. That frees the
-   seat and takes them off the cohort's mailing list;
+   seat and takes them off the cohort's mailing list. Do it before the next
+   Publish: Publish tells everybody placed and not yet told, and nothing
+   stops it emailing somebody whose card says they gave their place back;
 2. on the run's own applications page, change their row from Accepted. A
    row the form wrote carries no address, so that page emails nobody about
    it. Until this is done Publish goes on waiting for them, because Publish
@@ -1253,8 +1266,8 @@ back". Then, by hand:
    step 1 from the Groups tab and asks an admin for this one.
 
 Their own application page says they gave the place back as soon as they
-reply. Somebody who was in a group, and had been told it by Publish, goes
-on seeing the run in their member area until step 1 is done.
+reply, and, for somebody who left their group, that they left the programme
+and when.
 
 ### When somebody leaves the programme
 
@@ -1265,6 +1278,14 @@ Overview) and asks for the course's title, typed exactly. It is the leave an
 open run's session picker has always offered, for a run the form placed them
 on too. Somebody who applied to the run itself is still told to ask the
 team, and an admin uses Remove.
+
+The same leave has a second door: "I can’t make it" on the application page
+of somebody in a group Publish has told them about (the section above). It
+is asked twice and asks why from a short list, and leaves exactly as the
+first door does, with the words of what they chose as the reason. Whatever
+the first door refuses, it refuses in the same words. Both doors are one
+function (`leaveRun` in `src/lib/courses/leaveRun.ts`), so they cannot
+come to write different things.
 
 Leaving closes when the run's last session is over, the moment who finished
 opens: the programme page draws no link, the confirmation sends anybody who
@@ -1279,8 +1300,10 @@ keeps their record, and no place on the form goes back after the end.
   in `docs/applications.md`). After the end of week 1 no freed place can be
   offered for it.
 - They come off the cohort's mailing list, their weekly cards leave their
-  tasks, one line is logged, and one email goes to them and nobody else (the
-  "Left a course" template in Email designs).
+  tasks, one line is logged ("Left the course.": the log of course actions
+  outlives the account, so it says what was done and never what they said;
+  their reason stays with their seat), and one email goes to them and
+  nobody else (the "Left a course" template in Email designs).
 - Publish waits for nobody who has left.
 - They keep their programme page, which now says they left, with their marks
   from finished registers before they left, their notes and reflections, the

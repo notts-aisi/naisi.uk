@@ -36,9 +36,11 @@
  *    group shows them nothing: the member area reads as it did before, and
  *    the run stays shut. Once Publish has emailed them their group, the run
  *    and the group show and the run opens to them, as for anybody in a
- *    group. A seat is a seat, whatever they reply later. (The same rule for
- *    every reader of placements, and for facilitators, is held in
- *    `tests/course-hub-group-published-*.test.mjs`.)
+ *    group. From then on "I can’t make it" is leaving the programme, and
+ *    takes them off the run as "Leave the programme" does (Q12). (The same
+ *    rule for every reader of placements, and for facilitators, is held in
+ *    `tests/course-hub-group-published-*.test.mjs`; the leave by either door
+ *    in `tests/course-hub-cant-make-it-after-placement.test.mjs`.)
  *  - NOBODY ELSE IS CHANGED. Somebody who applied to the run itself reads
  *    the card they always did.
  *
@@ -353,7 +355,13 @@ describe("once an admin puts them in a group, the run and the group show when Pu
   });
 
   // CHANGED ON PURPOSE (Q11): the reply now comes after Publish has told them.
-  test("once somebody is in a group they are on the run, whatever they reply later", async () => {
+  // CHANGED ON PURPOSE AGAIN (Q12): until then a seat stayed whatever they
+  // replied, until an admin removed them. Once Publish has told somebody
+  // their group, "I can’t make it" is leaving the programme, the same leave
+  // as "Leave the programme": off the run at once, the group and the day
+  // kept on their seat, and the reason with it. The people still in the
+  // group read it as before.
+  test("once somebody is in a group Publish told them about, I can’t make it takes them off the run", async () => {
     await press();
     await place("zach", [
       { uid: "amara", groupId: GROUP.thursday },
@@ -362,9 +370,19 @@ describe("once an admin puts them in a group, the run and the group show when Pu
       { uid: "tariq", groupId: GROUP.monday },
     ]);
     await publishes();
-    await reply("tariq", { reply: "cant-make-it", reason: { kind: "times", other: "" } });
-    const shown = await me("tariq");
-    assert.deepEqual([shown.length, shown[0].membership, shown[0].groupName], [1, "enrolled", "Monday evening"]);
+    const before = await me("tariq");
+    assert.deepEqual([before.length, before[0].membership, before[0].groupName], [1, "enrolled", "Monday evening"]);
+    const answer = await reply("tariq", { reply: "cant-make-it", reason: { kind: "times", other: "" } });
+    assert.equal(answer.status, 200, answer.body?.error);
+    assert.deepEqual(await me("tariq"), []);
+    const seat = world.db.read(`courseEnrolments/${RUN.agi}__tariq`);
+    assert.deepEqual(
+      [seat.status, seat.groupId, seat.droppedOutAt instanceof Date, seat.dropOutReason],
+      ["withdrawn", GROUP.monday, true, "The times don’t work for me"],
+    );
+    assert.equal((await access("tariq")).canLearn, false);
+    const dev = await me("dev");
+    assert.deepEqual([dev.length, dev[0].membership, dev[0].groupName], [1, "enrolled", "Monday evening"]);
   });
 
   // CHANGED ON PURPOSE (Q11): somebody in a group reads it once Publish has

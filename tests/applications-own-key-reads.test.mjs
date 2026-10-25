@@ -220,6 +220,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/courses/placeOnRun.ts",
+    {
+      why: "where a place on the form stands on the run its programme names: it reads the form's programmes by the programme id of the place the person's own application holds, to take the run that programme names",
+    },
+  ],
+  [
     "src/lib/firestore/memberRecords.ts",
     {
       why: "builds the kept member record: it reads a form's programmes by a programme id off the application, and a review's scores by a criterion id off the round",

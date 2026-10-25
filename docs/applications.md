@@ -1021,6 +1021,16 @@ above). `result` is what decision day said and no reply changes it. A place give
 `status/standing.ts` reads all of that off the document, and `decideReply()`
 in `status/replies.ts` is the whole table.
 
+**Once somebody is in a group, "I can't make it" is leaving the programme**
+(Q12). When Publish has told them their group on the run their place's
+programme names, the reply takes the one leave "Leave the programme" takes
+on their programme page, in the same transaction and through the same
+code (see "Leaving the programme gives the place back"): they leave their
+group at once, and their reason goes where a leaver's does, with their seat
+on the run and not on the application. Whatever leaving refuses is refused
+in its words. Somebody not in such a group (not placed yet, or placed and
+not told) gives their place back as described here.
+
 ### Why somebody did not take a place
 
 The two replies that give something back are asked why: one of a short list
@@ -1031,7 +1041,11 @@ required. The route refuses the reply without one before it reads a document
 (`parseReplyRequest()`), and the transaction that writes the reply refuses
 it too. It is stored on the person's own application as `releaseReason`, in
 the same write as the reply, and by no other write: a reply that gives
-nothing back carries none, and the first reason given stands.
+nothing back carries none, and the first reason given stands. The one
+exception is a reply that is leaving the programme (somebody in a group,
+above): its reason is kept with their seat, in the words of the option they
+chose or their own, where the programme's lead and admins read it, and the
+application carries none.
 
 The committee reads it wherever the person's row is, because the answer is
 often something that can be put right. `gaveBackOf()` in `status/reasons.ts`
@@ -1057,6 +1071,13 @@ With no outcome to state (a draft, sent and waiting, withdrawn before
 anything was decided) there are no words, and the list keeps its own.
 `tests/applications-wave-h-list-words.test.mjs` holds that function and the
 page to the same words.
+
+Somebody who left the programme, by "Leave the programme" or by "I can't
+make it" once they were in a group, reads "Left the programme" and "You left
+AGI Strategy." on both, never that they told us they can't make it, which is
+said of somebody who gave the place back before a group. The view knows the
+difference because the page's read asks the run the place's programme names
+one thing (`readPlaceOnRun`, "Leaving the programme gives the place back").
 
 The way back to that list is a card on the dashboard, "Your applications"
 (`src/features/applications/home/YourApplications.tsx`), drawn for somebody
@@ -1595,33 +1616,60 @@ the tree for a gate that admits a track lead and not the lead.
 
 - **Before the hand-over**: they hold no place, so they are not handed
   over, and no list names them.
-- **Afterwards**: nothing removes them. Their row stays on the run, and so
-  does their group if they are in one. The programme's own read
-  (`GET .../programmes/[programmeId]/run`) names them under `gaveBack`, and
-  their card on the board says "Gave their place back", so that an admin
-  can act: take them out of their group on the board, then take their
-  row off the run's own list (its applications page). A row from the form
-  carries no address, so the run's own decide route emails nobody about it.
+- **Afterwards, before Publish has told them a group**: nothing removes
+  them. Their row stays on the run, and so does their group if they are in
+  one. The programme's own read (`GET .../programmes/[programmeId]/run`)
+  names them under `gaveBack`, and their card on the board says "Gave their
+  place back", so that an admin can act: take them out of their group on
+  the board, then take their row off the run's own list (its applications
+  page). A row from the form carries no address, so the run's own decide
+  route emails nobody about it.
+- **Once Publish has told them their group**, giving the place back is
+  leaving the programme, the person's own act (next section): their reply
+  takes them out of their group. Their row on the run's own list stays.
 
-Nothing in this system takes anybody off a run. That is a person's act, made
-on the run, and the hand-over, the panel and the board only ever say who it
-concerns.
+The hand-over, the panel and the board never take anybody off a run. Only a
+person's own act does, from either of the two doors to the one leave.
 
 ### Leaving the programme gives the place back
 
-The other way round is the person's own act on the run: somebody in a group
-leaves from their programme page ("Leave the programme", behind the course's
-title typed to confirm), through the run's own leave
-(`DELETE /api/courses/runs/[runId]/enrol`). For a seat the hand-over's row
-gave them, that leave also gives their place on the form back, in the same
-transaction, exactly as "I can’t make it" gives it: `readPlaceToGiveBack`
-and `givePlaceBack` in `status/record.ts` ask the reply's own decision
-(`decideReply`) and share its writer, so `attendance` says they can't make
-it, the application is `withdrawn` with `withdrawnAt`, and the form's counts
-move. Every count of places, the freed places page and the programme's
-lists say so the moment they have left; whether the place can then be
-offered is the freed places rules' to say, and after the end of the run's
-week 1 it cannot.
+The other way round is the person's own act on the run, and it has two
+doors. Somebody in a group leaves from their programme page ("Leave the
+programme", behind the course's title typed to confirm), through the run's
+own leave (`DELETE /api/courses/runs/[runId]/enrol`). Or, once Publish has
+told them their group, they reply "I can’t make it" on their application
+page (Q12), which the reply route takes as the same leave. Both doors ask
+`leavePathFor` (`src/lib/courses/leaving.ts`) whether the person may leave,
+and `leaveRun` (`src/lib/courses/leaveRun.ts`) writes what leaving writes,
+for both, so the two cannot come to differ. The reply door first asks
+`readPlaceOnRun` (`src/lib/courses/placeOnRun.ts`) whether the person is in
+a group Publish has told them about on the run their place's programme
+names; the application page asks the same function, so the page and the
+reply always agree about which side of that line somebody is on.
+
+For a seat the hand-over's row gave them, the leave also gives their place
+on the form back, in the same transaction, exactly as "I can’t make it"
+gives it: `readPlaceToGiveBack` and `givePlaceBack` in `status/record.ts`
+ask the reply's own decision (`decideReply`) and share its writer, so
+`attendance` says they can't make it, the application is `withdrawn` with
+`withdrawnAt`, and the form's counts move. Every count of places, the freed
+places page and the programme's lists say so the moment they have left;
+whether the place can then be offered is the freed places rules' to say,
+and after the end of the run's week 1 it cannot.
+
+- **The reply door refuses what leaving refuses, in its words**: after the
+  run's last session, and a seat that is not theirs (the run's own older
+  form gave it, or its row names another programme or form). Somebody not
+  in a group Publish has told them about (not placed, or placed and not
+  told) gives their place back as a reply always has, and the run is not
+  touched.
+- **Their application page, once they are in a group**, offers neither
+  "I’m coming" nor "I can’t make it": it points them to their programme's
+  page and says giving the place back now means leaving their group (whom
+  to write to, on a seat the team takes them off; nothing, once the run has
+  ended). An incubator's page names no group. Once they have left, by either
+  door, it says "Left the programme" and the day. The words are on no
+  board, and are listed for the boards' designers (`status/runWords.ts`).
 
 - **Only a place they hold on the programme the run's row names** is given
   back. A place already given back, a place on another programme, or no
@@ -1629,15 +1677,23 @@ week 1 it cannot.
 - **Not after the end.** Leaving closes when the run's last session is
   over, so no place on the form goes back after it, and somebody who
   finished keeps their finished record.
-- **No reason is written onto the application.** What they say when they
-  leave is kept with their place on the run, where the programme's lead and
-  admins read it; a reason on the application is read by everybody who reads
-  applications. The reply buttons still ask for one.
+- **No reason is written onto the application**, by either door. What they
+  say when they leave is kept with their place on the run, where the
+  programme's lead and admins read it; a reason on the application is read
+  by everybody who reads applications. The reply buttons still ask for one,
+  and from somebody in a group it is kept with their seat, in the words of
+  the option they chose. Nor is it copied into the log of course actions,
+  which outlives the account: that line says "Left the course." and nothing
+  of what they said.
 - **Their row on the run's own list is not changed**, and Publish waits for
   nobody who has left (`enrolmentHasLeft`).
 
 `tests/course-hub-leaving.test.mjs` runs the leave as every kind of caller
-and holds what it writes on both sides.
+and holds what it writes on both sides, and
+`tests/course-hub-cant-make-it-after-placement.test.mjs` runs the reply door
+beside it, holds the two doors to the same records, the application page
+to its words in every state, and the tree to one writer of a seat that has
+left and one answer to "in a group".
 
 ### What the person sees
 
@@ -1678,8 +1734,11 @@ run until Publish is pressed again and emails them alone their new group.
 One function decides all of it, `placementIsTold` in
 `src/lib/firestore/courseEnrolments.ts`, and
 `tests/course-hub-group-published-readers.test.mjs` holds every reader of
-placements to it. Once somebody is in a group they are on the run whatever
-they reply later on the form: nothing here takes anybody off a run.
+placements to it. Once Publish has told somebody their group, "I can't make
+it" on the form is leaving the programme and takes them off the run
+("Leaving the programme gives the place back"); until then a reply on the
+form leaves a placement where it is, and nothing here takes anybody off a
+run.
 
 **Nothing of the application is read for any of it.** The route reads the
 collections it read before application forms existed and none of the
@@ -1767,7 +1826,7 @@ All in `src/lib/applications/`.
 | `roles.ts` | `setProgrammeRoles`, the one writer of leads and reviewers | server |
 | `repo.ts` | The form, its sets, the caller's own application | server, applicant-safe |
 | `staffRepo.ts` | Everybody's applications, reviews, decisions | server, staff only |
-| `status/standing.ts`, `status/replies.ts`, `status/reasons.ts`, `status/view.ts`, `status/words.ts` | Where one person stands after sending, what each reply does, why somebody gave a place back and how the committee reads it, what their page says, the chip and title of an outcome | anywhere |
+| `status/standing.ts`, `status/replies.ts`, `status/reasons.ts`, `status/view.ts`, `status/words.ts`, `status/runWords.ts` | Where one person stands after sending, what each reply does, why somebody gave a place back and how the committee reads it, what their page says, the chip and title of an outcome, what the page says once the place is a group and once they have left it | anywhere |
 | `status/load.ts`, `status/record.ts` | The page's read, the one transaction a reply writes, and the same writes made inside the transaction that takes somebody off a run when they leave it | server, applicant-safe |
 | `accounts/approve.ts`, `accounts/afterReply.ts` | Approving a waiting account on an acceptance, and the call an accepted invitation makes | server, applicant-safe |
 | `lifecycle/openForm.ts` | Which form is open, which form speaks for each course, and whether a form places people on a course run, for a page that offers Apply | server, safe for a page any visitor can load |
@@ -1869,6 +1928,15 @@ All in `src/lib/applications/`.
   words for an outcome" names, and the first thing the course system shows
   somebody the form placed is their group, once Publish has emailed it to
   them.
+- **Leaving a programme is one act with two doors.** A seat is left only
+  through `leaveRun` (`src/lib/courses/leaveRun.ts`), which "Leave the
+  programme" and a reply of "I can't make it" from somebody in a group both
+  take, and whether somebody is in a group Publish has told them about, for
+  the reply and for what they read about their application, is
+  `readPlaceOnRun` and nothing else. A new way out calls the one, and a new
+  page that says where somebody stands on the run asks the other.
+  `tests/course-hub-cant-make-it-after-placement.test.mjs` lists the
+  callers of both, and fails a second writer of a seat that has left.
 - **No query that sorts or ranges on the server.** Every read here is one or
   two equalities, which need no composite index. A term is a few hundred
   documents: filter and sort in memory.

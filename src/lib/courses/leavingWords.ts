@@ -76,13 +76,32 @@ export const UNTITLED_COURSE =
   "This course has no title yet, so there's nothing to type as confirmation. Email the team and we'll take you off it.";
 
 /**
+ * The answer for a seat that is not this person's to leave by themselves
+ * (they applied to the run itself, on its older form, so an admin takes them
+ * off). Said by the leave route, and by a reply of "I can’t make it" from
+ * somebody in a group on such a seat, in the same words.
+ */
+export const NOT_YOURS_TO_LEAVE =
+  "Leaving this course isn't something you can do yourself. Email the team and we'll sort it out with you.";
+
+/**
  * The leave route's answer once the run's last session is over: leaving has
  * closed, as the board for after the end draws no way out. `name` is the
  * course's title, as the member's own page says it has ended. Not on any
- * board: written in the boards' voice.
+ * board: written in the boards' voice. A reply of "I can’t make it" from
+ * somebody in a group after the end is answered in these words too.
  */
 export function endedNothingToLeave(name: string): string {
   return `${name} has ended, so there’s nothing to leave. If you need something changed, email ${SOCIETY_ADDRESS}.`;
+}
+
+/**
+ * What a press is answered with when leaving is closed to this person
+ * (`leavePathFor`'s `closed`), the same from both doors. `courseTitle` is the
+ * run's, as stored.
+ */
+export function leaveClosedLine(closed: "ended" | "not-theirs", courseTitle: string): string {
+  return closed === "ended" ? endedNothingToLeave(courseTitle.trim() || "This programme") : NOT_YOURS_TO_LEAVE;
 }
 
 /** Said when the press could not reach the site at all. */
