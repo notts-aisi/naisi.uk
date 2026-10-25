@@ -20,7 +20,6 @@ import type { JobContext, JobRegistration, JobResult } from "../registry";
  * nobody pressed. It never skips work for being late: names due off come off
  * however long the scheduler was down.
  */
-const JOB_ID = "surveys-names-off";
 
 async function run(ctx: JobContext): Promise<JobResult> {
   const db = getAdminDb();
@@ -40,7 +39,7 @@ async function run(ctx: JobContext): Promise<JobResult> {
 }
 
 export const surveyNamesOffJob: JobRegistration = {
-  id: JOB_ID,
+  id: "surveys-names-off",
   label: "Names off survey answers",
   description:
     "Takes people's names off confidential survey answers a year after their programme's last session, as each survey promised, and deletes who it was sent to. The answers stay in the totals. Emails nobody. Turning it off breaks that promise for as long as it is off.",

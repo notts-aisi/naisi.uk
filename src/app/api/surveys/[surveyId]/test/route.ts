@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { sendEmail } from "@/lib/email/send";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { SURVEYS_COLLECTION } from "@/lib/firestore/surveys";
 import { namesOffDayFor } from "@/lib/surveys/namesOff";
 import { canRunSurveys, isOpen, isSurveyId, readSurvey } from "@/lib/surveys/repo";
-import { sendSurveyTest } from "@/lib/surveys/sending";
+import { prepareSurveyTest, recordSurveyTest } from "@/lib/surveys/sending";
 import { REFUSAL } from "@/lib/surveys/words";
 
 type Ctx = { params: Promise<{ surveyId: string }> };
@@ -68,13 +69,20 @@ export async function POST(req: Request, ctx: Ctx) {
     }
   }
 
-  let outcome;
+  const prepared = await prepareSurveyTest(db, survey, email, { uid: actor.uid, address: actor.email });
+  if (!prepared.ok) return NextResponse.json({ error: prepared.error }, { status: prepared.status });
+
+  // To the presser's own address and nobody else's: a test is no notice.
+  let delivery: "sent" | "held" | "suppressed";
   try {
-    outcome = await sendSurveyTest(db, survey, email, { uid: actor.uid, address: actor.email });
+    const result = await sendEmail(prepared.message);
+    delivery = result.held.length > 0 ? "held" : result.suppressed.length > 0 ? "suppressed" : "sent";
   } catch (err) {
     console.error("[surveys test] send failed", surveyId, err);
     return NextResponse.json({ error: "That test could not be sent. Try again in a minute." }, { status: 502 });
   }
-  if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
-  return NextResponse.json({ ok: true, delivery: outcome.delivery, recorded: outcome.recorded });
+  // Held or suppressed, it reached nobody, so it is no test.
+  if (delivery !== "sent") return NextResponse.json({ ok: true, delivery, recorded: false });
+  await recordSurveyTest(db, survey.id, email, actor.uid, prepared.wording);
+  return NextResponse.json({ ok: true, delivery, recorded: true });
 }

@@ -15,7 +15,6 @@ import {
   noticeRecipientRefusal,
   reserveNoticeSlots,
 } from "@/lib/email/noticeCaps";
-import { sendEmail } from "@/lib/email/send";
 import {
   SURVEY_PEOPLE_COLLECTION,
   SURVEYS_COLLECTION,
@@ -135,22 +134,38 @@ export function testStateFor(survey: SurveyDoc, email: SurveyEmailKind, signer: 
 // A test, to the presser alone
 // ---------------------------------------------------------------------------
 
-export type TestOutcome =
-  | { ok: true; delivery: SurveyDelivery; recorded: boolean }
+/** A test, ready for the mail door, and the wording it is a test of. */
+export type PreparedTest =
+  | {
+      ok: true;
+      message: {
+        to: string;
+        subject: string;
+        react: ReturnType<typeof SurveyEmail>;
+        replyTo: string;
+        fromName: string;
+        kind: "course-test";
+        actorUid: string;
+        referenceId: string;
+      };
+      wording: string;
+    }
   | { ok: false; status: number; error: string };
 
 /**
- * "Send a test to me": the email, as it would go now, signed by the presser,
- * to the address on their own session and nobody else's, marked as a test.
- * Its button opens the survey through the survey's test secret, where nothing
- * sent is kept. Recorded only when it reached them.
+ * "Send a test to me", written: the email as it would go now, signed by the
+ * presser, to the address on their own session and nobody else's, marked as a
+ * test. Its button opens the survey through the survey's test secret, made
+ * here the first time, where nothing sent is kept. The route hands it to the
+ * mail door itself, and records it (`recordSurveyTest`) only when it reached
+ * them.
  */
-export async function sendSurveyTest(
+export async function prepareSurveyTest(
   db: Firestore,
   survey: SurveyDoc,
   email: SurveyEmailKind,
   presser: { uid: string; address: string },
-): Promise<TestOutcome> {
+): Promise<PreparedTest> {
   const signer = await signerOf(db, presser.uid);
   const words = emailWordsFor(survey, email, signer);
   if (!words) return { ok: false, status: 409, error: REFUSAL.closesPast };
@@ -160,25 +175,34 @@ export async function sendSurveyTest(
   if (!survey.testToken) {
     await db.collection(SURVEYS_COLLECTION).doc(survey.id).update({ testToken: token });
   }
-  const result = await sendEmail({
-    to: presser.address,
-    subject: testSubject(words.subject),
-    react: SurveyEmail({ ...words, link, testLine: TEST_LINE }),
-    replyTo: SURVEY_REPLY_TO,
-    fromName: SURVEY_FROM_NAME,
-    kind: "course-test",
-    actorUid: presser.uid,
-    referenceId: survey.id,
-  });
-  const delivery: SurveyDelivery = result.held.length > 0 ? "held" : result.suppressed.length > 0 ? "suppressed" : "sent";
-  if (delivery !== "sent") return { ok: true, delivery, recorded: false };
+  return {
+    ok: true,
+    message: {
+      to: presser.address,
+      subject: testSubject(words.subject),
+      react: SurveyEmail({ ...words, link, testLine: TEST_LINE }),
+      replyTo: SURVEY_REPLY_TO,
+      fromName: SURVEY_FROM_NAME,
+      kind: "course-test",
+      actorUid: presser.uid,
+      referenceId: survey.id,
+    },
+    wording: wordingFingerprint(words),
+  };
+}
+
+/** Record a test that reached whoever sent it, with the wording it was of. */
+export async function recordSurveyTest(
+  db: Firestore,
+  surveyId: string,
+  email: SurveyEmailKind,
+  presserUid: string,
+  wording: string,
+): Promise<void> {
   await db
     .collection(SURVEYS_COLLECTION)
-    .doc(survey.id)
-    .update({
-      [`tests.${email}`]: { byUid: presser.uid, at: FieldValue.serverTimestamp(), wording: wordingFingerprint(words) },
-    });
-  return { ok: true, delivery, recorded: true };
+    .doc(surveyId)
+    .update({ [`tests.${email}`]: { byUid: presserUid, at: FieldValue.serverTimestamp(), wording } });
 }
 
 // ---------------------------------------------------------------------------
