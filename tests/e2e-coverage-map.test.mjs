@@ -1720,6 +1720,18 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed a run Publish has told, with a group's facilitator signed in.",
   },
+  "/(app)/learn/[runId]/leave": {
+    reason:
+      "Course hub: the confirmation behind “Leave the programme” on a programme's page; tests/course-hub-leaving.test.mjs renders it as every kind of caller and drives the leave it sends, its words and its writes on the run and on the form.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a run the application form placed somebody on, with that person signed in and Publish's email stamped on their seat.",
+  },
+  "/(app)/learn/[runId]/notes": {
+    reason:
+      "Course hub: a person's own notes and reflections on a programme's readings, read only, reached from the page somebody reads once they have left; tests/course-hub-leaving.test.mjs renders it as every kind of caller, with only their own words on it.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a run somebody has left, with their progress rows and that person signed in.",
+  },
   "/(app)/learn/[runId]/nudge": {
     reason:
       "Learn hub: /(app)/learn/[runId]/nudge is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
@@ -1737,6 +1749,12 @@ const NOT_COVERED = {
       "Learn hub: /(app)/learn/[runId]/progress is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
     coverWhen:
       "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
+  },
+  "/(app)/learn/[runId]/reading": {
+    reason:
+      "Course hub: every published week's readings, read only, reached from the page somebody reads once they have left; tests/course-hub-leaving.test.mjs renders it as every kind of caller, with weeks not published left out and a group's own copy of a week preferred.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a run somebody has left, with published weeks and that person signed in.",
   },
   "/(app)/learn/[runId]/weeks/[n]": {
     reason:

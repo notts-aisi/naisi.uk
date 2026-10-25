@@ -89,6 +89,9 @@ const MUTATION_HELPERS = {
   // What an applicant says after decision day. The write is made in
   // `src/lib/applications/status/record.ts`, beside the read of the same page.
   recordReply: "records an applicant's reply, moves their application's status and the round's counters",
+  // Leaving a run gives the place on the form back, in the transaction that
+  // takes somebody off the run; the write is in the same file.
+  givePlaceBack: "gives an applicant's place on the form back and moves the round's counters, inside the transaction that takes them off a run",
   // What follows from accepting an invitation, called by the same route once
   // the reply is written. The write is `approveWaitingAccount`, one file down.
   approveAfterAcceptedInvitation: "makes the account of somebody who accepted an invitation a member's, if it was still waiting",

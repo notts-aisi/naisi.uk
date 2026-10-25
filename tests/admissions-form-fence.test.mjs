@@ -1384,10 +1384,11 @@ const ROUND_READERS = new Map([
       asks: 0,
       proof: ["form: ApplicationForm,", "const roundRef = formRef(db, roundId);", "tx.update(roundRef, {"],
       why:
-        "the one writer of an applicant's reply. It reads no round itself. It is handed the " +
-        "form the reply route loaded with the form's own loader, which asks and answers null " +
-        "for a round that is not a form, and it touches the round only to move its counters in " +
-        "the transaction that moves the application's status",
+        "the one writer of an applicant's reply, and of the same reply made by leaving a run. It " +
+        "reads no round itself. It is handed the form the reply route, or the leave route, loaded " +
+        "with the form's own loader, which asks and answers null for a round that is not a form, " +
+        "and it touches the round only to move its counters in the transaction that moves the " +
+        "application's status",
     },
   ],
   [

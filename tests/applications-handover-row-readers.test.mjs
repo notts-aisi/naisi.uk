@@ -121,6 +121,13 @@ const READERS = {
     proof: ["courseApplicationId(runId, user.uid)"],
     why: "the caller's own application to a run, at the one id that is theirs",
   },
+  "lib/courses/leaving.ts": {
+    kind: "own",
+    proof: ["courseApplicationId(run.id, uid)", "row.uid !== uid"],
+    why:
+      "whether the caller may leave a run by themselves: their own row, at the one id that is theirs, read for where " +
+      "it came from (fromForm) and nothing else, for the leave route and the two pages that offer the way out",
+  },
   "features/courses/useMyApplication.ts": {
     kind: "own",
     proof: ["courseApplicationId(runId, uid)", "application?.uid === uid"],
