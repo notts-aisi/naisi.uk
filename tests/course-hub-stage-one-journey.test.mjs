@@ -193,6 +193,7 @@ const routes = {
   applicationSend: await formRoute(R, "application", "send"),
   reply: await formRoute(R, "application", "reply"),
   list: await formRoute(R, "programmes", PG, "applications"),
+  review: await formRoute(R, "applications", "[uid]"),
   decision: await formRoute(R, "applications", "[uid]", "decision"),
   pool: await formRoute(R, "pool"),
   send: await formRoute(R, "send"),
@@ -889,7 +890,26 @@ async function theList() {
     counts: board.counts,
     placed: board.progress.placed,
     placesLeft: board.progress.placesLeft,
-    hannah: row("hannah") && { standing: row("hannah").standing, byInvitation: row("hannah").byInvitation, withdrawn: row("hannah").withdrawn },
+    hannah: row("hannah") && {
+      standing: row("hannah").standing,
+      byInvitation: row("hannah").byInvitation,
+      freedPlace: row("hannah").freedPlace,
+      withdrawn: row("hannah").withdrawn,
+    },
+  };
+}
+
+/** One application, opened under AGI Strategy by its lead: what it says of where the person stands there. */
+async function theApplication(uid) {
+  const opened = await call("claudia", routes.review.GET, { roundId: ROUND, uid }, { query: { programme: P.agi } });
+  const decision = opened.body?.review?.decision;
+  if (!decision) return { refused: opened.status };
+  return {
+    standing: decision.standing,
+    byInvitation: decision.byInvitation,
+    freedPlace: decision.freedPlace,
+    kind: decision.kind,
+    told: decision.told,
   };
 }
 
@@ -1133,6 +1153,7 @@ async function aFreedPlace() {
   f.accepted = await step("Hannah accepts", 200, "hannah", routes.reply.POST, params(), { body: { reply: "accept-invitation" } });
   f.hannahAccepted = await ownPage("hannah");
   f.listOnceAccepted = await theList();
+  f.applicationOnceAccepted = await theApplication("hannah");
   await timesAndBoard("Hannah accepted, before the hand-over");
   await reads("Hannah accepted");
 
@@ -1150,6 +1171,7 @@ async function aFreedPlace() {
   f.allMail = mailSince(f.mailBefore).map((mail) => [mail.to, mail.subject]);
   f.groupB = { memberCount: groupDoc(GROUP.B).memberCount };
   f.listAtTheEnd = await theList();
+  f.applicationAtTheEnd = await theApplication("hannah");
   await reads("Hannah published");
   await timesAndBoard("the end");
   seen.pages.end = Object.fromEntries(await Promise.all([...AGI_PLACES, ...POOLED, ...INCUBATOR_PLACES].map(async (who) => [who, await ownPage(who)])));
@@ -1987,18 +2009,27 @@ describe("stage one of the course hub, one term from decision day to the first s
     });
 
     // The programme's own list counts a place held by `holdingOf`, which reads
-    // an accepted freed place as one. Each row's standing is the programme's
-    // decision document, and for somebody who ranked the programme that says
-    // pool: only a row on the list by an invitation to a programme the person
-    // did not rank is read as accepted.
-    test("the programme's list counts Hannah's place in its head, and her row keeps the programme's decision, Pooled", () => {
+    // an accepted freed place as one. Until the walk of stage one (F7) her row
+    // kept the lead's decision, Pool, and was counted under Pooled, while the
+    // head counted her place. Now a freed place accepted reads as an
+    // invitation accepted does: her row stands as accepted, under the Accepted
+    // tab and out of the Pooled one, so the tabs, the chip and the head agree.
+    // She ranked the programme, so she is not `byInvitation`.
+    test("the programme's list and her application read Hannah's freed place as accepted: its tabs, her row and its head agree", () => {
       for (const list of [f().listOnceAccepted, f().listAtTheEnd]) {
         assert.deepEqual(list, {
-          counts: { all: 7, toReview: 0, accepted: 5, pooled: 2, declined: 0 },
+          counts: { all: 7, toReview: 0, accepted: 6, pooled: 1, declined: 0 },
           placed: 6,
           placesLeft: 0,
-          hannah: { standing: "pooled", byInvitation: false, withdrawn: false },
+          hannah: { standing: "accepted", byInvitation: false, freedPlace: true, withdrawn: false },
         });
+        // The tabs say what the head says: every place held is under Accepted.
+        assert.equal(list.counts.accepted, list.placed);
+      }
+      // Her application, as the lead opens it, says the same, and keeps the
+      // lead's Pool as the record of what was decided.
+      for (const application of [f().applicationOnceAccepted, f().applicationAtTheEnd]) {
+        assert.deepEqual(application, { standing: "accepted", byInvitation: false, freedPlace: true, kind: "pool", told: true });
       }
     });
 
