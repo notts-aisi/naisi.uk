@@ -456,6 +456,13 @@ describe("4. who deletes a note", () => {
     assert.deepEqual(notes(), ["courseGroupSharedNotes/amaras"]);
   });
 
+  test("a writer whose account no longer stands deletes nothing", async () => {
+    const id = (await write("chloe", B, { body: "Mine.", weekNumber: 3 })).body.id;
+    world.db.poke("users/chloe", { role: "rejected" });
+    assert.deepEqual(said(await remove("chloe", B, id)), [403, "Forbidden"]);
+    assert.equal(notes().length, 1);
+  });
+
   test("deleting emails nobody", async () => {
     const id = (await write("chloe", B, { body: "Mine.", weekNumber: 3 })).body.id;
     await remove("chloe", B, id);
