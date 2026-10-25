@@ -311,10 +311,13 @@ async function everyKindOfCard(who) {
   assert.equal((await remove("claudia", "tariq")).status, 200);
   // Two late acceptances are handed over and placed; Una, placed and not
   // told, gives the place back on the form. (Bea and Dev gave theirs back by
-  // leaving, so Amara and Tariq are the two already there.)
+  // leaving, and Tariq's went back when the lead removed Tariq, so Amara is
+  // the one already there. Until Remove gave the place on the form back, in
+  // the follow-ups to Publish of October 2026, Tariq was there too and the
+  // receipt said alreadyThere: 2.)
   holdsAPlace("una", "Una Byrne");
   holdsAPlace("kit", "Kit Morgan");
-  assert.deepEqual((await press()).body.receipt, { handedOver: 2, alreadyThere: 2 });
+  assert.deepEqual((await press()).body.receipt, { handedOver: 2, alreadyThere: 1 });
   assert.equal((await place(who, [{ uid: "una", groupId: B }, { uid: "kit", groupId: A }])).body.placed, 2);
   await cantMakeIt("una");
   // And the lead asks Tom to run Group B as well.
@@ -573,10 +576,12 @@ describe("2. beside a card that left by each door, one removed, a late placement
     const counted = tally.boardTally(shown.people, (row) => !row.groupId || !columns.has(row.groupId));
     assert.deepEqual([counted.accepted, counted.placed, counted.toPlace.map((row) => row.uid), counted.left], [6, 3, [], 3]);
     // Una gave the place back while placed; Bea and Dev gave theirs back by
-    // leaving. Tariq was removed, which gives nothing back.
+    // leaving; Tariq's went back when the lead removed Tariq, as leaving
+    // gives it. (Until the follow-ups to Publish of October 2026 a removal
+    // gave nothing back, and this list was bea, dev and una.)
     const badges = await cards("claudia");
     const saysItsGiven = Object.keys(badges).filter((uid) => badges[uid]).sort();
-    assert.deepEqual(saysItsGiven, ["bea", "dev", "una"]);
+    assert.deepEqual(saysItsGiven, ["bea", "dev", "tariq", "una"]);
     // Nobody whose card says it is written to by this press.
     const { sent } = await testThenPress("claudia");
     assert.deepEqual(sent.map((mail) => mail.to), ["kit@example.com", "tom@example.com"]);
@@ -596,8 +601,10 @@ describe("3. the board draws it: the sentence, the badges, the button's number a
       assert.ok(view.text.includes("1 person gave their place back, so they aren’t emailed. Remove them to free their seat."), view.text);
       assert.ok(view.text.includes("1 person and 1 facilitator"));
       assert.ok(view.text.includes("Publish and send 2 emails"));
-      // The badge on Una's card, and on the two who left by giving theirs back.
-      assert.equal(view.html.split("Gave their place back").length - 1, 3);
+      // The badge on Una's card, on the two who left by giving theirs back,
+      // and on Tariq's, whose removal gave it back (3 until the follow-ups to
+      // Publish of October 2026, when a removal gave nothing back).
+      assert.equal(view.html.split("Gave their place back").length - 1, 4);
       // Remove for the people still on the run, and for nobody who left.
       assert.deepEqual(
         Object.fromEntries(["amara", "kit", "una", "bea", "dev", "tariq"].map((uid) => [uid, offersRemove(view, uid)])),

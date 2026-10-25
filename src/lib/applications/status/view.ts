@@ -44,8 +44,9 @@ export type StepState = "done" | "now" | "next";
  * WHAT THE RUN THE PLACE'S PROGRAMME NAMES SAYS ABOUT THE PERSON, worked out
  * on the server from the course side (`readPlaceOnRun` in
  * `src/lib/courses/placeOnRun.ts`) and handed in. Null when it says nothing:
- * no run, not in a group Publish has told them about, never left one. Only
- * these few facts cross over, so the view stays pure.
+ * no run, not in a group Publish has told them about, never left one and
+ * never taken off one. Only these few facts cross over, so the view stays
+ * pure.
  */
 export type RunFacts =
   /** In a group Publish has told them about. */
@@ -68,6 +69,12 @@ export type RunFacts =
       runId: string;
       /** "Tue 17 Nov", or null when no day is on record. */
       leftOnLabel: string | null;
+    }
+  /** Taken off that run by staff, and the place was not one they gave back themselves. */
+  | {
+      kind: "removed";
+      /** "Tue 27 Oct", or null when no day is on record. */
+      removedOnLabel: string | null;
     };
 
 /** A place's group, once Publish has told them it: what the page says in place of "I can’t make it". */
@@ -158,6 +165,20 @@ export type StatusView =
       runId: string;
       /** "Tue 17 Nov", or null when no day is on record. */
       leftOnLabel: string | null;
+    }
+  /**
+   * Taken off the programme by staff (Remove on the allocation board), which
+   * gave the place on the form back with it. Never "You’ve told us you can’t
+   * make it": they did not say it. No way to their programme's page: the run
+   * closes to somebody taken off it.
+   */
+  | {
+      kind: "removed";
+      label: string;
+      decidedLabel: string | null;
+      programme: ViewProgramme | null;
+      /** "Tue 27 Oct", or null when no day is on record. */
+      removedOnLabel: string | null;
     }
   /** Invited, not answered: the invitation card of `ap-outcomes`. */
   | {
@@ -388,6 +409,24 @@ export function statusViewFor(
       programme: viewProgramme(programmeOn(form, standing.programmeId)),
       runId: run.runId,
       leftOnLabel: run.leftOnLabel,
+    };
+  }
+
+  // Somebody staff took off the programme: Remove gave the place back, with
+  // no reason, so the page says they were taken off, and when, and never
+  // that they told us they could not make it. Read for a place still held
+  // too (nothing goes back once the run's last session is over), as a leave
+  // is.
+  if (
+    run?.kind === "removed" &&
+    (standing.kind === "place" || (standing.kind === "released" && standing.how === "cant-make-it"))
+  ) {
+    return {
+      kind: "removed",
+      label,
+      decidedLabel,
+      programme: viewProgramme(programmeOn(form, standing.programmeId)),
+      removedOnLabel: run.removedOnLabel,
     };
   }
 

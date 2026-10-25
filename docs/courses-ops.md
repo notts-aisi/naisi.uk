@@ -1328,7 +1328,11 @@ keeps their record, and no place on the form goes back after the end.
 Their facilitators' register lists them last, read only, with the marks
 they had, "Left" and the day, and refuses a mark for them; the lead's
 Attendance tab, its CSV and the Overview say the same. **Remove** records
-the day too, so both kinds of leaving show it. Somebody who left by
+the day too, so both kinds of leaving show it, and it gives a place the
+application form gave them back, exactly as leaving does and with no
+reason (nothing goes back after the run's last session). Their application
+page then says "Taken off the programme" and the day, and the form's count
+of places held drops. Somebody who left by
 themselves is not offered Remove on the board, and the Remove route refuses
 them in a sentence with the day they left ("They left on Tue 17 Nov, so
 their seat is already free and there’s nothing to remove."), writing
@@ -1338,8 +1342,8 @@ run closes to them.
 To put somebody back, an admin places them again on the board and presses
 Publish, which emails them: placing them clears the day, the reason and
 Publish's stamp, and records when they were put back (`putBackAt`). Their
-place on the form stays given back: putting them back on the run does not
-change their application. Their card stops saying "Gave their place back"
+place on the form stays given back, whether they left or were removed:
+putting them back on the run does not change their application. Their card stops saying "Gave their place back"
 while they are back, so Publish tells them; if they leave again, it says so
 again.
 

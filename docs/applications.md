@@ -1694,6 +1694,22 @@ and after the end of the run's week 1 it cannot.
 - **Their row on the run's own list is not changed**, and Publish waits for
   nobody who has left (`enrolmentHasLeft`).
 
+**Staff taking somebody off gives the place back the same way.** Remove on
+the allocation board (`POST /api/courses/runs/[runId]/enrolments/[uid]/remove`)
+asks `leavePathFor` where the seat's place came from, and for a seat the
+hand-over's row gave them that is still on the run it gives the place on the
+form back in its own transaction, with the same two functions and no reason.
+Nothing goes back after the run's last session, as for leaving. Their
+application page then says "Taken off the programme" and the day ("You’re no
+longer on AGI Strategy."), never that they told us they can't make it, with
+no link to the programme's page, which closes to them; the list of their
+applications says the same. Somebody who gave the place back themselves
+before the removal (their reply carries its reason) still reads what they
+told us. Putting them back on the run leaves the place given back, as it
+does for somebody who left. The words are on no board, and are listed for
+the boards' designers (`status/words.ts`). `tests/course-publish-follow-ups.test.mjs`
+runs it as an admin and as the programme's lead.
+
 `tests/course-hub-leaving.test.mjs` runs the leave as every kind of caller
 and holds what it writes on both sides, and
 `tests/course-hub-cant-make-it-after-placement.test.mjs` runs the reply door

@@ -1759,18 +1759,28 @@ describe("stage three of the course hub, one term from week 3 to after its end",
     // walk of stage three found drawn from a place given back, its H4, now
     // says he left the programme and when: held in
     // `tests/course-hub-cant-make-it-after-placement.test.mjs`.)
+    // The form's count is of the term's nine places: Sam's has gone back, and
+    // so has Joel's, which the lead's Remove gave back on Wed 4 Nov. (Until
+    // Remove gave the place on the form back, in the follow-ups to Publish of
+    // October 2026, Joel still held a place: 8 accepted and 1 withdrawn here.)
     test("his place on the form is given back, and the form's places and the lead's Applications tab say so", () => {
       assert.deepEqual(l().application, { status: "withdrawn", attendance: "cant-make-it", releaseReason: null, standing: ["released", "cant-make-it"] });
-      assert.equal(l().formCounts.accepted, 8);
-      assert.equal(l().formCounts.withdrawn, 1);
+      assert.equal(l().formCounts.accepted, 7);
+      assert.equal(l().formCounts.withdrawn, 2);
       assert.deepEqual(l().applicationsRow, { withdrawn: true, standing: "accepted", gaveBack: { said: "I can’t make it", reason: null } });
     });
 
-    // Remove takes somebody off the run and leaves their place on the form
-    // alone: Joel, removed by the lead on Wed 4 Nov, still holds a place on
-    // his application page and in the form's count of eight (H5).
-    test("Joel, whom the lead removed, still holds his place on the form", () => {
-      assert.deepEqual(l().joelsApplication, { status: "accepted", attendance: null, releaseReason: null, standing: ["place", null] });
+    // Remove gives the place on the form back, as leaving does, with no
+    // reason (H5, the owner's yes, in the follow-ups to Publish of October
+    // 2026). Joel, removed by the lead on Wed 4 Nov, no longer holds a place,
+    // and Joel's application page says Taken off the programme (the page
+    // of somebody removed is drawn, word for word, in
+    // `tests/course-hub-cant-make-it-after-placement.test.mjs` and
+    // `tests/course-publish-follow-ups.test.mjs`). Until then this test, under
+    // its old title, pinned a place still held: accepted, no attendance, a
+    // standing of place.
+    test("Joel, whom the lead removed, no longer holds a place on the form: given back, with no reason", () => {
+      assert.deepEqual(l().joelsApplication, { status: "withdrawn", attendance: "cant-make-it", releaseReason: null, standing: ["released", "cant-make-it"] });
     });
 
     // The leave's email, unchanged by leaving a placed run: it links to

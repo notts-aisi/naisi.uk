@@ -10,7 +10,7 @@ import { leavePathFor, type LeaveAnswer } from "./leaving";
 /**
  * WHERE SOMEBODY'S PLACE ON THE FORM STANDS ON THE RUN ITS PROGRAMME NAMES:
  * in a group Publish has told them about, gone from that run by their own
- * act, or neither.
+ * act, taken off it by staff, or none of these.
  *
  * A place on the term's application form becomes a seat in a group of the run
  * the programme names once an admin places them and Publish emails them their
@@ -27,15 +27,20 @@ import { leavePathFor, type LeaveAnswer } from "./leaving";
  *    out;
  *  - THEIR OWN APPLICATION PAGE, and the list of their applications: in a
  *    group, it points them to their programme's page and says what giving the
- *    place back now means; once they have left, it says so, and when.
+ *    place back now means; once they have left, it says so, and when; once
+ *    staff have taken them off, it says that, and when.
  *
  * IN A GROUP means the seat is theirs (a learner's, on this run, at the one id
  * that is theirs), active, in a group, and TOLD: `placementIsTold`, the fact
  * Publish's email stamps. It is asked as a fact and not of the viewer, because
  * the person's own page says what they have been told: an admin's own
  * placement nobody has told them about reads, to them too, as a place on the
- * form. A seat taken off by staff (`removed`) is not one they left, and a run
- * in open enrolment is not a run the form places people on: both are neither.
+ * form. A run in open enrolment is not a run the form places people on.
+ *
+ * TAKEN OFF BY STAFF (`removed`, the Remove route's write) is not one they
+ * left. Remove gives the place on the form back as leaving does, and deletes
+ * Publish's stamp, so it is asked before the stamp is: the answer is that
+ * they are off the run, and when, and nothing of a group, told or not.
  *
  * THE WAY OUT is `leavePathFor`'s answer, held to this place: a seat whose row
  * came from another programme or another form is not this place's to give
@@ -59,7 +64,9 @@ export type PlaceOnRun =
       leave: LeaveAnswer;
     }
   /** Left the run by their own act, by either door. */
-  | { kind: "left"; runId: string; leftOn: Date | null };
+  | { kind: "left"; runId: string; leftOn: Date | null }
+  /** Taken off the run by staff (Remove), on the day it records. */
+  | { kind: "removed"; removedOn: Date | null };
 
 const NOT_IN_A_GROUP: PlaceOnRun = { kind: "not-in-a-group" };
 
@@ -90,6 +97,9 @@ export async function readPlaceOnRun(
   // Belt to the id's brace: a row that does not say it is this person's
   // learner seat on this run is nobody's.
   if (seat.uid !== uid || seat.runId !== runId || seat.role !== "learner") return NOT_IN_A_GROUP;
+  // Taken off by staff. Remove deletes Publish's stamp, so this is asked
+  // before it, and it says nothing of a group (see the note at the top).
+  if (seat.status === "removed") return { kind: "removed", removedOn: seat.droppedOutAt };
   // Until Publish has emailed them their group, the run is shut to them and
   // their place is a place on the form, as it was before they were placed.
   // Leaving keeps the stamp, so somebody who left is told too.

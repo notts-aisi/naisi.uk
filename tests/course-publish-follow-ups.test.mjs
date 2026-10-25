@@ -1,0 +1,353 @@
+/**
+ * The follow-ups to Publish: Remove gives the place on the form back, as
+ * leaving does, and what the person's own page then says.
+ *
+ * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
+ *
+ *   POST  /api/courses/runs/[runId]/enrolments/[uid]/remove
+ *   POST  /api/admissions/forms/[roundId]/application/reply      "I can’t make it", before the removal
+ *   POST  /api/courses/runs/[runId]/allocate                     putting somebody back
+ *   GET   /api/courses/runs/[runId]/allocation                   the cards, and Publish's count
+ *   POST  /api/courses/runs/[runId]/allocation/publish(/test)
+ *   "Your application" (`loadStatus`, drawn by `StatusPage`), and the list of applications
+ *
+ * ## What this guards
+ *
+ *  1. A SEAT THE APPLICATION FORM PLACED GIVES ITS PLACE ON THE FORM BACK
+ *     WHEN STAFF REMOVE IT, in the same act, exactly as leaving gives it: the
+ *     application says "I can’t make it" with no reason, and the form's counts
+ *     move. Nobody is emailed. A second press gives nothing back twice. As an
+ *     admin and as the programme's lead.
+ *  2. NOTHING ELSE GIVES ANYTHING BACK: a seat the form did not place
+ *     (somebody who applied to the run itself), a seat whose person holds no
+ *     place on the form, and any removal once the run's last session is over,
+ *     when leaving gives nothing back either.
+ *  3. THE PAGE AFTER A REMOVAL says they were taken off the programme, and
+ *     when, and the list of their applications says the same: never that they
+ *     told us they can't make it, never that they left, and no way to the
+ *     programme's page, which closes to them. Somebody who gave the place back
+ *     themselves before the removal still reads what they told us.
+ *  4. PUTTING SOMEBODY BACK after a removal follows the Publish fix's rule:
+ *     their card stops saying "Gave their place back" and Publish tells them.
+ *     Their place on the form stays given back.
+ *
+ * Built on `tests/lib/leavingWorld.mjs`: week 3 of AGI Strategy's run, the
+ * clock at noon on Tue 17 Nov 2026 in London. Amara is in Group A, told, and
+ * holds a place through the form; Chloe applied to the run itself; Una is
+ * placed in Group C, not told, and holds no place on the form.
+ */
+import { beforeEach, describe, mock, test } from "node:test";
+import assert from "node:assert/strict";
+import { join } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import {
+  A,
+  NOW,
+  ROUND,
+  RUN,
+  applicationPath,
+  enrolmentPath,
+  formPath,
+  makeLeavingWorld,
+  subscriptionPath,
+  textOf,
+} from "./lib/leavingWorld.mjs";
+
+mock.timers.enable({ apis: ["Date"], now: NOW });
+
+const w = await makeLeavingWorld("__publishFollowUps");
+const { world, call, routes } = w;
+
+const statusLoad = await w.loadTs(join("lib", "applications", "status", "load.ts"));
+const { default: StatusPage } = await w.loadTs(join("features", "applications", "status", "StatusPage.tsx"));
+const fit = await w.loadTs(join("features", "courses", "allocationFit.ts"));
+const record = await w.loadTs(join("lib", "courses", "finishing", "record.ts"));
+
+const CALLERS = [
+  ["an admin", "zach"],
+  ["the programme's lead", "claudia"],
+];
+const HOME = `/learn/${RUN.agi}`;
+const TIMES = { kind: "times", other: "" };
+
+const read = (path) => world.db.read(path);
+const at = (value) => (value instanceof Date ? value.toISOString() : value);
+
+function reset() {
+  w.reset();
+  // The Admin SDK's sweep of a document and what is under it, on the handle
+  // the reply route is given too.
+  world.db.recursiveDelete = async (ref) => ref.delete();
+}
+
+beforeEach(() => {
+  mock.timers.setTime(NOW.getTime());
+  reset();
+});
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Every document, by path, with a log line's own id folded. */
+function snapshot() {
+  return new Map(world.db.paths().map((path) => [path.replace(/auto-\d+$/, "auto"), JSON.stringify(read(path))]));
+}
+
+/** The paths that changed, appeared or went since `before`. */
+function changedSince(before) {
+  const now = snapshot();
+  return [...new Set([...before.keys(), ...now.keys()])].filter((path) => before.get(path) !== now.get(path)).sort();
+}
+
+const remove = (who, uid) => call(who, routes.remove.POST, { runId: RUN.agi, uid }, { course: true });
+
+/** A person's own reply, as their page sends it, and what it sends after its answer. */
+async function replies(who, body = { reply: "cant-make-it", reason: TIMES }) {
+  const answer = await call(who, routes.reply.POST, { roundId: ROUND }, { body });
+  await w.settle();
+  return answer;
+}
+
+/** Somebody holding a place on AGI Strategy by their own ranking: a copy of Amara's application, theirs. */
+function holdsAPlace(uid, name) {
+  const application = structuredClone(read(applicationPath("amara")));
+  Object.assign(application, { uid, email: `${uid}@example.com`, displayName: name });
+  for (const content of [application.draft, application.sent]) content.aboutYou.preferredName = name.split(" ")[0];
+  world.db.seed(applicationPath(uid), application);
+}
+
+/** The person's own application, as stored. */
+function applicationOf(uid) {
+  const stored = read(applicationPath(uid));
+  return {
+    status: stored.status,
+    attendance: stored.attendance?.answer ?? null,
+    releaseReason: stored.releaseReason ?? null,
+    withdrawnAt: at(stored.withdrawnAt ?? null),
+  };
+}
+
+/** Their seat on the run, as stored. */
+function seatOf(uid) {
+  const seat = read(enrolmentPath(uid));
+  return {
+    status: seat.status,
+    groupId: seat.groupId,
+    told: seat.allocatedEmailAt instanceof Date,
+    droppedOutAt: at(seat.droppedOutAt ?? null),
+  };
+}
+
+const formCounts = () => ({ ...read(formPath).applicationCounts });
+
+/** What somebody's own application page says, as the page's read and the page draw it. */
+async function ownPage(uid) {
+  const loaded = await statusLoad.loadStatus(world.db, ROUND, uid, new Date());
+  const html = renderToStaticMarkup(createElement(StatusPage, { roundId: ROUND, view: loaded.view, viewingAs: false }));
+  return { view: loaded.view, html, text: textOf(html) };
+}
+
+/** The chip and sentence the list of their applications draws for this form. */
+async function listLine(uid) {
+  const said = (await statusLoad.loadListWords(world.db, uid, [ROUND], new Date())).get(ROUND);
+  return said ? [said.chip, said.sentence] : null;
+}
+
+/** What one card on the board says, by the card's own rule, from the board route's answer. */
+async function cardOf(who, uid) {
+  const shown = (await w.join.board(who)).body;
+  const groups = shown.groups.map((group) => ({ id: group.id, sessionLabel: group.sessionLabel }));
+  const row = shown.people.find((each) => each.uid === uid);
+  return { row, gaveBack: fit.cardFit(row, groups.find((group) => group.id === row.groupId) ?? null, groups).gaveBack };
+}
+
+/** When the run's last session ends. */
+const endOf = async () => record.readRunEndById(world.courseDb, RUN.agi, new Date());
+
+/** The page of somebody taken off the programme, word for word. `day` is null when none is on record. */
+const REMOVED_CARD = (day) =>
+  "Autumn 2026 · Fri 23 Oct Your application Taken off the programme You’re no longer on AGI Strategy. " +
+  (day ? `That was on ${day}. ` : "") +
+  "If you think that’s a mistake, email ai-safety@uonsu.com and we’ll see what we can do. " +
+  "Our events are open to everyone, so come along to one. See what’s on";
+
+// ---------------------------------------------------------------------------
+// 1. Remove gives the place on the form back
+// ---------------------------------------------------------------------------
+
+describe("1. a seat the form placed gives its place on the form back when staff remove it", () => {
+  for (const [label, who] of CALLERS) {
+    test(`as ${label}: Amara's place goes back in the same act, as "I can’t make it" with no reason, and the form's counts move`, async () => {
+      assert.deepEqual(applicationOf("amara"), { status: "accepted", attendance: null, releaseReason: null, withdrawnAt: null });
+      const counts = formCounts();
+      const before = snapshot();
+
+      const answer = await remove(who, "amara");
+      assert.deepEqual([answer.status, answer.body], [200, { ok: true }]);
+      await w.settle();
+
+      assert.deepEqual(seatOf("amara"), { status: "removed", groupId: null, told: false, droppedOutAt: NOW.toISOString() });
+      assert.deepEqual(applicationOf("amara"), {
+        status: "withdrawn",
+        attendance: "cant-make-it",
+        releaseReason: null,
+        withdrawnAt: NOW.toISOString(),
+      });
+      assert.deepEqual(formCounts(), { ...counts, accepted: counts.accepted - 1, withdrawn: counts.withdrawn + 1 });
+      // The seat, its group's count, the application and the form's counts,
+      // and the cohort's list: nothing else, and nobody is emailed.
+      assert.deepEqual(changedSince(before), [
+        applicationPath("amara"),
+        formPath,
+        enrolmentPath("amara"),
+        `courseGroups/${A}`,
+        subscriptionPath("amara"),
+        "subscriptionEvents/auto",
+      ].sort());
+      assert.equal(world.mail.length, 0);
+
+      // Amara's card says Removed, and Gave their place back.
+      const card = await cardOf(who, "amara");
+      assert.deepEqual([card.row.enrolmentStatus, card.row.fromForm.holdsPlace, card.gaveBack], ["removed", false, true]);
+    });
+
+    test(`as ${label}: a second press of Remove gives nothing back twice and writes nothing`, async () => {
+      assert.equal((await remove(who, "amara")).status, 200);
+      await w.settle();
+      const counts = formCounts();
+      const before = snapshot();
+      assert.deepEqual([(await remove(who, "amara")).status, formCounts()], [200, counts]);
+      await w.settle();
+      assert.deepEqual(changedSince(before), []);
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 2. Nothing else gives anything back
+// ---------------------------------------------------------------------------
+
+describe("2. nothing gives back a place the removal did not come from", () => {
+  for (const [label, who] of CALLERS) {
+    test(`as ${label}: Chloe, who applied to the run itself, and Una, who holds no place on the form, are removed with the form untouched`, async () => {
+      const counts = formCounts();
+      for (const uid of ["chloe", "una"]) {
+        const before = snapshot();
+        assert.equal((await remove(who, uid)).status, 200, uid);
+        await w.settle();
+        assert.equal(seatOf(uid).status, "removed", uid);
+        const changed = changedSince(before);
+        assert.ok(changed.includes(enrolmentPath(uid)), uid);
+        assert.deepEqual(
+          changed.filter((path) => path === formPath || path.startsWith("admissionApplications/")),
+          [],
+          `removing ${uid} wrote to the form`,
+        );
+      }
+      assert.deepEqual(formCounts(), counts);
+    });
+  }
+
+  test("only a seat still on the run gives its place back: a seat an older record marks completed is removed with the form untouched", async () => {
+    world.db.poke(enrolmentPath("amara"), { status: "completed" });
+    const counts = formCounts();
+    assert.equal((await remove("zach", "amara")).status, 200);
+    await w.settle();
+    assert.equal(seatOf("amara").status, "removed");
+    assert.deepEqual(applicationOf("amara"), { status: "accepted", attendance: null, releaseReason: null, withdrawnAt: null });
+    assert.deepEqual(formCounts(), counts);
+  });
+
+  test("once the run's last session is over, a removal gives nothing back, and the page still says they were taken off", async () => {
+    const ended = (await endOf()).endsAt;
+    mock.timers.setTime(ended.getTime() + 60_000);
+    const counts = formCounts();
+    assert.equal((await remove("claudia", "amara")).status, 200);
+    await w.settle();
+    assert.equal(seatOf("amara").status, "removed");
+    assert.deepEqual(applicationOf("amara"), { status: "accepted", attendance: null, releaseReason: null, withdrawnAt: null });
+    assert.deepEqual(formCounts(), counts);
+    const page = await ownPage("amara");
+    assert.equal(page.view.kind, "removed");
+    const day = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "short", day: "numeric", month: "short" })
+      .format(new Date())
+      .replace(",", "");
+    assert.equal(page.text, REMOVED_CARD(day));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. The page after a removal
+// ---------------------------------------------------------------------------
+
+describe("3. the person's own page after a removal", () => {
+  for (const [label, who] of CALLERS) {
+    test(`as ${label} removes Amara: Amara's page and list say Amara was taken off, and when, and nothing else`, async () => {
+      assert.equal((await remove(who, "amara")).status, 200);
+      await w.settle();
+      const page = await ownPage("amara");
+      assert.equal(page.view.kind, "removed");
+      assert.equal(page.text, REMOVED_CARD("Tue 17 Nov"));
+      assert.match(page.html, /<a href="mailto:ai-safety@uonsu.com" class="link">ai-safety@uonsu.com<\/a> and we’ll see what we can do\./);
+      assert.match(page.html, /<a href="\/events" class="outlineSmall"><span>See what’s on<\/span>/);
+      assert.ok(!page.html.includes(HOME), "the run closes to somebody taken off it");
+      assert.ok(!page.html.includes("<button"), "a reply button is drawn");
+      assert.doesNotMatch(page.text, /can’t make it|I’m coming|Left the programme|You left|we’ll email you/);
+      assert.deepEqual(await listLine("amara"), ["Taken off the programme", "You’re no longer on AGI Strategy."]);
+    });
+  }
+
+  test("with no day on record, the page leaves the day out", async () => {
+    assert.equal((await remove("zach", "amara")).status, 200);
+    await w.settle();
+    world.db.poke(enrolmentPath("amara"), { droppedOutAt: null });
+    assert.equal((await ownPage("amara")).text, REMOVED_CARD(null));
+  });
+
+  test("somebody who gave the place back themselves before the removal still reads what they told us", async () => {
+    // Una holds a place now, is placed in Group C and not told, and says
+    // "I can’t make it" with a reason; then the lead removes Una, as the
+    // runbook's first step says.
+    holdsAPlace("una", "Una Byrne");
+    assert.equal((await replies("una")).status, 200);
+    assert.deepEqual(applicationOf("una").releaseReason, TIMES);
+    const counts = formCounts();
+    assert.equal((await remove("claudia", "una")).status, 200);
+    await w.settle();
+    assert.deepEqual([seatOf("una").status, applicationOf("una").releaseReason, formCounts()], ["removed", TIMES, counts]);
+    const page = await ownPage("una");
+    assert.equal(page.view.kind, "released");
+    assert.match(page.text, /Place given back You’ve told us you can’t make it\. Your place in AGI Strategy has gone back so someone else can take it\./);
+    assert.deepEqual(await listLine("una"), ["Place given back", "You’ve told us you can’t make it."]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. Putting somebody back after a removal
+// ---------------------------------------------------------------------------
+
+describe("4. putting somebody back after a removal follows the Publish fix's rule", () => {
+  for (const [label, who] of CALLERS) {
+    test(`as ${label}: Amara's card stops saying Gave their place back, Publish tells Amara, and the place on the form stays given back`, async () => {
+      assert.equal((await remove(who, "amara")).status, 200);
+      await w.settle();
+      const placed = await w.join.place(who, [{ uid: "amara", groupId: A }]);
+      assert.equal(placed.body.placed, 1, JSON.stringify(placed.body));
+      const seat = read(enrolmentPath("amara"));
+      assert.deepEqual([seat.status, seat.groupId, seat.putBackAt instanceof Date, seat.allocatedEmailAt], ["active", A, true, undefined]);
+
+      const card = await cardOf(who, "amara");
+      assert.deepEqual([card.row.fromForm.holdsPlace, card.row.putBack, card.gaveBack], [false, true, false]);
+
+      const before = world.mail.length;
+      const pressed = await w.join.publish(who);
+      assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
+      const sent = world.mail.slice(before).filter((mail) => !mail.subject.startsWith("[TEST]"));
+      assert.ok(sent.some((mail) => mail.to === "amara@example.com"), JSON.stringify(sent.map((mail) => mail.to)));
+      assert.ok(read(enrolmentPath("amara")).allocatedEmailAt instanceof Date);
+      assert.equal(applicationOf("amara").status, "withdrawn");
+    });
+  }
+});
