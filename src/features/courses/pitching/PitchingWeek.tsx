@@ -264,6 +264,13 @@ function PitchForm({
         )
       )}
 
+      {/*
+        Who sees a pitch, said before it is sent. Sending is choosing to share
+        it, and the privacy policy's "Pitching week" says the form says so:
+        the two move together.
+      */}
+      <p className={styles.whoSees}>Your group sees your pitch and who pitched it.</p>
+
       {error && (
         <p className={styles.problem} role="alert">
           {error}
