@@ -518,8 +518,10 @@ export async function GET() {
   }
 
   // Who finished, asked only of a learner's runs that are past their last
-  // week (by the caller's own calendar) or marked completed: a run still
-  // going costs nothing here.
+  // week (by the caller's own calendar) or marked completed. Not a rule (the
+  // answer is false for a run still going whatever is asked) but a saving:
+  // asking reads the run's groups, and this list holds every run a member was
+  // ever on.
   const now = new Date();
   const finishedRunIds = new Set<string>();
   await Promise.all(

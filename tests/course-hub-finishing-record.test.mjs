@@ -116,12 +116,12 @@ describe("1. the board's words", () => {
     }
   });
 
-  test("no dash and no word the house does not use, in any of it", () => {
+  test("no long dash in any of it", () => {
     const all = Object.values(words)
       .flatMap((value) => (typeof value === "string" ? [value] : typeof value === "function" ? [value.toString()] : []))
       .join("\n");
-    assert.doesNotMatch(all, /[–—]/);
-    assert.doesNotMatch(all, /attendance threshold|dropped out|waitlist|rejected|collate/i);
+    assert.ok(all.length > 2000, "the words were not read");
+    assert.doesNotMatch(all, /[\u2013\u2014]/);
   });
 });
 

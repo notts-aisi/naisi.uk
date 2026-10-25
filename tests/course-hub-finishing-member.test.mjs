@@ -28,6 +28,7 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
@@ -202,6 +203,18 @@ describe("5. one record, asked by every page, and the rule never sent", () => {
     }
   });
 
+  test("the one answer is false for somebody who left, whatever is stored about them", async () => {
+    world.db.seed(decisionPath("sam"), decision("sam", true, "zach"));
+    const { normalizeCourseRun } = await made.loadTs(join("lib", "firestore", "courses.ts"));
+    const { normalizeCourseEnrolment } = await made.loadTs(join("lib", "firestore", "courseEnrolments.ts"));
+    const run = normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+    const sam = normalizeCourseEnrolment(`${RUN.agi}__sam`, world.db.read(`courseEnrolments/${RUN.agi}__sam`));
+    assert.equal(sam.status, "withdrawn");
+    assert.equal(await lib.record.finishedForMember(world.courseDb, run, sam, new Date()), false);
+    // The same person with the same decision, taking part, would be answered true: the refusal is about leaving.
+    assert.equal(await lib.record.finishedForMember(world.courseDb, run, { ...sam, status: "active" }, new Date()), true);
+  });
+
   test("no payload carries the rule, the suggestion or who changed what", async () => {
     for (const who of ["amara", "bea", "kofi", "rahul"]) {
       const json = JSON.stringify([(await ask.overview(who)).body, await ask.me(who)]);
@@ -209,7 +222,7 @@ describe("5. one record, asked by every page, and the rule never sent", () => {
     }
   });
 
-  test("the run home asks the record only once the member's own calendar is past its last week", async () => {
+  test("while the run is going, the run home reads nothing of who finished", async () => {
     mock.timers.setTime(new Date("2026-11-17T12:00:00Z").getTime());
     world.db.stats.reads = 0;
     const reads = [];

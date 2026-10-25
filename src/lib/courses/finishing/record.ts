@@ -2,7 +2,6 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import {
   dayLabel,
-  hasLeft,
   listGroups,
   weeksOf,
   type GridPerson,
@@ -208,10 +207,14 @@ const NO_SWITCHES = { scheduled: false, remindersOn: false, tasksOn: false } as 
  * who left, or somebody who is not a learner here. A page that is told false
  * says the programme has ended, and claims nothing.
  *
- * Reads only what the answer needs, and stops as soon as it is known: the
- * run's groups (unless the caller already holds them), the rule and this
- * person's decision, and only when the rule decides, the registers of their
- * own group. Their row is the grid's (`listGroups`), built from those.
+ * Only a learner taking part (active, or completed) can have finished;
+ * somebody who left is answered false here, and has no record in `recordOf`
+ * either. Reads only what the answer needs, and stops as soon as it is known:
+ * the run's groups (unless the caller already holds them, when a run that is
+ * not over costs no read at all), then the rule and this person's decision,
+ * then, when there is either, the registers of their own group. Their row is
+ * the grid's (`listGroups`), built from those, and their record is
+ * `recordOf`'s, as on the lead's list.
  */
 export async function finishedForMember(
   db: Firestore,
@@ -220,8 +223,7 @@ export async function finishedForMember(
   now: Date,
   heldGroups?: readonly CourseGroupDoc[],
 ): Promise<boolean> {
-  if (!enrolment || enrolment.role !== "learner" || enrolment.runId !== run.id) return false;
-  if (hasLeft(enrolment) || !enrolment.groupId) return false;
+  if (!enrolment || enrolment.role !== "learner" || enrolment.runId !== run.id || !enrolment.groupId) return false;
   if (enrolment.status !== "active" && enrolment.status !== "completed") return false;
 
   const groups = heldGroups

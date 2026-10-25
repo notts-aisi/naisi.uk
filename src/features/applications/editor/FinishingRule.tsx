@@ -127,6 +127,7 @@ export default function FinishingRule({
             onChange={(event) => {
               setText(event.target.value);
               setRefused(null);
+              setProblem(null);
             }}
           />
           <span className={styles.ruleUnit}>{RULE_UNIT}</span>

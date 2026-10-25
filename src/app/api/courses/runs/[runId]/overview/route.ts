@@ -878,12 +878,10 @@ export async function GET(
         }
       : null;
 
-  // Asked only once the caller's own calendar is past its last week, so the
-  // run home a member opens every day reads nothing more while it runs.
+  // The run's groups are already read, so while the run is going this costs
+  // no read at all: the answer is "not over" before anything else is asked.
   const finished =
-    isEnrolled && liveEnrolment && currentWeek?.phase === "after"
-      ? await finishedForMember(db, run, liveEnrolment, new Date(), groups)
-      : false;
+    isEnrolled && liveEnrolment ? await finishedForMember(db, run, liveEnrolment, new Date(), groups) : false;
 
   const payload: OverviewPayload = {
     run: {
