@@ -25,6 +25,7 @@ import {
 } from "@/lib/firestore/courseGroups";
 import { courseTaskId, MIRRORED_TASK_SOURCE } from "@/lib/firestore/courseTasks";
 import { leavePathFor } from "@/lib/courses/leaving";
+import { endedNothingToLeave } from "@/lib/courses/leavingWords";
 import { loadForm } from "@/lib/applications/repo";
 import { givePlaceBack, readPlaceToGiveBack } from "@/lib/applications/status/record";
 import {
@@ -783,6 +784,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
  * Anybody else on a run that takes people by placement (they applied to the
  * run itself) is told to ask the team, who use the remove route.
  *
+ * NOBODY LEAVES ONCE THE RUN'S LAST SESSION IS OVER, the moment who finished
+ * opens: the same function draws that line, the press is refused in a
+ * sentence that says so, and nothing is written. Somebody who finished keeps
+ * their finished record, and no place on the form goes back after the end.
+ *
  * A PLACEMENT PUBLISH HAS NOT TOLD ITS OWNER ABOUT cannot be left: it is
  * answered as no seat at all, as the GET above answers it, because the run is
  * shut to them and saying anything else would tell them they are placed.
@@ -840,17 +846,22 @@ export async function DELETE(req: Request, ctx: Ctx) {
   if (!run) {
     return NextResponse.json({ error: "Course run not found." }, { status: 404 });
   }
-  // Open, or a place the form gave them; anybody else asks the team.
-  const path = await leavePathFor(db, run, user.uid);
-  if (!path) {
+  const now = new Date();
+  // Open, or a place the form gave them, until the run's last session is
+  // over; anybody else asks the team.
+  const answer = await leavePathFor(db, run, user.uid, now);
+  if ("closed" in answer) {
     return NextResponse.json(
       {
         error:
-          "Leaving this course isn't something you can do yourself. Email the team and we'll sort it out with you.",
+          answer.closed === "ended"
+            ? endedNothingToLeave(run.courseTitle.trim() || "This programme")
+            : "Leaving this course isn't something you can do yourself. Email the team and we'll sort it out with you.",
       },
       { status: 409 },
     );
   }
+  const { path } = answer;
 
   // An unnamed course cannot be confirmed by name: with an empty title the
   // comparison is "" === "" and the ritual passes on an empty body. The
@@ -885,7 +896,6 @@ export async function DELETE(req: Request, ctx: Ctx) {
   // the place is read against its programmes and its grid. A round that is no
   // longer a form has no place on it to give back, and leaving goes ahead.
   const form = path.kind === "form" ? await loadForm(db, path.roundId) : null;
-  const now = new Date();
 
   let leftGroupId: string | null = null;
   // Whether THIS request is the one that took them off, as opposed to a

@@ -1626,6 +1626,9 @@ week 1 it cannot.
 - **Only a place they hold on the programme the run's row names** is given
   back. A place already given back, a place on another programme, or no
   application at all is left as it stands, and they leave the run anyway.
+- **Not after the end.** Leaving closes when the run's last session is
+  over, so no place on the form goes back after it, and somebody who
+  finished keeps their finished record.
 - **No reason is written onto the application.** What they say when they
   leave is kept with their place on the run, where the programme's lead and
   admins read it; a reason on the application is read by everybody who reads

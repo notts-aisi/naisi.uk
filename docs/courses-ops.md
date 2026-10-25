@@ -1246,6 +1246,12 @@ open run's session picker has always offered, for a run the form placed them
 on too. Somebody who applied to the run itself is still told to ask the
 team, and an admin uses Remove.
 
+Leaving closes when the run's last session is over, the moment who finished
+opens: the programme page draws no link, the confirmation sends anybody who
+opens it back to the programme page, and a press is refused with a sentence
+that says the programme has ended and where to write. Somebody who finished
+keeps their record, and no place on the form goes back after the end.
+
 - They leave their group at once. Their row keeps the group, Publish's stamp
   and the day they left (`droppedOutAt`), with the reason (`dropOutReason`).
 - Their place on the form goes back exactly as "I can’t make it" gives it,

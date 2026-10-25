@@ -74,6 +74,16 @@ export const STAY = "Stay";
 export const UNTITLED_COURSE =
   "This course has no title yet, so there's nothing to type as confirmation. Email the team and we'll take you off it.";
 
+/**
+ * The leave route's answer once the run's last session is over: leaving has
+ * closed, as the board for after the end draws no way out. `name` is the
+ * course's title, as the member's own page says it has ended. Not on any
+ * board: written in the boards' voice.
+ */
+export function endedNothingToLeave(name: string): string {
+  return `${name} has ended, so there’s nothing to leave. If you need something changed, email ${SOCIETY_ADDRESS}.`;
+}
+
 /** Said when the press could not reach the site at all. */
 export const LEAVE_UNREACHABLE = "That didn’t go through: check your connection and try again.";
 /** Said when the site answered with no sentence of its own. */

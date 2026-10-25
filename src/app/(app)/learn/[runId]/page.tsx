@@ -96,8 +96,9 @@ export default async function RunHomePage({
   const pitching = access.isEnrolled && db ? await pitchingCard(db, access.user, runId) : null;
 
   // "Leave the programme" at the foot (wk-programme), for somebody taking
-  // part whose seat they can leave themselves: the same rule the leave route
-  // asks (`leavePathFor`), so the link is drawn exactly where the press works.
+  // part whose seat they can leave themselves, until the run's last session
+  // is over: the same rule the leave route asks (`leavePathFor`), so the link
+  // is drawn exactly where the press works.
   const own = access.enrolment;
   const canLeave =
     access.isEnrolled &&
@@ -105,7 +106,7 @@ export default async function RunHomePage({
     own.role === "learner" &&
     own.status === "active" &&
     db !== undefined &&
-    (await leavePathFor(db, access.run, access.user.uid)) !== null;
+    "path" in (await leavePathFor(db, access.run, access.user.uid, new Date()));
 
   return (
     <RunHome
