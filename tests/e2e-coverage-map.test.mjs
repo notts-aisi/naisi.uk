@@ -676,18 +676,6 @@ const NOT_COVERED = {
     coverWhen:
       "With the spec for the press above, because the test is the press's first step.",
   },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/attendance/export": {
-    reason:
-      "Course hub: the Attendance tab's Download CSV, every register of the run a programme names as a file, for its lead and admins; tests/course-hub-attendance.test.mjs executes it as every kind of caller, pins the file's exact rows and its export-log row, and refuses it when the log cannot be written.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a published run with registers, with the programme's lead signed in, alongside a spec for the Attendance tab.",
-  },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/registers/remind": {
-    reason:
-      "Course hub: the Overview's Remind, the register reminder to one group's facilitators; tests/course-hub-overview.test.mjs executes it as every kind of caller, with the count it must match, once per facilitator per register beside the reminder job, and every refusal.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a published run with a register not finished and a facilitator whose address reaches the suite's mail catcher.",
-  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing": {
     reason:
       "Course hub: one person's Finished switch on the Overview once a run's last session is over (board en-finish). tests/course-hub-finishing-routes.test.mjs executes it as every kind of caller, before and after the end, and tests/course-hub-finishing-pages.test.mjs draws the section it answers with.",
@@ -1053,12 +1041,6 @@ const NOT_COVERED = {
       "Courses: /api/courses/runs/[runId]/roles is staff-facing, taken deliberately, and answered on the screen that called it.",
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
-  },
-  "/api/courses/runs/[runId]/updates": {
-    reason:
-      "Course hub: a run's updates, posted, emailed and read. tests/course-hub-updates-routes.test.mjs executes both handlers as every kind of caller, tests/course-hub-updates-email.test.mjs renders every email it sends, and tests/course-hub-updates-guard.test.mjs walks the tree for any other reader or writer.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a run that Publish has told, with its lead and a group's facilitator signed in and a mail catcher to read the emails.",
   },
   "/api/courses/runs/[runId]/sync-tasks": {
     reason:
@@ -1462,29 +1444,11 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed a programme that names a running run with groups, with its lead signed in.",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance": {
-    reason:
-      "Course hub: every register of the run a programme names as one grid (wk-attendance), read only, for its lead and admins; the grid's marks and counts and the page's every caller are executed by tests/course-hub-attendance.test.mjs, and its place among the programme's tabs by tests/course-hub-lead-pages.test.mjs.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a published run with registers, with the programme's lead signed in.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview": {
-    reason:
-      "Course hub: a programme's Overview (wk-overview), the week, sessions, registers and what needs attention of the run it names, for its lead and admins; tests/course-hub-overview.test.mjs executes the page as every kind of caller and each needs-attention item appearing and going with its record.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a published run with registers, with the programme's lead signed in.",
-  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/pitches": {
     reason:
       "Course hub: the lead's and admins' read-only list of a programme's pitches, reached from the Groups tab's views. tests/course-hub-pitching-lead.test.mjs executes its loader as every kind of caller and renders the page, and it was checked by hand at 1440 and 390.",
     coverWhen:
       "When the end-to-end fixtures can seed an incubator run with a published pitching week and a group that Publish has told.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/messages": {
-    reason:
-      "Course hub: a programme's Messages tab, where its lead and admins write updates; the page's every caller is executed by tests/course-hub-updates-pages.test.mjs and its route by tests/course-hub-updates-routes.test.mjs.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a programme that names a run Publish has told, with its lead signed in.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams": {
     reason:

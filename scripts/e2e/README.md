@@ -73,6 +73,7 @@ rather than the record.
 | `member-journey` | What an approved member actually does: approval on the Approvals page, the profile and its notification preferences, the membership read, and enrolling on a course. | Yes | Both |
 | `register-push` | The facilitator's register: the roster, marking attendance and pushing it, with the participant notes beside it. | Yes | Both |
 | `course-hub-groups-go-out` | Groups going out on a term just after decision day: the admin names the course run on the programme's Settings tab, moves it on from draft, hands the people holding a place over (a second press writes nothing), reads the Times view, places each person with the Move to menu, appoints a facilitator, sends the test of Publish's emails and presses Publish with its count. The person placed sees their group and first session, a person moved after Publish sees nothing until Publish again emails only them, and the facilitator sees their roster and register. Every email is held to the board's words and checked for the meeting link. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the test of Publish's emails goes to the admin's own address |
+| `course-hub-lead-week-three` | The lead's third week on the same term, three weeks in (places told, registers marked, one left unfinished, week 1's update): the admin names the running run and hands its people over, appoints a facilitator, reads the Overview (the week, this week's sessions and registers, what needs attention, the newest update), presses Remind and reads its email, reads the Attendance grid and downloads its CSV through the download log, sends a test of an update to one group and posts it with the count on its button. A member of that group reads it on their programme page and a member of the other group does not; every email is held to its words and checked for the meeting link. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the update's test goes to the admin's own address |
 | `events-rsvp` | A guest RSVP against a real event, through the public event page to the submitted confirmation. | Yes | Both |
 
 ## Safety properties
@@ -322,8 +323,10 @@ it by walking the directory, so a new spec is added by adding a file. A world
 several specs stand on (the course hub's term after decision day,
 `worlds/course-hub-term.mjs`) is a helper module in a subdirectory, which the
 runner does not walk: it exports no `SPEC`, a spec module imports it, and
-`tests/funnel-harness-guards.test.mjs` holds both. A spec module looks like
-this:
+`tests/funnel-harness-guards.test.mjs` holds both. A world can be asked for at
+a point: the course hub's term exists just after decision day
+(`decisions-sent`) and three weeks into its run (`week-three`). A spec module
+looks like this:
 
 ```js
 export const SPEC = {
@@ -594,6 +597,12 @@ files, and asserts the walk found the four that must always be in it:
   `config/membership` is addressable, only through `membershipConfigDoc()`, so
   a membership spec can move the current-period pointer and put it back
   without any fixture going near the scheduler cursors or the task email copy.
+  The scheduler's markers are narrower still. `schedulerMarkers` is on no list
+  and every chokepoint refuses it; `registerReminderMarkerDoc()` addresses one
+  register reminder marker of a fixture's own group, by an id it builds from a
+  fixture group id, a session key and an account uid, so a spec that presses a
+  lead's Remind can count and remove the marker the press keeps. The guard pins
+  that door and refuses everything else through it.
 - **Every spec module declares what it covers.** The guard imports every
   module in `scripts/e2e-fixtures/`, checks the `SPEC` shape, checks the names
   are unique, checks the step names in the spec file equal `SPEC.steps` in

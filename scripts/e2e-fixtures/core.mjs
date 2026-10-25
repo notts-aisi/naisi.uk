@@ -28,7 +28,9 @@
  *
  *   - Every collection any fixture may address is a literal in
  *     `FIXTURE_COLLECTIONS`, checked by `assertFixtureCollection()` before any
- *     credential is obtained.
+ *     credential is obtained. One document family off that list has a door
+ *     of its own: a fixture group's register reminder marker, one at a time,
+ *     through `registerReminderMarkerDoc()`.
  *   - No fixture creates a privileged identity. Accounts are the auth
  *     harness's own `createHarnessUser` plus its `seedPendingUserDoc`, whose
  *     role is the hard-coded literal "pending". There is no code path in this
@@ -328,6 +330,10 @@ export const FIXTURE_COLLECTIONS = [
   // from the person's own application together, so a hand-over has nobody to
   // hand over without them. Written only for a fixture's own form.
   "admissionDecisions",
+  // The updates on a fixture's course run (`runId` on every one). A term three
+  // weeks in carries one from its first week, which the seed writes; the
+  // updates route writes the ones a spec posts.
+  "courseUpdates",
 
   // ── Swept: created by the routes the specs drive ──────────────────────────
   "admissionApplications",
@@ -353,6 +359,13 @@ export const FIXTURE_COLLECTIONS = [
   // asserts the rows, so the rows are the evidence, and evidence a fixture
   // creates is evidence a fixture counts back to zero.
   "emailSends",
+  // The download log. An attendance CSV a spec downloads writes one row before
+  // the file is handed over, keyed to the fixture's run (`scope.runId`). The
+  // product keeps these rows when it destroys a run, because they are the
+  // record that real people's data left the platform; a fixture's row records
+  // a download of a fixture's own throwaway people, so it is evidence of the
+  // kind `emailSends` is, and counted back to zero the same way.
+  "dataExports",
   // Attendee rows the RSVP flow creates against a fixture event.
   "eventRsvps",
   // The magic-link tokens /api/register and /api/verify-email/send mint, and
@@ -481,6 +494,53 @@ export function fixtureSubcollection(parentCollection, parentId, collection) {
  */
 export function membershipConfigDoc() {
   return fixtureDoc("config", MEMBERSHIP_CONFIG_DOC_ID);
+}
+
+/**
+ * The scheduler's own collection. NOT on `FIXTURE_COLLECTIONS`, and it must
+ * stay off it: `assertFixtureCollection` refuses it, and so do `fixtureDoc`
+ * and `fixtureQuery`, because it holds every job's bookkeeping and no fixture
+ * may list, read or edit it as a collection.
+ */
+export const REGISTER_REMINDER_MARKERS = "schedulerMarkers";
+
+/** A fixture's own group id: `fixtureId("e2e-...", runId)`, a base36 run id at the end. */
+const FIXTURE_GROUP_ID = /^e2e-[a-z0-9-]+__[a-z0-9]{8,32}$/;
+/** A week's session key, as the register and the reminder build it: "w03", "w03-2". */
+const SESSION_KEY = /^w\d{2,3}(?:-\d)?$/;
+/** An account uid: letters and digits only, so it can never carry a separator. */
+const ACCOUNT_UID = /^[A-Za-z0-9]{1,128}$/;
+
+/**
+ * ONE marker a driven route writes into the scheduler's collection, and the
+ * only way any fixture reaches it: the register reminder's claim for one
+ * facilitator of one session of a FIXTURE'S OWN group,
+ * `regremind__{groupId}__{sessionKey}__{uid}` (`registerReminderMarker` in
+ * src/lib/firestore/schedulerMarkers.ts, restated).
+ *
+ * A lead's Remind claims it before it emails the facilitator and keeps it
+ * afterwards, for 180 days, so a spec that presses Remind leaves one behind
+ * unless its teardown removes it, and a manifest that did not count it would
+ * read zero by looking somewhere else. So the fixture addresses it, one
+ * document at a time, by an id it builds from its own ledger: never a query,
+ * never another family, never a group a fixture did not make. Every part is
+ * checked before any credential is obtained, as `assertFixtureCollection`
+ * checks a collection.
+ */
+export function registerReminderMarkerDoc({ groupId, sessionKey, uid }) {
+  if (!FIXTURE_GROUP_ID.test(String(groupId))) {
+    throw new Error(
+      `REFUSING to address a reminder marker for group ${JSON.stringify(groupId)}: not a fixture's ` +
+        "own group. A fixture reaches the scheduler's markers only for groups it made.",
+    );
+  }
+  if (!SESSION_KEY.test(String(sessionKey))) {
+    throw new Error(`REFUSING to address a reminder marker for session ${JSON.stringify(sessionKey)}: not a session key.`);
+  }
+  if (!ACCOUNT_UID.test(String(uid))) {
+    throw new Error(`REFUSING to address a reminder marker for account ${JSON.stringify(uid)}: not an account uid.`);
+  }
+  return db().collection(REGISTER_REMINDER_MARKERS).doc(`regremind__${groupId}__${sessionKey}__${uid}`);
 }
 
 /**
