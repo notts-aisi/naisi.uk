@@ -483,7 +483,7 @@ describe("3. the Attendance tab, as every caller", () => {
       world.db.seed(`courseEnrolments/${RUN.agi}__${uid}`, enrolment(uid, C));
     }
     const drawn = await draw("claudia");
-    assert.match(drawn.html, /<button type="button"[^>]*aria-label="Show 1 more in Group C">\+1 more<\/button>/);
+    assert.match(drawn.html, /<button type="button"[^>]*aria-label="Show 1 more in Group C">(?:(?!<\/button>)[\s\S])*<span>\+1 more<\/span><\/button>/);
     assert.ok(!drawn.text.includes("Kai Lowe"), "the fourth row of a quiet group was drawn before it was asked for");
   });
 
