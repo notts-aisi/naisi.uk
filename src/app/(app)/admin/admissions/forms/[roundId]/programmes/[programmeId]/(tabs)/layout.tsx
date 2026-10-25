@@ -10,6 +10,7 @@ import { opensProgrammeGroups } from "@/lib/applications/access";
 import { loadProgrammeForStaff } from "@/lib/applications/editor/load";
 import { applicationFormPath } from "@/lib/applications/editor/olderRounds";
 import { stageSummaryFor } from "@/lib/applications/lifecycle/view";
+import { readRunHeader } from "@/lib/courses/programmeAttendance";
 import { formatRunStartShort } from "@/lib/courses/window";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -36,6 +37,13 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  *
  * The dates in the head are the form's own. They are the same for every
  * programme on it.
+ *
+ * ONCE THE RUN IS UNDER WAY the head says what the wk boards draw under the
+ * name: "Running · week 3 of 6", then "31 taking part in 4 groups" and "Last
+ * sessions Wed 9 Dec", in place of the term's stage, the places and the day
+ * everybody hears. From the run's own records (`readRunHeader`), for the
+ * lead and admins, who open the run's tabs; a reviewer keeps the form's line.
+ * Before the run's first day the form's line stays.
  */
 export default async function ProgrammeLayout({
   children,
@@ -50,7 +58,13 @@ export default async function ProgrammeLayout({
   if (!loaded) return <NoProgrammeHere roundId={roundId} />;
 
   const { form, programme, context, role, applications } = loaded;
-  const state = programme.closed
+  const runHeader =
+    db && programme.runId && opensProgrammeGroups(role)
+      ? await readRunHeader(db, programme.runId, { isAdmin: role === "admin" }, context.now)
+      : null;
+  const state = runHeader
+    ? { label: runHeader.chip, live: runHeader.live, tone: runHeader.live ? ("live" as const) : ("neutral" as const) }
+    : programme.closed
     ? { label: "Closed", live: false, tone: "neutral" as const }
     : (() => {
         // The same chip the term's own page draws, so a programme never reads
@@ -89,14 +103,28 @@ export default async function ProgrammeLayout({
       </span>,
     );
   }
-  if (places) {
+  if (runHeader) {
+    facts.push(
+      <span className={styles.metaItem} key="taking-part">
+        {`${runHeader.takingPart} taking part in ${runHeader.groups} ${runHeader.groups === 1 ? "group" : "groups"}`}
+      </span>,
+    );
+    if (runHeader.lastSession) {
+      facts.push(
+        <span className={styles.metaItem} key="last">
+          Last sessions <strong>{runHeader.lastSession}</strong>
+        </span>,
+      );
+    }
+  }
+  if (places && !runHeader) {
     facts.push(
       <span className={styles.metaItem} key="places">
         {places}
       </span>,
     );
   }
-  if (hears) {
+  if (hears && !runHeader) {
     facts.push(
       <span className={styles.metaItem} key="hears">
         Everyone hears <strong>{hears}</strong>
