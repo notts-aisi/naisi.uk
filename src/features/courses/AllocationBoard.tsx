@@ -51,7 +51,7 @@ import {
   type Placement,
 } from "./useAllocation";
 import { GAVE_PLACE_BACK, cardFit, type CardFit } from "./allocationFit";
-import { boardTally, rowHasLeft } from "./allocationTally";
+import { boardTally, poolRowIsToPlace, rowHasLeft } from "./allocationTally";
 import styles from "./AllocationBoard.module.css";
 
 /**
@@ -208,6 +208,20 @@ function formatWhen(iso: string | null): string {
 
 function plural(n: number, one: string, many: string): string {
   return n === 1 ? one : many;
+}
+
+/**
+ * What follows "All 5 accepted applicants are placed": who is not among
+ * them. Nothing when nobody has left and nobody with no group gave their
+ * place back, so the sentence reads as it always has.
+ */
+function placedTail(left: number, gaveBack: number): string {
+  const leftWords = `${left} ${plural(left, "has", "have")} left`;
+  const gaveWords = `${gaveBack} gave their place back`;
+  if (left > 0 && gaveBack > 0) return `, ${leftWords} and ${gaveWords}`;
+  if (left > 0) return `, and ${leftWords}`;
+  if (gaveBack > 0) return `, and ${gaveWords}`;
+  return "";
 }
 
 /** "Ada, Grace and Alan" — a list a human reads, not a comma-joined dump. */
@@ -574,8 +588,10 @@ function BoardColumn({
   const isPool = group === null;
   // The number on the column counts the people still on the run: somebody
   // who has left holds no seat and is nobody to place, and the rail counts
-  // them as having left. Their card stays, so they can be moved back.
-  const count = rows.filter((r) => !rowHasLeft(r)).length;
+  // them as having left. Their card stays, so they can be moved back. The
+  // pool's number is who is still to place, so it leaves out a card there
+  // that says "Gave their place back" too, as the rail does (`boardTally`).
+  const count = rows.filter((r) => (isPool ? poolRowIsToPlace(r) : !rowHasLeft(r))).length;
   const cards = rows.length;
   const atCapacity = group?.capacity != null && count >= group.capacity;
   const allSelected =
@@ -759,7 +775,8 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
   const poolRows = useMemo(() => byColumn.get(UNALLOCATED) ?? [], [byColumn]);
   // Somebody who has left the run is counted as having left, wherever their
   // card sits, and is never somebody still to place (`boardTally`): Publish
-  // does not wait for them either.
+  // does not wait for them either. Nor is somebody in the pool whose card
+  // says "Gave their place back": the rail counts them apart.
   const tally = useMemo(() => {
     const inPool = new Set(poolRows.map((row) => row.uid));
     return boardTally(people, (row) => inPool.has(row.uid));
@@ -768,10 +785,12 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
   const unallocatedCount = tally.toPlace.length;
   const placedCount = tally.placed;
   const leftCount = tally.left;
-  const stillOnTheRun = acceptedCount - leftCount;
-  const everyonePlaced = stillOnTheRun > 0 && unallocatedCount === 0;
+  const gaveBackCount = tally.gaveBack;
+  // Who the board is placing: everybody placed or still to place.
+  const owedAGroup = placedCount + unallocatedCount;
+  const everyonePlaced = owedAGroup > 0 && unallocatedCount === 0;
   const progressPct =
-    stillOnTheRun === 0 ? 0 : Math.round((placedCount / stillOnTheRun) * 100);
+    owedAGroup === 0 ? 0 : Math.round((placedCount / owedAGroup) * 100);
 
   /** Which column a uid is in right now, honouring optimistic overrides. */
   const columnIdOf = useCallback(
@@ -1375,6 +1394,15 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
                     · <strong>{leftCount}</strong> left
                   </>
                 ) : null}
+                {/* Cards in the pool that say "Gave their place back":
+                    nobody to place, so counted apart. Drawn only when there
+                    is somebody, so the line reads as it always has. */}
+                {gaveBackCount > 0 ? (
+                  <>
+                    {" "}
+                    · <strong>{gaveBackCount}</strong> gave their place back
+                  </>
+                ) : null}
               </p>
             </div>
             <div className={styles.railActions}>
@@ -1406,7 +1434,7 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={progressPct}
-            aria-valuetext={`${placedCount} of ${stillOnTheRun} accepted applicants placed`}
+            aria-valuetext={`${placedCount} of ${owedAGroup} accepted applicants placed`}
             aria-label="Accepted applicants placed in a group"
           >
             {/* scaleX, not width — a compositor-only property, and the bar sits
@@ -1419,9 +1447,9 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
 
           {everyonePlaced ? (
             <p className={styles.railSuccess}>
-              All {stillOnTheRun} accepted{" "}
-              {plural(stillOnTheRun, "applicant is", "applicants are")} placed
-              {leftCount > 0 ? `, and ${leftCount} ${plural(leftCount, "has", "have")} left` : ""}.
+              All {owedAGroup} accepted{" "}
+              {plural(owedAGroup, "applicant is", "applicants are")} placed
+              {placedTail(leftCount, gaveBackCount)}.
               No one is in two groups.
             </p>
           ) : acceptedCount === 0 ? (

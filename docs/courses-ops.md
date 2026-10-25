@@ -1271,11 +1271,13 @@ by hand:
    the Publish area says how many are waiting to be removed;
 2. on the run's own applications page, change their row from Accepted. A
    row the form wrote carries no address, so that page emails nobody about
-   it. Somebody handed over and never placed holds Publish up until this is
-   done, because Publish refuses while anybody accepted is not in a group;
-   somebody removed in step 1 does not. This step is an admin's (or the
-   run's admissions reviewer's): the programme's lead does step 1 from the
-   Groups tab and asks an admin for this one.
+   it. Nothing waits for this step: Publish waits for nobody whose card says
+   "Gave their place back", in a group or not, and the board counts
+   somebody in Unallocated whose card says it apart from the people still
+   to place ("1 gave their place back" at the end of the rail's numbers).
+   This step is an admin's (or the run's admissions reviewer's): the
+   programme's lead does step 1 from the Groups tab and asks an admin for
+   this one.
 
 Their own application page says they gave the place back as soon as they
 reply, and, for somebody who left their group, that they left the programme

@@ -27,8 +27,11 @@
  * "GAVE THEIR PLACE BACK" IS PUBLISH'S ANSWER TOO. Whether a card says it is
  * asked of `gaveTheirPlaceBack` (`src/lib/courses/placeGivenBack.ts`), the
  * function Publish's plan asks before it writes to anybody, of the same
- * facts, so a card that says it is never somebody Publish emails, and a card
- * that does not is never somebody Publish leaves out for it.
+ * facts, so a card that says it is never somebody Publish emails or waits
+ * for, and a card that does not is never somebody Publish leaves out for it.
+ * The board's rail asks it through `cardGaveBack`, the card's own question,
+ * so a card in the Unallocated column that says it is never counted, or
+ * named, as somebody still to place.
  *
  * Pure, with one import (that answer, itself pure), so the board and a test
  * ask the same function.
@@ -79,15 +82,24 @@ export const CAN_MAKE_NO_SESSION = "Can’t make any of these sessions";
 export const GAVE_PLACE_BACK = "Gave their place back";
 
 /**
+ * Whether a card says "Gave their place back": the one answer, which
+ * Publish's plan asks too, asked of the card's own facts. Somebody who
+ * applied to the run itself has no place on the form to give back, and
+ * somebody staff put back on the run since they left is back. The rail's
+ * count of who is still to place asks this (`boardTally`), never a reading
+ * of its own.
+ */
+export function cardGaveBack(row: Pick<FitRow, "fromForm" | "putBack">): boolean {
+  return gaveTheirPlaceBack(row.fromForm, { putBack: row.putBack === true });
+}
+
+/**
  * `group` is the column the card sits in, or null for the unallocated pool.
  * `groups` is every column of the board, in the order they are drawn.
  */
 export function cardFit(row: FitRow, group: FitGroup | null, groups: readonly FitGroup[]): CardFit {
   const inASession = group !== null && group.sessionLabel !== "";
-  // The one answer, which Publish's plan asks too. Somebody who applied to the
-  // run itself has no place on the form to give back, and somebody staff put
-  // back on the run since they left is back.
-  const gaveBack = gaveTheirPlaceBack(row.fromForm, { putBack: row.putBack === true });
+  const gaveBack = cardGaveBack(row);
 
   if (row.fromForm === null) {
     return {

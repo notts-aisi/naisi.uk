@@ -84,6 +84,9 @@ import { formatRunStart, formatRunStartShort } from "./window";
  *    press cannot disagree about anybody. Somebody staff put back on the run
  *    after they left (`enrolmentIsPutBack`) is back: their place on the form
  *    stays given back, but their card no longer says so, and they are told.
+ *    Somebody with no group whose card says it is not waited for either: a
+ *    press never refuses for them (`unplaced`), as it never does for
+ *    somebody who has left.
  *  - A FACILITATOR of a live group with somebody in it whom Publish has told
  *    or this press writes to, who has no marker for that group yet
  *    (`facilitatingMarkerId`). Once per facilitator per group: a facilitator
@@ -253,7 +256,11 @@ export type PublishPlan = {
    * says to them may name one either.
    */
   incubator: boolean;
-  /** Accepted people with no active place in a group, by name. Never somebody who has left the run. */
+  /**
+   * Accepted people with no active place in a group, by name: who a press
+   * waits for. Never somebody who has left the run, and never somebody with
+   * no group whose card says they gave their place back.
+   */
   unplaced: string[];
   /**
    * People placed in a group and not told yet who gave their place back on
@@ -761,6 +768,16 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
     enrolmentByUid.set(enrolment.uid, enrolment);
   }
 
+  // NOBODY WHO GAVE THEIR PLACE BACK IS OWED ANYTHING (see the note at the
+  // top). This asks the question their card asks, of the facts the card is
+  // drawn from. A person with no facts, or a plan read with none, gave
+  // nothing back, as a card with no facts says nothing. Names come from the
+  // application's own copy, as the unplaced ones' do.
+  const gaveBack = (uid: string): boolean => {
+    const seat = enrolmentByUid.get(uid);
+    return gaveTheirPlaceBack(input.formPlaces?.get(uid), { putBack: seat !== undefined && enrolmentIsPutBack(seat) });
+  };
+
   // Unplaced = accepted but without an active enrolment in a group that is
   // still there (the board shows somebody whose group has gone back in its
   // pool). Names come from the application's own copy: the refusal path
@@ -773,6 +790,12 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   // place: the board names them as having left, and Publish neither waits
   // for them nor writes to them. Somebody accepted with no enrolment at all
   // is still waited for.
+  //
+  // NOR IS ANYBODY WITH NO GROUP WHO GAVE THEIR PLACE BACK. Somebody handed
+  // over and never placed whose card says "Gave their place back" is nobody
+  // to place either: their row can still say Accepted, and only an admin can
+  // change it. The board's rail leaves them out of who is still to place by
+  // the same answer (`boardTally`), so the board and the press agree.
   const groupOf = (uid: string): CourseGroupDoc | null => {
     const e = enrolmentByUid.get(uid);
     if (!e || e.groupId === null || e.status !== "active" || !groupById.has(e.groupId)) return null;
@@ -783,7 +806,7 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
     return e !== undefined && enrolmentHasLeft(e.status);
   };
   const unplaced = accepted
-    .filter((row) => !hasLeftTheRun(row.uid) && groupOf(row.uid) === null)
+    .filter((row) => !hasLeftTheRun(row.uid) && groupOf(row.uid) === null && !gaveBack(row.uid))
     .map((row) => row.displayName || "NAISI member");
 
   // How many are placed in each group, told or not: whether a group has
@@ -802,20 +825,12 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   }
 
   // Everyone placed but not yet told. The stamp is the once-only guard: it is
-  // written after their email went, and a move clears it.
+  // written after their email went, and a move clears it. Of them, nobody who
+  // gave their place back is owed an email (`gaveBack`, above).
   const placedUntold = accepted.flatMap((row) => {
     const group = groupOf(row.uid);
     return group && !enrolmentByUid.get(row.uid)?.allocatedEmailAt ? [{ row, group }] : [];
   });
-  // NOBODY WHO GAVE THEIR PLACE BACK IS OWED ANYTHING (see the note at the
-  // top). This asks the question their card asks, of the facts the card is
-  // drawn from. A person with no facts, or a plan read with none, gave
-  // nothing back, as a card with no facts says nothing. Names come from the
-  // application's own copy, as the unplaced ones' do.
-  const gaveBack = (uid: string): boolean => {
-    const seat = enrolmentByUid.get(uid);
-    return gaveTheirPlaceBack(input.formPlaces?.get(uid), { putBack: seat !== undefined && enrolmentIsPutBack(seat) });
-  };
   const owed = placedUntold.filter(({ row }) => !gaveBack(row.uid));
   const givenBack = placedUntold
     .filter(({ row }) => gaveBack(row.uid))
