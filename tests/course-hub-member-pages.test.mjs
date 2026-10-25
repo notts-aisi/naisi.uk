@@ -155,6 +155,8 @@ describe("1. the programme home", () => {
     assert.match(html, /href="\/learn\/[^"]+\/weeks\/4"/);
     assert.doesNotMatch(text, /Your marks|Your group|This week|See your progress|Opens tonight/);
     assert.doesNotMatch(html, /type="checkbox"/);
+    // What is done of a week is a member's own: a facilitator is shown none.
+    assert.doesNotMatch(text, /\d of 3/);
   });
 
   test("an admin on no group: the weeks with no dates of anybody's, and no member's cards", async () => {

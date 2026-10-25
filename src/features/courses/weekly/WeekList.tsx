@@ -52,6 +52,7 @@ type Props = {
   beforeStart: boolean;
   /** The way to the progress page, kept at the foot of the list for somebody taking part. */
   progressHref: string;
+  /** Somebody taking part: what is done of each week, and the way to the progress page. */
   showProgress: boolean;
   className?: string;
 };
@@ -106,7 +107,7 @@ export default function WeekList({ runId, rows, beforeStart, progressHref, showP
               </span>
               <span className={styles.weekSide}>
                 {row.state === "next" && <span className={styles.liveChip}>{WEEK_STATE_WORDS.next}</span>}
-                {row.of && row.state !== "next" && (
+                {row.of && showProgress && row.state !== "next" && (
                   <span className={highlighted ? `${styles.weekOf} ${styles.weekOfCurrent}` : styles.weekOf}>
                     {ofWords(row.of.done, row.of.of)}
                   </span>

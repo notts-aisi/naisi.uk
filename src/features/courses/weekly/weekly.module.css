@@ -996,10 +996,13 @@ a.weekItem:focus-visible {
 .markDate {
   font-family: var(--font-meta);
   font-size: var(--text-xs);
+  line-height: 1.25;
   letter-spacing: 0.02em;
   text-transform: uppercase;
+  text-align: center;
   color: var(--color-text-muted);
-  white-space: nowrap;
+  /* "15 Sept" is wider than its column on a phone: it breaks at its space. */
+  white-space: normal;
 }
 
 .markDateNext {

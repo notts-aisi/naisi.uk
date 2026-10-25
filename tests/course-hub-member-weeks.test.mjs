@@ -370,6 +370,28 @@ describe("4. a week's page (wk-week-phone)", () => {
     assert.match(text, /You are viewing this week as a facilitator\. Exercises are submitted by the learners on this run\./);
   });
 
+  test("a published week with nothing in it yet says so", async () => {
+    const path = `courseRuns/${RUN.agi}/weeks/w02`;
+    w.world.db.seed(path, { ...w.world.db.read(path), materials: [], exercises: [], checklist: [] });
+    await w.asBrowser("chloe");
+    assert.match(w.weekPage("chloe", 2).text, / This week's content is still being written\. Check back soon\. Week 1 Week 3 /);
+  });
+
+  test("the way on is drawn only where it leads somewhere", async () => {
+    // Before the start, with week 2 not published: week 1 has no week before
+    // it, and nothing after it to open or to wait for.
+    at("2026-10-31T12:00:00Z");
+    w.world.db.poke(`courseRuns/${RUN.agi}/weeks/w02`, { published: false });
+    await w.asBrowser("chloe");
+    assert.doesNotMatch(w.weekPage("chloe", 1).html, /aria-label="Weeks"/);
+    // With week 2 published, it says when week 2 opens.
+    w.world.db.poke(`courseRuns/${RUN.agi}/weeks/w02`, { published: true });
+    await w.asBrowser("chloe");
+    const { html, text } = w.weekPage("chloe", 1);
+    assert.match(html, /aria-label="Weeks"/);
+    assert.match(text, /Week 2 opens on Tue 3 Nov, after your session/);
+  });
+
   test("no sentence on the page has a dash of either kind", async () => {
     await w.asBrowser("chloe");
     for (const n of [1, 3]) assert.doesNotMatch(w.weekPage("chloe", n).text, /[–—]/, `week ${n}`);

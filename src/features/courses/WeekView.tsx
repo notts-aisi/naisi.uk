@@ -371,6 +371,12 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole }: Props) 
           </div>
         )}
 
+        {items.length === 0 && weekDoc.exercises.length === 0 && weekDoc.guideBlocks.length === 0 && (
+          // A published week with nothing in it yet: the words the week's
+          // public page has always said.
+          <p className={weekly.cardLine}>This week&apos;s content is still being written. Check back soon.</p>
+        )}
+
         {items.length > 0 && (
           <section className={`${weekly.card} ${weekly.cardTight}`} aria-labelledby="before-your-session">
             <div className={weekly.cardHead}>
@@ -472,7 +478,7 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole }: Props) 
         })}
         {weekDoc.exercises.length > 0 && exercisesNote}
 
-        {(prev || next) && (
+        {(prev || next?.open || nextLine) && (
           <nav className={weekly.weekNav} aria-label="Weeks">
             {prev ? (
               <Link href={`${runHomeHref}/weeks/${prev.weekNumber}`} className={weekly.weekNavLink} onClick={() => setWeekNavDirection("right")}>
