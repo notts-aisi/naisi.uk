@@ -315,6 +315,7 @@ const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(nam
 const STYLESHEETS = [
   "./ProgrammeTeams.module.css",
   "./ProgrammeFrame.module.css",
+  "@/features/applications/editor/ProgrammeFrame.module.css",
   "./editor.module.css",
   "@/features/applications/editor/editor.module.css",
   "./Button.module.css",
@@ -397,7 +398,32 @@ export async function makeTeamsWorld(key = "__teams") {
     ]),
   });
 
+  /**
+   * The course editors' client writes, with the Firebase client SDK stood in:
+   * each write is recorded in `world.clientWrites` rather than sent.
+   */
+  const { loadTs: loadClient } = createLoader({
+    stubs: new Map([
+      [
+        "firebase/firestore",
+        "export function doc(db, ...path) { return { path: path.join('/') }; }\n" +
+          "export function collection(db, ...path) { return { path: path.join('/') }; }\n" +
+          "export function serverTimestamp() { return '__now__'; }\n" +
+          "export function deleteField() { return '__delete__'; }\n" +
+          "export async function getDoc() { return { exists: () => false, data: () => undefined }; }\n" +
+          `export async function setDoc(ref, data) { ${handle}.clientWrites.push(['set', ref.path, data]); }\n` +
+          `export async function updateDoc(ref, data) { ${handle}.clientWrites.push(['update', ref.path, data]); }`,
+      ],
+      [
+        "@/lib/firebase/client",
+        "export function getClientDb() { return {}; }\n" +
+          "export function getClientAuth() { return { currentUser: { uid: 'zach' } }; }",
+      ],
+    ]),
+  });
+
   function reset(seed = teamsSeed()) {
+    world.clientWrites = [];
     world.db = makeDb(seed, { now: () => new Date() });
     world.courseDb = courseView(world.db);
     world.user = null;
@@ -480,7 +506,7 @@ export async function makeTeamsWorld(key = "__teams") {
   /** The whole database as one string, to prove a request wrote nothing. */
   const everything = () => JSON.stringify(world.db.paths().sort().map((path) => [path, world.db.read(path)]));
 
-  return { world, loadTs, loadUi, reset, call, sessionOf, routes, lib, ask, teams, teamNamed, everything };
+  return { world, loadTs, loadUi, loadClient, reset, call, sessionOf, routes, lib, ask, teams, teamNamed, everything };
 }
 
 /** `[status, error]`, for comparing a refusal in one line. */

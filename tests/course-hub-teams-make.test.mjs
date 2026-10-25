@@ -26,6 +26,7 @@ const make = await made.loadTs(join("lib", "courses", "teams", "make.ts"));
 const words = await made.loadTs(join("lib", "courses", "teams", "words.ts"));
 const model = await made.loadTs(join("lib", "courses", "teams", "model.ts"));
 const courses = await made.loadTs(join("lib", "firestore", "courses.ts"));
+const mutations = await made.loadClient(join("features", "courses", "courseMutations.ts"));
 
 /** in-agenda's items, in the form's order. */
 const ITEMS = [
@@ -347,6 +348,29 @@ describe("the run's setting", () => {
     }
     assert.equal(courses.normalizeCourseRun(INC.run, {}).teamsFrom, null);
     assert.equal(courses.normalizeCourseRun(INC.run, { teamsFrom: "agenda" }).teamsFrom, "agenda");
+  });
+
+  test("the run editor writes the way it is set beside pitching week's settings, and only one the reader keeps", async () => {
+    made.reset();
+    const settings = { pickLimit: 3, teamSize: { min: 2, max: 4 }, teamsMadeOn: "2026-11-19" };
+    await mutations.updateRun(INC.run, { pitchSettings: settings, teamsFrom: "agenda" });
+    await mutations.updateRun(INC.run, { teamsFrom: null });
+    await mutations.updateRun(INC.run, { teamsFrom: "spreadsheet" });
+    assert.deepEqual(
+      made.world.clientWrites.map(([kind, path, data]) => [kind, path, data.teamsFrom]),
+      [
+        ["update", `courseRuns/${INC.run}`, "agenda"],
+        ["update", `courseRuns/${INC.run}`, null],
+        ["update", `courseRuns/${INC.run}`, null],
+      ],
+    );
+    // Pitching week's own settings are written as they always were, beside it.
+    assert.deepEqual(made.world.clientWrites[0][2].pitchSettings, {
+      pickLimit: 3,
+      teamSizeMin: 2,
+      teamSizeMax: 4,
+      teamsMadeOn: "2026-11-19",
+    });
   });
 
   test("a stored team is read: a member's record of what they were told, and nobody else's", () => {
