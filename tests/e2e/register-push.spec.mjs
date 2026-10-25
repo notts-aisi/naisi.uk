@@ -402,10 +402,15 @@ test(
           assert.match(footText, /Locks it and shows everyone their mark\. Nobody’s emailed\./);
         } else {
           assert.match(footText, /Push attendance/);
+          // Week 4 is this fixture's last taught week, so the push the foot
+          // offers has no next week to email about, and it says so in the
+          // words registerEndingWords gives a group's last session.
           assert.match(
             footText,
-            new RegExp(`Locks the register, shows everyone their mark and emails ${state.groupName} about next week\\.`),
+            /Locks the register and shows everyone their mark\. It’s the group’s last session, so nobody’s emailed\./,
           );
+          assert.doesNotMatch(footText, /about next week/);
+          assert.doesNotMatch(footText, /If nobody pushes, nobody gets next week’s email\./);
         }
       });
 
