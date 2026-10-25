@@ -812,7 +812,7 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
         // capacity: the transaction is the authority on whether a group is
         // full, and a client-side guess would quietly hide a legitimate
         // over-allocation the allocator is entitled to attempt.
-        label: `${group.name} · ${(byColumn.get(group.id) ?? []).length}/${group.capacity ?? "∞"}`,
+        label: `${group.name} · ${(byColumn.get(group.id) ?? []).filter((row) => !rowHasLeft(row)).length}/${group.capacity ?? "∞"}`,
       })),
     ],
     [groups, byColumn],

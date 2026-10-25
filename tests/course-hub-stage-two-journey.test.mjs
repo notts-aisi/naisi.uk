@@ -1794,6 +1794,12 @@ async function weekThree() {
     message: "The same room as week 3.",
     email: true,
   });
+
+  // Priya leaves the course, her enrolment left as the drop-out form leaves
+  // one: withdrawn, her group kept on it. People in groups, as the lead reads it.
+  later();
+  world.db.poke(`courseEnrolments/${RUN}__priya`, { status: "withdrawn", droppedOutAt: new Date(), allocatedEmailAt: null });
+  seen.withdrawnBoard = await boardOf("claudia", RUN);
 }
 
 // ---------------------------------------------------------------------------
@@ -2298,6 +2304,24 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.deepEqual(lookAt("Kofi removed").lead.people.placed.kofi, [null, false]);
       // Once an admin has changed his row he is off the run's list, and off the board.
       assert.deepEqual(lookAt("Sofia added to Group A and told").lead.people.rail, [5, 5, [], 0]);
+    });
+
+    // Somebody who leaves by themselves keeps their group on their row: their
+    // card stays in its column, marked Withdrawn, and the column's number and
+    // the move menu's leave them out, as the rail does (drawn after the
+    // story's last look, when Priya leaves).
+    test("somebody withdrawn keeps their card in their group's column, counted as left there too", () => {
+      const board = seen.withdrawnBoard;
+      assert.ok(
+        board.startsWith(
+          "AGI Strategy Fellowship · Autumn 2026 5 accepted · 4 placed · 0 unallocated · 1 left Refresh Select several " +
+            "All 4 accepted applicants are placed, and 1 has left. No one is in two groups.",
+        ),
+        board,
+      );
+      assert.match(board, /Group A 2\/3 Thursdays /);
+      assert.match(board, /Priya Unpaid Withdrawn Thursdays 18:00.20:00 Move to: Group A · 2\/3 /);
+      assert.doesNotMatch(board, /has no group|have no group|Group A · 3\/3/);
     });
 
     test("her next Publish tells Sofia without waiting for Kofi's row, which only an admin changes", () => {
