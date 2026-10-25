@@ -115,6 +115,13 @@ export const SPEC = {
    * rows, 2 mirrored tasks, 3 cohort subscriptions, 6 registers, 2 updates, 3
    * send counters, 5 sends, 4 accounts and their documents), and the manifest
    * read zero afterwards.
+   *
+   * CHANGED on 2026-10-25 for the programme page drawn to its boards (marks
+   * with no count, the next session's ticket): the member's marks and the
+   * moved session are read as the page draws them now, as strictly. Run three
+   * times against the harness's loopback server beside the other course hub
+   * specs, all twelve steps each time and a manifest of zero; the pull
+   * request's end-to-end job is its first CI run.
    */
   status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three-unmarked" }),

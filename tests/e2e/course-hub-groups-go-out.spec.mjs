@@ -79,6 +79,7 @@ import {
   dayLabel,
   firstSessionWhen,
   sessionWhenLabel,
+  slotLine,
   weeklySlotWords,
   whenShort,
 } from "../../scripts/e2e-fixtures/worlds/course-hub-term.mjs";
@@ -153,6 +154,14 @@ const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Every space, newline and tab run in a page's text, as one space. */
 const flat = (text) => text.replace(/\s+/g, " ").trim();
+
+/**
+ * What an element says, as written: its text content, never `innerText`,
+ * which is the text as CSS shows it (the programme page sets its labels in
+ * capitals with CSS, and the words are the record's, not the look's). T2's
+ * and T3's, restated.
+ */
+const textOf = async (locator) => flat((await locator.textContent()) ?? "");
 
 const ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 
@@ -412,6 +421,79 @@ test(
         return okBody(response, "Publish");
       });
       return { confirm: await asked, answer };
+    }
+
+    // ---- The person's programme page ---------------------------------------------
+
+    /**
+     * A placed person's programme page before their group first meets, as
+     * boards st-programme and st-programme-phone draw it: the head names the
+     * group with its day, time, room and facilitator; the ticket is the
+     * group's first session, with the way to join only for a group that has
+     * a link; and "Your group" lists its people by the names they go by, the
+     * reader first, names only. `people` is the group, the reader first.
+     *
+     * Before the restyle one card said all of it ("Group A with Fern" over
+     * the session). The board splits it between the head and the ticket, so
+     * the group's name is held to the head's whole line, which ties it to its
+     * day, time, room and facilitator, and the session to the ticket's.
+     */
+    async function assertProgrammePage(pg, { group, facilitator, people }) {
+      const main = pg.getByRole("main");
+      const groupLine = [group.name, slotLine(group), group.room, facilitator ? `with ${facilitator.first}` : ""]
+        .filter(Boolean)
+        .join(" · ");
+      await main.getByText(groupLine, { exact: true }).waitFor({ timeout: WAIT_MS });
+
+      // The ticket: which session it is, its day and hours, its room and with whom.
+      const ticket = pg.getByRole("region", { name: "Your next session", exact: true });
+      await ticket.waitFor({ timeout: WAIT_MS });
+      await ticket.getByText("Your first session · week 1", { exact: true }).waitFor({ timeout: WAIT_MS });
+      assert.equal(
+        await textOf(ticket.getByRole("heading", { level: 2 })),
+        sessionWhenLabel(group, group.firstDateKey),
+        `the ticket is not ${group.name}'s first session`,
+      );
+      const said = await textOf(ticket);
+      assert.ok(said.includes(group.room), `the ticket does not say ${group.name}'s room: ${said}`);
+      if (facilitator) {
+        await ticket.getByText(`with ${facilitator.first}`, { exact: true }).waitFor({ timeout: WAIT_MS });
+      } else {
+        assert.ok(!said.includes(fern.first), `the ticket of a group with no facilitator names ${fern.first}: ${said}`);
+      }
+      // The way to join is here, on the site, for the group's own people.
+      const join = ticket.getByRole("link", { name: "Join online", exact: true });
+      if (group.meetingUrl) {
+        assert.equal(await join.getAttribute("href"), group.meetingUrl, "the ticket's way to join is not the group's");
+        assert.ok(
+          said.includes("The link is here, not in your emails, so it can’t be forwarded."),
+          `the ticket does not say the link is on the site only: ${said}`,
+        );
+      } else {
+        assert.equal(await pg.getByRole("link", { name: "Join online" }).count(), 0, `${group.name} has no link to join`);
+      }
+
+      // "Your group": the people, by the names they go by, the reader first
+      // and marked; the facilitator; names only, and no address.
+      const card = pg.getByRole("region", { name: "Your group", exact: true });
+      await card.getByText(group.name, { exact: true }).waitFor({ timeout: WAIT_MS });
+      const rows = card.getByRole("list").getByRole("listitem");
+      await rows.first().waitFor({ timeout: WAIT_MS });
+      const names = people.map((person, index) => (index === 0 ? `${person.first} (you)` : person.first));
+      assert.equal(await rows.count(), names.length, `${group.name}'s card does not list its ${names.length} people`);
+      for (const [index, name] of names.entries()) {
+        const row = await textOf(rows.nth(index));
+        assert.ok(row.endsWith(name), `row ${index + 1} of ${group.name}'s card is not ${name}: ${row}`);
+      }
+      const cardSays = await textOf(card);
+      if (facilitator) {
+        await card.getByText(`Facilitator: ${facilitator.first}`, { exact: true }).waitFor({ timeout: WAIT_MS });
+      } else {
+        assert.ok(!cardSays.includes("Facilitator"), `${group.name}'s card names a facilitator it has not got: ${cardSays}`);
+      }
+      await card.getByText("Names only. Nobody here sees your email address.", { exact: true }).waitFor({ timeout: WAIT_MS });
+      assert.ok(!cardSays.includes("@"), `${group.name}'s card shows an address: ${cardSays}`);
+      return { main, ticket, said };
     }
 
     // ---- Mail ------------------------------------------------------------------
@@ -865,25 +947,9 @@ test(
         activePage = memberPage;
         await signIn(memberPage, ben);
         await memberPage.goto(`${origin}${programmePath}`, { waitUntil: "domcontentloaded" });
-        const card = memberPage.getByTestId("session-card");
-        await card.waitFor({ timeout: WAIT_MS });
-        const said = flat(await card.innerText());
-        for (const expected of [
-          "Your first session",
-          `${groupA.name} with ${fern.first}`,
-          sessionWhenLabel(groupA, groupA.firstDateKey),
-          groupA.room,
-        ]) {
-          assert.ok(said.includes(expected), `Ben's session card does not say ${JSON.stringify(expected)}: ${said}`);
-        }
-        // The way to join is here, on the site, for the group's own people.
-        const join = card.getByRole("link", { name: "Join online", exact: true });
-        await join.waitFor({ timeout: WAIT_MS });
-        assert.equal(await join.getAttribute("href"), groupA.meetingUrl, "the card's way to join is not the group's");
-        assert.ok(
-          said.includes("The link is here, not in your emails, so it can’t be forwarded."),
-          `the card does not say the link is on the site only: ${said}`,
-        );
+        // Group A with Fern, its first session with the way to join, and Ada
+        // beside him in the group.
+        await assertProgrammePage(memberPage, { group: groupA, facilitator: fern, people: [ben, ada] });
       });
 
       await step("a person moved after Publish sees nothing of the run until Publish is pressed again", async () => {
@@ -917,7 +983,10 @@ test(
           "the member's list of runs still has the run, before Publish has told him his new group",
         );
         await memberPage.getByRole("heading", { name: "Your courses", level: 1 }).waitFor({ timeout: WAIT_MS });
-        const page = flat(await memberPage.locator("main").innerText());
+        // Its text content, not `innerText`: a group's name set in capitals
+        // by CSS would read "GROUP A" there, and this check would pass
+        // without looking.
+        const page = await textOf(memberPage.getByRole("main"));
         for (const group of state.groups) {
           assert.ok(!page.includes(group.name), `the courses page names ${group.name}: ${page}`);
         }
@@ -973,19 +1042,17 @@ test(
 
         activePage = memberPage;
         await memberPage.goto(`${origin}${programmePath}`, { waitUntil: "domcontentloaded" });
-        const card = memberPage.getByTestId("session-card");
-        await card.waitFor({ timeout: WAIT_MS });
-        const said = flat(await card.innerText());
-        for (const expected of [
-          "Your first session",
-          groupB.name,
-          sessionWhenLabel(groupB, groupB.firstDateKey),
-          groupB.room,
-        ]) {
-          assert.ok(said.includes(expected), `Ben's card after the move does not say ${JSON.stringify(expected)}: ${said}`);
-        }
-        assert.ok(!said.includes(groupA.name), `Ben's card still names the group he left: ${said}`);
-        assert.equal(await card.getByRole("link", { name: "Join online" }).count(), 0, "Group B has no link to join");
+        // Group B, which has no facilitator and no link, its first session,
+        // and Cleo beside him in the group.
+        const { main } = await assertProgrammePage(memberPage, { group: groupB, facilitator: null, people: [ben, cleo] });
+        // And nothing of the group he left, anywhere on the page: not its
+        // name, not its facilitator, not its way to join.
+        const page = await textOf(main);
+        assert.ok(
+          !page.includes(groupA.name) && !page.includes(`with ${fern.first}`),
+          `Ben's page still names the group he left: ${page}`,
+        );
+        assert.ok(!(await memberPage.content()).includes(groupA.meetingUrl), "Ben's page still carries Group A's meeting link");
       });
 
       await step("the facilitator sees their group, its roster and its register", async () => {

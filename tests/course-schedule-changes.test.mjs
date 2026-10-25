@@ -252,6 +252,9 @@ const RUN_EDITOR = src("features", "courses", "RunEditor.tsx");
 const WEEK_PLAN_BUILDER = src("features", "courses", "WeekPlanBuilder.tsx");
 const WEEK_VIEW = src("features", "courses", "WeekView.tsx");
 const RUN_HOME = src("features", "courses", "RunHome.tsx");
+// The run home's ticket reads its session's facts here since the restyle
+// (boards wk-programme, st-programme): the next session's own week.
+const CARD_FACTS = src("features", "courses", "sessionChange", "cardFacts.ts");
 const USE_WEEK = src("features", "courses", "useWeek.ts");
 const USE_GROUP_WEEKS = src("features", "courses", "useGroupWeeks.ts");
 const USE_ALLOCATION = src("features", "courses", "useAllocation.ts");
@@ -820,7 +823,9 @@ test("GUARD — every member-facing surface addresses a week by weekDocId(number
     // keyed by week doc id (see the per-week card test): two surfaces now index
     // it, and both must spell the key the way every writer of that map does.
     [WEEK_VIEW, /sessionModes\[weekDocId\(weekNumber\)\]/],
-    [RUN_HOME, /sessionModes\[weekDocId\(cardWeekNumber\)\]/],
+    // The run home's ticket, through `ticketFacts`: the mode of the week of
+    // the session it is dated to, addressed by that week's number.
+    [CARD_FACTS, /sessionModes\[weekDocId\(next\.weekNumber\)\]/],
     [NUDGE, /const weekId = weekDocId\(weekNumber\);/],
     // V2-3 moved the mirror's read behind the group resolver, so the pattern
     // now pins BOTH doctrines at once: addressed by number, resolved
@@ -2564,10 +2569,12 @@ test("GUARD — the week page shows the VIEWED week's mode, not the current week
     /payload\.group\?\.sessionModes\[weekDocId\(weekNumber\)\] \?\? null/,
   );
   assert.match(WEEK_VIEW, /mode=\{viewedSessionMode\}/);
-  // …the run home the CURRENT one, because its card is dated to the current
-  // slot and must describe that session end to end.
-  assert.match(RUN_HOME, /group\?\.sessionModes\[weekDocId\(cardWeekNumber\)\] \?\? null/);
-  assert.match(RUN_HOME, /mode=\{cardSessionMode\}/);
+  // …the run home the one of the session its ticket is dated to (the group's
+  // next, since the restyle to boards wk-programme and st-programme), and
+  // describes that session end to end: its own week's mode, room and link.
+  assert.match(CARD_FACTS, /const mode = group\.sessionModes\[weekDocId\(next\.weekNumber\)\] \?\? null;/);
+  assert.match(CARD_FACTS, /const room = mode !== "virtual" && next\.location\.trim\(\) \? next\.location\.trim\(\) : null;/);
+  assert.match(RUN_HOME, /const facts = group \? ticketFacts\(group\) : null;/);
 
   // THE NUDGE IS UNAFFECTED, and that is verified rather than assumed: it
   // always resolved per week from the group DOC (it has no payload to read),

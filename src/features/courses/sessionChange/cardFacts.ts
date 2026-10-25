@@ -1,7 +1,7 @@
 import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/route";
-import { coversWords } from "@/lib/courses/sessionChange/words";
-import type { GroupSessionMode } from "@/lib/firestore/courseGroups";
-import { weekDocId } from "@/lib/firestore/courses";
+import { coversWords, LINK_WILL_BE_HERE } from "@/lib/courses/sessionChange/words";
+import { GROUP_FIELD_LIMITS, type GroupSessionMode } from "@/lib/firestore/courseGroups";
+import { validateSubmissionUrl, weekDocId } from "@/lib/firestore/courses";
 
 /**
  * WHAT A SESSION CARD IS HANDED ABOUT A CHANGED SESSION (Q25, wk-changes),
@@ -46,6 +46,57 @@ export function coversTitle(group: OverviewGroup, weekNumber: number): string | 
   const next = group.calendar.nextSession;
   if (!next || next.weekNumber !== weekNumber || next.weekNumbers.length < 2) return undefined;
   return coversWords(next.dateKey, next.weekNumbers);
+}
+
+/**
+ * WHAT THE TICKET FOR THE GROUP'S NEXT SESSION SAYS (boards wk-programme,
+ * st-programme, wk-home-phone): the session's own day, time, room and joining
+ * link, each resolved for its own week, so a session moved or held online for
+ * one week reads as it will be held, and never as the group's usual slot.
+ *
+ * The room is left out of an online week and the link out of an in-person
+ * one. The link is the site's only (Q23): it is checked as a web address
+ * again here, and an online week with no link to show says where it will be,
+ * never that anybody will send it. Null once the group has no session left.
+ */
+export type TicketFacts = {
+  weekNumber: number;
+  /** Its own week and any cancelled week straight before it that it covers. */
+  weekNumbers: number[];
+  dateKey: string;
+  startTimeLocal: string;
+  durationMinutes: number;
+  room: string | null;
+  mode: GroupSessionMode | null;
+  joinUrl: string | null;
+  /** A sentence for an online week whose link is not here yet, or an in-person week with no room yet. */
+  missing: string | null;
+};
+
+export function ticketFacts(group: OverviewGroup): TicketFacts | null {
+  const next = group.calendar.nextSession;
+  if (!next) return null;
+  const mode = group.sessionModes[weekDocId(next.weekNumber)] ?? null;
+  const link =
+    next.meetingUrl && !validateSubmissionUrl(next.meetingUrl, GROUP_FIELD_LIMITS.meetingUrl) ? next.meetingUrl : null;
+  const joinUrl = mode !== "in-person" ? link : null;
+  const room = mode !== "virtual" && next.location.trim() ? next.location.trim() : null;
+  return {
+    weekNumber: next.weekNumber,
+    weekNumbers: next.weekNumbers.length > 0 ? next.weekNumbers : [next.weekNumber],
+    dateKey: next.dateKey,
+    startTimeLocal: next.startTimeLocal,
+    durationMinutes: next.durationMinutes,
+    room,
+    mode,
+    joinUrl,
+    missing:
+      mode === "virtual" && !joinUrl
+        ? LINK_WILL_BE_HERE
+        : mode === "in-person" && !room
+          ? "Your facilitator will confirm the room."
+          : null,
+  };
 }
 
 /** The week's session, when it was cancelled and the group kept pace: the reason the group was given. */

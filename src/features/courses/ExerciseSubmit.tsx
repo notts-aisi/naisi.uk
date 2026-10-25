@@ -409,7 +409,7 @@ export default function ExerciseSubmit({
   const saveError = saver.state === "error" ? saver.error : null;
 
   return (
-    <div className={styles.root} role="group" aria-label={`Your answer — week ${weekNumber}`}>
+    <div className={styles.root} role="group" aria-label={`Your answer, week ${weekNumber}`}>
       <div className={styles.status}>
         {hasSubmitted ? (
           <Chip tone={STATUS_TONE[stored.reviewStatus]} size="sm">
@@ -432,7 +432,7 @@ export default function ExerciseSubmit({
           )}
           <p className={styles.lockNote}>
             {reviewed
-              ? "Your facilitator has reviewed this — ask them to reopen it if you need to change your answer."
+              ? "Your facilitator has reviewed this. Ask them to reopen it if you need to change your answer."
               : "Your answers are read-only now."}
           </p>
         </div>
@@ -467,7 +467,7 @@ export default function ExerciseSubmit({
               value={value}
               max={maxLength}
               readOnly={fieldReadOnly}
-              placeholder="Write your answer here — it saves as you type."
+              placeholder="Write your answer here. It saves as you type."
               aria-describedby={describedBy || undefined}
               onChange={(e) => handleChange(e.target.value)}
               onBlur={() => void saver.flush()}
@@ -501,7 +501,7 @@ export default function ExerciseSubmit({
             <p className={styles.error} role="status">
               {saveError.message}
               {conflict
-                ? " Anything you have typed since then hasn't been saved — copy it out if you still need it."
+                ? " Anything you have typed since then hasn’t been saved, so copy it out if you still need it."
                 : ""}
             </p>
           )}

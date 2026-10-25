@@ -111,6 +111,13 @@ export const SPEC = {
    * and question set, 3 rows on the run's list, 4 enrolments, an audit row,
    * 2 send markers, 3 subscriptions and their 3 events, 9 sends, 4 accounts
    * and their documents), and the manifest read zero afterwards.
+   *
+   * CHANGED on 2026-10-25 for the programme page drawn to its boards (the
+   * session ticket, the head line, Your group): steps 10 to 12 read the page
+   * as it draws now, as strictly. Run three times against the harness's
+   * loopback server beside the other course hub specs, all fourteen steps each
+   * time and a manifest of zero; the pull request's end-to-end job is its
+   * first CI run.
    */
   status: "verified",
   seed: ({ runId, suppress, onState }) =>

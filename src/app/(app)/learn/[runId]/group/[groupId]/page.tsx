@@ -310,6 +310,12 @@ export default async function GroupHomePage({
     // roster below names the facilitators, and repeating them on the card
     // above it would say the same thing twice.
     facilitatorNames: [],
+    usualSlot: {
+      weekday: group.session.weekday,
+      startTimeLocal: group.session.startTimeLocal,
+      durationMinutes: group.session.durationMinutes,
+      location: group.session.location,
+    },
     sessionNotice: changes.notice,
     cancelledSessions: changes.cancelled,
   };

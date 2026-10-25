@@ -478,7 +478,10 @@ describe("4. the member's section, the composer, and a message as text", () => {
   test("the run home draws the section, after the marks and before the facilitator's cards", () => {
     const source = readFileSync(join(SRC, "features", "courses", "RunHome.tsx"), "utf8");
     assert.equal((source.match(/<RunUpdates runId=\{runId\} \/>/g) ?? []).length, 1);
-    assert.ok(source.indexOf("<ProgressPanel") < source.indexOf("<RunUpdates"));
+    // The marks are "Your marks" since the restyle (board wk-programme), and
+    // still drawn first: the board's column reads marks, then updates.
+    assert.ok(source.indexOf("<YourMarks") > 0);
+    assert.ok(source.indexOf("<YourMarks") < source.indexOf("<RunUpdates"));
     assert.ok(source.indexOf("<RunUpdates") < source.indexOf("facilitatedGroups.map("));
   });
 });

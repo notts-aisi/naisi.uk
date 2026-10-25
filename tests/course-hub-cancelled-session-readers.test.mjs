@@ -14,7 +14,8 @@
  * asks the register alone whether a session happened reads a cancelled
  * session as one that did, and chases it, counts it or shows it. The walk of
  * stage three found three: the lead's tabs (fixed in the walk), the
- * facilitators' register and Home's attendance strip.
+ * facilitators' register and Home's attendance strip (gone since board
+ * wk-home-phone, which draws no marks on Home: C26).
  *
  * ## How it is held
  *
@@ -35,7 +36,8 @@
  *  - `sends`: it carries somebody's own press of the switch to the register's
  *    route, and every `held` it reads is off `via`.
  *
- * The two readers the walk named and the one it fixed are `asks`, and a test
+ * The reader the walk named that still reads a register (Home's strip is gone)
+ * and the one it fixed are `asks`, and a test
  * here says so by name.
  *
  * WHAT THE READERS THEN DO is executed in
@@ -88,7 +90,7 @@ const ASKS_CANCELLED = /\.cancelled\b|\bcancelledIn\(/;
  * Paths are under `src`.
  */
 const READERS = {
-  // ── The two readers the walk named, and the one it fixed ─────────────────
+  // ── The reader the walk named, and the one it fixed ──────────────────────
   "app/api/courses/groups/[groupId]/attendance/route.ts": {
     kind: "asks",
     proof: ["held: !c.cancelled && (state?.held ?? true)", "if (!ctx.session.cancelled) return null;"],
@@ -96,13 +98,6 @@ const READERS = {
       "the facilitators' register: a cancelled session's column reads as not held whatever its register says, and " +
       "a mark, the switch, a note or a correction to its register is refused in the register's words for a session " +
       "that did not happen",
-  },
-  "app/(app)/dashboard/HomeProgramme.tsx": {
-    kind: "asks",
-    proof: ["const cancelled = group !== null && cancelledIn(group, n) !== null;"],
-    why:
-      "Home's attendance strip: a week whose session was cancelled reads as no session, from the run's own record of " +
-      "the change, since a cancelled session has no register to say so",
   },
   "lib/courses/programmeAttendance.ts": {
     kind: "asks",
@@ -313,10 +308,11 @@ describe("a register's held, and a session cancelled through Change a session", 
     }
   });
 
-  test("the two readers the walk of stage three named, and the one it fixed, ask", () => {
+  // Home's attendance strip, the other reader the walk named, is gone: Home
+  // draws no marks since board wk-home-phone (C26), and reads no register.
+  test("the reader the walk of stage three named, and the one it fixed, ask", () => {
     for (const file of [
       "app/api/courses/groups/[groupId]/attendance/route.ts",
-      "app/(app)/dashboard/HomeProgramme.tsx",
       "lib/courses/programmeAttendance.ts",
     ]) {
       assert.equal(READERS[file]?.kind, "asks", file);

@@ -10,9 +10,12 @@ import {
   type GroupCalendar,
   type WeekSource,
 } from "@/lib/courses/groupResolve";
+import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
+import type { ProgrammeKind } from "@/lib/applications/model";
 import { finishedForMember } from "@/lib/courses/finishing/record";
-import { resolveSessions, sessionRange } from "@/lib/courses/sessions";
+import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
+import { isOpenAt, weekOpening } from "@/lib/courses/weekOpening";
 import {
   ownAttendanceSessions,
   sessionsFromJoinWeek,
@@ -196,6 +199,48 @@ export type OverviewCancelledSession = {
 };
 
 /**
+ * ONE TAUGHT WEEK OF THE CALLER'S OWN CALENDAR, as the pages a member uses
+ * every week draw it (boards wk-programme, st-programme, wk-week-phone): the
+ * week's session as their group holds it, and whether its page is open to
+ * them.
+ *
+ * THE SESSION IS THE WEEK'S OWN, read off the group's calendar with "Change a
+ * session" applied: a one-week move's day, time and room, an online week, a
+ * cancelled evening. Never the group's usual slot dated to another week.
+ *
+ * OPEN (C17): for somebody taking part, a published week opens straight after
+ * the group's previous session (`weekOpening`); the first waits on nothing.
+ * Facilitators and admins are shown every published week as open, as they
+ * always were. `opensAfter` is the session a shut week waits on, so a page can
+ * say "Opens tonight, after your session"; null when it waits on none, and
+ * always null for staff.
+ */
+export type OverviewWeekSchedule = {
+  weekNumber: number;
+  /** The first day of the week's seven, "YYYY-MM-DD"; "" on an undated calendar. */
+  slotStartKey: string;
+  /** The day the caller's group meets that week, "YYYY-MM-DD"; "" when there is no session to date. */
+  dateKey: string;
+  /** "HH:MM" in London; "" with no session. */
+  startTimeLocal: string;
+  durationMinutes: number;
+  /** The room that week, a one-week move applied; "" for none. */
+  location: string;
+  /** That week's room is not the group's usual one. */
+  roomChanged: boolean;
+  /** How that week meets, when somebody has said; null when nothing is set. */
+  sessionMode: GroupSessionMode | null;
+  /** Cancelled through "Change a session", the group keeping pace. */
+  cancelled: boolean;
+  /** The session has ended. A cancelled one is over once its evening has passed. */
+  over: boolean;
+  /** The session a shut week waits on, for somebody taking part. */
+  opensAfter: { dateKey: string; startTimeLocal: string } | null;
+  /** Whether the week's page is open to the caller now. */
+  open: boolean;
+};
+
+/**
  * ONE GROUP'S OWN CALENDAR: the fix this shape exists for.
  *
  * Every group on `groups[]` carries its own, resolved through the group's
@@ -273,6 +318,13 @@ export type OverviewGroup = {
   /** Names only. */
   facilitatorNames: string[];
   /**
+   * The group's usual weekly slot, with no week's own arrangement applied:
+   * what "Group B · Tuesdays 6pm · Room C20" says at the head of a member's
+   * programme page, where a room changed for one week must not read as the
+   * group's room. The link is not part of it.
+   */
+  usualSlot: { weekday: number; startTimeLocal: string; durationMinutes: number; location: string };
+  /**
    * A cancelled evening to tell the card's reader about (Q25), or null. The
    * reason travels because "the group sees this": it is written for exactly
    * the people this card is for, and it can hold no link.
@@ -326,7 +378,25 @@ export type OverviewPayload = {
     estimatedMinutes: number | null;
     /** True when this row came from the caller's group's forked copy. */
     forked: boolean;
+    /**
+     * The ids of what a member ticks off in the week, the ones its count of
+     * "done" is out of: every material that is not optional, then every
+     * checklist item, as the week page counts them. Ids only, so a page can
+     * say "1 of 3 done" beside a week without reading the week.
+     */
+    countableIds: string[];
   }>;
+  /**
+   * The caller's own calendar's taught weeks, in its order, with each week's
+   * session and whether its page is open to them. See `OverviewWeekSchedule`.
+   */
+  weekSchedule: OverviewWeekSchedule[];
+  /**
+   * The programme on the application form that names this run, as a member's
+   * pages name it ("AGI Strategy", a fellowship), or null when no programme
+   * names it. Nothing else of the form travels.
+   */
+  programme: { name: string; kind: ProgrammeKind } | null;
   /**
    * Week doc ids that exist under `courseGroups/{ownGroup}/weeks` — i.e. the
    * weeks this caller must read from their group rather than from the run.
@@ -719,7 +789,7 @@ export async function GET(
       ).slice(0, MAX_OWN_ATTENDANCE_SESSIONS)
     : [];
 
-  const [userDocs, weekEntries, ownRegisterDocs] = await Promise.all([
+  const [userDocs, weekEntries, ownRegisterDocs, programme] = await Promise.all([
     facilitatorUids.length
       ? db.getAll(...facilitatorUids.map((uid) => db.collection("users").doc(uid)))
       : Promise.resolve([]),
@@ -740,6 +810,9 @@ export async function GET(
           ),
         )
       : Promise.resolve([]),
+    // The programme that names the run, for the pages' words. A form that
+    // cannot be read leaves the pages naming the course instead.
+    runProgrammeOf(db, runId).catch(() => null),
   ]);
   const nameByUid = new Map<string, string>();
   for (const doc of userDocs) {
@@ -757,6 +830,10 @@ export async function GET(
         published: w.published,
         estimatedMinutes: w.estimatedMinutes,
         forked: source === "group",
+        countableIds: [
+          ...w.materials.filter((m) => !m.optional).map((m) => m.id),
+          ...w.checklist.map((c) => c.id),
+        ],
       };
     })
     .sort((a, b) => a.weekNumber - b.weekNumber || a.id.localeCompare(b.id));
@@ -821,6 +898,12 @@ export async function GET(
       facilitatorNames: source.facilitatorUids.map(
         (uid) => nameByUid.get(uid) ?? "NAISI member",
       ),
+      usualSlot: {
+        weekday: source.session.weekday,
+        startTimeLocal: source.session.startTimeLocal,
+        durationMinutes: source.session.durationMinutes,
+        location: source.session.location,
+      },
       sessionNotice: changes.notice,
       cancelledSessions: changes.cancelled,
     };
@@ -832,6 +915,48 @@ export async function GET(
   // multi-group facilitator, because `ownGroup` is. See the wire type.
   const group: OverviewGroup | null =
     (ownGroup ? groupCardPayloads.find((c) => c.id === ownGroup.id) : null) ?? null;
+
+  /*
+   * THE CALLER'S WEEKS (`OverviewWeekSchedule`): each taught week of their own
+   * calendar, its session as their group holds it, and whether its page is
+   * open to them. Resolved through `ownGroup`, the group every top-level
+   * field above is resolved through, so the weeks and the head agree.
+   *
+   * The opening rule (C17) is for somebody taking part and nobody else: a
+   * facilitator of any group of the run and an admin are shown every
+   * published week, as they always were.
+   */
+  const takesPart = isEnrolled && !isFacilitator && !isAdmin;
+  const ownSessionsAll = resolveSessions(run, ownGroup, calendar);
+  const publishedWeeks = new Set(weeks.filter((w) => w.published).map((w) => w.weekNumber));
+  const ownModes = ownGroup ? sessionModesOf(ownGroup) : {};
+  const usualRoom = ownGroup?.session.location.trim() ?? "";
+  const scheduleOf = (session: ResolvedSession): OverviewWeekSchedule => {
+    const { endsAt } = sessionInstants(session);
+    const published = publishedWeeks.has(session.weekNumber);
+    const opening = weekOpening(ownSessionsAll, session.weekNumber);
+    const open = published && (!takesPart || isOpenAt(opening, now));
+    const dated = ownGroup !== null && session.dateKey !== "";
+    const room = ownGroup ? session.session.location.trim() : "";
+    return {
+      weekNumber: session.weekNumber,
+      slotStartKey: session.slotStartKey,
+      dateKey: dated ? session.dateKey : "",
+      startTimeLocal: dated ? session.session.startTimeLocal : "",
+      durationMinutes: dated ? session.session.durationMinutes : 0,
+      location: room,
+      roomChanged: room !== "" && room !== usualRoom,
+      sessionMode: ownModes[session.weekId] ?? null,
+      cancelled: session.cancelled,
+      over: dated && endsAt !== null && endsAt.getTime() < now.getTime(),
+      opensAfter:
+        takesPart && published && !open && opening.after
+          ? { dateKey: opening.after.dateKey, startTimeLocal: opening.after.startTimeLocal }
+          : null,
+      open,
+    };
+  };
+  const weekSchedule = ownSessionsAll.filter((session) => session.occurrence === 1).map(scheduleOf);
 
   /**
    * THE PROJECTION, keyed by session key rather than by array position.
@@ -901,6 +1026,8 @@ export async function GET(
     calendarSource: calendar.source,
     currentWeek,
     weeks,
+    weekSchedule,
+    programme: programme ? { name: programme.shortName, kind: programme.kind } : null,
     forkedWeekIds,
     enrolment: enrolment
       ? {
