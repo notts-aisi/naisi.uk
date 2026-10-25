@@ -90,7 +90,14 @@ import { mirrorCourseDecisionToPush } from "@/lib/push/courseNotifications";
  * member has been waiting for. The push is mirrored, for each person whose
  * email went, in a second pass after the email loop, respects their
  * `notifications.push.courses` switch, names the course and the group and
- * nothing else, and cannot fail a publish. Facilitators are not pushed.
+ * nothing else (the course alone, for an incubator's people, who are never
+ * told about a group), and cannot fail a publish. Facilitators are not
+ * pushed.
+ *
+ * WHAT THE PEOPLE ARE SENT is the plan's: "Placed in a group", or for the
+ * people of a run an incubator names, "Placed on an incubator". The lead of
+ * the programme that names the run is never sent "You’re facilitating",
+ * which they sign; the plan leaves them out of every count.
  */
 
 type Ctx = { params: Promise<{ runId: string }> };
@@ -377,7 +384,11 @@ export async function POST(req: Request, ctx: Ctx) {
         title: "You've got a place",
         // `groupName` is a group's name: committee-authored text, not member
         // text, so it is interpolated rather than passed through MemberText.
-        body: `${run.courseTitle}: you're in ${groupName}. The details are in your email.`,
+        // An incubator's people are never told about a group, and their
+        // email names none, so neither does the push that mirrors it.
+        body: plan.incubator
+          ? `${run.courseTitle}: the details are in your email.`
+          : `${run.courseTitle}: you're in ${groupName}. The details are in your email.`,
         url: `/learn/${encodeURIComponent(runId)}`,
       });
     }

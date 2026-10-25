@@ -1167,12 +1167,23 @@ programme names" below).
   roster or register, and gets none of the group's mail. Publish emails just
   them, and then they see their new group. The same goes for anybody placed
   late.
+- **An incubator's people are sent their own email.** When the programme
+  that names the run is an incubator, Publish sends its people "Placed on an
+  incubator" in place of "Placed in a group": the weekly session (day, time
+  and where), the date of the first session, who runs it (the programme's
+  lead) and a button to their programme's page. It never says "group": an
+  incubator's people are never told about one. Its wording is in Email
+  designs beside "Placed in a group", with its own test send there; a
+  fellowship's run, and a run no programme names, are sent "Placed in a
+  group" as before.
 - **Each facilitator is told once a group, at Publish.** "You're
   facilitating" goes to every facilitator of every group with somebody in
   it: the group's weekly time, where it meets, its first and last session
   on the group's own calendar, who else facilitates it, how many in it have
   been told their group and a button to their group page, signed by the lead
-  of the programme that names the run. That number counts only the people
+  of the programme that names the run. That lead is never sent it, whatever
+  group they facilitate (an incubator's lead facilitates its one group), and
+  the button's count leaves them out. That number counts only the people
   told by the end of the press, so it is the number of names on their
   roster: somebody with no address on file, or whose email failed, is
   counted once a later press tells them. Never a meeting link: an online
@@ -1183,9 +1194,11 @@ programme names" below).
   counts the facilitators' email as still to send). Its wording is in Email
   designs as "You're facilitating", beside "Placed in a group".
 - **A changed wording needs a fresh test.** Saving either of the two emails
-  in Email designs locks Publish again until somebody sends themselves a
-  test. A test that this copy of the site held, or that went to an address
-  on the do-not-email list, reached nobody and does not count.
+  a run sends in Email designs ("You're facilitating", and "Placed in a
+  group" or, on a run an incubator names, "Placed on an incubator") locks
+  its Publish again until somebody sends themselves a test. A test that this
+  copy of the site held, or that went to an address on the do-not-email
+  list, reached nobody and does not count.
 - **Do not destroy the form while its people are waiting for a group.**
   Until somebody is in a group, their member area knows they hold a place
   only from their application. Destroy the form in between and it tells

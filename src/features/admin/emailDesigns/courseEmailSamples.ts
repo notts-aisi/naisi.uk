@@ -54,6 +54,28 @@ export const COURSE_FACILITATING_PREVIEW_SAMPLE = {
 } as const;
 
 /**
+ * Sample values for the email an incubator's people are sent at Publish
+ * ("Placed on an incubator"), whose tokens no other course template
+ * resolves. Shaped like a real send: the weekly slot and the first session
+ * are the words Publish writes ("Mondays at 5pm", "Mon 2 Nov"), `where` is a
+ * room, never a meeting link, and `programmeUrl` is the programme's page in
+ * the member area. The names are made up, as every sample here is.
+ *
+ * Hard-coded for the same reason the facilitators' are: the token NAMES are
+ * the contract, and `INCUBATOR_START_TOKENS` in
+ * `src/lib/courses/incubatorStartEmail.ts` is their source of truth.
+ * `tests/email-unfilled-tokens.test.mjs` fails if the two drift apart.
+ */
+export const COURSE_INCUBATOR_PREVIEW_SAMPLE = {
+  programmeName: "Research incubator",
+  weeklySlot: "Mondays at 5pm",
+  firstSession: "Mon 6 Oct",
+  where: "Hallward Library, B12",
+  leadName: "Jordan",
+  programmeUrl: "https://naisi.uk/learn/research-incubator-autumn-2026",
+} as const;
+
+/**
  * Sample values for the weekly nudge's own tokens, which no other course
  * template resolves. Hard-coded rather than imported from
  * `src/lib/email/courseNudgeEmail.ts` because that module is `server-only` and
@@ -284,6 +306,19 @@ export function courseTemplateUsesFacilitatingTokens(templateId: CourseTemplateI
 }
 
 /**
+ * Templates whose send path resolves the incubator's tokens. One: the email
+ * Publish sends the people of a run an incubator names, written by
+ * `composeIncubatorStartEmail`. It resolves none of the group tokens.
+ */
+export const COURSE_INCUBATOR_TOKEN_TEMPLATES: readonly CourseTemplateId[] = [
+  "course-allocated-incubator",
+];
+
+export function courseTemplateUsesIncubatorTokens(templateId: CourseTemplateId): boolean {
+  return COURSE_INCUBATOR_TOKEN_TEMPLATES.includes(templateId);
+}
+
+/**
  * Templates whose send path resolves the week-scoped tokens. One today; the
  * predicate exists so the editor and the preview ask the same question the
  * group-token pair does, rather than string-matching an id in two places.
@@ -371,6 +406,18 @@ export function courseSampleTokens(
       firstName: firstWord(name),
       preferredName: name,
       ...COURSE_FACILITATING_PREVIEW_SAMPLE,
+    };
+  }
+
+  if (courseTemplateUsesIncubatorTokens(templateId)) {
+    // Its own map, as Publish's plan builds it for an incubator's people: the
+    // person's name, the course and run, and the weekly session. No group.
+    return {
+      courseTitle: COURSE_PREVIEW_SAMPLE.courseTitle,
+      runLabel: COURSE_PREVIEW_SAMPLE.runLabel,
+      firstName: firstWord(name),
+      preferredName: name,
+      ...COURSE_INCUBATOR_PREVIEW_SAMPLE,
     };
   }
 

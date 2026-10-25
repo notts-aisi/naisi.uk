@@ -27,6 +27,7 @@ import {
   courseTemplateUsesAdmissionsTokens,
   courseTemplateUsesFacilitatingTokens,
   courseTemplateUsesGroupTokens,
+  courseTemplateUsesIncubatorTokens,
   courseTemplateUsesWeekTokens,
 } from "./courseEmailSamples";
 import styles from "./CourseEmailDesignEditor.module.css";
@@ -118,6 +119,30 @@ const FACILITATING_TOKENS: TokenHelp[] = [
   },
   { token: "leadName", description: "The first name of the lead of the programme that names the run." },
   { token: "programmeName", description: "That programme's short name. Nothing on a run no programme names." },
+];
+
+/**
+ * The incubator email's own map, written by `composeIncubatorStartEmail`
+ * (`src/lib/courses/incubatorStartEmail.ts`), whose `INCUBATOR_START_TOKENS`
+ * this list has to match: tests/email-unfilled-tokens.test.mjs compares
+ * them. It REPLACES the lifecycle lists above when this template is open, and
+ * has no group's name and nobody who facilitates in it.
+ */
+const INCUBATOR_TOKENS: TokenHelp[] = [
+  { token: "firstName", description: "First word of their name, best for greetings." },
+  { token: "preferredName", description: "Their preferred name, falling back to their display name." },
+  { token: "courseTitle", description: "The course's title, e.g. AI Safety Fundamentals." },
+  { token: "runLabel", description: "Which run this is, e.g. Autumn 2026." },
+  { token: "programmeName", description: "The incubator's short name, e.g. Research incubator." },
+  { token: "weeklySlot", description: "When it meets each week, e.g. Mondays at 5pm." },
+  { token: "firstSession", description: "The date of its first session, e.g. Mon 2 Nov." },
+  { token: "programmeUrl", description: "The address of their programme's page, where week 1 is, for the button." },
+  {
+    token: "where",
+    description:
+      "Where it meets each week, e.g. Hallward Library, B12. Online sessions say Online, and that the link to join is on their programme's page. Never the meeting link, and never a room that has a link typed into it: they are told to look on their programme's page.",
+  },
+  { token: "leadName", description: "The first name of the incubator's lead, who runs the sessions." },
 ];
 
 /**
@@ -345,6 +370,7 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
   const showsWeekTokens = courseTemplateUsesWeekTokens(templateId);
   const showsAdmissionsTokens = courseTemplateUsesAdmissionsTokens(templateId);
   const showsFacilitatingTokens = courseTemplateUsesFacilitatingTokens(templateId);
+  const showsIncubatorTokens = courseTemplateUsesIncubatorTokens(templateId);
   const admissionsTokens = showsAdmissionsTokens
     ? ADMISSIONS_TOKENS.filter((t) => admissionsTokensFor(templateId).has(t.token))
     : [];
@@ -381,7 +407,9 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
               ? WEEK_TOKENS
               : showsFacilitatingTokens
                 ? FACILITATING_TOKENS
-                : ALWAYS_TOKENS
+                : showsIncubatorTokens
+                  ? INCUBATOR_TOKENS
+                  : ALWAYS_TOKENS
           ).map((t) => (
             <div key={t.token} className={styles.tokenRow}>
               <dt>
@@ -393,6 +421,7 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
           {!showsWeekTokens &&
             !showsAdmissionsTokens &&
             !showsFacilitatingTokens &&
+            !showsIncubatorTokens &&
             GROUP_TOKENS.map((t) => (
               <div
                 key={t.token}
@@ -427,7 +456,24 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
             publishing says which.
           </p>
         )}
-        {!showsWeekTokens && !showsAdmissionsTokens && !showsGroupTokens && !showsFacilitatingTokens && (
+        {showsIncubatorTokens && (
+          <p className={styles.tokensNote}>
+            Publish sends this, in place of Placed in a group, to everybody on a run an incubator
+            names. An incubator is one weekly session for everybody, and its people are never told
+            about a group, so nothing on this list names one. A run can have no room yet, or a
+            programme with no lead. So keep <code>{"{where}"}</code> and <code>{"{leadName}"}</code>{" "}
+            each in a paragraph of its own: that paragraph is left out when there is nothing to put in
+            it, and the rest of the email goes. Neither can go in the subject, or in a paragraph with{" "}
+            <code>{"{weeklySlot}"}</code> or <code>{"{firstSession}"}</code>. A run with no day and
+            time cannot be published at all, and neither can wording that uses a token not on this
+            list: publishing says which.
+          </p>
+        )}
+        {!showsWeekTokens &&
+          !showsAdmissionsTokens &&
+          !showsGroupTokens &&
+          !showsFacilitatingTokens &&
+          !showsIncubatorTokens && (
           <p className={styles.tokensNote}>
             The last four only resolve on the group placement email: nobody has a group
             yet when this one sends. Used here they arrive as the literal{" "}
