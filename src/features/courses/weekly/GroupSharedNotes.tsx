@@ -70,15 +70,11 @@ export default function GroupSharedNotes({
     if (adding) box.current?.focus();
   }, [adding]);
 
-  async function send(input: RequestInfo, init: RequestInit): Promise<string | null> {
-    try {
-      const response = await fetch(input, init);
-      if (response.ok) return null;
-      const answer = (await response.json().catch(() => null)) as { error?: unknown } | null;
-      return typeof answer?.error === "string" && answer.error ? answer.error : SHARED_NOTE_REFUSAL.network;
-    } catch {
-      return SHARED_NOTE_REFUSAL.network;
-    }
+  /** Null when the route took the press, else the sentence to say: the route's own, or the network's. */
+  async function refusalOf(response: Response): Promise<string | null> {
+    if (response.ok) return null;
+    const answer = (await response.json().catch(() => null)) as { error?: unknown } | null;
+    return typeof answer?.error === "string" && answer.error ? answer.error : SHARED_NOTE_REFUSAL.network;
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -92,11 +88,17 @@ export default function GroupSharedNotes({
     }
     setBusy(true);
     setSaid(null);
-    const refused = await send(base, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body, weekNumber }),
-    });
+    let refused: string | null;
+    try {
+      const response = await fetch(`${base}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body, weekNumber }),
+      });
+      refused = await refusalOf(response);
+    } catch {
+      refused = SHARED_NOTE_REFUSAL.network;
+    }
     setBusy(false);
     if (refused) {
       setSaid({ ok: false, text: refused });
@@ -112,7 +114,12 @@ export default function GroupSharedNotes({
     if (busy) return;
     setBusy(true);
     setSaid(null);
-    const refused = await send(`${base}/${encodeURIComponent(noteId)}`, { method: "DELETE" });
+    let refused: string | null;
+    try {
+      refused = await refusalOf(await fetch(`${base}/${encodeURIComponent(noteId)}`, { method: "DELETE" }));
+    } catch {
+      refused = SHARED_NOTE_REFUSAL.network;
+    }
     setBusy(false);
     setAsking(null);
     setSaid(refused ? { ok: false, text: refused } : { ok: true, text: NOTE_DELETED });
