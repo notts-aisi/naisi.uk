@@ -438,6 +438,17 @@ describe("2. leaving a run the application form placed you on", () => {
     assert.equal(read(enrolmentPath("amara")).status, "withdrawn");
   });
 
+  test("a place on another programme is not this run's to give back", async () => {
+    // Her place stands on Technical AI Safety, whatever her row on this run says.
+    const application = read(applicationPath("amara"));
+    world.db.poke(applicationPath("amara"), { result: { ...application.result, programmeId: "technical-ai-safety" } });
+    const before = JSON.stringify(read(applicationPath("amara")));
+    const counts = JSON.stringify(read(formPath).applicationCounts);
+    assert.equal((await leave("amara")).status, 200);
+    assert.equal(JSON.stringify(read(applicationPath("amara"))), before);
+    assert.equal(JSON.stringify(read(formPath).applicationCounts), counts);
+  });
+
   test("somebody in a group with no place on the form leaves the run, and the form is not touched", async () => {
     const before = snapshot();
     assert.equal((await leave("freya", { confirmName: TITLE })).status, 200);
@@ -802,6 +813,12 @@ describe("6. Remove records the day somebody was taken off", () => {
     assert.equal((await remove("zach", "sam")).status, 200);
     assert.equal(at(read(enrolmentPath("sam")).droppedOutAt), SAM_LEFT.toISOString());
     assert.deepEqual((await gridLeavers())[A], [["sam", "Left Fri 6 Nov"]]);
+  });
+
+  test("somebody staff took off an open run is not shown the page that says they left", async () => {
+    const removed = await call("zach", routes.remove.POST, { runId: OPEN_RUN, uid: "kai" }, { course: true });
+    assert.equal(removed.status, 200);
+    assert.equal((await home("kai", OPEN_RUN)).to, "/learn");
   });
 
   test("somebody removed is not shown the page that says they left, nor what stays with somebody who did", async () => {
