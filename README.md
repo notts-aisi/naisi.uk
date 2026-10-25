@@ -76,7 +76,7 @@ Separate from prod so test data, test emails, and test sign-ins never touch real
 
 - **Firebase project**: `naisi-uk-dev`, with its own Firestore, Auth, Storage and Secret Manager.
 - **Branch**: push to `dev` → auto-deploys.
-- **Env vars**: base values come from [`apphosting.yaml`](./apphosting.yaml) (prod-shaped). The dev backend overrides the values that differ as environment variables in its App Hosting settings in the Firebase console. Secrets resolve by name against the dev project's Secret Manager.
+- **Env vars**: base values come from [`apphosting.yaml`](./apphosting.yaml) (prod-shaped). The dev backend overrides the values that differ as environment variables in its App Hosting settings in the Firebase console. Secrets resolve by name against the dev project's Secret Manager. One dev setting lives in [`apphosting.dev.yaml`](./apphosting.dev.yaml) instead, which only the backend whose Environment name is `dev` reads: the end-to-end harness's reCAPTCHA bypass secret, a secret only the running server may read, which the console cannot keep (a save of the console's settings drops it).
 - **Only ever seed dev with email addresses you personally own** — any user doc in dev Firestore can get real mail on the next newsletter/RSVP test send.
 
 One-time setup: create the Firebase project; enable Firestore, Auth (Google and Email/Password), Storage; `firebase deploy --only firestore:rules,firestore:indexes,storage --project dev`; `firebase apphosting:secrets:set …` for each secret; create an App Hosting backend in the console with live branch `dev` and the env var overrides above; `firebase apphosting:secrets:grantaccess … --backend <BACKEND_ID> --project dev` for each secret; trigger rollout.
