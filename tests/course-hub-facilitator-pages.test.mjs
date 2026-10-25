@@ -550,6 +550,7 @@ describe("5. the words in week 1, before the first session and after the end", (
     const drawn = await groupPage("rahul");
     const parts = partsOf(drawn);
     assert.equal(parts.ticket, null);
+    assert.match(drawn.text, /Group B .* No more sessions are planned for your group\. Your group Weeks 1 and 2/);
     assert.doesNotMatch(drawn.html, /weekChip/);
     assert.deepEqual(
       parts.registers.registers.map((row) => [row.weekNumber, row.state]),

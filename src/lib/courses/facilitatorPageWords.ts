@@ -83,6 +83,9 @@ export function expectedWords(people: number): string {
 
 export const TAKE_THE_REGISTER = "Take the register";
 
+/** Where the next session would be, once the group's last one is over: Home's own sentence. */
+export const NO_MORE_SESSIONS = "No more sessions are planned for your group.";
+
 /**
  * Under Home's "Take the register": "Opens your group’s register for
  * tonight." on the day of an evening session, "for today." on the day of a

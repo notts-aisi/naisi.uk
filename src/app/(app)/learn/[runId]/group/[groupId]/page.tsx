@@ -7,6 +7,7 @@ import {
   FacilitatorTicket,
   GroupPeopleCard,
   GroupRegistersCard,
+  NoMoreSessionsCard,
   PaceCard,
   ToReviewCard,
 } from "@/features/courses/facilitator/GroupCards";
@@ -417,6 +418,9 @@ export default async function GroupHomePage({
               registerHref={registerHref}
             />
           )}
+          {/* Every session the group holds is over: Home's sentence where the
+              ticket was. A group with no dates yet draws nothing here. */}
+          {!facts && range.lastDateKey && <NoMoreSessionsCard />}
           <GroupPeopleCard
             people={model.people}
             leavers={model.leavers}

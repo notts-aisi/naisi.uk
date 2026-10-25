@@ -15,6 +15,7 @@ import weekly from "@/features/courses/weekly/weekly.module.css";
 import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
 import {
   NOBODY_IN_GROUP,
+  NO_MORE_SESSIONS,
   REVIEW,
   TAKE_THE_REGISTER,
   THIS_WEEK,
@@ -132,7 +133,7 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
       {data && !(group && facts) && (
         <section className={styles.card}>
           <p className={styles.quiet}>
-            {group ? "No more sessions are planned for your group." : "You don’t have a group yet."}
+            {group ? NO_MORE_SESSIONS : "You don’t have a group yet."}
           </p>
           <div>
             <Link href={groupHref} className={styles.textLink}>

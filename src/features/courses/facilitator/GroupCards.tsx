@@ -15,6 +15,7 @@ import {
   GROUP_MARK_WORDS,
   NAMES_ONLY,
   NOBODY_IN_GROUP,
+  NO_MORE_SESSIONS,
   NOTHING_TO_REVIEW,
   PACE,
   REGISTERS,
@@ -133,6 +134,18 @@ export function FacilitatorTicket({
           {facts.joinUrl && <p className={weekly.ticketNote}>{LINK_IS_HERE}</p>}
         </div>
       </div>
+    </section>
+  );
+}
+
+/**
+ * Where the ticket would be once the group's last session is over: the
+ * sentence Home says, so the page never just stops above "Your group".
+ */
+export function NoMoreSessionsCard() {
+  return (
+    <section className={weekly.card} aria-label="Your next session" data-testid="session-card">
+      <p className={weekly.cardLine}>{NO_MORE_SESSIONS}</p>
     </section>
   );
 }
