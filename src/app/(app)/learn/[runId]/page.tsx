@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
+import { leavePathFor } from "@/lib/courses/leaving";
+import { loadLeftView } from "@/lib/courses/leftView";
 import { pitchingCard } from "@/lib/courses/pitching/load";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
+import LeftProgramme from "@/features/courses/leaving/LeftProgramme";
 import RunHome from "@/features/courses/RunHome";
 import { getRunAccess } from "@/features/courses/runAccess";
 
@@ -15,6 +18,9 @@ import { getRunAccess } from "@/features/courses/runAccess";
  * and the draw is a mount-time effect.
  *
  *   canLearn                    → the cohort view
+ *   left the run themselves     → the page that says so (wk-left-phone):
+ *                                 the day, what stays theirs, their marks,
+ *                                 and nothing of the group's
  *   reviewer / track lead only  → /admissions, their entire surface on this
  *                                 run. Admissions is a separate lane from the
  *                                 cohort (locked decision, stated from the
@@ -50,6 +56,15 @@ export default async function RunHomePage({
   if (!access) redirect("/learn");
 
   if (!access.canLearn) {
+    // Somebody who left the run themselves reads the page that says so (board
+    // wk-left-phone), and nothing else of the run.
+    if (access.hasLeft && access.enrolment) {
+      const leftDb = getAdminDb();
+      if (leftDb) {
+        const view = await loadLeftView(leftDb, { run: access.run, enrolment: access.enrolment }, new Date());
+        return <LeftProgramme view={view} />;
+      }
+    }
     if (access.isReviewer || access.isTrackLead) {
       redirect(`/learn/${encodeURIComponent(runId)}/admissions`);
     }
@@ -80,12 +95,25 @@ export default async function RunHomePage({
   const db = getAdminDb();
   const pitching = access.isEnrolled && db ? await pitchingCard(db, access.user, runId) : null;
 
+  // "Leave the programme" at the foot (wk-programme), for somebody taking
+  // part whose seat they can leave themselves: the same rule the leave route
+  // asks (`leavePathFor`), so the link is drawn exactly where the press works.
+  const own = access.enrolment;
+  const canLeave =
+    access.isEnrolled &&
+    own !== null &&
+    own.role === "learner" &&
+    own.status === "active" &&
+    db !== undefined &&
+    (await leavePathFor(db, access.run, access.user.uid)) !== null;
+
   return (
     <RunHome
       runId={runId}
       isAdmin={access.isAdmin}
       canEmailCohort={canEmailCohort}
       pitching={pitching}
+      canLeave={canLeave}
     />
   );
 }

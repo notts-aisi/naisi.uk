@@ -73,8 +73,8 @@ export const EMPTY_ATTENDANCE_ROLLUP: EnrolmentAttendanceRollup = {
 };
 
 export const ENROLMENT_LIMITS = {
-  /** Free text a member types when they drop out. Optional, and never shown
-      back to the cohort: it goes to the staff review surface only. */
+  /** Free text a member types when they leave. Optional, and never shown
+      back to the cohort: the programme's lead and admins read it. */
   dropOutReason: 500,
 } as const;
 
@@ -112,13 +112,20 @@ export type CourseEnrolmentDoc = {
       (`courseRuns.submissionExerciseRef`). */
   submissionDone: boolean;
   /**
-   * When the member dropped out themselves. Self-service drop-out is
-   * IRREVERSIBLE by decision: it frees the seat and stops the nudges, and
-   * coming back is a new enrolment rather than an undo. Null on every
-   * enrolment that has not been dropped.
+   * WHEN THEY LEFT THE RUN: by themselves (the enrol route's leave, which
+   * cannot be undone by the person taking it), or taken off by staff (the
+   * remove route). Somebody who left and was then removed keeps the day they
+   * left. Every page that says "Left Fri 13 Nov" reads it from here, and
+   * putting somebody back (reinstate, or a placement on the board) clears it.
+   * Null on every enrolment that has not left, and on a row removed before
+   * the remove route recorded the day.
    */
   droppedOutAt: Date | null;
-  /** Optional free text from the drop-out form (see `ENROLMENT_LIMITS`). */
+  /**
+   * Optional free text from the leave form (see `ENROLMENT_LIMITS`). Read by
+   * the programme's lead and admins (the programme's Overview), and by nobody
+   * else; the leave form says so.
+   */
   dropOutReason: string | null;
   /**
    * True when the member enrolled themselves on an OPEN-mode run, false when

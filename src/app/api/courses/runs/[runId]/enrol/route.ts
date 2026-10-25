@@ -24,6 +24,9 @@ import {
   normalizeCourseGroup,
 } from "@/lib/firestore/courseGroups";
 import { courseTaskId, MIRRORED_TASK_SOURCE } from "@/lib/firestore/courseTasks";
+import { leavePathFor } from "@/lib/courses/leaving";
+import { loadForm } from "@/lib/applications/repo";
+import { givePlaceBack, readPlaceToGiveBack } from "@/lib/applications/status/record";
 import {
   courseRunChannel,
   normalizeCourseRun,
@@ -752,30 +755,57 @@ export async function PATCH(req: Request, ctx: Ctx) {
 }
 
 // ---------------------------------------------------------------------------
-// DELETE: drop out
+// DELETE: leave
 // ---------------------------------------------------------------------------
 
 /**
  * Leave the course. IRREVERSIBLE, by decision: the seat is freed, the nudges
- * stop, and coming back is a new enrolment somebody else has to make.
+ * stop, and coming back is something somebody else has to do.
  *
  * Behind a TYPED CONFIRMATION of the course title, the same ritual the destroy
  * routes use and for the same reason: this is the one member-facing action on
  * the courses surface that cannot be undone by the person taking it, and a
  * mis-tapped button on a phone must not be able to do it.
  *
- * OPEN-MODE RUNS ONLY. A seat that came out of admissions has a
- * `courseApplications` row behind it that would still read "accepted" after
- * the enrolment went away, which leaves the allocation board holding a
- * placeless accepted applicant and blocks allocation publish. Reconciling the
- * two is real work with no owner yet, so the route refuses rather than
- * offering a repair it cannot perform: an admissions cohort member asks staff,
- * who use the remove route.
+ * TWO KINDS OF RUN, one rule (`leavePathFor`, `src/lib/courses/leaving.ts`):
+ *  - an OPEN run, the seat the person took;
+ *  - a run THE TERM'S APPLICATION FORM PLACES PEOPLE ON, for somebody whose
+ *    place came from the form. Their place on the form is given back in the
+ *    same transaction, exactly as "I can’t make it" gives it back
+ *    (`readPlaceToGiveBack` and `givePlaceBack` in
+ *    `src/lib/applications/status/record.ts`), so every count of the
+ *    programme's places and every list of its people agrees with the run the
+ *    moment the person has left. Whether that place can then be offered to
+ *    somebody else is the freed places rules' to say (their window closes at
+ *    the end of the run's week 1). Their row on the run's own list stays as
+ *    it is: Publish no longer waits for somebody who has left
+ *    (`enrolmentHasLeft`), and the board names them as having left.
+ * Anybody else on a run that takes people by placement (they applied to the
+ * run itself) is told to ask the team, who use the remove route.
  *
- * The way back is the reinstate route (admins and the run's track leads),
- * which flips this row to active in the group it names and re-increments both
- * counters. It is the only way back: the enrolment row is still sitting at
- * the deterministic id, so nothing here can create a second one.
+ * A PLACEMENT PUBLISH HAS NOT TOLD ITS OWNER ABOUT cannot be left: it is
+ * answered as no seat at all, as the GET above answers it, because the run is
+ * shut to them and saying anything else would tell them they are placed.
+ *
+ * WHAT LEAVING KEEPS. The row keeps its group (a facilitator's register lists
+ * who left their group, read only, with the marks they had) and Publish's
+ * stamp, `allocatedEmailAt`: the person was told about the group the row
+ * names, and the stamp is what still shows them their own row afterwards, the
+ * programme page that says they left, under the one rule every reader asks
+ * (`placementIsShownTo`). Nothing reads a row that has left as a placement:
+ * every reader of the group asks for an active row too, and the allocate
+ * route clears the stamp when it puts somebody who left back, so a re-placed
+ * person still waits for Publish.
+ *
+ * NOBODY IS EMAILED BUT THE PERSON who left: their confirmation, below. Their
+ * facilitators read it on the register, and the programme's lead and admins on
+ * the programme's Overview, with the reason when one was given.
+ *
+ * The way back for an open run is the reinstate route (admins and the run's
+ * track leads), which flips this row to active in the group it names and
+ * re-increments both counters; for a run the form placed them on, an admin
+ * places them again on the board. Either way it is the same row: it is still
+ * sitting at the deterministic id, so nothing here can create a second one.
  */
 export async function DELETE(req: Request, ctx: Ctx) {
   const blocked = await assertNotImpersonating();
@@ -810,7 +840,9 @@ export async function DELETE(req: Request, ctx: Ctx) {
   if (!run) {
     return NextResponse.json({ error: "Course run not found." }, { status: 404 });
   }
-  if (run.enrolMode !== "open") {
+  // Open, or a place the form gave them; anybody else asks the team.
+  const path = await leavePathFor(db, run, user.uid);
+  if (!path) {
     return NextResponse.json(
       {
         error:
@@ -849,6 +881,12 @@ export async function DELETE(req: Request, ctx: Ctx) {
     .collection("courseEnrolments")
     .doc(courseEnrolmentId(runId, user.uid));
 
+  // The form a placed seat's place goes back to, read before the transaction:
+  // the place is read against its programmes and its grid. A round that is no
+  // longer a form has no place on it to give back, and leaving goes ahead.
+  const form = path.kind === "form" ? await loadForm(db, path.roundId) : null;
+  const now = new Date();
+
   let leftGroupId: string | null = null;
   // Whether THIS request is the one that took them off, as opposed to a
   // double-tapped confirm arriving after the first has committed. Everything
@@ -871,6 +909,11 @@ export async function DELETE(req: Request, ctx: Ctx) {
       if (row.uid !== user.uid || row.runId !== runId) {
         throw new EnrolError("You're not signed up for this course.", 404);
       }
+      // A placement Publish has not told them about is no seat to them: the
+      // run is shut to them, and the answer is the one with no row at all.
+      if (!placementIsShownTo(row, { isAdmin: user.role === "admin" })) {
+        throw new EnrolError("You're not signed up for this course.", 404);
+      }
       if (row.role !== "learner") {
         throw new EnrolError(
           "You're on this course as a facilitator. Ask an admin to stand you down.",
@@ -884,21 +927,32 @@ export async function DELETE(req: Request, ctx: Ctx) {
         throw new EnrolError("You're not on this course any more.", 409);
       }
 
+      // The place on the form, read before anything is written (a
+      // transaction takes every read first). Null when there is no place
+      // there to give back, and leaving goes ahead without it.
+      const place =
+        form && path.kind === "form"
+          ? await readPlaceToGiveBack(tx, db, form, user.uid, path.programmeId, now)
+          : null;
+
       leftGroupId = row.groupId;
       dropped = true;
 
       tx.update(enrolmentRef, {
         status: "withdrawn" satisfies CourseEnrolmentStatus,
+        // When they left: the date their programme page, their register and
+        // the programme's Overview all say.
         droppedOutAt: FieldValue.serverTimestamp(),
         // Stored as a real null rather than omitted, so a later drop-out
         // form that collects nothing overwrites an earlier value rather
         // than leaving a stale sentence attached to the row.
         dropOutReason: reason,
-        // The stamp certifies "emailed about their current group"; there is
-        // no current placement any more.
-        allocatedEmailAt: FieldValue.delete(),
+        // Publish's stamp, `allocatedEmailAt`, is KEPT: they were told about
+        // the group this row still names, and it is what shows them their
+        // own row now that they have left (see the note above this handler).
         updatedAt: FieldValue.serverTimestamp(),
       });
+      if (place) givePlaceBack(tx, place);
       // `groupId` is KEPT. `memberCount` counts enrolments that are both
       // active AND grouped (the allocate route's definition), so a withdrawn
       // row holds no seat whatever its `groupId` says, and keeping it is what

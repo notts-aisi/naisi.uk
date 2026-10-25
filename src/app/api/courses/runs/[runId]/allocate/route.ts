@@ -11,6 +11,7 @@ import {
 } from "@/lib/firestore/courseApplications";
 import {
   courseEnrolmentId,
+  enrolmentHasLeft,
   normalizeCourseEnrolment,
 } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
@@ -359,6 +360,18 @@ export async function POST(req: Request, ctx: Ctx) {
             // changed placement invalidates it, so the next publish emails
             // them about the new group.
             patch.allocatedEmailAt = FieldValue.delete();
+          }
+          if (enrolmentHasLeft(enrolment.status)) {
+            // SOMEBODY WHO LEFT, PUT BACK. Leaving keeps the group and
+            // Publish's stamp (they were told about it, and it shows them
+            // the page that says they left), so a re-placement in that same
+            // group would otherwise read as told at once. Coming back earns
+            // a fresh placement email from the next Publish, as it always
+            // has, and the day they left and why go with the leaving: on an
+            // active row they would read as current to every later reader.
+            patch.allocatedEmailAt = FieldValue.delete();
+            patch.droppedOutAt = null;
+            patch.dropOutReason = null;
           }
           tx.update(enrolmentRef, patch);
           if (wasCounted && enrolment.groupId) bumpDelta(enrolment.groupId, -1);

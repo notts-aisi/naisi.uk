@@ -18,7 +18,9 @@ import RunUpdates from "./updates/RunUpdates";
 import WeekRail from "./WeekRail";
 import { useRunOverview } from "./useRunOverview";
 import { useSyncTasks } from "./useSyncTasks";
+import { LEAVE_LINK } from "@/lib/courses/leavingWords";
 import { ATTENDANCE_STATUS_LABEL } from "@/lib/firestore/courseAttendance";
+import leavingStyles from "./leaving/Leaving.module.css";
 import { weekDocId } from "@/lib/firestore/courses";
 import type { OverviewPayload } from "@/app/api/courses/runs/[runId]/overview/route";
 import type { WeekPlanEntry } from "@/lib/courses/weekPlan";
@@ -69,6 +71,12 @@ type Props = {
    * draws nothing.
    */
   pitching?: { lede: string; open: boolean } | null;
+  /**
+   * Whether "Leave the programme" is drawn at the foot (wk-programme): the
+   * server page asks the leave route's own rule (`leavePathFor`), so the link
+   * is there exactly where the press would work.
+   */
+  canLeave?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -452,7 +460,7 @@ function ProgressPanel({
 // RunHome
 // ---------------------------------------------------------------------------
 
-export default function RunHome({ runId, isAdmin, canEmailCohort, pitching = null }: Props) {
+export default function RunHome({ runId, isAdmin, canEmailCohort, pitching = null, canLeave = false }: Props) {
   const { data, error, reload } = useRunOverview(runId);
 
   /*
@@ -780,6 +788,17 @@ export default function RunHome({ runId, isAdmin, canEmailCohort, pitching = nul
               </span>
             </Link>
           </Card>
+        )}
+
+        {/* At the foot, as wk-programme draws it: the way out, behind its
+            own confirmation page. Only for somebody taking part who can
+            leave by themselves (see `canLeave`). */}
+        {canLeave && access.isEnrolled && (
+          <div className={leavingStyles.foot}>
+            <Link className={leavingStyles.footLink} href={`/learn/${encodeURIComponent(runId)}/leave`}>
+              {LEAVE_LINK}
+            </Link>
+          </div>
         )}
       </div>
     </PageEnter>

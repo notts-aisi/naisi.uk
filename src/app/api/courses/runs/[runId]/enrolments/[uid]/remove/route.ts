@@ -20,6 +20,10 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * WHO MAY REMOVE: admins ∪ the run's `trackLeadUids` ∪ the lead of the
  * programme that names the run (`runStaffingOf`): the allocation gate.
  *
+ * It records WHEN (`droppedOutAt`, the field leaving writes), so the
+ * programme's Overview, its Attendance tab and the group's register say the
+ * day somebody went, whichever way they went.
+ *
  * A SOFT removal, deliberately: the enrolment doc survives. The deterministic
  * doc id (`courseEnrolments/{runId}__{uid}`) is the one-enrolment-per-(run,
  * uid) invariant, so the row is that person's entire history on the run:
@@ -126,6 +130,13 @@ export async function POST(_req: Request, ctx: Ctx) {
         // no current group any more, and a future re-placement must earn a
         // fresh placement email on the next publish.
         allocatedEmailAt: FieldValue.delete(),
+        // WHEN THEY WERE TAKEN OFF, in the field leaving writes, so the
+        // programme's Overview, its Attendance tab and the register say
+        // "Left Fri 13 Nov" for both kinds of leaving. Somebody who had
+        // already left by themselves keeps the day they left.
+        ...(status === "withdrawn" && existing.droppedOutAt
+          ? {}
+          : { droppedOutAt: FieldValue.serverTimestamp() }),
         updatedAt: FieldValue.serverTimestamp(),
       });
       if (heldSeat && groupId) {
