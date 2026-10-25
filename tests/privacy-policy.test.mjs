@@ -10,9 +10,12 @@
  * each private until its owner turns the link on, where v6 said a person
  * mints their own and nothing is issued unless they choose to; what a
  * programme's lead sees is named; pitching week, teams, leaving, a place that
- * comes back and who finished are described; facilitators see names only; and
- * a programme's attendance is a third logged download. §2g holds those
- * passages against the code. Three of them are worded as what will happen,
+ * comes back and who finished are described; facilitators see names only; a
+ * programme's attendance is a third logged download; and the notes a group's
+ * facilitators share, the notes a group shares on its week pages and the
+ * calendar link are described, with who reads each and what a deletion does
+ * to it. §2g holds those passages against the code. Three of them are worded
+ * as what will happen,
  * because they are not built yet (certificates, facilitators seeing who has
  * said they are coming, a team's page), and §2g holds that nothing has been
  * built that they would then have to describe.
@@ -603,7 +606,12 @@ const MUST_NAME = [
   ["participant notes", /private note about a named\s+participant/i],
   ["exercise responses", /Answers to exercises/i],
   ["facilitator feedback", /feedback a facilitator writes on your work/i],
-  ["feedback on the material", /star rating and leave a comment/i],
+  // A rating on every programme; the comment shown to the run only on a
+  // programme anyone can join, and the group's notes in its place on one that
+  // places people in groups (`runSharesGroupNotes`, which §2g runs). The entry
+  // this replaces, "star rating and leave a comment", pinned the comment box
+  // on every run, which a run with groups no longer draws.
+  ["feedback on the material", /You can give a piece of course material a star rating\. On a programme anyone can join you can also leave a comment on it, which is shown to the rest of your run; on a programme that places you in a group, you share notes with your group instead \(see Notes shared with your group\)\. Ratings and comments are stored against your account and your name\./i],
   ["no anonymous survey is claimed yet", /We do not\s+currently run anonymous surveys on this site/i],
   ["an anonymous form would say so and move the policy first", /the form will say that it is anonymous and how that is done/i],
   ["membership tier", /membership tier \(paid, comped, alumni, staff\)/i],
@@ -677,8 +685,25 @@ const MUST_NAME = [
   ["the lead's changes to who finished are recorded", /The lead can then change anybody&apos;s, and we record who changed it and when\./i],
   ["only the lead and admins see the number and the list", /Only the lead and admins see that number, and the list with how many sessions each person came to and how many exercises they answered\./i],
   ["somebody who did not finish is not told so", /Somebody who did not finish is not told so\./i],
-  ["what a programme's lead does and reads once it is running", /Once the programme is running, the lead places its people in groups, reads every register of its groups, sees the pitches and makes the teams on an incubator, reads the reason somebody gives for leaving, and says who finished\./i],
+  // The two kinds of notes the lead reads, and no register note: §2g holds
+  // the sentence to the register's GET and to each kind's one reader. The
+  // entry this replaces was the same sentence before the two were added.
+  ["what a programme's lead does and reads once it is running", /Once the programme is running, the lead places its people in groups, reads every register of its groups, the notes its groups&apos; facilitators share, and the notes each of its groups shares on its week pages, sees the pitches and makes the teams on an incubator, reads the reason somebody gives for leaving, and says who finished\./i],
   ["facilitators see names only, and never an email address", /who is in them, by name only, attendance, written work/i],
+  ["what facilitators read of their own groups", /the participant notes their colleagues wrote about people in that group, and the notes the group&apos;s facilitators share with each other\./i],
+  // The notes a group's facilitators share (C30), the notes a group shares on
+  // its week pages (C29) and the calendar link (Add to calendar), added to v7
+  // before any member was asked to accept it. §2g holds each to its code.
+  ["the notes a group's facilitators share, and that one can name a person", /A group&apos;s facilitators can keep notes for each other about how their group is going, and a note can mention you by name\./i],
+  ["who reads the notes a group's facilitators share", /The group&apos;s facilitators, the programme&apos;s lead and admins read them; nobody in the group does\./i],
+  ["the notes a group's facilitators share are shown on request", /If you ask to see what is written about you, we will show you these notes too\./i],
+  ["the notes shared with a group", /On a programme that places you in a group, each week&apos;s page has notes the people in your group and its facilitators share with each other\./i],
+  ["who sees a note shared with a group, and with what", /A note you add is shown with your name, the day you wrote it and the week it was written on, to everyone in your group, its facilitators, the programme&apos;s lead and admins, and to nobody else; the page says so under the notes\./i],
+  ["a note shared with a group stays when its writer leaves", /If you leave the programme, the notes you shared stay with your group, as your marks stay on its register\./i],
+  ["the calendar link", /&quot;Add to calendar&quot; on your programme page gives you a private link to your sessions/i],
+  ["what the calendar shows", /It shows the day, time and room of each session of your group \(and of any group you facilitate\), with the programme&apos;s and the group&apos;s name, and marks a session that is cancelled\./i],
+  ["the calendar's provider fetches it and keeps what it shows", /your calendar&apos;s provider \(Apple, Google or Microsoft, for example\) fetches it from us every so often and keeps what it shows, under its own privacy policy/i],
+  ["anybody holding the calendar link sees the same", /Anyone else holding the link can see the same, so keep it to yourself\./i],
   ["facilitators email their group without seeing an address", /They never see your email address: they can email their group through the site without seeing anybody&apos;s\./i],
   ["what the people in a group and a team see on an incubator", /On an incubator, the people in your group also see any pitch you send, with your name, and the people in your team see that you are in it and anything you write on your team&apos;s page\./i],
   ["destroying a term's applications takes nobody off a programme", /Nobody is taken off a programme by it: a place on a course run, which notes the application form and programme it came from, stays with the rest of that person&apos;s course record\./i],
@@ -876,7 +901,11 @@ describe("the courses section", () => {
       ["view as, as a processing activity", /open the site as you see it/i],
       ["the worksheet recipient picker's readers", /permission to circulate a worksheet/i],
       ["names are shown to whoever reads an application", /They see your name/],
-      ["what other participants see", /any comment or star rating you choose to leave/i],
+      // A comment on a run anyone can join, the group's notes on one that
+      // places people in groups. The entry this replaces, "any comment or
+      // star rating you choose to leave", said the run saw a comment on every
+      // programme; §2g holds the new sentence to the week page.
+      ["what other participants see", /<strong>Other participants<\/strong> on your run see your name\. On a programme anyone can join, they also see any comment or star rating you leave on a piece of course material; on a programme that places you in a group, the people in your group see the notes you share with it\./i],
       ["the push record carries the account", /carries\s+your account so we know where to send/i],
       ["re-consent is the notice, not an email", /asked to accept\s+or decline it/i],
       ["the statutory response time", /respond within 30 days/i],
@@ -2443,6 +2472,11 @@ describe("the account record passage", () => {
  * certificates, facilitators seeing who has said they are coming, and a
  * team's page. They are built to these words. Certificates carry a check of
  * their own in §2, which fails the day the site starts keeping them.
+ *
+ * Three more were added to v7 while it was on dev, before any member had been
+ * asked to accept it, so it kept its number: the notes a group's facilitators
+ * share, the notes a group shares on its week pages, and the calendar link.
+ * Each describes code that is built, and is held to it below.
  */
 
 /** A file's code with its comments taken out, so a note about a field is not taken for a use of it. */
@@ -2453,6 +2487,11 @@ const finishingWords = await loadTs("lib/courses/finishing/words.ts");
 const freedPlaceRules = await loadTs("lib/applications/freedPlaces/rules.ts");
 const invitationReminders = await loadTs("lib/applications/decisionDay/reminders.ts");
 const applicationAccess = await loadTs("lib/applications/access.ts");
+/** The notes a group shares: the record's one question about a run, and the words around the notes. Both pure. */
+const sharedNotesRecord = await loadTs("lib/firestore/courseGroupSharedNotes.ts");
+const sharedNotesWords = await loadTs("lib/courses/sharedNotes/words.ts");
+/** What each session in a calendar link says. Pure. */
+const calendarWords = await loadTs("lib/courses/calendarWords.ts");
 
 describe("the course hub passage", () => {
   test("the frozen v6 carries none of these sentences, so the move was a version and not an edit", () => {
@@ -2469,6 +2508,15 @@ describe("the course hub passage", () => {
       /by name only/i,
       /Three\s+kinds are logged today/i,
       /Nobody is taken off a programme by it/i,
+      /Notes facilitators share\./i,
+      /the notes the group&apos;s facilitators share with each other/i,
+      /the notes its groups&apos; facilitators share/i,
+      /Notes shared with your group\./i,
+      /the people in your group see the notes you share with it/i,
+      /On a programme anyone can join you can also leave a comment on it/i,
+      /Your calendar link\./i,
+      /the old link then shows nothing/i,
+      /your calendar link, the notes you shared with a group, notes you wrote for the other facilitators of a group/i,
     ]) {
       assert.ok(
         !pattern.test(V6_FLAT),
@@ -2485,13 +2533,24 @@ describe("the course hub passage", () => {
     // group's facilitators' and admins' (C30). A programme's lead reads every
     // register of the run its programme names, its marks and none of its
     // notes, so the page names the registers among what the lead sees, and no
-    // note.
+    // register note.
+    //
+    // The lead does read two other kinds of notes, and the page names exactly
+    // those two: the notes its groups' facilitators share (C30) and the notes
+    // each group shares on its week pages (C29), each held to its own reader
+    // further down. So the check is as strict as it was for a register's
+    // notes: with the two phrases taken out, once each, no note is left in
+    // what the page says the lead sees.
     const fromLead = PAGE_FLAT.slice(PAGE_FLAT.indexOf("<strong>The lead of each programme</strong>"));
     const lead = fromLead.slice(0, fromLead.indexOf("</li>"));
     assert.ok(lead.length > 200, "could not find what the page says a programme's lead sees");
     assert.match(lead, /reads every register of its groups,/);
+    const SHARED_BY_FACILITATORS = " the notes its groups&apos; facilitators share,";
+    const SHARED_ON_WEEK_PAGES = " and the notes each of its groups shares on its week pages,";
+    assert.ok(lead.includes(`reads every register of its groups,${SHARED_BY_FACILITATORS}${SHARED_ON_WEEK_PAGES} sees the pitches`), "v7 no longer says the lead reads the notes its groups' facilitators share and the notes each group shares, right after the registers");
+    const leadWithoutSharedNotes = lead.replace(SHARED_BY_FACILITATORS, "").replace(SHARED_ON_WEEK_PAGES, "");
     assert.ok(
-      !/\bnotes?\b/i.test(lead),
+      !/\bnotes?\b/i.test(leadWithoutSharedNotes),
       "v7 says a programme's lead reads the notes on a register. They are the " +
         "group's facilitators' and admins', and the register's GET sends a " +
         "lead none of them.",
@@ -2855,6 +2914,234 @@ describe("the course hub passage", () => {
         "run, which the policy says stay with the rest of a person's course record.",
     );
   });
+
+  test("the notes a group's facilitators share are read by its facilitators, the programme's lead and admins, by nobody in the group, and go with their writer's account", () => {
+    assert.match(
+      PAGE_FLAT,
+      /<strong>Notes facilitators share\.<\/strong> A group&apos;s facilitators can keep notes for each other about how their group is going, and a note can mention you by name\. The group&apos;s facilitators, the programme&apos;s lead and admins read them; nobody in the group does\. A note goes when the account of the facilitator who wrote it is deleted\. If you ask to see what is written about you, we will show you these notes too\./,
+    );
+    // The one reader, and the two pages that call it, each after its own
+    // gate: the group's page lets in the group's live facilitators and
+    // admins, the programme's Attendance tab its lead and admins.
+    const groupPage = "src/app/(app)/learn/[runId]/group/[groupId]/page.tsx";
+    const attendanceTab = "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance/page.tsx";
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\b(?:readGroupNotes|readRunGroupNotes)\(/),
+      new Map([
+        ["src/lib/courses/groupNotes/readers.ts", "the one reader, which asks nobody who is reading, so each caller decides that first"],
+        [groupPage, "the group's page, which sends away everybody but the group's live facilitators and admins first"],
+        [attendanceTab, "the programme's Attendance tab, for its lead and admins (loadProgrammeRun)"],
+      ]),
+      "reading the notes a group's facilitators share",
+      "The policy says the group's facilitators, the programme's lead and " +
+        "admins read these notes, and nobody in the group. If this file shows " +
+        "them to anybody else, the sentence is wrong and a new version has to say so.",
+    );
+    const page = read(groupPage);
+    assert.match(
+      page,
+      /const facilitatesThisGroup =\s*!group\.archived &&\s*isNamedWithStanding\(\s*access\.user,\s*"courseGroups\.facilitatorUids",\s*group\.facilitatorUids,?\s*\);/,
+      "the group's page no longer asks whether the caller is a live facilitator of the group",
+    );
+    const sentAway = page.indexOf("if (group.runId !== runId || !(access.isAdmin || facilitatesThisGroup)) {");
+    const readOnPage = page.indexOf("readGroupNotes(db, group)");
+    assert.ok(
+      sentAway !== -1 && readOnPage !== -1 && sentAway < readOnPage,
+      "the group's page reads its facilitators' notes before it sends away everybody but the group's live facilitators and admins",
+    );
+    const tab = read(attendanceTab);
+    assert.match(tab, /const outcome = db \? await loadProgrammeRun\(db, user, roundId, programmeId\) : null;/);
+    const notYours = tab.indexOf('if (outcome.status === "not-yours")');
+    const readOnTab = tab.indexOf("readRunGroupNotes(db, view.run.id)");
+    assert.ok(
+      notYours !== -1 && readOnTab !== -1 && notYours < readOnTab,
+      "the Attendance tab reads the facilitators' notes before it asks whether the caller leads the programme",
+    );
+    assert.equal(applicationAccess.opensProgrammeGroups("reviewer"), false, "a programme's reviewer now opens its Attendance tab, and the notes its groups' facilitators share");
+    // Nothing hands a note to a browser: the one writer answers no GET, and
+    // takes a note only from a live facilitator of the group.
+    const route = withoutComments(read("src/app/api/courses/groups/[groupId]/notes/route.ts"));
+    assert.ok(!/export\s+(?:async\s+)?function\s+GET\b|export\s+const\s+GET\b/.test(route), "the facilitators' notes route now answers a GET");
+    assert.match(route, /group && !group\.archived && isNamedWithStanding\(actor, "courseGroups\.facilitatorUids", group\.facilitatorUids\),/);
+    // A note goes with its writer's account, found by the writer's uid.
+    assert.match(
+      read("src/lib/firestore/accountDeletion.ts"),
+      /export async function deleteCourseGroupNotes\(db: Firestore, uid: string\): Promise<number> \{\s*return deleteOwnedCourseRows\(db, COURSE_GROUP_NOTES_COLLECTION, uid, "authorUid"\);\s*\}/,
+    );
+    // tests/course-hub-group-notes.test.mjs runs the writer, the reader and
+    // the deletions on a store; tests/course-hub-facilitator-pages.test.mjs
+    // draws the group's page and the Attendance tab as each caller.
+    for (const suite of ["course-hub-group-notes.test.mjs", "course-hub-facilitator-pages.test.mjs"]) {
+      assert.ok(existsSync(join(REPO_ROOT, "tests", suite)), `tests/${suite} is gone`);
+    }
+  });
+
+  test("the notes a group shares on its week pages reach the group, its facilitators, the programme's lead and admins and nobody else, are deleted by their writer alone, stay when somebody leaves, and go with the writer's account", () => {
+    assert.match(
+      PAGE_FLAT,
+      /<strong>Notes shared with your group\.<\/strong> On a programme that places you in a group, each week&apos;s page has notes the people in your group and its facilitators share with each other\. A note you add is shown with your name, the day you wrote it and the week it was written on, to everyone in your group, its facilitators, the programme&apos;s lead and admins, and to nobody else; the page says so under the notes\. While you are in the group you can delete a note you wrote, and nobody else can\. If you leave the programme, the notes you shared stay with your group, as your marks stay on its register\. They are deleted with your account\./,
+    );
+    // Every file that addresses the notes, and why it may.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bCOURSE_GROUP_SHARED_NOTES_COLLECTION\b|["'`]courseGroupSharedNotes["'`]/),
+      new Map([
+        ["src/lib/firestore/courseGroupSharedNotes.ts", "the note's own shape, its limit, and the one question about a run"],
+        ["src/lib/courses/sharedNotes/readers.ts", "the one reader, which asks who the reader is before it reads"],
+        ["src/app/api/courses/groups/[groupId]/shared-notes/route.ts", "the one writer, for the group's people and its live facilitators"],
+        ["src/app/api/courses/groups/[groupId]/shared-notes/[noteId]/route.ts", "deleting a note, for the person who wrote it alone"],
+        ["src/lib/firestore/courseDeletion.ts", "destroying a run deletes its groups' notes"],
+        ["src/lib/firestore/accountDeletion.ts", "deleting an account deletes every note it wrote"],
+      ]),
+      "addressing the notes shared with a group",
+      "The policy says these notes reach the group, its facilitators, the " +
+        "programme's lead and admins and nobody else, that only their writer " +
+        "deletes one, and that they go with the writer's account. If this file " +
+        "reads, shows or removes them otherwise, the sentence is wrong and a new " +
+        "version has to say so.",
+    );
+    // Who reads: the group's people (told, not left, on an account that
+    // stands), its live facilitators, and the programme's lead and admins.
+    // No track lead and no reviewer.
+    const readers = withoutComments(read("src/lib/courses/sharedNotes/readers.ts"));
+    assert.match(readers, /\(enrolment\.status === "active" \|\| enrolment\.status === "completed"\) &&\s*placementIsTold\(enrolment\) &&\s*isNamedWithStanding\(actor, "courseEnrolments\.uid", enrolment\.uid\);/);
+    assert.match(readers, /return !group\.archived && isNamedWithStanding\(actor, "courseGroups\.facilitatorUids", group\.facilitatorUids\);/);
+    assert.match(readers, /return \{ all: staffing\.isAdmin \|\| staffing\.leadOf !== null, reads, writes, own \};/);
+    assert.ok(!/isTrackLead|doesTrackLeadWork/.test(readers), "the reader of the notes shared with a group now asks about a run's track lead");
+    // Who writes: the group's people and its facilitators, sharing with each
+    // other. The lead and admins read and write none.
+    const writesGate = /export async function writesSharedNotesOn\([^)]*\): Promise<boolean> \{([\s\S]*?)\n\}/.exec(readers);
+    assert.ok(writesGate, "could not find who may add a note to a group's notes");
+    assert.ok(!/staffing|leadOf|isAdmin|\.role\b/.test(writesGate[1]), "the programme's lead or an admin may now add a note to a group's notes");
+    // What the page shows with a note, and the line under the notes that
+    // names who reads them.
+    const drawn = read("src/features/courses/weekly/GroupSharedNotes.tsx");
+    assert.match(drawn, /<strong>\{note\.writerFirstName\}<\/strong>\s*\{day \? ` · \$\{day\}` : ""\}/);
+    assert.match(drawn, /\{sharedNoteWeekLabel\(note\.weekNumber\)\} \{note\.body\}/);
+    assert.equal(sharedNotesWords.sharedNoteWeekLabel(3), "Week 3:");
+    const listed = drawn.indexOf("{section.notes.map(");
+    const whoLine = drawn.indexOf("{section.whoLine}");
+    assert.ok(listed !== -1 && whoLine !== -1 && listed < whoLine, "the line naming who reads a group's notes is no longer under the notes");
+    assert.equal(
+      sharedNotesWords.sharedNotesWhoLine({ groupName: "Group B", reader: "member", leadFirstName: "Claudia" }),
+      "Everyone in Group B, your facilitators, Claudia and admins can see these.",
+    );
+    // Deleted by its writer alone: everybody else, an admin included, is refused before the one delete.
+    const remove = withoutComments(read("src/app/api/courses/groups/[groupId]/shared-notes/[noteId]/route.ts"));
+    assert.match(
+      remove,
+      /if \(!here \|\| note\.authorUid !== actor\.uid\) \{\s*if \(actor\.role !== "admin"\) return NextResponse\.json\(\{ error: "Forbidden" \}, \{ status: 403 \}\);\s*if \(!here\) return NextResponse\.json\(\{ error: "Note not found" \}, \{ status: 404 \}\);\s*return NextResponse\.json\(\{ error: SHARED_NOTE_REFUSAL\.notYoursToDelete \}, \{ status: 403 \}\);\s*\}\s*await ref\.delete\(\);/,
+      "a note shared with a group can now be deleted by somebody other than its writer",
+    );
+    assert.equal((remove.match(/\.delete\(/g) ?? []).length, 1, "the route that deletes a shared note deletes in more than one place");
+    assert.match(drawn, /\{note\.mine && asking !== note\.id && \(/, "the page offers Delete on notes the reader did not write");
+    // Leaving touches no note: they stay with the group.
+    assert.ok(
+      !/courseGroupSharedNotes|COURSE_GROUP_SHARED_NOTES_COLLECTION|sharedNotes/i.test(read("src/lib/courses/leaveRun.ts")),
+      "leaving a programme now touches the notes somebody shared with their group, which the policy says stay with it",
+    );
+    // They go with the writer's account, found by the writer's uid.
+    assert.match(
+      read("src/lib/firestore/accountDeletion.ts"),
+      /export async function deleteCourseGroupSharedNotes\(db: Firestore, uid: string\): Promise<number> \{\s*return deleteOwnedCourseRows\(db, COURSE_GROUP_SHARED_NOTES_COLLECTION, uid, "authorUid"\);\s*\}/,
+    );
+    // tests/course-hub-shared-notes.test.mjs runs who writes, reads and
+    // deletes as every caller, the week page and the Attendance tab.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-hub-shared-notes.test.mjs")));
+  });
+
+  test("a comment on the material is shown to the run only on a programme anyone can join, and the group's notes take its place on one that places people in groups", () => {
+    assert.match(PAGE_FLAT, /On a programme anyone can join you can also leave a comment on it, which is shown to the rest of your run; on a programme that places you in a group, you share notes with your group instead \(see Notes shared with your group\)\./);
+    assert.match(PAGE_FLAT, /On a programme anyone can join, they also see any comment or star rating you leave on a piece of course material; on a programme that places you in a group, the people in your group see the notes you share with it\./);
+    // The two kinds of programme there are, and which of them shares notes.
+    assert.match(
+      read("src/lib/firestore/courses.ts"),
+      /export const COURSE_ENROL_MODES: CourseEnrolMode\[\] = \["admissions", "open"\];/,
+      "a run can now be of a third kind, and the policy names two",
+    );
+    assert.equal(sharedNotesRecord.runSharesGroupNotes({ enrolMode: "open" }), false, "a run anyone can join now shares notes in groups");
+    assert.equal(sharedNotesRecord.runSharesGroupNotes({ enrolMode: "admissions" }), true, "a run that places people in groups no longer shares notes");
+    // The week's page draws the run's comments only where it draws no group's notes.
+    assert.match(read("src/app/(app)/learn/[runId]/weeks/[n]/page.tsx"), /if \(!runSharesGroupNotes\(access\.run\) \|\| access\.groups\.length === 0\) return null;/);
+    assert.match(read("src/features/courses/WeekView.tsx"), /cohortNotes=\{sharedNotes === null\}/);
+    // tests/course-hub-shared-notes.test.mjs §5 draws both kinds of week page.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-hub-shared-notes.test.mjs")));
+  });
+
+  test("the calendar link shows each session's day, time and room with the programme and the group, never a meeting link, a name or an address; a replaced link shows nothing; a leaver's stops at the day they left", () => {
+    assert.match(
+      PAGE_FLAT,
+      /<strong>Your calendar link\.<\/strong> &quot;Add to calendar&quot; on your programme page gives you a private link to your sessions, which you can add to Apple Calendar, Google Calendar, Outlook or any calendar that subscribes to a link\. It shows the day, time and room of each session of your group \(and of any group you facilitate\), with the programme&apos;s and the group&apos;s name, and marks a session that is cancelled\. An online week says to join on naisi\.uk, never the meeting link\. It shows no names and no email address\. Once you add it, your calendar&apos;s provider \(Apple, Google or Microsoft, for example\) fetches it from us every so often and keeps what it shows, under its own privacy policy, so a session that moves or is cancelled changes in your calendar too\. Anyone else holding the link can see the same, so keep it to yourself\. You can replace it at any time from the same place, and the old link then shows nothing\. If you leave a programme, no session after the day you left is in it\. It is deleted with your account\./,
+    );
+    const feed = withoutComments(read("src/lib/courses/calendarFeed.ts"));
+    // Every field a session carries in the calendar: a hash for its id, the
+    // programme and the group (marked when cancelled), its times, the week's
+    // room or "Join on naisi.uk", where to join, the programme page, and when
+    // it last changed. Nothing else.
+    assert.match(
+      feed,
+      /return \{\s*uid: sessionUid\(run, group, session\),\s*title: session\.cancelled \? cancelledTitle\(title\) : title,\s*startAt: startsAt,\s*endAt: endsAt,\s*location: room \?\? \(online \? JOIN_ON_SITE : undefined\),\s*description: online && !session\.cancelled \? joinWords\(pageUrl\) : undefined,\s*url: pageUrl \?\? undefined,\s*updatedAt: changedAt\(run, group, session\),\s*status: session\.cancelled \? "cancelled" : "confirmed",\s*\};/,
+      "what a session carries in the calendar link changed, so the policy's list of what it shows may no longer be what it shows",
+    );
+    assert.match(feed, /const title = sessionTitle\(programmeName, group\.name\);/);
+    assert.equal(calendarWords.sessionTitle("AGI Strategy", "Group B"), "AGI Strategy · Group B");
+    assert.equal(calendarWords.cancelledTitle("AGI Strategy · Group B"), "Cancelled · AGI Strategy · Group B");
+    assert.equal(calendarWords.JOIN_ON_SITE, "Join on naisi.uk");
+    assert.equal(calendarWords.joinWords("https://naisi.uk/learn/run-1"), "Join on naisi.uk: https://naisi.uk/learn/run-1");
+    // A group's meeting link is only ever asked about, in one line.
+    assert.deepEqual(
+      feed.split("\n").filter((line) => /meetingUrl/.test(line)).map((line) => line.trim()),
+      ['const hasLink = typeof slot.meetingUrl === "string" && validateSubmissionUrl(slot.meetingUrl, GROUP_FIELD_LIMITS.meetingUrl) === null;'],
+      "the calendar link's sessions now read a group's meeting link for more than whether there is one",
+    );
+    // No person's name and no address, and no organiser or guest in the file.
+    assert.ok(!/\b(?:email|displayName|preferredName|fullNameOfUser|firstNameOfUser)\b/i.test(feed), "the calendar link's sessions now read a person's name or address");
+    assert.ok(!/ORGANIZER|ATTENDEE/.test(read("src/lib/events/ics.ts")), "a calendar file now names an organiser or a guest");
+    // Of any group you facilitate, too.
+    assert.match(feed, /db\.collection\("courseGroups"\)\.where\("facilitatorUids", "array-contains", owner\.uid\)/);
+    // The calendar's provider is asked to fetch it again, every so often.
+    const route = withoutComments(read("src/app/api/courses/calendar/[token]/sessions.ics/route.ts"));
+    assert.match(route, /buildCalendarIcs\(\{ name: CALENDAR_NAME, refreshMinutes: REFRESH_MINUTES, events \}\)/);
+    // Replacing writes a new secret over the old one at the person's own uid,
+    // and a secret that is not held by exactly one link opens nothing: the
+    // same empty calendar as a link that never was.
+    const link = withoutComments(read("src/lib/courses/calendarLink.ts"));
+    assert.match(link, /const ref = db\.collection\("calendarLinks"\)\.doc\(uid\);/);
+    assert.match(link, /if \(stored && !replace\) return stored\.token;\s*const token = mintCalendarToken\(\);\s*tx\.set\(ref, \{ uid, token, createdAt: FieldValue\.serverTimestamp\(\) \}\);/);
+    assert.match(link, /\.where\("token", "==", token\)\.limit\(2\)\.get\(\);\s*if \(snap\.docs\.length !== 1\) return null;/);
+    assert.match(route, /if \(!isCalendarToken\(token\)\) return calendar\(\[\]\);/);
+    assert.match(route, /const uid = await calendarLinkOwner\(db, token\);\s*if \(!uid\) return calendar\(\[\]\);/, "a replaced or unknown calendar link no longer answers with the empty calendar");
+    // Somebody who left keeps only the sessions before they left, and none with no day recorded.
+    assert.match(feed, /if \(!live && !seat\.droppedOutAt\) continue;/);
+    assert.match(feed, /until: live \? null : seat\.droppedOutAt,/);
+    assert.match(feed, /if \(seat\.until && startsAt\.getTime\(\) >= seat\.until\.getTime\(\)\) continue;/, "a calendar link now keeps sessions after the day somebody left");
+    // Deleted with the account: the one document at the person's uid.
+    assert.match(
+      link,
+      /export async function deleteCalendarLink\(db: Firestore, uid: string\): Promise<boolean> \{\s*const ref = db\.collection\(CALENDAR_LINKS_COLLECTION\)\.doc\(uid\);\s*if \(!\(await ref\.get\(\)\)\.exists\) return false;\s*await ref\.delete\(\);\s*return true;\s*\}/,
+    );
+    // tests/course-hub-calendar-feed.test.mjs runs the feed and its route for
+    // every kind of link and seat; tests/course-hub-calendar-link.test.mjs the
+    // link, its replacing and its deletion; tests/course-hub-calendar-guard.test.mjs
+    // walks every calendar the site builds for a meeting link.
+    for (const suite of ["course-hub-calendar-feed.test.mjs", "course-hub-calendar-link.test.mjs", "course-hub-calendar-guard.test.mjs"]) {
+      assert.ok(existsSync(join(REPO_ROOT, "tests", suite)), `tests/${suite} is gone`);
+    }
+  });
+
+  test("a deletion removes the calendar link, the notes shared with a group and the notes written for a group's other facilitators", () => {
+    assert.match(
+      PAGE_FLAT,
+      /your progress and your answers to exercises, your calendar link, the notes you shared with a group, notes you wrote for the other facilitators of a group, a pitch you sent alone,/,
+    );
+    const cascade = withoutComments(read("src/lib/firestore/accountDeletion.ts"));
+    for (const step of [
+      "summary.calendarLinkDeleted = await deleteCalendarLink(db, uid);",
+      "summary.courseGroupSharedNotesDeleted = await deleteCourseGroupSharedNotes(db, uid);",
+      "summary.courseGroupNotesDeleted = await deleteCourseGroupNotes(db, uid);",
+    ]) {
+      assert.ok(cascade.includes(step), `the account deletion no longer runs \`${step}\`, which the policy lists among what a deletion removes`);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -2929,10 +3216,18 @@ describe("the re-consent gate", () => {
       /the section on courses and programmes now covers a programme while it runs and when it ends\./,
     );
     for (const [what, said, policy] of [
+      // The lead's clause names the notes its groups' facilitators share
+      // beside the registers, as v7 does; the clause it replaces ended at the
+      // registers.
       [
         "what a programme's lead sees",
-        /It says what a programme&apos;s lead sees, including every register of its groups;/,
-        /Once the programme is running, the lead places its people in groups, reads every register of its groups,/,
+        /It says what a programme&apos;s lead sees, including every register of its groups and the notes its groups&apos; facilitators share;/,
+        /Once the programme is running, the lead places its people in groups, reads every register of its groups, the notes its groups&apos; facilitators share,/,
+      ],
+      [
+        "that the people in a group see the notes somebody shares with it",
+        /; that the people in your group see the notes you share with it;/,
+        /on a programme that places you in a group, the people in your group see the notes you share with it\./,
       ],
       [
         "that a group sees a pitch with its sender's name",
@@ -2955,10 +3250,17 @@ describe("the re-consent gate", () => {
         /how we record who finished;/,
         /we mark as finished everybody who came to at least the number of sessions its lead has set/,
       ],
+      // No longer the list's last clause, so it sits between two semicolons;
+      // the pattern it replaces ended it with "and that" and a full stop.
       [
         "certificates",
-        /and that certificates are sent to the people who finished and to facilitators, private until you turn the link on\./,
+        /; that certificates are sent to the people who finished and to facilitators, private until you turn the link on;/,
         /It starts private: until you turn its link on, only you can open it\./,
+      ],
+      [
+        "the calendar link",
+        /; and that you can add your sessions to your calendar with a private link, which your calendar&apos;s provider fetches and you can replace\./,
+        /gives you a private link to your sessions.*your calendar&apos;s provider \(Apple, Google or Microsoft, for example\) fetches it from us.*You can replace it at any time from the same place, and the old link then shows nothing\./,
       ],
       [
         "facilitators see names only",
@@ -2974,8 +3276,15 @@ describe("the re-consent gate", () => {
       assert.match(paragraph, said, `the accept page no longer says v7 changed ${what}`);
       assert.match(CURRENT_FLAT, policy, `the accept page says v7 changed ${what}, and v7 does not say it`);
     }
+    // The owner's wording, 25 October 2026: the list has one "and that",
+    // before its last clause, rather than two in a row.
+    const list = paragraph.slice(paragraph.indexOf("It says what"), paragraph.indexOf("It also says"));
+    assert.ok(list.length > 200, "could not find the accept page's list of what v7 says");
+    assert.equal((list.match(/\band that\b/g) ?? []).length, 1, "the accept page's list of what v7 says has more than one \"and that\", or none");
+    assert.match(list, /; and that you can add your sessions to your calendar with a private link, which your calendar&apos;s provider fetches and you can replace\. $/);
     // A register's notes are not among what a lead reads (§2g), so the
-    // paragraph does not say they are.
+    // paragraph does not say they are. The notes it does name for the lead
+    // are the ones its groups' facilitators share.
     assert.ok(
       !/notes facilitators write/i.test(paragraph),
       "the accept page says a programme's lead sees the notes facilitators " +
