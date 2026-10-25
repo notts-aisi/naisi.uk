@@ -673,8 +673,9 @@ around what it may touch and the hand-driven fixture CLI are in
 
 ### Adding a spec
 
-One file under `scripts/e2e-fixtures/` exporting one `SPEC`, and one spec file
-under `tests/e2e/`. The runner discovers it by walking the directory, so
+One file directly in `scripts/e2e-fixtures/` exporting one `SPEC` (a world
+several specs share is a helper module in a subdirectory, which exports none),
+and one spec file under `tests/e2e/`. The runner discovers it by walking the directory, so
 nothing else has to be edited.
 
 ```js

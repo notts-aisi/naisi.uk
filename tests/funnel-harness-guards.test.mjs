@@ -100,8 +100,24 @@ const HARNESS_FILES = [
   ...walkMjs(SPECS_DIR),
 ].filter((path) => existsSync(path));
 
-/** The fixture modules, which are the spec modules: everything but core. */
-const FIXTURE_MODULES = walkMjs(FIXTURES_DIR).filter((path) => path !== CORE);
+/**
+ * The spec modules: every `.mjs` directly in `scripts/e2e-fixtures/` but core.
+ * Exactly the files the runner (`discoverSpecs` in scripts/run-e2e.mjs) and
+ * the coverage map read, and no others: a module in a subdirectory is never
+ * discovered, so holding it to the SPEC contract would pass a spec that can
+ * never run.
+ */
+const FIXTURE_MODULES = walkMjs(FIXTURES_DIR).filter(
+  (path) => path !== CORE && dirname(path) === FIXTURES_DIR,
+);
+
+/**
+ * The helper modules: every `.mjs` in a subdirectory of `scripts/e2e-fixtures/`,
+ * a world several specs stand on. Each is held to the fence like every other
+ * harness file (it is in HARNESS_FILES), to exporting no SPEC, to being
+ * imported by a spec module, and to the namespace check before any delete.
+ */
+const HELPER_MODULES = walkMjs(FIXTURES_DIR).filter((path) => dirname(path) !== FIXTURES_DIR);
 
 const rel = (path) => relative(REPO_ROOT, path).split("\\").join("/");
 
@@ -163,6 +179,13 @@ const FORBIDDEN_PRIVILEGE = [
   /\brunFacilitatorUids["'`]?\s*:\s*\[\s*[^\]\s]/,
   /\badmissionsReviewerUids["'`]?\s*:\s*\[\s*[^\]\s]/,
   /\bfacilitatorUids["'`]?\s*:\s*\[\s*[^\]\s]/,
+  // A programme's lead and a run's track leads. Naming either would be
+  // minting the authority over a programme or a run that the browser specs
+  // drive around: a lead decides, places and publishes. A fixture writes
+  // `leadUid: null` and `trackLeadUids: []`, and an admin names anybody on
+  // the real pages.
+  /\bleadUid["'`]?\s*:(?!\s*null\b)/,
+  /\btrackLeadUids["'`]?\s*:\s*\[\s*[^\]\s]/,
 ];
 
 function sourceOf(file) {
@@ -232,6 +255,38 @@ test("the role pattern still bites on every spelling it is meant to refuse", () 
     'the role pattern refuses role: "pending", which seedPendingUserDoc has to be ' +
       "able to write.",
   );
+});
+
+test("the lead patterns bite on every way of naming a lead, and let nobody through", () => {
+  // The negative control for the two lead patterns, as for the role pattern
+  // above: a programme's lead and a run's track leads, in every quoting style
+  // and from a variable, refused; the one shape a fixture writes, admitted.
+  const named = (spelling) => FORBIDDEN_PRIVILEGE.some((pattern) => pattern.test(spelling));
+  for (const spelling of [
+    'leadUid: "uid1"',
+    "leadUid: 'uid1'",
+    "leadUid: `uid1`",
+    '"leadUid": "uid1"',
+    "leadUid: state.adminUid",
+    "leadUid:admin.uid",
+    'programmes: { p: { leadUid: "uid1" } }',
+    'trackLeadUids: ["uid1"]',
+    "trackLeadUids: [state.adminUid]",
+    '"trackLeadUids": [ "uid1" ]',
+  ]) {
+    assert.ok(
+      named(spelling),
+      `no privilege pattern refuses ${JSON.stringify(spelling)}. A fixture that names a lead mints ` +
+        "the authority over a programme or a run; an admin names one on the real pages.",
+    );
+  }
+  for (const spelling of ["leadUid: null", "leadUid:null", '"leadUid": null', "trackLeadUids: []", "trackLeadUids: [ ]"]) {
+    assert.ok(
+      !named(spelling),
+      `a privilege pattern refuses ${JSON.stringify(spelling)}, the shape of a programme with no lead ` +
+        "and a run with no track lead, which a fixture has to be able to write.",
+    );
+  }
 });
 
 test("assertFixtureCollection refuses everything off the fixture's list", () => {
@@ -388,6 +443,11 @@ test("the funnel fixture declares every collection its teardown must drain", () 
     // which is why they have to be reachable from it at all.
     "emailVerifications",
     "registrations",
+    // The course hub's term after decision day: what decision day decided
+    // about each person (seeded), and the rows a hand-over writes onto the
+    // course run's own list, which the allocation board reads.
+    "admissionDecisions",
+    "courseApplications",
   ]) {
     assert.ok(
       FIXTURE_COLLECTIONS.includes(required),
@@ -402,8 +462,9 @@ test("every fixture checks the account namespace before it deletes anything", ()
   // subscription row, its event lines, the send log). The refusal that stops a
   // tampered or stale ledger deleting a real person's data is only a refusal
   // while it runs BEFORE those sweeps, so the check comes ahead of every
-  // address-keyed delete.
-  for (const file of FIXTURE_MODULES) {
+  // address-keyed delete. A helper module holding a world's teardown is held
+  // to the same order as a spec module holding one.
+  for (const file of [...FIXTURE_MODULES, ...HELPER_MODULES]) {
     const source = codeOf(file);
     // Creating an account is not the only way to own one. The sign-up fixture
     // seeds NO accounts at all: it decides the addresses and lets /api/register
@@ -837,6 +898,33 @@ test("every spec module exports a SPEC the runner can use", async () => {
       spec.covers.routes.length + spec.covers.pages.length > 0,
       `${where}: covers is empty, so this spec claims to cover nothing and the coverage ` +
         "map would silently lose it.",
+    );
+  }
+});
+
+test("a helper module is a world for specs, never a spec of its own", async () => {
+  // A module in a subdirectory is not discovered by the runner or read by the
+  // coverage map, so a SPEC there would be a spec that never runs and a map
+  // entry nobody can see. And a helper no spec imports is fixture code nothing
+  // drives, which still sits inside the fence for nobody's benefit.
+  const specSources = FIXTURE_MODULES.map((file) => ({ file, code: codeOf(file) }));
+  for (const helper of HELPER_MODULES) {
+    const where = rel(helper);
+    const mod = await import(pathToFileURL(helper).href);
+    assert.equal(
+      mod.SPEC,
+      undefined,
+      `${where} exports a SPEC, but the runner only discovers spec modules directly in ` +
+        "scripts/e2e-fixtures/. Move it up beside core.mjs, or make it a helper that a spec builds on.",
+    );
+    const importers = specSources.filter(({ file, code }) => {
+      const wanted = `./${relative(dirname(file), helper).split("\\").join("/")}`;
+      return [...code.matchAll(/\bfrom\s+["']([^"']+)["']/g)].some((m) => m[1] === wanted);
+    });
+    assert.ok(
+      importers.length > 0,
+      `${where} is imported by no spec module beside core.mjs. A helper exists for the specs ` +
+        "that stand on it; delete it, or import it from the spec that needs it.",
     );
   }
 });

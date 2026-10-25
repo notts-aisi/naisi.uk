@@ -19,13 +19,14 @@
  *
  * ## The spec modules are the source of truth, not a list in here
  *
- * Every `.mjs` under `scripts/e2e-fixtures/` except `core.mjs` exports one
- * `SPEC` object: its name, its spec file, its ordered step names, the subset
- * of those that cannot run against a deployed target, whether it needs an
- * admin account, whether it needs this run's mail CAUGHT, what it
- * covers, and seed / countRows / teardown. This file walks the directory and
- * validates the shape, so a new spec is covered by adding a file rather than
- * by remembering to edit a runner.
+ * Every `.mjs` directly in `scripts/e2e-fixtures/` except `core.mjs` exports
+ * one `SPEC` object: its name, its spec file, its ordered step names, the
+ * subset of those that cannot run against a deployed target, whether it needs
+ * an admin account, whether it needs this run's mail CAUGHT, what it covers,
+ * and seed / countRows / teardown. A subdirectory holds helper modules, the
+ * worlds several specs stand on, and is not walked. This file walks the
+ * directory and validates the shape, so a new spec is covered by adding a
+ * file rather than by remembering to edit a runner.
  *
  * ## A spec that must read its own mail says so, and is skipped rather than run
  *

@@ -8,6 +8,13 @@
  * chokepoint, the only two ways to reach Firestore, the id restatements, the
  * account helper, and where scratch files live.
  *
+ * A world several specs stand on (a term after decision day, say) is a HELPER
+ * MODULE in a subdirectory (`worlds/`), never beside this file: the runner and
+ * the coverage map read every `.mjs` here as a spec. A helper exports no
+ * `SPEC`, is imported by at least one spec module, and reaches Firestore
+ * through this file like everything else; `tests/funnel-harness-guards.test.mjs`
+ * holds all three.
+ *
  * ## Why the fence lives here rather than in each module
  *
  * `tests/e2e-no-privilege-grants.test.mjs` holds the AUTH harness to three
@@ -55,7 +62,11 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:
 import { dirname, join } from "node:path";
 import { getFirestore } from "firebase-admin/firestore";
 import { adminApp, adminAuth, createHarnessUser } from "../e2e/lib/admin.mjs";
-import { createLedger, seedPendingUserDoc } from "../e2e/lib/firestore.mjs";
+import {
+  DEFAULT_FIXTURE_NAMES,
+  createLedger,
+  seedPendingUserDoc,
+} from "../e2e/lib/firestore.mjs";
 import { REPO_ROOT, loadEnv, runId } from "../e2e/lib/env.mjs";
 
 /** Per-run id. Re-exported so a fixture module needs one import, not two. */
@@ -311,10 +322,20 @@ export const FIXTURE_COLLECTIONS = [
   "memberships",
   // The event an RSVP spec creates so a guest has something to book.
   "events",
+  // What decision day decided about each person on a fixture's own
+  // application form, one document per person (`<formId>__<uid>`). A term
+  // after decision day needs them: who holds a place is read from them and
+  // from the person's own application together, so a hand-over has nobody to
+  // hand over without them. Written only for a fixture's own form.
+  "admissionDecisions",
 
   // ── Swept: created by the routes the specs drive ──────────────────────────
   "admissionApplications",
   "admissionApplicationPrivate",
+  // The rows a hand-over writes onto a course run's own applications list
+  // (`<runId>__<uid>`), one per person handed over, which the allocation board
+  // reads. Written by the hand-over route and nothing else a spec drives.
+  "courseApplications",
   "courseEnrolments",
   "courseProgress",
   "courseAudit",
@@ -544,12 +565,18 @@ export function subscriptionId(email, channel) {
  * ordinary `npm run dev` ports, whose server this harness did not start. A
  * run pointed there with suppression off would hand `.invalid` addresses to a
  * real sender.
+ *
+ * `names` is `{ preferred, display }`, for a spec that has to tell several
+ * accounts apart on one screen. Left out, the account is "E2E Harness" as
+ * every fixture account always was. A name grants nothing; the role is still
+ * the seeder's hard-coded `pending`.
  */
 export async function createFixtureUser({
   runId: fixtureRunId,
   index,
   suppress = true,
   legacyConsent = false,
+  names = DEFAULT_FIXTURE_NAMES,
 }) {
   // Chosen here and not by the caller, so that no fixture can build one out
   // of something the run prints.
@@ -575,11 +602,14 @@ export async function createFixtureUser({
   // of a member from before the field existed, so the account meets the
   // re-consent gate on a production build. Off by default: only a spec that
   // means to drive the gate asks for it. See `seedPendingUserDoc`.
+  // `names` is the account's name, for a spec that tells several people apart
+  // on one screen. The seeder refuses anything but a short line of words.
   await seedPendingUserDoc(ledger, {
     uid: account.uid,
     email: account.email,
     universityEmail: "",
     legacyConsent,
+    names,
   });
   let suppressionId = null;
   if (suppress) {

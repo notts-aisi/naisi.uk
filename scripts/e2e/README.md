@@ -72,6 +72,7 @@ rather than the record.
 | `membership-console` | The membership year: periods, the current-period pointer, the roster and a grant. | Yes | Both |
 | `member-journey` | What an approved member actually does: approval on the Approvals page, the profile and its notification preferences, the membership read, and enrolling on a course. | Yes | Both |
 | `register-push` | The facilitator's register: the roster, marking attendance and pushing it, with the participant notes beside it. | Yes | Both |
+| `course-hub-groups-go-out` | Groups going out on a term just after decision day: the admin names the course run on the programme's Settings tab, moves it on from draft, hands the people holding a place over (a second press writes nothing), reads the Times view, places each person with the Move to menu, appoints a facilitator, sends the test of Publish's emails and presses Publish with its count. The person placed sees their group and first session, a person moved after Publish sees nothing until Publish again emails only them, and the facilitator sees their roster and register. Every email is held to the board's words and checked for the meeting link. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the test of Publish's emails goes to the admin's own address |
 | `events-rsvp` | A guest RSVP against a real event, through the public event page to the submitted confirmation. | Yes | Both |
 
 ## Safety properties
@@ -315,9 +316,14 @@ removes the matches and the matching harness accounts, through the same doors
 as a fixture. The run ids are in the cancelled job's log, on the `Seeding
 fixture <id>` lines.
 
-**A spec module is one file.** Everything under `scripts/e2e-fixtures/` except
-`core.mjs` exports a single object named `SPEC`, and the runner discovers it by
-walking the directory, so a new spec is added by adding a file:
+**A spec module is one file.** Everything directly in `scripts/e2e-fixtures/`
+except `core.mjs` exports a single object named `SPEC`, and the runner discovers
+it by walking the directory, so a new spec is added by adding a file. A world
+several specs stand on (the course hub's term after decision day,
+`worlds/course-hub-term.mjs`) is a helper module in a subdirectory, which the
+runner does not walk: it exports no `SPEC`, a spec module imports it, and
+`tests/funnel-harness-guards.test.mjs` holds both. A spec module looks like
+this:
 
 ```js
 export const SPEC = {
