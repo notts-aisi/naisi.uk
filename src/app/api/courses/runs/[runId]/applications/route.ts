@@ -10,6 +10,7 @@ import {
   type CourseApplicationStatus,
 } from "@/lib/firestore/courseApplications";
 import {
+  compareGroupsByMeeting,
   normalizeCourseGroup,
   type GroupSession,
 } from "@/lib/firestore/courseGroups";
@@ -251,15 +252,8 @@ export async function GET(
   const groups = groupSnap.docs
     .map((d) => normalizeCourseGroup(d.id, d.data() ?? {}))
     .filter((g) => !g.archived)
-    .sort((a, b) => {
-      // Monday-first for display; `weekday` is stored Sunday-first.
-      const day = ((a.session.weekday + 6) % 7) - ((b.session.weekday + 6) % 7);
-      return (
-        day ||
-        a.session.startTimeLocal.localeCompare(b.session.startTimeLocal) ||
-        a.name.localeCompare(b.name)
-      );
-    });
+    // Monday first, the order every list of a run's groups uses.
+    .sort(compareGroupsByMeeting);
 
   // One `getAll` for every name this payload needs: applicants, whoever decided
   // each application, and the groups' facilitators. Names only — see the PII

@@ -4,7 +4,7 @@ import type { AvailabilityGrid } from "@/lib/admissions/availability";
 import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
 import { formatRunStartShort } from "@/lib/courses/window";
 import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
-import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { paintedWeekOf } from "../handover/paintedWeek";
 import { RUNS_COLLECTION } from "../handover/run";
@@ -60,11 +60,15 @@ export function isTimed(group: CourseGroupDoc, runId: string): boolean {
   return group.runId === runId && !group.archived && meetsWords(group.session) !== null;
 }
 
-/** The run's groups an email can name, by name. */
+/**
+ * The run's groups an email can name, in the order every tab of the
+ * programme's page lists groups (`compareGroupsByMeeting`, People in groups'
+ * order, Monday first).
+ */
 export function timedGroupsOf(groups: readonly CourseGroupDoc[], runId: string): CourseGroupDoc[] {
   return groups
     .filter((group) => isTimed(group, runId))
-    .sort((a, b) => a.name.localeCompare(b.name, "en") || a.id.localeCompare(b.id));
+    .sort((a, b) => compareGroupsByMeeting(a, b) || a.id.localeCompare(b.id));
 }
 
 /**
