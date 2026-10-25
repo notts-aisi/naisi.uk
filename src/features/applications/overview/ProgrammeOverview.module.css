@@ -659,6 +659,325 @@
   overflow-wrap: anywhere;
 }
 
+/* ── Who finished (board en-finish) ─────────────────────────────────────
+   A card leading the Overview once the run's last session is over. Its
+   table scrolls inside the card, never the page. */
+
+.wfCard {
+  min-width: 0;
+  padding: 24px 28px 22px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.wfHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 20px;
+}
+
+.wfHeadText {
+  flex: 1 1 360px;
+  min-width: 0;
+}
+
+.wfTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.wfSentence {
+  max-width: 46rem;
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.wfHeadSide {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+/* "28 FINISHED · 3 NOT": upper case here, never in the words. */
+.wfCounts {
+  font-family: var(--font-meta);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+.wfStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.wfStatusTick {
+  display: block;
+  flex: none;
+  color: var(--color-ok);
+}
+
+.wfStatusProblem {
+  white-space: normal;
+  color: var(--color-warning);
+}
+
+.wfScroll {
+  min-width: 0;
+  margin: 20px -16px 0;
+  overflow-x: auto;
+}
+
+.wfTable {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.wfCaption {
+  padding: 0 16px 10px;
+  caption-side: top;
+  text-align: left;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.wfTh {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.wfColGroup {
+  width: 130px;
+}
+
+.wfColCount {
+  width: 140px;
+}
+
+.wfColFinished {
+  width: 230px;
+}
+
+.wfTd {
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+  font-size: 15px;
+  color: var(--color-text);
+}
+
+.wfPerson {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.wfPersonText {
+  min-width: 0;
+}
+
+.wfName {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+.wfLine {
+  margin-top: 1px;
+  font-size: 13px;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.wfFinishedCell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* A 44px target round a 40 by 24 track. */
+.wfSwitch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.wfSwitchInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.wfSwitchTrack {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+  transition: background var(--transition-fast);
+}
+
+.wfSwitchKnob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-text-soft);
+  transition: transform var(--transition-fast);
+}
+
+.wfSwitchInput:checked + .wfSwitchTrack {
+  background: var(--color-accent);
+}
+
+.wfSwitchInput:checked + .wfSwitchTrack .wfSwitchKnob {
+  background: white;
+  transform: translateX(16px);
+}
+
+.wfSwitchInput:focus-visible + .wfSwitchTrack {
+  box-shadow: var(--focus-ring);
+}
+
+.wfSwitchInput:disabled + .wfSwitchTrack {
+  opacity: 0.6;
+}
+
+.wfChanged {
+  font-size: 13px;
+  white-space: nowrap;
+  color: var(--color-accent-text);
+}
+
+.wfMoreCell {
+  padding: 4px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.wfMore {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wfMore:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.wfMore:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+.wfChevron,
+.wfChevronOpen {
+  display: block;
+  flex: none;
+  transition: transform var(--transition-fast);
+}
+
+.wfChevronOpen {
+  transform: rotate(180deg);
+}
+
+.wfLeftHeadCell {
+  padding: 18px 16px 6px;
+}
+
+.wfLeftHead {
+  font-family: var(--font-meta);
+  font-size: 12px;
+  line-height: 1.3;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.wfLeftName {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.wfMuted {
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.wfNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.wfNoteIcon {
+  display: block;
+  flex: none;
+  margin-top: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wfSwitchTrack,
+  .wfSwitchKnob,
+  .wfChevron,
+  .wfChevronOpen {
+    transition: none;
+  }
+}
+
 @media (max-width: 48rem) { /* --bp-md */
   .page {
     gap: 22px;
@@ -706,5 +1025,26 @@
 
   .bars {
     gap: 6px;
+  }
+
+  .wfCard {
+    padding: 20px 16px 18px;
+  }
+
+  .wfTitle {
+    font-size: 20px;
+  }
+
+  .wfHeadSide {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .wfScroll {
+    margin: 16px -16px 0;
+  }
+
+  .wfLine {
+    white-space: normal;
   }
 }

@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import InitialsChip from "@/components/ui/InitialsChip";
-import { SavedStatus, type SaveState } from "@/features/applications/editor/controls";
 import { useHydrated } from "@/hooks/useHydrated";
 import type { WhoFinishedModel } from "@/lib/courses/finishing/whoFinished";
-import styles from "./WhoFinished.module.css";
+// The Overview's own stylesheet: this card is a part of that page.
+import styles from "./ProgrammeOverview.module.css";
 
 /**
  * WHO FINISHED (board en-finish), on the programme's Overview once the run's
@@ -36,16 +36,40 @@ function ChevronIcon({ open }: { open: boolean }) {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-      className={open ? styles.chevronOpen : styles.chevron}
+      className={open ? styles.wfChevronOpen : styles.wfChevron}
     >
       <path d="M6 9l6 6 6-6" />
     </svg>
   );
 }
 
+/**
+ * The line beside the counts: "Saved", "Saving…", or why a change did not
+ * save. A status region, so a change is announced without taking focus.
+ */
+function SaveLine({ saving, problem }: { saving: boolean; problem: string | null }) {
+  if (problem) {
+    return (
+      <span role="status" className={`${styles.wfStatus} ${styles.wfStatusProblem}`}>
+        {problem}
+      </span>
+    );
+  }
+  return (
+    <span role="status" className={styles.wfStatus}>
+      {!saving && (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={styles.wfStatusTick}>
+          <path d="M5 12.5l4.5 4.5L19 7.5" />
+        </svg>
+      )}
+      {saving ? "Saving…" : "Saved"}
+    </span>
+  );
+}
+
 function InfoIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={styles.noteIcon}>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={styles.wfNoteIcon}>
       <circle cx="12" cy="12" r="8.5" />
       <path d="M12 11v5M12 8v.5" />
     </svg>
@@ -93,43 +117,42 @@ export default function WhoFinished({
     }
   };
 
-  const state: SaveState = problem ? "problem" : pressed ? "saving" : "saved";
   const hidden = model.rows.length - model.shown;
   const rows = expanded ? model.rows : model.rows.slice(0, model.shown);
 
   return (
-    <section className={styles.card} aria-labelledby="who-finished">
-      <div className={styles.head}>
-        <div className={styles.headText}>
-          <h2 id="who-finished" className={styles.title}>
+    <section className={styles.wfCard} aria-labelledby="who-finished">
+      <div className={styles.wfHead}>
+        <div className={styles.wfHeadText}>
+          <h2 id="who-finished" className={styles.wfTitle}>
             Who finished
           </h2>
-          <p className={styles.sentence}>{model.sentence}</p>
+          <p className={styles.wfSentence}>{model.sentence}</p>
         </div>
-        <div className={styles.headSide}>
-          <span className={styles.counts}>{model.counts}</span>
-          <SavedStatus state={state} problem={problem} />
+        <div className={styles.wfHeadSide}>
+          <span className={styles.wfCounts}>{model.counts}</span>
+          <SaveLine saving={pressed !== null} problem={problem} />
         </div>
       </div>
 
-      <div className={styles.scroll}>
-        <table className={styles.table}>
-          <caption className={styles.caption}>Fewest sessions first</caption>
+      <div className={styles.wfScroll}>
+        <table className={styles.wfTable}>
+          <caption className={styles.wfCaption}>Fewest sessions first</caption>
           <thead>
             <tr>
-              <th scope="col" className={styles.th}>
+              <th scope="col" className={styles.wfTh}>
                 Name
               </th>
-              <th scope="col" className={`${styles.th} ${styles.colGroup}`}>
+              <th scope="col" className={`${styles.wfTh} ${styles.wfColGroup}`}>
                 Group
               </th>
-              <th scope="col" className={`${styles.th} ${styles.colCount}`}>
+              <th scope="col" className={`${styles.wfTh} ${styles.wfColCount}`}>
                 Came to
               </th>
-              <th scope="col" className={`${styles.th} ${styles.colCount}`}>
+              <th scope="col" className={`${styles.wfTh} ${styles.wfColCount}`}>
                 Exercises
               </th>
-              <th scope="col" className={`${styles.th} ${styles.colFinished}`}>
+              <th scope="col" className={`${styles.wfTh} ${styles.wfColFinished}`}>
                 Finished
               </th>
             </tr>
@@ -140,35 +163,35 @@ export default function WhoFinished({
               const checked = busy && pressed ? pressed.finished : row.finished;
               return (
                 <tr key={row.uid}>
-                  <td className={styles.td}>
-                    <div className={styles.person}>
+                  <td className={styles.wfTd}>
+                    <div className={styles.wfPerson}>
                       <InitialsChip name={row.name} uid={row.uid} size="sm" />
-                      <div className={styles.personText}>
-                        <div className={styles.name}>{row.name}</div>
-                        {row.line && <div className={styles.line}>{row.line}</div>}
+                      <div className={styles.wfPersonText}>
+                        <div className={styles.wfName}>{row.name}</div>
+                        {row.line && <div className={styles.wfLine}>{row.line}</div>}
                       </div>
                     </div>
                   </td>
-                  <td className={styles.td}>{row.groupName}</td>
-                  <td className={styles.td}>{row.came}</td>
-                  <td className={styles.td}>{row.exercises ?? "None set"}</td>
-                  <td className={styles.td}>
-                    <div className={styles.finishedCell}>
-                      <label className={styles.switch}>
+                  <td className={styles.wfTd}>{row.groupName}</td>
+                  <td className={styles.wfTd}>{row.came}</td>
+                  <td className={styles.wfTd}>{row.exercises ?? "None set"}</td>
+                  <td className={styles.wfTd}>
+                    <div className={styles.wfFinishedCell}>
+                      <label className={styles.wfSwitch}>
                         <input
                           type="checkbox"
                           role="switch"
-                          className={styles.switchInput}
+                          className={styles.wfSwitchInput}
                           aria-label={`Finished: ${row.name}`}
                           checked={checked}
                           disabled={!live || pressed !== null}
                           onChange={(event) => void save(row.uid, event.target.checked)}
                         />
-                        <span className={styles.switchTrack} aria-hidden="true">
-                          <span className={styles.switchKnob} />
+                        <span className={styles.wfSwitchTrack} aria-hidden="true">
+                          <span className={styles.wfSwitchKnob} />
                         </span>
                       </label>
-                      {row.changed && <span className={styles.changed}>{row.changed}</span>}
+                      {row.changed && <span className={styles.wfChanged}>{row.changed}</span>}
                     </div>
                   </td>
                 </tr>
@@ -176,10 +199,10 @@ export default function WhoFinished({
             })}
             {hidden > 0 && (
               <tr>
-                <td colSpan={5} className={styles.moreCell}>
+                <td colSpan={5} className={styles.wfMoreCell}>
                   <button
                     type="button"
-                    className={styles.more}
+                    className={styles.wfMore}
                     aria-expanded={expanded}
                     onClick={() => setExpanded((open) => !open)}
                   >
@@ -191,33 +214,33 @@ export default function WhoFinished({
             )}
             {model.rows.length === 0 && (
               <tr>
-                <td colSpan={5} className={styles.td}>
-                  <span className={styles.muted}>Nobody took part.</span>
+                <td colSpan={5} className={styles.wfTd}>
+                  <span className={styles.wfMuted}>Nobody took part.</span>
                 </td>
               </tr>
             )}
             {model.left.length > 0 && (
               <>
                 <tr>
-                  <td colSpan={5} className={styles.leftHeadCell}>
-                    <div className={styles.leftHead}>Left the programme</div>
+                  <td colSpan={5} className={styles.wfLeftHeadCell}>
+                    <div className={styles.wfLeftHead}>Left the programme</div>
                   </td>
                 </tr>
                 {model.left.map((person) => (
                   <tr key={person.uid}>
-                    <td className={styles.td}>
-                      <div className={styles.person}>
+                    <td className={styles.wfTd}>
+                      <div className={styles.wfPerson}>
                         <InitialsChip name={person.name} uid={person.uid} size="sm" />
-                        <span className={styles.leftName}>{person.name}</span>
+                        <span className={styles.wfLeftName}>{person.name}</span>
                       </div>
                     </td>
-                    <td className={styles.td}>
-                      <span className={styles.muted}>{person.groupName}</span>
+                    <td className={styles.wfTd}>
+                      <span className={styles.wfMuted}>{person.groupName}</span>
                     </td>
-                    <td className={styles.td} />
-                    <td className={styles.td} />
-                    <td className={styles.td}>
-                      <span className={styles.muted}>{person.left}</span>
+                    <td className={styles.wfTd} />
+                    <td className={styles.wfTd} />
+                    <td className={styles.wfTd}>
+                      <span className={styles.wfMuted}>{person.left}</span>
                     </td>
                   </tr>
                 ))}
@@ -228,7 +251,7 @@ export default function WhoFinished({
       </div>
 
       {model.notes.map((note) => (
-        <p key={note} className={styles.note}>
+        <p key={note} className={styles.wfNote}>
           <InfoIcon />
           <span>{note}</span>
         </p>

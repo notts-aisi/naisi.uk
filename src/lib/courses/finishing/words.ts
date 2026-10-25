@@ -144,17 +144,9 @@ export const RULE_CARD_TITLE = "Who finished";
 export const RULE_LABEL = "Came to at least";
 export const RULE_UNIT = "sessions";
 
-/**
- * Under the box: what the number does, and who sees it. `sessions` is how
- * many times the programme's groups meet, when the run can say.
- */
-export function ruleHint(sessions: number | null): string {
-  const of =
-    sessions !== null && sessions > 0
-      ? `Of the ${sessions} sessions each group meets, counting only the ones it held: a cancelled session doesn’t count against anyone.`
-      : "Of the sessions each group held: a cancelled session doesn’t count against anyone.";
-  return `${of} After the last session, we tick everyone who came to this many, and you can change any. Only you and admins see this.`;
-}
+/** Under the box: what the number does, and who sees it. */
+export const RULE_HINT =
+  "Of the sessions their group held: a cancelled session doesn’t count against anyone. After the last session, we tick everyone who came to this many, and you can change any. Only you and admins see this.";
 
 // ---------------------------------------------------------------------------
 // A member's own pages, once the programme is over (C43)
@@ -179,4 +171,9 @@ export const ENDED_SUB = "Thanks for being part of it. Every week stays open, so
 /** A run's one-word state on a card or a list, once it is over. */
 export function endedWord(finished: boolean): "Finished" | "Ended" {
   return finished ? "Finished" : "Ended";
+}
+
+/** The same, inside a line: "AGI Strategy Fellowship · Group A · finished". */
+export function endedPart(finished: boolean): "finished" | "ended" {
+  return finished ? "finished" : "ended";
 }

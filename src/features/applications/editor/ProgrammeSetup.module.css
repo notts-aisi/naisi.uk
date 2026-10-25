@@ -335,6 +335,40 @@
   min-height: 12rem;
 }
 
+/* --- who finished: the rule ------------------------------------------ */
+
+.ruleHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.ruleBody {
+  max-width: 40rem;
+  margin-top: 18px;
+}
+
+.ruleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Two digits wide, and still a 44px target. */
+.ruleNumber {
+  flex: none;
+  width: 5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.ruleUnit {
+  font-size: 15px;
+  color: var(--color-text);
+}
+
 @media (max-width: 48rem) { /* --bp-md */
   .stack {
     gap: var(--space-4);
@@ -364,5 +398,8 @@
   }
   .emailActions > * {
     flex: 1 1 auto;
+  }
+  .ruleBody {
+    margin-top: 14px;
   }
 }

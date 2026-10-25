@@ -3,10 +3,11 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useHydrated } from "@/hooks/useHydrated";
 import { FINISH_LIMITS } from "@/lib/courses/finishing/model";
-import { RULE_CARD_TITLE, RULE_LABEL, RULE_UNIT, ruleHint } from "@/lib/courses/finishing/words";
+import { RULE_CARD_TITLE, RULE_HINT, RULE_LABEL, RULE_UNIT } from "@/lib/courses/finishing/words";
 import { SavedStatus, type SaveState } from "./controls";
 import shared from "./editor.module.css";
-import styles from "./FinishingRule.module.css";
+// The Settings tab's own stylesheet: this card is a part of that tab.
+import styles from "./ProgrammeSetup.module.css";
 
 /**
  * THE RULE FOR WHO FINISHED, on the programme's Settings tab, for its lead
@@ -39,7 +40,8 @@ export default function FinishingRule({
 }: {
   roundId: string;
   programmeId: string;
-  initial: { atLeast: number | null; sessions: number | null };
+  /** The rule as stored: its number, or null while the run has none. */
+  initial: { atLeast: number | null };
 }) {
   const ids = useId();
   const live = useHydrated();
@@ -75,7 +77,7 @@ export default function FinishingRule({
       )
         .then(async (response) => {
           const answer = (await response.json().catch(() => null)) as
-            | { rule?: { atLeast: number | null; sessions: number | null }; error?: string }
+            | { rule?: { atLeast: number | null }; error?: string }
             | null;
           if (mine !== turn.current) return;
           if (!response.ok || !answer?.rule) {
@@ -83,7 +85,7 @@ export default function FinishingRule({
             setRefused(key);
             return;
           }
-          setStored(answer.rule);
+          setStored({ atLeast: answer.rule.atLeast });
           setProblem(null);
         })
         .catch(() => {
@@ -102,22 +104,22 @@ export default function FinishingRule({
 
   return (
     <section id="who-finished" className={shared.card} aria-labelledby={`${ids}-title`}>
-      <div className={styles.head}>
+      <div className={styles.ruleHead}>
         <h2 id={`${ids}-title`} className={shared.cardTitle}>
           {RULE_CARD_TITLE}
         </h2>
         <SavedStatus state={state} problem={held ?? problem} />
       </div>
-      <div className={styles.body}>
+      <div className={styles.ruleBody}>
         <label htmlFor={`${ids}-at-least`} className={shared.label}>
           {RULE_LABEL}
         </label>
-        <div className={styles.row}>
+        <div className={styles.ruleRow}>
           <input
             id={`${ids}-at-least`}
             type="text"
             inputMode="numeric"
-            className={`${shared.input} ${styles.number}`}
+            className={`${shared.input} ${styles.ruleNumber}`}
             value={text}
             readOnly={!live}
             maxLength={2}
@@ -127,10 +129,10 @@ export default function FinishingRule({
               setRefused(null);
             }}
           />
-          <span className={styles.unit}>{RULE_UNIT}</span>
+          <span className={styles.ruleUnit}>{RULE_UNIT}</span>
         </div>
         <p id={`${ids}-hint`} className={shared.hint}>
-          {ruleHint(stored.sessions)}
+          {RULE_HINT}
         </p>
       </div>
     </section>

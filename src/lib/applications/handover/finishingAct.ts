@@ -76,29 +76,10 @@ async function finishingContext(
   return { ok: true, view: { ...view, run: view.run }, records };
 }
 
-/** The Settings card's view of the rule, for a run the caller may set it on. */
-export async function readFinishRuleView(db: Firestore, records: RunRecords, now: Date): Promise<FinishRuleView> {
-  const snap = await db.collection(FINISHING_COLLECTION).doc(finishRuleId(records.run.id)).get();
-  const rule = snap.exists ? normalizeFinishRule(snap.id, snap.data() as Record<string, unknown>) : null;
+/** The rule as the Settings card shows it after a save, and how many sessions the run's groups meet. */
+function ruleView(atLeast: number | null, records: RunRecords, now: Date): FinishRuleView {
   const sessions = runEndOf(records.run, records.groups, now).sessions;
-  return { atLeast: rule?.atLeast ?? null, sessions: sessions > 0 ? sessions : null };
-}
-
-/**
- * The Settings card, for the programme's lead or an admin on a programme that
- * names a run on the site. Null for anybody else and for any other programme:
- * the page then draws no card.
- */
-export async function loadFinishRuleCard(
-  db: Firestore,
-  actor: SessionUser,
-  roundId: string,
-  programmeId: string,
-  now: Date,
-): Promise<FinishRuleView | null> {
-  const context = await finishingContext(db, actor, roundId, programmeId);
-  if (!context.ok) return null;
-  return readFinishRuleView(db, context.records, now);
+  return { atLeast, sessions: sessions > 0 ? sessions : null };
 }
 
 /** Set or clear the run's rule. Answers the card's view of it as stored. */
@@ -122,7 +103,7 @@ export async function setFinishRule(
   } else {
     await ref.set({ kind: "rule", runId: records.run.id, atLeast, setAt: FieldValue.serverTimestamp() });
   }
-  return { ok: true, rule: await readFinishRuleView(db, records, now) };
+  return { ok: true, rule: ruleView(atLeast, records, now) };
 }
 
 /**

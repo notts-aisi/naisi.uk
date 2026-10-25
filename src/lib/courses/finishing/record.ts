@@ -129,6 +129,14 @@ export type Finishing = {
   decisions: Map<string, FinishDecision>;
 };
 
+/** The run's rule alone, by its address: what the Settings card shows. */
+export async function readFinishRule(db: Firestore, runId: string): Promise<FinishRule | null> {
+  if (!runId || runId.includes("/")) return null;
+  const snap = await db.collection(FINISHING_COLLECTION).doc(finishRuleId(runId)).get();
+  const rule = snap.exists ? normalizeFinishRule(snap.id, snap.data() as Record<string, unknown>) : null;
+  return rule && rule.runId === runId ? rule : null;
+}
+
 /** The run's rule and every decision on it: one equality on `runId`. */
 export async function readFinishing(db: Firestore, runId: string): Promise<Finishing> {
   const snap = await db.collection(FINISHING_COLLECTION).where("runId", "==", runId).get();

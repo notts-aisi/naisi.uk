@@ -1,12 +1,11 @@
-import FinishingRule from "@/features/applications/editor/FinishingRule";
 import ProgrammeSetup from "@/features/applications/editor/ProgrammeSetup";
 import { NoProgrammeHere, SettingsAreTheLeads } from "@/features/applications/editor/Refusals";
 import RunHandOver from "@/features/applications/editor/RunHandOver";
 import frame from "@/features/applications/editor/ProgrammeSetup.module.css";
 import { loadSetup } from "@/lib/applications/editor/load";
 import { projectProgrammeForSetup } from "@/lib/applications/editor/views";
-import { loadFinishRuleCard } from "@/lib/applications/handover/finishingAct";
 import { loadRunPanel } from "@/lib/applications/handover/load";
+import { readFinishRule } from "@/lib/courses/finishing/record";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
@@ -26,9 +25,11 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * settings and no panel, and nothing of the panel is in their page.
  *
  * THE RULE FOR WHO FINISHED is the run's, set here by the programme's lead
- * or an admin while the programme names a run on the site
- * (`loadFinishRuleCard` asks the same gate as the Overview's switches, and
- * answers nothing for anybody else). Nobody else is ever shown it.
+ * or an admin while the programme names a run. Only its own document is
+ * read, by the run id the form names, and only once `loadSetup` has said
+ * the caller is the lead or an admin: nobody else is ever shown it, and a
+ * lead's page still reads nothing of the run itself. Its route asks the
+ * gate again, and refuses a run that is no longer on the site.
  */
 export default async function ProgrammeSetupPage({
   params,
@@ -46,19 +47,15 @@ export default async function ProgrammeSetupPage({
   const [run, rule] = db
     ? await Promise.all([
         loadRunPanel(db, user, roundId, programmeId),
-        loadFinishRuleCard(db, user, roundId, programmeId, new Date()),
+        programme.runId ? readFinishRule(db, programme.runId) : Promise.resolve(null),
       ])
     : [null, null];
   return (
     <div className={frame.stack}>
-      <ProgrammeSetup programme={projectProgrammeForSetup(form, sets, programme, context)} />
-      {rule && (
-        <FinishingRule
-          roundId={form.round.id}
-          programmeId={programme.id}
-          initial={{ atLeast: rule.atLeast, sessions: rule.sessions }}
-        />
-      )}
+      <ProgrammeSetup
+        programme={projectProgrammeForSetup(form, sets, programme, context)}
+        finishing={programme.runId ? { atLeast: rule?.atLeast ?? null } : null}
+      />
       {run?.status === "ok" && (
         <RunHandOver roundId={form.round.id} programmeId={programme.id} initial={run.panel} />
       )}

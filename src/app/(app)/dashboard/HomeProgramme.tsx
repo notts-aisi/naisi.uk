@@ -13,6 +13,7 @@ import { weekHref } from "@/features/courses/links";
 import { useRunOverview } from "@/features/courses/useRunOverview";
 import { useRunProgress } from "@/features/courses/useRunProgress";
 import { useWeek } from "@/features/courses/useWeek";
+import { endedPart } from "@/lib/courses/finishing/words";
 import { weekDocId, type Material } from "@/lib/firestore/courses";
 import { ArrowRight, Check, External } from "./icons";
 import { aboutMinutes, nameList, safeHttpUrl } from "./homeWords";
@@ -59,7 +60,7 @@ function headLine(entry: MyRunEntry): { long: string; short: string } {
   const number = week ? (week.weekNumber ?? week.anchorWeekNumber) : 0;
   // After the last week: "finished" only where the member's own finished
   // record says so (`entry.finished`), "ended" for everybody else.
-  const over = entry.finished === true ? "finished" : "ended";
+  const over = endedPart(entry.finished === true);
   const weekPart =
     !week || week.phase === "before"
       ? "starts soon"
