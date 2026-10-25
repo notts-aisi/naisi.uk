@@ -339,17 +339,21 @@ export function ToReviewCard({ rows, reviewHref }: { rows: GroupReviewRow[]; rev
               <InitialsChip name={row.name} uid={row.uid} size="md" />
               <span className={styles.reviewText}>
                 <span className={styles.personName}>{row.name}</span>
-                <p className={styles.reviewMeta}>
-                  <span className={styles.nowrap}>{reviewWeekWords(row.weekNumber, row.count)}</span>
-                  {sentWords(row.sentDateKey) && (
-                    <>
-                      <span className={styles.reviewSep} aria-hidden="true">
-                        ·
-                      </span>
-                      <span className={styles.nowrap}>{sentWords(row.sentDateKey)}</span>
-                    </>
-                  )}
-                </p>
+                <span className={styles.reviewMetaWrap}>
+                  <span className={styles.reviewMeta}>
+                    {[reviewWeekWords(row.weekNumber, row.count), sentWords(row.sentDateKey)]
+                      .filter(Boolean)
+                      .map((part, index) => (
+                        <span key={part} className={styles.reviewPart}>
+                          <span className={styles.reviewSep} aria-hidden="true">
+                            ·
+                          </span>
+                          {index > 0 && <span className={weekly.srOnly}>, </span>}
+                          {part}
+                        </span>
+                      ))}
+                  </span>
+                </span>
               </span>
               <Link
                 href={reviewHref(row.weekNumber)}

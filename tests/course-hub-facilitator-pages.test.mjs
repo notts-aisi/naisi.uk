@@ -298,7 +298,8 @@ describe("2. the group page in week 3, as wk-fac-group draws it", () => {
     const drawn = await groupPage("rahul");
     assert.match(
       drawn.text,
-      /To review 3 FH Farah Hussain Week 2 exercise · sent Mon 16 Nov Review CN Chloe Nguyen Week 2 exercise · sent Sun 15 Nov Review CN Chloe Nguyen Week 1 exercise · sent Sun 8 Nov Review Review exercises →/,
+      // Each part of a row's line brings its dot, and a screen reader hears a comma between them.
+      /To review 3 FH Farah Hussain · Week 2 exercise · , sent Mon 16 Nov Review CN Chloe Nguyen · Week 2 exercise · , sent Sun 15 Nov Review CN Chloe Nguyen · Week 1 exercise · , sent Sun 8 Nov Review Review exercises →/,
     );
     assert.match(drawn.html, new RegExp(`<a href="${GROUP_PATH()}/review\\?week=2" class="buttonGhost" aria-label="Review Farah Hussain, week 2 exercise">Review</a>`));
     assert.match(drawn.html, new RegExp(`<a href="${GROUP_PATH()}/review" class="cardFootLink">Review exercises`));
@@ -313,7 +314,7 @@ describe("2. the group page in week 3, as wk-fac-group draws it", () => {
     });
     const { review } = partsOf(await groupPage("rahul"));
     assert.deepEqual(review.rows[0], { uid: "farah", name: "Farah Hussain", weekNumber: 2, count: 2, sentDateKey: "2026-11-16" });
-    assert.match((await groupPage("rahul")).text, /Farah Hussain Week 2 exercises · sent Mon 16 Nov/);
+    assert.match((await groupPage("rahul")).text, /Farah Hussain · Week 2 exercises · , sent Mon 16 Nov/);
   });
 
   test("nothing waiting says so, and still leads to every exercise", async () => {

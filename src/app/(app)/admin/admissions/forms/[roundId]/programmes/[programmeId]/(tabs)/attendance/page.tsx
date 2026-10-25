@@ -1,4 +1,5 @@
 import GroupNotesCard from "@/features/courses/facilitator/GroupNotesCard";
+import facilitator from "@/features/courses/facilitator/facilitator.module.css";
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import NotYours from "@/features/applications/groups/NotYours";
 import ProgrammeAttendance from "@/features/applications/groups/ProgrammeAttendance";
@@ -57,7 +58,14 @@ export default async function ProgrammeAttendancePage({
   const model = buildRunAttendance(records, { isAdmin: view.viewer === "admin" }, new Date());
   const asked = typeof query.group === "string" ? query.group : "all";
   const [notes, programme] = await Promise.all([readRunGroupNotes(db, view.run.id), runProgrammeOf(db, view.run.id)]);
-  const lead = view.viewer === "lead" ? { firstName: "", isReader: true } : programme?.leadFirstName ? { firstName: programme.leadFirstName, isReader: false } : null;
+  // Who reads the notes, as the line under each card says it: "you" to the
+  // lead, the lead by first name to an admin.
+  const lead =
+    view.viewer === "lead"
+      ? { firstName: "", isReader: true }
+      : programme?.leadFirstName
+        ? { firstName: programme.leadFirstName, isReader: false }
+        : null;
   const noted = model.groups.filter((group) => (notes.get(group.id) ?? []).length > 0);
   return (
     <>
@@ -68,16 +76,20 @@ export default async function ProgrammeAttendancePage({
         programmeName={view.programmeName}
         initialGroup={model.groups.some((group) => group.id === asked) ? asked : "all"}
       />
-      {noted.map((group) => (
-        <GroupNotesCard
-          key={group.id}
-          title={leadNotesHeading(group.name)}
-          whoLine={notesWhoLine(group.name, lead)}
-          notes={notes.get(group.id) ?? []}
-          writeFor={null}
-          headingId={`notes-${group.id}`}
-        />
-      ))}
+      {noted.length > 0 && (
+        <div className={facilitator.leadNotes}>
+          {noted.map((group) => (
+            <GroupNotesCard
+              key={group.id}
+              title={leadNotesHeading(group.name)}
+              whoLine={notesWhoLine(group.name, lead)}
+              notes={notes.get(group.id) ?? []}
+              writeFor={null}
+              headingId={`notes-${group.id}`}
+            />
+          ))}
+        </div>
+      )}
     </>
   );
 }

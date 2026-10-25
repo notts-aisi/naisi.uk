@@ -25,11 +25,12 @@
   container-name: facilitator;
 }
 
+/* 44px to press, its margins giving the extra height back to the head. */
 .crumb {
   display: inline-flex;
   align-items: center;
-  min-height: 2rem;
-  margin-bottom: 2px;
+  min-height: 2.75rem;
+  margin: -0.375rem 0 -0.25rem;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
   text-decoration: none;
@@ -73,16 +74,34 @@
   min-width: 0;
 }
 
+/* The line under the group's name: each part with the dot before it, the
+   line pulled a dot's width left inside a box that hides what overhangs, so
+   no line starts with a dot however the parts wrap. */
+.headLineWrap {
+  margin-top: var(--space-2);
+  overflow: hidden;
+}
+
 .headLine {
-  margin: var(--space-2) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 2px;
+  margin: 0 0 0 -1.375rem;
   font-size: var(--text-sm);
   line-height: 1.5;
   color: var(--color-text-muted);
-  overflow-wrap: anywhere;
+}
+
+.headPart {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .headSep {
   display: inline-block;
+  flex: none;
   width: 1.375rem;
   text-align: center;
   color: var(--color-text-faint);
@@ -106,7 +125,7 @@
 
 .actionsLine {
   margin: 0;
-  max-width: 26rem;
+  max-width: 34rem;
   font-size: var(--text-caption);
   line-height: 1.5;
   color: var(--color-text-muted);
@@ -349,10 +368,14 @@
   color: var(--color-text-muted);
 }
 
+/* A box a finished register, right-aligned; a long term's boxes wrap onto
+   more lines rather than push the row past the card's edge on a phone. */
 .marks {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   justify-content: flex-end;
 }
 
@@ -561,15 +584,31 @@
   min-width: 0;
 }
 
+/* "Week 2 exercise · sent Mon 16 Nov": the head line's way with its dots. */
+.reviewMetaWrap {
+  display: block;
+  overflow: hidden;
+}
+
 .reviewMeta {
-  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 2px;
+  margin: 0 0 0 -1rem;
   font-size: var(--text-caption);
   line-height: 1.5;
   color: var(--color-text-muted);
 }
 
+.reviewPart {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+}
+
 .reviewSep {
   display: inline-block;
+  flex: none;
   width: 1rem;
   text-align: center;
   color: var(--color-text-faint);
@@ -696,6 +735,16 @@
   font-size: var(--text-sm);
   line-height: 1.5;
   color: var(--color-danger-text);
+}
+
+/* === The notes on the programme's Attendance tab, for its lead === */
+
+.leadNotes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+  min-width: 0;
 }
 
 /* === The register's own page === */

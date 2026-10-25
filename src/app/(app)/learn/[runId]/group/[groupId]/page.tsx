@@ -356,19 +356,22 @@ export default async function GroupHomePage({
             {chip && <span className={weekly.weekChip}>{chip}</span>}
           </div>
           {headParts.length > 0 && (
-            <p className={facilitator.headLine}>
-              {headParts.map((part, index) => (
-                <span key={part} className={facilitator.nowrap}>
-                  {index > 0 && (
+            /* Each part brings the dot before it, and the line starts a dot's
+               width off its own left edge, so a part that wraps to a new line
+               never starts with one (the board's own way). */
+            <div className={facilitator.headLineWrap}>
+              <p className={facilitator.headLine}>
+                {headParts.map((part, index) => (
+                  <span key={part} className={facilitator.headPart}>
                     <span className={facilitator.headSep} aria-hidden="true">
                       ·
                     </span>
-                  )}
-                  {index > 0 && <span className={weekly.srOnly}>, </span>}
-                  {part}
-                </span>
-              ))}
-            </p>
+                    {index > 0 && <span className={weekly.srOnly}>, </span>}
+                    {part}
+                  </span>
+                ))}
+              </p>
+            </div>
           )}
         </div>
 
