@@ -735,7 +735,10 @@ test(
       return {
         heading: await textOf(region.getByRole("heading", { level: 2 })),
         cards,
-        noTeam: (await noTeam.count()) > 0 ? { heading: await textOf(noTeam.getByRole("heading", { level: 3 })) } : null,
+        noTeam:
+          (await noTeam.count()) > 0
+            ? { heading: await textOf(noTeam.getByRole("heading", { level: 3 })), names: await namesInMenus(noTeam) }
+            : null,
         foot: await textOf(region.locator("p").filter({ hasText: " in a team." })),
         emails: (await region.getByText(/^Emails \d+ (?:people|person)$/).count()) > 0
           ? await textOf(region.getByText(/^Emails \d+ (?:people|person)$/))
@@ -745,7 +748,12 @@ test(
 
     /** The teams column as it should read now, and who would be emailed. */
     function teamCardsNow({ told = false } = {}) {
-      const left = state.people.filter((person) => !teamOfPerson(person)).length;
+      // In no team, by name. Their names are read off the menu beside each,
+      // and with no team at all there is nowhere to move anybody, so the tab
+      // draws no menu (`moveMenu` in ProgrammeTeams.tsx) and no name is read.
+      const leftOut = state.people
+        .filter((person) => !teamOfPerson(person))
+        .sort((a, b) => a.first.localeCompare(b.first, "en-GB") || a.uid.localeCompare(b.uid));
       const owed = told ? 0 : inATeam().length;
       return {
         heading: `Teams (${teams.length})`,
@@ -755,7 +763,10 @@ test(
           [team.project],
           team.members.map((person) => person.first),
         ]),
-        noTeam: left > 0 ? { heading: `No team (${left})` } : null,
+        noTeam:
+          leftOut.length > 0
+            ? { heading: `No team (${leftOut.length})`, names: teams.length > 0 ? leftOut.map((person) => person.first) : [] }
+            : null,
         foot: `${inATeam().length} of ${state.people.length} in a team.${changeUntil()}`,
         emails: owed > 0 ? `Emails ${peopleWords(owed)}` : null,
       };
@@ -858,8 +869,11 @@ test(
           });
           assert.ok(approved.approvedAt, `${person.first}'s approval left no approvedAt stamp`);
         }
-        // Approving is the one thing that has emailed anybody so far.
-        assert.deepEqual(await mailCounts(), everyone(1), "approving emailed somebody twice, or nobody");
+        // Approving is the one thing that has emailed anybody so far. Each
+        // message reaches Mailpit a moment after its card leaves the queue, so
+        // each is waited for before the mailboxes are counted.
+        for (const person of state.people) await mailTo(person.email, 1);
+        assert.deepEqual(await mailCounts(), everyone(1), "approving emailed somebody twice");
       });
 
       await step("the admin names the incubator's running course run on the programme's Settings tab", async () => {

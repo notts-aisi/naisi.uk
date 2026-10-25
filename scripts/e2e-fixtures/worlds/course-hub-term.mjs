@@ -277,9 +277,9 @@ const ALL_FIVE_PRESENT = Object.freeze({ ada: "present", ben: "present", cleo: "
  * run began `daysIn` days before the seed, so the seed's day is in week 3
  * (days 14 to 20 of the plan), and its one group meets `dayAfterStart` days
  * into each week, so the group's week 3 session is two days after the seed.
- * 15 rather than 14 or 16 so that a run crossing midnight is still in week 3
- * with its pitching session a day or more away (never "tonight’s"), and weeks
- * 1 and 2's sessions are over.
+ * So a run that crosses midnight is still in week 3, its pitching session is
+ * still a day or more away (never "tonight’s", and pitching never closes
+ * under it), and weeks 1 and 2's sessions are over.
  *
  * `programme` is the form's one programme, an incubator; `groups` the one
  * weekly group its run meets as (with a meeting link, so no email can be
