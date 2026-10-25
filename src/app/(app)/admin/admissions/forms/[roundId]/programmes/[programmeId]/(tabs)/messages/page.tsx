@@ -49,7 +49,7 @@ export default async function ProgrammeMessagesPage({
   const programmeName = view.programmeName.trim() || run.courseTitle.trim() || "this programme";
   const reading = await updateReadingOf(db, user, run, groups);
   const [counts, loaded] = await Promise.all([
-    updateAudienceCounts(db, run, groups),
+    updateAudienceCounts(db, run, groups, null, user.uid),
     loadUpdatesFor(db, run, reading, groups, programmeName),
   ]);
 

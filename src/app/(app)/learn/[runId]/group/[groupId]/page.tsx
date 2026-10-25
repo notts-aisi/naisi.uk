@@ -323,7 +323,7 @@ export default async function GroupHomePage({
   // An archived group has no count, so no way to write to it.
   const runGroups = await loadRunGroups(db, runId);
   const [[groupCount], reading] = await Promise.all([
-    updateAudienceCounts(db, access.run, runGroups, { groupIds: [groupId] }),
+    updateAudienceCounts(db, access.run, runGroups, { groupIds: [groupId] }, access.user.uid),
     updateReadingOf(db, access.user, access.run, runGroups),
   ]);
   const { updates } = await loadUpdatesFor(db, access.run, narrowToGroup(reading, groupId), runGroups);

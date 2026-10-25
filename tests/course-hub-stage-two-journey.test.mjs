@@ -1357,6 +1357,11 @@ async function weekOneUpdates() {
   u.ameliaToEveryone = await courseCall("amelia", courseRoutes.updates.POST, { runId: RUN }, {
     body: { to: "everyone", title: "Hello", message: "Hi.", email: false },
   });
+  // The incubator's lead runs its one group, so she is its one facilitator:
+  // an update to the facilitators, emailed, would be to herself.
+  u.tessToFacilitators = await courseCall("tess", courseRoutes.updates.POST, { runId: INC_RUN }, {
+    body: { to: "facilitators", title: "Notes for Monday", message: "Bring the papers.", email: true, emailCount: 1 },
+  });
   // The session card on two people's run home, and a facilitator's group page.
   u.runHome = { amara: await runHomeCardOf("amara", RUN), omar: await runHomeCardOf("omar", INC_RUN) };
   u.groupPage = (await draw(pages.group, "amelia", { runId: RUN, groupId: GROUP.A })).text;
@@ -1697,6 +1702,24 @@ async function weekThree() {
   const csv = await step("the lead downloads the attendance CSV", 200, "claudia", routes.csv.POST, of("agi"));
   seen.csv = typeof csv.body === "string" ? csv.body : null;
   await lookAround("the end of week 3");
+
+  // An admin asks the lead to run Group B as well, and she writes to the
+  // facilitators: she is one of them now, and her own email is not one the
+  // update sends (the walk of stage two's fixes, G2).
+  later();
+  const l = {};
+  seen.leadFacilitates = l;
+  l.staffed = await courseStep("an admin adds the lead to Group B's facilitators", 200, "zach", courseRoutes.facilitators.POST, { groupId: GROUP.B }, {
+    body: { uids: ["rahul", "sofia", "claudia"] },
+  });
+  l.offered = (await tabsOf("claudia", "agi", RUN)).messages.to.at(-1);
+  later();
+  l.posted = await post("the lead, a facilitator too, writes to the facilitators, emailed", "claudia", RUN, {
+    to: "facilitators",
+    title: "Week 4 plans",
+    message: "The same as week 3.",
+    email: true,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1772,8 +1795,8 @@ function lookAt(label) {
 /** Each run as its lead's tabs name it, and its groups as the story names them and as its people read them. */
 const RUNS = [
   // In People in groups' order: Group B meets on Tuesdays, Group A on Thursdays.
-  { runId: RUN, tabs: "lead", programme: "AGI Strategy", groups: { "Group B": "Group B", "Group A": "Group A" } },
-  { runId: INC_RUN, tabs: "incubatorLead", programme: "Research incubator", groups: { "the incubator's Group A": "Group A" } },
+  { runId: RUN, tabs: "lead", viewer: "claudia", programme: "AGI Strategy", groups: { "Group B": "Group B", "Group A": "Group A" } },
+  { runId: INC_RUN, tabs: "incubatorLead", viewer: "tess", programme: "Research incubator", groups: { "the incubator's Group A": "Group A" } },
 ];
 
 /** Who reads a run's group at one moment: every member whose own programmes put them in it, by name. */
@@ -2488,14 +2511,17 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     test("each group's count on the Messages tab is the people its facilitators' pages, rosters and registers name, and who read it as their group", () => {
       for (const label of MOMENTS) {
         const look = lookAt(label);
-        for (const { runId, tabs, programme, groups } of RUNS) {
+        for (const { runId, tabs, viewer, programme, groups } of RUNS) {
           const everyone = Object.values(groups).flatMap((name) => shownIn(look, runId, name));
           const onTheList = (names) => names.filter((name) => look.onTheList[runId].includes(uidOf[name])).length;
           const facilitators = [...new Set(Object.keys(groups).flatMap((key) => look.staffing[key]))];
+          // Never the writer's own email, and the facilitators are not offered
+          // to the one facilitator there is (the walk of stage two's fixes, G2).
+          const alone = facilitators.length === 1 && facilitators[0] === viewer;
           const expected = [
             [`Everyone on ${programme} (${everyone.length})`, onTheList(everyone)],
             ...Object.entries(groups).map(([, name]) => [`${name} (${shownIn(look, runId, name).length})`, onTheList(shownIn(look, runId, name))]),
-            [`The facilitators (${facilitators.length})`, facilitators.length],
+            ...(alone ? [] : [[`The facilitators (${facilitators.length})`, facilitators.filter((uid) => uid !== viewer).length]]),
           ];
           assert.deepEqual(look[tabs].messages.to, expected, `${label}: ${programme}`);
           // Who is placed and not yet told, as the board has them: said under
@@ -2506,7 +2532,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
             [
               waitingWords(Object.keys(groups).reduce((sum, key) => sum + notTold(key), 0), "in groups"),
               ...Object.entries(groups).map(([key, name]) => waitingWords(notTold(key), `in ${name}`)),
-              null,
+              ...(alone ? [] : [null]),
             ],
             `${label}: ${programme}, under To`,
           );
@@ -2617,15 +2643,35 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       );
     });
 
-    // Updates to the facilitators count and email every facilitator of a live
-    // group. The incubator's one group is run by its lead, so on her own tab
-    // that audience is herself (the walk of stage two, G2), while Publish
-    // never writes to her as a facilitator.
-    test("on the incubator the facilitators are its lead herself", () => {
+    // Updates to the facilitators counted and emailed every facilitator of a
+    // live group. The incubator's one group is run by its lead, so her own tab
+    // offered "The facilitators (1)", and an update to it emailed her (the
+    // walk of stage two, G2), while Publish never writes to her as a
+    // facilitator. The writer is now left out of their own update's email,
+    // and is not offered the facilitators when they are the only one.
+    test("on the incubator its lead is its one facilitator: she is not offered herself, and never emailed her own update", () => {
       for (const label of MOMENTS) {
-        assert.deepEqual(lookAt(label).incubatorLead.messages.to.at(-1), ["The facilitators (1)", 1], label);
+        assert.deepEqual(
+          lookAt(label).incubatorLead.messages.to.filter(([option]) => option.startsWith("The facilitators")),
+          [],
+          label,
+        );
         assert.deepEqual(lookAt(label).staffing["the incubator's Group A"], ["tess"], label);
       }
+      // Asked for anyway, the email has nobody to go to, and nothing is posted.
+      assert.deepEqual(short(seen.weekOne.tessToFacilitators), [400, "Nobody it’s to can be emailed yet. Turn off Also email it to post it."]);
+      assert.ok(!lookAt("the end of week 3").stored.some((update) => update.title === "Notes for Monday"));
+      // AGI Strategy's lead runs no group, and is offered all its facilitators.
+      assert.deepEqual(lookAt("the end of week 3").lead.messages.to.at(-1), ["The facilitators (4)", 4]);
+    });
+
+    test("a writer who is one facilitator among several is offered them all, and their email goes to the others", () => {
+      const l = seen.leadFacilitates;
+      assert.deepEqual(l.staffed.body, { ok: true, facilitatorUids: ["rahul", "sofia", "claudia"] });
+      // Five read it, the lead among them; four are emailed.
+      assert.deepEqual(l.offered, ["The facilitators (5)", 4]);
+      assert.deepEqual([l.posted.counted, l.posted.answer.body.email], [4, { sent: 4, held: 0, suppressed: 0, failed: 0 }]);
+      assert.deepEqual(l.posted.mail.map((mail) => mail.to).sort(), ["amelia", "rahul", "sofia", "tom"].map(address));
     });
   });
 });
