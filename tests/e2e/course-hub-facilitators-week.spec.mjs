@@ -1365,9 +1365,10 @@ test(
         activePage = facilitatorPage;
         // From the group's page, the way a facilitator is offered it: back
         // from the register (its link to the group, over its title), then the
-        // button.
+        // button. The register's own heading contains the group's name, so
+        // the wait matches the group page's heading exactly.
         await facilitatorPage.getByRole("link", { name: facilitated.name, exact: true }).click();
-        await facilitatorPage.getByRole("heading", { name: facilitated.name, level: 1 }).waitFor({ timeout: WAIT_MS });
+        await facilitatorPage.getByRole("heading", { name: facilitated.name, level: 1, exact: true }).waitFor({ timeout: WAIT_MS });
         assert.equal(new URL(facilitatorPage.url()).pathname, groupPagePath);
         await facilitatorPage.getByRole("link", { name: "Change a session", exact: true }).click();
         await facilitatorPage
