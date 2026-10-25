@@ -2282,11 +2282,14 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       // The lead's tabs name him in full, the sentence about him by the name
       // he goes by (the walk of stage two's fixes, G10).
       assert.deepEqual(b.people.find((person) => person.name === "Kofi Mensah"), { name: "Kofi Mensah", left: "Left Wed 4 Nov", marks: [[1, "excused", "finished"]], came: "0 of 1", inARow: 0 });
+      // The register names the people in the group by the name they go by,
+      // and somebody who left by his whole name, as wk-fac-group draws him
+      // (until the walk of stage three's fixes it said "Kofi": H8).
       assert.deepEqual(look.facilitators["rahul (Group B)"].register, {
         members: ["Amara", "Ella"],
         notYetTold: false,
         marks: { "week 1, finished": { Amara: "present", Ella: "present" } },
-        leavers: [{ name: "Kofi", left: "Left Wed 4 Nov", marks: { w01: "excused" } }],
+        leavers: [{ name: "Kofi Mensah", left: "Left Wed 4 Nov", marks: { w01: "excused" } }],
       });
       assert.deepEqual(look.lead.overview.attention, [["left", "Kofi Mensah left on Wed 4 Nov", "Kofi’s off Group B’s register from week 2."]]);
       assert.equal(look.lead.overview.people.line, "1 left. Freed places can be offered until Wed 4 Nov, the end of week 1.");

@@ -1820,14 +1820,15 @@ describe("stage three of the course hub, one term from week 3 to after its end",
           "Group A,Mei Tanaka,Present,Excused,Present,,,,2,3,\n" +
           "Group A,Noah Bennett,Present,Present,Absent,,,,2,3,",
       );
-      // The register names people by the name they go by; the grid and
-      // wk-fac-group by their whole names (H8).
+      // The register names the people in the group by the name they go by,
+      // and somebody who left by their whole name, as the grid and
+      // wk-fac-group do (until the walk of stage three it said "Sam": H8).
       for (const who of ["rahul", "claudia"]) {
         const register = l().registers[who];
         assert.deepEqual(register.members, ["Amara", "Farah", "Isaac", "Kofi"], who);
-        assert.deepEqual(register.leavers, [{ name: "Sam", left: "Left Fri 13 Nov", marks: { "week 1": "present", "week 2": "absent" } }], who);
+        assert.deepEqual(register.leavers, [{ name: "Sam Whitfield", left: "Left Fri 13 Nov", marks: { "week 1": "present", "week 2": "absent" } }], who);
       }
-      assert.deepEqual(l().registers.amelia.leavers, [{ name: "Joel", left: "Left Wed 4 Nov", marks: { "week 1": "present" } }]);
+      assert.deepEqual(l().registers.amelia.leavers, [{ name: "Joel Adeyemi", left: "Left Wed 4 Nov", marks: { "week 1": "present" } }]);
     });
 
     test("his group goes on without him: Publish owes nothing, his group's roster and Rahul's update leave him out", () => {
@@ -1942,8 +1943,8 @@ describe("stage three of the course hub, one term from week 3 to after its end",
         [["Amara Okafor", "5 of 5"], ["Farah Hussain", "3 of 5"], ["Isaac Mensah", "4 of 5"], ["Kofi Asante", "3 of 5"], ["Sam Whitfield", "1 of 2"]],
       );
       assert.deepEqual(a().lead.overview.attention.map(([kind]) => kind), ["absent", "left", "left"]);
-      assert.deepEqual(a().registers.rahul.leavers.map((leaver) => [leaver.name, leaver.left]), [["Sam", "Left Fri 13 Nov"]]);
-      assert.deepEqual(a().registers.amelia.leavers.map((leaver) => [leaver.name, leaver.left]), [["Joel", "Left Wed 4 Nov"]]);
+      assert.deepEqual(a().registers.rahul.leavers.map((leaver) => [leaver.name, leaver.left]), [["Sam Whitfield", "Left Fri 13 Nov"]]);
+      assert.deepEqual(a().registers.amelia.leavers.map((leaver) => [leaver.name, leaver.left]), [["Joel Adeyemi", "Left Wed 4 Nov"]]);
     });
 
     test("the members' own calendars still run to tonight: their pages are on week 6 and claim nothing yet", () => {

@@ -4,7 +4,6 @@ import { isValidDateKey } from "@/lib/courses/weekPlan";
 import { memberCurrentWeek, resolveCalendar } from "@/lib/courses/groupResolve";
 import { readMirrorPlan, type RegisterOverride } from "@/lib/courses/attendanceMirror";
 import {
-  displayNameOf,
   gateGroupRegister,
   gateGroupRegisterRead,
   isAddressableId,
@@ -13,6 +12,7 @@ import {
   type RegisterMember,
 } from "@/lib/courses/registerAccess";
 import { didNotHappenLine, leaversOfGroup, readRunRecords } from "@/lib/courses/programmeAttendance";
+import { fullNameOfUser } from "@/lib/courses/programmeLead";
 import { readRegisterEnding, type RegisterEnding } from "@/lib/courses/registerEnding";
 import {
   resolveSessions,
@@ -141,8 +141,8 @@ export type AttendancePayload = {
    * SOMEBODY WHO LEFT THE GROUP, read only, as wk-fac-group draws "Sam
    * Whitfield, Left Fri 13 Nov": the people the lead's Attendance tab lists
    * in this group as having left (`leaversOfGroup`, the grid's own rule, so
-   * the two agree), name-sorted, each with the marks this group's registers
-   * hold for them. They are NOT rows of the register: nobody can mark them
+   * the two agree), by their whole names as the lead's tabs name them,
+   * name-sorted, each with the marks this group's registers hold for them. They are NOT rows of the register: nobody can mark them
    * (a write's marks are checked against `members`), they count in no tally,
    * and nothing chases a session after they left, which is blank.
    */
@@ -173,7 +173,11 @@ export type AttendancePayload = {
 /** Somebody who left the group, as the register lists them: read only. */
 export type AttendanceLeaver = {
   uid: string;
-  /** Their name, as the register names everybody: never an address. */
+  /**
+   * Their whole name, as the lead's tabs and wk-fac-group name somebody who
+   * left: never an address. The register's own rows keep the name each
+   * person goes by.
+   */
   displayName: string;
   /** "Left Fri 13 Nov", or "Left" when the day is not on record. */
   left: string;
@@ -640,7 +644,7 @@ export async function GET(
   const leavers: AttendanceLeaver[] = leaving
     .map((leaver) => ({
       uid: leaver.uid,
-      displayName: displayNameOf(runRecords?.accounts.get(leaver.uid) ?? {}),
+      displayName: fullNameOfUser(runRecords?.accounts.get(leaver.uid) ?? {}),
       left: leaver.left,
       records: leaverMarks.get(leaver.uid) ?? {},
     }))
