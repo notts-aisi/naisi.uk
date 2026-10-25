@@ -28,8 +28,10 @@
  *  3. NO MESSAGE IS MADE BESIDE IT. No email template names it, only the
  *     weekly email's builder may (it asks whether there is one, to say
  *     Online), and no message composer names it, the room notice's included.
- *  4. NO COPY PROMISES IT BY EMAIL, and the room notice's online wording, as
- *     drawn, says where the link is.
+ *  4. NO COPY PROMISES IT BY EMAIL.
+ *
+ * The room notice's online wording, rendered, is held in
+ * `tests/course-hub-sessions-pages.test.mjs`.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -38,7 +40,6 @@ import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { walkSource } from "./lib/functionScan.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
-import { createLoader } from "./lib/tsLoader.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(REPO_ROOT, "src");
@@ -224,42 +225,5 @@ describe("4. no copy promises the link by email", () => {
       assert.match(code, /\{LINK_IS_HERE\}/, `${file} no longer says the link is not in any email`);
       assert.match(code, /LINK_WILL_BE_HERE/, `${file} no longer says where a missing link will be`);
     }
-  });
-
-  test("the room notice's online wording, as drawn, says where the link is and carries none", async () => {
-    const { loadTs } = createLoader({
-      stubs: new Map([
-        ["./RoomNoticeComposer.module.css", "export default {};"],
-        ["@/components/ui/ActionToast", "export default () => null; export function useActionToast() { return {}; }"],
-        ["@/components/ui/Button", "export default () => null;"],
-        ["@/components/ui/Card", "export default () => null;"],
-        ["@/components/ui/CountedTextarea", "export default () => null;"],
-        ["@/components/ui/Input", "export function Field() { return null; }"],
-        ["@/components/ui/Modal", "export default () => null;"],
-        ["@/components/ui/Skeleton", "export default () => null;"],
-        ["./useGroupWeeks", "export function groupNoticeUrl() { return ''; }"],
-        ["./useGroupRoster", "export function useGroupRoster() { return {}; }"],
-        ["next/link", "export default () => null;"],
-      ]),
-    });
-    const { prefillFor } = await loadTs("features/courses/RoomNoticeComposer.tsx");
-    const online = prefillFor({ weekLabel: "Week 6", slotLabel: "Mondays 18:00–20:00", mode: "virtual", location: "Hallward B12" });
-    assert.equal(
-      online,
-      "Week 6: we're meeting online this week rather than in person. The link to join is on your programme page, not in your emails. We're still meeting Mondays 18:00–20:00.",
-    );
-    // A link handed to it anyway, the way the old page did, is not read.
-    const handed = prefillFor({
-      weekLabel: "Week 6",
-      slotLabel: "",
-      mode: "virtual",
-      location: "",
-      meetingUrl: "https://meet.example/abc-defg-hij",
-    });
-    assert.ok(!handed.includes("meet.example"), handed);
-    assert.equal(
-      prefillFor({ weekLabel: "Week 4", slotLabel: "", mode: "in-person", location: "Portland A13" }),
-      "Week 4: we're meeting in person this week. We're in Portland A13.",
-    );
   });
 });

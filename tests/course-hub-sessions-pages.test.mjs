@@ -30,32 +30,25 @@
  */
 import { beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { walkSource } from "./lib/functionScan.mjs";
 import { AGI, AWAY, B, C, LINK, ROUND, RUN, TUE_24, makeSessionsWorld } from "./lib/sessionsWorld.mjs";
 
 const ui = { h: createElement };
 globalThis.__sessionsPagesUi = ui;
 const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(name) });";
-const STYLESHEETS = [
-  "./editor.module.css",
-  "@/features/applications/editor/editor.module.css",
-  "./ProgrammeFrame.module.css",
-  "./kit.module.css",
-  "@/features/applications/kit/kit.module.css",
-  "./GroupsViews.module.css",
-  "./SessionsBoard.module.css",
-  "./InitialsChip.module.css",
-  "./Chip.module.css",
-  "./Button.module.css",
-  "./Input.module.css",
-  "./Select.module.css",
-  "./Card.module.css",
-  "./SessionCard.module.css",
-  "./Updates.module.css",
-  "@/features/courses/updates/Messages.module.css",
-];
+const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
+/** Every stylesheet any file under `src` imports, by the specifier it is imported by. */
+const STYLESHEETS = new Set();
+for (const file of walkSource(SRC)) {
+  for (const [, specifier] of readFileSync(file, "utf8").matchAll(/from\s+"([^"]+\.module\.css)"/g)) {
+    STYLESHEETS.add(specifier);
+  }
+}
 /** A card of the group page this suite is not about: it draws its name. */
 const CARD = (name) => `export default function ${name}() { return globalThis.__sessionsPagesUi.h("div", null, "[${name}]"); }`;
 
@@ -74,7 +67,10 @@ const w = await makeSessionsWorld("__sessionsPages", [
   ["./session", "export async function getCurrentUser() { return globalThis.__sessionsPages.user; }"],
   ["@/features/courses/GroupRoster", CARD("GroupRoster")],
   ["@/features/courses/AttendanceGrid", CARD("AttendanceGrid")],
-  ...STYLESHEETS.map((path) => [path, CLASS_NAMES]),
+  // The room notice's own data, which a server render never fetches.
+  ["./useGroupRoster", "export function useGroupRoster() { return { memberCount: 3, loading: false, error: null, notYetTold: false, reload() {} }; }"],
+  ["./useGroupWeeks", "export function groupNoticeUrl(groupId) { return `/api/courses/groups/${groupId}/notice`; }"],
+  ...[...STYLESHEETS].map((path) => [path, CLASS_NAMES]),
 ]);
 const { world, loadTs, press, at } = w;
 
@@ -87,6 +83,7 @@ const { default: ChangeSessionDialog } = await loadTs(join("features", "courses"
 const { default: SessionCard } = await loadTs(join("features", "courses", "SessionCard.tsx"));
 const { default: SessionNotice } = await loadTs(join("features", "courses", "sessionChange", "SessionNotice.tsx"));
 const cardFacts = await loadTs(join("features", "courses", "sessionChange", "cardFacts.ts"));
+const roomNotice = await loadTs(join("features", "courses", "RoomNoticeComposer.tsx"));
 const overview = await w.courseRoute("runs", "[runId]", "overview");
 
 const PAGE_PATH = `/admin/admissions/forms/${ROUND}/programmes/${AGI}`;
@@ -614,5 +611,45 @@ describe("4. what the group's people read after each kind of change", () => {
     assert.ok(said.includes(AWAY));
     assert.doesNotMatch(said, /Hallward B12/);
     assert.equal(cardFacts.cancelledIn(group, 5), null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. The room notice (Q23)
+// ---------------------------------------------------------------------------
+
+describe("5. the room notice never carries the meeting link", () => {
+  test("its online wording says where the link is, and a link handed to it anyway is not read", () => {
+    const online = roomNotice.prefillFor({
+      weekLabel: "Week 6",
+      slotLabel: "Mondays 18:00–20:00",
+      mode: "virtual",
+      location: "Hallward B12",
+    });
+    assert.equal(
+      online,
+      "Week 6: we're meeting online this week rather than in person. The link to join is on your programme page, not in your emails. We're still meeting Mondays 18:00–20:00.",
+    );
+    const handed = roomNotice.prefillFor({ weekLabel: "Week 6", slotLabel: "", mode: "virtual", location: "", meetingUrl: LINK });
+    assert.ok(!handed.includes(LINK), handed);
+    assert.equal(
+      roomNotice.prefillFor({ weekLabel: "Week 4", slotLabel: "", mode: "in-person", location: "Portland A13" }),
+      "Week 4: we're meeting in person this week. We're in Portland A13.",
+    );
+  });
+
+  test("the composer drawn for an online week offers that wording, and no link", () => {
+    const html = renderToStaticMarkup(
+      createElement(roomNotice.default, {
+        groupId: B,
+        groupName: "Group B",
+        groupHref: GROUP_PATH(B),
+        session: { weekLabel: "Week 6", slotLabel: "Tuesdays 18:00–20:00", mode: "virtual", location: "Hallward B12" },
+      }),
+    );
+    const said = text(html);
+    assert.ok(said.includes("The link to join is on your programme page, not in your emails."), said);
+    assert.ok(said.includes("Written from this week being online. It says where the joining link is, and never carries the link."), said);
+    assert.doesNotMatch(said, /Join here|send the joining link|carries the joining link/);
   });
 });
