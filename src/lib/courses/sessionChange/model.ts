@@ -3,7 +3,7 @@ import { resolveCalendar } from "../groupResolve";
 import { resolveSessions, sessionRange, type ResolvedSession, type SessionGroup } from "../sessions";
 import type { SessionChange } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
-import { PUSHED_BREAK_LABEL } from "./words";
+import { PUSHED_BREAK_LABEL, coversLine, noticeCancelledLine, noticeKeepPaceLine } from "./words";
 
 /**
  * CHANGING ONE WEEK'S SESSION (Q25), as arithmetic: which session a change is
@@ -236,6 +236,74 @@ export function sessionNoticeFor(
     (s) => !s.cancelled && s.dateKey !== "" && s.dateKey >= todayKey && s.dateKey < first.dateKey,
   );
   return heldBefore ? null : first;
+}
+
+/**
+ * WHAT A GROUP'S SESSION CARD SAYS ABOUT CHANGED SESSIONS, worked out once per
+ * group from the sessions the card is already built from: the weeks, room and
+ * link of the next session it names, the notice to show, and the sessions
+ * that are off. `next` is `sessionRange`'s, which never names a cancelled
+ * session. The link is the caller's to withhold: this hands over what the
+ * resolved session carries.
+ */
+export function cardChangeFacts(
+  sessions: readonly ResolvedSession[],
+  group: Pick<SessionGroup, "sessionChanges">,
+  next: ResolvedSession | null,
+  todayKey: string,
+): {
+  next: { weekNumbers: number[]; location: string; meetingUrl: string | null } | null;
+  notice: SessionNotice | null;
+  cancelled: { weekNumber: number; dateKey: string; reason: string }[];
+} {
+  return {
+    next: next
+      ? {
+          weekNumbers: coveredWeeks(sessions, next),
+          location: next.session.location,
+          meetingUrl: next.session.meetingUrl,
+        }
+      : null,
+    notice: sessionNoticeFor(sessions, group, todayKey),
+    cancelled: sessions
+      .filter((session) => session.cancelled)
+      .map((session) => ({
+        weekNumber: session.weekNumber,
+        dateKey: session.dateKey,
+        reason: group.sessionChanges?.[session.weekId]?.reason ?? "",
+      })),
+  };
+}
+
+/**
+ * WHAT NEXT WEEK'S EMAIL SAYS ABOUT A CHANGED SESSION (Q25): "Cancelling or
+ * moving a session rewrites its email" (wk-messages). A moved session and an
+ * online one need no words of their own: the email's day, time and room are
+ * the week's own (`resolveSessions` applies the move) and an online week's
+ * place is "Online" (never the link). What does:
+ *
+ *  - a CANCELLED session: the email about it says it is off, why, and when
+ *    the group meets next, in the words the programme page uses, and drops
+ *    its sentence about when and where the group meets;
+ *  - the session AFTER one, which covers both weeks: says so.
+ *
+ * "" when nothing about the session changed.
+ */
+export function nextWeekChangeLine(
+  sessions: readonly ResolvedSession[],
+  group: Pick<SessionGroup, "sessionChanges">,
+  session: ResolvedSession,
+): string {
+  if (session.cancelled) {
+    const reason = group.sessionChanges?.[session.weekId]?.reason ?? "";
+    const next = nextHeldAfter(sessions, session);
+    return `${noticeCancelledLine(session.dateKey, reason)} ${noticeKeepPaceLine(
+      session.weekNumber,
+      next ? { dateKey: next.dateKey, weekNumbers: coveredWeeks(sessions, next) } : null,
+    )}`;
+  }
+  const covers = coveredWeeks(sessions, session);
+  return covers.length > 1 ? coversLine(session.dateKey, covers) : "";
 }
 
 /** The session a group holds on a day of a range, the week's first: what the Sessions view draws. */

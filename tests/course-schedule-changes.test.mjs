@@ -2462,8 +2462,16 @@ test("GUARD — virtual/in-person reaches the member, on the card and in the ema
     SESSION_CARD,
     /const showJoin = mode !== "in-person" && Boolean\(meetingUrl\);/,
   );
-  // Honest fallbacks rather than an empty card, in both directions.
-  assert.match(SESSION_CARD, /Online this week — your facilitator will send the joining link\./);
+  // Honest fallbacks rather than an empty card, in both directions. The online
+  // one says the link will be on the card, and never that anybody will send
+  // it: the link lives on the site only, behind sign-in (Q23), so the old
+  // "your facilitator will send the joining link" is gone for good.
+  assert.match(SESSION_CARD, /`Online this week\. \$\{LINK_WILL_BE_HERE\}`/);
+  assert.match(
+    src("lib", "courses", "sessionChange", "words.ts"),
+    /export const LINK_WILL_BE_HERE = "The link to join will be here, not in your emails\.";/,
+  );
+  assert.doesNotMatch(SESSION_CARD, /send the joining link/);
   assert.match(SESSION_CARD, /In person this week — your facilitator will confirm the room\./);
 
   // THE PII GATE IS UNTOUCHED. `mode` is a display fact; it grants nobody the

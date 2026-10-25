@@ -486,6 +486,11 @@ export function noticePushedLine(weekNumber: number, newDateKey: string): string
     : `Week ${weekNumber} and every session after it move back a week.`;
 }
 
+/** Next week's email about a session that covers an earlier, cancelled week too. */
+export function coversLine(dateKey: string, weekNumbers: readonly number[]): string {
+  return `On ${dayWords(dateKey)} you’ll talk about ${weeksWords(weekNumbers)} together.`;
+}
+
 /** The card for a session that covers more than its own week: "Tue 1 Dec · weeks 4 and 5". */
 export function coversWords(dateKey: string, weekNumbers: readonly number[]): string {
   return `${dayWords(dateKey)} · ${weeksWords(weekNumbers)}`;
@@ -505,3 +510,9 @@ export const JOIN_ONLINE = "Join online";
 
 /** An online week whose link the card cannot give: never a promise to send it. */
 export const LINK_WILL_BE_HERE = "The link to join will be here, not in your emails.";
+
+/**
+ * Where an online week's link is, in a facilitator's room notice: the notice is
+ * an email, so it says where the link is and never carries it (Q23).
+ */
+export const ONLINE_NOTICE_LINK_LINE = "The link to join is on your programme page, not in your emails.";

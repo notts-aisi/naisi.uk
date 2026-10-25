@@ -38,6 +38,7 @@ import {
 } from "@/lib/firestore/courseEnrolments";
 import {
   normalizeCourseGroup,
+  isCancelledOn,
   sessionForWeek,
   sessionModeForWeek,
   type CourseGroupDoc,
@@ -612,10 +613,11 @@ async function loadGroups(
     if (address) addressByGroupId.set(group.id, address);
     const at = address ?? runAddress;
     const session = sessionForWeek(group, at.weekId);
-    const sessionWhen = courseNudgeSessionWhen(
-      session,
-      courseNudgeSessionDateKey(at.slotStartKey, session.weekday),
-    );
+    const sessionDateKey = courseNudgeSessionDateKey(at.slotStartKey, session.weekday);
+    // A session cancelled through "Change a session" is no evening to name:
+    // the group's people get the week without a sentence about meeting.
+    if (sessionDateKey && isCancelledOn(group, at.weekId, sessionDateKey)) continue;
+    const sessionWhen = courseNudgeSessionWhen(session, sessionDateKey);
     if (!sessionWhen) continue;
     const context: SessionContext = {
       sessionWhen,

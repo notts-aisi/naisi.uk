@@ -1747,7 +1747,8 @@ export default function GroupWeekEditor({
               <>
                 Your group has no meeting link saved, so an online week would show
                 them nowhere to go. Add the link on your group&apos;s session
-                before you switch, or send it in a room notice.
+                before you switch. It goes on their programme page, never in an
+                email.
               </>
             )
           ) : location ? (

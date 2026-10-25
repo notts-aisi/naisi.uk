@@ -12,6 +12,8 @@ import { useMagneticPull } from "@/hooks/useMagneticPull";
 import FacilitatorGroupPanel from "./FacilitatorGroupPanel";
 import { weekHref } from "./links";
 import SessionCard from "./SessionCard";
+import { cancelledIn, coversTitle, nextSessionCard } from "./sessionChange/cardFacts";
+import SessionNotice from "./sessionChange/SessionNotice";
 import RunUpdates from "./updates/RunUpdates";
 import WeekRail from "./WeekRail";
 import { useRunOverview } from "./useRunOverview";
@@ -551,6 +553,9 @@ export default function RunHome({ runId, isAdmin, canEmailCohort, pitching = nul
     : 0;
   const cardSessionMode =
     cardWeekNumber >= 1 ? (group?.sessionModes[weekDocId(cardWeekNumber)] ?? null) : null;
+  // The session the group meets at next, for the card under a notice that an
+  // evening is off.
+  const nextCard = group ? nextSessionCard(group) : null;
   const target = weekTargetFor(data);
   const { headline, sub } = heroCopy(data, target);
 
@@ -643,21 +648,31 @@ export default function RunHome({ runId, isAdmin, canEmailCohort, pitching = nul
           under the page's h1, rather than a mix this page would have to invent
           an h2 to justify. */}
       <div className={`${styles.stack} ${styles.staggered}`}>
-        {group && (
-          /* Dated by THIS group's own calendar, which for the caller's own
-             placement is also the calendar the hero above was resolved from.
-             Reading it off `group.calendar` rather than off `currentWeek` is
-             what keeps that true when the two ever part company. */
-          <SessionCard
-            group={group}
-            slotStartKey={group.calendar.currentWeek?.slotStartKey ?? null}
-            mode={cardSessionMode}
-            title={
-              group.calendar.currentWeek?.phase === "before"
-                ? "Your first session"
-                : undefined
-            }
-          />
+        {group?.sessionNotice ? (
+          /* An evening is off (Q25, wk-changes): the notice, then the session
+             the group meets at next, with the weeks it covers. */
+          <>
+            <SessionNotice notice={group.sessionNotice} />
+            {nextCard && <SessionCard {...nextCard} />}
+          </>
+        ) : (
+          group && (
+            /* Dated by THIS group's own calendar, which for the caller's own
+               placement is also the calendar the hero above was resolved from.
+               Reading it off `group.calendar` rather than off `currentWeek` is
+               what keeps that true when the two ever part company. */
+            <SessionCard
+              group={group}
+              slotStartKey={group.calendar.currentWeek?.slotStartKey ?? null}
+              mode={cardSessionMode}
+              title={
+                group.calendar.currentWeek?.phase === "before"
+                  ? "Your first session"
+                  : coversTitle(group, cardWeekNumber)
+              }
+              cancelled={cancelledIn(group, cardWeekNumber)}
+            />
+          )
         )}
 
         {pitching && (

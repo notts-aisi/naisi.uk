@@ -26,6 +26,7 @@ import ExerciseSubmit from "./ExerciseSubmit";
 import MaterialCheck from "./MaterialCheck";
 import PacingBanner from "./PacingBanner";
 import SessionCard from "./SessionCard";
+import { cancelledIn } from "./sessionChange/cardFacts";
 import WeekCurriculum from "./WeekCurriculum";
 import WeekRail from "./WeekRail";
 import { saveProgressReflection, toggleProgressItem } from "./progressMutations";
@@ -519,6 +520,9 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole }: Props) 
               group={payload.group}
               slotStartKey={slotStartKey}
               mode={viewedSessionMode}
+              // The viewed week's session, when it was cancelled and the group
+              // kept pace (Q25): the card says so rather than naming a room.
+              cancelled={cancelledIn(payload.group, weekNumber)}
             />
           )}
           <WeekRail

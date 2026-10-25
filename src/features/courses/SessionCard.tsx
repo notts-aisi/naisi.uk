@@ -14,6 +14,12 @@ import {
   londonDateKey,
   londonWallClockToInstant,
 } from "@/lib/courses/weekPlan";
+import {
+  CANCELLED_CARD,
+  JOIN_ONLINE,
+  LINK_IS_HERE,
+  LINK_WILL_BE_HERE,
+} from "@/lib/courses/sessionChange/words";
 import styles from "./SessionCard.module.css";
 
 /**
@@ -58,10 +64,15 @@ import styles from "./SessionCard.module.css";
  *
  * HONEST FALLBACKS, both directions. An online week with no stored link and an
  * in-person week with no room each say so in a sentence a member can act on
- * ("your facilitator will send it") rather than rendering an empty card that
- * reads as "there is nowhere to be". The `meetingUrl` PII gate is upstream and
- * untouched: `null` here can also mean "not yours to see", and the fallback
- * copy is written so it is true either way.
+ * rather than rendering an empty card that reads as "there is nowhere to be".
+ * The online one says the link will be HERE, never that anybody will send it:
+ * the link lives on the site, behind sign-in, and no email carries it (Q23).
+ * The `meetingUrl` PII gate is upstream and untouched: `null` here can also
+ * mean "not yours to see", and the fallback copy is written so it is true
+ * either way.
+ *
+ * "Join online" carries the board's line under it (wk-changes): the link is
+ * here, not in your emails, so it can't be forwarded.
  */
 
 type SessionState = "upcoming" | "today" | "held";
@@ -82,6 +93,12 @@ type Props = {
    */
   mode: GroupSessionMode | null;
   title?: string;
+  /**
+   * The session this card is dated to was cancelled and the group kept pace
+   * (Q25): the card says so, with the reason the group was given, and offers
+   * no room and no link for an evening nobody meets.
+   */
+  cancelled?: { reason: string } | null;
 };
 
 const WALL_CLOCK = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -146,6 +163,7 @@ export default function SessionCard({
   slotStartKey,
   mode,
   title = "This week's session",
+  cancelled = null,
 }: Props) {
   const occurrence = sessionWindow(group, slotStartKey);
   const state = sessionState(occurrence, new Date());
@@ -182,9 +200,12 @@ export default function SessionCard({
   // apart is what makes the fallbacks honest rather than blank.
   const showLocation = mode !== "virtual" && Boolean(group.location);
   const showJoin = mode !== "in-person" && Boolean(meetingUrl);
-  const missing =
-    mode === "virtual" && !meetingUrl
-      ? "Online this week — your facilitator will send the joining link."
+  // Never a promise that the link will come by email (Q23): it is on the
+  // site only, so the card says where it will be.
+  const missing = cancelled
+    ? null
+    : mode === "virtual" && !meetingUrl
+      ? `Online this week. ${LINK_WILL_BE_HERE}`
       : mode === "in-person" && !group.location
         ? "In person this week — your facilitator will confirm the room."
         : null;
@@ -213,31 +234,46 @@ export default function SessionCard({
           word, so a member who remembers a room does not have to work out why
           it has gone. Nothing is shown when no mode is set — an unswitched
           week must read exactly as it did before. */}
-      {mode !== null && (
+      {cancelled && (
+        <>
+          <p className={styles.mode}>
+            <Chip tone="neutral" size="sm">
+              {CANCELLED_CARD}
+            </Chip>
+          </p>
+          {cancelled.reason && <p className={styles.note}>{cancelled.reason}</p>}
+        </>
+      )}
+      {!cancelled && mode !== null && (
         <p className={styles.mode}>
           <Chip tone={mode === "virtual" ? "accent" : "neutral"} size="sm">
             {mode === "virtual" ? "Online this week" : "In person this week"}
           </Chip>
         </p>
       )}
-      {showLocation && <p className={styles.location}>{group.location}</p>}
+      {/* A cancelled evening offers neither a room nor a link. */}
+      {!cancelled && showLocation && <p className={styles.location}>{group.location}</p>}
       {missing && <p className={styles.note}>{missing}</p>}
 
-      {state === "held" && (
+      {!cancelled && state === "held" && (
         <p className={styles.note}>This week&apos;s session has happened.</p>
       )}
 
-      {showJoin && meetingUrl && (
-        // <Button> renders a real <button> and takes no href, so a navigation
-        // target gets the styling rather than the component (the CourseCTA call).
-        <a
-          className={styles.button}
-          href={meetingUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Join the call
-        </a>
+      {!cancelled && showJoin && meetingUrl && (
+        <>
+          {/* <Button> renders a real <button> and takes no href, so a
+              navigation target gets the styling rather than the component
+              (the CourseCTA call). */}
+          <a
+            className={styles.button}
+            href={meetingUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {JOIN_ONLINE}
+          </a>
+          <p className={styles.note}>{LINK_IS_HERE}</p>
+        </>
       )}
     </Card>
   );

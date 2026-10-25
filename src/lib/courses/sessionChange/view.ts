@@ -4,7 +4,8 @@ import { readRunLead, standingUserOf, firstNameOfUser } from "@/lib/courses/prog
 import { displayNameOf } from "@/lib/courses/registerAccess";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { updateAudienceCounts } from "@/lib/courses/updates/audience";
-import { addDaysToKey, currentWeekFor, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
+import { programmeWeekNow } from "@/lib/courses/programmeAttendance";
+import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import {
   normalizeCourseGroup,
@@ -338,15 +339,16 @@ export async function loadSessionsWeek(
     requestedWeek === null
       ? -1
       : plan.findIndex((entry) => entry.kind === "week" && entry.weekNumber === requestedWeek);
-  const current = currentWeekFor(run, now);
+  // The programme's own week, asked the one way the lead's tabs ask it.
+  const current = programmeWeekNow(run, now);
   const index =
     requestedIndex >= 0
       ? requestedIndex
-      : current.phase === "running" && current.planIndex !== null
+      : current?.phase === "running" && current.planIndex !== null
         ? current.planIndex
-        : current.phase === "before"
-          ? 0
-          : plan.length - 1;
+        : current?.phase === "after"
+          ? plan.length - 1
+          : 0;
   const fromKey = addDaysToKey(run.startDate, index * 7);
   const toKey = addDaysToKey(fromKey, 6);
   const range = dayRangeWords(fromKey, toKey);
