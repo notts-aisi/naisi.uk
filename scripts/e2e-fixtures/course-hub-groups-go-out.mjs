@@ -104,10 +104,15 @@ export const SPEC = {
     ],
   },
   /**
-   * Unverified: written and not yet passed end to end with a teardown of
-   * zero, in CI. Until then its covers count for nothing in the coverage map.
+   * VERIFIED on 2026-10-25: twice against the harness's loopback server on a
+   * laptop, then in the pull request's end-to-end job (run 40194300809), in
+   * its final form: all fourteen steps ran, 45 rows existed before teardown
+   * (the form, its 3 applications and 3 decisions, the course, run, 2 groups
+   * and question set, 3 rows on the run's list, 4 enrolments, an audit row,
+   * 2 send markers, 3 subscriptions and their 3 events, 9 sends, 4 accounts
+   * and their documents), and the manifest read zero afterwards.
    */
-  status: "unverified",
+  status: "verified",
   seed: ({ runId, suppress, onState }) =>
     seedTerm({ runId, suppress, onState, point: "decisions-sent" }),
   countRows: countTerm,

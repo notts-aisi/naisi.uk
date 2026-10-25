@@ -664,18 +664,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the first application form is opened to applicants, because from then on what a lead saves here is what real people are shown.",
   },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run": {
-    reason:
-      "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId]/run is pressed by an admin naming the course run a programme places people on, who reads the outcome on the panel it redraws; tests/applications-handover-run.test.mjs executes it as every kind of caller against every kind of run.",
-    coverWhen:
-      "Before the first term's groups are formed from a hand-over, alongside the spec for the allocation board, because from then on a wrong run is where real people are put.",
-  },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/hand-over": {
-    reason:
-      "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId]/run/hand-over is pressed by an admin after decision day and answered on the panel that called it; tests/applications-handover.test.mjs executes it as every kind of caller, and tests/applications-handover-board.test.mjs executes the board, a placement and Publish after it against the same store.",
-    coverWhen:
-      "Before the first term's groups are formed from a hand-over, because that weekend is the first time the press, the board and Publish are used on real people in one sitting.",
-  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places": {
     reason:
       "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places is pressed by an admin after decision day and answered on the page that called it; tests/applications-freed-places-offer.test.mjs executes it as every kind of caller across the window's edges, and tests/applications-freed-places-journey.test.mjs takes an accepted offer through Hand over, a placement and Publish.",
@@ -856,12 +844,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the October curriculum rebuild lands, because a spec written against today's shape would be thrown away with it.",
   },
-  "/api/courses/groups/[groupId]/facilitators": {
-    reason:
-      "Courses: /api/courses/groups/[groupId]/facilitators is staff-facing, taken deliberately, and answered on the screen that called it.",
-    coverWhen:
-      "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
-  },
   "/api/courses/groups/[groupId]/notice": {
     reason:
       "Courses: /api/courses/groups/[groupId]/notice is staff-facing, taken deliberately, and answered on the screen that called it.",
@@ -898,41 +880,11 @@ const NOT_COVERED = {
     coverWhen:
       "When the October curriculum rebuild lands, because a spec written against today's shape would be thrown away with it.",
   },
-  "/api/courses/me": {
-    reason:
-      "/api/courses/me answers the signed-in member's own row, and the client-queries suite runs the reads behind it as every persona.",
-    coverWhen:
-      "When the dashboard next changes what it shows a member about their run.",
-  },
   "/api/courses/progress/[progressId]/moderate": {
     reason:
       "Learn hub: /api/courses/progress/[progressId]/moderate belongs to the curriculum surface being rebuilt in October.",
     coverWhen:
       "When the October curriculum rebuild lands, because a spec written against today's shape would be thrown away with it.",
-  },
-  "/api/courses/runs/[runId]/allocate": {
-    reason:
-      "Courses: /api/courses/runs/[runId]/allocate is staff-facing, taken deliberately, and answered on the screen that called it.",
-    coverWhen:
-      "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
-  },
-  "/api/courses/runs/[runId]/allocation": {
-    reason:
-      "Courses: /api/courses/runs/[runId]/allocation is staff-facing, taken deliberately, and answered on the screen that called it.",
-    coverWhen:
-      "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
-  },
-  "/api/courses/runs/[runId]/allocation/publish": {
-    reason:
-      "Courses: /api/courses/runs/[runId]/allocation/publish is staff-facing, taken deliberately, and answered on the screen that called it.",
-    coverWhen:
-      "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
-  },
-  "/api/courses/runs/[runId]/allocation/publish/test": {
-    reason:
-      "Courses: /api/courses/runs/[runId]/allocation/publish/test is staff-facing, taken deliberately, and answered on the screen that called it.",
-    coverWhen:
-      "When a spec drives the allocation board's Publish, since the test is pressed on that board before every Publish and the spec would press it first.",
   },
   "/api/courses/runs/[runId]/applications": {
     reason:
@@ -1048,12 +1000,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the October curriculum rebuild lands, because a spec written against today's shape would be thrown away with it.",
   },
-  "/api/courses/runs/[runId]/facilitators": {
-    reason:
-      "Course hub: /api/courses/runs/[runId]/facilitators is a read for the Facilitators view of a programme's Groups tab; its every caller, its names-only payload and its two gates are executed by tests/course-hub-lead-routes.test.mjs.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a term whose decisions have been sent, with a programme naming a run and its lead signed in.",
-  },
   "/api/courses/runs/[runId]/material-notes": {
     reason:
       "Learn hub: /api/courses/runs/[runId]/material-notes belongs to the curriculum surface being rebuilt in October.",
@@ -1075,12 +1021,6 @@ const NOT_COVERED = {
   "/api/courses/runs/[runId]/nudge": {
     reason:
       "Courses: /api/courses/runs/[runId]/nudge is staff-facing, taken deliberately, and answered on the screen that called it.",
-    coverWhen:
-      "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
-  },
-  "/api/courses/runs/[runId]/overview": {
-    reason:
-      "Courses: /api/courses/runs/[runId]/overview is staff-facing, taken deliberately, and answered on the screen that called it.",
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
@@ -1111,12 +1051,6 @@ const NOT_COVERED = {
   "/api/courses/runs/[runId]/roles": {
     reason:
       "Courses: /api/courses/runs/[runId]/roles is staff-facing, taken deliberately, and answered on the screen that called it.",
-    coverWhen:
-      "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
-  },
-  "/api/courses/runs/[runId]/status": {
-    reason:
-      "Courses: /api/courses/runs/[runId]/status is staff-facing, taken deliberately, and answered on the screen that called it.",
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
@@ -1528,18 +1462,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed a programme that names a running run with groups, with its lead signed in.",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/times": {
-    reason:
-      "Course hub: the Times view of a programme's Groups tab (the times picture, moved here from the tab's own address) is read only; its counting, every caller and every state are executed by tests/course-hub-times-counting.test.mjs and tests/course-hub-times-page.test.mjs, and it was checked by hand at 1440 and 390.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a term whose decisions have been sent, because only then does anybody hold a place for the picture to count.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/facilitators": {
-    reason:
-      "Course hub: the Facilitators view, where a programme's lead or an admin staffs the run's groups through the facilitators route; the page's every caller is executed by tests/course-hub-lead-pages.test.mjs and its routes by tests/course-hub-lead-routes.test.mjs, and it was checked by hand at 1440 and 390.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a programme that names a run with groups, with its lead signed in.",
-  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance": {
     reason:
       "Course hub: every register of the run a programme names as one grid (wk-attendance), read only, for its lead and admins; the grid's marks and counts and the page's every caller are executed by tests/course-hub-attendance.test.mjs, and its place among the programme's tabs by tests/course-hub-lead-pages.test.mjs.",
@@ -1570,12 +1492,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed an incubator run that Publish has told, with a published pitching week or an agenda the form asked people to rank, and its lead signed in.",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
-    reason:
-      "Application forms: /(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup is a programme's settings, and a fault in it is seen by the lead or admin using it.",
-    coverWhen:
-      "When the first application form is opened to applicants, alongside the spec that walks an applicant through it.",
-  },
   "/(app)/admin/courses": {
     reason:
       "Course authoring: /(app)/admin/courses is admin-only, and a mistake there is visible to its author before a member reaches it.",
@@ -1591,18 +1507,6 @@ const NOT_COVERED = {
   "/(app)/admin/courses/[courseId]/page": {
     reason:
       "Course authoring: /(app)/admin/courses/[courseId]/page is admin-only, and a mistake there is visible to its author before a member reaches it.",
-    coverWhen:
-      "When a second person authors a course, because the cover today is the author reading back their own screen.",
-  },
-  "/(app)/admin/courses/[courseId]/runs/[runId]": {
-    reason:
-      "Course authoring: /(app)/admin/courses/[courseId]/runs/[runId] is admin-only, and a mistake there is visible to its author before a member reaches it.",
-    coverWhen:
-      "When a second person authors a course, because the cover today is the author reading back their own screen.",
-  },
-  "/(app)/admin/courses/[courseId]/runs/[runId]/allocation": {
-    reason:
-      "Course authoring: /(app)/admin/courses/[courseId]/runs/[runId]/allocation is admin-only, and a mistake there is visible to its author before a member reaches it.",
     coverWhen:
       "When a second person authors a course, because the cover today is the author reading back their own screen.",
   },
@@ -1671,18 +1575,6 @@ const NOT_COVERED = {
       "Events authoring: /(app)/events/manage/new is committee-facing, and a failure surfaces on the editor that caused it.",
     coverWhen:
       "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
-  },
-  "/(app)/learn": {
-    reason:
-      "Learn hub: /(app)/learn is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
-    coverWhen:
-      "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
-  },
-  "/(app)/learn/[runId]": {
-    reason:
-      "Learn hub: /(app)/learn/[runId] is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
-    coverWhen:
-      "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
   },
   "/(app)/learn/[runId]/admissions": {
     reason:
