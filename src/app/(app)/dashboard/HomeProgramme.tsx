@@ -1,62 +1,66 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import Chip from "@/components/ui/Chip";
-import InitialsChip from "@/components/ui/InitialsChip";
 import PageHead from "@/components/ui/PageHead";
 import ProgressBar from "@/components/ui/ProgressBar";
 import Skeleton from "@/components/ui/Skeleton";
+import { useAuth } from "@/auth/AuthProvider";
 import type { MyRunEntry } from "@/app/api/courses/me/route";
-import type { OverviewGroup, OverviewPayload } from "@/app/api/courses/runs/[runId]/overview/route";
 import { weekHref } from "@/features/courses/links";
-import { cancelledIn } from "@/features/courses/sessionChange/cardFacts";
+import { ticketFacts } from "@/features/courses/sessionChange/cardFacts";
 import { useRunOverview } from "@/features/courses/useRunOverview";
-import { useRunProgress } from "@/features/courses/useRunProgress";
 import { useWeek } from "@/features/courses/useWeek";
+import SessionTicket from "@/features/courses/weekly/SessionTicket";
+import TickRows, { tickItemsOf } from "@/features/courses/weekly/TickRows";
+import YourGroup from "@/features/courses/weekly/YourGroup";
+import { useMaterialTicks } from "@/features/courses/weekly/useMaterialTicks";
+import weekly from "@/features/courses/weekly/weekly.module.css";
 import { endedPart } from "@/lib/courses/finishing/words";
-import { weekDocId, type Material } from "@/lib/firestore/courses";
-import { ArrowRight, Check, External } from "./icons";
-import { aboutMinutes, nameList, safeHttpUrl } from "./homeWords";
-import NextSession, { sessionFacts } from "./NextSession";
+import {
+  BEFORE_FIRST_SESSION,
+  BEFORE_TODAY,
+  BEFORE_TONIGHT,
+  BEFORE_YOUR_SESSION,
+  doneWords,
+  groupHoursWords,
+  homeEyebrow,
+  hoursWords,
+  notUpYetWords,
+  openWeekWords,
+  sessionEyebrow,
+  tonightWord,
+  weekTitleWords,
+} from "@/lib/courses/memberPageWords";
+import { dayWords } from "@/lib/courses/sessionChange/words";
+import { londonDateKey } from "@/lib/courses/weekPlan";
+import { weekDocId } from "@/lib/firestore/courses";
+import { ArrowRight } from "./icons";
+import { firstName } from "./homeWords";
 import styles from "./home.module.css";
 
 /**
- * Home for a member on a programme: their next session, this week's reading
- * and their own attendance.
+ * HOME FOR A MEMBER ON A PROGRAMME (board wk-home-phone): their next session,
+ * the reading before it to tick, their group, and the events coming up.
  *
- * Everything here is read through what the programme's own pages already
- * read: `/api/courses/runs/[runId]/overview` for the run, the group, the next
- * session and the member's own register marks; the week's document for its
- * reading; and the member's own ticks.
+ * Everything here is read through what the programme's own pages read:
+ * `/api/courses/runs/[runId]/overview` for the run, the group and the next
+ * session; the week's document for its reading; the member's own ticks; and
+ * the group's roster route for its names.
  *
- * A READING IS TICKED ON THE WEEK'S PAGE, NOT HERE. Home shows which are done
- * and links to each one, and "Open week 3" is where ticking, notes and the
- * exercises are. Nothing on Home writes.
+ * A READING TICKED ON HOME IS TICKED ON ITS WEEK (C33, as drawn): the boxes
+ * here write through `useMaterialTicks`, the week page's own path, so a tick
+ * here and a tick on the week's page are the same record of the same item.
+ * Only somebody taking part, on an active enrolment, ticks.
+ *
+ * WHAT IS NOT HERE, though the board draws it: "Add to calendar" and "Can’t
+ * make it" on the ticket (neither feature exists yet). The member's marks are
+ * on their programme's own page, with no count (C26), and not on Home, which
+ * the board draws without them.
  */
 
-const KIND_LABEL: Record<Material["type"], string> = {
-  reading: "Reading",
-  video: "Video",
-  link: "Link",
-  note: "Note",
-};
-
-/** The week Home is about: this week, week 1 before the start, none after the end. */
-function weekInHand(overview: OverviewPayload): { weekNumber: number; published: boolean } | null {
-  const current = overview.currentWeek;
-  if (!current || current.phase === "after") return null;
-  const number =
-    current.phase === "before"
-      ? 1
-      : (current.weekNumber ?? (current.anchorWeekNumber > 0 ? current.anchorWeekNumber : null));
-  if (number === null || number < 1) return null;
-  const doc = overview.weeks.find((w) => w.weekNumber === number);
-  return { weekNumber: number, published: doc?.published === true };
-}
-
-/** "AGI Strategy Fellowship · Group B · week 3 of 6", from what is known. */
-function headLine(entry: MyRunEntry): { long: string; short: string } {
+/** "AGI Strategy Fellowship · Group B · week 3 of 6", and the shorter "AGI Strategy · week 3 of 6". */
+function headLine(entry: MyRunEntry, programmeName: string): { long: string; short: string } {
   const week = entry.currentWeek;
   const number = week ? (week.weekNumber ?? week.anchorWeekNumber) : 0;
   // After the last week: "finished" only where the member's own finished
@@ -74,10 +78,9 @@ function headLine(entry: MyRunEntry): { long: string; short: string } {
               ? `week ${number} of ${entry.totalWeeks}`
               : `week ${number}`
             : "starting this week";
-  const parts = [entry.groupName, weekPart].filter(Boolean);
   return {
-    long: [entry.courseTitle, ...parts].filter(Boolean).join(" · "),
-    short: parts.join(" · "),
+    long: [entry.courseTitle, entry.groupName, weekPart].filter(Boolean).join(" · "),
+    short: homeEyebrow(programmeName, weekPart),
   };
 }
 
@@ -94,44 +97,51 @@ type Slots = {
   more: ReactNode;
 };
 
-export default function HomeProgramme({
-  given,
-  invite,
-  entry,
-  comingUp,
-  applications,
-  more,
-}: Slots) {
+export default function HomeProgramme({ given, invite, entry, comingUp, applications, more }: Slots) {
+  const { user } = useAuth();
   const { data, error } = useRunOverview(entry.runId);
-  const head = headLine(entry);
-
-  const target = data ? weekInHand(data) : null;
-  const weekSource = data
-    ? {
-        groupId: data.enrolment?.groupId ?? data.group?.id ?? null,
-        forkedWeekIds: data.forkedWeekIds,
-      }
-    : null;
-  // An unpublished week is not asked for: a learner may not read one.
-  const week = useWeek(
-    entry.runId,
-    target?.published ? weekDocId(target.weekNumber) : "",
-    false,
-    weekSource,
-  );
-  const progress = useRunProgress(entry.runId);
-
-  const materials = week.status === "ready" && week.week ? week.week.materials : [];
-  const counted = materials.filter((m) => !m.optional);
-  const isDone = (id: string) => progress.byItemId.get(id)?.completed === true;
-  const doneCount = counted.filter((m) => isDone(m.id)).length;
-  const left = counted.filter((m) => !isDone(m.id));
-  const leftMinutes = left.reduce((sum, m) => sum + (m.estimatedMinutes ?? 0), 0);
-  const ticksKnown = !progress.loading && !progress.error;
+  const [tickFailed, setTickFailed] = useState(false);
+  const head = headLine(entry, data?.programme?.name || entry.courseTitle);
 
   const group = data?.group ?? null;
-  const facts = group ? sessionFacts(group) : null;
+  const facts = group ? ticketFacts(group) : null;
+  const learner = data?.enrolment?.role === "learner" ? data.enrolment : null;
+
+  // The reading before the next session: that session's own week, which is
+  // open by the rule that it opens straight after the session before it.
+  const weekNumber = facts?.weekNumber ?? 0;
+  const schedule = data?.weekSchedule.find((week) => week.weekNumber === weekNumber) ?? null;
+  const doc = data?.weeks.find((week) => week.weekNumber === weekNumber) ?? null;
+  const readable = schedule?.open === true;
+  const weekSource = data
+    ? { groupId: data.enrolment?.groupId ?? data.group?.id ?? null, forkedWeekIds: data.forkedWeekIds }
+    : null;
+  // An unopened or unpublished week is not asked for: a learner may not read one.
+  const week = useWeek(entry.runId, readable ? weekDocId(weekNumber) : "", false, weekSource);
+  const ticks = useMaterialTicks(entry.runId, user?.uid ?? null, weekNumber, learner?.status === "active");
+
   const runHref = `/learn/${encodeURIComponent(entry.runId)}`;
+  const todayKey = londonDateKey(new Date());
+  const isToday = facts !== null && facts.dateKey === todayKey;
+  const isFirst = facts !== null && facts.dateKey === (group?.calendar.firstSessionDate ?? "");
+  const facilitators = (group?.facilitatorNames ?? []).map((name, index) => ({
+    uid: `${group?.id ?? "group"}-${index}`,
+    name,
+    firstName: firstName(name) || name,
+  }));
+
+  const counted = doc?.countableIds ?? [];
+  const done = counted.filter((id) => ticks.isDone(id)).length;
+  const ticksKnown = !ticks.loading && !ticks.error;
+  const beforeTitle = !facts
+    ? BEFORE_YOUR_SESSION
+    : isToday
+      ? tonightWord(facts.startTimeLocal) === "Tonight"
+        ? BEFORE_TONIGHT
+        : BEFORE_TODAY
+      : isFirst
+        ? BEFORE_FIRST_SESSION
+        : BEFORE_YOUR_SESSION;
 
   return (
     <>
@@ -157,51 +167,19 @@ export default function HomeProgramme({
       )}
 
       {data && group && facts && (
-        <NextSession
-          eyebrow={
-            entry.totalWeeks > 0
-              ? `Your next session · week ${facts.weekNumber} of ${entry.totalWeeks}`
-              : `Your next session · week ${facts.weekNumber}`
-          }
-          eyebrowShort="Next session"
+        <SessionTicket
+          home
           facts={facts}
-          people={
-            group.facilitatorNames.length > 0 ? (
-              <span className={styles.sessionPeople}>
-                <span className={styles.sessionFaces} aria-hidden="true">
-                  {group.facilitatorNames.map((name) => (
-                    <InitialsChip key={name} name={name} uid={name} size="md" />
-                  ))}
-                </span>
-                with {nameList(group.facilitatorNames)}
-              </span>
-            ) : null
-          }
-          foot={
-            target ? (
-              <>
-                <p className={styles.sessionFootLine}>
-                  {week.status === "ready" && ticksKnown
-                    ? counted.length === 0
-                      ? "Nothing to read this week."
-                      : left.length === 0
-                        ? "You’ve done this week’s reading."
-                        : `You’ve got ${left.length} ${left.length === 1 ? "reading" : "readings"} left${
-                            aboutMinutes(leftMinutes) ? `, ${aboutMinutes(leftMinutes)}` : ""
-                          }.`
-                    : target.published
-                      ? ""
-                      : `Week ${target.weekNumber} isn’t up yet.`}
-                </p>
-                {target.published && (
-                  <Link href={weekHref(entry.runId, target.weekNumber)} className={styles.textLink}>
-                    Open week {target.weekNumber}
-                    <ArrowRight />
-                  </Link>
-                )}
-              </>
-            ) : null
-          }
+          eyebrow={sessionEyebrow({
+            isToday,
+            isFirst,
+            startTimeLocal: facts.startTimeLocal,
+            weekNumbers: facts.weekNumbers,
+            home: true,
+          })}
+          heading={groupHoursWords(group.name, hoursWords(facts.startTimeLocal, facts.durationMinutes))}
+          roomChanged={schedule?.roomChanged === true}
+          facilitators={facilitators}
         />
       )}
 
@@ -223,192 +201,64 @@ export default function HomeProgramme({
 
       <div className={styles.columns}>
         <div className={styles.stack}>
-          {target && week.status === "ready" && materials.length > 0 && (
-            <section className={`${styles.card} ${styles.readingCard}`} aria-labelledby="home-reading">
-              <div className={styles.cardHead}>
-                <h2 id="home-reading" className={styles.cardTitle}>
-                  This week’s reading
+          {data && facts && weekNumber >= 1 && (
+            <section className={`${weekly.card} ${weekly.cardTight}`} aria-labelledby="home-before">
+              <div className={weekly.cardHead}>
+                <h2 id="home-before" className={weekly.cardTitle}>
+                  {beforeTitle}
                 </h2>
-                {ticksKnown && counted.length > 0 && (
-                  <span className={styles.cardCount}>
-                    {doneCount} of {counted.length} done
-                  </span>
+                {readable && ticksKnown && counted.length > 0 ? (
+                  <p className={weekly.cardCount}>{doneWords(done, counted.length)}</p>
+                ) : (
+                  !isToday && <span className={weekly.cardMeta}>{dayWords(facts.dateKey)}</span>
                 )}
               </div>
-              {ticksKnown && counted.length > 0 && (
-                <ProgressBar
-                  value={doneCount}
-                  max={counted.length}
-                  size="sm"
-                  ariaLabel="This week’s reading done"
+              <p className={`${weekly.cardLine} ${weekly.cardLineSpaced}`}>{weekTitleWords(weekNumber, doc?.title ?? "")}</p>
+              {readable && ticksKnown && counted.length > 0 && (
+                <ProgressBar value={done} max={counted.length} size="md" ariaLabel={doneWords(done, counted.length)} />
+              )}
+              {readable && week.status === "loading" && <Skeleton lines={3} height="2.5rem" ariaLabel="Loading the reading…" />}
+              {readable && week.status === "ready" && week.week && (
+                <TickRows
+                  items={tickItemsOf(week.week, false)}
+                  isDone={ticks.isDone}
+                  canTick={ticks.canTick}
+                  showTicks={learner !== null}
+                  onTick={(kind, id, next) => {
+                    void ticks.toggle(kind, id, next).then((ok) => setTickFailed(!ok));
+                  }}
+                  open="icon"
                 />
               )}
-              <ul className={styles.reading} role="list">
-                {materials.map((material) => {
-                  const done = ticksKnown && isDone(material.id);
-                  const source = material.type === "reading" ? material.author : undefined;
-                  // Only an address that parses as a web address is a link.
-                  const href = material.type === "note" ? null : safeHttpUrl(material.url);
-                  return (
-                    <li key={material.id} className={styles.readingRow}>
-                      <span
-                        className={done ? styles.tickDone : styles.tick}
-                        aria-hidden="true"
-                      >
-                        {done && <Check size={18} />}
-                      </span>
-                      <div className={styles.readingBody}>
-                        <p className={done ? styles.readingTitleDone : styles.readingTitle}>
-                          <span className={styles.srOnly}>{done ? "Done: " : "To do: "}</span>
-                          {material.title}
-                        </p>
-                        <p className={styles.readingMeta}>
-                          <Chip tone="neutral">{KIND_LABEL[material.type]}</Chip>
-                          {material.optional && <Chip tone="neutral">Optional</Chip>}
-                          {material.estimatedMinutes ? (
-                            <span className="meta">{material.estimatedMinutes} min</span>
-                          ) : null}
-                          {source && <span>{source}</span>}
-                        </p>
-                      </div>
-                      {href && (
-                        <a
-                          className={styles.textLink}
-                          href={href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Open
-                          <span className={styles.srOnly}> {material.title}</span>
-                          <External />
-                        </a>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
+              {tickFailed && (
+                <p className={weekly.tickError} role="alert">
+                  That tick didn’t save, so it has been undone. Check your connection and try again.
+                </p>
+              )}
+              {readable ? (
+                <div className={weekly.cardFootRule}>
+                  <Link href={weekHref(entry.runId, weekNumber)} className={weekly.cardLink}>
+                    {openWeekWords(weekNumber)}
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                </div>
+              ) : (
+                <p className={weekly.cardLine}>{notUpYetWords(weekNumber)}</p>
+              )}
             </section>
+          )}
+          {/* The board's order on a phone: the reading, the group, then the events. */}
+          {data && learner && group && learner.groupId === group.id && (
+            <YourGroup groupId={group.id} groupName={group.name} selfUid={user?.uid ?? null} namesOnly={false} />
           )}
           {comingUp}
         </div>
 
         <div className={styles.stack}>
-          {data?.ownAttendance && (
-            <Attendance
-              own={data.ownAttendance}
-              group={group}
-              totalWeeks={data.run.totalWeeks}
-              href={`${runHref}/progress`}
-            />
-          )}
           {applications}
           {more}
         </div>
       </div>
     </>
-  );
-}
-
-const MARK: Record<string, { letter: string; word: string }> = {
-  present: { letter: "P", word: "Present" },
-  late: { letter: "L", word: "Late" },
-  "left-early": { letter: "LE", word: "Left early" },
-  absent: { letter: "A", word: "Absent" },
-  excused: { letter: "EX", word: "Excused" },
-};
-
-/**
- * The member's own attendance: how many sessions in full, and one box a week.
- *
- * A week has a mark only once its register is finished, which the route
- * decides. A week with no finished register is a dash, never an absence. A
- * week whose session was cancelled through "Change a session" is "no
- * session", from the run's own record of the change (`cancelledIn`): such a
- * session has no register to say so.
- */
-function Attendance({
-  own,
-  group,
-  totalWeeks,
-  href,
-}: {
-  own: NonNullable<OverviewPayload["ownAttendance"]>;
-  /** Their own group's card, which carries its cancelled sessions. */
-  group: OverviewGroup | null;
-  totalWeeks: number;
-  href: string;
-}) {
-  const held = own.rollup.sessionsHeld;
-  const inFull = own.rollup.attendedInFull;
-  // The first session of each week speaks for the week's box.
-  const byWeek = new Map<number, (typeof own.sessions)[number]>();
-  for (const session of own.sessions) {
-    if (!byWeek.has(session.weekNumber)) byWeek.set(session.weekNumber, session);
-  }
-  const weeks = Array.from({ length: Math.max(0, totalWeeks) }, (_, i) => i + 1);
-
-  return (
-    <section className={styles.card} aria-labelledby="home-attendance">
-      <div className={styles.cardHead}>
-        <h2 id="home-attendance" className={styles.cardTitle}>
-          Your attendance
-        </h2>
-      </div>
-      {held > 0 ? (
-        <p className={styles.attendanceCount}>
-          <strong>
-            {inFull} of {held}
-          </strong>{" "}
-          so far
-        </p>
-      ) : (
-        <p className={styles.quiet}>
-          Your attendance appears here once your facilitator finishes each session’s register.
-        </p>
-      )}
-      {weeks.length > 0 && (
-        <ol className={styles.pips} role="list">
-          {weeks.map((n) => {
-            const session = byWeek.get(n);
-            const cancelled = group !== null && cancelledIn(group, n) !== null;
-            const mark = !cancelled && session?.held && session.status ? MARK[session.status] : null;
-            const word =
-              cancelled || (session && !session.held)
-                ? "no session"
-                : !session
-                  ? "not marked yet"
-                  : (mark?.word ?? "not marked");
-            return (
-              <li key={n} className={styles.pip}>
-                <span
-                  className={
-                    mark
-                      ? session?.status === "absent"
-                        ? styles.pipMissed
-                        : styles.pipHere
-                      : styles.pipEmpty
-                  }
-                  aria-hidden="true"
-                >
-                  {mark ? mark.letter : "-"}
-                </span>
-                <span className="meta" aria-hidden="true">
-                  W{n}
-                </span>
-                <span className={styles.srOnly}>
-                  Week {n}: {word}
-                </span>
-              </li>
-            );
-          })}
-        </ol>
-      )}
-      <div>
-        <Link href={href} className={styles.textLink}>
-          Your progress week by week
-          <ArrowRight />
-        </Link>
-      </div>
-    </section>
   );
 }
