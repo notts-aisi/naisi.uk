@@ -67,6 +67,16 @@
  * update `UPDATE_RECORD_UID` as its writer, so the pages name it for the
  * society, as they name an update whose writer's account is gone.
  *
+ * ## The third point ("week-three-unmarked")
+ *
+ * The second point read on the same day, with one difference a facilitator's
+ * week needs (`WEEK_THREE_UNMARKED`): Group A's week 3 register was never
+ * opened, so its facilitator marks it from empty and finishes it, and every
+ * other register of the first three weeks is finished. Group A is the group
+ * with two people and the meeting link, so the marks are spread over two
+ * people and an email to the group has a link it must never carry. The admin
+ * appoints Fern to Group A on the real page, as at the second point.
+ *
  * ## No term facts
  *
  * Every date is worked out from the moment the seed runs, in London: the run
@@ -107,7 +117,7 @@ import { loadSecrets } from "../../e2e/lib/env.mjs";
 const log = (msg) => console.log(`[term-seed] ${msg}`);
 
 /** The points in the term a spec can ask for, in term order. */
-export const TERM_POINTS = Object.freeze(["decisions-sent", "week-three"]);
+export const TERM_POINTS = Object.freeze(["decisions-sent", "week-three", "week-three-unmarked"]);
 
 /** The form's one programme. Fixed: a programme id is unique on its own form. */
 export const PROGRAMME_ID = "e2e-fellowship";
@@ -208,6 +218,43 @@ export const WEEK_THREE = Object.freeze({
   facilitated: "B",
   published: 3,
 });
+
+/**
+ * THE TERM THREE WEEKS IN, ONE REGISTER NOT YET MARKED: the same day of the
+ * same run as `WEEK_THREE`, the same places and the same published weeks.
+ * Group A's week 3 register was never opened (`unmarked`: no register at all,
+ * so its facilitator marks it from empty), and every register that exists is
+ * finished, so the one the facilitator finishes is the only one left. Fern is
+ * appointed to Group A (`facilitated`), the group with two people and the
+ * meeting link.
+ */
+export const WEEK_THREE_UNMARKED = Object.freeze({
+  daysIn: WEEK_THREE.daysIn,
+  places: WEEK_THREE.places,
+  marks: Object.freeze({
+    A: Object.freeze({
+      1: Object.freeze({ ada: "present", ben: "present" }),
+      2: Object.freeze({ ada: "late", ben: "absent" }),
+    }),
+    B: WEEK_THREE.marks.B,
+  }),
+  unfinished: null,
+  unmarked: Object.freeze({ group: "A", weekNumber: 3 }),
+  facilitated: "A",
+  published: WEEK_THREE.published,
+});
+
+/** What a point after decision day is seeded from, or null for decision day itself. */
+export function laterPlanOf(point) {
+  if (point === "week-three") return WEEK_THREE;
+  if (point === "week-three-unmarked") return WEEK_THREE_UNMARKED;
+  return null;
+}
+
+/** True for the one register of a plan that was saved and not finished. */
+function isUnfinishedIn(plan, groupKey, weekNumber) {
+  return Boolean(plan.unfinished) && plan.unfinished.group === groupKey && plan.unfinished.weekNumber === weekNumber;
+}
 
 /** The update the run's first week carries, to everyone, posted without an email. */
 export const EARLIER_UPDATE = Object.freeze({
@@ -811,10 +858,11 @@ function publishedWeekDoc({ state, weekNumber, at }) {
 
 /**
  * Each person's register marks in their group's weeks, oldest first, as the
- * finishing press reads them: `{ weekNumber, held, finished, status }`.
+ * finishing press reads them: `{ weekNumber, held, finished, status }`. A week
+ * the plan has no marks for has no register at all.
  */
-function registerFactsFor(state, person) {
-  const marks = WEEK_THREE.marks[person.groupKey] ?? {};
+function registerFactsFor(plan, person) {
+  const marks = plan.marks[person.groupKey] ?? {};
   return Object.keys(marks)
     .map(Number)
     .sort((a, b) => a - b)
@@ -822,7 +870,7 @@ function registerFactsFor(state, person) {
       sessionKey: weekDocId(weekNumber),
       weekNumber,
       held: true,
-      finished: !(WEEK_THREE.unfinished.group === person.groupKey && WEEK_THREE.unfinished.weekNumber === weekNumber),
+      finished: !isUnfinishedIn(plan, person.groupKey, weekNumber),
       status: marks[weekNumber][person.key] ?? null,
     }));
 }
@@ -833,7 +881,7 @@ function registerFactsFor(state, person) {
  * finished, held register from the week they joined counts; an unmarked
  * person on one counts as absent.
  */
-function rollupFor(state, person, at) {
+function rollupFor(plan, person, at) {
   const rollup = {
     sessionsHeld: 0,
     attendedInFull: 0,
@@ -844,7 +892,7 @@ function rollupFor(state, person, at) {
     lastPushedSessionKey: null,
     lastComputedAt: at,
   };
-  for (const fact of registerFactsFor(state, person)) {
+  for (const fact of registerFactsFor(plan, person)) {
     if (!fact.finished || !fact.held) continue;
     rollup.sessionsHeld += 1;
     if (fact.status === "present") rollup.attendedInFull += 1;
@@ -862,7 +910,7 @@ function rollupFor(state, person, at) {
  * the finishing presses left its tally: the fields of the allocate route, the
  * two Publish adds, and the tally.
  */
-function placementDoc({ state, person, group, at }) {
+function placementDoc({ state, plan, person, group, at }) {
   return {
     e2eTermRunId: state.termRunId,
     runId: state.runId,
@@ -876,7 +924,7 @@ function placementDoc({ state, person, group, at }) {
     joinedWeekNumber: 1,
     allocatedEmailAt: at.published,
     allocatedEmailDelivery: "sent",
-    attendance: rollupFor(state, person, at.lastFinished),
+    attendance: rollupFor(plan, person, at.lastFinished),
     createdAt: at.placed,
     updatedAt: at.lastFinished,
   };
@@ -981,13 +1029,15 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
   const target = assertFixtureTarget();
   const now = new Date();
   const todayKey = londonDateKey(now);
-  const weekThree = point === "week-three";
+  // Both later points are three weeks in, and differ only in their plan.
+  const laterPlan = laterPlanOf(point);
+  const weekThree = laterPlan !== null;
   // The moment decision day's records describe: the seed itself at the first
-  // point, and at the second the same moment of a term whose run began
-  // `WEEK_THREE.daysIn` days ago, so every record of the first point is
-  // written as it was then.
-  const anchor = weekThree ? new Date(now.getTime() - (WEEK_THREE.daysIn + START_AFTER_DAYS) * DAY_MS) : now;
-  const startDate = weekThree ? shiftDateKey(todayKey, -WEEK_THREE.daysIn) : shiftDateKey(todayKey, START_AFTER_DAYS);
+  // point, and at a later one the same moment of a term whose run began
+  // `daysIn` days ago, so every record of the first point is written as it
+  // was then.
+  const anchor = weekThree ? new Date(now.getTime() - (laterPlan.daysIn + START_AFTER_DAYS) * DAY_MS) : now;
+  const startDate = weekThree ? shiftDateKey(todayKey, -laterPlan.daysIn) : shiftDateKey(todayKey, START_AFTER_DAYS);
   const startWeekday = weekdayOf(startDate);
   const runIdValue = fixtureId("e2e-term-run", termRunId);
 
@@ -1035,7 +1085,7 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
     suppressed: [],
     ...(weekThree
       ? {
-          /** The second point's own facts, as instants and ids. */
+          /** A later point's own facts, as instants and ids. */
           weekThree: {
             publishedAt: londonWallClockToInstant(shiftDateKey(startDate, -2), "10:00").toISOString(),
             earlierUpdateId: fixtureId("e2e-term-update", termRunId),
@@ -1074,14 +1124,14 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
       state.people.push({
         ...person,
         canMake: [...plan.canMake],
-        ...(weekThree ? { groupKey: WEEK_THREE.places[plan.key] } : {}),
+        ...(weekThree ? { groupKey: laterPlan.places[plan.key] } : {}),
       });
     }
   }
 
   // Decision day's records, as of `anchor`: the seed's own moment at the
   // first point, so its records are what they always were.
-  const at = weekThree ? weekThreeInstants(state) : null;
+  const at = weekThree ? weekThreeInstants(state, laterPlan) : null;
   await fixtureDoc("courses", state.courseId).set(courseDoc({ state, now: anchor }));
   const run = runDoc({ state, now: anchor });
   await fixtureDoc("courseRuns", state.runId).set(
@@ -1113,25 +1163,25 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
     );
   }
 
-  if (weekThree) await seedWeekThree(state, at);
+  if (weekThree) await seedWeekThree(state, laterPlan, at);
 
   log(
     `Seeded form ${state.formId} (decisions sent, ${state.people.length} accepted and coming), ` +
       `course ${state.courseId}, ${weekThree ? "running" : "draft"} run ${state.runId} starting ${startDate}, ` +
       `${state.groups.length} groups, and ${plans.length} waiting accounts` +
-      (weekThree ? `; three weeks in: places told, ${WEEK_THREE.published} weeks published, registers, one update.` : "."),
+      (weekThree ? `; three weeks in: places told, ${laterPlan.published} weeks published, registers, one update.` : "."),
   );
   return state;
 }
 
-/** The instants the second point's records are dated by, from the seed's clock. */
-function weekThreeInstants(state) {
+/** The instants a later point's records are dated by, from the seed's clock. */
+function weekThreeInstants(state, plan) {
   const published = new Date(state.weekThree.publishedAt);
   const finished = [];
   for (const group of state.groups) {
-    for (const week of Object.keys(WEEK_THREE.marks[group.key] ?? {})) {
+    for (const week of Object.keys(plan.marks[group.key] ?? {})) {
       const weekNumber = Number(week);
-      if (WEEK_THREE.unfinished.group === group.key && WEEK_THREE.unfinished.weekNumber === weekNumber) continue;
+      if (isUnfinishedIn(plan, group.key, weekNumber)) continue;
       finished.push(sessionOf(group, weekNumber).endsAt.getTime() + 30 * 60_000);
     }
   }
@@ -1150,10 +1200,11 @@ function weekThreeInstants(state) {
 /**
  * What the weeks after decision day wrote, on top of decision day's records:
  * the published weeks, each person's told place and cohort row, every
- * register, and the update from week 1. See the module header.
+ * register the plan has marks for, and the update from week 1. See the module
+ * header.
  */
-async function seedWeekThree(state, at) {
-  for (let weekNumber = 1; weekNumber <= WEEK_THREE.published; weekNumber += 1) {
+async function seedWeekThree(state, plan, at) {
+  for (let weekNumber = 1; weekNumber <= plan.published; weekNumber += 1) {
     await fixtureSubcollection("courseRuns", state.runId, "weeks")
       .doc(weekDocId(weekNumber))
       .set(publishedWeekDoc({ state, weekNumber, at: at.weeksPublished }));
@@ -1161,16 +1212,16 @@ async function seedWeekThree(state, at) {
   for (const person of state.people) {
     const group = state.groups.find((each) => each.key === person.groupKey);
     await fixtureDoc("courseEnrolments", enrolmentId(state.runId, person.uid)).set(
-      placementDoc({ state, person, group, at }),
+      placementDoc({ state, plan, person, group, at }),
     );
     await fixtureDoc("subscriptions", subscriptionId(person.email, state.channel)).set(
       cohortRowDoc({ state, person, at }),
     );
   }
   for (const group of state.groups) {
-    for (const [week, marks] of Object.entries(WEEK_THREE.marks[group.key] ?? {})) {
+    for (const [week, marks] of Object.entries(plan.marks[group.key] ?? {})) {
       const weekNumber = Number(week);
-      const finished = !(WEEK_THREE.unfinished.group === group.key && WEEK_THREE.unfinished.weekNumber === weekNumber);
+      const finished = !isUnfinishedIn(plan, group.key, weekNumber);
       // `attendanceDocId` in src/lib/firestore/courseAttendance.ts, restated.
       await fixtureDoc("courseAttendance", `${state.runId}__${group.id}__${weekDocId(weekNumber)}`).set(
         registerDoc({ state, group, weekNumber, marks, finished }),
@@ -1220,11 +1271,15 @@ async function sendRowsOf(state) {
 }
 
 /**
- * The updates route's send counters on this term's run, by the ids that route
- * builds (`reserveSendSlot` and `reserveNoticeSlots` keep them in
- * `courseNudges` as `emailrate__<key>`, with no run on the row to query by):
- * each audience's daily counter, and, while the ledger holds the admin's uid,
- * the presser's own hourly ones, the test's and the post's.
+ * The send counters this term's presses leave, by the ids the routes build
+ * (`reserveSendSlot` and `reserveNoticeSlots` keep them in `courseNudges` as
+ * `emailrate__<key>`, with no run on the row to query by):
+ *  - the updates route's: each audience's daily counter, and each presser's
+ *    own hourly ones, the test's and the post's;
+ *  - a register's push throttle, one per group and presser
+ *    (`push__<groupId>__<uid>` in src/app/api/courses/groups/[groupId]/attendance/push/route.ts).
+ * The pressers are the admin, while the ledger holds the admin's uid, and the
+ * term's facilitator, who writes to their group and finishes its register.
  */
 function sendCounterIdsOf(state) {
   const audiences = [
@@ -1233,10 +1288,11 @@ function sendCounterIdsOf(state) {
     `facilitators__${state.runId}`,
   ];
   const ids = audiences.map((key) => `emailrate__updateday__${key}`);
-  if (state.adminUid) {
-    ids.push(`emailrate__updatetest__${state.runId}__${state.adminUid}`);
-    ids.push(`emailrate__updatepost__${state.runId}__${state.adminUid}`);
-    for (const key of audiences) ids.push(`emailrate__update__${key}__${state.adminUid}`);
+  for (const uid of [state.adminUid, state.facilitator?.uid].filter(Boolean)) {
+    ids.push(`emailrate__updatetest__${state.runId}__${uid}`);
+    ids.push(`emailrate__updatepost__${state.runId}__${uid}`);
+    for (const key of audiences) ids.push(`emailrate__update__${key}__${uid}`);
+    for (const group of state.groups ?? []) ids.push(`emailrate__push__${group.id}__${uid}`);
   }
   return ids;
 }
@@ -1287,6 +1343,17 @@ function reminderMarkersOf(state) {
  *  - an update, and its test: a `courseUpdates` row, the send rows (about the
  *    group, for an update to one group), and the route's send counters
  *    (`sendCounterIdsOf`).
+ *
+ * And at the third point, as its facilitator drives it:
+ *  - marking the register: the week's `courseAttendance` row (`runId` on it);
+ *  - finishing it: the row's stamp, each member's tally on `courseEnrolments`,
+ *    one `courseAudit` row, the push throttle (`sendCounterIdsOf`), and, only
+ *    while next week's email is not on its schedule and the next week is
+ *    published, that email's marker in `courseNudges` (`runId` on it) and its
+ *    send rows (`to ==` each member);
+ *  - changing a session: the group document itself;
+ *  - the update that tells the group: as an update above, with the
+ *    facilitator as the presser.
  */
 export async function countTerm(state) {
   const counts = {};
