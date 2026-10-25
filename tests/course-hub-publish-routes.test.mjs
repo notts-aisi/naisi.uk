@@ -56,9 +56,11 @@ import { session, userDoc } from "./lib/applicationsSmallTerm.mjs";
 const made = makeWorld("__hubPublish");
 const { world, reset, call, everything, lib } = made;
 const join_ = await loadJoin(made);
-const { routes, press, board, place } = join_;
+const { routes, press, board, place, rowPath } = join_;
 const words = await lib("courses", "publishWords.ts");
 const plan = await lib("courses", "allocationPublish.ts");
+/** The allocation board's rail: the function the board itself asks. */
+const tally = await lib("..", "features", "courses", "allocationTally.ts");
 /** A group's names, as its facilitator's group page reads them. */
 const roster = await made.courseRoute("groups", "[groupId]", "roster");
 
@@ -807,5 +809,77 @@ describe("6. the emails", () => {
     const rahul = await opened(realMail().find((mail) => mail.to === "rahul@example.com"));
     assert.ok(rahul.text.includes("Where: You’ll find where it meets on your group page."), rahul.text);
     await nothingToFollow(world.mail);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. Somebody who has left
+// ---------------------------------------------------------------------------
+
+describe("7. somebody who has left the run is not waited for", () => {
+  /** The board's rail, worked out by the function the board asks: accepted, placed, still to place by uid, left. */
+  async function rail(who = "zach") {
+    const shown = (await board(who)).body;
+    const columns = new Set(shown.groups.map((group) => group.id));
+    const counted = tally.boardTally(shown.people, (row) => !row.groupId || !columns.has(row.groupId));
+    return [counted.accepted, counted.placed, counted.toPlace.map((row) => row.uid), counted.left];
+  }
+
+  // Remove is a programme's lead's as well as an admin's, and changing a row
+  // from Accepted on the run's own list is an admin's alone. Until the walk of
+  // stage two's fixes (G4) Publish waited for every Accepted row to be in a
+  // group, so a lead who removed somebody could not publish again until an
+  // admin changed their row. Somebody who has left is nobody to place now.
+  test("removed by staff or withdrawn by themselves, they hold up neither the test nor the press, and the board counts them as left", async () => {
+    await placed();
+    await sendTest();
+    assert.equal((await pressNow()).status, 200);
+    // The programme's lead removes Tariq; Bea leaves the run herself, as the
+    // drop-out form leaves her enrolment (her group kept, her stamp gone).
+    const removed = await call("claudia", routes.remove.POST, { runId: RUN.agi, uid: "tariq" }, { course: true });
+    assert.equal(removed.status, 200, JSON.stringify(removed.body));
+    world.db.poke(`courseEnrolments/${RUN.agi}__bea`, { status: "withdrawn", droppedOutAt: new Date(), allocatedEmailAt: null });
+    // Both rows still say Accepted on the run's own list.
+    assert.deepEqual(["bea", "tariq"].map((uid) => world.db.read(rowPath(uid)).status), ["accepted", "accepted"]);
+    assert.deepEqual(await rail("claudia"), [4, 2, [], 2]);
+
+    // The lead asks Tom to run Group B as well: his email is owed, and
+    // nothing waits for the two who left.
+    world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia", "tom"] });
+    const shown = await summary("claudia");
+    assert.deepEqual([shown.emails, shown.people, shown.facilitators, shown.refusals], [1, 0, 1, []]);
+    const tested = await sendTest("claudia");
+    assert.deepEqual([tested.status, tested.body.emails, tested.body.recorded], [200, 1, true]);
+    const before = realMail().length;
+    const pressed = await pressNow("claudia");
+    assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
+    assert.deepEqual([pressed.body.unplaced, pressed.body.report.people.sent, pressed.body.report.facilitators.sent], [[], 0, 1]);
+    assert.deepEqual(toOf(realMail().slice(before)), ["tom@example.com"]);
+  });
+
+  test("somebody accepted with no place on the run still holds Publish, and is who the board would name", async () => {
+    await placed();
+    assert.equal((await call("zach", routes.remove.POST, { runId: RUN.agi, uid: "tariq" }, { course: true })).status, 200);
+    // Accepted on the run's own list, and never given a place: no enrolment at all.
+    world.db.seed(rowPath("nobody"), {
+      runId: RUN.agi,
+      courseId: world.db.read(`courseRuns/${RUN.agi}`).courseId,
+      uid: "nobody",
+      displayName: "Nell Carter",
+      email: "nobody@example.com",
+      status: "accepted",
+    });
+    assert.deepEqual(await rail(), [5, 3, ["nobody"], 1]);
+    await sendTest();
+    const before = everything();
+    const refused = await pressNow();
+    assert.deepEqual(refused, {
+      status: 409,
+      body: {
+        error: "1 accepted applicant is not placed in a group yet. Everyone must be placed before allocation can be published.",
+        unplaced: ["Nell Carter"],
+      },
+    });
+    assert.equal(everything(), before, "a refused press wrote something");
   });
 });

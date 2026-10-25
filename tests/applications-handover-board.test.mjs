@@ -493,6 +493,15 @@ describe("8. a place given back", () => {
     const removed = await call("zach", routes.remove.POST, { runId: RUN.agi, uid: "tariq" }, { course: true });
     assert.equal(removed.status, 200, removed.body?.error);
     assert.equal(world.db.read(`courseGroups/${GROUP.monday}`).memberCount, 0);
+    // Removed, Tariq holds Publish up no longer, though his row still says
+    // Accepted (the walk of stage two's fixes, G4): it waits for the people
+    // still to place, and names only them.
+    const waiting = await publish();
+    assert.equal(waiting.status, 409);
+    assert.deepEqual(
+      [...waiting.body.unplaced].sort(),
+      AGI_HOLDERS.filter((uid) => uid !== "tariq").map((uid) => CAST[uid].displayName).sort(),
+    );
     const decided = await call("zach", routes.decide.POST, { runId: RUN.agi, uid: "tariq" }, { body: { action: "reject" }, course: true });
     assert.equal(decided.status, 200, decided.body?.error);
     await new Promise((done) => setImmediate(done));

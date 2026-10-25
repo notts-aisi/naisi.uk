@@ -15,6 +15,7 @@ import {
   type CourseAttendanceDoc,
 } from "@/lib/firestore/courseAttendance";
 import {
+  enrolmentHasLeft,
   normalizeCourseEnrolment,
   placementIsShownTo,
   type CourseEnrolmentDoc,
@@ -334,9 +335,9 @@ export function facilitatorsOf(records: RunRecords, group: CourseGroupDoc): Stan
   return out;
 }
 
-/** True for an enrolment that has left the run: withdrawn by its owner or removed by staff. */
+/** True for an enrolment that has left the run: withdrawn by its owner or removed by staff (`enrolmentHasLeft`). */
 export function hasLeft(row: Pick<CourseEnrolmentDoc, "status">): boolean {
-  return row.status === "withdrawn" || row.status === "removed";
+  return enrolmentHasLeft(row.status);
 }
 
 /** True for an enrolment taking part: active, or completed once the run is over. */

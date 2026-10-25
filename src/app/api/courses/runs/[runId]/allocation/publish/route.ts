@@ -45,6 +45,8 @@ import { mirrorCourseDecisionToPush } from "@/lib/push/courseNotifications";
  *  1. "EVERYONE PLACED" IS A PRECONDITION. Publishing refuses (409, with
  *     names) while any accepted applicant lacks an active, grouped
  *     enrolment. Somebody with no seat would silently never be told.
+ *     Somebody who has left the run (withdrawn, or removed) is not waited
+ *     for, whatever their row on the run's list still says.
  *  2. SO IS "EVERY EMAIL CAN BE WRITTEN". Each person's email and each
  *     facilitator's is composed before anything goes, and publishing refuses
  *     (409) with sentences an admin can act on when one cannot be. NO EMAIL

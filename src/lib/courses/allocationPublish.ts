@@ -5,6 +5,7 @@ import { firstWord } from "@/lib/firestore/applicationEmails";
 import type { CourseApplicationDoc } from "@/lib/firestore/courseApplications";
 import {
   courseEnrolmentId,
+  enrolmentHasLeft,
   normalizeCourseEnrolment,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
@@ -228,7 +229,7 @@ export type PublishPlan = {
    * says to them may name one either.
    */
   incubator: boolean;
-  /** Accepted people with no active place in a group, by name. */
+  /** Accepted people with no active place in a group, by name. Never somebody who has left the run. */
   unplaced: string[];
   /** Why an email cannot be written, a sentence each. Empty when every email can be. */
   refusals: string[];
@@ -716,12 +717,26 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   // still there (the board shows somebody whose group has gone back in its
   // pool). Names come from the application's own copy: the refusal path
   // reads no account.
+  //
+  // NOBODY WHO HAS LEFT THE RUN IS WAITED FOR. An enrolment withdrawn by its
+  // owner or removed by staff (`enrolmentHasLeft`) may sit beside a row that
+  // still says Accepted, because changing that row is an admin's step, and
+  // the lead who removed them cannot take it. They are not somebody to
+  // place: the board names them as having left, and Publish neither waits
+  // for them nor writes to them. Somebody accepted with no enrolment at all
+  // is still waited for.
   const groupOf = (uid: string): CourseGroupDoc | null => {
     const e = enrolmentByUid.get(uid);
     if (!e || e.groupId === null || e.status !== "active" || !groupById.has(e.groupId)) return null;
     return groupById.get(e.groupId) ?? null;
   };
-  const unplaced = accepted.filter((row) => groupOf(row.uid) === null).map((row) => row.displayName || "NAISI member");
+  const hasLeftTheRun = (uid: string): boolean => {
+    const e = enrolmentByUid.get(uid);
+    return e !== undefined && enrolmentHasLeft(e.status);
+  };
+  const unplaced = accepted
+    .filter((row) => !hasLeftTheRun(row.uid) && groupOf(row.uid) === null)
+    .map((row) => row.displayName || "NAISI member");
 
   // How many are placed in each group, told or not: whether a group has
   // anybody in it for its facilitators to be told about at all. And how many

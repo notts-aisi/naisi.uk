@@ -264,6 +264,8 @@ const lib = {
   programmeRun: await loadTs(join("lib", "applications", "handover", "programmeRun.ts")),
   pitches: await loadTs(join("lib", "applications", "handover", "pitchesLoad.ts")),
   pitching: await loadTs(join("lib", "courses", "pitching", "load.ts")),
+  /** The allocation board's rail: the function the board itself asks. */
+  boardTally: (await loadTs(join("features", "courses", "allocationTally.ts"))).boardTally,
 };
 const TABS = join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "(tabs)");
 const LEARN = join("app", "(app)", "learn", "[runId]");
@@ -1034,6 +1036,14 @@ async function tabsOf(who, name, runId) {
       groups: (board.body?.groups ?? []).map((group) => [group.name, group.memberCount, group.facilitatorNames]),
       placed: Object.fromEntries((board.body?.people ?? []).map((row) => [row.uid, [GROUP_NAME[row.groupId] ?? row.groupId, row.allocatedEmailAt !== null]])),
       publish: board.body?.publish ? [board.body.publish.emails, board.body.publish.people, board.body.publish.facilitators] : null,
+      /** The board's rail: accepted, placed, who it would name as having no group, and who has left. */
+      rail: board.body
+        ? (() => {
+            const columns = new Set(board.body.groups.map((group) => group.id));
+            const tally = lib.boardTally(board.body.people, (row) => !row.groupId || !columns.has(row.groupId));
+            return [tally.accepted, tally.placed, tally.toPlace.map((row) => row.displayName), tally.left];
+          })()
+        : null,
     },
     facilitators:
       staffing.status === 200
@@ -1368,10 +1378,14 @@ async function weeksOneAndTwo() {
     body: { uids: ["amelia", "tom", "sofia"] },
   });
   l.owed = await publishSummary("claudia", RUN);
-  const beforeTheFirstPress = world.mail.length;
-  l.pressed = await courseCall("claudia", courseRoutes.publish.POST, { runId: RUN }, { body: { emails: l.owed?.emails ?? -1 } });
-  l.pressMail = mailSince(beforeTheFirstPress).map((mail) => [mail.to, mail.subject]);
-  // What the runbook asks next: Kofi's row changed from Accepted on the run's own list.
+  const beforeSofiasPress = world.mail.length;
+  l.pressed = await courseStep("the lead's Publish tells Sofia, with Kofi's row still Accepted", 200, "claudia", courseRoutes.publish.POST, { runId: RUN }, {
+    body: { emails: l.owed?.emails ?? -1 },
+  });
+  l.pressMail = await Promise.all(mailSince(beforeSofiasPress).map(opened));
+  // What the runbook asks next: Kofi's row changed from Accepted on the run's
+  // own list. Still an admin's step, and Publish no longer waits for it.
+  later();
   l.leadDecides = await courseCall("claudia", courseRoutes.decide.POST, { runId: RUN, uid: "kofi" }, {
     body: { action: "reject", reason: "Left in week 1." },
   });
@@ -1380,12 +1394,7 @@ async function weeksOneAndTwo() {
   });
   await new Promise((resolve) => setImmediate(resolve));
   later();
-  l.owedAgain = await publishSummary("claudia", RUN);
-  const beforeTheSecondPress = world.mail.length;
-  l.pressedAgain = await courseStep("the lead's Publish tells Sofia", 200, "claudia", courseRoutes.publish.POST, { runId: RUN }, {
-    body: { emails: l.owedAgain?.emails ?? -1 },
-  });
-  l.pressAgainMail = await Promise.all(mailSince(beforeTheSecondPress).map(opened));
+  l.owedAfter = await publishSummary("claudia", RUN);
   // An admin opens week 3 in the week editor.
   world.db.poke(`courseRuns/${RUN}/weeks/w03`, { published: true });
   await lookAround("Sofia added to Group A and told");
@@ -2032,25 +2041,42 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.equal(look.lead.overview.people.line, "1 left. Freed places can be offered until Wed 4 Nov, the end of week 1.");
     });
 
-    // Remove is the lead's since the lead's access (#86); the step after it
-    // that Publish waits for, changing the row from Accepted, is not. The
-    // board's summary owes one email and lists no refusal, and the press is
-    // refused naming him (the walk of stage two, G4).
-    test("her next Publish is refused naming Kofi, the step that clears it is refused to her, and an admin's lets it through", () => {
-      assert.deepEqual([l().owed.emails, l().owed.refusals], [1, []]);
-      assert.deepEqual(l().pressed, {
-        status: 409,
-        body: { error: "1 accepted applicant is not placed in a group yet. Everyone must be placed before allocation can be published.", unplaced: ["Kofi Mensah"] },
+    // Remove is the lead's since the lead's access (#86); changing the row
+    // from Accepted on the run's own list is still an admin's. Until the walk
+    // of stage two's fixes (G4) Publish waited for that row, so her next
+    // press was refused naming him. Now somebody who has left is nobody to
+    // place: the board's rail counts Kofi as left and names nobody as having
+    // no group, and her press tells Sofia while his row still says Accepted.
+    test("the board counts Kofi as left and names nobody as having no group", () => {
+      assert.deepEqual(lookAt("Kofi removed").lead.people.rail, [6, 5, [], 1]);
+      assert.deepEqual(lookAt("Kofi removed").lead.people.placed.kofi, [null, false]);
+      // Once an admin has changed his row he is off the run's list, and off the board.
+      assert.deepEqual(lookAt("Sofia added to Group A and told").lead.people.rail, [5, 5, [], 0]);
+    });
+
+    test("her next Publish tells Sofia without waiting for Kofi's row, which only an admin changes", () => {
+      assert.deepEqual([l().owed.emails, l().owed.people, l().owed.facilitators, l().owed.refusals], [1, 0, 1, []]);
+      assert.deepEqual(l().pressed.body, {
+        ok: true,
+        report: {
+          people: { sent: 0, held: 0, suppressed: 0 },
+          facilitators: { sent: 1, held: 0, suppressed: 0 },
+          failed: [],
+          noAddress: [],
+          alreadyTold: 0,
+          more: 0,
+        },
+        unplaced: [],
       });
-      assert.deepEqual(l().pressMail, []);
-      assert.deepEqual(short(l().leadDecides), [403, "Forbidden"]);
-      assert.deepEqual(l().adminDecides.body, { ok: true });
-      assert.deepEqual(l().pressedAgain.body.report.facilitators, { sent: 1, held: 0, suppressed: 0 });
+      assert.deepEqual(l().pressMail.map((mail) => [mail.to, mail.subject]), [[address("sofia"), "You’re facilitating Group A: Thursdays at 6pm"]]);
       assert.equal(
-        readFrom(l().pressAgainMail[0], "Hi "),
+        readFrom(l().pressMail[0], "Hi "),
         "Hi Sofia, Group A meets on Thursdays at 6pm, from Thu 29 Oct to Thu 3 Dec. Where: Room A13 You’re facilitating with Amelia and Tom. " +
           `There are 3 people in the group. Open your group Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI ${FOOTER}`,
       );
+      assert.deepEqual(short(l().leadDecides), [403, "Forbidden"]);
+      assert.deepEqual(l().adminDecides.body, { ok: true });
+      assert.deepEqual([l().owedAfter.emails, l().owedAfter.refusals], [0, []]);
     });
   });
 

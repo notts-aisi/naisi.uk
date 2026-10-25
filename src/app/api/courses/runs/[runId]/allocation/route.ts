@@ -50,8 +50,9 @@ import { hasPaidMembership, normalizeUser } from "@/lib/firestore/users";
  * THE INVARIANT, visible here: `groupId` on each row is the single scalar off
  * the deterministic `courseEnrolments/{runId}__{uid}` doc, so a person appears
  * on the board exactly once and can be in at most one group by construction.
- * "Everyone placed" is a count of rows with a null/inactive placement — the
- * publish route refuses while that count is non-zero.
+ * "Everyone placed" is a count of rows with a null or inactive placement,
+ * leaving out anybody who has left the run (`enrolmentHasLeft`): the publish
+ * route refuses while that count is non-zero.
  *
  * SOMEBODY THE APPLICATION FORM PLACED HERE IS SEEN BY AN ADMIN AND BY THE
  * LEAD OF THE PROGRAMME THAT NAMES THE RUN. A row an admin's hand-over wrote
