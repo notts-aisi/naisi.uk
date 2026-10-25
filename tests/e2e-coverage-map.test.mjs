@@ -1072,6 +1072,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
+  "/api/courses/runs/[runId]/updates": {
+    reason:
+      "Course hub: a run's updates, posted, emailed and read. tests/course-hub-updates-routes.test.mjs executes both handlers as every kind of caller, tests/course-hub-updates-email.test.mjs renders every email it sends, and tests/course-hub-updates-guard.test.mjs walks the tree for any other reader or writer.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a run that Publish has told, with its lead and a group's facilitator signed in and a mail catcher to read the emails.",
+  },
   "/api/courses/runs/[runId]/sync-tasks": {
     reason:
       "Courses: /api/courses/runs/[runId]/sync-tasks is staff-facing, taken deliberately, and answered on the screen that called it.",
@@ -1492,6 +1498,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed an incubator run with a published pitching week and a group that Publish has told.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/messages": {
+    reason:
+      "Course hub: a programme's Messages tab, where its lead and admins write updates; the page's every caller is executed by tests/course-hub-updates-pages.test.mjs and its route by tests/course-hub-updates-routes.test.mjs.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a programme that names a run Publish has told, with its lead signed in.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     reason:
       "Application forms: /(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup is a programme's settings, and a fault in it is seen by the lead or admin using it.",
@@ -1641,6 +1653,12 @@ const NOT_COVERED = {
       "Learn hub: /(app)/learn/[runId]/group/[groupId]/review is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
     coverWhen:
       "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
+  },
+  "/(app)/learn/[runId]/group/[groupId]/update": {
+    reason:
+      "Course hub: the update composer for one group, opened from its page by its facilitators; the page's every caller is executed by tests/course-hub-updates-pages.test.mjs and its route by tests/course-hub-updates-routes.test.mjs.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a run Publish has told, with a group's facilitator signed in.",
   },
   "/(app)/learn/[runId]/nudge": {
     reason:

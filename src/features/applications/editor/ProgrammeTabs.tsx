@@ -21,11 +21,14 @@ import styles from "./ProgrammeFrame.module.css";
  * reviewer: they show the people holding a place by name, in their groups,
  * when they are free and in the registers. Their pages refuse anybody else
  * on their own.
+ *
+ * Messages, where updates are written to the people taking part, is a link
+ * for the same two, by the same answer, and its page refuses anybody else.
  */
 
 type Tab = {
   /** The route segment under the programme, for the tabs that have a page. */
-  segment: "applications" | "groups" | "attendance" | "setup" | null;
+  segment: "applications" | "groups" | "attendance" | "messages" | "setup" | null;
   label: string;
   count?: number | null;
 };
@@ -44,7 +47,7 @@ export default function ProgrammeTabs({
   groups: number | null;
   /** True for the programme's lead and for an admin. */
   canEdit: boolean;
-  /** True for an admin and the programme's lead: Groups and Attendance are links. */
+  /** True for an admin and the programme's lead: Groups, Attendance and Messages are links. */
   groupsOpen: boolean;
 }) {
   const active = useSelectedLayoutSegment();
@@ -54,7 +57,7 @@ export default function ProgrammeTabs({
     { segment: "applications", label: "Applications", count: applications },
     { segment: groupsOpen ? "groups" : null, label: "Groups", count: groups },
     { segment: groupsOpen ? "attendance" : null, label: "Attendance" },
-    { segment: null, label: "Messages" },
+    { segment: groupsOpen ? "messages" : null, label: "Messages" },
   ];
   if (canEdit) tabs.push({ segment: "setup", label: "Settings" });
 

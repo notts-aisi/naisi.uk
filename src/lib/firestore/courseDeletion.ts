@@ -17,6 +17,7 @@ import {
 import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
 import { COURSE_AUDIT_COLLECTION } from "./courseAudit";
 import { COURSE_PAGES_COLLECTION } from "./coursePages";
+import { COURSE_UPDATES_COLLECTION } from "./courseUpdates";
 // The ONLY two `tasks.source` values a run's cascade may delete. See
 // drainSourcedTasks for why the filter takes both halves of the predicate.
 import {
@@ -228,6 +229,16 @@ export type RunDestroyCounts = {
    * which is the failure the house rule about manifests exists to prevent.
    */
   auditRows: number;
+  /**
+   * `courseUpdates` rows: the updates written to this run's people, a group
+   * of them or its facilitators (`src/lib/courses/updates/`), each with what
+   * its email did. Staff writing, keyed by `runId` on the row like every
+   * other leaf here, and it dies with the run: an update names the run, and
+   * often one of the groups this cascade deletes, and nothing can show it
+   * once they are gone. The emails it sent stay in the delivery log, which
+   * is counted below and never deleted.
+   */
+  updates: number;
   /**
    * `schedulerMarkers` rows this run owns: the send-dedupe markers the
    * scheduler tick writes before it sends anything.
@@ -899,6 +910,7 @@ export async function countRunDestroyTargets(
     subscriptionRows,
     admissionSeatOffers,
     auditRows,
+    updates,
     schedulerMarkerCounts,
     emailSendCounts,
     exportCounts,
@@ -951,6 +963,8 @@ export async function countRunDestroyTargets(
     // auto-id and is never parsed), so this is the same single-equality shape
     // as the leaves above and is served by the automatic single-field index.
     countAgg(db.collection(COURSE_AUDIT_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the updates stage drains on.
+    countAgg(db.collection(COURSE_UPDATES_COLLECTION).where("runId", "==", runId)),
     Promise.all(markerCountPromises),
     Promise.all(emailCountPromises),
     Promise.all(exportCountPromises),
@@ -971,6 +985,7 @@ export async function countRunDestroyTargets(
     subscriptionRows,
     admissionSeatOffers,
     auditRows,
+    updates,
     schedulerMarkers: schedulerMarkerCounts.reduce((a, b) => a + b, 0),
     emailSendRows: emailSendCounts.reduce((a, b) => a + b, 0),
     dataExportRows: exportCounts.reduce((a, b) => a + b, 0),
@@ -1466,6 +1481,16 @@ export async function destroyRunCascade(
           byRunId(COURSE_AUDIT_COLLECTION),
           budget,
         ),
+    },
+    {
+      key: "updates",
+      // A run's updates: staff writing, a leaf keyed by `runId`, drained with
+      // the other leaves and BEFORE the groups an update to one group names.
+      // `write: if false` to every client, and the updates route refuses a
+      // run carrying the destroy marker, so nothing recreates one behind the
+      // cascade.
+      drain: () =>
+        drainQuery(db, COURSE_UPDATES_COLLECTION, byRunId(COURSE_UPDATES_COLLECTION), budget),
     },
     {
       key: "groups",

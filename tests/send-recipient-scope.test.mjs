@@ -375,6 +375,41 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/app/api/courses/runs/[runId]/updates/route.ts#audience.recipients",
+    {
+      reads: 5,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by updateEmailAudience (src/lib/courses/updates/audience.ts): for everyone or one group, the " +
+        "shared cohort-audience helper over the run's own enrolment rows, the group named by the update and " +
+        "checked to be one of the run's live groups; for the facilitators, the facilitatorUids of the run's " +
+        "live groups (written by src/app/api/courses/groups/[groupId]/facilitators/route.ts), each held to " +
+        "their bar. Nothing in the request names a recipient.",
+      why:
+        "Who an update's email reaches, counted by the same function the composer's number comes from; " +
+        "the request carries only who the update is to and that number.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/updates/route.ts#group.facilitatorUids",
+    {
+      reads: 1,
+      origin: "gate",
+      why:
+        "Whether the CALLER facilitates a live group of the run, which lets them write to that group. " +
+        "The audience comes from updateEmailAudience.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/updates/route.ts#local:recipients",
+    {
+      reads: 1,
+      origin: "derived",
+      derivedFrom: ["src/app/api/courses/runs/[runId]/updates/route.ts#audience.recipients"],
+      why: "The same audience, kept for the dispatch once every refusal has passed.",
+    },
+  ],
+  [
     "src/app/api/events/[id]/broadcast/route.ts#event.collaboratorUids",
     {
       reads: 2,

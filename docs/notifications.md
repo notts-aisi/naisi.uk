@@ -312,6 +312,18 @@ preference at all.
 | `course-group` | `POST /api/courses/groups/[groupId]/email` | admins, and a facilitator of THIS group while it is live | the group's active members |
 | `course-room` | `POST /api/courses/groups/[groupId]/notice` | the same gate | the same members |
 | `course-run` | `POST /api/courses/runs/[runId]/email` with `asNotice: true` | admins, and the run's `runFacilitatorUids` or `trackLeadUids` | the run's cohort channel, keeping the members whose `courses` row is a stored false |
+| `course-run` | `POST /api/courses/runs/[runId]/updates`, an update to everyone or to the facilitators | admins, the run's `trackLeadUids` and the lead of the programme that names the run | to everyone: the run's cohort channel as above; to the facilitators: the facilitators of the run's live groups who still meet their bar, at their own addresses |
+| `course-group` | `POST /api/courses/runs/[runId]/updates`, an update to one group | the same, and a facilitator of that group while it is live | that group's members on the run's cohort channel, keeping the stored falses |
+
+An update (Q18) is kept on the site as well as emailed, and its email is a
+notice for the reason the group email is one: the lead of a programme, an
+admin or a group's facilitator is writing to the people they run it for. It
+is email only, with no push leg, and it reuses the two course surfaces
+rather than adding a third, so the marker says "you are on this course" or
+"you are in this course group" as it does for the composers beside it. Its
+"Send a test to me" is `course-test` to the presser alone, as theirs is.
+Who reads an update on the site is decided apart from who is emailed it, in
+`src/lib/courses/updates/readers.ts`.
 
 The event broadcast gate is wider than it was, on purpose: until this lane landed
 the committee member who organised an event could not mail its attendees unless
@@ -353,6 +365,7 @@ to be rationed like any other send.
 | course group email | 3 | 10 | 100 members, refused |
 | course room notice | **none** | 10 | 100 members, refused |
 | course run notice | 3 | 10 | 200 recipients, refused |
+| course update | 3, per (writer, audience) | 10, its own counter | 200 recipients, refused |
 
 **Two lanes omit the hourly window, for the same reason.** The room notice has to
 survive the evening where the room changes twice and the mode flips once, which

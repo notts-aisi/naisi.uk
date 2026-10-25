@@ -129,6 +129,7 @@ const MUST_GUARD = [
   ["src/app/api/courses/runs/[runId]/pitching/pitch/route.ts", "saves a pitch in the member's own name and chooses who pitches it with them"],
   ["src/app/api/courses/runs/[runId]/roles/route.ts", "grants and revokes staff roles on a run"],
   ["src/app/api/courses/runs/[runId]/status/route.ts", "moves a run along its lifecycle, opening or closing applications"],
+  ["src/app/api/courses/runs/[runId]/updates/route.ts", "posts an update to a run's people and emails it, in the poster's name"],
   ["src/app/api/courses/runs/[runId]/sync-tasks/route.ts", "creates committee tasks on the board"],
   ["src/app/api/courses/templates/[templateId]/route.ts", "deletes a curriculum template"],
   // Admissions: the round authoring console. A round is the object an intake

@@ -2852,6 +2852,19 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === courseUpdates ===
+    // A run's updates (src/lib/firestore/courseUpdates.ts): what its lead, an
+    // admin or a group's facilitator wrote to everyone on the run, one group
+    // or the facilitators, and what each one's email did. Written only by the
+    // updates route on the Admin SDK and read only on the server, through
+    // src/lib/courses/updates/readers.ts, which decides who is shown which
+    // update: an update to one group is never shown to another group's
+    // people. So every browser is refused, admins included, the writer of an
+    // update and the people it is to as well.
+    match /courseUpdates/{updateId} {
+      allow read, write: if false;
+    }
+
     // === config ===
     // Server-only runtime config, written by the Admin SDK and read only by
     // routes: `config/taskEmails` (the task-email kill switch),
