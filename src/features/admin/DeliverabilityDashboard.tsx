@@ -115,6 +115,7 @@ const SURFACE_LABELS: Record<string, string> = {
   "course-group": "course group",
   "course-room": "room notice",
   "course-run": "whole cohort",
+  "course-survey": "programme survey",
 };
 
 function kindBadge(kind: string, surface?: string) {

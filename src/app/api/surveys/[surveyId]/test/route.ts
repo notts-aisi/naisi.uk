@@ -1,0 +1,80 @@
+import { NextResponse } from "next/server";
+import { getAdminDb } from "@/lib/firebase/admin";
+import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { getCurrentUser } from "@/lib/firebase/session";
+import { SURVEYS_COLLECTION } from "@/lib/firestore/surveys";
+import { namesOffDayFor } from "@/lib/surveys/namesOff";
+import { canRunSurveys, isOpen, isSurveyId, readSurvey } from "@/lib/surveys/repo";
+import { sendSurveyTest } from "@/lib/surveys/sending";
+import { REFUSAL } from "@/lib/surveys/words";
+
+type Ctx = { params: Promise<{ surveyId: string }> };
+
+/**
+ * "SEND A TEST TO ME" (sv-send-programme): the survey's email, or its
+ * reminder, as it would go now, signed by the presser, to the address on
+ * their own session and nobody else's, marked as a test. Its button opens the
+ * survey through the survey's test link, which keeps nothing.
+ *
+ * A test that reached its sender is recorded with the wording it was made of,
+ * and the send it rehearses is refused until there is one for the wording in
+ * force (`src/lib/surveys/emails.ts`). Transactional: it reaches only the
+ * person who asked for it, so no preference is passed over.
+ *
+ * Admins only. Body `{ email: "survey" | "reminder" }`.
+ */
+export async function POST(req: Request, ctx: Ctx) {
+  const blocked = await assertNotImpersonating();
+  if (blocked) return blocked;
+
+  const actor = await getCurrentUser();
+  if (!actor) return NextResponse.json({ error: REFUSAL.notSignedIn }, { status: 401 });
+  if (!canRunSurveys(actor)) return NextResponse.json({ error: REFUSAL.adminOnly }, { status: 403 });
+
+  const { surveyId } = await ctx.params;
+  let raw: unknown = null;
+  try {
+    raw = await req.json();
+  } catch {
+    raw = null;
+  }
+  const email = raw && typeof raw === "object" ? (raw as { email?: unknown }).email : undefined;
+  if (!isSurveyId(surveyId) || (email !== "survey" && email !== "reminder")) {
+    return NextResponse.json({ error: REFUSAL.body }, { status: 400 });
+  }
+  if (!actor.email) return NextResponse.json({ error: REFUSAL.noEmailOnFile }, { status: 400 });
+
+  const db = getAdminDb();
+  if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
+
+  const survey = await readSurvey(db, surveyId);
+  if (!survey) return NextResponse.json({ error: REFUSAL.noSurvey }, { status: 404 });
+  const now = new Date();
+  if (email === "survey" && survey.firstSentAt) return NextResponse.json({ error: REFUSAL.alreadySent }, { status: 409 });
+  if (email === "reminder" && !survey.firstSentAt) return NextResponse.json({ error: REFUSAL.notSentYet }, { status: 409 });
+  if (survey.firstSentAt && !isOpen(survey, now)) return NextResponse.json({ error: REFUSAL.closedSend }, { status: 409 });
+  if (!survey.closesAt || survey.closesAt.getTime() <= now.getTime()) {
+    return NextResponse.json({ error: REFUSAL.closesPast }, { status: 409 });
+  }
+  // The survey's page says when names come off, so a test of it is refused
+  // while that cannot be worked out, as the send is. Until the first send the
+  // day follows the run's sessions, so it is worked out again here.
+  if (!survey.firstSentAt) {
+    const day = await namesOffDayFor(db, survey.runId, now);
+    if (!day) return NextResponse.json({ error: REFUSAL.noNamesOff }, { status: 409 });
+    if (day !== survey.namesOffOn) {
+      await db.collection(SURVEYS_COLLECTION).doc(survey.id).update({ namesOffOn: day });
+      survey.namesOffOn = day;
+    }
+  }
+
+  let outcome;
+  try {
+    outcome = await sendSurveyTest(db, survey, email, { uid: actor.uid, address: actor.email });
+  } catch (err) {
+    console.error("[surveys test] send failed", surveyId, err);
+    return NextResponse.json({ error: "That test could not be sent. Try again in a minute." }, { status: 502 });
+  }
+  if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
+  return NextResponse.json({ ok: true, delivery: outcome.delivery, recorded: outcome.recorded });
+}
