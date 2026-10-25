@@ -1363,8 +1363,9 @@ test(
 
       await step("the facilitator moves next week's session with a reason, and the button says how many it emails", async () => {
         activePage = facilitatorPage;
-        // From her group's page, the way she is offered: back from the
-        // register (its link to the group, over its title), then the button.
+        // From the group's page, the way a facilitator is offered it: back
+        // from the register (its link to the group, over its title), then the
+        // button.
         await facilitatorPage.getByRole("link", { name: facilitated.name, exact: true }).click();
         await facilitatorPage.getByRole("heading", { name: facilitated.name, level: 1 }).waitFor({ timeout: WAIT_MS });
         assert.equal(new URL(facilitatorPage.url()).pathname, groupPagePath);

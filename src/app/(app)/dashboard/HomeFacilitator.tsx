@@ -148,7 +148,7 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
         <div className={styles.stack}>
           {data && group && facts && (
             <div className={facilitator.homeStack}>
-              <section className={`${weekly.ticket} ${weekly.ticketHome}`} aria-label="Your next session" data-testid="session-card">
+              <section className={`${weekly.ticket} ${weekly.ticketHome}`} aria-label="Your next session">
                 {tile && (
                   <time className={weekly.stub} dateTime={facts.dateKey}>
                     <span className={weekly.stubWeekday}>{tile.weekday}</span>

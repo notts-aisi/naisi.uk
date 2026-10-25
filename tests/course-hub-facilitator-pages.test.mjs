@@ -233,7 +233,7 @@ describe("2. the group page in week 3, as wk-fac-group draws it", () => {
         ["Kofi Asante", ["excused", "present"]],
       ],
     );
-    // Omar, whom staff took off after week 1, is listed where a register marked him.
+    // Omar, whom staff took off after week 1, is listed where a register marked them.
     assert.deepEqual(people.leavers.map((person) => [person.name, person.left, boxes(person)]), [["Omar Haddad", "Left", ["present", "after"]]]);
     const drawn = await groupPage("rahul");
     assert.match(

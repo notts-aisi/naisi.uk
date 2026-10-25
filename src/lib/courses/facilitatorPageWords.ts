@@ -13,9 +13,9 @@ import { clockWords, dayWords, namesWords, weeksWords } from "./sessionChange/wo
  * written in the same voice and are listed in the build notes for the
  * boards' designers to confirm.
  *
- * NO PRONOUN IS GUESSED. Where the boards say "He’s off the register", the
- * page names the person ("Sam’s off the register"): the site never decides
- * how somebody is referred to.
+ * NO PRONOUN IS GUESSED. Where the boards give somebody who left a pronoun,
+ * the page names the person ("Sam’s off the register"): the site never
+ * decides how somebody is referred to.
  *
  * No sentence here carries a dash of either kind. Pure, with no imports
  * beyond the house date words, so the server pages, the pages in the browser
