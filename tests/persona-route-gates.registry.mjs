@@ -1224,11 +1224,21 @@ export const ROUTES = {
   },
   "/api/courses/runs/[runId]/allocation/publish": {
     POST: {
+      expect: signedIn(400),
+      why:
+        "Session required, then the caller's own request is validated before the document is " +
+        "read: it carries the number of emails the board showed, so every signed-in persona " +
+        "meets the same 400 on an empty one.",
+    },
+  },
+  "/api/courses/runs/[runId]/allocation/publish/test": {
+    POST: {
       expect: signedIn(404),
       why:
-        "Session required, then the document is read and its own membership decides. The " +
-        "battery's id addresses nothing, so every signed-in persona is told that the document " +
-        "is missing.",
+        "Session required (with an address on it to send the test to), then the document is read " +
+        "and its own membership decides. The battery's id addresses nothing, so every signed-in " +
+        "persona is told that the document is missing. Track leads are per run, so the run is " +
+        "read first.",
     },
   },
   "/api/courses/runs/[runId]/applications": {

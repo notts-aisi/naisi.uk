@@ -26,8 +26,18 @@
  * predicates, the standing checks, the email and notice writers, the send
  * limits and the email templates. Stubbed: `server-only`, `next/server`, the
  * Admin SDK's sentinels and handle, the session, the view-as guard, the two
- * push mirrors, and `sendEmail`, which records what it was handed. No message
- * can leave this process.
+ * push mirrors, and `sendEmail`, which records what it was handed and answers
+ * as the real door would (see `MAIL_DOOR`). No message can leave this process.
+ *
+ * ## How Publish is pressed
+ *
+ * The way the allocation board presses it (`steps.publish`): read the number
+ * on its button, send "a test to me" first when the board says one is owed,
+ * then press with that number. So a first press puts in `world.mail` the
+ * presser's test of both of Publish's emails ("[TEST]" at the start of each
+ * subject, to the presser's own address), then each placed person's email,
+ * then "You’re facilitating" to each facilitator of a group with somebody in
+ * it. A later press needs no new test while the wording is unchanged.
  *
  * Every request is handed the course routes' view of the store
  * (`courseView`), which takes the `limit()` the course routes page by. The
@@ -136,15 +146,31 @@ const NEXT_SERVER_STUB =
   "  async json() { return this.body; }\n" +
   "}";
 
+/**
+ * A stand-in for `sendEmail`: it writes down what it was handed, and that is
+ * all. `world.mailFate`, when a suite sets it, says what the real door would
+ * have answered for one message: "held" (this copy of the site may not write
+ * to the address), "suppressed" (the do-not-email list) or "fail" (the send
+ * throws, and nothing is written down). Unset, every message is handed over.
+ */
 const MAIL_DOOR = (handle) =>
   "export async function sendEmail(args) {\n" +
-  `  ${handle}.mail.push(args);\n` +
+  `  const w = ${handle};\n` +
+  "  const fate = w.mailFate ? w.mailFate(args) : 'sent';\n" +
+  "  if (fate === 'fail') throw new Error('the mail door refused');\n" +
+  "  w.mail.push(args);\n" +
+  "  if (fate === 'held') return { messageId: '', delivered: [], suppressed: [], held: [args.to] };\n" +
+  "  if (fate === 'suppressed') return { messageId: '', delivered: [], suppressed: [args.to], held: [] };\n" +
   "  return { messageId: 'm', delivered: [args.to], suppressed: [], held: [] };\n" +
   "}";
 
 for (const name of ["SMTP_HOST", "SMTP_USER", "SMTP_PASS", "SMTP_FROM_EMAIL", "SMTP_FROM_NAME", "EMAIL_AUDIENCE"]) {
   delete process.env[name];
 }
+// A copy of the site that knows its own address, as every deployed one does:
+// the facilitators' email Publish sends has a button to the group's page, and
+// Publish refuses to send it from a copy that cannot say where that is.
+process.env.NEXT_PUBLIC_APP_URL = "https://naisi.invalid";
 
 /**
  * A world, its loader, its routes and the way to make a request in it. `key`
@@ -158,6 +184,8 @@ export async function makeGroupWorld(key = "__groupPublished") {
     viewAs: false,
     /** Every message handed to the one mail door. */
     mail: [],
+    /** What the door answers for a message, when a suite says: see `MAIL_DOOR`. */
+    mailFate: null,
     /** Every notification handed to either push mirror. */
     pushes: [],
   };
@@ -207,6 +235,7 @@ export async function makeGroupWorld(key = "__groupPublished") {
     world.user = null;
     world.viewAs = false;
     world.mail.length = 0;
+    world.mailFate = null;
     world.pushes.length = 0;
     return world.db;
   }
@@ -265,6 +294,8 @@ export async function makeGroupWorld(key = "__groupPublished") {
   const routes = {
     handOver: await formRoute("programmes", "[programmeId]", "run", "hand-over"),
     allocate: await courseRoute("runs", "[runId]", "allocate"),
+    board: await courseRoute("runs", "[runId]", "allocation"),
+    publishTest: await courseRoute("runs", "[runId]", "allocation", "publish", "test"),
     publish: await courseRoute("runs", "[runId]", "allocation", "publish"),
     me: await courseRoute("me"),
     overview: await courseRoute("runs", "[runId]", "overview"),
@@ -300,7 +331,21 @@ export async function makeGroupWorld(key = "__groupPublished") {
     handOver: () => call("zach", routes.handOver.POST, programmeParams(AGI)),
     place: (placements, who = "zach") =>
       call(who, routes.allocate.POST, { runId: RUN.agi }, { body: { placements } }),
-    publish: (who = "zach") => call(who, routes.publish.POST, { runId: RUN.agi }),
+    /** "Send a test to me" on the allocation board. */
+    sendTest: (who = "zach") => call(who, routes.publishTest.POST, { runId: RUN.agi }),
+    /**
+     * A press of Publish, made the way the board makes one: read the number
+     * on its button, send "a test to me" first when the board says one is
+     * owed, then press with that number.
+     */
+    publish: async (who = "zach") => {
+      let summary = await ask.publishSummary(who);
+      if (summary && summary.emails > 0 && summary.test?.state !== "fresh") {
+        await steps.sendTest(who);
+        summary = await ask.publishSummary(who);
+      }
+      return call(who, routes.publish.POST, { runId: RUN.agi }, { body: { emails: summary?.emails ?? 0 } });
+    },
     /** Handed over, everybody in a group, and NOT published. */
     async placed() {
       const handed = await steps.handOver();
@@ -323,6 +368,9 @@ export async function makeGroupWorld(key = "__groupPublished") {
   };
 
   const ask = {
+    /** The allocation board's `publish` summary: the number on its button and the last test. */
+    publishSummary: async (who = "zach") =>
+      (await call(who, routes.board.GET, { runId: RUN.agi })).body?.publish ?? null,
     me: async (who, options = {}) => (await call(who, routes.me.GET, {}, options)).body.runs ?? [],
     overview: (who, runId = RUN.agi, options = {}) => call(who, routes.overview.GET, { runId }, options),
     roster: (who, groupId, options = {}) => call(who, routes.roster.GET, { groupId }, options),

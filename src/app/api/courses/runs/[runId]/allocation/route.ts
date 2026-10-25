@@ -6,6 +6,12 @@ import {
   formPlaceFactsFor,
   type FormPlaceFacts,
 } from "@/lib/applications/handover/board";
+import {
+  loadPublishPlan,
+  pressBatch,
+  testWhen,
+  type TestState,
+} from "@/lib/courses/allocationPublish";
 import type { WeekPlanEntry } from "@/lib/courses/weekPlan";
 import {
   membershipKnownFromRow,
@@ -116,6 +122,12 @@ export type AllocRow = {
   /** ISO 8601 — when the placement email for the current group was sent. */
   allocatedEmailAt: string | null;
   /**
+   * What became of that email: handed over, held by this copy of the site,
+   * or stopped by the do-not-email list. Null for a stamp written before
+   * Publish kept this, which was a send.
+   */
+  allocatedEmailDelivery: "sent" | "held" | "suppressed" | null;
+  /**
    * Set for somebody the application form placed on this run, null for
    * somebody who applied to the run itself (whose `availability` above is
    * the session labels they ticked).
@@ -132,6 +144,39 @@ export type AllocRow = {
   fromForm: FormPlaceFacts | null;
 };
 
+/**
+ * What a press of Publish would do now, for the board's Publish area: the
+ * number on its button, who it reaches, what it would refuse, and the last
+ * test. Worked out by `loadPublishPlan`, the plan Publish itself reads, so the
+ * button cannot promise a number the press does not send. Counts and names
+ * only: no address is in it.
+ */
+export type PublishSummary = {
+  /** The run takes its people from the application form and the viewer is not an admin. */
+  adminOnly: boolean;
+  /** Emails a press sends now. */
+  emails: number;
+  /** Of those, to people told their group. */
+  people: number;
+  /** Of those, to facilitators. */
+  facilitators: number;
+  /** Emails still owed past one press's cap. */
+  more: number;
+  /** Names owed an email with no address on file. */
+  noAddress: string[];
+  /** Groups with a facilitator waiting because nobody is placed there yet. */
+  emptyGroups: string[];
+  /** Why a press would be refused because an email cannot be written. */
+  refusals: string[];
+  test: {
+    state: TestState;
+    /** "5:38pm", or "Mon 26 Oct at 5:38pm" on another day. Null with no test. */
+    when: string | null;
+    /** Null for the viewer's own test; the first name of whoever sent it otherwise. */
+    who: string | null;
+  };
+};
+
 export type AllocationPayload = {
   run: {
     id: string;
@@ -143,6 +188,7 @@ export type AllocationPayload = {
   };
   groups: AllocGroup[];
   people: AllocRow[];
+  publish: PublishSummary;
 };
 
 // ---------------------------------------------------------------------------
@@ -287,9 +333,8 @@ export async function GET(
 
   // A row the application form put here is listed for an admin only: see the
   // note at the top.
-  const accepted = appSnap.docs
-    .map((d) => normalizeCourseApplication(d.id, d.data() ?? {}))
-    .filter((a) => a.status === "accepted" && rowIsServedTo(a, { isAdmin }));
+  const rows = appSnap.docs.map((d) => normalizeCourseApplication(d.id, d.data() ?? {}));
+  const accepted = rows.filter((a) => a.status === "accepted" && rowIsServedTo(a, { isAdmin }));
 
   // Archived groups are dropped: the board must not offer a column that no
   // longer runs (the allocate route refuses them independently).
@@ -404,6 +449,7 @@ export async function GET(
       groupId: enrolment?.groupId ?? null,
       enrolmentStatus: boardStatus(enrolment),
       allocatedEmailAt: iso(enrolment?.allocatedEmailAt),
+      allocatedEmailDelivery: enrolment?.allocatedEmailDelivery ?? null,
       // Field by field, so nothing the application system adds later rides
       // along to a browser.
       fromForm: fromForm
@@ -420,6 +466,33 @@ export async function GET(
     const rank = (r: AllocRow) => (r.groupId && r.enrolmentStatus === "active" ? 1 : 0);
     return rank(a) - rank(b) || a.displayName.localeCompare(b.displayName);
   });
+
+  // What a press of Publish would do now, read through the plan Publish reads.
+  const plan = await loadPublishPlan(db, run, {
+    accepted,
+    adminOnly: !isAdmin && rows.some((row) => row.fromForm !== null),
+  });
+  const batch = pressBatch(plan);
+  let testedBy: string | null = null;
+  if (plan.test.byUid && plan.test.byUid !== actor.uid) {
+    const tester = await db.collection("users").doc(plan.test.byUid).get();
+    testedBy = tester.exists ? displayNameOf(tester.data() ?? {}).split(" ")[0] || "an admin" : "an admin";
+  }
+  const publish: PublishSummary = {
+    adminOnly: plan.adminOnly,
+    emails: batch.emails,
+    people: batch.people.length,
+    facilitators: batch.facilitators.length,
+    more: batch.more,
+    noAddress: batch.noAddress,
+    emptyGroups: plan.emptyGroups,
+    refusals: plan.refusals,
+    test: {
+      state: plan.test.state,
+      when: plan.test.at ? testWhen(plan.test.at) : null,
+      who: plan.test.state === "none" ? null : testedBy,
+    },
+  };
 
   const payload: AllocationPayload = {
     run: {
@@ -449,6 +522,7 @@ export async function GET(
       forkedWeekIds: forkedIdsByGroup.get(g.id) ?? [],
     })),
     people,
+    publish,
   };
 
   return NextResponse.json(payload);

@@ -363,6 +363,12 @@ const USERS = new Map([
       "the person is shown is their group, are only true if the route and the card say so",
   ],
   [
+    "course-hub-publish-facilitating-email.test.mjs",
+    "it composes the facilitators' email from its seed copy for every combination of what a group " +
+      "can lack, and reads the words around Publish, because which sentences go and which tokens " +
+      "are filled is only real when the composer runs. Only `server-only` is stubbed",
+  ],
+  [
     "applications-handover-older-way-in.test.mjs",
     "executes the older per-run apply route and renders its page (a .tsx server component) to " +
       "HTML for a run a programme on the application form names, because whether that run " +

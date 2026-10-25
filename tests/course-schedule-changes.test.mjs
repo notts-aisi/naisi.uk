@@ -225,6 +225,14 @@ const SUBMIT = api("runs", "[runId]", "exercises", "[exerciseId]", "submit", "ro
 const ALLOCATE = api("runs", "[runId]", "allocate", "route.ts");
 const ALLOCATION = api("runs", "[runId]", "allocation", "route.ts");
 const ALLOCATION_PUBLISH = api("runs", "[runId]", "allocation", "publish", "route.ts");
+/**
+ * Since the course hub's Publish (October 2026) what a press of Publish reads
+ * and decides (who is placed, who is owed an email, when each group first
+ * meets) is worked out by one plan, which the route, "Send a test to me" and
+ * the board's count all read. The properties pinned on the route before are
+ * pinned on the plan, where that code now lives.
+ */
+const PUBLISH_PLAN = src("lib", "courses", "allocationPublish.ts");
 const DECIDE = api("runs", "[runId]", "applications", "[uid]", "decide", "route.ts");
 const APPLY_ROUTE = api("runs", "[runId]", "apply", "route.ts");
 const STATUS_ROUTE = api("runs", "[runId]", "status", "route.ts");
@@ -910,8 +918,13 @@ test("GUARD — no reader resolves sessionOverrides by the plan entry's own week
   assert.doesNotMatch(SESSIONS, /entry\.weekId/);
   assert.match(SESSIONS, /const weekId = weekDocId\(weekNumber\);/);
   assert.match(SESSIONS, /sessionForWeek\(group, weekId\)/);
-  assert.doesNotMatch(ALLOCATION_PUBLISH, /\? firstWeek\.weekId/);
-  assert.match(ALLOCATION_PUBLISH, /weekDocId\(firstWeek\.weekNumber\)/);
+  // The allocation emails now read their first session from `resolveSessions`
+  // too, on the group's own calendar, so the key is the one pinned on
+  // SESSIONS above. No plan entry is read by Publish at all.
+  assert.match(PUBLISH_PLAN, /resolveSessions\(run, group\)/);
+  assert.match(PUBLISH_PLAN, /sessionForWeek\(group, first\.weekId\)/);
+  assert.doesNotMatch(PUBLISH_PLAN, /firstWeek|entry\.weekId|weekPlan\[/);
+  assert.doesNotMatch(ALLOCATION_PUBLISH, /weekId/);
 
   // Attendance stays internally consistent: the register beside the header is
   // addressed by NUMBER too (plus the occurrence, whose default keeps every
@@ -1298,8 +1311,9 @@ test("archiving a group leaves the enrolments, the count and the publish gate as
   // as placed and the allocation publishes with nobody told. That divergence is
   // documented on purpose; it is pinned here so it cannot be "tidied" on one
   // side only.
-  assert.match(ALLOCATION_PUBLISH, /Groups are NOT filtered on\s*\/\/ archived here/);
-  assert.match(ALLOCATION_PUBLISH, /e\.groupId === null \|\| e\.status !== "active"/);
+  // (On Publish's plan, which every press reads: see PUBLISH_PLAN.)
+  assert.match(PUBLISH_PLAN, /Groups are NOT filtered on\s*\/\/ archived here/);
+  assert.match(PUBLISH_PLAN, /e\.groupId === null \|\| e\.status !== "active"/);
 });
 
 // ===========================================================================
@@ -1782,9 +1796,10 @@ test("an accepted applicant's only record is an email whose {startDate} is froze
   // days.
   assert.match(DECIDE, /startDate/);
   assert.match(DECIDE, /changed/);
-  assert.match(ALLOCATION_PUBLISH, /function firstSessionWhen/);
+  // (On Publish's plan, which every press reads: see PUBLISH_PLAN.)
+  assert.match(PUBLISH_PLAN, /function firstSessionWhen/);
   // The publish-side value is derived on every send…
-  assert.match(ALLOCATION_PUBLISH, /firstSessionWhen\(run, group\)/);
+  assert.match(PUBLISH_PLAN, /firstSessionWhen\(run, group\)/);
   // …and nothing re-mails the acceptance.
   assert.doesNotMatch(STATUS_ROUTE, /sendCourseApplication/);
 });
@@ -1869,7 +1884,8 @@ test("GUARD — every date-driven consumer guards with isValidDateKey before pac
     [NUDGE, "nudge"],
     [SYNC_TASKS, "sync-tasks"],
     [ATTENDANCE, "attendance"],
-    [ALLOCATION_PUBLISH, "allocation/publish"],
+    // Publish's dates are worked out by its plan (see PUBLISH_PLAN).
+    [PUBLISH_PLAN, "allocation/publish (its plan)"],
     // `allocate` and the open-enrol route both reach the guard through
     // `joinedWeekFor`, which holds it once for both of them.
     [GROUP_RESOLVE, "groupResolve (joinedWeekFor)"],

@@ -289,15 +289,41 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
-    "src/app/api/courses/runs/[runId]/allocation/publish/route.ts#group.facilitatorUids",
+    "src/app/api/courses/runs/[runId]/allocation/publish/route.ts#local:peopleRecipients",
     {
-      reads: 2,
-      origin: "roster",
-      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "The people `loadPublishPlan` (src/lib/courses/allocationPublish.ts) found owed their group's email: " +
+        "the run's accepted rows this caller is served, each with an active enrolment in a group and no " +
+        "`allocatedEmailAt`, at the account's own address. The plan sends nothing, so the scan does not read it.",
       why:
-        "The facilitators of the group an accepted applicant lands in, added to the audience " +
-        "so the people running a session are told who is joining it, and named in the email " +
-        "body.",
+        "Each person placed in a group and not yet told, emailed their own group once. Nothing in the " +
+        "request names a recipient: the body carries only how many emails the board showed.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/allocation/publish/route.ts#local:facilitatorRecipients",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "The facilitators `loadPublishPlan` found owed their email: `facilitatorUids` of each live group on " +
+        "the run with somebody placed in it (written by src/app/api/courses/groups/[groupId]/facilitators/route.ts), " +
+        "less those with a `facilitating__` marker in courseNudges, at each account's own address.",
+      why:
+        "Each facilitator of a group with people in it, told once per group that they are facilitating it. " +
+        "The request names nobody.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/allocation/publish/test/route.ts#run.trackLeadUids",
+    {
+      reads: 1,
+      origin: "gate",
+      why:
+        "Whether the CALLER may send themselves a test of Publish's emails. Not an audience: the test goes to " +
+        "the address on the caller's own session.",
     },
   ],
   [

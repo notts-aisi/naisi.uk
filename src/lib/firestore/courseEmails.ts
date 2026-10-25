@@ -20,6 +20,10 @@ export const COURSE_TEMPLATE_IDS = [
   "course-application-waitlisted",
   "course-application-rejected",
   "course-allocated",
+  // The email each facilitator of a group is sent when groups go out, beside
+  // the placement email. Written by `composeFacilitatingEmail`
+  // (`src/lib/courses/facilitatingEmail.ts`) under the placement email's rules.
+  "course-facilitating",
   "course-week-nudge",
   "course-dropped-out",
   // The ADMISSIONS lifecycle (V3). Same collection and same editor as the
@@ -56,6 +60,7 @@ export type CourseTemplateTrigger =
   | "waitlisted"
   | "rejected"
   | "allocated"
+  | "facilitating"
   | "week-nudge"
   | "dropped-out"
   | "admissions-submitted"
@@ -75,6 +80,7 @@ export const COURSE_TEMPLATE_TRIGGER: Record<CourseTemplateId, CourseTemplateTri
   "course-application-waitlisted": "waitlisted",
   "course-application-rejected": "rejected",
   "course-allocated": "allocated",
+  "course-facilitating": "facilitating",
   "course-week-nudge": "week-nudge",
   "course-dropped-out": "dropped-out",
   "admissions-submitted": "admissions-submitted",
@@ -293,6 +299,7 @@ export const COURSE_DEFAULT_LABELS: Record<CourseTemplateId, string> = {
   "course-application-waitlisted": "Course application waitlisted",
   "course-application-rejected": "Course application rejected",
   "course-allocated": "Placed in a group",
+  "course-facilitating": "You’re facilitating",
   "course-week-nudge": "Weekly reminder",
   "course-dropped-out": "Left a course",
   "admissions-submitted": "Application received",
@@ -392,6 +399,43 @@ export const courseTemplateDefaults: Record<
           "<p>Where: {firstSessionWhere}</p>" +
           "<p>Everything you need is in the learning space on the website: the week's reading, your group's details and your progress.</p>" +
           "<p>Do the first week's reading before you come; the sessions work best when everyone arrives with opinions.</p>",
+      ),
+    ],
+  },
+  /**
+   * The facilitators' email, sent at Publish to each facilitator of each
+   * group with somebody in it. `composeFacilitatingEmail` fills it
+   * (`src/lib/courses/facilitatingEmail.ts`) by the placement email's rules,
+   * so the same three things shape this copy:
+   *
+   *  - `{groupName}`, `{weeklySlot}`, `{firstSession}`, `{lastSession}`,
+   *    `{groupSize}` and `{groupUrl}` are what the email is for. Publishing is
+   *    refused for a group that lacks one.
+   *  - `{where}`, `{coFacilitators}`, `{leadName}` and `{programmeName}` can
+   *    be missing: no room yet, one facilitator, a run no programme names.
+   *    EACH SITS IN A PARAGRAPH OF ITS OWN (the last two share the sign-off),
+   *    because that paragraph is left out whole when there is nothing to put
+   *    in it. None may go in the subject.
+   *  - `{groupSize}` is a whole sentence ("There are 8 people in the
+   *    group."), so a group of one reads right.
+   *
+   * The button is a link styled as one, in the colours of the decision-day
+   * emails' main button. No meeting link is ever filled in: an online group
+   * is told the link is on the group page.
+   */
+  "course-facilitating": {
+    label: COURSE_DEFAULT_LABELS["course-facilitating"],
+    subject: "You’re facilitating {groupName}: {weeklySlot}",
+    blocks: [
+      rt(
+        "<p>Hi {firstName},</p>" +
+          "<p>{groupName} meets on {weeklySlot}, from {firstSession} to {lastSession}.</p>" +
+          "<p>Where: {where}</p>" +
+          "<p>You’re facilitating with {coFacilitators}.</p>" +
+          "<p>{groupSize}</p>" +
+          '<p><a href="{groupUrl}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#6a82ff;color:#050810;font-weight:600;text-decoration:none">Open your group</a></p>' +
+          "<p>Take the register on your phone during the session.</p>" +
+          '<p>{leadName}<br /><span style="color:#71717a">{programmeName} lead, NAISI</span></p>',
       ),
     ],
   },

@@ -447,10 +447,21 @@ const NEXT_SERVER_STUB =
   "  async json() { return this.body; }\n" +
   "}";
 
-/** A stand-in for `sendEmail`: it writes down what it was handed, and that is all. */
+/**
+ * A stand-in for `sendEmail`: it writes down what it was handed, and that is
+ * all. `world.mailFate`, when a suite sets it, says what the real door would
+ * have answered for one message: "held" (this copy of the site may not write
+ * to the address), "suppressed" (the do-not-email list) or "fail" (the send
+ * throws, and nothing is written down). Unset, every message is handed over.
+ */
 const MAIL_DOOR = (handle) =>
   "export async function sendEmail(args) {\n" +
-  `  ${handle}.mail.push(args);\n` +
+  `  const w = ${handle};\n` +
+  "  const fate = w.mailFate ? w.mailFate(args) : 'sent';\n" +
+  "  if (fate === 'fail') throw new Error('the mail door refused');\n" +
+  "  w.mail.push(args);\n" +
+  "  if (fate === 'held') return { messageId: '', delivered: [], suppressed: [], held: [args.to] };\n" +
+  "  if (fate === 'suppressed') return { messageId: '', delivered: [], suppressed: [args.to], held: [] };\n" +
   "  return { messageId: 'm', delivered: [args.to], suppressed: [], held: [] };\n" +
   "}";
 
@@ -459,6 +470,10 @@ const MAIL_DOOR = (handle) =>
 for (const name of ["SMTP_HOST", "SMTP_USER", "SMTP_PASS", "SMTP_FROM_EMAIL", "SMTP_FROM_NAME", "EMAIL_AUDIENCE"]) {
   delete process.env[name];
 }
+// A copy of the site that knows its own address, as every deployed one does:
+// the facilitators' email Publish sends has a button to the group's page, and
+// Publish refuses to send it from a copy that cannot say where that is.
+process.env.NEXT_PUBLIC_APP_URL = "https://naisi.invalid";
 
 /**
  * A world, its loader and the way to make a request in it. `key` names the
@@ -477,6 +492,8 @@ export function makeWorld(key = "__handover") {
     viewAs: false,
     /** Every message handed to the one mail door. */
     mail: [],
+    /** What the door answers for a message, when a suite says: see `MAIL_DOOR`. */
+    mailFate: null,
     /** Every notification handed to the push mirror. */
     pushes: [],
   };
@@ -529,6 +546,7 @@ export function makeWorld(key = "__handover") {
     world.user = null;
     world.viewAs = false;
     world.mail.length = 0;
+    world.mailFate = null;
     world.pushes.length = 0;
     return world.db;
   }
@@ -626,6 +644,7 @@ export async function loadJoin(made) {
     board: await courseRoute("runs", "[runId]", "allocation"),
     allocate: await courseRoute("runs", "[runId]", "allocate"),
     publish: await courseRoute("runs", "[runId]", "allocation", "publish"),
+    publishTest: await courseRoute("runs", "[runId]", "allocation", "publish", "test"),
     queue: await courseRoute("runs", "[runId]", "applications"),
     decide: await courseRoute("runs", "[runId]", "applications", "[uid]", "decide"),
     notes: await courseRoute("runs", "[runId]", "applications", "[uid]", "notes"),
@@ -645,7 +664,23 @@ export async function loadJoin(made) {
     board: (who = "zach") => call(who, routes.board.GET, { runId: RUN.agi }, { course: true }),
     place: (who, placements) =>
       call(who, routes.allocate.POST, { runId: RUN.agi }, { body: { placements }, course: true }),
-    publish: (who = "zach") => call(who, routes.publish.POST, { runId: RUN.agi }, { course: true }),
+    /**
+     * A press of Publish, made the way the board makes one: read the number
+     * on its button, send "a test to me" first when the board says one is
+     * owed, then press with that number. The test goes to whoever presses
+     * and is in `world.mail` with "[TEST]" at the start of its subject.
+     * `test: false` presses without one, to meet the refusal.
+     */
+    publish: async (who = "zach", { test = true } = {}) => {
+      const read = async () =>
+        (await call(who, routes.board.GET, { runId: RUN.agi }, { course: true })).body?.publish ?? null;
+      let summary = await read();
+      if (test && summary && summary.emails > 0 && summary.test?.state !== "fresh") {
+        await call(who, routes.publishTest.POST, { runId: RUN.agi }, { course: true });
+        summary = await read();
+      }
+      return call(who, routes.publish.POST, { runId: RUN.agi }, { body: { emails: summary?.emails ?? 0 }, course: true });
+    },
     queue: (who) => call(who, routes.queue.GET, { runId: RUN.agi }, { course: true }),
     /** Every run this person's member area lists. */
     me: async (who, options = {}) =>

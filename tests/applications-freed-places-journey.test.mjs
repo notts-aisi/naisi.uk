@@ -68,7 +68,16 @@ describe("from a freed place to a group", () => {
     assert.deepEqual(placed.body, { ok: true, placed: 4, rejected: [] });
     const published = await api.publish();
     assert.equal(published.status, 200, JSON.stringify(published.body));
-    assert.deepEqual(sentTo().sort(), HOLDERS.map((uid) => `${uid}@example.com`));
+    // Publish sends the presser a test first and tells each group's
+    // facilitators (the course hub's Publish, October 2026), so the mail is
+    // the presser's two tests, a placement email to each holder, and one
+    // "You’re facilitating" to Claudia for each of the two groups.
+    const tests = world.mail.filter((message) => message.subject.startsWith("[TEST]"));
+    const facilitating = world.mail.filter((message) => message.subject.startsWith("You’re facilitating"));
+    const placing = world.mail.filter((message) => !tests.includes(message) && !facilitating.includes(message));
+    assert.deepEqual(tests.map((message) => message.to), ["zach@example.com", "zach@example.com"]);
+    assert.deepEqual(placing.map((message) => message.to).sort(), HOLDERS.map((uid) => `${uid}@example.com`));
+    assert.deepEqual(facilitating.map((message) => message.to), ["claudia@example.com", "claudia@example.com"]);
     world.mail.length = 0;
   });
 
@@ -116,7 +125,12 @@ describe("from a freed place to a group", () => {
   test("Publish again emails only him", async () => {
     const published = await api.publish();
     assert.equal(published.status, 200, JSON.stringify(published.body));
-    assert.equal(published.body.emailed, 1);
+    // The answer says what became of each email (the course hub's Publish):
+    // one placement email, to him, and nothing to his group's facilitators,
+    // who were told on the first press. No second test: the wording has not
+    // changed since the first.
+    assert.deepEqual(published.body.report.people, { sent: 1, held: 0, suppressed: 0 });
+    assert.deepEqual(published.body.report.facilitators, { sent: 0, held: 0, suppressed: 0 });
     assert.deepEqual(sentTo(), ["omar@example.com"]);
     assert.ok(world.db.read(`courseEnrolments/${RUN.agi}__omar`).allocatedEmailAt instanceof Date);
   });

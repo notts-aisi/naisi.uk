@@ -1305,6 +1305,18 @@ const ROUND_READERS = new Map([
     },
   ],
   [
+    "src/lib/courses/allocationPublish.ts",
+    {
+      kind: "form",
+      asks: 1,
+      proof: ['.where("formVersion", "==", FORM_VERSION)', "if (!isApplicationForm(data)) continue;"],
+      why:
+        "Publish's plan finds the programme that names the run, to sign the facilitators' email " +
+        "with its lead's name. It asks the database for forms only, and asks each stored " +
+        "document the question again before it reads it as one",
+    },
+  ],
+  [
     "src/lib/firestore/accountDeletion.ts",
     {
       kind: "both",

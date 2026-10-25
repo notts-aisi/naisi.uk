@@ -154,6 +154,14 @@ export type CourseEnrolmentDoc = {
    * the board until Publish has.
    */
   allocatedEmailAt?: Date | null;
+  /**
+   * What became of that email, written beside the stamp by Publish: handed
+   * to the mail provider, held because this copy of the site may not write
+   * to the address, or stopped by the do-not-email list. Absent on a stamp
+   * written before Publish recorded it. Read only beside the stamp: a move
+   * clears the stamp and leaves this for the next Publish to overwrite.
+   */
+  allocatedEmailDelivery?: "sent" | "held" | "suppressed";
   createdAt?: Date | null;
   updatedAt?: Date | null;
 };
@@ -286,5 +294,9 @@ export function normalizeCourseEnrolment(id: string, data: Raw): CourseEnrolment
   }
   const allocatedEmailAt = tsToDate(data.allocatedEmailAt);
   if (allocatedEmailAt) doc.allocatedEmailAt = allocatedEmailAt;
+  const delivery = data.allocatedEmailDelivery;
+  if (delivery === "sent" || delivery === "held" || delivery === "suppressed") {
+    doc.allocatedEmailDelivery = delivery;
+  }
   return doc;
 }

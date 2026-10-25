@@ -83,6 +83,11 @@ const READERS = {
     asks: 1,
     why: "Publish lists accepted people, names the unplaced in a refusal and emails the rest",
   },
+  "app/api/courses/runs/[runId]/allocation/publish/test/route.ts": {
+    kind: "staff",
+    asks: 1,
+    why: "\"Send a test to me\" reads the run's accepted people to write the first person's real email, for an admin or the run's track leads",
+  },
   "app/api/courses/runs/[runId]/applications/route.ts": {
     kind: "staff",
     asks: 1,

@@ -369,7 +369,9 @@ export async function loadRoutes(made) {
     handOver: await formRoute("programmes", "[programmeId]", "run", "hand-over"),
     send: await formRoute("send"),
     allocate: await courseRoute("runs", "[runId]", "allocate"),
+    board: await courseRoute("runs", "[runId]", "allocation"),
     publish: await courseRoute("runs", "[runId]", "allocation", "publish"),
+    publishTest: await courseRoute("runs", "[runId]", "allocation", "publish", "test"),
     me: await courseRoute("me"),
   };
   return {
@@ -381,7 +383,23 @@ export async function loadRoutes(made) {
     sendBoard: (who = "zach") => call(who, routes.send.GET, { roundId: ROUND }),
     place: (who, placements) =>
       call(who, routes.allocate.POST, { runId: RUN.agi }, { body: { placements }, course: true }),
-    publish: (who = "zach") => call(who, routes.publish.POST, { runId: RUN.agi }, { course: true }),
+    /**
+     * A press of Publish, made the way the board makes one (as the hand-over
+     * world's `publish()`): read the number on its button, send "a test to
+     * me" first when the board says one is owed, then press with that number.
+     * The test goes to whoever presses and is in `world.mail` with "[TEST]"
+     * at the start of its subject.
+     */
+    publish: async (who = "zach") => {
+      const read = async () =>
+        (await call(who, routes.board.GET, { runId: RUN.agi }, { course: true })).body?.publish ?? null;
+      let summary = await read();
+      if (summary && summary.emails > 0 && summary.test?.state !== "fresh") {
+        await call(who, routes.publishTest.POST, { runId: RUN.agi }, { course: true });
+        summary = await read();
+      }
+      return call(who, routes.publish.POST, { runId: RUN.agi }, { body: { emails: summary?.emails ?? 0 }, course: true });
+    },
     me: async (who) => (await call(who, routes.me.GET, {}, { course: true })).body.runs ?? [],
   };
 }

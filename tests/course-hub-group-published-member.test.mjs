@@ -21,6 +21,10 @@
  *    same status and the same body, read before and after the placement.
  *  - PUBLISHED AND TOLD: the run, their group and its people show, and the
  *    run opens.
+ *  - "SEND A TEST TO ME" BEFORE PUBLISH: the test borrows a placed person's
+ *    email, sends it to the presser, and changes nothing anybody reads. The
+ *    press after it stamps, and so shows, exactly the people it wrote to:
+ *    somebody whose email failed reads nothing until a press reaches them.
  *  - MOVED AFTER PUBLISH: untold again. They read nothing of the run until
  *    Publish is pressed again, which emails them alone their new group.
  *  - AN OPEN SIGN-UP RUN, where people pick their own group: shown at once.
@@ -37,6 +41,7 @@
  */
 import { beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
+import { render } from "@react-email/render";
 import { GROUP, OPEN_GROUP, RUN, makeGroupWorld } from "./lib/groupPublishedWorld.mjs";
 
 const made = await makeGroupWorld("__groupPublishedMember");
@@ -49,6 +54,9 @@ beforeEach(() => {
 const HOLDERS = ["amara", "dev", "bea", "tariq"];
 /** Where `steps.placed()` puts each holder. */
 const GROUP_OF = { amara: GROUP.thursday, dev: GROUP.monday, bea: GROUP.monday, tariq: GROUP.thursday };
+/** Each group's name, and who facilitates it (`groupSeed`). */
+const NAME_OF = { [GROUP.monday]: "Monday evening", [GROUP.thursday]: "Thursday morning" };
+const FACILITATOR_OF = { [GROUP.monday]: "claudia", [GROUP.thursday]: "tess" };
 
 /** Week one's exercise answer, as the week page sends it. */
 const ANSWER = { weekId: "w01", text: "My answer.", submit: false };
@@ -169,6 +177,146 @@ describe("published and told: the run, the group and its people show", () => {
 });
 
 // ---------------------------------------------------------------------------
+// "Send a test to me", and the press after it
+// ---------------------------------------------------------------------------
+
+/** One email as its reader sees it: the words, without the markup. */
+async function wordsOf(mail) {
+  const html = await render(mail.react);
+  return html
+    .replace(/<head[\s\S]*?<\/head>/i, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&#x27;|&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const addressOf = (uid) => world.db.read(`users/${uid}`).email;
+const firstNameOf = (uid) => world.db.read(`users/${uid}`).displayName.split(" ")[0];
+
+/** How the subject of Publish's email to a placed person starts (its seed wording). */
+const PLACEMENT_SUBJECT = "Your AGI Strategy Fellowship group: first session ";
+
+/** The uid of every seat on the AGI run that carries Publish's stamp, sorted. */
+const stampedSeats = () =>
+  world.db
+    .paths()
+    .filter((path) => path.startsWith(`courseEnrolments/${RUN.agi}__`))
+    .map((path) => world.db.read(path))
+    .filter((seat) => seat.allocatedEmailAt !== undefined && seat.allocatedEmailAt !== null)
+    .map((seat) => seat.uid)
+    .sort();
+
+describe("a test of Publish's emails shows nobody their group, and a press shows exactly the people it wrote to", () => {
+  test("the test borrows a placed person's email and shows them nothing; the press then shows them their group", async () => {
+    await steps.placed();
+    const before = {};
+    for (const who of HOLDERS) before[who] = await everythingTheyRead(who, GROUP_OF[who]);
+
+    const tested = await steps.sendTest();
+    assert.deepEqual([tested.status, tested.body.recorded], [200, true], JSON.stringify(tested.body));
+    // Publish's two emails, each marked as a test, to the presser and nobody else.
+    assert.deepEqual(
+      world.mail.map((m) => [m.to, m.kind]),
+      [
+        [addressOf("zach"), "course-test"],
+        [addressOf("zach"), "course-test"],
+      ],
+    );
+    // The placed person whose email it borrowed is the one it greets.
+    const placement = world.mail.find((m) => m.subject.startsWith(`[TEST] ${PLACEMENT_SUBJECT}`));
+    const words = await wordsOf(placement);
+    const borrowed = HOLDERS.filter((who) => words.includes(`You've been placed, ${firstNameOf(who)}`));
+    assert.equal(borrowed.length, 1, words);
+    const [person] = borrowed;
+    const group = GROUP_OF[person];
+
+    // It stamped nobody and claimed no facilitator's email.
+    assert.deepEqual(stampedSeats(), [], "the test stamped a seat");
+    assert.deepEqual(world.db.paths().filter((path) => path.startsWith("courseNudges/facilitating__")), []);
+    // Everybody placed reads exactly what they read before it.
+    for (const who of HOLDERS) {
+      assert.deepEqual(await everythingTheyRead(who, GROUP_OF[who]), before[who], `${who} reads something different after the test`);
+    }
+    // The person it borrowed above all: no run in their member area, a group
+    // page they cannot open, and a roster that names nobody to their
+    // facilitator and says the names are still to come.
+    assert.deepEqual(await ask.me(person), []);
+    assert.equal((await ask.roster(person, group)).status, 403);
+    const waiting = await ask.roster(FACILITATOR_OF[group], group);
+    assert.deepEqual([waiting.status, waiting.body.members, waiting.body.notYetTold], [200, [], true]);
+
+    // The press: no second test (the first still counts), and every seat it
+    // stamps is a person it wrote to, and every person it wrote to is stamped.
+    world.mail.length = 0;
+    const pressed = await steps.publishes();
+    assert.deepEqual(pressed.report, {
+      people: { sent: 4, held: 0, suppressed: 0 },
+      facilitators: { sent: 2, held: 0, suppressed: 0 },
+      failed: [],
+      noAddress: [],
+      alreadyTold: 0,
+      more: 0,
+    });
+    assert.ok(!world.mail.some((m) => m.kind === "course-test"), "the press sent another test");
+    const wroteTo = world.mail.filter((m) => m.subject.startsWith(PLACEMENT_SUBJECT)).map((m) => m.to).sort();
+    assert.deepEqual(wroteTo, HOLDERS.map(addressOf).sort());
+    assert.deepEqual(stampedSeats().map(addressOf).sort(), wroteTo);
+
+    // And now the person it borrowed reads their run and group, and is on
+    // the roster their facilitator reads.
+    assert.deepEqual(
+      (await ask.me(person)).map((entry) => [entry.runId, entry.membership, entry.groupName]),
+      [[RUN.agi, "enrolled", NAME_OF[group]]],
+    );
+    const shown = await ask.roster(FACILITATOR_OF[group], group);
+    assert.ok(shown.body.members.some((m) => m.uid === person), JSON.stringify(shown.body.members));
+    assert.equal(shown.body.notYetTold, false);
+  });
+
+  test("somebody whose email failed is not stamped and reads nothing, until a press reaches them", async (t) => {
+    // The press reports the failure on the console as well as in its answer.
+    t.mock.method(console, "error", () => {});
+    await steps.placed();
+    const before = await everythingTheyRead("tariq", GROUP.thursday);
+    world.mailFate = (args) => (args.to === addressOf("tariq") ? "fail" : "sent");
+    const pressed = await steps.publishes();
+    assert.deepEqual(pressed.report, {
+      people: { sent: 3, held: 0, suppressed: 0 },
+      facilitators: { sent: 2, held: 0, suppressed: 0 },
+      failed: ["Tariq"],
+      noAddress: [],
+      alreadyTold: 0,
+      more: 0,
+    });
+    // Stamped: the three it wrote to. Not Tariq.
+    assert.deepEqual(stampedSeats(), ["amara", "bea", "dev"]);
+    assert.deepEqual(await everythingTheyRead("tariq", GROUP.thursday), before, "Tariq is shown something although his email failed");
+    // His group's facilitator is shown Amara, and is told a name is still to come.
+    const roster = await ask.roster("tess", GROUP.thursday);
+    assert.deepEqual([roster.body.members.map((m) => m.uid), roster.body.notYetTold], [["amara"], true]);
+
+    // The next press writes to him alone, and then he reads his group.
+    world.mailFate = null;
+    world.mail.length = 0;
+    const again = await steps.publishes();
+    assert.deepEqual([again.report.people, again.report.facilitators, again.report.failed], [
+      { sent: 1, held: 0, suppressed: 0 },
+      { sent: 0, held: 0, suppressed: 0 },
+      [],
+    ]);
+    assert.deepEqual(world.mail.map((m) => m.to), [addressOf("tariq")]);
+    assert.deepEqual(stampedSeats(), ["amara", "bea", "dev", "tariq"]);
+    assert.deepEqual((await ask.me("tariq")).map((entry) => entry.groupName), ["Thursday morning"]);
+    assert.deepEqual(
+      (await ask.roster("tess", GROUP.thursday)).body.members.map((m) => m.uid).sort(),
+      ["amara", "tariq"],
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Moved after Publish
 // ---------------------------------------------------------------------------
 
@@ -203,7 +351,16 @@ describe("moved after Publish: untold again until Publish is pressed again", () 
     await steps.place([{ uid: "amara", groupId: GROUP.monday }]);
     world.mail.length = 0;
     const again = await steps.publishes();
-    assert.equal(again.emailed, 1);
+    // One person's email went, and nothing else: the first press told each
+    // facilitator about their group, and the test it needed still counts.
+    assert.deepEqual(again.report, {
+      people: { sent: 1, held: 0, suppressed: 0 },
+      facilitators: { sent: 0, held: 0, suppressed: 0 },
+      failed: [],
+      noAddress: [],
+      alreadyTold: 0,
+      more: 0,
+    });
     assert.deepEqual(world.mail.map((m) => m.to), [world.db.read("users/amara").email]);
     assert.deepEqual(
       (await ask.me("amara")).map((entry) => [entry.membership, entry.groupName]),
