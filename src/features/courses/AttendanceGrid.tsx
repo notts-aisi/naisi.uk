@@ -19,6 +19,7 @@ import ParticipantNoteDrawer from "./ParticipantNoteDrawer";
 import PushConfirm from "./PushConfirm";
 import { registerEndingWords } from "./registerEndingWords";
 import useAttendance, {
+  type AttendanceLeaver,
   type AttendanceMark,
   type AttendanceMember,
   type AttendanceSession,
@@ -136,6 +137,9 @@ const GLYPH: Record<AttendanceStatus, string> = {
  * 44px square reads as a gap in the table instead.
  */
 const UNMARKED_GLYPH = "·";
+
+/** Shared empty list of people who left. Read only by contract. */
+const NO_LEAVERS: AttendanceLeaver[] = [];
 
 const STATUS_CLASS: Record<AttendanceStatus, string> = {
   present: styles.isPresent,
@@ -286,7 +290,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
     sessions,
     members,
     notYetTold,
-    leavers,
+    leavers: givenLeavers,
     records,
     participantNotes,
     canEditPushed,
@@ -300,6 +304,9 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
     saveNote,
   } = useAttendance(groupId);
   const { toast, run: runAction, dismiss } = useActionToast();
+  // Who left the group, read only. Read as none when the data behind the
+  // register does not carry the list (a stand-in for the hook may not).
+  const leavers = givenLeavers ?? NO_LEAVERS;
 
   /** A save in flight, so the status can say "Saving…" while it is. */
   const [saving, setSaving] = useState(false);
