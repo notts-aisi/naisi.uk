@@ -7,6 +7,8 @@ import { sanitizeSignupForm, type FormQuestion } from "./events";
 import { isValidDateKey, type WeekPlanEntry } from "../courses/weekPlan";
 import { normalizeCohort, type RunCohort } from "../courses/cohortLabel";
 import { normalizeTeamsFrom, type TeamsFrom } from "../courses/teams/model";
+import { WEEK_BLOCK_LIMITS } from "../courses/weekBlocks/limits";
+import { sanitizeWeekBlocks, type WeekBlock } from "../courses/weekBlocks/model";
 
 /**
  * Courses data model — `courses/{id}` → `courseRuns/{id}` (top-level) →
@@ -521,6 +523,41 @@ export type CourseWeekDoc = {
   /** Unpublished weeks are hidden from learners and the public curriculum. */
   published: boolean;
   /**
+   * THE LEAD'S "MARK READY" (board pr-weeks, Q35). Ready and Published
+   * answer two different questions, and this is how they relate:
+   *
+   *  - PUBLISHED, unchanged, is whether the week can be read at all: by its
+   *    group when the week opens to them (straight after the group's
+   *    previous session, `weekOpening`), and on the public course pages when
+   *    its run is the course's showcase run. Every reader that decides
+   *    whether a week shows asks it.
+   *  - READY is the lead's word that the week is finished. The Weeks tab's
+   *    "Mark ready" stores `ready: true` and publishes the week in the same
+   *    write, and taking a week back to a draft takes both back, so a ready
+   *    week is always a published one: read here, a stored `ready` counts
+   *    only on a published week, whoever wrote what.
+   *  - Week 1 opening BEFORE groups go out, to everybody holding a place
+   *    (Q35 B), asks READY, not Published: that is the lead deciding the
+   *    week is fit to open early. After groups go out a week opens on
+   *    Published, as it always has.
+   *  - A published week that is not ready is a week shown by the switch in
+   *    the run's week editor, which is every week until the Weeks tab exists:
+   *    it opens to its groups as today, and never early.
+   *
+   * Read only off the RUN's week, as `pitching` is: no copy carries it, so
+   * a group's copy, a template and another run's copy all start not ready.
+   * Only the server writes it (the rules keep browsers off it). Only a
+   * stored `true` is on.
+   */
+  ready: boolean;
+  /**
+   * The week as an ordered list of blocks (the v20 coursework,
+   * `src/lib/courses/weekBlocks/model.ts`). ABSENT on every week written
+   * before blocks, which reads and draws exactly as it always has. Written
+   * only by the server; carried by every copy of a week (`weekBlocksField`).
+   */
+  blocks?: WeekBlock[];
+  /**
    * This week is the run's pitching week (see `RunPitchSettings`). Ticked in
    * the week editor by whoever edits the run's weeks, and read only off the
    * RUN's week: a group's copy of a week does not carry it. Only a stored
@@ -992,6 +1029,12 @@ export const COURSE_FIELD_LIMITS = {
    */
   maxPitchPicks: 10,
   maxTeamSize: 12,
+  /**
+   * A week written as blocks: one cap per kind of block and per field (see
+   * `src/lib/courses/weekBlocks/limits.ts`, which they are kept in so the
+   * block model can read them without importing this file).
+   */
+  ...WEEK_BLOCK_LIMITS,
 } as const;
 
 // ---- Submission URL validation ----
@@ -1272,6 +1315,11 @@ export function normalizeCourseWeek(id: string, data: Raw): CourseWeekDoc {
     questions: sanitizeWeekQuestions(data.questions),
     estimatedMinutes: asPositiveIntOrNull(data.estimatedMinutes),
     published: data.published === true,
+    // A ready week is always a published one (see `CourseWeekDoc.ready`).
+    ready: data.ready === true && data.published === true,
+    // Absent on a week written before blocks: the key is only there when
+    // the stored week has a list.
+    ...(Array.isArray(data.blocks) ? { blocks: sanitizeWeekBlocks(data.blocks) } : {}),
     pitching: data.pitching === true,
     updatedAt: tsToDate(data.updatedAt),
     updatedByUid: (data.updatedByUid as string | null | undefined) ?? null,
