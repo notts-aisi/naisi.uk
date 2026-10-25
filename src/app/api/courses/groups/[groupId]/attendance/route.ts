@@ -10,6 +10,7 @@ import {
   loadRegisterMembers,
   type RegisterMember,
 } from "@/lib/courses/registerAccess";
+import { readRegisterEnding, type RegisterEnding } from "@/lib/courses/registerEnding";
 import {
   resolveSessions,
   sessionInstants,
@@ -22,6 +23,7 @@ import {
   ATTENDANCE_STATUSES,
   ATTENDANCE_STATUS_LABEL,
   attendanceDocId,
+  normalizeCourseAttendance,
   type AttendanceStatus,
 } from "@/lib/firestore/courseAttendance";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
@@ -49,11 +51,12 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * own push. For every group that meets once, which is all of them today, the
  * columns and the register ids are exactly what they were.
  *
- * ── THE DRAFT / PUSHED BOUNDARY ─────────────────────────────────────────────
+ * ── THE DRAFT / FINISHED BOUNDARY ───────────────────────────────────────────
  * A register is a DRAFT the facilitator saves as often as they like during the
- * session, and PUSH ATTENDANCE is the state change: the register locks, the
- * enrolment rollups are recomputed from it, and the group's next-session
- * reminder goes out. After that:
+ * session, and finishing it (the push route: "Finish the register" while next
+ * week's email is on its schedule, "Push attendance" while the push still
+ * sends that email) is the state change: the register locks and the enrolment
+ * rollups are recomputed from it. After that:
  *  · POST REFUSES. A facilitator who needs a mark changed asks an admin, and
  *    the reason is not procedural: the push is what mailed the group and moved
  *    the numbers a reviewer reads, so a quiet edit afterwards would leave the
@@ -134,6 +137,12 @@ export type AttendancePayload = {
   participantNotes: Record<string, Record<string, string>>;
   /** True when the caller may correct a register that is already pushed. */
   canEditPushed: boolean;
+  /**
+   * How this register ends, every value from a record: which button it is,
+   * the session it finishes, when next week's email goes and who is chased if
+   * nobody finishes. The page words it (`registerEndingWords.ts`).
+   */
+  ending: RegisterEnding;
 };
 
 /** POST's answer. `marked` counts cells written, including cells cleared. */
@@ -462,7 +471,8 @@ export async function GET(
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
-  const columns = columnsFor(run, group, resolveSessions(run, group), requestedWeek);
+  const sessions = resolveSessions(run, group);
+  const columns = columnsFor(run, group, sessions, requestedWeek);
 
   // Three `getAll`s, one round trip: the canonical week docs (titles only),
   // this group's forked copies of the same weeks, and the registers
@@ -539,16 +549,26 @@ export async function GET(
     }
     if (Object.keys(notes).length > 0) participantNotes[column.sessionKey] = notes;
 
-    const pushedAt = data.pushedAt as { toDate?: () => Date } | undefined;
+    // Through the collection's own reader, which takes a stored Timestamp
+    // and a Date alike.
+    const pushedAt = normalizeCourseAttendance(snap.id, data).pushedAt;
     stateByKey.set(column.sessionKey, {
       held: data.held !== false,
       notes: typeof data.notes === "string" ? data.notes : "",
-      pushedAt:
-        pushedAt && typeof pushedAt.toDate === "function"
-          ? pushedAt.toDate().toISOString()
-          : null,
+      pushedAt: pushedAt ? pushedAt.toISOString() : null,
     });
   }
+
+  const ending = await readRegisterEnding(db, {
+    run,
+    group,
+    sessions,
+    columns: columns.map((session) => ({
+      session,
+      finished: Boolean(stateByKey.get(session.sessionKey)?.pushedAt),
+    })),
+    now: new Date(),
+  });
 
   const payload: AttendancePayload = {
     group: { id: group.id, name: group.name },
@@ -573,6 +593,7 @@ export async function GET(
     records,
     participantNotes,
     canEditPushed: gated.isAdmin,
+    ending,
   };
 
   return NextResponse.json(payload);

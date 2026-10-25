@@ -133,6 +133,7 @@ const {
   registerFollowUpFallbackTaskId,
   registerFollowUpTaskId,
   registerFollowUpTitle,
+  registerTaskCompleters,
   runsToScan,
   sessionDateLabel,
 } = await loadTs("lib/courses/unmarkedRegisters.ts");
@@ -145,6 +146,8 @@ const { normalizeSchedulerCursor, pruneFailures, sameFailures } = await loadTs(
 const source = (relativePath) => readFileSync(join(SRC, relativePath), "utf8");
 
 const JOB = source("lib/scheduler/jobs/unmarkedRegisters.ts");
+/** Who a register card goes to, read by the two jobs that mint them. */
+const PEOPLE = source("lib/courses/registerTaskPeople.ts");
 const REGISTRY = source("lib/scheduler/registry.ts");
 const PUSH_ROUTE = source(
   "app/api/courses/groups/[groupId]/attendance/push/route.ts",
@@ -495,21 +498,47 @@ describe("the follow-up task", () => {
     },
     courseTitle: "AI Safety Fundamentals",
     groupName: "Tuesday group",
-    adminUids: ["admin1", "admin2"],
+    // The run's lead, then every admin (`registerTaskCompleters`).
+    completerUids: ["lead1", "admin1", "admin2"],
     creatorUid: "admin1",
     dueDate: followUpDueAt(ENDED_AT, GRACE),
     now: NOW,
+    scheduled: false,
     limits: { title: 120, description: 4000 },
     ...overrides,
   });
 
-  test("lands on the committee board, assigned to every admin", () => {
+  test("lands on the committee board, assigned to the run's lead and every admin", () => {
+    // Q17 as drawn: the task is the lead's and the admins'. It used to be every
+    // admin's alone; the lead now comes first.
     const task = buildRegisterFollowUpTask(args());
     assert.equal(task.source, "course-register");
     assert.equal(task.visibility, "committee");
-    assert.deepEqual(task.completerUids, ["admin1", "admin2"]);
+    assert.deepEqual(task.completerUids, ["lead1", "admin1", "admin2"]);
+    assert.equal(task.creatorUid, "admin1", "filed under an admin, a real account");
     assert.equal(task.status, "todo");
     assert.equal(task.archived, false);
+  });
+
+  test("the lead comes first, once, and the cap can never drop them", () => {
+    assert.deepEqual(registerTaskCompleters("lead1", ["admin1", "admin2"], 10), [
+      "lead1",
+      "admin1",
+      "admin2",
+    ]);
+    // A lead who is also an admin is named once.
+    assert.deepEqual(registerTaskCompleters("admin2", ["admin1", "admin2"], 10), [
+      "admin2",
+      "admin1",
+    ]);
+    // A run no programme names: the admins alone.
+    assert.deepEqual(registerTaskCompleters(null, ["admin1", "admin2"], 10), ["admin1", "admin2"]);
+    // Over the tasks rules' ten, the lead keeps their place and the last admin goes.
+    const admins = Array.from({ length: 10 }, (_, i) => `admin${i}`);
+    const capped = registerTaskCompleters("lead1", admins, 10);
+    assert.equal(capped.length, 10);
+    assert.equal(capped[0], "lead1");
+    assert.ok(!capped.includes("admin9"));
   });
 
   test("carries no reviewers", () => {
@@ -577,12 +606,24 @@ describe("the follow-up task", () => {
   });
 
   test("the copy names the group, the course, the week and the date", () => {
+    // "Register not finished" rather than "Unmarked register": a register can
+    // be fully marked and still not finished, and finishing is what the card
+    // asks for (wk-register's word).
     const task = buildRegisterFollowUpTask(args());
-    assert.equal(task.title, "Unmarked register: Tuesday group, week 3");
+    assert.equal(task.title, "Register not finished: Tuesday group, week 3");
     assert.match(task.description, /Tuesday group/);
     assert.match(task.description, /AI Safety Fundamentals/);
     assert.match(task.description, /Tuesday 29 September/);
-    assert.match(task.description, /Push attendance/);
+    assert.match(task.description, /press Push attendance/);
+    assert.match(task.description, /the reminder email for the next session, which the push is what sends/);
+  });
+
+  test("names the button the register shows, and says the email is not waiting, once it is on its schedule", () => {
+    const task = buildRegisterFollowUpTask(args({ scheduled: true }));
+    assert.match(task.description, /press Finish the register/);
+    assert.match(task.description, /goes on its own schedule and is not waiting on this/);
+    assert.doesNotMatch(task.description, /Push attendance/);
+    assert.doesNotMatch(task.description, /which the push is what sends/);
   });
 
   test("a half-authored run still produces readable copy", () => {
@@ -596,7 +637,7 @@ describe("the follow-up task", () => {
         dateKey: "",
       } }),
     );
-    assert.equal(task.title, "Unmarked register: a group, week 3");
+    assert.equal(task.title, "Register not finished: a group, week 3");
     assert.doesNotMatch(task.description, /undefined/);
     assert.match(task.description, /week 3/);
   });
@@ -635,6 +676,7 @@ describe("the follow-up task", () => {
       weekNumber: 1,
       occurrence: 1,
       dateKey: "2026-09-29",
+      scheduled: false,
     };
     assert.equal(registerFollowUpTitle(copy), registerFollowUpTitle(copy));
     assert.equal(
@@ -764,8 +806,12 @@ describe("the job's ordering", () => {
 
   test("the scan reads only what it needs off the users collection", () => {
     // An admin's user document is the most PII-dense row this platform holds
-    // and the job wants nothing from it but the id.
-    const read = JOB.slice(JOB.indexOf("async function readAdminUids"));
+    // and the job wants nothing from it but the id. The read moved to the
+    // module both register-card jobs share, so it is asserted there, and the
+    // job is held to using it.
+    assert.match(JOB, /readAdminUids\(db, `scheduler:\$\{JOB_ID\}`\)/);
+    assert.doesNotMatch(JOB, /collection\("users"\)/);
+    const read = PEOPLE.slice(PEOPLE.indexOf("export async function readAdminUids"));
     assert.match(read, /\.where\("role", "==", "admin"\)/);
     assert.match(read, /\.select\(\)/);
     // Capped at the tasks rules' own completer ceiling: a task with eleven

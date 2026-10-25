@@ -35,6 +35,7 @@ export const SEND_DOOR_NAMES = [
   "sendAnnouncementToRecipient",
   "sendPushToRowAudience",
   "sendDecisionEmail",
+  "sendRegisterReminderEmail",
 ];
 
 /** Any of the doors, as a call. */

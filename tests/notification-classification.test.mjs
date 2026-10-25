@@ -405,10 +405,19 @@ const REGISTRY = {
     "The run catch-up nudge, over the same audience resolver.",
     "src/lib/email/courseFacilitatorEmails.ts",
   ),
-  "src/app/api/courses/groups/[groupId]/attendance/push/route.ts#sendCourseWeekNudgeEmail": G(
+  "src/lib/courses/nextWeekEmail.ts#sendCourseWeekNudgeEmail": G(
     "courses",
-    "The weekly session nudge to one group, over the same audience resolver.",
+    "Next week's email to one group, the one send both of its lanes go through: the register's push while the email is not on its schedule (and an admin's resend), and the `courses-next-week-email` job while it is. `resolveCohortAudience` drops everybody whose courses cell is a stored false before a message is rendered.",
     "src/lib/email/courseFacilitatorEmails.ts",
+  ),
+  "src/lib/scheduler/jobs/registerReminders.ts#sendRegisterReminderEmail": G(
+    "tasks",
+    "The one reminder to a group's facilitators about an unfinished register: work they took on, like a worksheet's due-soon reminder, so their own tasks row is its off switch. `resolveFacilitator` reads it beside the address and the suppression check. Email only: this job has no push leg.",
+  ),
+  "src/lib/email/registerReminderEmail.ts#sendEmail": G(
+    "tasks",
+    "The register reminder's send door. It has one caller and that caller consults the row before it gets here.",
+    "src/lib/scheduler/jobs/registerReminders.ts",
   ),
   "src/lib/email/courseNudgeEmail.ts#sendEmail": G(
     "courses",

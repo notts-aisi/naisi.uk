@@ -25,12 +25,34 @@ export const COURSE_CONFIG_PATH = {
 
 export type CoursesConfig = {
   /**
-   * How long after a session's end a register may go unmarked before the
-   * follow-up job raises a committee task about it, assigned to the admins so
-   * one of them can chase the group's facilitator. Long enough that an evening
-   * session marked the next morning is not chased.
+   * How long after a session ENDS a register may stay unfinished before its
+   * facilitators get one reminder email (the `courses-register-reminders`
+   * job, which ships switched off). Long enough that an evening session
+   * finished the next morning is not chased.
+   *
+   * The key is older than the reminder: it used to be when the admins' task
+   * was raised. It kept its name and its number when the task moved later,
+   * so a value an admin already stored still means "the first chase".
    */
   unmarkedRegisterGraceHours: number;
+  /**
+   * How long after a session ENDS a register may stay unfinished before the
+   * `courses-unmarked-registers` job raises a task for the lead of the
+   * programme that names the run, and the admins. Always later than the
+   * reminder above: the route refuses a value that is not.
+   */
+  registerTaskHours: number;
+  /**
+   * How many days before each of a group's sessions that group is sent next
+   * week's email (its time, room and reading), at the session's own time of
+   * day in London. Read by the `courses-next-week-email` job only, and only
+   * while that job is switched on: while it is off, pushing the register
+   * sends the email instead.
+   *
+   * WHOLE DAYS ON THE CALENDAR, never 24-hour blocks, so a Tuesday 6pm group
+   * hears on the Sunday at 6pm on either side of a clock change.
+   */
+  nextWeekEmailDaysBefore: number;
   /**
    * The anonymous feedback form a member is offered when they drop out.
    * Empty = no link shown, which is a complete state: the drop-out still
@@ -85,6 +107,10 @@ export type CoursesConfig = {
 
 export const DEFAULT_COURSES_CONFIG: CoursesConfig = Object.freeze({
   unmarkedRegisterGraceHours: 36,
+  registerTaskHours: 60,
+  // The board's "2 days before its session". Written here and nowhere else:
+  // every other reader takes it from the stored setting or from this default.
+  nextWeekEmailDaysBefore: 2,
   dropOutFeedbackUrl: "",
   weeklyFeedbackUrl: "",
   nextSessionMaxDays: 14,
@@ -119,6 +145,32 @@ function positiveInt(v: unknown, fallback: number): number {
   return Math.floor(n);
 }
 
+/**
+ * The most hours either chase may wait: a fortnight. Past that a reminder or
+ * a task is about a session nobody remembers, which is noise rather than a
+ * nudge. The route refuses more; the reader below falls back on it.
+ */
+export const REGISTER_CHASE_MAX_HOURS = 336;
+
+/**
+ * The most days before a session next week's email may go. A group meets
+ * weekly, so seven days before one session is the previous session's own
+ * evening, before its register could even have been taken.
+ */
+export const NEXT_WEEK_EMAIL_MAX_DAYS = 6;
+
+/** A whole number of days in 1 to the maximum, or the fallback. */
+function daysBefore(v: unknown, fallback: number): number {
+  if (typeof v !== "number" || !Number.isInteger(v)) return fallback;
+  return v >= 1 && v <= NEXT_WEEK_EMAIL_MAX_DAYS ? v : fallback;
+}
+
+/** Hours in (0, the maximum], or the fallback. */
+function chaseHours(v: unknown, fallback: number): number {
+  const n = positiveNumber(v, fallback);
+  return n <= REGISTER_CHASE_MAX_HOURS ? n : fallback;
+}
+
 export async function readCoursesConfig(db: Firestore): Promise<CoursesConfig> {
   const snap = await db
     .collection(COURSE_CONFIG_PATH.collection)
@@ -127,9 +179,17 @@ export async function readCoursesConfig(db: Firestore): Promise<CoursesConfig> {
   if (!snap.exists) return { ...DEFAULT_COURSES_CONFIG };
   const data = (snap.data() ?? {}) as Record<string, unknown>;
   return {
-    unmarkedRegisterGraceHours: positiveNumber(
+    unmarkedRegisterGraceHours: chaseHours(
       data.unmarkedRegisterGraceHours,
       DEFAULT_COURSES_CONFIG.unmarkedRegisterGraceHours,
+    ),
+    registerTaskHours: chaseHours(
+      data.registerTaskHours,
+      DEFAULT_COURSES_CONFIG.registerTaskHours,
+    ),
+    nextWeekEmailDaysBefore: daysBefore(
+      data.nextWeekEmailDaysBefore,
+      DEFAULT_COURSES_CONFIG.nextWeekEmailDaysBefore,
     ),
     // Scheme-checked, not merely type-checked: this one is rendered as an
     // href. See `externalUrlOrEmpty`.

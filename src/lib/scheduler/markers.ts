@@ -46,6 +46,7 @@ export {
   isStaleWork,
   markerFamilyOf,
   normalizeSchedulerMarker,
+  registerReminderMarker,
   reminderMarker,
   schedulerMarkerExpiry,
   stageRecipientMarker,

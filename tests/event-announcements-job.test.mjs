@@ -149,7 +149,8 @@ const STUBS = new Map([
   ],
   [
     "@/lib/email/courseFacilitatorEmails",
-    "export const hasOptedOutOfCourseAnnouncements = () => false;\n" +
+    "export const resolveCohortAudience = async () => ({ members: [], skipped: 0, enrolledCount: 0, refusal: null });\n" +
+      "export const hasOptedOutOfCourseAnnouncements = () => false;\n" +
       "export const memberNameOf = () => '';",
   ],
 ]);

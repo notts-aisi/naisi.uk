@@ -6,6 +6,18 @@
  * that had not heard -> correct a pushed mark as an admin -> force the resend
  * -> read what actually went out.
  *
+ * ## TWO ENDINGS, AND THE TARGET DECIDES WHICH (wk-register, option B)
+ *
+ * The register's button is "Push attendance" while next week's email is NOT on
+ * its schedule (the `courses-next-week-email` job switched off, how it ships),
+ * and pushing then emails the group about its next session. With that job
+ * switched on the button is "Finish the register" and finishing emails NOBODY.
+ * The switch lives in Site status on the target, so this spec asks the
+ * register's own GET which ending is live (`ending.scheduled`) and asserts
+ * that one: the words under the button, the confirm, the answer, the mail and
+ * the marker. It never moves the switch: that is configuration on a shared
+ * project, and no fixture may touch `config/scheduler`.
+ *
  * ## How to run it
  *
  *   node scripts/run-e2e.mjs --spec register-push --local
@@ -303,6 +315,20 @@ test(
       await gridOf(p).waitFor({ timeout: WAIT_MS });
     }
 
+    /**
+     * Which ending the target is in, asked of the register's own GET with the
+     * page's own session. Read once, before anything is pressed.
+     */
+    async function readEnding(p) {
+      return p.evaluate(async (groupId) => {
+        const res = await fetch(`/api/courses/groups/${encodeURIComponent(groupId)}/attendance`);
+        const body = await res.json().catch(() => null);
+        return body?.ending ?? null;
+      }, state.groupId);
+    }
+    /** True when next week's email is on its schedule on this target. */
+    let scheduled = false;
+
     /** A second tab, same identity, for the stale-tab leg. Closed at the end. */
     let stale = null;
 
@@ -356,6 +382,36 @@ test(
           new RegExp(`Attendance for ${state.groupName}`),
           "the register's caption did not name this group",
         );
+
+        // THE FOOT: wk-register's ending, under the grid. Which words it says
+        // is the target's switch, read here once and asserted on from now on.
+        const ending = await readEnding(page);
+        assert.ok(ending, "the register's GET carries no ending");
+        scheduled = ending.scheduled === true;
+        console.log(
+          `[register-spec] next week's email is ${scheduled ? "on its schedule: Finish the register, nobody emailed" : "sent by the push: Push attendance"}.`,
+        );
+        const foot = page.getByTestId("register-ending");
+        await foot.waitFor({ timeout: WAIT_MS });
+        const footText = (await foot.innerText()).replace(/\s+/g, " ");
+        // Every session of this fixture is in the past and none is finished,
+        // so the foot offers the latest one: week 4.
+        assert.match(footText, new RegExp(`Week ${state.weekCount} register`));
+        if (scheduled) {
+          assert.match(footText, /Finish the register/);
+          assert.match(footText, /Locks it and shows everyone their mark\. Nobody’s emailed\./);
+        } else {
+          assert.match(footText, /Push attendance/);
+          // Week 4 is this fixture's last taught week, so the push the foot
+          // offers has no next week to email about, and it says so in the
+          // words registerEndingWords gives a group's last session.
+          assert.match(
+            footText,
+            /Locks the register and shows everyone their mark\. It’s the group’s last session, so nobody’s emailed\./,
+          );
+          assert.doesNotMatch(footText, /about next week/);
+          assert.doesNotMatch(footText, /If nobody pushes, nobody gets next week’s email\./);
+        }
       });
 
       await step("the register takes all five attendance states", async () => {
@@ -390,6 +446,13 @@ test(
             `row ${mark.row}, column ${mark.col} did not land on ${mark.status}`,
           );
         }
+        // Every tap saves, and says so with the time (wk-register's "Saved
+        // 7:58pm"), in London's hours and minutes.
+        await page
+          .locator('[role="status"]')
+          .filter({ hasText: /^✓?\s*Saved \d{1,2}(:\d{2})?(am|pm)$/ })
+          .first()
+          .waitFor({ timeout: WAIT_MS });
 
         // RELOADED, so what is asserted is what the server stored rather than
         // what the optimistic grid drew.
@@ -505,16 +568,23 @@ test(
         const confirm = page.getByTestId("push-confirm");
         await confirm.waitFor({ timeout: WAIT_MS });
         const copy = (await confirm.innerText()).replace(/\s+/g, " ");
-        // The three things the push does, in the words the dialog uses.
-        assert.match(
-          copy,
-          new RegExp(`Everyone in ${state.groupName} gets one email about week ${NEXT_WEEK}`),
-          `the confirm did not name who is emailed and what about: ${copy}`,
-        );
+        // The three things the press does, in the words the dialog uses: who
+        // is emailed (nobody, once the email is on its schedule), that the
+        // register locks, and that the record moves.
+        if (scheduled) {
+          assert.match(copy, /Nobody’s emailed/, `the confirm did not say nobody is emailed: ${copy}`);
+          assert.doesNotMatch(copy, /gets one email/, `the confirm promised an email: ${copy}`);
+        } else {
+          assert.match(
+            copy,
+            new RegExp(`Everyone in ${state.groupName} gets one email about week ${NEXT_WEEK}`),
+            `the confirm did not name who is emailed and what about: ${copy}`,
+          );
+        }
         assert.match(copy, /The register locks/, `the confirm did not say it locks: ${copy}`);
 
         let pushed = null;
-        await readToast(page, /Register locked/, async () => {
+        await readToast(page, scheduled ? /Register finished/ : /Register locked/, async () => {
           const [res] = await Promise.all([
             page.waitForResponse(
               (r) => new URL(r.url()).pathname.endsWith("/attendance/push"),
@@ -526,12 +596,15 @@ test(
         });
         assert.equal(pushed?.ok, true, `the push failed: ${JSON.stringify(pushed)}`);
         assert.equal(pushed.alreadyPushed, false, "the first press reported a second one");
+        assert.equal(pushed.scheduled, scheduled, "the press and the page disagree on the ending");
         assert.equal(
           pushed.mirrored,
           state.members.length,
           "the push did not rebuild every member's attendance record",
         );
-        if (mailFlows) {
+        if (scheduled) {
+          assert.equal(pushed.sent, 0, "finishing emailed somebody while the email is on its schedule");
+        } else if (mailFlows) {
           assert.equal(
             pushed.sent,
             state.members.length,
@@ -550,7 +623,7 @@ test(
         // caller because they are an admin (`canEditPushed`), which is the lane
         // the correction step below travels.
         const header = headerOf(page, PUSH_WEEK - 1);
-        await header.getByText("Pushed").waitFor({ timeout: WAIT_MS });
+        await header.getByText(scheduled ? "Finished" : "Pushed").waitFor({ timeout: WAIT_MS });
         assert.equal(
           await header.getByTestId("attendance-push").count(),
           0,
@@ -610,7 +683,12 @@ test(
         const confirm = stale.getByTestId("push-confirm");
         await confirm.waitFor({ timeout: WAIT_MS });
         let again = null;
-        await readToast(stale, /already pushed, so nothing was sent again/, async () => {
+        // The stale tab's page was read before the press, and says the same
+        // ending the first tab did.
+        const secondPress = scheduled
+          ? /already finished, so nothing changed/
+          : /already pushed, so nothing was sent again/;
+        await readToast(stale, secondPress, async () => {
           const [res] = await Promise.all([
             stale.waitForResponse(
               (r) => new URL(r.url()).pathname.endsWith("/attendance/push"),
@@ -684,13 +762,18 @@ test(
           `the resend dialog did not bound who is emailed: ${dialogCopy}`,
         );
         let resent = null;
-        // Two honest outcomes, and which one is right is a fact about the
-        // TARGET rather than about the button: with mail caught the group is
-        // emailed again, and with every fixture address suppressed the route
-        // says plainly that nobody was.
-        const expected = mailFlows
-          ? /emailed again about the next session/
-          : /Nobody in this group is set up to receive email/;
+        // Three honest outcomes, and which one is right is a fact about the
+        // TARGET rather than about the button. While the email is on its
+        // schedule, a resend only re-sends an email that has gone, and this
+        // fixture's week 2 session is already past, so nothing has gone. Off
+        // its schedule: with mail caught the group is emailed again, and with
+        // every fixture address suppressed the route says plainly that nobody
+        // was.
+        const expected = scheduled
+          ? /hasn’t gone yet, so there’s nothing to send again/
+          : mailFlows
+            ? /emailed again about the next session/
+            : /Nobody in this group is set up to receive email/;
         await readToast(page, expected, async () => {
           const [res] = await Promise.all([
             page.waitForResponse(
@@ -702,7 +785,9 @@ test(
           resent = await res.json();
         });
         assert.equal(resent?.ok, true, `the resend failed: ${JSON.stringify(resent)}`);
-        if (mailFlows) {
+        if (scheduled) {
+          assert.equal(resent.sent, 0, "a resend sent an email that had never gone");
+        } else if (mailFlows) {
           assert.equal(resent.sent, state.members.length, "the resend did not reach the group");
           assert.equal(
             resent.forced,
@@ -721,7 +806,10 @@ test(
           const sends = await fixtureQuery("emailSends")
             .where("to", "==", member.email)
             .get();
-          if (mailFlows) {
+          if (scheduled) {
+            // Finishing emails nobody, and the resend had nothing to re-send.
+            assert.equal(sends.size, 0, "a member was emailed while the email is on its schedule");
+          } else if (mailFlows) {
             // One for the push, one for the resend.
             assert.equal(
               sends.size,
@@ -753,7 +841,7 @@ test(
           .get();
         assert.equal(
           markers.size,
-          mailFlows ? 1 : 0,
+          mailFlows && !scheduled ? 1 : 0,
           `the group's reminder marker count is wrong: ${markers.size}`,
         );
 

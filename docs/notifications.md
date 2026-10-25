@@ -182,8 +182,8 @@ is that helper inverted, for the loops that hold a raw document and are asking
 | --- | --- | --- |
 | `newsletter` | `POST /api/newsletter/[id]/send`, the only sender that addresses this row | the same send, alongside its email loop |
 | `events` | the new-event announcement, on publish, inline or queued to the `event-announcements` job | the same announcement |
-| `courses` | the cohort announcement composer, the weekly session nudge, the run catch-up nudge, the admissions deadline reminder job, the admissions stage-release job, the daily invitation reminder job | an admissions decision, an allocation publish, the stage release |
-| `tasks` | the five `/api/tasks/[id]/*` senders, the four worksheet circulation messages, the worksheet due-soon reminder | a mirror beside each of those |
+| `courses` | the cohort announcement composer, the weekly session nudge (pushed from a register, or on its schedule by `courses-next-week-email`), the run catch-up nudge, the admissions deadline reminder job, the admissions stage-release job, the daily invitation reminder job | an admissions decision, an allocation publish, the stage release |
+| `tasks` | the five `/api/tasks/[id]/*` senders, the four worksheet circulation messages, the worksheet due-soon reminder, the register reminder to a group's facilitators (`courses-register-reminders`) | a mirror beside each of those but the register reminder, which is email only |
 
 **The two opt-in rows share one push audience shape**, in
 `sendPushToRowAudience` (`src/lib/push/rowAudience.ts`): every account with a

@@ -133,6 +133,13 @@ const { weekDocId } = await loadTs("lib/firestore/courses.ts");
 const source = (relativePath) => readFileSync(join(SRC, relativePath), "utf8");
 
 const PUSH_ROUTE = "app/api/courses/groups/[groupId]/attendance/push/route.ts";
+/**
+ * The one module both lanes of next week's email send through: the push, and
+ * the schedule (`courses-next-week-email`). The claim, the force and the send
+ * moved here from the push route when the schedule arrived, so the orderings
+ * below are asserted where the code now is.
+ */
+const NEXT_WEEK_EMAIL = "lib/courses/nextWeekEmail.ts";
 const REGISTER_ROUTE = "app/api/courses/groups/[groupId]/attendance/route.ts";
 const NOTES_ROUTE = "app/api/courses/groups/[groupId]/participant-notes/route.ts";
 
@@ -549,20 +556,25 @@ test("the push claims its send marker AFTER the transaction commits", () => {
   // sentence, and an index that matched a comment would pass on a route that
   // did the wrong thing.
   const transaction = text.indexOf("await db.runTransaction(");
-  const create = text.indexOf("await markerRef.create({");
+  const send = text.indexOf("await sendNextWeekEmail({");
   assert.ok(transaction > 0, "the push locks the register in a transaction");
-  assert.ok(create > 0, "the push claims the gnudge marker with a standalone create");
+  assert.ok(send > 0, "the push sends next week's email through the module both lanes share");
   assert.ok(
-    create > transaction,
+    send > transaction,
     "a .create() collision inside a transaction aborts the WHOLE transaction, " +
       "so the register lock would depend on whether the email marker was free. " +
       "The claim must be a standalone create after the commit.",
   );
   assert.doesNotMatch(
-    text.slice(transaction, create),
+    text.slice(transaction, send),
     /tx\.create\(/,
     "nothing inside the transaction may create a document",
   );
+  // The claim itself, in the shared module: a standalone create, and that
+  // module runs no transaction at all, so no claim can ever sit inside one.
+  const shared = source(NEXT_WEEK_EMAIL);
+  assert.match(shared, /await markerRef\.create\(\{/, "the gnudge marker is claimed with a create");
+  assert.doesNotMatch(shared, /runTransaction\(|tx\.create\(/);
 });
 
 test("the push recomputes the rollup rather than incrementing it", () => {
@@ -576,7 +588,7 @@ test("the push recomputes the rollup rather than incrementing it", () => {
     /recomputeRollup\(/,
     "and that helper recomputes from the registers it just read",
   );
-  for (const file of [PUSH_ROUTE, "lib/courses/attendanceMirror.ts"]) {
+  for (const file of [PUSH_ROUTE, NEXT_WEEK_EMAIL, "lib/courses/attendanceMirror.ts"]) {
     // `forceCount` on the reminder marker is the ONE legitimate increment in
     // this tree: it counts how many times an admin re-sent a claimed reminder,
     // which is an append-only tally with no source to recompute it from. Every
@@ -656,49 +668,67 @@ test("a throttle slot is spent only on a request that reaches the transaction", 
 });
 
 test("the push resolves its copy BEFORE it claims the marker", () => {
-  const text = source(PUSH_ROUTE);
-  const config = text.indexOf("await readCoursesConfig(db)");
+  // The route reads the settings before it hands over to the shared send...
+  const route = source(PUSH_ROUTE);
+  const config = route.indexOf("await readCoursesConfig(db)");
+  const send = route.indexOf("await sendNextWeekEmail({");
+  assert.ok(config > 0 && send > 0);
+  assert.ok(config < send, "the settings are read before anything can be claimed");
+  // ...and the shared send reads the template, the week and the audience
+  // before its claim, for both lanes.
+  const text = source(NEXT_WEEK_EMAIL);
   const template = text.indexOf("await resolveCourseNudgeTemplate(db)");
+  const week = text.indexOf("await readNextWeekEmail(db");
+  const audience = text.indexOf("await resolveCohortAudience(");
   const claim = text.indexOf("await markerRef.create({");
-  assert.ok(config > 0 && template > 0 && claim > 0);
+  assert.ok(template > 0 && week > 0 && audience > 0 && claim > 0);
   assert.ok(
-    config < claim && template < claim,
+    template < claim && week < claim && audience < claim,
     "a read that throws AFTER the claim burns the group's one reminder on a " +
       "send that never happened",
   );
 });
 
 test("the per-group resend is admin-only and records the force on the marker", () => {
-  const text = source(PUSH_ROUTE);
-  const refusal = text.indexOf("if (force && !isAdmin) {");
+  const route = source(PUSH_ROUTE);
+  const refusal = route.indexOf("if (force && !isAdmin) {");
   assert.ok(refusal > 0, "a facilitator cannot force a re-send");
-  assert.match(text.slice(refusal, refusal + 300), /status:\s*403/);
+  assert.match(route.slice(refusal, refusal + 300), /status:\s*403/);
 
+  // The force itself is in the shared send, recorded the same way.
+  const text = source(NEXT_WEEK_EMAIL);
   assert.match(
     text,
     /forceCount:\s*FieldValue\.increment\(1\)/,
     "the force is counted on the marker, as the run-level lane counts its own",
   );
-  assert.match(text, /lastForcedAt:\s*stamp/);
-  assert.match(text, /lastForcedByUid:\s*actor\.uid/);
+  assert.match(text, /lastForcedAt:\s*args\.now/);
+  assert.match(text, /lastForcedByUid:\s*args\.by\.uid/);
   assert.match(text, /forcedOverMarkerId:\s*markerRef\.id/);
   // UPDATED, never deleted: the record of the first send has to survive the
   // second, or the log cannot say the group was mailed twice.
   assert.doesNotMatch(text, /markerRef\.delete\(/);
+  assert.doesNotMatch(route, /markerRef\.delete\(/);
+  // Only a PERSON forces. The schedule meeting a claim always stops there.
+  assert.match(text, /if \(!args\.force \|\| args\.by\.kind !== "push"\) \{/);
 });
 
 test("the reminder's date comes from the resolver, not a second computation", () => {
-  const text = source(PUSH_ROUTE);
+  // Both lanes word "when" through one function, handed the session
+  // `resolveSessions` already dated from the group's own calendar.
   assert.match(
-    text,
-    /courseNudgeSessionWhen\(nextSession\.session,\s*nextSession\.dateKey\)/,
+    source("lib/email/courseNudgeEmail.ts"),
+    /courseNudgeSessionWhen\(args\.session\.session,\s*args\.session\.dateKey\)/,
     "`resolveSessions` already dated this session, from the group's own calendar",
   );
-  assert.doesNotMatch(
-    text,
-    /courseNudgeSessionDateKey\(/,
-    "recomputing the date is a second answer to a question that has one",
-  );
+  assert.match(source(NEXT_WEEK_EMAIL), /groupNudgeFacts\(\{[\s\S]{0,300}?\bsession,/);
+  for (const file of [PUSH_ROUTE, NEXT_WEEK_EMAIL, "lib/scheduler/jobs/nextWeekEmail.ts"]) {
+    assert.doesNotMatch(
+      source(file),
+      /courseNudgeSessionDateKey\(/,
+      `recomputing the date is a second answer to a question that has one (${file})`,
+    );
+  }
 });
 
 test("courseAttendance.ts drags no schedule resolver into the client bundle", () => {

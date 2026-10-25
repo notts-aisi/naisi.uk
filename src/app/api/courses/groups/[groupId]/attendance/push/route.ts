@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { FieldValue, Timestamp, type Firestore } from "firebase-admin/firestore";
 import { readMirrorPlan, type RegisterOverride } from "@/lib/courses/attendanceMirror";
-import { resolveWeekDoc } from "@/lib/courses/groupResolve";
+import { nextWeekEmailMarkerId, sendNextWeekEmail } from "@/lib/courses/nextWeekEmail";
 import {
   gateGroupRegister,
   isAddressableId,
@@ -16,41 +16,29 @@ import {
   followUpDueAt,
   registerFollowUpTaskId,
 } from "@/lib/courses/unmarkedRegisters";
-import { dispatchSends } from "@/lib/email/dispatch";
-import {
-  reserveSendSlot,
-  resolveCohortAudience,
-  type CohortRecipient,
-} from "@/lib/email/courseFacilitatorEmails";
-import {
-  courseNudgeSessionWhen,
-  courseNudgeSessionWhere,
-  courseWeekPrepLine,
-  courseWeekUrl,
-  groupNudgeMarkerId,
-  resolveCourseNudgeTemplate,
-  sendCourseWeekNudgeEmail,
-} from "@/lib/email/courseNudgeEmail";
+import { reserveSendSlot } from "@/lib/email/courseFacilitatorEmails";
+import { joinWords, missingNudgeValueWords } from "@/lib/email/courseNudgeEmail";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { attendanceDocId } from "@/lib/firestore/courseAttendance";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
-import { sessionModeForWeek } from "@/lib/firestore/courseGroups";
 import { REGISTER_FOLLOW_UP_TASK_SOURCE } from "@/lib/firestore/courseTasks";
-import { courseRunChannel, normalizeCourseRun } from "@/lib/firestore/courses";
+import { normalizeCourseRun } from "@/lib/firestore/courses";
 import {
   DEFAULT_COURSES_CONFIG,
   readCoursesConfig,
   type CoursesConfig,
 } from "@/lib/firestore/config";
-import { signToken } from "@/lib/signedTokens";
+import { nextWeekEmailIsScheduled } from "@/lib/scheduler/nextWeekEmailSchedule";
 
 /**
- * PUSH ATTENDANCE: the one human action that closes a session.
+ * FINISHING A REGISTER: the one human action that closes a session. The
+ * button is "Finish the register" while next week's email is on its schedule,
+ * and "Push attendance" while it is not; this route is both.
  *
  * A facilitator marks the room as often as they like during the session; the
- * register is a draft the whole time. Pressing push does three things at once,
+ * register is a draft the whole time. Pressing the button does these things,
  * and the order they happen in is the whole design of this file:
  *
  *   1. THE REGISTER LOCKS. `pushedAt` and `pushedByUid` are stamped, POST
@@ -61,15 +49,24 @@ import { signToken } from "@/lib/signedTokens";
  *      delta: `applicationCounts` moves as relative increments, has no recount
  *      pass anywhere, and is therefore unreconcilable once it drifts. A mirror
  *      that can be rebuilt from its source at any time cannot drift at all.
- *   3. THE NEXT SESSION'S REMINDER GOES OUT, once, to the members of THIS
- *      GROUP, carrying the next week's material and the weekly feedback link.
- *   4. THE FOLLOW-UP CARD CLOSES. If the register had gone unmarked long
- *      enough for the scheduler to raise a committee task about it, that task
- *      is archived here: the push is the one thing the card asked for. Best
+ *      This is also what shows people their marks: a member's own marks are
+ *      read only off registers that carry `pushedAt`.
+ *   3. THE FOLLOW-UP CARD CLOSES. If the register had gone unfinished long
+ *      enough for the scheduler to raise a task about it, that task is
+ *      archived here: finishing is the one thing the card asked for. Best
  *      effort, after the commit, and free (no reads at all) on any register
- *      pushed before the grace has passed. See `archiveRegisterFollowUp`.
+ *      finished before the task's hours have passed. See
+ *      `archiveRegisterFollowUp`.
+ *   4. NEXT WEEK'S EMAIL, ONLY WHILE IT IS NOT ON ITS SCHEDULE. With the
+ *      `courses-next-week-email` job switched off (how it ships), the group's
+ *      email about its next session goes out once from here, as it always
+ *      has. With it switched on, the job sends that email a set time before
+ *      the session whatever happens to the register, and finishing emails
+ *      NOBODY. `src/lib/courses/nextWeekEmail.ts` holds the send and says how
+ *      the two lanes never both send: one switch, read by both through
+ *      `nextWeekEmailIsScheduled`, and one shared claim.
  *
- * ── (1) AND (2) ARE ONE TRANSACTION. (3) IS NOT, AND MUST NOT BE. ───────────
+ * ── (1) AND (2) ARE ONE TRANSACTION. (4) IS NOT, AND MUST NOT BE. ───────────
  * A `.create()` collision inside a Firestore transaction aborts the WHOLE
  * transaction. If the send marker were claimed inside, then a second press,
  * a retry, or any race that found the marker taken would roll back the LOCK
@@ -92,6 +89,11 @@ import { signToken } from "@/lib/signedTokens";
  * the first press was slow has done nothing wrong, and nothing happens twice.
  *
  * ── `{ force: true }`: THE ADMIN'S PER-GROUP RESEND ─────────────────────────
+ * While the email is on its schedule, a resend only ever re-sends an email
+ * that has gone: it never sends one early, which would take the email off its
+ * schedule for that group. And it is held to the schedule's rule, whole or
+ * not at all.
+ *
  * The claim-before-send trade above has one bad outcome: a transport failure
  * after the claim leaves a locked register, correct mirrors, and a group that
  * was never mailed, with the marker taken so a second press does nothing. The
@@ -152,7 +154,16 @@ export type AttendancePushResult = {
    * this is what the confirm dialog reports back to the facilitator.
    */
   reason: string | null;
+  /**
+   * True when next week's email is on its schedule, so finishing emailed
+   * nobody by design. The screen words its answer from this.
+   */
+  scheduled: boolean;
 };
+
+/** The answer a finish gives while next week's email is on its schedule. */
+const SCHEDULED_REASON =
+  "Next week’s email goes on its schedule, so finishing the register emailed nobody.";
 
 // ---------------------------------------------------------------------------
 // Tunables
@@ -169,32 +180,6 @@ const WINDOW_MS = 60 * 60 * 1000;
  * nor sends anything.
  */
 const PUSHES_PER_WINDOW = 8;
-
-/** Same lifetime the newsletter gives its unsubscribe links. */
-const UNSUB_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 365;
-
-/**
- * This lane's voice in the shared audience derivation.
- *
- * The advice names the GROUP, not the cohort, because the audience is now
- * resolved with `{ groupId }` and the ceiling is counted on this group's
- * active enrolments. A group over the cap is a group that needs splitting; the
- * size of the run it belongs to has nothing to do with it.
- */
-const LANE = {
-  logTag: "courses push",
-  overCapAdvice: "split the group",
-} as const;
-
-/**
- * ALREADY_EXISTS out of `.create()`. The Admin SDK surfaces the raw gRPC
- * status (6); the string forms are accepted because the emulator and some
- * transport paths report the canonical name instead.
- */
-function isAlreadyExists(err: unknown): boolean {
-  const code = (err as { code?: unknown } | null)?.code;
-  return code === 6 || code === "already-exists" || code === "ALREADY_EXISTS";
-}
 
 class RegisterMissingError extends Error {}
 /** A HELD session with not one mark on it. See `isEmptyHeldRegister`. */
@@ -242,9 +227,10 @@ const MAX_FOLLOW_UPS_CLOSED = 5;
  * archived tasks by default, and the chase stays on the record.
  *
  * TWO LOOKUPS, cheapest first, and neither of them runs on the ordinary path.
- *  0. NO READS AT ALL before the grace has passed. A register pushed the same
- *     evening cannot have a card, and that is the overwhelming majority of
- *     pushes, so the whole helper returns on one date comparison.
+ *  0. NO READS AT ALL before the task's hours have passed
+ *     (`registerTaskHours`). A register finished the same evening cannot have
+ *     a card, and that is the overwhelming majority of presses, so the whole
+ *     helper returns on one date comparison.
  *  1. THE DETERMINISTIC ID, which is where the card is in every normal case.
  *  2. A QUERY ON THE POINTER, which is where it is when the deterministic id
  *     was already occupied by somebody else's task and the job fell back to
@@ -541,16 +527,16 @@ export async function POST(
   // second press also closes a card the first press could not.
   //
   // The config is read here rather than further down because the archive
-  // needs the grace to know whether a card can exist at all. It is still read
-  // BEFORE the send marker is claimed, which is the property the reminder
-  // lane below depends on.
+  // needs the task's hours to know whether a card can exist at all. It is
+  // still read BEFORE the send marker is claimed, which is the property the
+  // reminder lane below depends on.
   //
   // GUARDED, because this read now sits above the already-pushed early return
   // and therefore on the path of an ordinary second press. An unguarded throw
   // there would turn a harmless second press into a 500 AFTER the register was
   // committed, which reads to the facilitator as "the push failed" about a
   // push that succeeded. A failure leaves `config` null instead; the archive
-  // falls back to the default grace (best effort over a card that may not
+  // falls back to the default hours (best effort over a card that may not
   // exist) and the reminder lane below refuses to send rather than mailing the
   // cohort with default copy.
   let config: CoursesConfig | null = null;
@@ -564,8 +550,21 @@ export async function POST(
     groupId,
     session,
     now,
-    graceHours: (config ?? DEFAULT_COURSES_CONFIG).unmarkedRegisterGraceHours,
+    // The TASK's hours: before them no card can exist, so nothing is read.
+    graceHours: (config ?? DEFAULT_COURSES_CONFIG).registerTaskHours,
   });
+
+  // WHO SENDS NEXT WEEK'S EMAIL. Read after the commit, like everything below:
+  // the register is locked and the mirrors are correct whatever this says.
+  // A read that FAILS is taken as "not on its schedule", the direction that
+  // still sends: the shared claim stops a second send if the schedule was in
+  // fact on, while the other direction would leave the group with no email.
+  let scheduled = false;
+  try {
+    scheduled = await nextWeekEmailIsScheduled(db);
+  } catch (err) {
+    console.error("[courses push] could not read the next-week email switch", groupId, err);
+  }
 
   // An ordinary second press. An admin FORCING a resend carries on into the
   // reminder lane instead: that is the whole point of the force, and the
@@ -579,12 +578,15 @@ export async function POST(
       sent: 0,
       skipped: 0,
       forced: false,
-      reason: "This register was already pushed, so nothing was sent again.",
+      reason: scheduled
+        ? "This register was already finished, so nothing changed."
+        : "This register was already pushed, so nothing was sent again.",
+      scheduled,
     };
     return NextResponse.json(result);
   }
 
-  // ── (3) THE REMINDER ─────────────────────────────────────────────────────
+  // ── (4) NEXT WEEK'S EMAIL ────────────────────────────────────────────────
   // Everything from here is best effort against a register that is ALREADY
   // locked and mirrors that are ALREADY correct. No failure below may undo
   // either, and every early return is a 200 saying why no mail went.
@@ -603,207 +605,75 @@ export async function POST(
       skipped,
       forced,
       reason,
+      scheduled,
     } satisfies AttendancePushResult);
+
+  // ON ITS SCHEDULE, finishing emails nobody. The job sends the email a set
+  // time before the session whatever happens here.
+  if (scheduled && !force) return done(0, 0, SCHEDULED_REASON);
 
   if (!nextSession) {
     return done(0, 0, "That was the group's last session, so there's nothing to remind them about.");
   }
-  if (!nextSession.slotStartKey) {
-    // The marker id is keyed on the next slot's date. Without dates there is
-    // no key, and a send with no idempotency marker is one that can repeat.
-    return done(0, 0, "This group has no dates set, so no reminder could be sent.");
-  }
 
-  // Resolved BEFORE the marker is claimed: an unpublished week is a reason not
-  // to send at all, and claiming first would silence the reminder for good.
-  const { week } = await resolveWeekDoc(db, runId, groupId, nextSession.weekId);
-  if (!week || !week.published) {
-    return done(
-      0,
-      0,
-      `Week ${nextSession.weekNumber} isn't published yet, so the group wasn't sent a reminder. Publish it and use the run's catch-up send.`,
-    );
-  }
-
-  // SCOPED TO THIS GROUP INSIDE the derivation, not filtered after it: the
-  // recipient ceiling has to be counted on the group being mailed, or a large
-  // run refuses every one of its groups' reminders while every register locks.
-  const audience = await resolveCohortAudience(db, runId, LANE, { groupId });
-  if (audience.refusal) return done(0, audience.skipped, audience.refusal);
-  const recipients: CohortRecipient[] = audience.members;
-  let skipped = audience.skipped;
-  if (recipients.length === 0) {
-    // Deliberately does NOT claim the marker: an audience that is empty today
-    // (everyone opted out, nobody allocated yet) must not permanently suppress
-    // this reminder for whoever becomes deliverable tomorrow.
-    return done(0, skipped, "Nobody in this group is set up to receive email, so none was sent.");
-  }
-
-  // ── EVERYTHING THE MAIL NEEDS, RESOLVED BEFORE THE CLAIM ─────────────────
-  // Read ABOVE the marker on purpose. Claiming first and then failing to read
-  // the config or the template would burn the group's one claim on a send that
-  // never happened, and the only recovery lane left would be the run-wide force
-  // that mails every OTHER group a second time. After this point only the
-  // transport itself can fail, and the per-group force below is that recovery.
-  // (`config` is read further up, where the follow-up archive needs it. Same
-  // property, one read. A read that FAILED is the one case this lane cannot
-  // ride out: sending with default copy would silently drop the feedback link
-  // and burn the group's one claim on it, so the send is refused instead. The
-  // register is locked either way and the next push retries cleanly, because
-  // nothing has been claimed.)
+  // The config was read above, where the follow-up archive needed it. A read
+  // that FAILED is the one case this lane cannot ride out: sending with
+  // default copy would silently drop the feedback link and burn the group's
+  // one claim on it, so the send is refused instead. The register is locked
+  // either way and the next push retries cleanly, because nothing is claimed.
   if (!config) {
     return done(
       0,
-      skipped,
+      0,
       "The course settings couldn't be read, so no reminder was sent. Try the push again in a moment.",
     );
   }
-  const template = await resolveCourseNudgeTemplate(db);
 
-  // ── CLAIM THE MARKER, OUTSIDE THE TRANSACTION ────────────────────────────
-  // Deterministic id plus `.create()` IS the guarantee. It lives in
-  // `courseNudges`, already locked `read, write: if false` as server-side
-  // course-email bookkeeping, so this ships with no rules change.
-  const markerRef = db
-    .collection("courseNudges")
-    .doc(
-      groupNudgeMarkerId(
-        runId,
-        groupId,
-        nextSession.slotStartKey,
-        nextSession.occurrence,
-      ),
-    );
-  const stamp = Timestamp.fromDate(now);
-  let forced = false;
-  try {
-    await markerRef.create({
-      kind: "group-week-nudge",
-      runId,
-      groupId,
-      // The next slot is the KEY; the rest is stored so the document reads as
-      // something a human can interpret.
-      slotStartKey: nextSession.slotStartKey,
-      sessionKey: nextSession.sessionKey,
-      weekNumber: nextSession.weekNumber,
-      weekId: nextSession.weekId,
-      pushedSessionKey: session.sessionKey,
-      sentAt: stamp,
-      sentByUid: actor.uid,
-      recipientCount: recipients.length,
-      // The run-level catch-up records a force over this marker in its own
-      // document; these two fields exist so both families read alike.
-      forceCount: 0,
-      forces: [],
-    });
-  } catch (err) {
-    if (!isAlreadyExists(err)) throw err;
-    if (!force) {
-      // Another push (or the admin catch-up) already claimed this group's
-      // reminder for the next session. The register is still locked, which is
-      // the point of doing this after the commit.
+  // ON ITS SCHEDULE, AN ADMIN'S RESEND re-sends an email that has gone and
+  // never one that has not: sending early would take the email off its
+  // schedule for this group. The claim is read first; the force itself
+  // records what it went over.
+  if (scheduled) {
+    const markerId = nextWeekEmailMarkerId(runId, groupId, nextSession);
+    const claimed = markerId
+      ? (await db.collection("courseNudges").doc(markerId).get()).exists
+      : false;
+    if (!claimed) {
       return done(
         0,
-        skipped,
-        "This group has already had the reminder for its next session.",
+        0,
+        "Next week’s email to this group hasn’t gone yet, so there’s nothing to send again. It goes on its schedule.",
       );
     }
-    // ── THE PER-GROUP RESEND ───────────────────────────────────────────────
-    // AUDIT FIRST, then send, exactly as the run-level catch-up does: a forced
-    // re-send is on the record before a single message leaves, so a crash
-    // mid-force still leaves evidence. The marker is UPDATED, never deleted:
-    // the record of the first send survives the second, and `forces` grows by
-    // one small map per force, bounded by the hourly push throttle above.
-    //
-    // This exists so a transport failure after the claim has a recovery that
-    // touches THIS GROUP ONLY. Without it the sole lane was the run-wide force,
-    // which mails every other group of the run a second time.
-    forced = true;
-    await markerRef.update({
-      forceCount: FieldValue.increment(1),
-      lastForcedAt: stamp,
-      lastForcedByUid: actor.uid,
-      forces: FieldValue.arrayUnion({
-        uid: actor.uid,
-        at: stamp,
-        recipientCount: recipients.length,
-        forcedOverMarkerId: markerRef.id,
-      }),
-    });
-    console.warn(
-      "[courses push] FORCED re-send of a claimed group reminder",
-      runId,
-      groupId,
-      nextSession.sessionKey,
-      actor.uid,
-      recipients.length,
-    );
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  const channel = courseRunChannel(runId);
-  // `resolveSessions` already dated this session, from the group's OWN
-  // calendar and with the week's override applied. Recomputing it from the
-  // slot start and the standing weekday would be a second answer to a question
-  // that already has one, and the two can legitimately differ.
-  const sessionWhen = courseNudgeSessionWhen(nextSession.session, nextSession.dateKey);
-  const sessionWhere = courseNudgeSessionWhere(
-    nextSession.session,
-    sessionModeForWeek(group, nextSession.weekId),
-  );
-
-  let sent = 0;
-  // Bounded concurrency, not a sequential sleep: `dispatchSends` carries the
-  // wall-clock arithmetic that keeps a full group send inside App Hosting's
-  // 60s request timeout.
-  await dispatchSends(recipients, async (recipient) => {
-    // One token per recipient, scoped to THIS run's channel: clicking it drops
-    // the cohort and nothing else.
-    const token = signToken(
-      { s: "unsubscribe", uid: recipient.uid, c: channel },
-      UNSUB_TOKEN_TTL_SECONDS,
-    );
-    const unsubscribeUrl = `${appUrl}/api/unsubscribe?t=${encodeURIComponent(token)}`;
-    try {
-      // ONE address. One message. Never an array, never a Cc.
-      await sendCourseWeekNudgeEmail({
-        to: recipient.address,
-        runId,
-        actorUid: actor.uid,
-        test: false,
-        // The placeholder-free name: "" drops the greeting rather than
-        // addressing a member as "NAISI".
-        recipientName: recipient.ownName,
-        sessionWhen,
-        sessionWhere,
-        unsubscribeUrl,
-        template,
-        context: {
-          courseTitle: run.courseTitle,
-          runLabel: run.label,
-          weekNumber: nextSession.weekNumber,
-          weekTitle: week.title,
-          weekSummary: week.summary,
-          weekPrep: courseWeekPrepLine(week),
-          weekUrl: courseWeekUrl(appUrl, runId, nextSession.weekNumber),
-          // Empty until an admin configures a form, and the renderer then
-          // drops the paragraph whole rather than shipping a dead link.
-          feedbackUrl: config.weeklyFeedbackUrl,
-        },
-      });
-      sent += 1;
-    } catch (err) {
-      // Uid only: an address must not reach the logs.
-      console.error("[courses push] send failed", groupId, recipient.uid, err);
-      skipped += 1;
-    }
+  const outcome = await sendNextWeekEmail({
+    db,
+    run,
+    group,
+    session: nextSession,
+    pushedSessionKey: session.sessionKey,
+    by: { kind: "push", uid: actor.uid },
+    force,
+    // The schedule's rule once the schedule is on; today's while it is off.
+    whole: scheduled,
+    config,
+    now,
+    appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "",
   });
+  const reason =
+    outcome.held === "missing"
+      ? `Next week’s email wasn’t sent again: it’s missing ${joinWords(
+          missingNudgeValueWords(outcome.missing, nextSession.weekNumber),
+        )}.`
+      : outcome.reason;
 
   console.log("[courses push] pushed", groupId, session.sessionKey, {
     mirrored,
-    sent,
-    skipped,
-    forced,
+    sent: outcome.sent,
+    skipped: outcome.skipped,
+    forced: outcome.forced,
+    scheduled,
   });
-  return done(sent, skipped, null, forced);
+  return done(outcome.sent, outcome.skipped, reason, outcome.forced);
 }

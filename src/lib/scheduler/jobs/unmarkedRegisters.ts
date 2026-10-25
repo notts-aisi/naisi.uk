@@ -6,6 +6,8 @@ import {
   sessionInstants,
   type ResolvedSession,
 } from "@/lib/courses/sessions";
+import { readAdminUids, registerTaskPeople } from "@/lib/courses/registerTaskPeople";
+import type { RunLead } from "@/lib/courses/runLead";
 import {
   buildRegisterFollowUpTask,
   isOurFollowUpTask,
@@ -31,6 +33,7 @@ import {
   writeSchedulerCursor,
 } from "@/lib/firestore/schedulerCursors";
 import { TASK_FIELD_LIMITS } from "@/lib/firestore/tasks";
+import { nextWeekEmailIsScheduled } from "@/lib/scheduler/nextWeekEmailSchedule";
 import {
   claim,
   isStaleWork,
@@ -42,14 +45,16 @@ import {
 import type { JobContext, JobRegistration, JobResult } from "../registry";
 
 /**
- * THE UNMARKED-REGISTER FOLLOW-UP JOB.
+ * THE UNMARKED-REGISTER FOLLOW-UP JOB: the second chase of a register nobody
+ * has finished.
  *
- * A facilitator who never presses PUSH ATTENDANCE takes two things from their
- * group at once: the register (so every member carries a session in a
- * denominator reviewers read as a shortfall) and the next week's reminder
- * email, which the push is what sends. Before this job the only way to notice
- * was to open the group's register and look. Now a card lands on every admin's
- * committee board once the grace has passed.
+ * A register nobody finishes (pushes) costs the group its record: every member
+ * carries a session in a denominator reviewers read as a shortfall, and
+ * nobody sees their mark. While next week's email is not on its schedule it
+ * costs the group that email too, because the push is what sends it then.
+ * The facilitators get one reminder first (`courses-register-reminders`, after
+ * `unmarkedRegisterGraceHours`); after `registerTaskHours` (60 by default) this
+ * job puts a card on the board of the programme's lead and every admin.
  *
  * The arithmetic (the window, the "unmarked" predicate, the cursor, the task
  * payload, the read-back decision) is PURE and lives in
@@ -58,9 +63,15 @@ import type { JobContext, JobRegistration, JobResult } from "../registry";
  * id it wants is already taken.
  *
  * ── THE SCAN WINDOW ─────────────────────────────────────────────────────────
- * Sessions whose END instant is between the grace
- * (`config/courses.unmarkedRegisterGraceHours`, default 36) and the grace plus
- * 24 hours, over runs whose status is in `NUDGING_STATUSES`.
+ * Sessions whose END instant is between the task's hours
+ * (`config/courses.registerTaskHours`, default 60) and those hours plus 24,
+ * over runs whose status is in `NUDGING_STATUSES`.
+ *
+ * ── WHO THE CARD IS FOR ─────────────────────────────────────────────────────
+ * The lead of the programme that names the run, while that account still
+ * meets the bar a lead is appointed behind, and every admin
+ * (`registerTaskPeople`). A run no programme names goes to the admins alone.
+ * The card still emails nobody: it is born notified.
  *
  * NOT `running` ALONE, and that is not a widening for its own sake. The
  * pre-course opens on 21 September and runs its six sessions while the
@@ -156,35 +167,6 @@ type ScanResult = {
 // ---------------------------------------------------------------------------
 
 /**
- * Every admin uid, sorted, capped at `TASK_FIELD_LIMITS.maxCompleters`.
- *
- * The cap is the tasks rules': `completerUids.size() <= 10` on both the create
- * and the committee update lane. A task minted with eleven completers would be
- * one no SU-committee member could ever edit, so an eleventh admin would
- * quietly make every follow-up admin-only to change. Sorted so the ten are the
- * same ten on every tick, and the overflow is logged rather than hidden.
- */
-async function readAdminUids(db: Firestore): Promise<string[]> {
-  const snap = await db
-    .collection("users")
-    .where("role", "==", "admin")
-    // Ids only. The job needs no profile field, and an admin's document is the
-    // most PII-dense one this platform holds.
-    .select()
-    .get();
-  const uids = snap.docs.map((doc) => doc.id).sort();
-  if (uids.length > TASK_FIELD_LIMITS.maxCompleters) {
-    console.warn(
-      `[scheduler:${JOB_ID}] more admins than a task may carry; assigning the first`,
-      TASK_FIELD_LIMITS.maxCompleters,
-      "of",
-      uids.length,
-    );
-  }
-  return uids.slice(0, TASK_FIELD_LIMITS.maxCompleters);
-}
-
-/**
  * The live runs' ids, ids only.
  *
  * A PROJECTION rather than a cursor-paged read of whole documents, on purpose:
@@ -224,6 +206,10 @@ type FollowUpArgs = {
   session: ResolvedSession;
   dueAt: Date;
   adminUids: string[];
+  /** Each run's lead, read once per pass. */
+  leads: Map<string, RunLead | null>;
+  /** Whether next week's email is on its schedule, for the card's words. */
+  scheduled: boolean;
 };
 
 /**
@@ -247,19 +233,26 @@ async function raiseFollowUp(args: FollowUpArgs): Promise<boolean> {
     return true;
   }
 
+  // The lead, then the admins. The creator is the first admin by uid, so the
+  // same run of the job files the card the same way twice: `creatorUid` is
+  // read by the board and by the rules' personal-lane delete branch, so it has
+  // to be a real account.
+  const people = await registerTaskPeople(db, runId, args.adminUids, args.leads);
+  if (!people) {
+    await stampError(db, marker.id, new Error("no admin to file the card under"));
+    return false;
+  }
   const payload = buildRegisterFollowUpTask({
     runId,
     groupId,
     session,
     courseTitle: args.courseTitle,
     groupName: args.groupName,
-    adminUids: args.adminUids,
-    // The first admin by uid, so the same run of the job files the card the
-    // same way twice. `creatorUid` is read by the board and by the rules'
-    // personal-lane delete branch, so it has to be a real account.
-    creatorUid: args.adminUids[0],
+    completerUids: people.completerUids,
+    creatorUid: people.creatorUid,
     dueDate: args.dueAt,
     now: ctx.now,
+    scheduled: args.scheduled,
     limits: {
       title: TASK_FIELD_LIMITS.title,
       description: TASK_FIELD_LIMITS.description,
@@ -363,6 +356,8 @@ async function scanRun(
   opts: {
     config: CoursesConfig;
     adminUids: string[];
+    leads: Map<string, RunLead | null>;
+    scheduled: boolean;
     deadlineMs: number;
     remainingWrites: number;
   },
@@ -413,7 +408,7 @@ async function scanRun(
         isWithinFollowUpWindow(
           sessionEnd(session),
           ctx.now,
-          opts.config.unmarkedRegisterGraceHours,
+          opts.config.registerTaskHours,
         ),
       );
     } catch (err) {
@@ -491,8 +486,10 @@ async function scanRun(
           groupId: group.id,
           groupName: group.name,
           session: due[i],
-          dueAt: followUpDueAt(endsAt, opts.config.unmarkedRegisterGraceHours),
+          dueAt: followUpDueAt(endsAt, opts.config.registerTaskHours),
           adminUids: opts.adminUids,
+          leads: opts.leads,
+          scheduled: opts.scheduled,
         });
       } catch (err) {
         console.error(`[scheduler:${JOB_ID}] follow-up failed for a session`, {
@@ -543,13 +540,17 @@ async function handler(ctx: JobContext): Promise<JobResult> {
     Math.min(ctx.maxPerTick, config.maxFollowUpTasksPerTick),
   );
 
-  const adminUids = await readAdminUids(db);
+  const adminUids = await readAdminUids(db, `scheduler:${JOB_ID}`);
   if (adminUids.length === 0) {
     // Nobody to assign it to. A task with no completers is invisible on every
     // board, so raising one would be worse than reporting the gap.
     ctx.log("no admin accounts, nothing to assign a follow-up to");
     return { processed: 0, hasMore: false, note: "no admins" };
   }
+
+  // Read once a pass, for the words on any card it raises.
+  const scheduled = await nextWeekEmailIsScheduled(db);
+  const leads = new Map<string, RunLead | null>();
 
   const cursor = await readSchedulerCursor(db, JOB_ID);
   const candidates = await readCandidateRunIds(db);
@@ -592,6 +593,8 @@ async function handler(ctx: JobContext): Promise<JobResult> {
       result = await scanRun(db, ctx, runId, {
         config,
         adminUids,
+        leads,
+        scheduled,
         deadlineMs,
         remainingWrites: writeCap - processed,
       });
@@ -658,7 +661,7 @@ export const unmarkedRegistersJob: JobRegistration = {
   id: "courses-unmarked-registers",
   label: "Unmarked registers",
   description:
-    "Raises a committee task for every group whose register is still unpushed a day and a half after the session. Turning it off means an unmarked register is invisible again until somebody opens it.",
+    "Raises a task for the programme's lead and every admin when a group's register is still not finished a set number of hours after the session ended (Course settings, below). Turning it off means an unfinished register is invisible again until somebody opens it.",
   // Writes, not reads. The read ceiling is `config/courses.unmarkedScanBudgetMs`
   // and the cursor; this number is what stops one broken calendar burying every
   // admin's board in identical cards. The config value narrows it further.
