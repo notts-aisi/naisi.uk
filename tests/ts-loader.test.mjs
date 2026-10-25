@@ -454,6 +454,16 @@ const USERS = new Map([
       "records, and the email templates behind it are compiled for real",
   ],
   [
+    "course-hub-stage-two-journey.test.mjs",
+    "executes every route handler stage two of the course hub crosses (updates and their emails, Publish and its test " +
+      "pressed by a programme's lead, a group's facilitators, Remove, the run's own decide, the registers and their " +
+      "finishing, Remind, the attendance CSV, pitching week's three routes, the member area and the unsubscribe page) and " +
+      "draws the lead's Messages, Attendance and Overview tabs, a facilitator's group page and the pitches list (.tsx " +
+      "server components), and the member's Updates and the pitching page, as one term on one in-memory store, because a " +
+      "seam between two of those pieces shows only when both run on the same documents; the mail door records, and the " +
+      "email templates behind it are compiled for real",
+  ],
+  [
     "applications-own-application.test.mjs",
     "executes the pooled applicants, decision day, test email and decision handlers for an " +
       "admin who has applied, beside what a second admin is sent, against an in-memory term, " +
