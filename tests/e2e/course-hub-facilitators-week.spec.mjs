@@ -75,6 +75,7 @@ import {
   clockWords,
   compareGroupsByMeeting,
   dayLabel,
+  dayMonthLabel,
   groupsInWords,
   londonClockLabel,
   londonDateKey,
@@ -122,6 +123,32 @@ const FOOTER = "Nottingham AI Safety Initiative · University of Nottingham · a
 
 /** Where a reply to an update goes (`UPDATE_REPLY_TO`). */
 const REPLY_TO = "ai-safety@uonsu.com";
+
+/**
+ * How a member's programme page draws their marks (board wk-programme, C26):
+ * a mark's letter, the dot for a session whose register is not finished yet,
+ * the card's line, and the legend's name and order. `MARK_LETTER`,
+ * `NOT_YET_MARK`, `MARK_STATE_WORDS`, `MARKS_LINE` and `MARKS_LEGEND_LABEL` in
+ * src/lib/courses/memberPageWords.ts and `MARK_ORDER` in
+ * src/features/courses/RunHome.tsx, restated. The five marks' words are the
+ * register's own (`declaredStatuses`). Not marked, Cancelled and Didn't happen
+ * are in the order for completeness: nothing this journey drives draws them.
+ */
+const MARK_LETTER = Object.freeze({ present: "P", late: "L", "left-early": "LE", excused: "E", absent: "A" });
+const NOT_YET = Object.freeze({ word: "Not yet", glyph: "·" });
+const MARKS_LINE = "Your facilitators fill these in after each session.";
+const MARKS_LEGEND_LABEL = "What the marks mean";
+const MARK_ORDER = Object.freeze([
+  "present",
+  "late",
+  "left-early",
+  "excused",
+  "absent",
+  "not-marked",
+  "cancelled",
+  "did-not-happen",
+  "not-yet",
+]);
 
 /**
  * Why a step may not run in this mode, or null. Nothing on this journey is
@@ -500,6 +527,11 @@ test(
 
     /** The marks Fern gives this week: the first state the register offers to Ada, every state in turn to Ben. */
     const statuses = declaredStatuses();
+    // A state the register offers and a member's page has no letter for would
+    // be drawn as a blank box: fail here, by name, rather than in a mark.
+    for (const { key } of statuses) {
+      assert.ok(MARK_LETTER[key], `the member's marks restated here carry no letter for ${JSON.stringify(key)}`);
+    }
     const fernMarks = { [ada.key]: statuses[0].key, [ben.key]: statuses[statuses.length - 1].key };
     /** A person's mark in a week, from the world's plan and, for this week, Fern's. */
     const markOf = (person, weekNumber) =>
@@ -523,6 +555,28 @@ test(
         held: rows.length,
         inFull: rows.filter((row) => row.status === "present").length,
       };
+    }
+
+    /**
+     * What a person's "Your marks" card draws (board wk-programme): a mark for
+     * every session of their group's from week 1, the week they joined; the
+     * week's own mark once its register is finished (`ownRecordOf`), and "Not
+     * yet" until then and for every session still to come. Each mark is said
+     * whole to a screen reader ("Week 1, Fri 9 Oct: Present": `markWords`)
+     * over its letter, with its date under it ("9 Oct"). Next week's date is
+     * the day it was moved to once Fern has moved it (`moved`).
+     */
+    function marksOf(person, { finishedThisWeek, moved }) {
+      const group = groupOf(person.groupKey);
+      const marked = new Map(ownRecordOf(person, { finishedThisWeek }).rows.map((row) => [row.weekNumber, row.status]));
+      return weeks.map((weekNumber) => {
+        const dateKey =
+          moved && group === facilitated && weekNumber === nextWeek ? movedDateKey : sessionOf(group, weekNumber).dateKey;
+        const status = marked.get(weekNumber) ?? null;
+        const word = status ? labelOf(status) : NOT_YET.word;
+        const glyph = status ? MARK_LETTER[status] : NOT_YET.glyph;
+        return { kind: status ?? "not-yet", word, glyph, name: `Week ${weekNumber}, ${dayLabel(dateKey)}: ${word}`, date: dayMonthLabel(dateKey) };
+      });
     }
 
     /** A group's session in one week, with what the clock says of it now, once Fern has moved next week's. */
@@ -689,23 +743,27 @@ test(
     }
 
     /**
-     * The "Your progress" card: its line and its rows, as [when, mark]. The
-     * innermost section holding its heading, whatever sections it sits in.
+     * The "Your marks" card as drawn (board wk-programme): each mark's name,
+     * its letter and its item's words (the letter, then the date under it),
+     * the legend's items, and everything the card says. The marks are the
+     * list whose items are images; the legend is the list named for what they
+     * mean, and its letters are hidden from a screen reader.
      */
-    async function readProgress(pg) {
-      const panel = pg
-        .locator("section")
-        .filter({ has: pg.getByRole("heading", { name: "Your progress", level: 3 }) })
-        .last();
-      await panel.waitFor({ timeout: WAIT_MS });
-      const rows = [];
-      const items = panel.getByRole("listitem");
-      for (let i = 0; i < (await items.count()); i += 1) rows.push(await textsOf(items.nth(i).locator("span")));
-      return { line: await textOf(panel.locator("p").first()), rows };
+    async function readMarks(pg) {
+      const card = pg.getByRole("region", { name: "Your marks", exact: true });
+      await card.waitFor({ timeout: WAIT_MS });
+      const items = card.getByRole("list").filter({ has: pg.getByRole("img") }).getByRole("listitem");
+      const marks = [];
+      for (let i = 0; i < (await items.count()); i += 1) {
+        const image = items.nth(i).getByRole("img");
+        marks.push({ name: (await image.getAttribute("aria-label")) ?? "", glyph: await textOf(image), text: await textOf(items.nth(i)) });
+      }
+      const legend = await textsOf(card.getByRole("list", { name: MARKS_LEGEND_LABEL, exact: true }).getByRole("listitem"));
+      return { marks, legend, said: await textOf(card) };
     }
 
     /** Holds a member's own record, on the route's answer and on the page, to what the registers say. */
-    async function assertOwnRecord(pg, person, body, { finishedThisWeek }) {
+    async function assertOwnRecord(pg, person, body, { finishedThisWeek, moved = false }) {
       const expected = ownRecordOf(person, { finishedThisWeek });
       const sessions = body.ownAttendance?.sessions ?? [];
       assert.deepEqual(
@@ -715,21 +773,41 @@ test(
       );
       assert.equal(body.ownAttendance.rollup.sessionsHeld, expected.held, `${person.first}'s sessions held`);
       assert.equal(body.ownAttendance.rollup.attendedInFull, expected.inFull, `${person.first}'s sessions in full`);
-      const drawn = await waitFor(`${person.first}'s progress card to list ${expected.rows.length} sessions`, async () => {
-        const read = await readProgress(pg);
-        return read.rows.length === expected.rows.length ? read : null;
+
+      // Drawn as board wk-programme draws "Your marks", with no target (C26).
+      // The page this replaced drew a "Your progress" card whose line counted
+      // the sessions attended in full ("You have been at 1 of 2 sessions in
+      // full so far.") over a row for each finished register; that line is
+      // gone on purpose. So every session's mark is held here instead, which
+      // says more than the count did: each finished week's own mark, the
+      // unfinished week as "Not yet", and every week to come.
+      const marks = marksOf(person, { finishedThisWeek, moved });
+      const drawn = await waitFor(`${person.first}'s marks to show ${marks.length} sessions`, async () => {
+        const read = await readMarks(pg);
+        return read.marks.length === marks.length ? read : null;
       });
-      assert.equal(
-        drawn.line,
-        `You have been at ${expected.inFull} of ${expected.held} ${expected.held === 1 ? "session" : "sessions"} in full so far.`,
-        `${person.first}'s progress line`,
-      );
       assert.deepEqual(
-        drawn.rows,
-        expected.rows.map((row) => [`Week ${row.weekNumber}, ${dayLabel(row.dateKey)}`, labelOf(row.status)]),
+        drawn.marks,
+        marks.map((mark) => ({ name: mark.name, glyph: mark.glyph, text: `${mark.glyph}${mark.date}` })),
         `${person.first}'s marks on their programme page`,
       );
-      // Nothing of anybody else's: no other person's uid anywhere in what the page was handed.
+      const used = new Set(marks.map((mark) => mark.kind));
+      assert.deepEqual(
+        drawn.legend,
+        MARK_ORDER.filter((kind) => used.has(kind)).map((kind) => {
+          const mark = marks.find((each) => each.kind === kind);
+          return `${mark.glyph}${mark.word}`;
+        }),
+        `${person.first}'s legend is not the marks they were shown, in the page's order`,
+      );
+      assert.ok(drawn.said.endsWith(MARKS_LINE), `${person.first}'s marks do not end with the board's line: ${drawn.said}`);
+      // No count of any kind on the card: no "1 of 2", no "in full".
+      assert.ok(!/\d+ of \d+/.test(drawn.said) && !/in full/i.test(drawn.said), `${person.first}'s marks carry a count: ${drawn.said}`);
+      // Nothing of anybody else's: nobody else named on the card, and no other
+      // person's uid anywhere in what the page was handed.
+      for (const other of [...state.people, fern].filter((each) => each !== person)) {
+        assert.ok(!drawn.said.includes(other.first), `${person.first}'s marks name ${other.first}`);
+      }
       for (const other of state.people.filter((each) => each !== person)) {
         assert.ok(!JSON.stringify(body).includes(other.uid), `${person.first}'s programme page was handed ${other.first}'s uid`);
       }
@@ -1053,6 +1131,14 @@ test(
         await signIn(adaPage, ada);
         const body = await openProgrammePage(adaPage);
         await assertOwnRecord(adaPage, ada, body, { finishedThisWeek: false });
+        // Said once more, by itself: Fern has marked this week's register but
+        // not finished it, so this week's mark reads "Not yet" whatever she put.
+        const thisWeeks = (await readMarks(adaPage)).marks[thisWeek - 1];
+        assert.equal(
+          thisWeeks?.name,
+          `Week ${thisWeek}, ${dayLabel(thisSession.dateKey)}: ${NOT_YET.word}`,
+          `${ada.first} sees a mark from a register that is not finished`,
+        );
       });
 
       await step("the facilitator finishes the register, which locks it, in the words of this target's ending", async () => {
@@ -1415,13 +1501,58 @@ test(
           );
           // A move takes no evening off, so there is no notice of one.
           assert.equal(body.group?.sessionNotice, null, `${person.first} is told an evening is off`);
-          // This week's card is this week's session, as it was.
-          const card = pg.getByTestId("session-card");
-          await card.waitFor({ timeout: WAIT_MS });
-          const said = await textOf(card);
-          for (const expected of [sessionWhenLabel(facilitated, thisSession.dateKey), "This week's session has happened."]) {
-            assert.ok(said.includes(expected), `${person.first}'s session card does not say ${JSON.stringify(expected)}: ${said}`);
+
+          // The page's ticket is the group's NEXT session (board wk-programme),
+          // so the member reads the move there too: the day and hours it moved
+          // to, its room, and that the room is not the group's own this week.
+          // (The page this replaced drew THIS week's session in that place,
+          // which a move does not touch, and this step held it unchanged; this
+          // week's session is held below where the page now says it happened.)
+          // The moved day is never the seed's day, so the ticket says "Your
+          // next session" rather than "Tonight".
+          assert.notEqual(movedDateKey, londonDateKey(new Date()), "the moved session is today, which this world never makes it");
+          const ticket = pg.getByRole("region", { name: "Your next session", exact: true });
+          await ticket.waitFor({ timeout: WAIT_MS });
+          await ticket.getByText(`Your next session · week ${nextWeek}`, { exact: true }).waitFor({ timeout: WAIT_MS });
+          assert.equal(
+            await textOf(ticket.getByRole("heading", { level: 2 })),
+            sessionWhenLabel({ ...facilitated, startTimeLocal: MOVE.startTimeLocal }, movedDateKey),
+            `${person.first}'s ticket is not the moved session's day and hours`,
+          );
+          const ticketSays = await textOf(ticket);
+          for (const expected of [MOVE.room, "Room changed this week", "The link is here, not in your emails, so it can’t be forwarded."]) {
+            assert.ok(ticketSays.includes(expected), `${person.first}'s ticket does not say ${JSON.stringify(expected)}: ${ticketSays}`);
           }
+          assert.ok(!ticketSays.includes(facilitated.room), `${person.first}'s ticket still names the usual room: ${ticketSays}`);
+          assert.equal(
+            await ticket.getByRole("link", { name: "Join online", exact: true }).getAttribute("href"),
+            facilitated.meetingUrl,
+            `${person.first}'s way to join is not the group's`,
+          );
+
+          // This week is still week 3, and its session happened on its own
+          // day; next week's row is on the day it moved to.
+          const thisWeekCard = pg.getByRole("region", { name: "This week", exact: true });
+          await thisWeekCard.getByText(`Week ${thisWeek} · E2E week ${thisWeek} reading`, { exact: true }).waitFor({ timeout: WAIT_MS });
+          assert.equal(
+            await thisWeekCard.getByRole("link", { name: `Open week ${thisWeek}`, exact: true }).getAttribute("href"),
+            `${learnPath}/weeks/${thisWeek}`,
+            `${person.first}'s This week does not lead to week ${thisWeek}`,
+          );
+          const weekRows = pg.getByRole("region", { name: `The ${state.weekCount} weeks`, exact: true }).getByRole("listitem");
+          assert.equal(await weekRows.count(), state.weekCount, `${person.first}'s weeks are not the run's ${state.weekCount}`);
+          const thisRow = await textOf(weekRows.nth(thisWeek - 1));
+          assert.ok(
+            thisRow.startsWith(`Week ${thisWeek}`) && thisRow.includes(`${dayLabel(thisSession.dateKey)} · Done`),
+            `${person.first}'s week ${thisWeek} does not say its session happened on its day: ${thisRow}`,
+          );
+          const nextRow = await textOf(weekRows.nth(nextWeek - 1));
+          assert.ok(
+            nextRow.startsWith(`Week ${nextWeek}`) &&
+              nextRow.includes(dayLabel(movedDateKey)) &&
+              !nextRow.includes(dayLabel(nextSession.dateKey)),
+            `${person.first}'s week ${nextWeek} is not on the day it moved to: ${nextRow}`,
+          );
           return body;
         }
 
@@ -1431,8 +1562,9 @@ test(
         activePage = benPage;
         await signIn(benPage, ben);
         const benBody = await readsTheChange(benPage, ben);
-        // And his own marks, which are his and nobody else's.
-        await assertOwnRecord(benPage, ben, benBody, { finishedThisWeek: true });
+        // And his own marks, which are his and nobody else's: next week's
+        // under the day it moved to.
+        await assertOwnRecord(benPage, ben, benBody, { finishedThisWeek: true, moved: true });
       });
 
       await step(
