@@ -125,6 +125,14 @@ const READERS = {
     asks: 1,
     why: "the register's rows for the register and its notes: an untold member is no row, so is neither named nor markable",
   },
+  "lib/courses/programmeAttendance.ts": {
+    kind: "shown",
+    asks: 1,
+    why:
+      "a programme's attendance for its lead and admins (the Attendance grid, its CSV, the Overview and the line " +
+      "under the programme's name): an untold placement is no row and no count for anybody but an admin, as on the " +
+      "register; somebody who has left is listed only where a register marked them",
+  },
   "app/api/courses/groups/[groupId]/exercises/route.ts": {
     kind: "shown",
     asks: 1,

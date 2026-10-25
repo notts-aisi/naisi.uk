@@ -2900,6 +2900,12 @@ test("GUARD — nothing outside the allowlist calls currentWeekFor, anywhere in 
       "features/courses/WeekPlanBuilder.tsx",
       "the admin's run-plan preview — the RUN is its subject",
     ],
+    [
+      "lib/courses/programmeAttendance.ts",
+      "the PROGRAMME's own week on its lead's tabs (This week, Running · week 3 of 6, the Overview's week card), asked " +
+        "once in `programmeWeekNow`: the RUN is its subject, and every group's sessions beside it are dated by the " +
+        "group's own calendar",
+    ],
   ]);
 
   const files = [];

@@ -168,6 +168,18 @@ const MUST_GUARD = [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places/test/route.ts",
     "sends a test of the freed-place email to the address on the session, and records it on the form",
   ],
+  // A programme's run as its lead reads and chases it. The attendance CSV
+  // takes every register of the run off the platform and writes the
+  // dataExports row that is the only record it happened; Remind emails a
+  // group's facilitators in the caller's name.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/attendance/export/route.ts",
+    "takes every register of a programme's run off the platform as a file of named people, and writes the dataExports row that is the only record it happened",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/registers/remind/route.ts",
+    "emails a group's facilitators a reminder about an unfinished register in the caller's name, and claims the reminder job's own marker for each so that the job sends them none",
+  ],
   // The application form's lifecycle. Opening a form lets real applicants
   // reach it, and settling writes every applicant's member record in the
   // caller's name. An admin viewing as somebody else must not do either.
