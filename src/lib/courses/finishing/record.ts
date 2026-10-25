@@ -207,9 +207,9 @@ const NO_SWITCHES = { scheduled: false, remindersOn: false, tasksOn: false } as 
  * who left, or somebody who is not a learner here. A page that is told false
  * says the programme has ended, and claims nothing.
  *
- * Only a learner taking part (active, or completed) can have finished;
- * somebody who left is answered false here, and has no record in `recordOf`
- * either. Reads only what the answer needs, and stops as soon as it is known:
+ * Who is taking part, and that somebody who left has no record, are the
+ * grid's rule and `recordOf`'s, as on the lead's list: they are not decided
+ * again here. Reads only what the answer needs, and stops as soon as it is known:
  * the run's groups (unless the caller already holds them, when a run that is
  * not over costs no read at all), then the rule and this person's decision,
  * then, when there is either, the registers of their own group. Their row is
@@ -224,7 +224,6 @@ export async function finishedForMember(
   heldGroups?: readonly CourseGroupDoc[],
 ): Promise<boolean> {
   if (!enrolment || enrolment.role !== "learner" || enrolment.runId !== run.id || !enrolment.groupId) return false;
-  if (enrolment.status !== "active" && enrolment.status !== "completed") return false;
 
   const groups = heldGroups
     ? liveGroupsOf(run.id, heldGroups)
