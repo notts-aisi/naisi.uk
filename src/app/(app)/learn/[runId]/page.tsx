@@ -115,6 +115,7 @@ export default async function RunHomePage({
       canEmailCohort={canEmailCohort}
       pitching={pitching}
       canLeave={canLeave}
+      uid={access.user.uid}
     />
   );
 }

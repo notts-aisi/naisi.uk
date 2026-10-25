@@ -229,6 +229,11 @@ const STYLESHEETS = [
   "./Chip.module.css",
   "./Select.module.css",
   "./RunHome.module.css",
+  // The pages a member uses every week share one stylesheet (board
+  // wk-programme and its kin), by the three paths it is imported by.
+  "./weekly/weekly.module.css",
+  "./weekly.module.css",
+  "@/features/courses/weekly/weekly.module.css",
   // The run home draws "Leave the programme" at its foot with the leaving
   // pages' own stylesheet.
   "./leaving/Leaving.module.css",
@@ -339,7 +344,13 @@ export async function makeFinishWorld(key = "__finish") {
       ["./FacilitatorGroupPanel", quiet("FacilitatorGroupPanel")],
       ["./SessionCard", quiet("SessionCard")],
       ["./sessionChange/SessionNotice", quiet("SessionNotice")],
-      ["./sessionChange/cardFacts", "export function cancelledIn() { return []; }\nexport function coversTitle() { return ''; }\nexport function nextSessionCard() { return null; }"],
+      [
+        "./sessionChange/cardFacts",
+        "export function cancelledIn() { return []; }\nexport function coversTitle() { return ''; }\n" +
+          "export function nextSessionCard() { return null; }\nexport function ticketFacts() { return null; }",
+      ],
+      // Home asks who is signed in for the ticks and the group's "(you)": nobody, here.
+      ["@/auth/AuthProvider", "export function useAuth() { return { user: null, loading: false }; }"],
       ["./updates/RunUpdates", quiet("RunUpdates")],
       ["./WeekRail", quiet("WeekRail")],
       ["@/features/courses/useRunProgress", "export function useRunProgress() { return { byItemId: new Map(), rows: [], loading: false }; }"],
