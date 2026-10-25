@@ -283,6 +283,8 @@ const lib = {
   pitching: await loadTs(join("lib", "courses", "pitching", "load.ts")),
   /** The allocation board's rail: the function the board itself asks. */
   boardTally: (await loadTs(join("features", "courses", "allocationTally.ts"))).boardTally,
+  /** The register reminder's words: the function the job and Remind both ask. */
+  reminderWords: (await loadTs(join("lib", "email", "registerReminderEmail.ts"))).registerReminderWords,
 };
 const TABS = join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "(tabs)");
 const LEARN = join("app", "(app)", "learn", "[runId]");
@@ -2306,25 +2308,55 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     });
 
     // The Overview, the grid and the register's own button say "push" while
-    // next week's email is not on its schedule (how it ships); the reminder
-    // the press sends says "finished" in its subject, its first line and its
-    // last (the walk of stage two, G9).
+    // next week's email is not on its schedule (how it ships). Until the walk
+    // of stage two's fixes (G9) the reminder the press sends said "finished"
+    // in its subject, its first line and its last; it now follows the same
+    // switch, and says "finished" only while next week's email is on its
+    // schedule and the button is "Finish the register".
     test("Remind emails the two of them once each, a second press is refused, and the card says who was reminded", () => {
       const m = seen.remind;
       assert.deepEqual(m.pressed.body, { emailed: 2, failed: 0, names: ["Rahul", "Sofia"] });
       assert.deepEqual(
         m.mail.map((mail) => [mail.to, mail.subject, mail.kind, mail.links]),
-        ["rahul", "sofia"].map((uid) => [address(uid), "Group B’s register isn’t finished", "course-facilitator", [groupPage(RUN, GROUP.B), groupPage(RUN, GROUP.B)]]),
+        ["rahul", "sofia"].map((uid) => [address(uid), "Group B’s register isn’t pushed", "course-facilitator", [groupPage(RUN, GROUP.B), groupPage(RUN, GROUP.B)]]),
       );
       assert.equal(
         readFrom(m.mail[0], "Hi "),
-        "Hi Rahul, Group B’s register for Tue 17 Nov isn’t finished yet. Push attendance to lock the register, show everyone their mark and " +
+        "Hi Rahul, Group B’s register for Tue 17 Nov isn’t pushed yet. Push attendance to lock the register, show everyone their mark and " +
           `email the group about next week. Open the register Or paste this into your browser: ${groupPage(RUN, GROUP.B)} If the session didn’t ` +
-          `happen, the register can say so, and it still needs finishing. If it’s still not finished 60 hours after the session, Claudia and admins get a task. ${FOOTER}`,
+          `happen, the register can say so, and it still needs pushing. If it’s still not pushed 60 hours after the session, Claudia and admins get a task. ${FOOTER}`,
       );
+      assert.doesNotMatch(`${m.mail[1].subject} ${m.mail[1].text}`, /finish/i);
       assert.deepEqual(short(m.again), [409, "Nobody is left to remind about Group B’s register: its facilitators have been reminded already, or can’t be emailed."]);
       const b = m.overview.sessions.find((session) => session.group === "Group B");
       assert.deepEqual([b.remind, b.reminded], [null, "Rahul and Sofia were reminded on Wed 18 Nov at 9am."]);
+    });
+
+    test("the reminder's words, both versions, follow the switch the register's button reads", () => {
+      const facts = (scheduled) => ({
+        groupName: "Group B",
+        sessionStartsAt: new Date("2026-11-17T18:00:00Z"),
+        scheduled,
+        task: { hours: 60, leadName: "Claudia" },
+      });
+      // While next week's email is not on its schedule (how it ships): "Push attendance".
+      assert.deepEqual(lib.reminderWords(facts(false)), {
+        subject: "Group B’s register isn’t pushed",
+        lead: "Group B’s register for Tue 17 Nov isn’t pushed yet.",
+        effect: "Push attendance to lock the register, show everyone their mark and email the group about next week.",
+        notHeld: "If the session didn’t happen, the register can say so, and it still needs pushing.",
+        next: "If it’s still not pushed 60 hours after the session, Claudia and admins get a task.",
+      });
+      // While it is: "Finish the register".
+      assert.deepEqual(lib.reminderWords(facts(true)), {
+        subject: "Group B’s register isn’t finished",
+        lead: "Group B’s register for Tue 17 Nov isn’t finished yet.",
+        effect: "Finish the register to lock it and show everyone their mark. Nobody’s emailed.",
+        notHeld: "If the session didn’t happen, the register can say so, and it still needs finishing.",
+        next: "If it’s still not finished 60 hours after the session, Claudia and admins get a task.",
+      });
+      // The Overview the lead pressed Remind on read the same switch: its words are the push ones.
+      assert.equal(lookAt("Group B's register not finished").lead.overview.sessions.find((session) => session.group === "Group B").pill, "Register not pushed");
     });
 
     test("the CSV is the grid: every row, every mark in words, Came and Of, and Kofi's leaving", () => {

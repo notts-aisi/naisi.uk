@@ -2,7 +2,7 @@ import { Button, Section, Text } from "@react-email/components";
 import EmailChrome, { emailLinkStyle } from "./EmailChrome";
 
 type Props = {
-  /** "Group B’s register isn’t finished". The heading and the subject line. */
+  /** "Group B’s register isn’t finished", or "isn’t pushed". The heading and the subject line. */
   subject: string;
   /** The facilitator's own name, or "" for no name in the greeting. */
   recipientName: string;
@@ -14,6 +14,8 @@ type Props = {
   buttonLabel: string;
   /** Absolute link to the group's page, where the register is. */
   registerLink: string;
+  /** What to do when the session did not happen, in the register's word for ending it. */
+  notHeld: string;
   /** What happens next if nothing does, or "" when nothing more will. */
   next: string;
 };
@@ -24,10 +26,11 @@ type Props = {
  * `courses-register-reminders` job, which ships switched off).
  *
  * Every value in it comes from records the sender has already read: the
- * group's name, the session's date, the button's name (which depends on
- * whether next week's email is on its schedule), and who gets a task if it
- * stays unfinished. The sender writes the sentences so the subject and the
- * body cannot disagree; this file lays them out.
+ * group's name, the session's date, the button's name and the register's word
+ * for ending it ("finished" or "pushed", which depend on whether next week's
+ * email is on its schedule), and who gets a task if it stays unfinished. The
+ * sender writes the sentences so the subject and the body cannot disagree;
+ * this file lays them out.
  *
  * No unsubscribe footer: it is about a register the facilitator agreed to
  * keep, it comes once per session, and the profile's "Tasks and worksheets"
@@ -40,6 +43,7 @@ export default function RegisterReminderEmail({
   effect,
   buttonLabel,
   registerLink,
+  notHeld,
   next,
 }: Props) {
   return (
@@ -56,10 +60,7 @@ export default function RegisterReminderEmail({
             {registerLink}
           </a>
         </Text>
-        <Text style={subtle}>
-          If the session didn’t happen, the register can say so, and it still needs
-          finishing.
-        </Text>
+        <Text style={subtle}>{notHeld}</Text>
         {next ? <Text style={subtle}>{next}</Text> : null}
       </Section>
     </EmailChrome>
