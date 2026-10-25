@@ -56,6 +56,11 @@ const STYLESHEETS = [
   "./GroupsViews.module.css",
   "./GroupFacilitators.module.css",
   "./ProgrammeAttendance.module.css",
+  // The facilitator's pages (boards wk-fac-group, wk-fac-home-phone): their own sheet and the
+  // member's pages' shared one, since the group page and the Attendance tab draw their cards.
+  "@/features/courses/weekly/weekly.module.css",
+  "./facilitator.module.css",
+  "@/features/courses/facilitator/facilitator.module.css",
   "./TimesPicture.module.css",
   "./editor.module.css",
   "@/features/applications/editor/editor.module.css",
@@ -339,12 +344,15 @@ describe("4. the Attendance tab is handed the run's grid, worked out on the serv
       { roundId: ROUND, programmeId: AGI, programmeName: "AGI Strategy", initialGroup: "all" },
     );
     // The run, its groups, its enrolments and registers, the accounts they
-    // name and the switch the register's ending reads: nothing else.
+    // name, the switch the register's ending reads, and (since board
+    // wk-fac-group's notes, C30) the notes its groups' facilitators share,
+    // which the lead reads under the grid: nothing else.
     assert.deepEqual([...new Set(drawn.reads)].sort(), [
       "admissionRounds",
       "config",
       "courseAttendance",
       "courseEnrolments",
+      "courseGroupNotes",
       "courseGroups",
       "courseRuns",
       "users",

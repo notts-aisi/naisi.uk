@@ -280,6 +280,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "The updates written to this run's people and its facilitators, with what each one's email did. Staff writing, and it goes with the run. The emails themselves stay in the delivery log.",
   },
+  groupNotes: {
+    label: "Facilitators' notes on their groups",
+    fate: "destroyed",
+    note: "The notes each group's facilitators wrote for each other on their group's page. Staff writing about the groups this destroy deletes, so they go with the run.",
+  },
   schedulerMarkers: {
     label: "Scheduler send markers",
     fate: "destroyed",

@@ -232,6 +232,18 @@ const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** Every space, newline and tab run in a page's text, as one space. */
 const flat = (text) => text.replace(/\s+/g, " ").trim();
 
+/** "Tuesdays 6pm": a group's usual slot, as the group page's head says it (`slotWords`). */
+const whenWeekly = (group) =>
+  `${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][group.weekday]}s ${clockWords(group.startTimeLocal)}`;
+
+/** "AL" for "Ada Lovelace": the initials a person's disc carries (`InitialsChip`). */
+const initialsOf = (name) => {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const first = Array.from(words[0] ?? "")[0] ?? "";
+  const last = words.length > 1 ? (Array.from(words[words.length - 1])[0] ?? "") : "";
+  return (first + last).toUpperCase();
+};
+
 /**
  * What an element says, as written: its text content, never `innerText`,
  * which is the text as CSS shows it (the site sets its labels in capitals with
@@ -978,47 +990,93 @@ test(
           "Change a session does not lead to the group's sessions",
         );
 
-        // This week's session: it has happened, and its way to join is here, on the site.
+        // Since board wk-fac-group the page is drawn on the server, in the
+        // board's words. The head: the group, and the line of its programme,
+        // day, time and room. Fern facilitates alone, so the line names no
+        // other facilitator.
+        const headLine = flat(await facilitatorPage.locator("main header p").first().innerText());
+        for (const expected of [whenWeekly(facilitated), facilitated.room]) {
+          assert.ok(headLine.includes(expected), `the head's line does not say ${JSON.stringify(expected)}: ${headLine}`);
+        }
+        assert.ok(!headLine.includes(" with "), `the head's line names another facilitator: ${headLine}`);
+
+        // The ticket: the session the group meets at next (this week's has
+        // happened), its room, who is expected, the way to the register, and
+        // its way to join here, on the site.
         const card = facilitatorPage.getByTestId("session-card");
         await card.waitFor({ timeout: WAIT_MS });
-        const said = await textOf(card);
+        const said = flat(await card.innerText());
         for (const expected of [
-          "This week's session",
-          facilitated.name,
-          sessionWhenLabel(facilitated, thisSession.dateKey),
+          `Your next session · week ${nextWeek}`.toUpperCase(),
+          `${dayLabel(nextSession.dateKey)}, ${clockWords(facilitated.startTimeLocal)}`,
           facilitated.room,
-          "This week's session has happened.",
+          `${inGroup.length} expected`,
+          "Take the register",
           "The link is here, not in your emails, so it can’t be forwarded.",
         ]) {
-          assert.ok(said.includes(expected), `the session card does not say ${JSON.stringify(expected)}: ${said}`);
+          assert.ok(said.includes(expected), `the ticket does not say ${JSON.stringify(expected)}: ${said}`);
         }
         assert.equal(
           await card.getByRole("link", { name: "Join online", exact: true }).getAttribute("href"),
           facilitated.meetingUrl,
           "the facilitator's way to join is not the group's",
         );
+        assert.equal(
+          await card.getByRole("link", { name: "Take the register", exact: true }).getAttribute("href"),
+          `${groupPagePath}/register`,
+          "Take the register does not lead to the group's register",
+        );
 
-        // The roster: Fern, then the group's two people, by the names they go
-        // by. Each row is an initials chip and the name, so the name is the
-        // row's last span.
+        // Your group: the group's two people by their whole names, each with
+        // the marks of the two finished registers (this week's nobody has
+        // opened), and the board's line about names.
+        ending = await readEnding();
         const roster = facilitatorPage.getByTestId("group-roster");
-        const namesIn = async (list) => {
-          await list.waitFor({ timeout: WAIT_MS });
-          const items = list.getByRole("listitem");
-          const names = [];
-          for (let i = 0; i < (await items.count()); i += 1) names.push(await textOf(items.nth(i).locator("span").last()));
-          return names;
-        };
-        assert.deepEqual(
-          await namesIn(roster.getByRole("list", { name: "Facilitators of this group" })),
-          [fern.first],
-          "the roster's facilitators",
-        );
-        assert.deepEqual(
-          await namesIn(roster.getByRole("list", { name: "Members of this group" })),
-          inGroup.map((person) => person.first),
-          "the roster's members are not the group",
-        );
+        await roster.waitFor({ timeout: WAIT_MS });
+        assert.equal(flat(await roster.getByRole("heading", { level: 2 }).innerText()), "Your group");
+        const rows = roster.getByRole("list", { name: "Members of this group" }).getByRole("listitem");
+        assert.equal(await rows.count(), inGroup.length, "Your group does not list the group's two people");
+        // In the order of their whole names, as the lead's tabs list people.
+        const byWholeName = [...inGroup].sort((a, b) => a.displayName.localeCompare(b.displayName, "en-GB") || a.uid.localeCompare(b.uid));
+        for (const [index, person] of byWholeName.entries()) {
+          const row = rows.nth(index);
+          assert.ok(flat(await row.innerText()).startsWith(`${initialsOf(person.displayName)} ${person.displayName}`), `row ${index} is not ${person.displayName}`);
+          const marks = row.getByRole("img");
+          assert.equal(await marks.count(), thisWeek - 1, `${person.first}'s row has a mark for a register that is not finished`);
+          for (const weekNumber of weeks.filter((n) => n < thisWeek)) {
+            const mark = marks.nth(weekNumber - 1);
+            assert.equal(await mark.getAttribute("aria-label"), `Week ${weekNumber}: ${labelOf(markOf(person, weekNumber))}`);
+            assert.equal(flat(await mark.innerText()), MARK_LETTER[markOf(person, weekNumber)]);
+          }
+        }
+        await roster.getByText("Names only. Email addresses stay with admins.", { exact: true }).waitFor({ timeout: WAIT_MS });
+
+        // Registers: the two finished, with how many came, and this week's,
+        // which has happened and nobody has finished, each leading to the register.
+        const registers = facilitatorPage.getByRole("region", { name: "Registers", exact: true });
+        const registerRows = registers.getByRole("listitem");
+        assert.equal(await registerRows.count(), thisWeek, "the Registers card does not list each week so far");
+        for (const weekNumber of weeks.filter((n) => n <= thisWeek)) {
+          const text = flat(await registerRows.nth(weekNumber - 1).innerText());
+          const finished = weekNumber < thisWeek;
+          const came = inGroup.filter((person) => CAME.has(markOf(person, weekNumber))).length;
+          const expected = [
+            `Week ${weekNumber}`,
+            dayLabel(sessionOf(facilitated, weekNumber).dateKey).toUpperCase(),
+            finished ? (ending.scheduled ? "Finished" : "Pushed") : ending.scheduled ? "Not finished" : "Not pushed",
+            ...(finished ? [`${came} of ${inGroup.length} came`] : []),
+            "See it",
+          ].join(" ");
+          assert.equal(text, expected, `week ${weekNumber}'s register row`);
+        }
+
+        // The register itself is a page of its own beside the group's (board
+        // wk-register), and "Take the register" leads there.
+        await card.getByRole("link", { name: "Take the register", exact: true }).click();
+        await facilitatorPage
+          .getByRole("heading", { name: `${facilitated.name}’s register`, level: 1 })
+          .waitFor({ timeout: WAIT_MS });
+        assert.equal(new URL(facilitatorPage.url()).pathname, `${groupPagePath}/register`);
 
         // The register: a column a week so far, the first two finished and
         // locked against her, this week's open and nobody marked in it.
@@ -1305,7 +1363,13 @@ test(
 
       await step("the facilitator moves next week's session with a reason, and the button says how many it emails", async () => {
         activePage = facilitatorPage;
-        // From her group's page, the way she is offered.
+        // From the group's page, the way a facilitator is offered it: back
+        // from the register (its link to the group, over its title), then the
+        // button. The register's own heading contains the group's name, so
+        // the wait matches the group page's heading exactly.
+        await facilitatorPage.getByRole("link", { name: facilitated.name, exact: true }).click();
+        await facilitatorPage.getByRole("heading", { name: facilitated.name, level: 1, exact: true }).waitFor({ timeout: WAIT_MS });
+        assert.equal(new URL(facilitatorPage.url()).pathname, groupPagePath);
         await facilitatorPage.getByRole("link", { name: "Change a session", exact: true }).click();
         await facilitatorPage
           .getByRole("heading", { name: `${facilitated.name}’s sessions`, level: 1 })

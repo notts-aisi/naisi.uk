@@ -12,6 +12,7 @@ import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
 import { TEAMS_MARKERS, TEAMS_TEST_KIND } from "@/lib/courses/teams/told";
 import { normalizeCourseEnrolment } from "./courseEnrolments";
+import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import {
   MEMBER_RECORDS_COLLECTION,
   MEMBER_RECORD_APPLICATIONS,
@@ -79,6 +80,12 @@ export type AccountDeletionSummary = {
    * stays. Counted once per document.
    */
   courseFinishingCleared: number;
+  /**
+   * The notes this account wrote as one of a group's facilitators for the
+   * others (`courseGroupNotes`, C30). Deleted: a note is its writer's words,
+   * and it goes with their account.
+   */
+  courseGroupNotesDeleted: number;
   /** Admission applications (drafts included) written by this account. */
   admissionApplicationsDeleted: number;
   /** Their access-requirements rows, deleted in the SAME batch. See below. */
@@ -515,6 +522,16 @@ export async function clearCourseFinishing(db: Firestore, uid: string): Promise<
     await batch.commit();
   }
   return touched.size;
+}
+
+/**
+ * Delete every note this account wrote for the other facilitators of a group
+ * (`courseGroupNotes`, C30), on every run, a page at a time. A note is its
+ * writer's own words, found by the one equality on `authorUid` and deleted;
+ * nobody else's note is touched, whatever group it is on.
+ */
+export async function deleteCourseGroupNotes(db: Firestore, uid: string): Promise<number> {
+  return deleteOwnedCourseRows(db, COURSE_GROUP_NOTES_COLLECTION, uid, "authorUid");
 }
 
 /**
@@ -1036,6 +1053,7 @@ export async function deleteAccountCascade(
     coursePitchesCleared: 0,
     courseTeamsCleared: 0,
     courseFinishingCleared: 0,
+    courseGroupNotesDeleted: 0,
     admissionApplicationsDeleted: 0,
     admissionApplicationPrivateDeleted: 0,
     admissionDecisionsDeleted: 0,
@@ -1334,6 +1352,16 @@ export async function deleteAccountCascade(
     summary.courseFinishingCleared = await clearCourseFinishing(db, uid);
   } catch (err) {
     console.error("[deleteAccount] courseFinishing clear failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c''''. FACILITATORS' NOTES. The notes this account wrote for the other
+  //      facilitators of a group are their own words, addressed by the
+  //      writer's uid, and go with the account (see courseGroupNotes.ts).
+  try {
+    summary.courseGroupNotesDeleted = await deleteCourseGroupNotes(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseGroupNotes delete failed:", uid, err);
     partialFailure = true;
   }
 

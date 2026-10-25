@@ -59,6 +59,11 @@ const STYLESHEETS = [
   "./Updates.module.css",
   "./UpdateComposer.module.css",
   "@/features/courses/updates/Messages.module.css",
+  // The facilitator's pages (boards wk-fac-group, wk-fac-home-phone): their own sheet and the
+  // member's pages' shared one, since the group page and the Attendance tab draw their cards.
+  "@/features/courses/weekly/weekly.module.css",
+  "./facilitator.module.css",
+  "@/features/courses/facilitator/facilitator.module.css",
 ];
 /** A card of the group page that is not about updates: it draws its name. */
 const CARD = (name) => `export default function ${name}() { return globalThis.__updatesPagesUi.h("div", null, "[${name}]"); }`;
@@ -275,10 +280,13 @@ describe("1. the Messages tab is the lead's and an admin's", () => {
 // ---------------------------------------------------------------------------
 
 describe("2. a facilitator's group page", () => {
+  // The page drawn to wk-fac-group: "Write to Group B (7)" is one of the two
+  // buttons of its head (the house link-as-button, "button"), beside "Change a
+  // session", and the line saying what the update emails sits under both.
   test("Write to Group B, counted as the press counts, and the line under it", async () => {
     const drawn = await groupPage("rahul");
-    assert.match(drawn.html, new RegExp(`<a href="${GROUP_PATH(B)}/update" class="writeLink">Write to Group B \\(3\\)</a>`));
-    assert.match(drawn.text, /Posts an update to the group and emails 1 person\. Replies go to ai-safety@uonsu\.com\./);
+    assert.match(drawn.html, new RegExp(`<a href="${GROUP_PATH(B)}/update" class="button">Write to Group B \\(3\\)</a>`));
+    assert.match(drawn.text, /Write to Group B \(3\) Change a session Posts an update to the group and emails 1 person\. Replies go to ai-safety@uonsu\.com\./);
     assert.equal(drawn.wrote, false);
   });
 
@@ -305,7 +313,7 @@ describe("2. a facilitator's group page", () => {
   test("the line says so when nobody in the group can be emailed yet", async () => {
     world.db.poke("subscriptions/cohort__tariq", { subscribed: false });
     const drawn = await groupPage("tom", C);
-    assert.match(drawn.text, /Write to Group C \(1\) Posts an update to the group\. Nobody in it can be emailed yet\./);
+    assert.match(drawn.text, /Write to Group C \(1\) Change a session Posts an update to the group\. Nobody in it can be emailed yet\./);
   });
 
   test("an archived group's page, for an admin, offers no way to write to it", async () => {

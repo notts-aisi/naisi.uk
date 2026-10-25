@@ -151,6 +151,15 @@ const READERS = {
     proof: ["groupSessions(records, group, now)"],
     why: "Remind on the Overview reads a session's facts as the lead's tabs read them, and refuses one that did not happen",
   },
+  "lib/courses/facilitatorGroup.ts": {
+    kind: "told",
+    from: ["lib/courses/programmeAttendance.ts"],
+    via: ["facts"],
+    proof: ["listGroups(records, viewer, now, weeksOf(records))"],
+    why:
+      "a facilitator's group page and Home: each session's facts as the lead's tabs read them, so a cancelled " +
+      "session is said as cancelled and its register is asked for nothing",
+  },
   "lib/courses/programmeOverview.ts": {
     kind: "told",
     from: ["lib/courses/programmeAttendance.ts"],

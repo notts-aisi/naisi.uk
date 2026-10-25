@@ -1286,7 +1286,11 @@ async function samLeaves() {
   // Rahul writes to Group B, emailed: the number on his button, and who it reaches.
   later();
   const page = await draw(pages.group, "rahul", { runId: RUN, groupId: GROUP.B });
-  l.rahulsWriteLine = /Write to Group B \(\d+\)[^.]*\.(?: Replies go to \S+\.)?/.exec(page.text)?.[0] ?? null;
+  // Since board wk-fac-group, "Write to Group B (N)" and "Change a session"
+  // are the head's two buttons, with the line under both: the button and its
+  // line are read as they always were, around the second button.
+  const write = /(Write to Group B \(\d+\)) Change a session ([^.]*\.(?: Replies go to \S+\.)?)/.exec(page.text);
+  l.rahulsWriteLine = write ? `${write[1]} ${write[2]}` : null;
   const count = Number(/emails (\d+) (?:person|people)/.exec(page.text)?.[1] ?? -1);
   const beforeUpdate = world.mail.length;
   l.update = await courseStep("Rahul writes to Group B after Sam left, emailed", 200, "rahul", courseRoutes.updates.POST, { runId: RUN }, {

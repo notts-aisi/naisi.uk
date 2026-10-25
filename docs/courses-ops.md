@@ -1352,7 +1352,11 @@ already open; nothing under `/admin/courses` is needed.
   part (see "The lead's Overview and Attendance" below).
 - **Attendance tab**: every register of the run as one grid, By person or
   By week, read only, with Download CSV. Marking stays with the group's
-  facilitators and admins.
+  facilitators and admins. Under the grid, the notes each group's
+  facilitators share (see "A facilitator's week" below), read only. The
+  register's own notes, on a person or on a session, are not sent to the
+  lead: the register's GET leaves them out for a caller it admits only as
+  the lead, and keeps the marks.
 - **Applications tab, Offer freed places** (see the next section).
 - Everything else a run's track lead may do on the run, through the same
   routes: the run's own applications queue, putting somebody back on the
@@ -1479,6 +1483,57 @@ Destroying the run deletes its updates (the dialog counts them as Updates).
 Deleting somebody's account leaves the updates they wrote: they belong to
 the run and the people they were to. Such an update shows its writer as
 NAISI.
+
+## A facilitator's week: the group page, the register and Home
+
+Boards wk-fac-group (and its phone copy) and wk-fac-home-phone. Everything a
+facilitator reads about their group is worked out on the server by
+`src/lib/courses/facilitatorGroup.ts`, from the records the lead's tabs read
+(`programmeAttendance.ts`), so the two never tell different stories.
+
+### The group page, `/learn/[runId]/group/[groupId]`
+
+For the group's live facilitators and admins (the same gate as before).
+The head (the group, its week, its programme, its usual day, time and room,
+the other facilitators), "Write to Group B (7)" and "Change a session", the
+next session as a ticket with how many are expected and "Take the register",
+"Your group" with each FINISHED register's mark (a register not finished is
+the facilitator's draft and shows nothing here) and who left, last, with the
+day, "Registers" with how many came, "To review" (an answer sent and not
+reviewed, a row per person per week, each "Review" opening the review queue
+on that week), the updates, the pace against the programme, and the notes.
+Once every session is over, the ticket's place says there are no more.
+
+Not drawn, though the board draws them: who can't make it tonight (2.4 is
+not built) and a facilitator guide (no record holds one).
+
+### The register, `/learn/[runId]/group/[groupId]/register`
+
+The register is a page of its own (board wk-register), behind the register's
+own gate. "Take the register" and each register's "See it" lead there. The
+grid is the one the group page used to hold. Before Publish has told anybody
+their group the page says when the names come.
+
+### Notes for the group's facilitators
+
+`courseGroupNotes`: one document per note (run, group, writer, words, day).
+Written only by `POST /api/courses/groups/[groupId]/notes`, and only by a
+live facilitator of the group; read only on the server, by the group page
+(its facilitators and admins) and the programme's Attendance tab (its lead
+and admins). Nobody else, and no browser: the rules refuse every client.
+An empty note, or one over 2,000 characters, is refused with a sentence.
+Destroying the run deletes its groups' notes (the dialog counts them);
+deleting the writer's account deletes every note they wrote.
+
+### Home
+
+For a facilitator: the next session's ticket with how many are expected,
+"Take the register", this week's theme and what waits for a review, when
+next week's email goes while it is on its schedule (nothing while the push
+still sends it), and a line for somebody who left recently, said by name,
+until the first session after they left is over. What only the group's
+facilitators are told comes from `GET /api/courses/groups/[groupId]/summary`,
+behind the group page's gate.
 
 ## Changing a session
 

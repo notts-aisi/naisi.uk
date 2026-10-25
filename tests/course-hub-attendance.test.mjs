@@ -66,6 +66,11 @@ const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(nam
 const SESSION = "export async function getCurrentUser() { return globalThis.__hubAttendancePages.user; }";
 const STYLESHEETS = [
   "./ProgrammeAttendance.module.css",
+  // The facilitator's pages (boards wk-fac-group, wk-fac-home-phone): their own sheet and the
+  // member's pages' shared one, since the group page and the Attendance tab draw their cards.
+  "@/features/courses/weekly/weekly.module.css",
+  "./facilitator.module.css",
+  "@/features/courses/facilitator/facilitator.module.css",
   "./editor.module.css",
   "@/features/applications/editor/editor.module.css",
   "./ProgrammeFrame.module.css",

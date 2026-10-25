@@ -203,6 +203,8 @@ test(
   async (t) => {
     const origin = baseUrl();
     const groupUrl = `${origin}/learn/${encodeURIComponent(state.runId)}/group/${encodeURIComponent(state.groupId)}`;
+    /** The group's register, on its own page beside the group's since board wk-fac-group. */
+    const registerUrl = `${groupUrl}/register`;
     /** True when this run's mail is caught by Mailpit rather than suppressed. */
     const mailFlows = state.suppress === false;
 
@@ -360,7 +362,25 @@ test(
           state.members.length,
           "the roster did not list every seeded member",
         );
-        await page.getByTestId("session-card").first().waitFor({ timeout: WAIT_MS });
+        // Every session of this fixture is over, so where the next session's
+        // ticket would be, the page says there are no more (board
+        // wk-fac-group's group page, since the register moved to its own page).
+        const sessionCard = page.getByTestId("session-card").first();
+        await sessionCard.waitFor({ timeout: WAIT_MS });
+        assert.equal(
+          (await sessionCard.innerText()).replace(/\s+/g, " ").trim(),
+          "No more sessions are planned for your group.",
+          "the group page does not say its sessions are over",
+        );
+
+        // The register is a page of its own beside the group's (board
+        // wk-register). Each register's row on the group page leads there:
+        // four rows, one a session, each one's register not finished yet.
+        const registerRows = page.getByRole("region", { name: "Registers", exact: true }).getByRole("listitem");
+        assert.equal(await registerRows.count(), state.weekCount, "the group page does not list a register a session");
+        await registerRows.nth(state.weekCount - 1).getByRole("link", { name: "See it", exact: true }).click();
+        await page.getByRole("heading", { name: `${state.groupName}’s register`, level: 1 }).waitFor({ timeout: WAIT_MS });
+        assert.equal(page.url(), registerUrl, "See it does not lead to the group's register");
 
         // The register: one column per session that has already started, which
         // for a run 22 days into a four-week plan is all four of them.
@@ -539,7 +559,7 @@ test(
         // offers the button, which is exactly the person who presses twice
         // because the first press looked slow.
         stale = await context.newPage();
-        await stale.goto(groupUrl, { waitUntil: "domcontentloaded" });
+        await stale.goto(registerUrl, { waitUntil: "domcontentloaded" });
         await gridOf(stale).waitFor({ timeout: WAIT_MS });
         await headerOf(stale, PUSH_WEEK - 1)
           .getByTestId("attendance-push")

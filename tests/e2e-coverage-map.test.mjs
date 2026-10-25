@@ -1510,6 +1510,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
   },
+  "/(app)/learn/[runId]/group/[groupId]/register": {
+    reason:
+      "Course hub: a group's register on its own page (board wk-register), its gate and every caller executed by tests/course-hub-facilitator-pages.test.mjs; the browser specs course-hub-facilitators-week, course-hub-groups-go-out and register-push drive it since the group page's restyle, and none of them has yet passed in CI with it.",
+    coverWhen:
+      "When those three specs have passed in CI with the register on its own page: add this page to their covers and remove this entry.",
+  },
   "/(app)/learn/[runId]/group/[groupId]/review": {
     reason:
       "Learn hub: /(app)/learn/[runId]/group/[groupId]/review is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
@@ -1521,6 +1527,18 @@ const NOT_COVERED = {
       "Course hub: the update composer for one group, opened from its page by its facilitators; the page's every caller is executed by tests/course-hub-updates-pages.test.mjs and its route by tests/course-hub-updates-routes.test.mjs.",
     coverWhen:
       "When the end-to-end fixtures can seed a run Publish has told, with a group's facilitator signed in.",
+  },
+  "/api/courses/groups/[groupId]/notes": {
+    reason:
+      "Course hub: the notes a group's facilitators share (C30); who writes, who is refused, what a note keeps and what takes it away are executed by tests/course-hub-group-notes.test.mjs, and the page that reads them by tests/course-hub-facilitator-pages.test.mjs; written in a browser on the preview kit at 1440.",
+    coverWhen:
+      "When the facilitator's week spec writes a note on the group page and reads it back.",
+  },
+  "/api/courses/groups/[groupId]/summary": {
+    reason:
+      "Course hub: what a facilitator's Home says about their group (board wk-fac-home-phone); every caller and every field executed by tests/course-hub-facilitator-pages.test.mjs, and Home checked at 390 and 1440 on the preview kit.",
+    coverWhen:
+      "When the end-to-end fixtures sign a facilitator in to Home on a run with registers, answers waiting for review and next week's email on its schedule.",
   },
   "/(app)/learn/[runId]/leave": {
     reason:

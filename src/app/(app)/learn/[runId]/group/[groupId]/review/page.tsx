@@ -48,10 +48,16 @@ export const dynamic = "force-dynamic";
 
 export default async function GroupReviewPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ runId: string; groupId: string }>;
+  searchParams?: Promise<{ week?: string | string[] }>;
 }) {
   const { runId, groupId } = await params;
+  // `?week=N` opens the queue on that week: the group page's "Review" beside
+  // somebody's work waiting from week N. A week the group does not teach is
+  // ignored below, and the group's own week stands.
+  const askedWeek = (await (searchParams ?? Promise.resolve({} as { week?: string | string[] }))).week;
 
   const access = await getRunAccess(runId);
   if (!access) {
@@ -124,6 +130,8 @@ export default async function GroupReviewPage({
   } catch {
     // Unusable start date — the first authored week stands.
   }
+  const asked = typeof askedWeek === "string" && /^\d{1,3}$/.test(askedWeek) ? Number(askedWeek) : null;
+  if (asked !== null && weeks.includes(asked)) initialWeek = asked;
 
   const eyebrow = [access.run.courseTitle, access.run.label].filter(Boolean).join(" · ");
 

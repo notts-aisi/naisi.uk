@@ -1061,14 +1061,20 @@ test(
         await facilitatorPage.goto(`${origin}${groupPagePath(groupA)}`, { waitUntil: "domcontentloaded" });
         await facilitatorPage.getByRole("heading", { name: groupA.name, level: 1 }).waitFor({ timeout: WAIT_MS });
 
+        // Since board wk-fac-group the page names the group's other
+        // facilitators in its head's line ("with Sofia Rossi"); Fern
+        // facilitates Group A alone, so the line names nobody else.
+        const headLine = flat(await facilitatorPage.locator("main header p").first().innerText());
+        assert.ok(headLine.includes(groupA.room), `the head's line does not say the group's room: ${headLine}`);
+        assert.ok(!headLine.includes(" with "), `the head's line names another facilitator: ${headLine}`);
+
+        // "Your group": the people in the group now, by their whole names.
+        // Ada stayed in Group A; Ben moved to Group B. No register is
+        // finished yet, so nobody has a mark.
         const roster = facilitatorPage.getByTestId("group-roster");
         await roster.waitFor({ timeout: WAIT_MS });
-        const facilitators = roster.getByRole("list", { name: "Facilitators of this group" });
-        await facilitators.getByRole("listitem").filter({ hasText: fern.first }).waitFor({ timeout: WAIT_MS });
         const members = roster.getByRole("list", { name: "Members of this group" });
         await members.waitFor({ timeout: WAIT_MS });
-        // Ada stayed in Group A; Ben moved to Group B. Each row carries its
-        // person's initials beside the name, so the rows are matched by name.
         const inGroup = state.people.filter((person) => person.key !== ben.key && firstGroupOf[person.key] === groupA);
         assert.equal(
           await members.getByRole("listitem").count(),
@@ -1076,9 +1082,27 @@ test(
           "the roster is not the people in the group now",
         );
         for (const person of inGroup) {
-          await members.getByRole("listitem").filter({ hasText: person.first }).waitFor({ timeout: WAIT_MS });
+          await members.getByRole("listitem").filter({ hasText: person.displayName }).waitFor({ timeout: WAIT_MS });
         }
+        assert.equal(await members.getByRole("img").count(), 0, "a mark is drawn before any register is finished");
+        assert.ok(!flat(await roster.innerText()).includes(ben.displayName), "the roster still names Ben, who moved");
 
+        // The session, with the way to join that no email carries, and the
+        // way to the register.
+        const card = facilitatorPage.getByTestId("session-card");
+        await card.waitFor({ timeout: WAIT_MS });
+        assert.ok(flat(await card.innerText()).includes(groupA.room), "the facilitator's session card has no room");
+        assert.ok(flat(await card.innerText()).includes(`${inGroup.length} expected`), "the session card does not say who is expected");
+        const join = card.getByRole("link", { name: "Join online", exact: true });
+        await join.waitFor({ timeout: WAIT_MS });
+        assert.equal(await join.getAttribute("href"), groupA.meetingUrl, "the facilitator's way to join is not the group's");
+
+        // The register is a page of its own beside the group's (board
+        // wk-register): "Take the register" leads there.
+        await card.getByRole("link", { name: "Take the register", exact: true }).click();
+        await facilitatorPage
+          .getByRole("heading", { name: `${groupA.name}’s register`, level: 1 })
+          .waitFor({ timeout: WAIT_MS });
         const grid = facilitatorPage.getByTestId("attendance-grid");
         await grid.waitFor({ timeout: WAIT_MS });
         const caption = flat(await grid.locator("caption").innerText());
@@ -1088,14 +1112,6 @@ test(
         assert.match(flat(await facilitatorPage.getByTestId("attendance-session").first().innerText()), /Week 1/);
         assert.equal(await grid.locator("tbody tr").count(), inGroup.length, "the register's rows are not the group");
         assert.match(flat(await grid.locator("tbody tr").first().innerText()), new RegExp(escapeRegExp(inGroup[0].first)));
-
-        // The session, with the way to join that no email carries.
-        const card = facilitatorPage.getByTestId("session-card");
-        await card.waitFor({ timeout: WAIT_MS });
-        assert.ok(flat(await card.innerText()).includes(groupA.room), "the facilitator's session card has no room");
-        const join = card.getByRole("link", { name: "Join online", exact: true });
-        await join.waitFor({ timeout: WAIT_MS });
-        assert.equal(await join.getAttribute("href"), groupA.meetingUrl, "the facilitator's way to join is not the group's");
       });
 
       await step("every email went to the send log, and none carries the meeting link", async () => {

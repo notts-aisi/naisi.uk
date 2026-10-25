@@ -39,7 +39,7 @@ const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
 const SENTENCE = "You’ll see your group’s names when groups go out.";
 
-const page = { roster: null, overview: null, attendance: null, queue: null, h: createElement };
+const page = { roster: null, overview: null, summary: null, attendance: null, queue: null, h: createElement };
 globalThis.__groupPages = page;
 const handle = "globalThis.__groupPages";
 
@@ -71,6 +71,11 @@ const { loadTs } = createLoader({
     ],
     ["./useGroupRoster", `export function useGroupRoster() { return ${handle}.roster; }\nexport default useGroupRoster;`],
     ["@/features/courses/useRunOverview", `export function useRunOverview() { return ${handle}.overview; }`],
+    // Home's own answer about the group (the summary route), since board wk-fac-home-phone.
+    [
+      "@/features/courses/facilitator/useFacilitatorSummary",
+      `export function useFacilitatorSummary() { return ${handle}.summary; }\nexport default useFacilitatorSummary;`,
+    ],
     [
       "./useAttendance",
       `export default function useAttendance() { return ${handle}.attendance; }`,
@@ -141,6 +146,11 @@ const GROUP_CARD = {
       dateKey: "2026-10-26",
       startTimeLocal: "18:00",
       durationMinutes: 90,
+      // What the overview route has put on every next session since Change a
+      // session (Q25): the weeks it covers, its own room and its own link.
+      weekNumbers: [1],
+      location: "Room B12",
+      meetingUrl: null,
     },
   },
   sessionLabel: "Mondays 18:00\u201319:30",
@@ -153,31 +163,51 @@ const GROUP_CARD = {
   facilitatorNames: ["Claudia Reyes"],
 };
 
+/**
+ * Home, drawn to board wk-fac-home-phone: the session's ticket counts who is
+ * expected ("2 expected", the summary route's count of the people Publish
+ * has told), and names nobody: the board draws no names on Home, and they
+ * are on the group page's "Your group". Before Publish has told anybody, the
+ * ticket says the sentence in place of the count, and a group nobody is in
+ * says so, as Home always has.
+ */
 describe("Home, for a facilitator", () => {
   const entry = { runId: "run-1", courseTitle: "AGI Strategy Fellowship", groupName: null, roles: ["facilitator"] };
+  /** What the summary route answers for each state, as the roster route answers it. */
+  const SUMMARIES = {
+    waiting: { expected: 0, notYetTold: true },
+    told: { expected: PEOPLE.length, notYetTold: false },
+    empty: { expected: 0, notYetTold: false },
+  };
   const draw = (state) => {
     page.roster = roster(STATES[state]);
-    page.overview = { data: { groups: [GROUP_CARD] }, error: null };
+    page.overview = { data: { groups: [GROUP_CARD], weeks: [] }, error: null };
+    page.summary = {
+      data: { groupId: GROUP_CARD.id, ...SUMMARIES[state], toReview: 0, nextEmail: null, leftRecently: [], coFacilitators: [] },
+      error: null,
+      loading: false,
+    };
     return textOf(createElement(HomeFacilitator, { given: "Claudia", invite: null, entry, comingUp: null, more: null }));
   };
 
   test("before anybody is told, the session card says when the names come, and counts nobody", () => {
     const text = draw("waiting");
     assert.ok(text.includes(SENTENCE), text);
-    assert.ok(!/\d+ in the group/.test(text), text);
+    assert.ok(!/\d+ expected/.test(text), text);
     assert.ok(!text.includes("Your group"), "a list of nobody is drawn");
   });
 
-  test("once they are told, the count and their first names", () => {
+  test("once they are told, the count, and no names on Home", () => {
     const text = draw("told");
-    assert.ok(text.includes("2 in the group"), text);
-    assert.ok(text.includes("Bea") && text.includes("Dev"), text);
+    assert.ok(text.includes("2 expected"), text);
+    assert.ok(!text.includes("Bea") && !text.includes("Dev"), text);
     assert.ok(!text.includes(SENTENCE), text);
   });
 
   test("a group nobody is placed in says so, as it did", () => {
     const text = draw("empty");
-    assert.ok(text.includes("0 in the group"), text);
+    assert.ok(text.includes("Nobody is in this group yet."), text);
+    assert.ok(!/\d+ expected/.test(text), text);
     assert.ok(!text.includes(SENTENCE), text);
   });
 });
