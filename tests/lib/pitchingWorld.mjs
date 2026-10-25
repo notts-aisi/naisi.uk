@@ -264,6 +264,7 @@ export async function makePitchingWorld(key = "__pitching") {
       // Whether the page's script has arrived: false, as in the server's own
       // markup, unless a suite says otherwise.
       ["@/hooks/useHydrated", `export function useHydrated() { return ${handle}.ui.hydrated === true; }`],
+      ["./GroupsViews.module.css", CLASS_NAMES],
       ["./PitchingWeek.module.css", CLASS_NAMES],
       ["./ProgrammePitches.module.css", CLASS_NAMES],
       ["./Select.module.css", CLASS_NAMES],
@@ -372,6 +373,7 @@ export async function makePitchingWorld(key = "__pitching") {
     load: await loadTs(join("lib", "courses", "pitching", "load.ts")),
     staff: await loadTs(join("lib", "applications", "handover", "pitchesLoad.ts")),
     times: await loadTs(join("lib", "applications", "handover", "timesLoad.ts")),
+    programmeRun: await loadTs(join("lib", "applications", "handover", "programmeRun.ts")),
   };
 
   const params = { runId: INC.run };

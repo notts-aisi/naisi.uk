@@ -42,7 +42,14 @@ export default async function ProgrammeTimesPage({
   return (
     <TimesPicture
       view={view}
-      views={<GroupsViews roundId={view.roundId} programmeId={view.programmeId} current="times" />}
+      views={
+        <GroupsViews
+          roundId={view.roundId}
+          programmeId={view.programmeId}
+          current="times"
+          pitches={view.pitchingWeek !== null}
+        />
+      }
     />
   );
 }

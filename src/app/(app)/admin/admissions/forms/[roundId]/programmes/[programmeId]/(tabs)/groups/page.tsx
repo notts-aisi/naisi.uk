@@ -33,8 +33,16 @@ export default async function ProgrammeGroupsPage({
   if (!outcome || outcome.status === "none") return <NoProgrammeHere roundId={roundId} />;
   if (outcome.status === "not-yours") return <NotYours roundId={roundId} programmeId={programmeId} tab="Groups" />;
   const { view } = outcome;
+  const views = (
+    <GroupsViews
+      roundId={view.roundId}
+      programmeId={view.programmeId}
+      current="people"
+      pitches={view.pitchingWeek !== null}
+    />
+  );
   return (
-    <GroupsFrame views={<GroupsViews roundId={view.roundId} programmeId={view.programmeId} current="people" />}>
+    <GroupsFrame views={views}>
       {view.run ? (
         <AllocationBoard
           courseId={view.run.courseId}

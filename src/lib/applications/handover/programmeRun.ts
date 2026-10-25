@@ -1,6 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { namesInWords, weeklySlotWords } from "@/lib/courses/facilitatingEmail";
+import { readPitchingWeek } from "@/lib/courses/pitching/week";
 import { displayNameOf } from "@/lib/courses/registerAccess";
 import type { SessionUser } from "@/lib/firebase/session";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
@@ -20,9 +21,11 @@ import { RUNS_COLLECTION, readRun } from "./run";
  * answered `not-yours`, and anybody with no role on the programme as for a
  * programme that is not there.
  *
- * WHAT IS READ: the form and the run its programme names. Nothing about
- * anybody: the tabs' own views read the run's people through the course
- * routes, which ask again who the caller is on the run (`runStaffingOf`).
+ * WHAT IS READ: the form, the run its programme names, and whether one of
+ * the run's weeks is its pitching week (the Groups tab then offers that
+ * week's Pitches). Nothing about anybody: the tabs' own views read the run's
+ * people through the course routes, which ask again who the caller is on the
+ * run (`runStaffingOf`).
  */
 
 export type ProgrammeRunView = {
@@ -36,6 +39,8 @@ export type ProgrammeRunView = {
   run: { id: string; courseId: string } | null;
   /** Why there is no run: none named yet, or the one named is no longer on the site. Null when there is one. */
   blank: "no-run" | "run-gone" | null;
+  /** The run's pitching week, when one of its weeks is ticked as one; null otherwise. */
+  pitchingWeek: number | null;
 };
 
 export type ProgrammeRunOutcome =
@@ -67,13 +72,18 @@ export async function loadProgrammeRun(
     viewer: role === "admin" ? "admin" : "lead",
     run: null,
     blank: "no-run",
+    pitchingWeek: null,
   };
   if (programme.runId === null) return { status: "ok", view };
   const snap = await db.collection(RUNS_COLLECTION).doc(programme.runId).get();
   const read = snap.exists ? readRun(snap.id, snap.data()) : null;
   // A run being destroyed is gone already for everybody it served.
   if (!read || read.destroying) return { status: "ok", view: { ...view, blank: "run-gone" } };
-  return { status: "ok", view: { ...view, run: { id: read.run.id, courseId: read.run.courseId }, blank: null } };
+  const pitchingWeek = (await readPitchingWeek(db, read.run.id))?.weekNumber ?? null;
+  return {
+    status: "ok",
+    view: { ...view, run: { id: read.run.id, courseId: read.run.courseId }, blank: null, pitchingWeek },
+  };
 }
 
 /** One group of the run, as a tab heads it: names and its weekly time only. */

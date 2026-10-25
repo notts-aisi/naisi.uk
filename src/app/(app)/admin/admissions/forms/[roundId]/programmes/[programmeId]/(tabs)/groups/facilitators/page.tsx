@@ -28,8 +28,16 @@ export default async function ProgrammeFacilitatorsPage({
   if (!outcome || outcome.status === "none") return <NoProgrammeHere roundId={roundId} />;
   if (outcome.status === "not-yours") return <NotYours roundId={roundId} programmeId={programmeId} tab="Groups" />;
   const { view } = outcome;
+  const views = (
+    <GroupsViews
+      roundId={view.roundId}
+      programmeId={view.programmeId}
+      current="facilitators"
+      pitches={view.pitchingWeek !== null}
+    />
+  );
   return (
-    <GroupsFrame views={<GroupsViews roundId={view.roundId} programmeId={view.programmeId} current="facilitators" />}>
+    <GroupsFrame views={views}>
       {view.run ? <GroupFacilitators runId={view.run.id} /> : <RunBlank view={view} />}
     </GroupsFrame>
   );

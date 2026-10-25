@@ -7,7 +7,7 @@ import { readPitchingWeek } from "@/lib/courses/pitching/week";
 import { pitchedByWords } from "@/lib/courses/pitching/words";
 import type { SessionUser } from "@/lib/firebase/session";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
-import { canRunTerm, roleOnProgramme } from "../access";
+import { canRunTerm, opensProgrammeGroups, roleOnProgramme } from "../access";
 import { own } from "../keys";
 import { isId } from "../normalise";
 import { loadForm } from "../repo";
@@ -73,7 +73,7 @@ export async function loadProgrammePitches(
   if (!programme) return { status: "none" };
   const role = roleOnProgramme(user, form, programmeId);
   if (!role) return { status: "none" };
-  if (role === "reviewer") return { status: "not-yours" };
+  if (!opensProgrammeGroups(role)) return { status: "not-yours" };
 
   const view: StaffPitchesView = {
     roundId: form.round.id,

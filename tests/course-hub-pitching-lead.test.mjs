@@ -155,12 +155,25 @@ describe("the Groups tab's views", () => {
     assert.equal(incubator.view.pitchingWeek, 3);
     const agi = await made.lib.times.loadTimesPicture(world.courseDb, world.user, ROUND, AGI, undefined);
     assert.equal(agi.view.pitchingWeek, null);
+    // The tab's other views (People in groups, Facilitators) read the run through
+    // loadProgrammeRun, which answers the same.
+    const run = made.lib.programmeRun.loadProgrammeRun;
+    assert.equal((await run(world.courseDb, world.user, ROUND, INCUBATOR)).view.pitchingWeek, 3);
+    assert.equal((await run(world.courseDb, world.user, ROUND, AGI)).view.pitchingWeek, null);
   });
 });
 
 const TABS = join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "(tabs)");
 const { default: Page } = await loadUi(join(TABS, "groups", "pitches", "page.tsx"));
-const { default: TimesPicture } = await loadUi(join("features", "applications", "times", "TimesPicture.tsx"));
+const { default: TimesPage } = await loadUi(join(TABS, "groups", "times", "page.tsx"));
+
+/** The names of the Groups tab's views in a page's markup, in order. */
+function viewsIn(html) {
+  const views = /<nav class="views" aria-label="Groups views">(.*?)<\/nav>/.exec(html);
+  assert.ok(views, "no views");
+  return [...views[1].matchAll(/<a [^>]*>([^<]+)<\/a>/g)].map((m) => m[1]);
+}
+const PITCHES_CURRENT = /<a href="[^"]*\/groups\/pitches" class="view viewCurrent" aria-current="page">Pitches<\/a>/;
 
 describe("the page", () => {
 
@@ -198,16 +211,16 @@ describe("the page", () => {
       assert.ok(!said.includes(absent), `the page offers ${absent}`);
     }
     assert.ok(!/<button/.test(html), "the list has a button");
-    // The Groups tab's views are drawn for whoever may open the tab: an admin.
-    assert.ok(!/aria-label="Groups views"/.test(html), "a lead is offered views they cannot open yet");
+    // The Groups tab's views are drawn for whoever may open the tab, which the
+    // programme's lead may, with Pitches the one on screen.
+    assert.deepEqual(viewsIn(html), ["People in groups", "Times", "Facilitators", "Pitches"]);
+    assert.match(html, PITCHES_CURRENT);
   });
 
   test("an admin also gets the Groups tab's views, with Pitches current", async () => {
     const { html } = await draw("zach");
-    const views = /<nav class="views" aria-label="Groups views">(.*?)<\/nav>/.exec(html);
-    assert.ok(views, "no views");
-    assert.deepEqual([...views[1].matchAll(/<a [^>]*>([^<]+)<\/a>/g)].map((m) => m[1]), ["Times", "People in groups", "Pitches"]);
-    assert.match(views[1], /<a href="[^"]*\/groups\/pitches" class="view viewCurrent" aria-current="page">Pitches<\/a>/);
+    assert.deepEqual(viewsIn(html), ["People in groups", "Times", "Facilitators", "Pitches"]);
+    assert.match(html, PITCHES_CURRENT);
   });
 
   test("the reviewer is told the list is the lead's and admins'; somebody else is told there is no programme", async () => {
@@ -228,16 +241,20 @@ describe("the page", () => {
     assert.ok(!lead.html.includes(`/admin/courses/${INC.course}/runs/${INC.run}"`));
   });
 
-  test("the times picture's views name Pitches only for a run with a pitching week", async () => {
-    world.user = sessionOf("zach");
-    const incubator = await made.lib.times.loadTimesPicture(world.courseDb, world.user, ROUND, INCUBATOR, undefined);
-    const viewsOf = (view) => {
-      const html = renderToStaticMarkup(world.h(TimesPicture, { view }));
-      const views = /<nav class="views" aria-label="Groups views">(.*?)<\/nav>/.exec(html);
-      return [...views[1].matchAll(/<a [^>]*>([^<]+)<\/a>/g)].map((m) => m[1]);
+  test("the times picture's views name Pitches only for a run with a pitching week, for the lead and an admin", async () => {
+    const viewsOnTimes = async (who, programmeId) => {
+      // The admissions tree admits a lead through the flag \`draw\` sets too.
+      world.db.poke("users/tess", { admissionsReviewer: true });
+      world.user = sessionOf(who);
+      const element = await TimesPage({
+        params: Promise.resolve({ roundId: ROUND, programmeId }),
+        searchParams: Promise.resolve({}),
+      });
+      return viewsIn(renderToStaticMarkup(element));
     };
-    assert.deepEqual(viewsOf(incubator.view), ["Times", "People in groups", "Pitches"]);
-    const agi = await made.lib.times.loadTimesPicture(world.courseDb, world.user, ROUND, AGI, undefined);
-    assert.deepEqual(viewsOf(agi.view), ["Times", "People in groups"]);
+    for (const who of ["zach", "tess"]) {
+      assert.deepEqual(await viewsOnTimes(who, INCUBATOR), ["People in groups", "Times", "Facilitators", "Pitches"], who);
+    }
+    assert.deepEqual(await viewsOnTimes("zach", AGI), ["People in groups", "Times", "Facilitators"]);
   });
 });

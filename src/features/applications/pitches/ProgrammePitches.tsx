@@ -18,37 +18,6 @@ import styles from "./ProgrammePitches.module.css";
  * with stored ids encoded into it, so none can name another site.
  */
 
-/**
- * The Groups tab's views, with Pitches current: the times picture, the run's
- * allocation board and this list. Drawn for whoever may open the Groups tab.
- */
-function GroupsViews({ view }: { view: StaffPitchesView }) {
-  if (!view.run) return null;
-  return (
-    <nav className={styles.views} aria-label="Groups views">
-      <Link
-        href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups`}
-        className={styles.view}
-      >
-        Times
-      </Link>
-      <Link
-        href={`/admin/courses/${encodeURIComponent(view.run.courseId)}/runs/${encodeURIComponent(view.run.id)}/allocation`}
-        className={styles.view}
-      >
-        People in groups
-      </Link>
-      <Link
-        href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/pitches`}
-        className={`${styles.view} ${styles.viewCurrent}`}
-        aria-current="page"
-      >
-        Pitches
-      </Link>
-    </nav>
-  );
-}
-
 /** A calm sentence in place of the list, with the one place to go next. */
 function Blank({ view }: { view: StaffPitchesView }) {
   const name = view.programmeName;
@@ -91,14 +60,10 @@ function Blank({ view }: { view: StaffPitchesView }) {
   );
 }
 
-export function ProgrammePitches({ view, groupsOpen }: { view: StaffPitchesView; groupsOpen: boolean }) {
+/** The list itself, drawn inside the Groups tab's frame and under its row of views (`GroupsViews`). */
+export function ProgrammePitches({ view }: { view: StaffPitchesView }) {
   return (
     <div className={styles.page}>
-      {groupsOpen && view.run && (
-        <div className={styles.toolbar}>
-          <GroupsViews view={view} />
-        </div>
-      )}
       {view.blank !== null || view.weekNumber === null ? (
         <Blank view={view} />
       ) : (

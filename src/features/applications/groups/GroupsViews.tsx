@@ -5,19 +5,22 @@ import styles from "./GroupsViews.module.css";
 /**
  * THE VIEWS OF A PROGRAMME'S GROUPS TAB, and the row they sit in.
  *
- * Three views exist: People in groups (the run's allocation board), Times
- * (when the people holding a place are free) and Facilitators (who staffs
- * each group). Each is its own address under the tab, so a view is a link
- * and the one on screen says so (`aria-current`). The boards draw a fourth,
- * Sessions, which does not exist yet and is not drawn.
+ * Three views exist for every run: People in groups (the run's allocation
+ * board), Times (when the people holding a place are free) and Facilitators
+ * (who staffs each group). A run with a pitching week has a fourth, Pitches
+ * (the pitches from that week, which teams are made from). Each is its own
+ * address under the tab, so a view is a link and the one on screen says so
+ * (`aria-current`). The boards also draw Sessions, which does not exist yet
+ * and is not drawn.
  */
 
-export type GroupsView = "people" | "times" | "facilitators";
+export type GroupsView = "people" | "times" | "facilitators" | "pitches";
 
 const VIEWS: readonly { view: GroupsView; label: string; segment: string }[] = [
   { view: "people", label: "People in groups", segment: "" },
   { view: "times", label: "Times", segment: "/times" },
   { view: "facilitators", label: "Facilitators", segment: "/facilitators" },
+  { view: "pitches", label: "Pitches", segment: "/pitches" },
 ];
 
 /** The Groups tab's own address, with no trailing slash. */
@@ -35,14 +38,18 @@ export default function GroupsViews({
   roundId,
   programmeId,
   current,
+  pitches = false,
 }: {
   roundId: string;
   programmeId: string;
   current: GroupsView;
+  /** The run has a pitching week, so its Pitches view is offered. */
+  pitches?: boolean;
 }) {
+  const shown = VIEWS.filter(({ view }) => view !== "pitches" || pitches || current === "pitches");
   return (
     <nav className={styles.views} aria-label="Groups views">
-      {VIEWS.map(({ view, label }) => {
+      {shown.map(({ view, label }) => {
         const here = view === current;
         return (
           <Link

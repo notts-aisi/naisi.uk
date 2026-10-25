@@ -10,46 +10,6 @@
   min-width: 0;
 }
 
-/* The Groups tab's views, as the times picture draws them. */
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px 20px;
-}
-
-.views {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--color-border);
-  border-radius: 9px;
-  background: var(--color-bg);
-}
-
-.view {
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
-  padding: 0 14px;
-  border-radius: 6px;
-  color: var(--color-text-muted);
-  font-size: 14px;
-  font-weight: 500;
-  text-decoration: none;
-}
-
-.view:hover {
-  color: var(--color-text);
-}
-
-.viewCurrent {
-  background: var(--color-surface-hover);
-  color: var(--color-text);
-  font-weight: 600;
-}
-
 .card {
   max-width: 36rem;
   min-width: 0;

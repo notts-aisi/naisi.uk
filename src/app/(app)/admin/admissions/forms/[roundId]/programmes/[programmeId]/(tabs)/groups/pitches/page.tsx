@@ -1,6 +1,6 @@
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
+import GroupsViews, { GroupsFrame } from "@/features/applications/groups/GroupsViews";
 import { PitchesAreTheLeads, ProgrammePitches } from "@/features/applications/pitches/ProgrammePitches";
-import { canRunTerm } from "@/lib/applications/access";
 import { loadProgrammePitches } from "@/lib/applications/handover/pitchesLoad";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -8,7 +8,8 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 /**
  * The pitches from one programme's pitching week, for its lead and for
  * admins: each pitch, who pitched it and how many would join it. Read only.
- * Reached from the Groups tab's views (Times, People in groups, Pitches).
+ * Reached from the Groups tab's views, which offer Pitches on a run with a
+ * pitching week.
  *
  * WHO. The tree's gate runs first, then the `(tabs)` layout draws "there is
  * no programme here" in place of this page for somebody with no role on the
@@ -16,8 +17,9 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * are answered; a reviewer of the programme is told the list is the lead's
  * and admins'. Nobody here is shown who picked what.
  *
- * The Groups tab's views are drawn for whoever may open the Groups tab,
- * which today is an admin (`canRunTerm`, the tab's own gate).
+ * Whoever is shown the list may open the Groups tab (an admin or the
+ * programme's lead), so the tab's row of views is drawn above it, as on the
+ * tab's other views.
  */
 export default async function ProgrammePitchesPage({
   params,
@@ -31,5 +33,12 @@ export default async function ProgrammePitchesPage({
   if (outcome.status === "not-yours") {
     return <PitchesAreTheLeads roundId={roundId} programmeId={programmeId} />;
   }
-  return <ProgrammePitches view={outcome.view} groupsOpen={canRunTerm(user)} />;
+  const { view } = outcome;
+  return (
+    <GroupsFrame
+      views={<GroupsViews roundId={view.roundId} programmeId={view.programmeId} current="pitches" pitches />}
+    >
+      <ProgrammePitches view={view} />
+    </GroupsFrame>
+  );
 }
