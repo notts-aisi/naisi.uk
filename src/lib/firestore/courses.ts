@@ -6,6 +6,7 @@ import {
 import { sanitizeSignupForm, type FormQuestion } from "./events";
 import { isValidDateKey, type WeekPlanEntry } from "../courses/weekPlan";
 import { normalizeCohort, type RunCohort } from "../courses/cohortLabel";
+import { normalizeTeamsFrom, type TeamsFrom } from "../courses/teams/model";
 
 /**
  * Courses data model — `courses/{id}` → `courseRuns/{id}` (top-level) →
@@ -336,6 +337,15 @@ export type CourseRunDoc = {
    * client-direct like them. Every part reads as null until somebody sets it.
    */
   pitchSettings: RunPitchSettings;
+  /**
+   * How an incubator's teams are made on the programme page's Teams tab
+   * (`src/lib/courses/teams/model.ts`): from pitching week's pitches, or from
+   * the agenda the application form asked people to rank. Authored content,
+   * set in the run editor's Pitching week section beside `pitchSettings` and
+   * written client-direct with them. Null until somebody says: there is no
+   * default, and the Teams tab makes no team until it is set.
+   */
+  teamsFrom: TeamsFrom | null;
   createdAt?: Date | null;
   updatedAt?: Date | null;
 };
@@ -1189,6 +1199,7 @@ export function normalizeCourseRun(id: string, data: Raw): CourseRunDoc {
         ? data.templateLabel
         : null,
     pitchSettings: normalizePitchSettings(data.pitchSettings),
+    teamsFrom: normalizeTeamsFrom(data.teamsFrom),
     createdAt: tsToDate(data.createdAt),
     updatedAt: tsToDate(data.updatedAt),
   };
