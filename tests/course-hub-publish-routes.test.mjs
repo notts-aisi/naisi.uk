@@ -786,6 +786,61 @@ describe("6. the emails", () => {
     assert.ok(sofiaA.text.includes("from Thu 5 Nov to Thu 10 Dec"), sofiaA.text);
   });
 
+  // Somebody added to a group after it first met was told it met "from" a day
+  // already past (the walk of stage two, G5). They are told its next session,
+  // on the group's own calendar; during its first session that is still the
+  // one they are told, and with the first still to come nothing changes.
+  test("a facilitator added after the group first met is told its next session, on the group's own calendar", async (t) => {
+    t.after(() => mock.timers.setTime(NOW.getTime()));
+    // Group A keeps the run's pace: Thursdays at 6pm from Thu 29 Oct to Thu 3 Dec.
+    await placed();
+    await sendTest();
+    await pressNow();
+    const toldTom = async (at) => {
+      mock.timers.setTime(new Date(at).getTime());
+      const before = realMail().length;
+      const pressed = await pressNow();
+      assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
+      const mail = realMail().slice(before);
+      assert.deepEqual(toOf(mail), ["tom@example.com"]);
+      return (await opened(mail[0])).text;
+    };
+    // Half an hour into its first session, that session is still the one named.
+    world.db.poke(`courseGroups/${A}`, { facilitatorUids: ["sofia", "tom"] });
+    assert.ok((await toldTom("2026-10-29T18:30:00Z")).includes("Group A meets on Thursdays at 6pm, from Thu 29 Oct to Thu 3 Dec."));
+    // The next morning, a second facilitator is told when the group next meets.
+    world.db.poke(`courseGroups/${A}`, { facilitatorUids: ["sofia", "tom", "rahul"] });
+    mock.timers.setTime(new Date("2026-10-30T09:00:00Z").getTime());
+    const before = realMail().length;
+    assert.equal((await pressNow()).status, 200);
+    const rahul = await opened(realMail().slice(before).find((mail) => mail.to === "rahul@example.com" && mail.subject.includes("Group A")));
+    assert.ok(rahul.text.includes("Group A meets on Thursdays at 6pm, from Thu 5 Nov to Thu 3 Dec."), rahul.text);
+    assert.ok(!rahul.text.includes("Thu 29 Oct"), rahul.text);
+  });
+
+  test("on a group that keeps its own pace, the next session is on its own calendar", async (t) => {
+    t.after(() => mock.timers.setTime(NOW.getTime()));
+    // Group A starts a week after the run: Thursdays from Thu 5 Nov to Thu 10 Dec.
+    world.db.poke(`courseGroups/${A}`, { paceStartDate: "2026-11-05" });
+    await placed();
+    await sendTest();
+    await pressNow();
+    // The run's first Thursday has passed, the group's has not: nothing changes yet.
+    mock.timers.setTime(new Date("2026-10-30T09:00:00Z").getTime());
+    world.db.poke(`courseGroups/${A}`, { facilitatorUids: ["sofia", "tom"] });
+    let before = realMail().length;
+    assert.equal((await pressNow()).status, 200);
+    const tom = await opened(realMail().slice(before)[0]);
+    assert.ok(tom.text.includes("from Thu 5 Nov to Thu 10 Dec"), tom.text);
+    // After the group's own first session, the next is its second.
+    mock.timers.setTime(new Date("2026-11-06T09:00:00Z").getTime());
+    world.db.poke(`courseGroups/${A}`, { facilitatorUids: ["sofia", "tom", "rahul"] });
+    before = realMail().length;
+    assert.equal((await pressNow()).status, 200);
+    const rahul = await opened(realMail().slice(before).find((mail) => mail.to === "rahul@example.com" && mail.subject.includes("Group A")));
+    assert.ok(rahul.text.includes("from Thu 12 Nov to Thu 10 Dec"), rahul.text);
+  });
+
   test("somebody moved after Publish is told their new group, and nobody else hears anything", async () => {
     await placed();
     await sendTest();

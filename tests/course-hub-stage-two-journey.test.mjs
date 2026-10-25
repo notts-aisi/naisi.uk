@@ -2111,15 +2111,16 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.equal(s().tomBeforeHeIsTold.page.write, "Write to Group A (3) Posts an update to the group and emails 3 people. Replies go to ai-safety@uonsu.com.");
     });
 
-    // Sent the day after Group A first met, it gives the group's first
-    // session as the day its term starts (the walk of stage two, G5).
-    test("Publish then owes one email, needs no new test, and sends Tom his, from a first session already past", () => {
+    // Sent the day after Group A first met, it gave the group's first session
+    // as the day its term starts, already past (the walk of stage two, G5).
+    // It now names the group's next session on its own calendar.
+    test("Publish then owes one email, needs no new test, and sends Tom his, from the group's next session", () => {
       assert.deepEqual([s().summary.emails, s().summary.people, s().summary.facilitators, s().summary.test.state], [1, 0, 1, "fresh"]);
       assert.deepEqual(s().pressed.body.report.facilitators, { sent: 1, held: 0, suppressed: 0 });
       assert.deepEqual(s().pressMail.map((mail) => [mail.to, mail.subject, mail.links]), [[address("tom"), "You’re facilitating Group A: Thursdays at 6pm", [groupPage(RUN, GROUP.A)]]]);
       assert.equal(
         readFrom(s().pressMail[0], "Hi "),
-        "Hi Tom, Group A meets on Thursdays at 6pm, from Thu 29 Oct to Thu 3 Dec. Where: Room A13 You’re facilitating with Amelia. " +
+        "Hi Tom, Group A meets on Thursdays at 6pm, from Thu 5 Nov to Thu 3 Dec. Where: Room A13 You’re facilitating with Amelia. " +
           `There are 3 people in the group. Open your group Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI ${FOOTER}`,
       );
     });
@@ -2182,7 +2183,8 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.deepEqual(l().pressMail.map((mail) => [mail.to, mail.subject]), [[address("sofia"), "You’re facilitating Group A: Thursdays at 6pm"]]);
       assert.equal(
         readFrom(l().pressMail[0], "Hi "),
-        "Hi Sofia, Group A meets on Thursdays at 6pm, from Thu 29 Oct to Thu 3 Dec. Where: Room A13 You’re facilitating with Amelia and Tom. " +
+        // Told on Wed 4 Nov, after the group first met: its next session (G5).
+        "Hi Sofia, Group A meets on Thursdays at 6pm, from Thu 5 Nov to Thu 3 Dec. Where: Room A13 You’re facilitating with Amelia and Tom. " +
           `There are 3 people in the group. Open your group Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI ${FOOTER}`,
       );
       assert.deepEqual(short(l().leadDecides), [403, "Forbidden"]);

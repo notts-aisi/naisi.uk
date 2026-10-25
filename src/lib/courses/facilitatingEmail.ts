@@ -101,7 +101,10 @@ export type FacilitatingFacts = {
   groupName: string | null;
   /** "Tuesdays at 6pm" (`weeklySlotWords`), or null while the group has no day and time. */
   weeklySlot: string | null;
-  /** "Tue 3 Nov": the group's first session, on its own calendar. */
+  /**
+   * "Tue 3 Nov": the group's first session, on its own calendar, or its next
+   * one once it has met (Publish's plan works it out).
+   */
   firstSession: string | null;
   /** "Tue 8 Dec": its last. */
   lastSession: string | null;

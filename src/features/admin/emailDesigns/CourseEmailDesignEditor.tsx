@@ -101,7 +101,10 @@ const FACILITATING_TOKENS: TokenHelp[] = [
   { token: "runLabel", description: "Which run this is, e.g. Autumn 2026." },
   { token: "groupName", description: "The group they facilitate, e.g. Group B." },
   { token: "weeklySlot", description: "When it meets each week, e.g. Tuesdays at 6pm." },
-  { token: "firstSession", description: "Its first session, on the group's own calendar, e.g. Tue 3 Nov." },
+  {
+    token: "firstSession",
+    description: "Its first session, on the group's own calendar, e.g. Tue 3 Nov. Its next one once it has met.",
+  },
   { token: "lastSession", description: "Its last session, e.g. Tue 8 Dec." },
   {
     token: "groupSize",

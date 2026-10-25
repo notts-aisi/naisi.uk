@@ -388,6 +388,22 @@ function groupTerm(run: CourseRunDoc, group: CourseGroupDoc): { first: string | 
 }
 
 /**
+ * WHEN A FACILITATOR IS TOLD THE GROUP MEETS FROM, as "Tue 3 Nov": its first
+ * session, or once that has finished, the next one, so somebody added after
+ * the group first met is told when they next meet it and never a day already
+ * past ("from Thu 5 Nov to Thu 3 Dec"). The next session is the soonest still
+ * to finish on the group's own calendar (`sessionRange`); with none left, it
+ * is the first, as it always was. Still a date, so wording saved around
+ * `{firstSession}` in Email designs reads as it did.
+ */
+function facilitatingFrom(run: CourseRunDoc, group: CourseGroupDoc, now: Date): string | null {
+  const range = sessionRange(resolveSessions(run, group), now);
+  const next = range.next?.dateKey ?? "";
+  const key = next && range.firstDateKey && next > range.firstDateKey ? next : range.firstDateKey;
+  return key ? (formatRunStartShort(key) ?? null) : null;
+}
+
+/**
  * What an incubator's email is told about one person on its run: the weekly
  * session of the group they are placed in, as the facilitators' email says
  * it (its standing slot and place, and its first session on its own
@@ -655,6 +671,7 @@ async function readUsers(db: Firestore, uids: Iterable<string>): Promise<Map<str
  */
 export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: PlanInput): Promise<PublishPlan> {
   const runId = run.id;
+  const now = new Date();
   const templatesRead = Promise.all([
     loadCourseEmailTemplate("course-allocated"),
     loadCourseEmailTemplate("course-allocated-incubator"),
@@ -908,7 +925,8 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
       runLabel: run.label,
       groupName: group.name.trim() || null,
       weeklySlot: weeklySlotWords(group.session),
-      firstSession: term.first,
+      // From the next session once the group has met (`facilitatingFrom`).
+      firstSession: facilitatingFrom(run, group, now),
       lastSession: term.last,
       // The weekly slot's own place, not one week's change of room.
       where: placementWhere(group.session, null),
