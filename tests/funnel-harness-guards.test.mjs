@@ -50,6 +50,7 @@ import {
   FIXTURE_SUBCOLLECTIONS,
   HARNESS_LOCAL_ORIGIN,
   RECAPTCHA_SKIP_REASON,
+  REGISTER_REMINDER_MARKERS,
   STATE_DIR,
   applicationId,
   assertFixtureCollection,
@@ -61,6 +62,7 @@ import {
   fixtureQuery,
   mailIsCaught,
   markerPath,
+  registerReminderMarkerDoc,
   stateDir,
   statePath,
   subscriptionId,
@@ -366,7 +368,12 @@ test("the browser harness routes every collection access through the chokepoint"
   // guarded seeder and deleted by address under the namespace check on the
   // account it belongs to. Every other file in the harness must not call
   // `.collection(` at all, so a spec module cannot grow a second way in.
-  const ALLOWED_IN_CORE = ['"users"', "collection"];
+  //
+  // One more, and only in one function: `REGISTER_REMINDER_MARKERS`, the
+  // scheduler's collection, reached by `registerReminderMarkerDoc` for one
+  // reminder marker of a fixture's own group at a time. The test after this
+  // one pins its value, that it is called once, and what the door refuses.
+  const ALLOWED_IN_CORE = ['"users"', "collection", "REGISTER_REMINDER_MARKERS"];
   for (const file of HARNESS_FILES) {
     const source = codeOf(file);
     for (const match of source.matchAll(/\.collection\(\s*([^)]*)\)/g)) {
@@ -402,6 +409,51 @@ test("the browser harness routes every collection access through the chokepoint"
     ["stages", "weeks", "questionSets"],
     "a subcollection joined the list. Add it to the pin above in the same change, " +
       "so the value stays readable off the source.",
+  );
+});
+
+test("the scheduler's collection is reached only for a fixture group's reminder markers, one at a time", () => {
+  // A lead's Remind claims a marker in `schedulerMarkers` and keeps it for 180
+  // days, so a spec that presses it has a row to count and remove. The
+  // collection stays OFF the fixture's list (the refusal test above still
+  // names it) and is reachable through one door that builds one marker's id
+  // from parts it checks. Behavioural first: every refusal throws before a
+  // credential is obtained, which is also why this runs offline.
+  for (const parts of [
+    { groupId: "grp1", sessionKey: "w03", uid: "abc123" },
+    { groupId: "real-group__abcdefgh", sessionKey: "w03", uid: "abc123" },
+    { groupId: "e2e-term-group-b__ABCDEFGH", sessionKey: "w03", uid: "abc123" },
+    { groupId: "e2e-term-group-b__abc", sessionKey: "w03", uid: "abc123" },
+    { groupId: "e2e-term-group-b__abcdefgh/x", sessionKey: "w03", uid: "abc123" },
+    { groupId: "e2e-term-group-b__abcdefgh", sessionKey: "w3", uid: "abc123" },
+    { groupId: "e2e-term-group-b__abcdefgh", sessionKey: "w03__x", uid: "abc123" },
+    { groupId: "e2e-term-group-b__abcdefgh", sessionKey: "w03", uid: "a__b" },
+    { groupId: "e2e-term-group-b__abcdefgh", sessionKey: "w03", uid: "a/b" },
+    { groupId: "e2e-term-group-b__abcdefgh", sessionKey: "w03", uid: "" },
+  ]) {
+    assert.throws(
+      () => registerReminderMarkerDoc(parts),
+      `registerReminderMarkerDoc accepted ${JSON.stringify(parts)}. The door addresses a reminder ` +
+        "marker of a fixture's own group, for a session key and an account uid, and nothing else.",
+    );
+  }
+  assert.throws(
+    () => assertFixtureCollection(REGISTER_REMINDER_MARKERS),
+    "the scheduler's collection joined the fixture list. It is reachable through its one door only.",
+  );
+
+  // Then the source: the constant's value, one call, inside the door, and an
+  // id built of the reminder family's own prefix and nothing a caller chooses.
+  const core = codeOf(CORE);
+  assert.equal(REGISTER_REMINDER_MARKERS, "schedulerMarkers", "the door's collection is not the scheduler's");
+  assert.match(core, /export const REGISTER_REMINDER_MARKERS = "schedulerMarkers";/);
+  const calls = [...core.matchAll(/\.collection\(\s*REGISTER_REMINDER_MARKERS\s*\)/g)];
+  assert.equal(calls.length, 1, "the scheduler's collection is reached from more than one place in core.mjs");
+  const door = core.slice(core.indexOf("export function registerReminderMarkerDoc("));
+  const end = door.indexOf("\n}\n");
+  assert.ok(
+    door.slice(0, end).includes(".collection(REGISTER_REMINDER_MARKERS).doc(`regremind__${groupId}__${sessionKey}__${uid}`)"),
+    "the scheduler's collection is reached outside registerReminderMarkerDoc, or for another family of markers",
   );
 });
 
@@ -448,6 +500,11 @@ test("the funnel fixture declares every collection its teardown must drain", () 
     // course run's own list, which the allocation board reads.
     "admissionDecisions",
     "courseApplications",
+    // The same term three weeks in: the run's updates (one seeded from week 1,
+    // the rest posted by the updates route), and the download log's row the
+    // attendance CSV writes before it hands the file over.
+    "courseUpdates",
+    "dataExports",
   ]) {
     assert.ok(
       FIXTURE_COLLECTIONS.includes(required),
