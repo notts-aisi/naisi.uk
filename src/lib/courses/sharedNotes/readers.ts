@@ -13,7 +13,15 @@ import {
 } from "@/lib/firestore/courseGroupSharedNotes";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
-import { sharedNoteByline } from "./words";
+import type { SharedNoteView, SharedNotesSection, WeekSharedNotes } from "./views";
+import {
+  NOTES_SHARED_WITH_YOUR_GROUP,
+  notesSharedWithHeading,
+  sharedNoteByline,
+  sharedNotesWhoLine,
+} from "./words";
+
+export type { SharedNoteView, SharedNotesSection, WeekSharedNotes } from "./views";
 
 /**
  * WHO READS AND WRITES WHICH GROUP'S SHARED NOTES ON A RUN (C29), and the one
@@ -49,9 +57,11 @@ export type SharedNotesReading = {
   reads: ReadonlySet<string>;
   /** The groups the caller may add a note to. */
   writes: ReadonlySet<string>;
+  /** The group the caller's own place is in, when they read its notes as one of its people. */
+  own: string | null;
 };
 
-export const READS_NO_NOTES: SharedNotesReading = { all: false, reads: new Set(), writes: new Set() };
+export const READS_NO_NOTES: SharedNotesReading = { all: false, reads: new Set(), writes: new Set(), own: null };
 
 /** Whether this reading lets its reader see this group's notes. */
 export function readsGroupNotes(reading: SharedNotesReading, groupId: string): boolean {
@@ -108,12 +118,13 @@ export async function sharedNotesReadingOf(
     writes.add(group.id);
   }
   const place = await ownPlace(db, actor, run.id);
-  if (place && live.some((group) => group.id === place.groupId)) {
-    reads.add(place.groupId);
-    if (place.active) writes.add(place.groupId);
+  const own = place && live.some((group) => group.id === place.groupId) ? place.groupId : null;
+  if (place && own) {
+    reads.add(own);
+    if (place.active) writes.add(own);
   }
   const staffing = await runStaffingOf(db, actor, run);
-  return { all: staffing.isAdmin || staffing.leadOf !== null, reads, writes };
+  return { all: staffing.isAdmin || staffing.leadOf !== null, reads, writes, own };
 }
 
 /**
@@ -129,27 +140,6 @@ export async function writesSharedNotesOn(db: Firestore, actor: SessionUser, gro
   const place = await ownPlace(db, actor, group.runId);
   return Boolean(place && place.active && place.groupId === group.id);
 }
-
-/** One note as a page shows it: who wrote it, the week and the day, and its words. Built field by field. */
-export type SharedNoteView = {
-  id: string;
-  groupId: string;
-  /** The week whose page it was written on: "Week 3:" before its words. */
-  weekNumber: number;
-  writerUid: string;
-  /** The name the writer goes by, for their initials. */
-  writerName: string;
-  /** The name over the note: "Chloe". */
-  writerFirstName: string;
-  /** The London day it was written, "YYYY-MM-DD", or "" when the stamp is missing. */
-  dateKey: string;
-  /** "Chloe · Tue 17 Nov". */
-  byline: string;
-  /** Plain text, shown as text. */
-  body: string;
-  /** The reader wrote it, so the page offers them a way to delete it. */
-  mine: boolean;
-};
 
 /**
  * The name a person goes by, as the run's member pages name people: the name
@@ -240,4 +230,81 @@ export async function loadRunSharedNotes(
     byGroup.set(view.groupId, list);
   }
   return byGroup;
+}
+
+/** The group's name, for putting sections in order. */
+function nameOf(group: CourseGroupDoc): string {
+  return group.name.trim();
+}
+
+/**
+ * WHAT A WEEK'S PAGE DRAWS OF THE NOTES, for one reader (`WeekSharedNotes`).
+ * Null on a run whose groups share none, or that has no live group: that
+ * page keeps the run's comments on each reading. Otherwise a section for the
+ * group the reader's own place is in, under the board's "Notes shared with
+ * your group", then one for each other group they facilitate, named, so a
+ * facilitator of two groups reads each group's notes under its own name. The
+ * programme's lead and admins read every group's notes on the programme's
+ * Attendance tab (`sharedNotesForAttendance`), not here.
+ */
+export async function sharedNotesForWeekPage(
+  db: Firestore,
+  actor: SessionUser,
+  run: CourseRunDoc,
+  groups: readonly CourseGroupDoc[],
+  leadFirstName: string | null,
+): Promise<WeekSharedNotes> {
+  const live = groups.filter((group) => group.runId === run.id && !group.archived);
+  if (!runSharesGroupNotes(run) || live.length === 0) return null;
+  const reading = await sharedNotesReadingOf(db, actor, run, live);
+  const mine = live
+    .filter((group) => reading.reads.has(group.id))
+    .sort((a, b) =>
+      a.id === reading.own ? -1 : b.id === reading.own ? 1 : nameOf(a).localeCompare(nameOf(b)) || a.id.localeCompare(b.id),
+    );
+  const sections: SharedNotesSection[] = [];
+  for (const group of mine) {
+    const notes = await loadGroupSharedNotes(db, actor, run, group.id, reading);
+    if (!notes) continue;
+    const member = group.id === reading.own;
+    sections.push({
+      groupId: group.id,
+      heading: member ? NOTES_SHARED_WITH_YOUR_GROUP : notesSharedWithHeading(group.name),
+      whoLine: sharedNotesWhoLine({ groupName: group.name, reader: member ? "member" : "facilitator", leadFirstName }),
+      canWrite: reading.writes.has(group.id),
+      notes,
+    });
+  }
+  return { sections };
+}
+
+/**
+ * THE NOTES ON THE PROGRAMME'S ATTENDANCE TAB, for its lead and admins: a
+ * section for each live group that has any, named, newest first, with no way
+ * to add one (they read the notes and write none). Empty for anybody else,
+ * and on a run whose groups share none.
+ */
+export async function sharedNotesForAttendance(
+  db: Firestore,
+  actor: SessionUser,
+  run: CourseRunDoc,
+  groups: readonly CourseGroupDoc[],
+  leadFirstName: string | null,
+): Promise<SharedNotesSection[]> {
+  const live = groups.filter((group) => group.runId === run.id && !group.archived);
+  if (!runSharesGroupNotes(run) || live.length === 0) return [];
+  const reading = await sharedNotesReadingOf(db, actor, run, live);
+  if (!reading.all) return [];
+  const byGroup = await loadRunSharedNotes(db, actor, run, reading);
+  const reader = actor.role === "admin" ? "admin" : "lead";
+  return live
+    .filter((group) => (byGroup.get(group.id) ?? []).length > 0)
+    .sort((a, b) => nameOf(a).localeCompare(nameOf(b)) || a.id.localeCompare(b.id))
+    .map((group) => ({
+      groupId: group.id,
+      heading: notesSharedWithHeading(group.name),
+      whoLine: sharedNotesWhoLine({ groupName: group.name, reader, leadFirstName }),
+      canWrite: false,
+      notes: byGroup.get(group.id) ?? [],
+    }));
 }

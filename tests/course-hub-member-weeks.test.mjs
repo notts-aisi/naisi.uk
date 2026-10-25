@@ -234,7 +234,26 @@ describe("3. a week's page before it opens", () => {
     at("2026-11-17T20:01:00Z");
     const open = await w.weekShell("chloe", 4);
     assert.equal(open.component, "WeekView");
-    assert.deepEqual(open.props, { runId: RUN.agi, weekNumber: 4, uid: "chloe", viewerRole: "learner" });
+    // Since C29 the shell also hands the page the notes Chloe's group shares,
+    // read for her on the server: Group B's, under the board's heading, which
+    // she may add to. Nothing else of anybody's.
+    assert.deepEqual(open.props, {
+      runId: RUN.agi,
+      weekNumber: 4,
+      uid: "chloe",
+      viewerRole: "learner",
+      sharedNotes: {
+        sections: [
+          {
+            groupId: B,
+            heading: "Notes shared with your group",
+            whoLine: "Everyone in Group B, your facilitators, Claudia and admins can see these.",
+            canWrite: true,
+            notes: [],
+          },
+        ],
+      },
+    });
   });
 
   test("a moved session moves the opening; a cancelled one opens the week now", async () => {

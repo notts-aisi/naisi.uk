@@ -42,6 +42,7 @@ import {
   dayWords,
   weekHeading,
 } from "@/lib/courses/sessionChange/words";
+import type { WeekSharedNotes } from "@/lib/courses/sharedNotes/views";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
 import ExerciseSubmit from "./ExerciseSubmit";
 import PacingBanner from "./PacingBanner";
@@ -57,6 +58,7 @@ import {
   peekWeekNavDirection,
   setWeekNavDirection,
 } from "./weekNavDirection";
+import GroupSharedNotes from "./weekly/GroupSharedNotes";
 import TickRows, { tickItemsOf, type TickItem } from "./weekly/TickRows";
 import { useMaterialTicks } from "./weekly/useMaterialTicks";
 import weekly from "./weekly/weekly.module.css";
@@ -81,10 +83,19 @@ import styles from "./WeekView.module.css";
  * too, so a reading ticked anywhere is the same record everywhere. A ticked
  * reading opens its reflection, and a refused tick is put back and said.
  *
- * WHAT IS NOT HERE, though the board draws it: "Questions to think about" and
- * "Notes shared with your group". Both need records that do not exist yet; a
- * later slice adds them. The reflections and the run's notes on each reading,
- * which those notes replace, stay under each reading until then.
+ * "QUESTIONS TO THINK ABOUT" are the week's own (`CourseWeekDoc.questions`),
+ * numbered 01, 02, 03 between the readings and the exercise; a week with none
+ * draws no heading.
+ *
+ * NOTES SHARED WITH YOUR GROUP (C29) are read on the server for this reader
+ * and handed in (`sharedNotes`): a section for the group their place is in
+ * and one for each group they facilitate, after the exercise. On such a run
+ * they take the place of the run's comments on each reading ("Cohort notes"),
+ * which the board does not draw: nothing under a reading shows what others
+ * on the run wrote, and the reflection keeps its rating and private note
+ * without the box whose words the whole run would have read. A run anyone
+ * can join (`sharedNotes` null) keeps its comments under each reading
+ * exactly as before.
  *
  * PROGRESS SEMANTICS ARE UNCHANGED BY EXERCISES: the fraction counts
  * non-optional materials plus checklist items and nothing else.
@@ -97,6 +108,8 @@ type Props = {
   weekNumber: number;
   uid: string;
   viewerRole: ViewerRole;
+  /** The notes this reader's groups share, read on the server; null on a run that keeps the run's comments. */
+  sharedNotes?: WeekSharedNotes;
 };
 
 /**
@@ -111,7 +124,7 @@ const TICK_REFUSED = "That tick didn’t save, so it has been undone. Check your
 
 const EMPTY_ROWS: ReadonlyArray<never> = [];
 
-export default function WeekView({ runId, weekNumber, uid, viewerRole }: Props) {
+export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNotes = null }: Props) {
   const overview = useRunOverview(runId);
   // WHERE THIS READER'S COPY OF THE WEEK LIVES (V2-3 copy-on-write): their
   // group's forked document when their facilitator has personalised this
@@ -416,6 +429,7 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole }: Props) 
                     onOpen={() => setPanel(item.id, true)}
                     onClose={() => setPanel(item.id, false)}
                     comments={comments}
+                    cohortNotes={sharedNotes === null}
                     canModerate={isAdmin}
                     onModerate={moderate}
                   />
@@ -499,6 +513,10 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole }: Props) 
           );
         })}
         {weekDoc.exercises.length > 0 && exercisesNote}
+
+        {sharedNotes?.sections.map((section) => (
+          <GroupSharedNotes key={section.groupId} section={section} weekNumber={weekNumber} />
+        ))}
 
         {(prev || next?.open || nextLine) && (
           <nav className={weekly.weekNav} aria-label="Weeks">
@@ -634,6 +652,12 @@ type ExtrasProps = {
   onOpen: () => void;
   onClose: () => void;
   comments: WeekComments;
+  /**
+   * The run keeps its comments on each reading (a run anyone can join). On a
+   * run whose groups share notes, neither the comments under the reading nor
+   * the box for writing one is drawn: the group's notes take their place.
+   */
+  cohortNotes: boolean;
   /** Admin only: the moderation controls. */
   canModerate: boolean;
   onModerate: (progressId: string, action: "hide" | "clear") => void;
@@ -651,6 +675,7 @@ function MaterialExtras({
   onOpen,
   onClose,
   comments,
+  cohortNotes,
   canModerate,
   onModerate,
 }: ExtrasProps) {
@@ -725,7 +750,7 @@ function MaterialExtras({
         <div className={panelClass} aria-hidden={!open} inert={!open}>
           <div className={styles.panelInner}>
             <div className={styles.panelBody}>
-              {row?.moderatedByUid && (
+              {cohortNotes && row?.moderatedByUid && (
                 <p className={styles.moderated}>
                   A moderator hid this comment. You can still edit it, but it stays hidden from the cohort until a
                   moderator clears it.
@@ -744,23 +769,25 @@ function MaterialExtras({
                 />
               </div>
 
-              <div className={styles.field}>
-                <label className={styles.fieldLabel} htmlFor={`${fieldId}-comment`}>
-                  Reflection
-                  <span className={styles.fieldHint}> · Visible to everyone on this run</span>
-                </label>
-                <CountedTextarea
-                  id={`${fieldId}-comment`}
-                  rows={3}
-                  value={draft?.comment ?? ""}
-                  max={PROGRESS_LIMITS.publicComment}
-                  placeholder="What stood out? What would you tell the rest of your cohort?"
-                  onChange={(e) => {
-                    const comment = e.target.value;
-                    setDraft((d) => (d ? { ...d, comment } : d));
-                  }}
-                />
-              </div>
+              {cohortNotes && (
+                <div className={styles.field}>
+                  <label className={styles.fieldLabel} htmlFor={`${fieldId}-comment`}>
+                    Reflection
+                    <span className={styles.fieldHint}> · Visible to everyone on this run</span>
+                  </label>
+                  <CountedTextarea
+                    id={`${fieldId}-comment`}
+                    rows={3}
+                    value={draft?.comment ?? ""}
+                    max={PROGRESS_LIMITS.publicComment}
+                    placeholder="What stood out? What would you tell the rest of your cohort?"
+                    onChange={(e) => {
+                      const comment = e.target.value;
+                      setDraft((d) => (d ? { ...d, comment } : d));
+                    }}
+                  />
+                </div>
+              )}
 
               <div className={styles.field}>
                 <label className={styles.fieldLabel} htmlFor={`${fieldId}-note`}>
@@ -794,58 +821,60 @@ function MaterialExtras({
         </div>
       )}
 
-      <div className={styles.notes}>
-        <Accordion
-          summary={
-            <>
-              <span>
-                Cohort notes
-                {noteCount !== null ? ` (${noteCount})` : ""}
-              </span>
-              <span className={notesOpen ? `${styles.chevron} ${styles.chevronOpen}` : styles.chevron} aria-hidden="true">
-                ▾
-              </span>
-            </>
-          }
-          open={notesOpen}
-          onToggle={toggleNotes}
-          summaryClassName={styles.notesSummary}
-        >
-          <div className={styles.notesBody}>
-            {comments.loading && <Skeleton lines={2} ariaLabel="Loading cohort notes…" />}
-            {!comments.loading && comments.error && <p className={styles.notesEmpty}>{comments.error.message}</p>}
-            {comments.loaded && !comments.loading && noteRows.length === 0 && (
-              <p className={styles.notesEmpty}>No notes on this yet. Save a reflection and yours will appear here.</p>
-            )}
-            {noteRows.map((r) => (
-              <div key={r.progressId} className={r.moderated ? `${styles.noteRow} ${styles.noteHidden}` : styles.noteRow}>
-                <div className={styles.noteHead}>
-                  <span className={styles.noteName}>
-                    <MemberName name={r.displayName} />
-                  </span>
-                  {r.rating !== null && <StarRating value={r.rating} readOnly ariaLabel="Their rating" size="sm" />}
-                  {canModerate && r.moderated && (
-                    <Chip tone="warning" size="sm">
-                      Hidden
-                    </Chip>
-                  )}
-                  {canModerate && (
-                    <button
-                      type="button"
-                      className={styles.moderate}
-                      onClick={() => onModerate(r.progressId, r.moderated ? "clear" : "hide")}
-                    >
-                      {r.moderated ? "Unhide" : "Hide"}
-                    </button>
-                  )}
+      {cohortNotes && (
+        <div className={styles.notes}>
+          <Accordion
+            summary={
+              <>
+                <span>
+                  Cohort notes
+                  {noteCount !== null ? ` (${noteCount})` : ""}
+                </span>
+                <span className={notesOpen ? `${styles.chevron} ${styles.chevronOpen}` : styles.chevron} aria-hidden="true">
+                  ▾
+                </span>
+              </>
+            }
+            open={notesOpen}
+            onToggle={toggleNotes}
+            summaryClassName={styles.notesSummary}
+          >
+            <div className={styles.notesBody}>
+              {comments.loading && <Skeleton lines={2} ariaLabel="Loading cohort notes…" />}
+              {!comments.loading && comments.error && <p className={styles.notesEmpty}>{comments.error.message}</p>}
+              {comments.loaded && !comments.loading && noteRows.length === 0 && (
+                <p className={styles.notesEmpty}>No notes on this yet. Save a reflection and yours will appear here.</p>
+              )}
+              {noteRows.map((r) => (
+                <div key={r.progressId} className={r.moderated ? `${styles.noteRow} ${styles.noteHidden}` : styles.noteRow}>
+                  <div className={styles.noteHead}>
+                    <span className={styles.noteName}>
+                      <MemberName name={r.displayName} />
+                    </span>
+                    {r.rating !== null && <StarRating value={r.rating} readOnly ariaLabel="Their rating" size="sm" />}
+                    {canModerate && r.moderated && (
+                      <Chip tone="warning" size="sm">
+                        Hidden
+                      </Chip>
+                    )}
+                    {canModerate && (
+                      <button
+                        type="button"
+                        className={styles.moderate}
+                        onClick={() => onModerate(r.progressId, r.moderated ? "clear" : "hide")}
+                      >
+                        {r.moderated ? "Unhide" : "Hide"}
+                      </button>
+                    )}
+                  </div>
+                  {/* Member-authored plain text: MemberText is the XSS boundary. */}
+                  <MemberText text={r.comment} className={styles.noteText} />
                 </div>
-                {/* Member-authored plain text: MemberText is the XSS boundary. */}
-                <MemberText text={r.comment} className={styles.noteText} />
-              </div>
-            ))}
-          </div>
-        </Accordion>
-      </div>
+              ))}
+            </div>
+          </Accordion>
+        </div>
+      )}
     </div>
   );
 }

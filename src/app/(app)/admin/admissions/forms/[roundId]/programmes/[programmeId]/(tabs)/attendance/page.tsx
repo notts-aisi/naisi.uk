@@ -1,5 +1,6 @@
 import GroupNotesCard from "@/features/courses/facilitator/GroupNotesCard";
 import facilitator from "@/features/courses/facilitator/facilitator.module.css";
+import GroupSharedNotes from "@/features/courses/weekly/GroupSharedNotes";
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import NotYours from "@/features/applications/groups/NotYours";
 import ProgrammeAttendance from "@/features/applications/groups/ProgrammeAttendance";
@@ -8,6 +9,7 @@ import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import { leadNotesHeading, notesWhoLine } from "@/lib/courses/facilitatorPageWords";
 import { readRunGroupNotes } from "@/lib/courses/groupNotes/readers";
+import { sharedNotesForAttendance } from "@/lib/courses/sharedNotes/readers";
 import { buildRunAttendance, readRunRecords } from "@/lib/courses/programmeAttendance";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -32,6 +34,12 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * gate, and the cards are handed only what they show. The register's own
  * notes, on a person or a session, are not among them: those are the
  * group's facilitators' and admins' alone.
+ *
+ * THE NOTES EACH GROUP SHARES ON ITS WEEK PAGES (C29) are read here too, under
+ * the facilitators' notes, a card per group that has any. The programme's
+ * lead and admins read them and write none; `sharedNotesForAttendance` asks
+ * who the reader is before it reads, and the cards are handed only what they
+ * show.
  */
 export default async function ProgrammeAttendancePage({
   params,
@@ -67,6 +75,7 @@ export default async function ProgrammeAttendancePage({
         ? { firstName: programme.leadFirstName, isReader: false }
         : null;
   const noted = model.groups.filter((group) => (notes.get(group.id) ?? []).length > 0);
+  const shared = await sharedNotesForAttendance(db, user, records.run, records.groups, programme?.leadFirstName ?? null);
   return (
     <>
       <ProgrammeAttendance
@@ -87,6 +96,13 @@ export default async function ProgrammeAttendancePage({
               writeFor={null}
               headingId={`notes-${group.id}`}
             />
+          ))}
+        </div>
+      )}
+      {shared.length > 0 && (
+        <div className={facilitator.leadNotes}>
+          {shared.map((section) => (
+            <GroupSharedNotes key={section.groupId} section={section} weekNumber={null} />
           ))}
         </div>
       )}
