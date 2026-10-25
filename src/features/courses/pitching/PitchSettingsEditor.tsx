@@ -143,7 +143,7 @@ export default function PitchSettingsEditor({
         <Field
           id="pitch-pick-limit"
           label="Pitches a person may pick"
-          hint={`Shown as “Pick up to 3 you’d join”, with this number. Leave it blank and nobody can pick. At most ${COURSE_FIELD_LIMITS.maxPitchPicks}.`}
+          hint={`How many pitches each person may say they’d join. Leave it blank and nobody can pick. At most ${COURSE_FIELD_LIMITS.maxPitchPicks}.`}
         >
           <Input
             id="pitch-pick-limit"
@@ -187,7 +187,7 @@ export default function PitchSettingsEditor({
         <Field
           id="pitch-teams-made-on"
           label="Teams are made on"
-          hint="Shown in pitching week with the programme lead’s first name, as “Zach makes the teams on Thu 19 Nov.”"
+          hint="The day the teams are made. People are told it in pitching week, with the programme lead’s first name."
         >
           {/* A native date input: the setting is a London civil date, the
               shape the run's own start date takes. */}
