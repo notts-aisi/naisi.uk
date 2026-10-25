@@ -114,8 +114,9 @@ export type CourseEnrolmentDoc = {
   /**
    * WHEN THEY LEFT THE RUN: by themselves (the enrol route's leave, which
    * cannot be undone by the person taking it), or taken off by staff (the
-   * remove route). Somebody who left and was then removed keeps the day they
-   * left. Every page that says "Left Fri 13 Nov" reads it from here, and
+   * remove route). Somebody who left by themselves is never removed (the
+   * remove route refuses them), so the day they left stays. Every page that
+   * says "Left Fri 13 Nov" reads it from here, and
    * putting somebody back (reinstate, or a placement on the board) clears it.
    * Null on every enrolment that has not left, and on a row removed before
    * the remove route recorded the day.
