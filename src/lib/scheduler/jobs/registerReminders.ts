@@ -230,7 +230,9 @@ async function remindForGroup(
 ): Promise<"done" | "out-of-time"> {
   const { db, ctx, config } = state;
   if (group.facilitatorUids.length === 0) return "done";
+  // A session cancelled through "Change a session" met nobody: no reminder.
   const due = resolveSessions(run, group)
+    .filter((session) => !session.cancelled)
     .map((session) => ({ session, ...sessionInstants(session) }))
     .filter(
       (entry): entry is { session: ResolvedSession; startsAt: Date; endsAt: Date } =>

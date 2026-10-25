@@ -868,6 +868,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
+  "/api/courses/groups/[groupId]/session/change": {
+    reason:
+      "Course hub: changing one week's session of a group (hold it online, move it, cancel it and keep pace, cancel it and push the rest back, put it back as usual). tests/course-hub-sessions-routes.test.mjs executes the handler as every kind of caller and each kind end to end, tests/course-hub-sessions-pages.test.mjs renders what the group then reads, and tests/course-hub-sessions-email.test.mjs sends next week's email and runs the register chase after each change.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a run Publish has told, with a group's facilitator and the programme's lead signed in and a mail catcher to read the update's email.",
+  },
   "/api/courses/groups/[groupId]/weeks/[weekId]": {
     reason:
       "Learn hub: /api/courses/groups/[groupId]/weeks/[weekId] belongs to the curriculum surface being rebuilt in October.",
@@ -1504,6 +1510,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed a programme that names a run with groups, with its lead signed in.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": {
+    reason:
+      "Course hub: the Sessions view of a programme's Groups tab (wk-session), one week of the run and each group's session with the change dialog, for its lead and admins; the page's every caller and the dialog's every value are executed by tests/course-hub-sessions-pages.test.mjs and its route by tests/course-hub-sessions-routes.test.mjs.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a programme that names a running run with groups, with its lead signed in.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/times": {
     reason:
       "Course hub: the Times view of a programme's Groups tab (the times picture, moved here from the tab's own address) is read only; its counting, every caller and every state are executed by tests/course-hub-times-counting.test.mjs and tests/course-hub-times-page.test.mjs, and it was checked by hand at 1440 and 390.",
@@ -1695,6 +1707,12 @@ const NOT_COVERED = {
       "Learn hub: /(app)/learn/[runId]/group/[groupId]/review is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
     coverWhen:
       "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
+  },
+  "/(app)/learn/[runId]/group/[groupId]/sessions": {
+    reason:
+      "Course hub: a group's sessions from today with the change dialog behind each, opened from the group's page by its facilitators; the page's every caller is executed by tests/course-hub-sessions-pages.test.mjs and its route by tests/course-hub-sessions-routes.test.mjs.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a running run with a group's facilitator signed in.",
   },
   "/(app)/learn/[runId]/group/[groupId]/update": {
     reason:

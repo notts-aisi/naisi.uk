@@ -404,12 +404,16 @@ async function scanRun(
     // raises nothing, which is the only safe answer.
     let due: ResolvedSession[] = [];
     try {
-      due = resolveSessions(run, group).filter((session) =>
-        isWithinFollowUpWindow(
-          sessionEnd(session),
-          ctx.now,
-          opts.config.registerTaskHours,
-        ),
+      // A session cancelled through "Change a session" met nobody, so its
+      // register is nobody's to finish and nobody is chased for it.
+      due = resolveSessions(run, group).filter(
+        (session) =>
+          !session.cancelled &&
+          isWithinFollowUpWindow(
+            sessionEnd(session),
+            ctx.now,
+            opts.config.registerTaskHours,
+          ),
       );
     } catch (err) {
       console.error(`[scheduler:${JOB_ID}] could not resolve a group's sessions`, {

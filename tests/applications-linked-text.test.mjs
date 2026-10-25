@@ -1051,6 +1051,13 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions/page.tsx",
+    {
+      built: ["`${here}?week=${n}`"],
+      from: "the Sessions view's own path (groupsViewPath, from the form's and the programme's ids) and a taught week's number from the run's plan. Nothing anybody typed",
+    },
+  ],
+  [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/layout.tsx",
     { built: ["home"], from: "the term's own page, from the form's id" },
   ],

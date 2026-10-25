@@ -5,18 +5,19 @@ import styles from "./GroupsViews.module.css";
 /**
  * THE VIEWS OF A PROGRAMME'S GROUPS TAB, and the row they sit in.
  *
- * Three views exist for every run: People in groups (the run's allocation
- * board), Times (when the people holding a place are free) and Facilitators
- * (who staffs each group). A run with a pitching week has a fourth, Pitches
- * (the pitches from that week, which teams are made from). Each is its own
- * address under the tab, so a view is a link and the one on screen says so
- * (`aria-current`). The boards also draw Sessions, which does not exist yet
- * and is not drawn.
+ * Four views exist for every run, in the boards' order: Sessions (each
+ * group's session in one week, and changing one), People in groups (the run's
+ * allocation board), Times (when the people holding a place are free) and
+ * Facilitators (who staffs each group). A run with a pitching week has a
+ * fifth, Pitches (the pitches from that week, which teams are made from). Each
+ * is its own address under the tab, so a view is a link and the one on screen
+ * says so (`aria-current`). The tab itself opens on People in groups.
  */
 
-export type GroupsView = "people" | "times" | "facilitators" | "pitches";
+export type GroupsView = "sessions" | "people" | "times" | "facilitators" | "pitches";
 
 const VIEWS: readonly { view: GroupsView; label: string; segment: string }[] = [
+  { view: "sessions", label: "Sessions", segment: "/sessions" },
   { view: "people", label: "People in groups", segment: "" },
   { view: "times", label: "Times", segment: "/times" },
   { view: "facilitators", label: "Facilitators", segment: "/facilitators" },

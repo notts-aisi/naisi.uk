@@ -1,7 +1,8 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
-import type { ResolvedSession } from "@/lib/courses/sessions";
+import { nextWeekChangeLine } from "@/lib/courses/sessionChange/model";
+import { resolveSessions, type ResolvedSession } from "@/lib/courses/sessions";
 import { dispatchSends } from "@/lib/email/dispatch";
 import {
   resolveCohortAudience,
@@ -139,7 +140,16 @@ export type NextWeekEmailReading = {
   missing: (keyof CourseNudgeTokens)[];
   facts: ReturnType<typeof groupNudgeFacts>;
   week: Awaited<ReturnType<typeof resolveWeekDoc>>["week"];
+  /**
+   * What changed about the session (Q25), as the email's own paragraph: off,
+   * why, and when the group meets next; or that it covers two weeks. "" when
+   * nothing did. See `nextWeekChangeLine`.
+   */
+  change: string;
 };
+
+/** The two values a cancelled session's email goes without: it says it is off instead. */
+const OFF_WITHOUT: readonly (keyof CourseNudgeTokens)[] = ["sessionWhen", "sessionWhere"];
 
 /**
  * Read what one group's email about `session` would carry: the week as this
@@ -159,7 +169,7 @@ export async function readNextWeekEmail(
 ): Promise<NextWeekEmailReading> {
   const { run, group, session } = args;
   const { week } = await resolveWeekDoc(db, run.id, group.id, session.weekId);
-  const facts = groupNudgeFacts({
+  const resolved = groupNudgeFacts({
     courseTitle: run.courseTitle,
     runLabel: run.label,
     runId: run.id,
@@ -169,11 +179,21 @@ export async function readNextWeekEmail(
     mode: sessionModeForWeek(group, session.weekId),
     week: week ?? {},
   });
+  // "Cancelling or moving a session rewrites its email" (wk-messages). A
+  // cancelled session's email does not say when and where the group meets:
+  // it says the evening is off, in a paragraph of its own.
+  const facts = session.cancelled ? { ...resolved, sessionWhen: "", sessionWhere: "" } : resolved;
+  const missing = week
+    ? emptyNudgeValues(args.template, groupNudgeTokens(facts)).filter(
+        (key) => !(session.cancelled && OFF_WITHOUT.includes(key)),
+      )
+    : [];
   return {
     published: Boolean(week?.published),
-    missing: week ? emptyNudgeValues(args.template, groupNudgeTokens(facts)) : [],
+    missing,
     facts,
     week,
+    change: nextWeekChangeLine(resolveSessions(run, group), group, session),
   };
 }
 
@@ -363,6 +383,7 @@ export async function sendNextWeekEmail(args: {
         unsubscribeUrl,
         template,
         context: reading.facts.context,
+        sessionChange: reading.change,
       });
       sent += 1;
     } catch (err) {

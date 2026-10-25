@@ -1191,7 +1191,32 @@ export type SendCourseWeekNudgeArgs = {
   /** From `resolveCourseNudgeTemplate(db)` — resolve once, pass to every send. */
   template: CourseNudgeTemplate;
   context: CourseNudgeRunContext;
+  /**
+   * What changed about the session this email is about (Q25), as text: "Tue
+   * 24 Nov is cancelled. Rahul and Sofia are both away. Do week 4’s reading
+   * anyway. On Tue 1 Dec you’ll talk about weeks 4 and 5 together." Set only
+   * by next week's email (`src/lib/courses/nextWeekEmail.ts`), and drawn as the
+   * paragraph after the greeting, escaped like every other value. Never a
+   * link: the change route refuses a reason that holds one.
+   */
+  sessionChange?: string | null;
 };
+
+/** The change paragraph's own block id, so a renderer keys it apart from the template's. */
+const SESSION_CHANGE_BLOCK_ID = "session-change";
+
+/**
+ * The template's blocks with the session's change as a paragraph of its own,
+ * after the greeting when the template opens with one and first otherwise.
+ * Text in, escaped HTML out: the reason was typed by a person.
+ */
+export function withSessionChange(blocks: readonly Block[], change: string): Block[] {
+  const line = oneLine(change);
+  if (!line) return [...blocks];
+  const paragraph: Block = { id: SESSION_CHANGE_BLOCK_ID, type: "richText", html: `<p>${escapeHtml(line)}</p>` };
+  const at = blocks[0]?.type === "heading" ? 1 : 0;
+  return [...blocks.slice(0, at), paragraph, ...blocks.slice(at)];
+}
 
 /**
  * Send one nudge to one member.
@@ -1221,7 +1246,11 @@ export async function sendCourseWeekNudgeEmail(
     recipientName: args.recipientName,
   });
 
-  const { subject, blocks, preheader } = renderCourseNudge(args.template, tokens);
+  const rendered = renderCourseNudge(args.template, tokens);
+  const subject = rendered.subject;
+  // A changed session leads the email, and is what the inbox previews.
+  const blocks = args.sessionChange ? withSessionChange(rendered.blocks, args.sessionChange) : rendered.blocks;
+  const preheader = args.sessionChange ? preheaderOf(blocks) : rendered.preheader;
 
   await sendEmail({
     to: args.to,

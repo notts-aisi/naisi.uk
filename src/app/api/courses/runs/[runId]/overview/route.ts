@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
-import type { CurrentWeek, WeekPlanEntry } from "@/lib/courses/weekPlan";
+import { londonDateKey, type CurrentWeek, type WeekPlanEntry } from "@/lib/courses/weekPlan";
 import {
   resolveGroupCalendar,
   resolveGroupCalendars,
@@ -11,6 +11,7 @@ import {
   type WeekSource,
 } from "@/lib/courses/groupResolve";
 import { resolveSessions, sessionRange } from "@/lib/courses/sessions";
+import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
 import {
   ownAttendanceSessions,
   sessionsFromJoinWeek,
@@ -151,6 +152,46 @@ export type OverviewNextSession = {
   /** Wall-clock start in Europe/London, "HH:MM" 24h. */
   startTimeLocal: string;
   durationMinutes: number;
+  /**
+   * The weeks this session covers: its own, and those of the cancelled
+   * sessions straight before it (Q25): `[4, 5]` after week 4's was cancelled
+   * and the group kept pace. `[5]` otherwise.
+   */
+  weekNumbers: number[];
+  /** Its room, resolved for its own week (a one-week move included). */
+  location: string;
+  /**
+   * Its joining link, resolved for its own week, under the same gate as the
+   * group's `meetingUrl`: null for anybody that one is null for. The link is
+   * on the site only (Q23): no email or calendar feed carries it.
+   */
+  meetingUrl: string | null;
+};
+
+/**
+ * A cancelled evening the group's people must read about before their next
+ * session (Q25, wk-changes): "No session tonight", why, and what to do
+ * instead. Worked out by `sessionNoticeFor`.
+ */
+export type OverviewSessionNotice = {
+  /** "cancelled": the group keeps pace. "pushed": every session from that week moved back one. */
+  kind: "cancelled" | "pushed";
+  /** The evening nobody meets, "YYYY-MM-DD". */
+  dateKey: string;
+  /** When it would have started, "HH:MM", for "tonight" or "today". */
+  startTimeLocal: string;
+  weekNumber: number;
+  /** What the group was told: one line, never a link. */
+  reason: string;
+  /** The next session and the weeks it covers, or the pushed week's new session. */
+  next: { dateKey: string; weekNumbers: number[] } | null;
+};
+
+/** A session of the group that was cancelled and kept pace, for a page that draws that week. */
+export type OverviewCancelledSession = {
+  weekNumber: number;
+  dateKey: string;
+  reason: string;
 };
 
 /**
@@ -230,6 +271,14 @@ export type OverviewGroup = {
   sessionModes: Record<string, GroupSessionMode>;
   /** Names only. */
   facilitatorNames: string[];
+  /**
+   * A cancelled evening to tell the card's reader about (Q25), or null. The
+   * reason travels because "the group sees this": it is written for exactly
+   * the people this card is for, and it can hold no link.
+   */
+  sessionNotice: OverviewSessionNotice | null;
+  /** The group's sessions that are cancelled and kept pace, in week order. */
+  cancelledSessions: OverviewCancelledSession[];
 };
 
 export type OverviewPayload = {
@@ -722,10 +771,11 @@ export async function GET(
     // The group's own sessions, resolved off the calendar just resolved rather
     // than off a second one: `resolveSessions` would otherwise re-derive it,
     // and a second derivation is a second chance to disagree.
-    const range = sessionRange(
-      resolveSessions(run, source, groupCalendar.calendar),
-      now,
-    );
+    const resolved = resolveSessions(run, source, groupCalendar.calendar);
+    const range = sessionRange(resolved, now);
+    // What "Change a session" did, told to the people this card is for: the
+    // next session's own weeks, room and link, and any evening that is off.
+    const changes = cardChangeFacts(resolved, source, range.next, londonDateKey(now));
     return {
       id: source.id,
       name: source.name,
@@ -744,6 +794,10 @@ export async function GET(
               dateKey: range.next.dateKey,
               startTimeLocal: range.next.session.startTimeLocal,
               durationMinutes: range.next.session.durationMinutes,
+              weekNumbers: changes.next?.weekNumbers ?? [range.next.weekNumber],
+              location: changes.next?.location ?? "",
+              // The same gate as the group's own link, below.
+              meetingUrl: canSeeMeetingUrlFor(source) ? (changes.next?.meetingUrl ?? null) : null,
             }
           : null,
       },
@@ -757,6 +811,8 @@ export async function GET(
       facilitatorNames: source.facilitatorUids.map(
         (uid) => nameByUid.get(uid) ?? "NAISI member",
       ),
+      sessionNotice: changes.notice,
+      cancelledSessions: changes.cancelled,
     };
   };
 

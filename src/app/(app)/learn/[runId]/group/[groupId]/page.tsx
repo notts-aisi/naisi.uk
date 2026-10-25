@@ -5,8 +5,11 @@ import type { CSSProperties } from "react";
 import AttendanceGrid from "@/features/courses/AttendanceGrid";
 import GroupRoster from "@/features/courses/GroupRoster";
 import SessionCard from "@/features/courses/SessionCard";
+import { cancelledIn, coversTitle, nextSessionCard } from "@/features/courses/sessionChange/cardFacts";
+import SessionNotice from "@/features/courses/sessionChange/SessionNotice";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
 import updateStyles from "@/features/courses/updates/Messages.module.css";
+import { CHANGE_A_SESSION } from "@/lib/courses/sessionChange/words";
 import { StaffUpdatesSection } from "@/features/courses/updates/UpdatesList";
 import { updateAudienceCounts } from "@/lib/courses/updates/audience";
 import { loadRunGroups, loadUpdatesFor, narrowToGroup, updateReadingOf } from "@/lib/courses/updates/readers";
@@ -14,7 +17,8 @@ import { staffUpdateRows } from "@/lib/courses/updates/views";
 import { writeToGroupLine, writeToGroupWords } from "@/lib/courses/updates/words";
 import { resolveGroupCalendar } from "@/lib/courses/groupResolve";
 import { resolveSessions, sessionRange } from "@/lib/courses/sessions";
-import { type CurrentWeek } from "@/lib/courses/weekPlan";
+import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
+import { londonDateKey, type CurrentWeek } from "@/lib/courses/weekPlan";
 import { getAdminDb } from "@/lib/firebase/admin";
 import {
   normalizeCourseGroup,
@@ -142,6 +146,15 @@ const linkRowStyle: CSSProperties = {
   marginTop: "var(--space-4)",
 };
 
+/** The row of "Write to Group B (7)" and "Change a session", wrapping on a phone. */
+const groupActionsStyle: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  gap: "var(--space-2) 10px",
+  marginTop: "var(--space-4)",
+};
+
 /** 44px-tall targets: these are the page's two real actions. */
 const actionLinkStyle: CSSProperties = {
   display: "inline-flex",
@@ -231,6 +244,15 @@ export default async function GroupHomePage({
     resolveSessions(access.run, group, groupCalendar.calendar),
     now,
   );
+  // The same facts the overview route puts on a member's card: the next
+  // session's own weeks, room and link, and any evening that is off (Q25).
+  // Resolved off the same calendar, by the same pure resolver.
+  const changes = cardChangeFacts(
+    resolveSessions(access.run, group, groupCalendar.calendar),
+    group,
+    range.next,
+    londonDateKey(now),
+  );
 
   // A break week and the before/after phases have no week doc of their own, so
   // the session override falls back to the anchor (the last taught week that
@@ -263,6 +285,10 @@ export default async function GroupHomePage({
             dateKey: range.next.dateKey,
             startTimeLocal: range.next.session.startTimeLocal,
             durationMinutes: range.next.session.durationMinutes,
+            weekNumbers: changes.next?.weekNumbers ?? [range.next.weekNumber],
+            location: changes.next?.location ?? "",
+            // The gate above is the overview route's `canSeeMeetingUrl`.
+            meetingUrl: changes.next?.meetingUrl ?? null,
           }
         : null,
     },
@@ -284,8 +310,11 @@ export default async function GroupHomePage({
     // roster below names the facilitators, and repeating them on the card
     // above it would say the same thing twice.
     facilitatorNames: [],
+    sessionNotice: changes.notice,
+    cancelledSessions: changes.cancelled,
   };
 
+  const nextCard = nextSessionCard(sessionGroup);
   const eyebrow = [access.run.courseTitle, access.run.label].filter(Boolean).join(" · ");
   const groupPath = `${runHome}/group/${encodeURIComponent(groupId)}`;
 
@@ -327,24 +356,48 @@ export default async function GroupHomePage({
           </Link>
         </div>
 
-        {groupCount && (
-          <div className={updateStyles.write}>
-            <Link href={`${groupPath}/update`} className={updateStyles.writeLink}>
-              {writeToGroupWords(groupCount.groupName ?? group.name, groupCount.people)}
+        {/* "Write to Group B (7)" and "Change a session" side by side, the
+            write link's line under both (wk-fac-group). The line comes second
+            in the page and is drawn last. An archived group has neither:
+            nobody writes to it or changes it. */}
+        {!group.archived && (
+          <div style={groupActionsStyle}>
+            {groupCount && (
+              <>
+                <Link href={`${groupPath}/update`} className={updateStyles.writeLink}>
+                  {writeToGroupWords(groupCount.groupName ?? group.name, groupCount.people)}
+                </Link>
+                <p className={updateStyles.writeLine} style={{ order: 1, flexBasis: "100%" }}>
+                  {writeToGroupLine(groupCount.emails)}
+                </p>
+              </>
+            )}
+            <Link href={`${groupPath}/sessions`} className={updateStyles.writeLink}>
+              {CHANGE_A_SESSION}
             </Link>
-            <p className={updateStyles.writeLine}>{writeToGroupLine(groupCount.emails)}</p>
           </div>
         )}
       </div>
 
-      <SessionCard
-        group={sessionGroup}
-        slotStartKey={currentWeek?.slotStartKey ?? null}
-        // The same week key the slot above was resolved for, so the
-        // facilitator's card swaps exactly as their members' does — this page
-        // is where they check that the flip they just made looks right.
-        mode={sessionModeForWeek(group, weekId)}
-      />
+      {/* An evening is off (Q25): the notice the group reads, then the
+          session it meets at next, as on their programme page. */}
+      {sessionGroup.sessionNotice ? (
+        <>
+          <SessionNotice notice={sessionGroup.sessionNotice} now={now} />
+          {nextCard && <SessionCard {...nextCard} />}
+        </>
+      ) : (
+        <SessionCard
+          group={sessionGroup}
+          slotStartKey={currentWeek?.slotStartKey ?? null}
+          // The same week key the slot above was resolved for, so the
+          // facilitator's card swaps exactly as their members' does: this page
+          // is where they check that the flip they just made looks right.
+          mode={sessionModeForWeek(group, weekId)}
+          title={coversTitle(sessionGroup, weekNumber)}
+          cancelled={cancelledIn(sessionGroup, weekNumber)}
+        />
+      )}
 
       <GroupRoster groupId={groupId} groupName={group.name} />
 

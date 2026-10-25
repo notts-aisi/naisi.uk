@@ -2097,7 +2097,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.deepEqual([k().beforeWeek3.list.status, k().beforeWeek3.list.published, k().beforeWeek3.list.counts], ["ok", false, []]);
       assert.equal(
         k().beforeWeek3.list.text,
-        "People in groups Times Facilitators Pitches Pitches from week 3 (0) Week 3 isn’t published yet, so nobody can pitch until it is. No pitches yet.",
+        "Sessions People in groups Times Facilitators Pitches Pitches from week 3 (0) Week 3 isn’t published yet, so nobody can pitch until it is. No pitches yet.",
       );
     });
 
@@ -2145,7 +2145,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.deepEqual(k().adminList.counts, k().leadList.counts);
       assert.equal(
         k().leadList.text,
-        "People in groups Times Facilitators Pitches Pitches from week 3 (2) Probe transfer 3 would join Pitched by Omar Test whether the probes " +
+        "Sessions People in groups Times Facilitators Pitches Pitches from week 3 (2) Probe transfer 3 would join Pitched by Omar Test whether the probes " +
           "still work on a smaller open model. Reward hacking evals 2 would join Pitched by Wen and Lena Rebuild the evaluation with tasks the team " +
           "writes, and run it on two models.",
       );

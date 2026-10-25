@@ -212,14 +212,15 @@ describe("the page", () => {
     }
     assert.ok(!/<button/.test(html), "the list has a button");
     // The Groups tab's views are drawn for whoever may open the tab, which the
-    // programme's lead may, with Pitches the one on screen.
-    assert.deepEqual(viewsIn(html), ["People in groups", "Times", "Facilitators", "Pitches"]);
+    // programme's lead may, with Pitches the one on screen. Sessions is the
+    // row's first view since changing a session landed (wk-session).
+    assert.deepEqual(viewsIn(html), ["Sessions", "People in groups", "Times", "Facilitators", "Pitches"]);
     assert.match(html, PITCHES_CURRENT);
   });
 
   test("an admin also gets the Groups tab's views, with Pitches current", async () => {
     const { html } = await draw("zach");
-    assert.deepEqual(viewsIn(html), ["People in groups", "Times", "Facilitators", "Pitches"]);
+    assert.deepEqual(viewsIn(html), ["Sessions", "People in groups", "Times", "Facilitators", "Pitches"]);
     assert.match(html, PITCHES_CURRENT);
   });
 
@@ -252,9 +253,14 @@ describe("the page", () => {
       });
       return viewsIn(renderToStaticMarkup(element));
     };
+    // Sessions leads the row for every run since changing a session landed (wk-session).
     for (const who of ["zach", "tess"]) {
-      assert.deepEqual(await viewsOnTimes(who, INCUBATOR), ["People in groups", "Times", "Facilitators", "Pitches"], who);
+      assert.deepEqual(
+        await viewsOnTimes(who, INCUBATOR),
+        ["Sessions", "People in groups", "Times", "Facilitators", "Pitches"],
+        who,
+      );
     }
-    assert.deepEqual(await viewsOnTimes("zach", AGI), ["People in groups", "Times", "Facilitators"]);
+    assert.deepEqual(await viewsOnTimes("zach", AGI), ["Sessions", "People in groups", "Times", "Facilitators"]);
   });
 });

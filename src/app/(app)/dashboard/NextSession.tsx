@@ -6,6 +6,7 @@ import DateTile from "@/components/ui/DateTile";
 import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/route";
 import { GROUP_FIELD_LIMITS, type GroupSessionMode } from "@/lib/firestore/courseGroups";
 import { validateSubmissionUrl, weekDocId } from "@/lib/firestore/courses";
+import { JOIN_ONLINE, LINK_IS_HERE, LINK_WILL_BE_HERE } from "@/lib/courses/sessionChange/words";
 import { clockLabel, dayLabel, tilePartsOfDay } from "./homeWords";
 import styles from "./home.module.css";
 
@@ -70,9 +71,11 @@ export function sessionFacts(group: OverviewGroup): SessionFacts | null {
     room,
     mode,
     joinUrl,
+    // Never a promise that the link will come by email (Q23): it lives on
+    // the site, behind sign-in, so the card says where it will be.
     missing:
       mode === "virtual" && !joinUrl
-        ? "Your facilitator will send the joining link."
+        ? LINK_WILL_BE_HERE
         : mode === "in-person" && !room
           ? "Your facilitator will confirm the room."
           : null,
@@ -149,12 +152,13 @@ export default function NextSession({
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  Join the call
+                  {JOIN_ONLINE}
                 </a>
               )}
               {actions}
             </div>
           )}
+          {facts.joinUrl && <p className={styles.sessionNote}>{LINK_IS_HERE}</p>}
         </div>
         {foot && <div className={styles.sessionFoot}>{foot}</div>}
       </div>

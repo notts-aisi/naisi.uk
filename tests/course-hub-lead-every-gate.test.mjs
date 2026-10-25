@@ -63,6 +63,8 @@ const NOT_A_RUN_GATE = {
     "a course's saved templates, read by the run editor's picker for a track lead of any run of the course: a course-level read for the run editor, which a programme's lead is not given",
   "app/api/courses/runs/[runId]/overview/route.ts":
     "the member's run overview, which admits a learner, a facilitator or an admin and no track lead: it reports whether the caller is one in its access block, and grants nothing for it",
+  "lib/courses/sessionChange/view.ts":
+    "the change dialog's line naming who can change a session: it asks which of the run's named track leads still stand, to name them on the line, and grants nothing. The change route asks runStaffingOf",
   "features/courses/runAccess.ts":
     "the learning space's page gate under /learn, the cohort's own doors: a programme's lead reaches their run from the programme's page, and the routes behind both doors admit them",
 };
