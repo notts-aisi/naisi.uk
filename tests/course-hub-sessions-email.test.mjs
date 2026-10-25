@@ -99,7 +99,7 @@ describe("1. next week's email says what the change makes true", () => {
     assert.ok(JSON.stringify(message.react.props.preheader).includes("Tue 27 Oct is cancelled"));
     // Group A's email, due in the same window, is its own and untouched.
     const groupA = await textOf(mailTo("ana")[0]);
-    assert.match(groupA, /Your group meets Monday 26 October/);
+    assert.match(groupA, /Your group meets Mon 26 Oct/);
     assert.doesNotMatch(groupA, /cancelled/);
   });
 
@@ -109,7 +109,7 @@ describe("1. next week's email says what the change makes true", () => {
     await runJob(nextWeekEmailJob, "2026-11-01T18:00:00Z");
     const text = await textOf(mailTo("amara")[0]);
     assert.match(text, /On Tue 3 Nov you’ll talk about weeks 2 and 3 together\./);
-    assert.match(text, /Your group meets Tuesday 3 November, 18:00\u201320:00, Room C20\./);
+    assert.match(text, /Your group meets Tue 3 Nov, 6pm to 8pm, Room C20\./);
   });
 
   test("moved: the new day, time and room, at the new evening's own time", async () => {
@@ -123,7 +123,7 @@ describe("1. next week's email says what the change makes true", () => {
     assert.equal(mailTo("amara").length, 0, "not due two days before the old evening");
     await runJob(nextWeekEmailJob, "2026-10-26T19:00:00Z");
     const text = await textOf(mailTo("amara")[0]);
-    assert.match(text, /Your group meets Wednesday 28 October, 19:00\u201321:00, Room D1\./);
+    assert.match(text, /Your group meets Wed 28 Oct, 7pm to 9pm, Room D1\./);
     assert.doesNotMatch(text, /Room C20/);
   });
 
@@ -132,7 +132,7 @@ describe("1. next week's email says what the change makes true", () => {
     await changeB({ week: 2, dateKey: "2026-10-27", kind: "online" });
     await runJob(nextWeekEmailJob, AT.groupBDue);
     const text = await textOf(mailTo("amara")[0]);
-    assert.match(text, /Your group meets Tuesday 27 October, 18:00\u201320:00, Online\./);
+    assert.match(text, /Your group meets Tue 27 Oct, 6pm to 8pm, Online\./);
     assert.ok(!JSON.stringify(world.mail).includes("meet.example.com"), "the link is in an email");
   });
 
@@ -143,7 +143,7 @@ describe("1. next week's email says what the change makes true", () => {
     await runJob(nextWeekEmailJob, "2026-11-01T18:00:00Z");
     const text = await textOf(mailTo("amara")[0]);
     assert.match(text, /Week 2 of/);
-    assert.match(text, /Your group meets Tuesday 3 November, 18:00\u201320:00, Room C20\./);
+    assert.match(text, /Your group meets Tue 3 Nov, 6pm to 8pm, Room C20\./);
   });
 
   test("whole or not at all still holds for everything but the meeting sentence", async () => {
@@ -188,9 +188,9 @@ describe("2b. the run's catch-up email names no cancelled evening", () => {
     assert.equal(sent.status, 200, JSON.stringify(sent.body));
     const amara = await textOf(mailTo("amara")[0]);
     assert.doesNotMatch(amara, /Your group meets/);
-    assert.doesNotMatch(amara, /27 October/);
+    assert.doesNotMatch(amara, /27 Oct/);
     const ana = await textOf(mailTo("ana")[0]);
-    assert.match(ana, /Your group meets Monday 26 October, 18:00\u201320:00, Room A13\./);
+    assert.match(ana, /Your group meets Mon 26 Oct, 6pm to 8pm, Room A13\./);
   });
 });
 

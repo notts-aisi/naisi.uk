@@ -36,6 +36,8 @@ export type RegisterReminderWords = {
   subject: string;
   lead: string;
   effect: string;
+  /** What to do when the session did not happen, in the register's own word for ending it. */
+  notHeld: string;
   next: string;
 };
 
@@ -44,18 +46,28 @@ function taskPeople(leadName: string): string {
   return leadName ? `${leadName} and admins` : "admins";
 }
 
-/** Every sentence of the reminder, from records. Exported so a test can read it. */
+/**
+ * Every sentence of the reminder, from records. Exported so a test can read it.
+ *
+ * IN THE REGISTER'S OWN WORD FOR ENDING IT, from the same switch the register's
+ * button and the lead's Overview read (`scheduled`): "finished" while next
+ * week's email is on its schedule and the button is "Finish the register",
+ * "pushed" while the push still sends it and the button is "Push attendance".
+ * So the email a facilitator is sent says what the screen they open says.
+ */
 export function registerReminderWords(facts: RegisterReminderFacts): RegisterReminderWords {
   const group = facts.groupName.trim() || "Your group";
   const day = londonDayLabel(facts.sessionStartsAt);
+  const ended = facts.scheduled ? "finished" : "pushed";
   return {
-    subject: `${group}’s register isn’t finished`,
-    lead: `${group}’s register for ${day} isn’t finished yet.`,
+    subject: `${group}’s register isn’t ${ended}`,
+    lead: `${group}’s register for ${day} isn’t ${ended} yet.`,
     effect: facts.scheduled
       ? "Finish the register to lock it and show everyone their mark. Nobody’s emailed."
       : "Push attendance to lock the register, show everyone their mark and email the group about next week.",
+    notHeld: `If the session didn’t happen, the register can say so, and it still needs ${facts.scheduled ? "finishing" : "pushing"}.`,
     next: facts.task
-      ? `If it’s still not finished ${facts.task.hours} hours after the session, ${taskPeople(facts.task.leadName)} get a task.`
+      ? `If it’s still not ${ended} ${facts.task.hours} hours after the session, ${taskPeople(facts.task.leadName)} get a task.`
       : "",
   };
 }
@@ -97,6 +109,7 @@ export async function sendRegisterReminderEmail(
         effect: words.effect,
         buttonLabel: "Open the register",
         registerLink: opts.registerLink,
+        notHeld: words.notHeld,
         next: words.next,
       }),
     });

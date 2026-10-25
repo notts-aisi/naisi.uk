@@ -296,15 +296,18 @@ describe("2. the week and its sessions", () => {
     assert.ok(after.rail.every((week) => week.state === "done"));
   });
 
+  // The sessions come in the order they meet, as wk-overview draws the week.
+  // Since the walk of stage two's fixes (G10) their facilitators are named by
+  // their whole names, as wk-overview draws them; until then by first names.
   test("each group's session this week, in the order they meet, with its register in the register's own word", async () => {
     const { model, text: said } = await draw("claudia");
     assert.deepEqual(
       model.sessions.map((session) => [session.groupName, session.when, session.where, session.facilitators.map((person) => person.name), session.pill, session.line]),
       [
-        ["Group A", "Thu 12 Nov · 6pm", "Portland A13", ["Sofia"], "Register pushed", "3 of 4 came"],
+        ["Group A", "Thu 12 Nov · 6pm", "Portland A13", ["Sofia Rossi"], "Register pushed", "3 of 4 came"],
         ["Group D", "Mon 16 Nov · 6pm", "Room D4", ["Grace Okoye"], "Register not pushed", "Saved, not pushed. 1 of 2 so far."],
-        ["Group B", "Today · 6pm", "Hallward B12", ["Rahul", "Sofia"], "Today, 6pm", "3 in the group"],
-        ["Group C", "Tomorrow · 1pm", "Room B8", ["Tom"], "Tomorrow", null],
+        ["Group B", "Today · 6pm", "Hallward B12", ["Rahul Mehta", "Sofia Rossi"], "Today, 6pm", "3 in the group"],
+        ["Group C", "Tomorrow · 1pm", "Room B8", ["Tom Fletcher"], "Tomorrow", null],
       ],
     );
     assert.equal(model.sessions[0].seeIt, `${PAGE_PATH}/attendance?group=${encodeURIComponent(A)}`);
@@ -331,6 +334,7 @@ describe("2. the week and its sessions", () => {
   test("a facilitator who has turned task emails off is not offered to the lead: no button, no count", async () => {
     world.db.poke("users/grace", { "profile.notifications": { categories: { tasks: false } } });
     const { model } = await draw("claudia");
+    assert.equal(model.sessions[1].groupName, "Group D");
     assert.equal(model.sessions[1].remind, null);
   });
 });
@@ -339,9 +343,12 @@ describe("2. the week and its sessions", () => {
 // 3. Needs attention
 // ---------------------------------------------------------------------------
 
+// Two absences in a row come in People in groups' order (the walk of stage
+// two's fixes, G10): Freya's Group D meets on Mondays, Tariq's Group A on
+// Thursdays.
 const EVERY_ITEM = [
-  "Tariq Mensah has missed 2 sessions in a row without saying",
   "Freya Thompson has missed 2 sessions in a row without saying",
+  "Tariq Mensah has missed 2 sessions in a row without saying",
   "Week 4 isn’t ready, and Groups A and D have reached it",
   "Group D’s register for Mon 16 Nov isn’t pushed",
   "Sam Whitfield left on Fri 6 Nov",
@@ -353,8 +360,8 @@ describe("3. needs attention", () => {
     const { model, text: said } = await draw("claudia");
     assert.deepEqual(titles(model), EVERY_ITEM);
     const detail = (title) => model.attention.find((item) => item.title === title);
-    assert.equal(detail(EVERY_ITEM[0]).detail, "Group A · weeks 2 and 3");
-    assert.equal(detail(EVERY_ITEM[1]).detail, "Group D · weeks 2 and 3");
+    assert.equal(detail(EVERY_ITEM[0]).detail, "Group D · weeks 2 and 3");
+    assert.equal(detail(EVERY_ITEM[1]).detail, "Group A · weeks 2 and 3");
     assert.equal(
       detail(EVERY_ITEM[2]).detail,
       "Groups A and D meet again from Thu 19 Nov. Week 4 isn’t published, so people in these groups can’t open it yet.",
@@ -406,7 +413,7 @@ describe("3. needs attention", () => {
     world.db.poke(registerPath(D, 3), { pushedAt: NOW, pushedByUid: "grace" });
     model = (await draw("claudia")).model;
     assert.ok(!titles(model).some((title) => title.startsWith("Group D’s register")));
-    assert.equal(model.sessions[1].pill, "Register pushed");
+    assert.equal(model.sessions[0].pill, "Register pushed");
 
     // Freya's and Tariq's latest marks are corrected to present; Sam and Omar are put back.
     world.db.poke(registerPath(D, 3), { "records.freya": "present" });
@@ -422,7 +429,7 @@ describe("3. needs attention", () => {
     world.db.poke(registerPath(D, 3), { held: false });
     const { model } = await draw("claudia");
     assert.ok(!titles(model).some((title) => title.startsWith("Group D’s register")));
-    assert.deepEqual([model.sessions[1].pill, model.sessions[1].line, model.sessions[1].remind], ["Not held", null, null]);
+    assert.deepEqual([model.sessions[1].groupName, model.sessions[1].pill, model.sessions[1].line, model.sessions[1].remind], ["Group D", "Not held", null, null]);
   });
 });
 
@@ -479,17 +486,20 @@ describe("5. Remind emails the group's facilitators and nobody else", () => {
     const pressed = await remind("claudia", GRACE);
     assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
     assert.deepEqual(pressed.body, { emailed: 1, failed: 0, names: ["Grace"] });
+    // The reminder says "pushed" while the register's button says "Push
+    // attendance", as this Overview does (the walk of stage two's fixes, G9).
     assert.deepEqual(
       world.mail.map((message) => [message.to, message.subject, message.kind]),
-      [["grace@example.com", "Group D’s register isn’t finished", "course-facilitator"]],
+      [["grace@example.com", "Group D’s register isn’t pushed", "course-facilitator"]],
     );
     const marker = world.db.read(MARKER);
     assert.equal(marker.job, "courses-register-reminders");
     assert.equal(marker.pressedByUid, "claudia");
     assert.ok(marker.sentAt instanceof Date);
     const { model } = await draw("claudia");
-    assert.equal(model.sessions[1].remind, null, "a second button for a reminder already sent");
-    assert.equal(model.sessions[1].reminded, "Grace was reminded on Tue 17 Nov at 12pm.");
+    const groupD = model.sessions.find((session) => session.groupName === "Group D");
+    assert.equal(groupD.remind, null, "a second button for a reminder already sent");
+    assert.equal(groupD.reminded, "Grace was reminded on Tue 17 Nov at 12pm.");
     assert.equal(
       model.attention.find((item) => item.kind === "register").detail,
       "Grace was reminded on Tue 17 Nov at 12pm. If it’s still not pushed on Thu 19 Nov at 8am, you and admins get a task.",
@@ -516,8 +526,9 @@ describe("5. Remind emails the group's facilitators and nobody else", () => {
     assert.equal(world.mail.length, 1);
     world.mail.length = 0;
     const { model } = await draw("claudia");
-    assert.equal(model.sessions[1].reminded, "Grace was reminded on Wed 18 Nov at 9am.");
-    assert.equal(model.sessions[1].remind, null);
+    const groupD = model.sessions.find((session) => session.groupName === "Group D");
+    assert.equal(groupD.reminded, "Grace was reminded on Wed 18 Nov at 9am.");
+    assert.equal(groupD.remind, null);
     assert.equal((await remind("claudia", GRACE)).status, 409);
     assert.deepEqual(world.mail, []);
   });
@@ -601,7 +612,8 @@ describe("5. Remind emails the group's facilitators and nobody else", () => {
   test("a group with two facilitators: both are named, counted and emailed, and nobody in the group is", async () => {
     world.db.poke(`courseGroups/${D}`, { facilitatorUids: ["grace", "tom"] });
     const { model } = await draw("claudia");
-    assert.deepEqual([model.sessions[1].remind.label, model.sessions[1].remind.countLine], ["Remind Grace and Tom", "Emails 2 people"]);
+    const groupD = model.sessions.find((session) => session.groupName === "Group D");
+    assert.deepEqual([groupD.remind.label, groupD.remind.countLine], ["Remind Grace and Tom", "Emails 2 people"]);
     const pressed = await remind("claudia", { ...GRACE, emails: 2 });
     assert.deepEqual(pressed.body, { emailed: 2, failed: 0, names: ["Grace", "Tom"] });
     assert.deepEqual(world.mail.map((message) => message.to).sort(), ["grace@example.com", "tom@example.com"]);

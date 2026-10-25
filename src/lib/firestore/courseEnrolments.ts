@@ -178,6 +178,21 @@ export function courseEnrolmentId(runId: string, uid: string): string {
 }
 
 /**
+ * WHETHER AN ENROLMENT HAS LEFT THE RUN: withdrawn by its owner, or removed
+ * by staff. Somebody who has left keeps their row on the run's own list,
+ * where it may still say Accepted (changing that is an admin's step), so
+ * every reader that counts who is still to place asks this first: the
+ * allocation board names them as having left, Publish does not wait for
+ * them, and the Attendance tab and the Overview list them as "Left".
+ *
+ * Takes the bare status, so the board's own row (whose status may also be
+ * "none", for somebody with no enrolment yet) asks the same question.
+ */
+export function enrolmentHasLeft(status: string): boolean {
+  return status === "withdrawn" || status === "removed";
+}
+
+/**
  * WHETHER A PLACEMENT HAS BEEN TOLD, and so may be shown.
  *
  * A placement is somebody's seat in a group. Who may learn of it depends on

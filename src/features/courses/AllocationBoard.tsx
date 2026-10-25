@@ -51,6 +51,7 @@ import {
   type Placement,
 } from "./useAllocation";
 import { GAVE_PLACE_BACK, cardFit, type CardFit } from "./allocationFit";
+import { boardTally, rowHasLeft } from "./allocationTally";
 import styles from "./AllocationBoard.module.css";
 
 /**
@@ -304,7 +305,7 @@ function PersonCardBody({
         )}
       </div>
 
-      {row.enrolmentStatus === "withdrawn" || row.enrolmentStatus === "removed" ? (
+      {rowHasLeft(row) ? (
         <div className={styles.chips}>
           <Badge tone={row.enrolmentStatus === "removed" ? "danger" : "neutral"}>
             {row.enrolmentStatus === "removed" ? "Removed" : "Withdrawn"}
@@ -568,10 +569,14 @@ function BoardColumn({
   });
 
   const isPool = group === null;
-  const count = rows.length;
+  // The number on the column counts the people still on the run: somebody
+  // who has left holds no seat and is nobody to place, and the rail counts
+  // them as having left. Their card stays, so they can be moved back.
+  const count = rows.filter((r) => !rowHasLeft(r)).length;
+  const cards = rows.length;
   const atCapacity = group?.capacity != null && count >= group.capacity;
   const allSelected =
-    count > 0 && rows.every((r) => selectedUids.has(r.uid));
+    cards > 0 && rows.every((r) => selectedUids.has(r.uid));
 
   const className = [
     styles.column,
@@ -615,13 +620,13 @@ function BoardColumn({
             </p>
           </>
         )}
-        {bulkMode && count > 0 && (
+        {bulkMode && cards > 0 && (
           <button
             type="button"
             className={styles.selectAll}
             onClick={() => onSelectAll(rows.map((r) => r.uid), !allSelected)}
           >
-            {allSelected ? "Clear these" : `Select these ${count}`}
+            {allSelected ? "Clear these" : `Select these ${cards}`}
           </button>
         )}
       </header>
@@ -630,7 +635,7 @@ function BoardColumn({
         <SortableContext items={rows.map((r) => r.uid)} strategy={NO_REORDER}>
           {children}
         </SortableContext>
-        {count === 0 && (
+        {cards === 0 && (
           <p className={styles.columnEmpty}>
             {isPool
               ? "Everyone has a group."
@@ -749,12 +754,21 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
   // Memoised rather than read inline: the `?? []` fallback would otherwise
   // mint a fresh array every render and re-run everything downstream of it.
   const poolRows = useMemo(() => byColumn.get(UNALLOCATED) ?? [], [byColumn]);
-  const acceptedCount = people.length;
-  const unallocatedCount = poolRows.length;
-  const placedCount = acceptedCount - unallocatedCount;
-  const everyonePlaced = acceptedCount > 0 && unallocatedCount === 0;
+  // Somebody who has left the run is counted as having left, wherever their
+  // card sits, and is never somebody still to place (`boardTally`): Publish
+  // does not wait for them either.
+  const tally = useMemo(() => {
+    const inPool = new Set(poolRows.map((row) => row.uid));
+    return boardTally(people, (row) => inPool.has(row.uid));
+  }, [people, poolRows]);
+  const acceptedCount = tally.accepted;
+  const unallocatedCount = tally.toPlace.length;
+  const placedCount = tally.placed;
+  const leftCount = tally.left;
+  const stillOnTheRun = acceptedCount - leftCount;
+  const everyonePlaced = stillOnTheRun > 0 && unallocatedCount === 0;
   const progressPct =
-    acceptedCount === 0 ? 0 : Math.round((placedCount / acceptedCount) * 100);
+    stillOnTheRun === 0 ? 0 : Math.round((placedCount / stillOnTheRun) * 100);
 
   /** Which column a uid is in right now, honouring optimistic overrides. */
   const columnIdOf = useCallback(
@@ -798,7 +812,7 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
         // capacity: the transaction is the authority on whether a group is
         // full, and a client-side guess would quietly hide a legitimate
         // over-allocation the allocator is entitled to attempt.
-        label: `${group.name} · ${(byColumn.get(group.id) ?? []).length}/${group.capacity ?? "∞"}`,
+        label: `${group.name} · ${(byColumn.get(group.id) ?? []).filter((row) => !rowHasLeft(row)).length}/${group.capacity ?? "∞"}`,
       })),
     ],
     [groups, byColumn],
@@ -1083,9 +1097,9 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
    */
   const handlePublish = useCallback(() => {
     if (!data) return;
-    if (unallocatedCount > 0) {
+    if (tally.toPlace.length > 0) {
       setPublishLines([]);
-      setUnplacedNames(poolRows.map((r) => r.displayName || "Applicant"));
+      setUnplacedNames(tally.toPlace.map((r) => r.displayName || "Applicant"));
       return;
     }
     const summary = data.publish;
@@ -1142,7 +1156,7 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
         }
       }
     })();
-  }, [unallocatedCount, poolRows, data, publishAllocation, runAction]);
+  }, [tally, data, publishAllocation, runAction]);
 
   // -------------------------------------------------------------------------
   // Drag and drop
@@ -1351,6 +1365,12 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
                 <strong>{acceptedCount}</strong> accepted ·{" "}
                 <strong>{placedCount}</strong> placed ·{" "}
                 <strong>{unallocatedCount}</strong> unallocated
+                {leftCount > 0 ? (
+                  <>
+                    {" "}
+                    · <strong>{leftCount}</strong> left
+                  </>
+                ) : null}
               </p>
             </div>
             <div className={styles.railActions}>
@@ -1382,7 +1402,7 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={progressPct}
-            aria-valuetext={`${placedCount} of ${acceptedCount} accepted applicants placed`}
+            aria-valuetext={`${placedCount} of ${stillOnTheRun} accepted applicants placed`}
             aria-label="Accepted applicants placed in a group"
           >
             {/* scaleX, not width — a compositor-only property, and the bar sits
@@ -1395,8 +1415,9 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
 
           {everyonePlaced ? (
             <p className={styles.railSuccess}>
-              All {acceptedCount} accepted{" "}
-              {plural(acceptedCount, "applicant is", "applicants are")} placed.
+              All {stillOnTheRun} accepted{" "}
+              {plural(stillOnTheRun, "applicant is", "applicants are")} placed
+              {leftCount > 0 ? `, and ${leftCount} ${plural(leftCount, "has", "have")} left` : ""}.
               No one is in two groups.
             </p>
           ) : acceptedCount === 0 ? (

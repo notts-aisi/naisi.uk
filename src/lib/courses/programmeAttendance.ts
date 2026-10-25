@@ -1,7 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { clockWords, namesInWords } from "@/lib/courses/facilitatingEmail";
-import { firstNameOfUser, standingUserOf } from "@/lib/courses/programmeLead";
+import { firstNameOfUser, fullNameOfUser, standingUserOf } from "@/lib/courses/programmeLead";
 import { displayNameOf } from "@/lib/courses/registerAccess";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { addDaysToKey, currentWeekFor, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
@@ -15,11 +15,12 @@ import {
   type CourseAttendanceDoc,
 } from "@/lib/firestore/courseAttendance";
 import {
+  enrolmentHasLeft,
   normalizeCourseEnrolment,
   placementIsShownTo,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
-import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { readSchedulerConfig } from "@/lib/firestore/schedulerConfig";
 import { registerSwitchesIn, type RegisterSwitches } from "@/lib/scheduler/registerSwitches";
@@ -65,9 +66,16 @@ import { registerSwitchesIn, type RegisterSwitches } from "@/lib/scheduler/regis
  * produced by the normaliser yet; see `src/lib/courses/sessions.ts`). When a
  * second slot exists, this is where its column goes.
  *
- * NAMES ONLY. A person is their display name (`displayNameOf`, never an
- * address); a facilitator is named only while their account still stands
- * behind the role (`isNamedWithStanding`).
+ * NAMES ONLY. A person is their whole name (`fullNameOfUser`, never an
+ * address), as the boards draw the lead's tabs and the Facilitators view
+ * names people, so two who go by one first name are told apart; a sentence
+ * that talks about somebody uses the name they go by. A facilitator is named
+ * only while their account still stands behind the role
+ * (`isNamedWithStanding`).
+ *
+ * ONE ORDER OF GROUPS. The groups are listed in the order People in groups
+ * draws its columns (`compareGroupsByMeeting`), so the grid, its CSV and the
+ * Overview list them as every other tab of the programme's page does.
  */
 
 /** A mark as the grid draws it. */
@@ -194,7 +202,7 @@ const EVENING_FROM = 17 * 60;
 /** Everything the run's attendance is worked out from, as read. */
 export type RunRecords = {
   run: CourseRunDoc;
-  /** The run's groups that still meet (not archived), in name order. */
+  /** The run's groups that still meet (not archived), Monday first (`compareGroupsByMeeting`). */
   groups: CourseGroupDoc[];
   /** Every learner enrolment on the run, whatever its state. */
   enrolments: CourseEnrolmentDoc[];
@@ -208,10 +216,6 @@ export type RunRecords = {
 
 /** Accounts per addressed read. Well inside `getAll`'s own limits. */
 const ACCOUNT_BATCH = 300;
-
-/** Group names in the order a person reads them: "Group 2" before "Group 10". */
-const byName = (a: { name: string }, b: { name: string }) =>
-  a.name.localeCompare(b.name, "en-GB", { numeric: true, sensitivity: "base" });
 
 /**
  * Read everything once. Each query is one equality on one field, so none
@@ -233,7 +237,7 @@ export async function readRunRecords(db: Firestore, runId: string): Promise<RunR
     .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
     .filter((group) => !group.archived && group.runId === runId)
     .map((group) => ({ ...group, name: group.name.trim() || "Untitled group" }))
-    .sort(byName);
+    .sort(compareGroupsByMeeting);
   const enrolments = enrolmentSnap.docs
     .map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}))
     .filter((row) => row.role === "learner" && row.uid !== "" && row.runId === runId);
@@ -295,12 +299,18 @@ export function groupTagOf(name: string): string {
   return (Array.from(trimmed)[0] ?? "?").toUpperCase();
 }
 
+/** Group names in the order a person reads them in a sentence: "Group 2" before "Group 10". */
+const byName = (a: string, b: string) => a.localeCompare(b, "en-GB", { numeric: true, sensitivity: "base" });
+
 /**
  * "Groups A and D" when every group is named "Group" and a letter, otherwise
- * their names in a sentence: "Tuesday evening and Thursday morning".
+ * their names in a sentence: "Tuesday evening and Thursday morning". In name
+ * order, as the board writes them, whatever order the list they came from is
+ * in: a sentence is not a list of groups.
  */
-export function groupsInWords(names: readonly string[]): string {
-  if (names.length === 0) return "";
+export function groupsInWords(given: readonly string[]): string {
+  if (given.length === 0) return "";
+  const names = [...given].sort(byName);
   const tags = names.map((name) => /^group\s+(\S{1,3})$/i.exec(name.trim())?.[1]?.toUpperCase() ?? null);
   if (tags.every((tag): tag is string => tag !== null)) {
     return `${tags.length === 1 ? "Group" : "Groups"} ${namesInWords(tags)}`;
@@ -329,14 +339,14 @@ export function facilitatorsOf(records: RunRecords, group: CourseGroupDoc): Stan
     if (!isNamedWithStanding(standingUserOf(uid, data), "courseGroups.facilitatorUids", group.facilitatorUids)) {
       continue;
     }
-    out.push({ uid, firstName: firstNameOfUser(data) || displayNameOf(data), name: displayNameOf(data) });
+    out.push({ uid, firstName: firstNameOfUser(data) || displayNameOf(data), name: fullNameOfUser(data) });
   }
   return out;
 }
 
-/** True for an enrolment that has left the run: withdrawn by its owner or removed by staff. */
+/** True for an enrolment that has left the run: withdrawn by its owner or removed by staff (`enrolmentHasLeft`). */
 export function hasLeft(row: Pick<CourseEnrolmentDoc, "status">): boolean {
-  return row.status === "withdrawn" || row.status === "removed";
+  return enrolmentHasLeft(row.status);
 }
 
 /** True for an enrolment taking part: active, or completed once the run is over. */
@@ -569,7 +579,7 @@ export function listGroups(
         continue;
       }
       seen.add(enrolment.uid);
-      const name = displayNameOf(records.accounts.get(enrolment.uid) ?? {});
+      const name = fullNameOfUser(records.accounts.get(enrolment.uid) ?? {});
       people.push({ enrolment, row: personRow(enrolment, name, weeks, sessions) });
     }
     people.sort((a, b) => a.row.name.localeCompare(b.row.name, "en-GB") || a.row.uid.localeCompare(b.row.uid));

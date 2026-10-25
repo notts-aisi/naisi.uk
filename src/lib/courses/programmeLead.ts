@@ -187,3 +187,17 @@ export function firstNameOfUser(data: Record<string, unknown>): string {
   const display = typeof data.displayName === "string" ? data.displayName : "";
   return firstWord(preferred.trim() || display.trim());
 }
+
+/**
+ * The account's whole name ("Aisha Bello"), then the name they go by, then a
+ * placeholder. Never an address. What the lead's tabs name people by (the
+ * Overview, the Attendance grid and its CSV), as the Facilitators view does:
+ * two people who go by one first name have to be told apart there. The pages
+ * members see keep the name each person goes by.
+ */
+export function fullNameOfUser(data: Record<string, unknown>): string {
+  const profile = (data.profile as Record<string, unknown> | undefined) ?? {};
+  const display = typeof data.displayName === "string" ? data.displayName.trim() : "";
+  const preferred = typeof profile.preferredName === "string" ? profile.preferredName.trim() : "";
+  return display || preferred || "NAISI member";
+}

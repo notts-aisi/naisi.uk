@@ -126,7 +126,7 @@ export default function GroupRoster({ groupId, groupName }: Props) {
       </header>
 
       <p className={styles.note}>
-        Names only. Nobody&apos;s email address appears on this page — to reach the
+        Names only. Nobody&apos;s email address appears on this page. To reach the
         group, use the email composer, which looks the addresses up when it sends
         and never shows them.
       </p>

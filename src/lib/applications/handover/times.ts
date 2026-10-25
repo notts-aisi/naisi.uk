@@ -6,6 +6,7 @@ import {
   type SessionSlot,
 } from "@/lib/admissions/availability";
 import { NEW_GROUP_SESSION_MINUTES, SESSION_LENGTH_PRESETS } from "@/lib/courses/sessionLength";
+import { compareGroupsByMeeting } from "@/lib/firestore/courseGroups";
 import type { PaintedWeek } from "./paintedWeek";
 
 /**
@@ -256,6 +257,8 @@ export function timesPicture(input: {
   const dayOrder = (weekday: number) => WEEK_FROM_MONDAY.indexOf(weekday);
   cells.sort((a, b) => b.count - a.count || dayOrder(a.weekday) - dayOrder(b.weekday) || a.start - b.start);
 
+  // Listed in the order every tab of the programme's page lists its groups:
+  // Monday first, as People in groups draws its columns.
   const groups: GroupFit[] = input.groups
     .map((group) => ({
       id: group.id,
@@ -265,7 +268,7 @@ export function timesPicture(input: {
         ? covering.filter((person) => person.covers(group.session)).length
         : null,
     }))
-    .sort(byName);
+    .sort((a, b) => compareGroupsByMeeting(a, b) || a.id.localeCompare(b.id));
 
   let fit: TimesPicture["fit"] = null;
   if (timed.length > 0 && covering.length > 0) {

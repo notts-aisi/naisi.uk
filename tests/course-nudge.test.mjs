@@ -242,7 +242,7 @@ function fullInput(overrides = {}) {
     weekTitle: "Goal misgeneralisation",
     weekSummary:
       "Why a system that learned the right thing in training can still pursue the wrong one when the world shifts.",
-    sessionWhen: "Tuesday 21 October, 18:00–19:30",
+    sessionWhen: "Tue 21 Oct, 6pm to 7:30pm",
     sessionWhere: "Hallward Library, B12",
     weekPrep:
       "There are four things to read or watch and one exercise to write up this week, about 2 hours in total.",
@@ -735,7 +735,7 @@ test("a member with no session gets no session sentence", () => {
 
 test("a session with a time but no room keeps the sentence and closes it up", () => {
   const body = bodyOf(renderSeed({ sessionWhere: "" }));
-  assert.match(body, /Your group meets Tuesday 21 October, 18:00–19:30\./);
+  assert.match(body, /Your group meets Tue 21 Oct, 6pm to 7:30pm\./);
   assert.doesNotMatch(body, /,\s*\./);
 });
 
@@ -1096,6 +1096,11 @@ test("courseNudgeTokensFrom coerces an admin sample map under the same rules", (
   assert.equal("notATokenHere" in tokens, false);
 });
 
+// Since the walk of stage two's fixes (G6) a session is written the way the
+// placement email writes a first session, "Tue 3 Nov, 6pm", with its end
+// added and no dash of either kind: until then it read "Tuesday 20 October,
+// 18:00" and the end time after a dash. The shape is still a date, a comma
+// and a time, so wording saved around the token reads as a sentence.
 test("courseNudgeSessionWhen reads as a date when it has one, a habit when it doesn't", () => {
   const session = {
     weekday: 2,
@@ -1105,11 +1110,19 @@ test("courseNudgeSessionWhen reads as a date when it has one, a habit when it do
     meetingUrl: null,
     notes: "",
   };
-  assert.equal(
-    courseNudgeSessionWhen(session, "2026-10-20"),
-    "Tuesday 20 October, 18:00–19:30",
-  );
-  assert.equal(courseNudgeSessionWhen(session, null), "Tuesdays 18:00–19:30");
+  assert.equal(courseNudgeSessionWhen(session, "2026-10-20"), "Tue 20 Oct, 6pm to 7:30pm");
+  assert.equal(courseNudgeSessionWhen(session, null), "Tuesdays, 6pm to 7:30pm");
+  // Midday, a morning, minutes past the hour, and a session that runs past midnight.
+  assert.equal(courseNudgeSessionWhen({ ...session, startTimeLocal: "12:00", durationMinutes: 60 }, "2026-10-20"), "Tue 20 Oct, 12pm to 1pm");
+  assert.equal(courseNudgeSessionWhen({ ...session, startTimeLocal: "09:15", durationMinutes: 45 }, "2026-10-20"), "Tue 20 Oct, 9:15am to 10am");
+  assert.equal(courseNudgeSessionWhen({ ...session, startTimeLocal: "23:00", durationMinutes: 120 }, "2026-10-20"), "Tue 20 Oct, 11pm to 1am");
+  // A session with no length names when it starts, and nothing it does not know.
+  assert.equal(courseNudgeSessionWhen({ ...session, durationMinutes: 0 }, "2026-10-20"), "Tue 20 Oct, 6pm");
+  // A time that is not a time of day is no time at all: the sentence goes.
+  assert.equal(courseNudgeSessionWhen({ ...session, startTimeLocal: "6pm" }, "2026-10-20"), "");
+  for (const when of [courseNudgeSessionWhen(session, "2026-10-20"), courseNudgeSessionWhen(session, null)]) {
+    assert.doesNotMatch(when, /[\u2013\u2014]/, when);
+  }
   // No time set at all: "" is what makes the whole sentence disappear.
   assert.equal(courseNudgeSessionWhen({ ...session, startTimeLocal: "" }, "2026-10-20"), "");
   assert.equal(courseNudgeSessionWhen(null, "2026-10-20"), "");

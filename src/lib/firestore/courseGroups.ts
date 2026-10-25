@@ -260,6 +260,25 @@ export type CourseGroupDoc = {
 };
 
 /**
+ * THE ORDER A RUN'S GROUPS ARE LISTED IN, on every tab of a programme's page
+ * and wherever its groups are listed for staff: the order the Groups tab's
+ * People in groups draws its columns in. By the day of the week each group
+ * meets, Monday first, then the time it starts, then its name. A list that
+ * sorts its groups any other way puts them in two orders on one page.
+ *
+ * A sentence that names several groups ("Groups A and D") is not a list and
+ * reads in name order (`groupsInWords`).
+ */
+export function compareGroupsByMeeting(
+  a: { name: string; session: { weekday: number; startTimeLocal: string } },
+  b: { name: string; session: { weekday: number; startTimeLocal: string } },
+): number {
+  // `weekday` is stored Sunday first (`Date.getDay()`).
+  const day = ((a.session.weekday + 6) % 7) - ((b.session.weekday + 6) % 7);
+  return day || a.session.startTimeLocal.localeCompare(b.session.startTimeLocal) || a.name.localeCompare(b.name);
+}
+
+/**
  * Field budgets for group editing. Keep in sync with firestore.rules — the
  * session fields are client-editable by facilitators/editors, so the rules
  * enforce these caps as the security boundary.

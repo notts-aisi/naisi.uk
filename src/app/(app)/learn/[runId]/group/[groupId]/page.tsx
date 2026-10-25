@@ -323,7 +323,7 @@ export default async function GroupHomePage({
   // An archived group has no count, so no way to write to it.
   const runGroups = await loadRunGroups(db, runId);
   const [[groupCount], reading] = await Promise.all([
-    updateAudienceCounts(db, access.run, runGroups, { groupIds: [groupId] }),
+    updateAudienceCounts(db, access.run, runGroups, { groupIds: [groupId] }, access.user.uid),
     updateReadingOf(db, access.user, access.run, runGroups),
   ]);
   const { updates } = await loadUpdatesFor(db, access.run, narrowToGroup(reading, groupId), runGroups);
@@ -334,7 +334,7 @@ export default async function GroupHomePage({
         {eyebrow && <p style={eyebrowStyle}>{eyebrow}</p>}
         <h1 style={{ margin: "var(--space-2) 0 0" }}>{group.name || "Group"}</h1>
         <p style={subStyle}>
-          Everyone in the group, when it meets, and the register. Names only — no
+          Everyone in the group, when it meets, and the register. Names only: no
           email addresses appear here.{" "}
           <Link href={runHome} style={{ color: "var(--color-accent)" }}>
             Back to the course
@@ -368,7 +368,7 @@ export default async function GroupHomePage({
                   {writeToGroupWords(groupCount.groupName ?? group.name, groupCount.people)}
                 </Link>
                 <p className={updateStyles.writeLine} style={{ order: 1, flexBasis: "100%" }}>
-                  {writeToGroupLine(groupCount.emails)}
+                  {writeToGroupLine(groupCount.emails, groupCount.notYetTold)}
                 </p>
               </>
             )}

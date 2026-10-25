@@ -85,16 +85,38 @@ export function postButtonWords(email: boolean, emails: number): string {
   return email && emails > 0 ? `Post and email ${peopleWords(emails)}` : "Post";
 }
 
+/**
+ * Under To, while people are placed and Publish has not told them their
+ * group: "3 people placed in Group B haven’t been told their group yet.
+ * They’ll read this once Publish tells them, and won’t be emailed it." Null
+ * when there is nobody to say it of. `where` is "in Group B", "in groups"
+ * or "in it".
+ */
+export function notYetToldWords(n: number, where: string, update: "this" | "it" = "this"): string | null {
+  if (n <= 0) return null;
+  const who = n === 1 ? "1 person" : `${countWords(n)} people`;
+  return (
+    `${who} placed ${where} ${n === 1 ? "hasn’t" : "haven’t"} been told their group yet. ` +
+    `They’ll read ${update} once Publish tells them, and won’t be emailed it.`
+  );
+}
+
 /** The facilitator's way to the composer for their own group: "Write to Group B (8)". */
 export function writeToGroupWords(group: string, people: number): string {
   return `Write to ${group} (${countWords(people)})`;
 }
 
-/** The line under it, from st-fac-before-phone. */
-export function writeToGroupLine(emails: number): string {
-  return emails > 0
-    ? `Posts an update to the group and emails ${peopleWords(emails)}. Replies go to ${UPDATE_REPLY_TO}.`
-    : "Posts an update to the group. Nobody in it can be emailed yet.";
+/**
+ * The line under it, from st-fac-before-phone, and while somebody placed in
+ * the group has not been told it yet, who they are to it.
+ */
+export function writeToGroupLine(emails: number, notYetTold = 0): string {
+  const line =
+    emails > 0
+      ? `Posts an update to the group and emails ${peopleWords(emails)}. Replies go to ${UPDATE_REPLY_TO}.`
+      : "Posts an update to the group. Nobody in it can be emailed yet.";
+  const waiting = notYetToldWords(notYetTold, "in it", "it");
+  return waiting ? `${line} ${waiting}` : line;
 }
 
 /** What the composer says after a press. */

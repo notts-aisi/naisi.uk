@@ -56,9 +56,11 @@ import { session, userDoc } from "./lib/applicationsSmallTerm.mjs";
 const made = makeWorld("__hubPublish");
 const { world, reset, call, everything, lib } = made;
 const join_ = await loadJoin(made);
-const { routes, press, board, place } = join_;
+const { routes, press, board, place, rowPath } = join_;
 const words = await lib("courses", "publishWords.ts");
 const plan = await lib("courses", "allocationPublish.ts");
+/** The allocation board's rail: the function the board itself asks. */
+const tally = await lib("..", "features", "courses", "allocationTally.ts");
 /** A group's names, as its facilitator's group page reads them. */
 const roster = await made.courseRoute("groups", "[groupId]", "roster");
 
@@ -784,6 +786,61 @@ describe("6. the emails", () => {
     assert.ok(sofiaA.text.includes("from Thu 5 Nov to Thu 10 Dec"), sofiaA.text);
   });
 
+  // Somebody added to a group after it first met was told it met "from" a day
+  // already past (the walk of stage two, G5). They are told its next session,
+  // on the group's own calendar; during its first session that is still the
+  // one they are told, and with the first still to come nothing changes.
+  test("a facilitator added after the group first met is told its next session, on the group's own calendar", async (t) => {
+    t.after(() => mock.timers.setTime(NOW.getTime()));
+    // Group A keeps the run's pace: Thursdays at 6pm from Thu 29 Oct to Thu 3 Dec.
+    await placed();
+    await sendTest();
+    await pressNow();
+    const toldTom = async (at) => {
+      mock.timers.setTime(new Date(at).getTime());
+      const before = realMail().length;
+      const pressed = await pressNow();
+      assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
+      const mail = realMail().slice(before);
+      assert.deepEqual(toOf(mail), ["tom@example.com"]);
+      return (await opened(mail[0])).text;
+    };
+    // Half an hour into its first session, that session is still the one named.
+    world.db.poke(`courseGroups/${A}`, { facilitatorUids: ["sofia", "tom"] });
+    assert.ok((await toldTom("2026-10-29T18:30:00Z")).includes("Group A meets on Thursdays at 6pm, from Thu 29 Oct to Thu 3 Dec."));
+    // The next morning, a second facilitator is told when the group next meets.
+    world.db.poke(`courseGroups/${A}`, { facilitatorUids: ["sofia", "tom", "rahul"] });
+    mock.timers.setTime(new Date("2026-10-30T09:00:00Z").getTime());
+    const before = realMail().length;
+    assert.equal((await pressNow()).status, 200);
+    const rahul = await opened(realMail().slice(before).find((mail) => mail.to === "rahul@example.com" && mail.subject.includes("Group A")));
+    assert.ok(rahul.text.includes("Group A meets on Thursdays at 6pm, from Thu 5 Nov to Thu 3 Dec."), rahul.text);
+    assert.ok(!rahul.text.includes("Thu 29 Oct"), rahul.text);
+  });
+
+  test("on a group that keeps its own pace, the next session is on its own calendar", async (t) => {
+    t.after(() => mock.timers.setTime(NOW.getTime()));
+    // Group A starts a week after the run: Thursdays from Thu 5 Nov to Thu 10 Dec.
+    world.db.poke(`courseGroups/${A}`, { paceStartDate: "2026-11-05" });
+    await placed();
+    await sendTest();
+    await pressNow();
+    // The run's first Thursday has passed, the group's has not: nothing changes yet.
+    mock.timers.setTime(new Date("2026-10-30T09:00:00Z").getTime());
+    world.db.poke(`courseGroups/${A}`, { facilitatorUids: ["sofia", "tom"] });
+    let before = realMail().length;
+    assert.equal((await pressNow()).status, 200);
+    const tom = await opened(realMail().slice(before)[0]);
+    assert.ok(tom.text.includes("from Thu 5 Nov to Thu 10 Dec"), tom.text);
+    // After the group's own first session, the next is its second.
+    mock.timers.setTime(new Date("2026-11-06T09:00:00Z").getTime());
+    world.db.poke(`courseGroups/${A}`, { facilitatorUids: ["sofia", "tom", "rahul"] });
+    before = realMail().length;
+    assert.equal((await pressNow()).status, 200);
+    const rahul = await opened(realMail().slice(before).find((mail) => mail.to === "rahul@example.com" && mail.subject.includes("Group A")));
+    assert.ok(rahul.text.includes("from Thu 12 Nov to Thu 10 Dec"), rahul.text);
+  });
+
   test("somebody moved after Publish is told their new group, and nobody else hears anything", async () => {
     await placed();
     await sendTest();
@@ -807,5 +864,77 @@ describe("6. the emails", () => {
     const rahul = await opened(realMail().find((mail) => mail.to === "rahul@example.com"));
     assert.ok(rahul.text.includes("Where: You’ll find where it meets on your group page."), rahul.text);
     await nothingToFollow(world.mail);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. Somebody who has left
+// ---------------------------------------------------------------------------
+
+describe("7. somebody who has left the run is not waited for", () => {
+  /** The board's rail, worked out by the function the board asks: accepted, placed, still to place by uid, left. */
+  async function rail(who = "zach") {
+    const shown = (await board(who)).body;
+    const columns = new Set(shown.groups.map((group) => group.id));
+    const counted = tally.boardTally(shown.people, (row) => !row.groupId || !columns.has(row.groupId));
+    return [counted.accepted, counted.placed, counted.toPlace.map((row) => row.uid), counted.left];
+  }
+
+  // Remove is a programme's lead's as well as an admin's, and changing a row
+  // from Accepted on the run's own list is an admin's alone. Until the walk of
+  // stage two's fixes (G4) Publish waited for every Accepted row to be in a
+  // group, so a lead who removed somebody could not publish again until an
+  // admin changed their row. Somebody who has left is nobody to place now.
+  test("removed by staff or withdrawn by themselves, they hold up neither the test nor the press, and the board counts them as left", async () => {
+    await placed();
+    await sendTest();
+    assert.equal((await pressNow()).status, 200);
+    // The programme's lead removes Tariq; Bea leaves the run herself, as the
+    // drop-out form leaves her enrolment (her group kept, her stamp gone).
+    const removed = await call("claudia", routes.remove.POST, { runId: RUN.agi, uid: "tariq" }, { course: true });
+    assert.equal(removed.status, 200, JSON.stringify(removed.body));
+    world.db.poke(`courseEnrolments/${RUN.agi}__bea`, { status: "withdrawn", droppedOutAt: new Date(), allocatedEmailAt: null });
+    // Both rows still say Accepted on the run's own list.
+    assert.deepEqual(["bea", "tariq"].map((uid) => world.db.read(rowPath(uid)).status), ["accepted", "accepted"]);
+    assert.deepEqual(await rail("claudia"), [4, 2, [], 2]);
+
+    // The lead asks Tom to run Group B as well: his email is owed, and
+    // nothing waits for the two who left.
+    world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia", "tom"] });
+    const shown = await summary("claudia");
+    assert.deepEqual([shown.emails, shown.people, shown.facilitators, shown.refusals], [1, 0, 1, []]);
+    const tested = await sendTest("claudia");
+    assert.deepEqual([tested.status, tested.body.emails, tested.body.recorded], [200, 1, true]);
+    const before = realMail().length;
+    const pressed = await pressNow("claudia");
+    assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
+    assert.deepEqual([pressed.body.unplaced, pressed.body.report.people.sent, pressed.body.report.facilitators.sent], [[], 0, 1]);
+    assert.deepEqual(toOf(realMail().slice(before)), ["tom@example.com"]);
+  });
+
+  test("somebody accepted with no place on the run still holds Publish, and is who the board would name", async () => {
+    await placed();
+    assert.equal((await call("zach", routes.remove.POST, { runId: RUN.agi, uid: "tariq" }, { course: true })).status, 200);
+    // Accepted on the run's own list, and never given a place: no enrolment at all.
+    world.db.seed(rowPath("nobody"), {
+      runId: RUN.agi,
+      courseId: world.db.read(`courseRuns/${RUN.agi}`).courseId,
+      uid: "nobody",
+      displayName: "Nell Carter",
+      email: "nobody@example.com",
+      status: "accepted",
+    });
+    assert.deepEqual(await rail(), [5, 3, ["nobody"], 1]);
+    await sendTest();
+    const before = everything();
+    const refused = await pressNow();
+    assert.deepEqual(refused, {
+      status: 409,
+      body: {
+        error: "1 accepted applicant is not placed in a group yet. Everyone must be placed before allocation can be published.",
+        unplaced: ["Nell Carter"],
+      },
+    });
+    assert.equal(everything(), before, "a refused press wrote something");
   });
 });

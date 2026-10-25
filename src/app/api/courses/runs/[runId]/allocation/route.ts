@@ -24,6 +24,7 @@ import {
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
 import {
+  compareGroupsByMeeting,
   normalizeCourseGroup,
   type GroupSession,
 } from "@/lib/firestore/courseGroups";
@@ -50,8 +51,9 @@ import { hasPaidMembership, normalizeUser } from "@/lib/firestore/users";
  * THE INVARIANT, visible here: `groupId` on each row is the single scalar off
  * the deterministic `courseEnrolments/{runId}__{uid}` doc, so a person appears
  * on the board exactly once and can be in at most one group by construction.
- * "Everyone placed" is a count of rows with a null/inactive placement — the
- * publish route refuses while that count is non-zero.
+ * "Everyone placed" is a count of rows with a null or inactive placement,
+ * leaving out anybody who has left the run (`enrolmentHasLeft`): the publish
+ * route refuses while that count is non-zero.
  *
  * SOMEBODY THE APPLICATION FORM PLACED HERE IS SEEN BY AN ADMIN AND BY THE
  * LEAD OF THE PROGRAMME THAT NAMES THE RUN. A row an admin's hand-over wrote
@@ -346,19 +348,12 @@ export async function GET(
   const accepted = served.filter((a) => a.status === "accepted");
 
   // Archived groups are dropped: the board must not offer a column that no
-  // longer runs (the allocate route refuses them independently).
+  // longer runs (the allocate route refuses them independently). Monday
+  // first: the order every tab of a programme's page lists groups in.
   const groups = groupSnap.docs
     .map((d) => normalizeCourseGroup(d.id, d.data() ?? {}))
     .filter((g) => !g.archived)
-    .sort((a, b) => {
-      // Monday-first for display; `weekday` is stored Sunday-first.
-      const day = ((a.session.weekday + 6) % 7) - ((b.session.weekday + 6) % 7);
-      return (
-        day ||
-        a.session.startTimeLocal.localeCompare(b.session.startTimeLocal) ||
-        a.name.localeCompare(b.name)
-      );
-    });
+    .sort(compareGroupsByMeeting);
 
   // The join is by CONSTRUCTION, not by query: the enrolment doc id is
   // `courseEnrolmentId(runId, uid)`, so each accepted applicant's enrolment —

@@ -263,7 +263,9 @@ describe("Push attendance, while next week's email is not on its schedule", () =
     const done = await finish("rahul", GROUP.b, 1);
     assert.equal(done.body.sent, MEMBERS_B.length, "the push lane keeps today's behaviour");
     const text = await textOf(mailTo("amara")[0]);
-    assert.match(text, /Your group meets Tuesday 27 October, 18:00.20:00\./);
+    // Since the walk of stage two's fixes (G6) the session is written as the
+    // placement email writes one, with its end added and no dash.
+    assert.match(text, /Your group meets Tue 27 Oct, 6pm to 8pm\./);
     assert.doesNotMatch(text, /Room C20/);
   });
 });
@@ -297,8 +299,9 @@ describe("next week's email on its schedule", () => {
     for (const uid of MEMBERS_B) assert.equal(mailTo(uid).length, 1, `${uid} once`);
 
     const text = await textOf(mailTo("amara")[0]);
-    assert.match(text, /Tuesday 27 October/);
-    assert.match(text, /Room C20/);
+    // The session in the words the placement email uses (the walk of stage
+    // two's fixes, G6), and its room.
+    assert.match(text, /Your group meets Tue 27 Oct, 6pm to 8pm, Room C20\./);
     assert.match(text, /Week 2 theme/);
     assert.match(text, /There is one thing to read or watch this week/);
   });
@@ -514,20 +517,33 @@ describe("the reminder to the facilitators, 36 hours after the session ends", ()
     assert.equal(mailTo("rahul").length, 1, "once");
 
     const message = mailTo("rahul")[0];
-    assert.equal(message.subject, "Group B’s register isn’t finished");
+    // In the register's own word while next week's email is not on its
+    // schedule (the walk of stage two's fixes, G9): "pushed", as its button
+    // ("Push attendance") and the lead's Overview say.
+    assert.equal(message.subject, "Group B’s register isn’t pushed");
     assert.equal(message.kind, "course-facilitator");
     const text = await textOf(message);
-    assert.match(text, /Group B’s register for Tue 20 Oct isn’t finished yet\./);
+    assert.match(text, /Group B’s register for Tue 20 Oct isn’t pushed yet\./);
     assert.match(text, /Push attendance to lock the register/);
-    assert.match(text, /If it’s still not finished 60 hours after the session, Claudia and admins get a task\./);
+    assert.match(text, /If the session didn’t happen, the register can say so, and it still needs pushing\./);
+    assert.match(text, /If it’s still not pushed 60 hours after the session, Claudia and admins get a task\./);
+    assert.doesNotMatch(text, /finish/i);
     assert.match(text, /learn\/agi-strategy-fellowship-autumn-2026__run00001\/group\/autumn-2026-group-b__grp0000b/);
   });
 
   test("names the right button once next week's email is on its schedule", async () => {
     switches({ scheduled: true });
     await runJob(registerRemindersJob, afterEnd(36));
-    const text = await textOf(mailTo("rahul")[0]);
+    // Every sentence in the register's word for ending it while next week's
+    // email is on its schedule: "finished" (the walk of stage two's fixes, G9).
+    const message = mailTo("rahul")[0];
+    assert.equal(message.subject, "Group B’s register isn’t finished");
+    const text = await textOf(message);
+    assert.match(text, /Group B’s register for Tue 20 Oct isn’t finished yet\./);
     assert.match(text, /Finish the register to lock it and show everyone their mark\. Nobody’s emailed\./);
+    assert.match(text, /If the session didn’t happen, the register can say so, and it still needs finishing\./);
+    assert.match(text, /If it’s still not finished 60 hours after the session, Claudia and admins get a task\./);
+    assert.doesNotMatch(text, /push/i);
   });
 
   test("a finished register, or a session that did not happen, is not chased", async () => {

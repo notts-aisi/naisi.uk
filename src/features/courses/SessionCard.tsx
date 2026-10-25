@@ -8,6 +8,7 @@ import {
   GROUP_FIELD_LIMITS,
   type GroupSessionMode,
 } from "@/lib/firestore/courseGroups";
+import { sessionWhenLabel } from "@/lib/courses/londonLabels";
 import {
   addDaysToKey,
   isValidDateKey,
@@ -103,28 +104,6 @@ type Props = {
 
 const WALL_CLOCK = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
-/**
- * Module-scoped: constructing an `Intl.DateTimeFormat` is expensive relative
- * to using one (the `weekPlan.ts` precedent), and this renders on every week
- * page. `timeZone: "UTC"` because the input is a civil date parsed at UTC
- * midnight — it is a date, not an instant, and must not be re-zoned.
- */
-const SESSION_DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
-  timeZone: "UTC",
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-});
-
-/** "18:00" + 90 → "19:30". Null when the slot has no usable duration. */
-function endTimeLabel(start: string, minutes: number): string | null {
-  const m = WALL_CLOCK.exec(start);
-  if (!m || minutes <= 0) return null;
-  const total = (Number(m[1]) * 60 + Number(m[2]) + minutes) % 1440;
-  const hh = String(Math.floor(total / 60)).padStart(2, "0");
-  return `${hh}:${String(total % 60).padStart(2, "0")}`;
-}
-
 type SessionWindow = { dateKey: string; startsAt: Date; endsAt: Date };
 
 function sessionWindow(group: OverviewGroup, slotStartKey: string | null): SessionWindow | null {
@@ -168,20 +147,12 @@ export default function SessionCard({
   const occurrence = sessionWindow(group, slotStartKey);
   const state = sessionState(occurrence, new Date());
 
-  const end = endTimeLabel(group.startTimeLocal, group.durationMinutes);
-  const timeRange = WALL_CLOCK.test(group.startTimeLocal)
-    ? `${group.startTimeLocal}${end ? `–${end}` : ""}`
-    : "";
-  // With a resolved date the card names the actual evening; without one it
-  // falls back to the run's recurring label rather than guessing.
-  const when = occurrence
-    ? [
-        SESSION_DATE_FORMAT.format(new Date(`${occurrence.dateKey}T00:00:00Z`)),
-        timeRange,
-      ]
-        .filter(Boolean)
-        .join(" · ")
-    : group.sessionLabel;
+  // With a resolved date the card names the actual evening, "Mon 2 Nov, 5pm
+  // to 7pm", in the words the weekly email names it in (`sessionWhenLabel`);
+  // without one it names the weekly habit the same way, "Mondays, 5pm to
+  // 7pm", rather than guessing a date. The run's recurring label is the last
+  // resort, for a slot with no time of day.
+  const when = sessionWhenLabel(group, occurrence?.dateKey ?? null) || group.sessionLabel;
 
   // Meeting links are facilitator-authored. `validateSubmissionUrl` is the
   // same gate `GroupEditor` applies on save, re-applied at render so a link

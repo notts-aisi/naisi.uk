@@ -60,8 +60,8 @@ export default function CourseNudgeEmail({
           the weekly email isn&apos;t useful to you, you can{" "}
           <Link href={unsubscribeUrl} style={emailLinkStyle}>
             stop it here
-          </Link>{" "}
-          — you stay on the course either way.
+          </Link>
+          . You stay on the course either way.
         </Text>
       }
     >

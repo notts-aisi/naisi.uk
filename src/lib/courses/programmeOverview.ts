@@ -81,6 +81,8 @@ export type OverviewSession = {
   groupName: string;
   /** "Thu 12 Nov · 6pm", "Today · 6pm", "Tomorrow · 1pm". */
   when: string;
+  /** The session's day in London ("2026-11-12"), which orders the week's list. */
+  dateKey: string;
   today: boolean;
   /** The room, "Online", or "" when there is nothing to print. */
   where: string;
@@ -338,10 +340,15 @@ export async function buildProgrammeOverview(
         if (key && key >= card.startKey && key <= endKey) inWeek.push({ entry, facts });
       }
     }
+    // By when they start, as wk-overview draws the week's sessions: this is a
+    // list of what happens when, so it reads in time. Two sessions at the
+    // same moment come in the order every tab lists its groups (`listed`,
+    // `compareGroupsByMeeting`).
+    const groupAt = new Map(listed.map((entry, index) => [entry.group.id, index]));
     inWeek.sort(
       (a, b) =>
         (a.facts.startsAt?.getTime() ?? Infinity) - (b.facts.startsAt?.getTime() ?? Infinity) ||
-        a.entry.group.name.localeCompare(b.entry.group.name, "en-GB", { numeric: true }),
+        (groupAt.get(a.entry.group.id) ?? 0) - (groupAt.get(b.entry.group.id) ?? 0),
     );
     for (const { entry, facts } of inWeek) {
       const { group } = entry;
@@ -354,6 +361,7 @@ export async function buildProgrammeOverview(
         groupId: group.id,
         groupName: group.name,
         when: clock ? `${day} · ${clock}` : day,
+        dateKey: facts.session.dateKey ?? "",
         today: isToday,
         where: courseNudgeSessionWhere(facts.session.session, sessionModeForWeek(group, facts.session.weekId)),
         facilitators: entry.facilitators.map((person) => ({ uid: person.uid, name: person.name })),

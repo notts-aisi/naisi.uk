@@ -54,7 +54,7 @@ export default async function ProgrammeSessionsPage({
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const asked = Array.isArray(query.week) ? query.week[0] : query.week;
   const week = asked && /^\d{1,2}$/.test(asked) ? Number(asked) : null;
-  const shown = await loadSessionsWeek(db!, run, week, new Date());
+  const shown = await loadSessionsWeek(db!, run, week, new Date(), user.uid);
   const here = groupsViewPath(view.roundId, view.programmeId, "sessions");
   const link = (n: number | null) => (n === null ? null : { href: `${here}?week=${n}`, label: weekLinkWords(n) });
 

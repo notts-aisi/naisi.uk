@@ -186,13 +186,15 @@ describe("1. the Messages tab is the lead's and an admin's", () => {
       const drawn = await messages(who);
       const [composer] = find(drawn.element, "UpdateComposer");
       assert.equal(composer.props.runId, RUN.agi);
+      // The groups in People in groups' order, Monday first, as every tab of
+      // the programme's page lists them (the walk of stage two's fixes, G10).
       assert.deepEqual(
         composer.props.audiences.map((a) => [a.key, a.label, a.emails]),
         [
           ["everyone", "Everyone on AGI Strategy (5)", 3],
           [`group:${B}`, "Group B (3)", 1],
-          [`group:${A}`, "Group A (1)", 1],
           [`group:${C}`, "Group C (1)", 1],
+          [`group:${A}`, "Group A (1)", 1],
           ["facilitators", "The facilitators (3)", 3],
         ],
       );
@@ -207,7 +209,23 @@ describe("1. the Messages tab is the lead's and an admin's", () => {
         ],
       );
       assert.match(drawn.text, /New update To Everyone on AGI Strategy \(5\) Group B \(3\)/);
-      assert.match(drawn.text, /Or a group, or the facilitators Title Message 0 \/ 4,000 Also email it Emails 3 people/);
+      // Dev is placed in Group B and not yet told his group: under To the
+      // composer says so, starting on the update to everyone (the walk of
+      // stage two's fixes, G1).
+      assert.deepEqual(
+        composer.props.audiences.map((a) => [a.key, a.notYetTold]),
+        [
+          ["everyone", "1 person placed in groups hasn’t been told their group yet. They’ll read this once Publish tells them, and won’t be emailed it."],
+          [`group:${B}`, "1 person placed in Group B hasn’t been told their group yet. They’ll read this once Publish tells them, and won’t be emailed it."],
+          [`group:${C}`, null],
+          [`group:${A}`, null],
+          ["facilitators", null],
+        ],
+      );
+      assert.match(
+        drawn.text,
+        /Or a group, or the facilitators 1 person placed in groups hasn’t been told their group yet\. They’ll read this once Publish tells them, and won’t be emailed it\. Title Message 0 \/ 4,000 Also email it Emails 3 people/,
+      );
       assert.match(drawn.text, /Send a test to me Post and email 3 people/);
       assert.equal(drawn.wrote, false);
     });
@@ -312,11 +330,25 @@ describe("3. the composer for one group", () => {
   test("its facilitator is handed that group alone, said rather than offered", async () => {
     const drawn = await updatePage("rahul");
     const [composer] = find(drawn.element, "UpdateComposer");
+    // Dev is placed in Group B and not yet told his group: the composer says
+    // so under To (the walk of stage two's fixes, G1), and the page's own line
+    // above it does not say it a second time.
     assert.deepEqual(composer.props.audiences, [
-      { key: `group:${B}`, to: "group", groupId: B, label: "Group B (3)", emails: 1, refused: false },
+      {
+        key: `group:${B}`,
+        to: "group",
+        groupId: B,
+        label: "Group B (3)",
+        emails: 1,
+        refused: false,
+        notYetTold: "1 person placed in Group B hasn’t been told their group yet. They’ll read this once Publish tells them, and won’t be emailed it.",
+      },
     ]);
     assert.match(drawn.text, /Write to Group B Posts an update to the group and emails 1 person\. Replies go to ai-safety@uonsu\.com\. Back to the group/);
-    assert.match(drawn.text, /New update To Group B \(3\) Title Message/);
+    assert.match(
+      drawn.text,
+      /New update To Group B \(3\) 1 person placed in Group B hasn’t been told their group yet\. They’ll read this once Publish tells them, and won’t be emailed it\. Title Message/,
+    );
     assert.doesNotMatch(drawn.html, /<select/);
     assert.equal(drawn.wrote, false);
   });

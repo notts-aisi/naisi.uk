@@ -72,7 +72,7 @@ export default async function GroupUpdatePage({
   const groupPath = `${runHome}/group/${encodeURIComponent(groupId)}`;
   const runGroups = await loadRunGroups(db, runId);
   const [counts, programmeName] = await Promise.all([
-    updateAudienceCounts(db, access.run, runGroups, { groupIds: [groupId] }),
+    updateAudienceCounts(db, access.run, runGroups, { groupIds: [groupId] }, access.user.uid),
     programmeNameOf(db, access.run),
   ]);
   const count = counts[0];

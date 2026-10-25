@@ -3,7 +3,7 @@ import { weeklySlotWords } from "@/lib/courses/facilitatingEmail";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser, type Role } from "@/lib/firebase/session";
-import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import { compareGroupsByMeeting, normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { isEligibleAdmissionsReviewer } from "@/lib/firestore/users";
 
@@ -100,15 +100,13 @@ export async function GET(_req: Request, ctx: Ctx) {
   const nameOf = new Map(people.map((person) => [person.uid, person.name] as const));
 
   // The groups that still run, Monday first, as the allocation board orders
-  // its columns. A facilitator who is no longer an approved account is still
-  // shown on their group, so the view can take them off it.
+  // its columns (`compareGroupsByMeeting`). A facilitator who is no longer an
+  // approved account is still shown on their group, so the view can take
+  // them off it.
   const groups: RunFacilitatorGroup[] = groupSnap.docs
     .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
     .filter((group) => !group.archived)
-    .sort((a, b) => {
-      const day = ((a.session.weekday + 6) % 7) - ((b.session.weekday + 6) % 7);
-      return day || a.session.startTimeLocal.localeCompare(b.session.startTimeLocal) || a.name.localeCompare(b.name);
-    })
+    .sort(compareGroupsByMeeting)
     .map((group) => ({
       id: group.id,
       name: group.name.trim() || "Untitled group",

@@ -144,7 +144,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       // The number on the button is a promise: checked before anything changes,
       // by the function the update's own press counts with.
       const groups: CourseGroupDoc[] = [found];
-      const audience = await updateEmailAudience(db, run, groups, "group", found.id);
+      const audience = await updateEmailAudience(db, run, groups, "group", found.id, actor.uid);
       if (audience.refused) throw new Refusal(REFUSAL.overCap, 400);
       if (audience.recipients.length === 0) throw new Refusal(REFUSAL.nobodyToEmail, 400);
       if (audience.recipients.length !== press.emailCount) {

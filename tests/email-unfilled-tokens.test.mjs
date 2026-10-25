@@ -1052,9 +1052,10 @@ describe("neither email prints something a reader could follow from a room", () 
   /** When that session is, in the reminder's own words: the day, and the hours it runs between. */
   const WHEN = nudgeMail.courseNudgeSessionWhen({ ...base, location: "", meetingUrl: null }, "2026-10-27");
 
-  test("the reminder's own words for when are what this file expects them to start with", () => {
-    assert.ok(WHEN.startsWith("Tuesday 27 October, 18:00"), WHEN);
-    assert.ok(WHEN.endsWith("19:30"), WHEN);
+  // Since the walk of stage two's fixes (G6), in the placement email's words
+  // with the end added and no dash: a date, a comma and the hours.
+  test("the reminder's own words for when are what this file expects them to be", () => {
+    assert.equal(WHEN, "Tue 27 Oct, 6pm to 7:30pm");
   });
 
   test("the weekly reminder says nothing of a room with a way into a call typed into it", () => {

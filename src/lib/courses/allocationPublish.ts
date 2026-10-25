@@ -5,6 +5,7 @@ import { firstWord } from "@/lib/firestore/applicationEmails";
 import type { CourseApplicationDoc } from "@/lib/firestore/courseApplications";
 import {
   courseEnrolmentId,
+  enrolmentHasLeft,
   normalizeCourseEnrolment,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
@@ -228,7 +229,7 @@ export type PublishPlan = {
    * says to them may name one either.
    */
   incubator: boolean;
-  /** Accepted people with no active place in a group, by name. */
+  /** Accepted people with no active place in a group, by name. Never somebody who has left the run. */
   unplaced: string[];
   /** Why an email cannot be written, a sentence each. Empty when every email can be. */
   refusals: string[];
@@ -384,6 +385,22 @@ function groupTerm(run: CourseRunDoc, group: CourseGroupDoc): { first: string | 
     first: range.firstDateKey ? (formatRunStartShort(range.firstDateKey) ?? null) : null,
     last: range.lastDateKey ? (formatRunStartShort(range.lastDateKey) ?? null) : null,
   };
+}
+
+/**
+ * WHEN A FACILITATOR IS TOLD THE GROUP MEETS FROM, as "Tue 3 Nov": its first
+ * session, or once that has finished, the next one, so somebody added after
+ * the group first met is told when they next meet it and never a day already
+ * past ("from Thu 5 Nov to Thu 3 Dec"). The next session is the soonest still
+ * to finish on the group's own calendar (`sessionRange`); with none left, it
+ * is the first, as it always was. Still a date, so wording saved around
+ * `{firstSession}` in Email designs reads as it did.
+ */
+function facilitatingFrom(run: CourseRunDoc, group: CourseGroupDoc, now: Date): string | null {
+  const range = sessionRange(resolveSessions(run, group), now);
+  const next = range.next?.dateKey ?? "";
+  const key = next && range.firstDateKey && next > range.firstDateKey ? next : range.firstDateKey;
+  return key ? (formatRunStartShort(key) ?? null) : null;
 }
 
 /**
@@ -654,6 +671,7 @@ async function readUsers(db: Firestore, uids: Iterable<string>): Promise<Map<str
  */
 export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: PlanInput): Promise<PublishPlan> {
   const runId = run.id;
+  const now = new Date();
   const templatesRead = Promise.all([
     loadCourseEmailTemplate("course-allocated"),
     loadCourseEmailTemplate("course-allocated-incubator"),
@@ -716,12 +734,26 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   // still there (the board shows somebody whose group has gone back in its
   // pool). Names come from the application's own copy: the refusal path
   // reads no account.
+  //
+  // NOBODY WHO HAS LEFT THE RUN IS WAITED FOR. An enrolment withdrawn by its
+  // owner or removed by staff (`enrolmentHasLeft`) may sit beside a row that
+  // still says Accepted, because changing that row is an admin's step, and
+  // the lead who removed them cannot take it. They are not somebody to
+  // place: the board names them as having left, and Publish neither waits
+  // for them nor writes to them. Somebody accepted with no enrolment at all
+  // is still waited for.
   const groupOf = (uid: string): CourseGroupDoc | null => {
     const e = enrolmentByUid.get(uid);
     if (!e || e.groupId === null || e.status !== "active" || !groupById.has(e.groupId)) return null;
     return groupById.get(e.groupId) ?? null;
   };
-  const unplaced = accepted.filter((row) => groupOf(row.uid) === null).map((row) => row.displayName || "NAISI member");
+  const hasLeftTheRun = (uid: string): boolean => {
+    const e = enrolmentByUid.get(uid);
+    return e !== undefined && enrolmentHasLeft(e.status);
+  };
+  const unplaced = accepted
+    .filter((row) => !hasLeftTheRun(row.uid) && groupOf(row.uid) === null)
+    .map((row) => row.displayName || "NAISI member");
 
   // How many are placed in each group, told or not: whether a group has
   // anybody in it for its facilitators to be told about at all. And how many
@@ -893,7 +925,8 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
       runLabel: run.label,
       groupName: group.name.trim() || null,
       weeklySlot: weeklySlotWords(group.session),
-      firstSession: term.first,
+      // From the next session once the group has met (`facilitatingFrom`).
+      firstSession: facilitatingFrom(run, group, now),
       lastSession: term.last,
       // The weekly slot's own place, not one week's change of room.
       where: placementWhere(group.session, null),

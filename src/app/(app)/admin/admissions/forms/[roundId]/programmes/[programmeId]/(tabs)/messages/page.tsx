@@ -10,6 +10,7 @@ import { loadRunGroups, loadUpdatesFor, updateReadingOf } from "@/lib/courses/up
 import { composerAudiences, staffUpdateRows } from "@/lib/courses/updates/views";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
+import { compareGroupsByMeeting } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 
 /**
@@ -43,11 +44,12 @@ export default async function ProgrammeMessagesPage({
   const runSnap = await db.collection("courseRuns").doc(view.run.id).get();
   if (!runSnap.exists) return <RunBlank view={{ ...view, blank: "run-gone" }} />;
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
-  const groups = await loadRunGroups(db, run.id);
+  // To offers the groups in the order every tab of this page lists them.
+  const groups = (await loadRunGroups(db, run.id)).sort(compareGroupsByMeeting);
   const programmeName = view.programmeName.trim() || run.courseTitle.trim() || "this programme";
   const reading = await updateReadingOf(db, user, run, groups);
   const [counts, loaded] = await Promise.all([
-    updateAudienceCounts(db, run, groups),
+    updateAudienceCounts(db, run, groups, null, user.uid),
     loadUpdatesFor(db, run, reading, groups, programmeName),
   ]);
 

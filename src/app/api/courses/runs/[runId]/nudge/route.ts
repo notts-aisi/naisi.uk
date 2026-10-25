@@ -579,8 +579,8 @@ type GroupIndex = {
  *
  * The session is resolved through `sessionForWeek`, so a one-week room or time
  * change is reflected, and dated through the slot THE GROUP is actually in —
- * which is what lets `{sessionWhen}` read "Tuesday 26 August, 18:00–19:30"
- * rather than the recurring "Tuesdays 18:00–19:30" a weekly email has no use
+ * which is what lets `{sessionWhen}` read "Tue 26 Aug, 6pm to 7:30pm" rather
+ * than the recurring "Tuesdays, 6pm to 7:30pm" a weekly email has no use
  * for, and what keeps a group pacing a week behind from being dated to the
  * run's slot.
  *

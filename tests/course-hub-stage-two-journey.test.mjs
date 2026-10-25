@@ -106,6 +106,10 @@ const world = {
   mail: [],
   /** Every notification handed to a push mirror. */
   pushes: [],
+  /** The roster route's answer the group page's roster card is drawn from, while one is drawn. */
+  roster: null,
+  /** The board route's answer the allocation board is drawn from, while it is drawn. */
+  board: null,
 };
 globalThis.__stageTwo = { world, h: createElement };
 const W = "globalThis.__stageTwo.world";
@@ -136,6 +140,15 @@ const STYLESHEETS = [
   "./PitchingWeek.module.css",
   "./ProgrammeAttendance.module.css",
   "./ProgrammeOverview.module.css",
+  "./SessionCard.module.css",
+  "./GroupRoster.module.css",
+  "./EmptyState.module.css",
+  "./Skeleton.module.css",
+  "./AllocationBoard.module.css",
+  "./AllocationPublish.module.css",
+  "./ActionToast.module.css",
+  "./Badge.module.css",
+  "./Dropdown.module.css",
 ];
 /** A card of the group page that reads in the browser: it draws its own name. */
 const CARD = (name) => `export default function ${name}() { return ${H}("div", null, "[${name}]"); }`;
@@ -209,6 +222,27 @@ const { loadTs } = createLoader({
     ["@/features/courses/SessionCard", CARD("SessionCard")],
     ["@/features/courses/GroupRoster", CARD("GroupRoster")],
     ["@/features/courses/AttendanceGrid", CARD("AttendanceGrid")],
+    // The allocation board's data, as its hook holds it once the board route
+    // has answered: the route is asked first, and the board drawn from that.
+    [
+      "./useAllocation",
+      "export function useAllocation() {\n" +
+        `  return { data: ${W}.board, loading: false, error: null, reload() {}, place: async () => ({ ok: true }),\n` +
+        "    publishAllocation: async () => ({ ok: true }), sendPublishTest: async () => ({ ok: true }), removeEnrolment: async () => ({ ok: true }) };\n" +
+        "}\n" +
+        "export default useAllocation;",
+    ],
+    // The roster card's data, as its hook holds it once the roster route has
+    // answered: the route is asked first, and the card is drawn from that.
+    [
+      "./useGroupRoster",
+      "export function useGroupRoster() {\n" +
+        `  const data = ${W}.roster;\n` +
+        "  return { group: data ? data.group : null, facilitators: data ? data.facilitators : [], members: data ? data.members : [],\n" +
+        "    notYetTold: data ? data.notYetTold === true : false, memberCount: data ? data.members.length : null,\n" +
+        "    loading: false, error: null, reload() {} };\n" +
+        "}",
+    ],
     ...STYLESHEETS.map((path) => [path, CLASS_NAMES]),
   ]),
 });
@@ -264,6 +298,14 @@ const lib = {
   programmeRun: await loadTs(join("lib", "applications", "handover", "programmeRun.ts")),
   pitches: await loadTs(join("lib", "applications", "handover", "pitchesLoad.ts")),
   pitching: await loadTs(join("lib", "courses", "pitching", "load.ts")),
+  /** The allocation board's rail: the function the board itself asks. */
+  boardTally: (await loadTs(join("features", "courses", "allocationTally.ts"))).boardTally,
+  /** The register reminder's words: the function the job and Remind both ask. */
+  reminderWords: (await loadTs(join("lib", "email", "registerReminderEmail.ts"))).registerReminderWords,
+  /** The Groups tab's Times view. */
+  times: await loadTs(join("lib", "applications", "handover", "timesLoad.ts")),
+  /** The cohort list's own writer, as Publish subscribes somebody it tells. */
+  subscriptions: await loadTs(join("lib", "firestore", "subscriptions.ts")),
 };
 const TABS = join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "(tabs)");
 const LEARN = join("app", "(app)", "learn", "[runId]");
@@ -277,6 +319,12 @@ const pages = {
 const unsubscribe = await loadTs(join("app", "api", "unsubscribe", "route.ts"));
 const { RunUpdatesView } = await loadTs(join("features", "courses", "updates", "RunUpdates.tsx"));
 const { default: PitchingWeek } = await loadTs(join("features", "courses", "pitching", "PitchingWeek.tsx"));
+/** The session card itself, as the run home draws it (the group page's copy of it is stood in, above). */
+const { default: SessionCard } = await loadTs(join("features", "courses", "SessionCard.tsx"));
+/** The group page's roster card itself, drawn from the roster route's answer. */
+const { default: GroupRosterCard } = await loadTs(join("features", "courses", "GroupRoster.tsx"));
+/** People in groups' board itself, drawn from the board route's answer. */
+const { default: AllocationBoard } = await loadTs(join("features", "courses", "AllocationBoard.tsx"));
 
 // ---------------------------------------------------------------------------
 // The clock
@@ -393,6 +441,9 @@ const CAST = [
   ["tariq", "Tariq Mensah", "member", false],
 ];
 const FIRST = Object.fromEntries(CAST.map(([uid, name]) => [uid, name.split(" ")[0]]));
+/** Each person's whole name, as the lead's tabs name them, and the name they go by, from it. */
+const FULL = Object.fromEntries(CAST.map(([uid, name]) => [uid, name]));
+const FIRST_OF = Object.fromEntries(CAST.map(([uid, name]) => [name, FIRST[uid]]));
 const address = (uid) => `${uid}@example.com`;
 
 function userDoc([uid, name, role, suRecognised]) {
@@ -960,6 +1011,50 @@ async function memberSees(who) {
   };
 }
 
+/**
+ * A member's run home's session card, drawn as the run home draws it: from
+ * their own overview answer, dated by their group's own calendar, with the
+ * week's mode, and titled "Your first session" before the start.
+ */
+async function runHomeCardOf(who, runId) {
+  const answer = await courseCall(who, courseRoutes.overview.GET, { runId });
+  const group = answer.body?.group ?? null;
+  if (answer.status !== 200 || !group) return { refused: answer.status };
+  const current = group.calendar.currentWeek;
+  const weekNumber = current ? (current.weekNumber ?? current.anchorWeekNumber) : 0;
+  const card = createElement(SessionCard, {
+    group,
+    slotStartKey: current?.slotStartKey ?? null,
+    mode: weekNumber >= 1 ? (group.sessionModes[`w${String(weekNumber).padStart(2, "0")}`] ?? null) : null,
+    title: current?.phase === "before" ? "Your first session" : undefined,
+  });
+  return pageText(renderToStaticMarkup(card));
+}
+
+/** People in groups, as `who` is drawn it from the board route's answer to them. */
+async function boardOf(who, runId) {
+  const answer = await courseCall(who, courseRoutes.board.GET, { runId });
+  if (answer.status !== 200) return { refused: answer.status };
+  world.board = answer.body;
+  try {
+    return pageText(renderToStaticMarkup(createElement(AllocationBoard, { courseId: COURSE, runId, runEditorHref: null })));
+  } finally {
+    world.board = null;
+  }
+}
+
+/** A facilitator's roster card, drawn from the roster route's answer to them. */
+async function rosterCardOf(who, groupId) {
+  const answer = await courseCall(who, courseRoutes.roster.GET, { groupId });
+  if (answer.status !== 200) return { refused: answer.status };
+  world.roster = answer.body;
+  try {
+    return pageText(renderToStaticMarkup(createElement(GroupRosterCard, { groupId, groupName: groupDoc(groupId).name })));
+  } finally {
+    world.roster = null;
+  }
+}
+
 /** A register as `who` reads it: its rows and every mark, `week -> name -> status`. */
 async function registerOf(who, groupId) {
   const answer = await courseCall(who, courseRoutes.register.GET, { groupId });
@@ -981,7 +1076,10 @@ async function groupPageOf(who, runId, groupId) {
   const drawn = await draw(pages.group, who, { runId, groupId });
   if (drawn.to) return { sentTo: drawn.to };
   const [list] = find(drawn.element, "StaffUpdatesSection");
-  const write = /Write to [^()]+ \(\d+\) Posts an update to the group(?:\.| and emails \d+ (?:person|people)\.)(?: Nobody in it can be emailed yet\.| Replies go to \S+@\S+\.[a-z]+\.)?/.exec(drawn.text)?.[0] ?? null;
+  const write =
+    /Write to [^()]+ \(\d+\) Posts an update to the group(?:\.| and emails \d+ (?:person|people)\.)(?: Nobody in it can be emailed yet\.| Replies go to \S+@\S+\.[a-z]+\.)?(?: \d+ (?:person|people) placed in it (?:hasn’t|haven’t) been told their group yet\. They’ll read it once Publish tells them, and won’t be emailed it\.)?/.exec(
+      drawn.text,
+    )?.[0] ?? null;
   return { write, updates: (list?.props.updates ?? []).map((row) => [row.title, row.meta]) };
 }
 
@@ -1025,15 +1123,34 @@ async function tabsOf(who, name, runId) {
   const [grid] = find(attendancePage.element, "ProgrammeAttendance");
   const overviewPage = await draw(pages.overview, who, of(name));
   const [overview] = find(overviewPage.element, "ProgrammeOverview");
+  world.user = sessionOf(who);
+  world.course = true;
+  let times;
+  try {
+    const outcome = await lib.times.loadTimesPicture(world.courseDb, world.user, ROUND, P[name], undefined);
+    times = outcome.status === "ok" ? (outcome.view.picture?.groups.map((group) => group.name) ?? outcome.view.blank) : outcome.status;
+  } finally {
+    world.course = false;
+  }
   return {
     messages: {
       to: (composer?.props.audiences ?? []).map((audience) => [audience.label, audience.emails]),
+      /** The line under To for each audience: who is placed there and not yet told, or null. */
+      waiting: (composer?.props.audiences ?? []).map((audience) => audience.notYetTold),
       updates: (list?.props.updates ?? []).map((row) => [row.title, row.meta]),
     },
     people: {
       groups: (board.body?.groups ?? []).map((group) => [group.name, group.memberCount, group.facilitatorNames]),
       placed: Object.fromEntries((board.body?.people ?? []).map((row) => [row.uid, [GROUP_NAME[row.groupId] ?? row.groupId, row.allocatedEmailAt !== null]])),
       publish: board.body?.publish ? [board.body.publish.emails, board.body.publish.people, board.body.publish.facilitators] : null,
+      /** The board's rail: accepted, placed, who it would name as having no group, and who has left. */
+      rail: board.body
+        ? (() => {
+            const columns = new Set(board.body.groups.map((group) => group.id));
+            const tally = lib.boardTally(board.body.people, (row) => !row.groupId || !columns.has(row.groupId));
+            return [tally.accepted, tally.placed, tally.toPlace.map((row) => row.displayName), tally.left];
+          })()
+        : null,
     },
     facilitators:
       staffing.status === 200
@@ -1041,6 +1158,8 @@ async function tabsOf(who, name, runId) {
         : { refused: staffing.status },
     /** Each group's register through the register's own route, as the lead may read it. */
     registers,
+    /** The Groups tab's Times view: its list of who can make each group, by group. */
+    times,
     /** The Attendance tab's grid: each group's rows, each person's marks week by week, Came and Of. */
     attendance: grid
       ? {
@@ -1067,6 +1186,7 @@ async function tabsOf(who, name, runId) {
           sessions: overview.props.model.sessions.map((session) => ({
             group: session.groupName,
             when: session.when,
+            dateKey: session.dateKey,
             where: session.where,
             facilitators: session.facilitators.map((person) => person.name),
             pill: session.pill,
@@ -1271,6 +1391,15 @@ async function weekOneUpdates() {
   u.ameliaToEveryone = await courseCall("amelia", courseRoutes.updates.POST, { runId: RUN }, {
     body: { to: "everyone", title: "Hello", message: "Hi.", email: false },
   });
+  // The incubator's lead runs its one group, so she is its one facilitator:
+  // an update to the facilitators, emailed, would be to herself.
+  u.tessToFacilitators = await courseCall("tess", courseRoutes.updates.POST, { runId: INC_RUN }, {
+    body: { to: "facilitators", title: "Notes for Monday", message: "Bring the papers.", email: true, emailCount: 1 },
+  });
+  // The session card on two people's run home, and a facilitator's group page.
+  u.runHome = { amara: await runHomeCardOf("amara", RUN), omar: await runHomeCardOf("omar", INC_RUN) };
+  u.groupPage = (await draw(pages.group, "amelia", { runId: RUN, groupId: GROUP.A })).text;
+  u.roster = await rosterCardOf("amelia", GROUP.A);
   // The incubator's lead writes to her people, emailed.
   later();
   u.incubator = await post("the incubator's lead posts to everyone on it, emailed", "tess", INC_RUN, {
@@ -1359,6 +1488,7 @@ async function weeksOneAndTwo() {
   l.removed = await courseStep("the lead removes Kofi", 200, "claudia", courseRoutes.remove.POST, { runId: RUN, uid: "kofi" });
   l.mailed = world.mail.length - beforeTheRemove;
   l.summary = await publishSummary("claudia", RUN);
+  l.board = await boardOf("claudia", RUN);
   await lookAround("Kofi removed");
 
   // Then the lead asks Sofia to run Group A with Tom as well, which Publish
@@ -1368,10 +1498,14 @@ async function weeksOneAndTwo() {
     body: { uids: ["amelia", "tom", "sofia"] },
   });
   l.owed = await publishSummary("claudia", RUN);
-  const beforeTheFirstPress = world.mail.length;
-  l.pressed = await courseCall("claudia", courseRoutes.publish.POST, { runId: RUN }, { body: { emails: l.owed?.emails ?? -1 } });
-  l.pressMail = mailSince(beforeTheFirstPress).map((mail) => [mail.to, mail.subject]);
-  // What the runbook asks next: Kofi's row changed from Accepted on the run's own list.
+  const beforeSofiasPress = world.mail.length;
+  l.pressed = await courseStep("the lead's Publish tells Sofia, with Kofi's row still Accepted", 200, "claudia", courseRoutes.publish.POST, { runId: RUN }, {
+    body: { emails: l.owed?.emails ?? -1 },
+  });
+  l.pressMail = await Promise.all(mailSince(beforeSofiasPress).map(opened));
+  // What the runbook asks next: Kofi's row changed from Accepted on the run's
+  // own list. Still an admin's step, and Publish no longer waits for it.
+  later();
   l.leadDecides = await courseCall("claudia", courseRoutes.decide.POST, { runId: RUN, uid: "kofi" }, {
     body: { action: "reject", reason: "Left in week 1." },
   });
@@ -1380,12 +1514,7 @@ async function weeksOneAndTwo() {
   });
   await new Promise((resolve) => setImmediate(resolve));
   later();
-  l.owedAgain = await publishSummary("claudia", RUN);
-  const beforeTheSecondPress = world.mail.length;
-  l.pressedAgain = await courseStep("the lead's Publish tells Sofia", 200, "claudia", courseRoutes.publish.POST, { runId: RUN }, {
-    body: { emails: l.owedAgain?.emails ?? -1 },
-  });
-  l.pressAgainMail = await Promise.all(mailSince(beforeTheSecondPress).map(opened));
+  l.owedAfter = await publishSummary("claudia", RUN);
   // An admin opens week 3 in the week editor.
   world.db.poke(`courseRuns/${RUN}/weeks/w03`, { published: true });
   await lookAround("Sofia added to Group A and told");
@@ -1608,6 +1737,70 @@ async function weekThree() {
   const csv = await step("the lead downloads the attendance CSV", 200, "claudia", routes.csv.POST, of("agi"));
   seen.csv = typeof csv.body === "string" ? csv.body : null;
   await lookAround("the end of week 3");
+
+  // An admin asks the lead to run Group B as well, and she writes to the
+  // facilitators: she is one of them now, and her own email is not one the
+  // update sends (the walk of stage two's fixes, G2).
+  later();
+  const l = {};
+  seen.leadFacilitates = l;
+  l.staffed = await courseStep("an admin adds the lead to Group B's facilitators", 200, "zach", courseRoutes.facilitators.POST, { groupId: GROUP.B }, {
+    body: { uids: ["rahul", "sofia", "claudia"] },
+  });
+  l.offered = (await tabsOf("claudia", "agi", RUN)).messages.to.at(-1);
+  later();
+  l.posted = await post("the lead, a facilitator too, writes to the facilitators, emailed", "claudia", RUN, {
+    to: "facilitators",
+    title: "Week 4 plans",
+    message: "The same as week 3.",
+    email: true,
+  });
+
+  // An admin who is also placed in Group A, told, and on the run's list
+  // writes to the group: their own email is not one the update sends either.
+  later();
+  const a = {};
+  seen.adminInTheGroup = a;
+  world.db.seed(`courseEnrolments/${RUN}__zach`, {
+    runId: RUN,
+    courseId: COURSE,
+    uid: "zach",
+    groupId: GROUP.A,
+    status: "active",
+    role: "learner",
+    selfEnrolled: false,
+    applicationId: null,
+    joinedWeekNumber: 1,
+    allocatedEmailAt: new Date(),
+    allocatedEmailDelivery: "sent",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+  await lib.subscriptions.subscribe(world.db, {
+    email: address("zach"),
+    channel: `cohort:${RUN}`,
+    audience: "user",
+    audienceId: "zach",
+    source: "course-allocation",
+    actor: { kind: "admin", uid: "zach", label: "Zach Levin" },
+    inboxProven: true,
+    name: "Zach Levin",
+  });
+  a.offered = (await tabsOf("zach", "agi", RUN)).messages.to.find(([label]) => label.startsWith("Group A"));
+  later();
+  a.posted = await post("an admin placed in Group A writes to it, emailed", "zach", RUN, {
+    to: "group",
+    groupId: GROUP.A,
+    title: "Week 4 room",
+    message: "The same room as week 3.",
+    email: true,
+  });
+
+  // Priya leaves the course, her enrolment left as the drop-out form leaves
+  // one: withdrawn, her group kept on it. People in groups, as the lead reads it.
+  later();
+  world.db.poke(`courseEnrolments/${RUN}__priya`, { status: "withdrawn", droppedOutAt: new Date(), allocatedEmailAt: null });
+  seen.withdrawnBoard = await boardOf("claudia", RUN);
 }
 
 // ---------------------------------------------------------------------------
@@ -1682,8 +1875,9 @@ function lookAt(label) {
 
 /** Each run as its lead's tabs name it, and its groups as the story names them and as its people read them. */
 const RUNS = [
-  { runId: RUN, tabs: "lead", programme: "AGI Strategy", groups: { "Group A": "Group A", "Group B": "Group B" } },
-  { runId: INC_RUN, tabs: "incubatorLead", programme: "Research incubator", groups: { "the incubator's Group A": "Group A" } },
+  // In People in groups' order: Group B meets on Tuesdays, Group A on Thursdays.
+  { runId: RUN, tabs: "lead", viewer: "claudia", programme: "AGI Strategy", groups: { "Group B": "Group B", "Group A": "Group A" } },
+  { runId: INC_RUN, tabs: "incubatorLead", viewer: "tess", programme: "Research incubator", groups: { "the incubator's Group A": "Group A" } },
 ];
 
 /** Who reads a run's group at one moment: every member whose own programmes put them in it, by name. */
@@ -1696,6 +1890,12 @@ function shownIn(look, runId, groupName) {
 }
 const uidOf = Object.fromEntries(CAST.map(([uid]) => [FIRST[uid], uid]));
 const people = (n) => (n === 1 ? "1 person" : `${n} people`);
+/** The line said of the people placed somewhere and not yet told, word for word, or null for nobody. */
+const waitingWords = (n, where, update = "this") =>
+  n > 0
+    ? `${people(n)} placed ${where} ${n === 1 ? "hasn’t" : "haven’t"} been told their group yet. ` +
+      `They’ll read ${update} once Publish tells them, and won’t be emailed it.`
+    : null;
 
 /** The updates meant for a reader, newest first: those to one of the audiences they are in. */
 const meant = (look, runId, audiences) =>
@@ -1738,12 +1938,22 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     // nothing on the tab says the six will read what is written now once
     // they are told (the walk of stage two, G1).
     test("the Messages tab counts nobody in a group until Publish, while People in groups shows the six placed", () => {
+      // To offers the groups in People in groups' order, Monday first, since
+      // the walk of stage two's fixes (G10): Group B meets on Tuesdays. And
+      // under To it now says who is placed and not yet told, and that they
+      // will read what is written once Publish tells them (G1).
       assert.deepEqual(e().leadTabs.messages, {
         to: [
           ["Everyone on AGI Strategy (0)", 0],
-          ["Group A (0)", 0],
           ["Group B (0)", 0],
+          ["Group A (0)", 0],
           ["The facilitators (3)", 3],
+        ],
+        waiting: [
+          "6 people placed in groups haven’t been told their group yet. They’ll read this once Publish tells them, and won’t be emailed it.",
+          "3 people placed in Group B haven’t been told their group yet. They’ll read this once Publish tells them, and won’t be emailed it.",
+          "3 people placed in Group A haven’t been told their group yet. They’ll read this once Publish tells them, and won’t be emailed it.",
+          null,
         ],
         updates: [],
       });
@@ -1775,8 +1985,14 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       }
     });
 
+    // Until the walk of stage two's fixes (G1) his line stopped at "Nobody in
+    // it can be emailed yet.", with the three placed in his group not told.
     test("Rahul's page says nobody in Group B can be emailed yet, and his update to it is kept, emailed to nobody", () => {
-      assert.equal(e().rahulsPage.write, "Write to Group B (0) Posts an update to the group. Nobody in it can be emailed yet.");
+      assert.equal(
+        e().rahulsPage.write,
+        "Write to Group B (0) Posts an update to the group. Nobody in it can be emailed yet. 3 people placed in it haven’t been told " +
+          "their group yet. They’ll read it once Publish tells them, and won’t be emailed it.",
+      );
       assert.deepEqual([e().toGroupB.counted, e().toGroupB.answer.status, e().toGroupB.answer.body.email], [0, 200, null]);
     });
 
@@ -1786,13 +2002,15 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         assert.deepEqual(look.members[uid], { programmes: [], updates: { refused: 403 }, marks: { refused: 403 } }, uid);
       }
       // The told rule: an admin is shown everybody placed, the lead the people Publish has told.
+      // In People in groups' order and by their whole names, since the walk of
+      // stage two's fixes (G10); until then A to D, by first names.
       assert.deepEqual(
         look.lead.attendance.groups.map((group) => [group.name, group.notYetTold, group.people.length]),
-        [["Group A", true, 0], ["Group B", true, 0]],
+        [["Group B", true, 0], ["Group A", true, 0]],
       );
       assert.deepEqual(
         look.admin.attendance.groups.map((group) => [group.name, group.notYetTold, group.people.map((person) => person.name)]),
-        [["Group A", false, ["Dev", "Joel", "Priya"]], ["Group B", false, ["Amara", "Ella", "Kofi"]]],
+        [["Group B", false, ["Amara Okafor", "Ella Robinson", "Kofi Mensah"]], ["Group A", false, ["Dev Patel", "Joel Adeyemi", "Priya Nair"]]],
       );
       assert.deepEqual([look.lead.overview.people.takingPart, look.admin.overview.people.takingPart], [0, 6]);
       assert.deepEqual(look.lead.overview.week, ["Before the start", "Week 1 of 6", "Thu 29 Oct to Wed 4 Nov"]);
@@ -1934,9 +2152,11 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     });
 
     // The weekly email goes from the press that finishes a register while its
-    // job is off (how it ships), once the next week is published. It names the
-    // session in its own words, which the walk of stage one's fix (F5) did not
-    // reach: the placement and facilitators' emails say "Tue 3 Nov, 6pm" (G6).
+    // job is off (how it ships), once the next week is published. Since the
+    // walk of stage two's fixes (G6) it names the session as the placement
+    // email names a first session ("Tue 3 Nov, 6pm"), with its end added, and
+    // its foot has no dash; until then it said "Tuesday 10 November" and the
+    // hours with a dash between.
     test("finishing a register emails the group next week's email once that week is published, and says why not when it is not", () => {
       const reason = (n) => `Week ${n} isn't published yet, so the group wasn't sent a reminder. Publish it and use the run's catch-up send.`;
       assert.deepEqual(
@@ -1957,15 +2177,42 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.deepEqual([amara.subject, amara.kind], ["Week 2 · Week 2 of AGI Strategy Fellowship", "course-nudge"]);
       assert.equal(
         readFrom(amara, "Hi "),
-        `Hi Amara, Week 2 of AGI Strategy Fellowship is open: Week 2. Your group meets Tuesday 10 November, 18:00${EN_DASH}20:00, Room C20. ` +
+        "Hi Amara, Week 2 of AGI Strategy Fellowship is open: Week 2. Your group meets Tue 10 Nov, 6pm to 8pm, Room C20. " +
           "Open this week on the site Read what you can. The week stays open, and nobody is keeping score. You're getting this because " +
-          `you're on this course with NAISI. If the weekly email isn't useful to you, you can stop it here ${EM_DASH} you stay on the course either way. ${FOOTER}`,
+          `you're on this course with NAISI. If the weekly email isn't useful to you, you can stop it here. You stay on the course either way. ${FOOTER}`,
       );
+      for (const mail of SESSIONS.flatMap((key) => r()[key].finishMail)) {
+        assert.doesNotMatch(`${mail.subject} ${mail.text}`, new RegExp(`[${EN_DASH}${EM_DASH}]`), mail.to);
+      }
       // Its two links: the week's page and the way to stop it. No meeting link.
       assert.deepEqual(
         amara.links.map((href) => href.replace(/\?t=.*$/, "?t=")),
         [`${APP_URL}/learn/${RUN}/weeks/2`, `${APP_URL}/api/unsubscribe?t=`],
       );
+    });
+
+    // The run home's card wrote "Monday 2 November" and the hours with a dash
+    // between, and the facilitator's page and roster each had a dash in their
+    // note about names (the walk of stage two, G6). The card now says a
+    // session as the weekly email does, and neither note has a dash.
+    test("the run home's session card says a session as the weekly email does, and the group page and its roster have no dash", () => {
+      const u = seen.weekOne;
+      assert.deepEqual(u.runHome, {
+        amara: "Your first session Group B with Rahul and Sofia Tue 3 Nov, 6pm to 8pm Room C20",
+        omar: "Your first session Group A with Tess Mon 2 Nov, 5pm to 7pm Room B5",
+      });
+      assert.ok(
+        u.groupPage.includes("Everyone in the group, when it meets, and the register. Names only: no email addresses appear here. Back to the course"),
+        u.groupPage,
+      );
+      assert.equal(
+        u.roster,
+        "Who is in this group 3 members Refresh Names only. Nobody's email address appears on this page. To reach the group, use the " +
+          "email composer, which looks the addresses up when it sends and never shows them. Facilitator A Amelia Members D Dev J Joel P Priya",
+      );
+      for (const text of [...Object.values(u.runHome), u.groupPage, u.roster]) {
+        assert.doesNotMatch(text, new RegExp(`[${EN_DASH}${EM_DASH}]`), text);
+      }
     });
   });
 
@@ -1993,15 +2240,16 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.equal(s().tomBeforeHeIsTold.page.write, "Write to Group A (3) Posts an update to the group and emails 3 people. Replies go to ai-safety@uonsu.com.");
     });
 
-    // Sent the day after Group A first met, it gives the group's first
-    // session as the day its term starts (the walk of stage two, G5).
-    test("Publish then owes one email, needs no new test, and sends Tom his, from a first session already past", () => {
+    // Sent the day after Group A first met, it gave the group's first session
+    // as the day its term starts, already past (the walk of stage two, G5).
+    // It now names the group's next session on its own calendar.
+    test("Publish then owes one email, needs no new test, and sends Tom his, from the group's next session", () => {
       assert.deepEqual([s().summary.emails, s().summary.people, s().summary.facilitators, s().summary.test.state], [1, 0, 1, "fresh"]);
       assert.deepEqual(s().pressed.body.report.facilitators, { sent: 1, held: 0, suppressed: 0 });
       assert.deepEqual(s().pressMail.map((mail) => [mail.to, mail.subject, mail.links]), [[address("tom"), "You’re facilitating Group A: Thursdays at 6pm", [groupPage(RUN, GROUP.A)]]]);
       assert.equal(
         readFrom(s().pressMail[0], "Hi "),
-        "Hi Tom, Group A meets on Thursdays at 6pm, from Thu 29 Oct to Thu 3 Dec. Where: Room A13 You’re facilitating with Amelia. " +
+        "Hi Tom, Group A meets on Thursdays at 6pm, from Thu 5 Nov to Thu 3 Dec. Where: Room A13 You’re facilitating with Amelia. " +
           `There are 3 people in the group. Open your group Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI ${FOOTER}`,
       );
     });
@@ -2026,31 +2274,81 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     test("the lead's Attendance keeps Kofi, with his finished mark, while his facilitators' register drops him and it", () => {
       const look = lookAt("Kofi removed");
       const b = look.lead.attendance.groups.find((group) => group.name === "Group B");
-      assert.deepEqual(b.people.find((person) => person.name === "Kofi"), { name: "Kofi", left: "Left", marks: [[1, "excused", "finished"]], came: "0 of 1", inARow: 0 });
+      // The lead's tabs name him in full, the sentence about him by the name
+      // he goes by (the walk of stage two's fixes, G10).
+      assert.deepEqual(b.people.find((person) => person.name === "Kofi Mensah"), { name: "Kofi Mensah", left: "Left", marks: [[1, "excused", "finished"]], came: "0 of 1", inARow: 0 });
       assert.deepEqual(look.facilitators["rahul (Group B)"].register, { members: ["Amara", "Ella"], notYetTold: false, marks: { "week 1, finished": { Amara: "present", Ella: "present" } } });
-      assert.deepEqual(look.lead.overview.attention, [["left", "Kofi left", "Kofi’s off Group B’s register."]]);
+      assert.deepEqual(look.lead.overview.attention, [["left", "Kofi Mensah left", "Kofi’s off Group B’s register."]]);
       assert.equal(look.lead.overview.people.line, "1 left. Freed places can be offered until Wed 4 Nov, the end of week 1.");
     });
 
-    // Remove is the lead's since the lead's access (#86); the step after it
-    // that Publish waits for, changing the row from Accepted, is not. The
-    // board's summary owes one email and lists no refusal, and the press is
-    // refused naming him (the walk of stage two, G4).
-    test("her next Publish is refused naming Kofi, the step that clears it is refused to her, and an admin's lets it through", () => {
-      assert.deepEqual([l().owed.emails, l().owed.refusals], [1, []]);
-      assert.deepEqual(l().pressed, {
-        status: 409,
-        body: { error: "1 accepted applicant is not placed in a group yet. Everyone must be placed before allocation can be published.", unplaced: ["Kofi Mensah"] },
+    // Remove is the lead's since the lead's access (#86); changing the row
+    // from Accepted on the run's own list is still an admin's. Until the walk
+    // of stage two's fixes (G4) Publish waited for that row, so her next
+    // press was refused naming him. Now somebody who has left is nobody to
+    // place: the board's rail counts Kofi as left and names nobody as having
+    // no group, and her press tells Sofia while his row still says Accepted.
+    test("the board counts Kofi as left and names nobody as having no group", () => {
+      // As People in groups draws it for the lead: his card stays, marked
+      // Removed, so it can be moved back, and the column's number leaves him out.
+      const board = l().board;
+      assert.ok(
+        board.startsWith(
+          "AGI Strategy Fellowship · Autumn 2026 6 accepted · 5 placed · 0 unallocated · 1 left Refresh Select several " +
+            "All 5 accepted applicants are placed, and 1 has left. No one is in two groups.",
+        ),
+        board,
+      );
+      assert.match(board, /Unallocated 0 Accepted applicants with no group yet\. Kofi Unpaid Removed /);
+      assert.doesNotMatch(board, /has no group|have no group/);
+      assert.deepEqual(lookAt("Kofi removed").lead.people.rail, [6, 5, [], 1]);
+      assert.deepEqual(lookAt("Kofi removed").lead.people.placed.kofi, [null, false]);
+      // Once an admin has changed his row he is off the run's list, and off the board.
+      assert.deepEqual(lookAt("Sofia added to Group A and told").lead.people.rail, [5, 5, [], 0]);
+    });
+
+    // Somebody who leaves by themselves keeps their group on their row: their
+    // card stays in its column, marked Withdrawn, and the column's number and
+    // the move menu's leave them out, as the rail does (drawn after the
+    // story's last look, when Priya leaves).
+    test("somebody withdrawn keeps their card in their group's column, counted as left there too", () => {
+      const board = seen.withdrawnBoard;
+      assert.ok(
+        board.startsWith(
+          "AGI Strategy Fellowship · Autumn 2026 5 accepted · 4 placed · 0 unallocated · 1 left Refresh Select several " +
+            "All 4 accepted applicants are placed, and 1 has left. No one is in two groups.",
+        ),
+        board,
+      );
+      assert.match(board, /Group A 2\/3 Thursdays /);
+      assert.match(board, /Priya Unpaid Withdrawn Thursdays 18:00.20:00 Move to: Group A · 2\/3 /);
+      assert.doesNotMatch(board, /has no group|have no group|Group A · 3\/3/);
+    });
+
+    test("her next Publish tells Sofia without waiting for Kofi's row, which only an admin changes", () => {
+      assert.deepEqual([l().owed.emails, l().owed.people, l().owed.facilitators, l().owed.refusals], [1, 0, 1, []]);
+      assert.deepEqual(l().pressed.body, {
+        ok: true,
+        report: {
+          people: { sent: 0, held: 0, suppressed: 0 },
+          facilitators: { sent: 1, held: 0, suppressed: 0 },
+          failed: [],
+          noAddress: [],
+          alreadyTold: 0,
+          more: 0,
+        },
+        unplaced: [],
       });
-      assert.deepEqual(l().pressMail, []);
-      assert.deepEqual(short(l().leadDecides), [403, "Forbidden"]);
-      assert.deepEqual(l().adminDecides.body, { ok: true });
-      assert.deepEqual(l().pressedAgain.body.report.facilitators, { sent: 1, held: 0, suppressed: 0 });
+      assert.deepEqual(l().pressMail.map((mail) => [mail.to, mail.subject]), [[address("sofia"), "You’re facilitating Group A: Thursdays at 6pm"]]);
       assert.equal(
-        readFrom(l().pressAgainMail[0], "Hi "),
-        "Hi Sofia, Group A meets on Thursdays at 6pm, from Thu 29 Oct to Thu 3 Dec. Where: Room A13 You’re facilitating with Amelia and Tom. " +
+        readFrom(l().pressMail[0], "Hi "),
+        // Told on Wed 4 Nov, after the group first met: its next session (G5).
+        "Hi Sofia, Group A meets on Thursdays at 6pm, from Thu 5 Nov to Thu 3 Dec. Where: Room A13 You’re facilitating with Amelia and Tom. " +
           `There are 3 people in the group. Open your group Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI ${FOOTER}`,
       );
+      assert.deepEqual(short(l().leadDecides), [403, "Forbidden"]);
+      assert.deepEqual(l().adminDecides.body, { ok: true });
+      assert.deepEqual([l().owedAfter.emails, l().owedAfter.refusals], [0, []]);
     });
   });
 
@@ -2179,8 +2477,10 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.deepEqual(b, {
         group: "Group B",
         when: "Tue 17 Nov · 6pm",
+        dateKey: "2026-11-17",
         where: "Room C20",
-        facilitators: ["Rahul", "Sofia"],
+        // By their whole names, as wk-overview draws them (the walk of stage two's fixes, G10).
+        facilitators: ["Rahul Mehta", "Sofia Rossi"],
         pill: "Register not pushed",
         line: "Saved, not pushed. 2 of 2 so far.",
         remind: ["Remind Rahul and Sofia", 2, "Emails 2 people", "Remind Rahul and Sofia to push Group B’s register for Tue 17 Nov? This emails 2 people.", "w03"],
@@ -2189,47 +2489,87 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.deepEqual(look.lead.overview.attention, [
         ["week", "Week 4 isn’t ready, and Groups A and B have reached it", "Groups A and B meet again from Thu 19 Nov. Week 4 isn’t published, so people in these groups can’t open it yet."],
         ["register", "Group B’s register for Tue 17 Nov isn’t pushed", "If it’s still not pushed on Fri 20 Nov at 8am, you and admins get a task."],
-        ["left", "Kofi left", "Kofi’s off Group B’s register."],
+        ["left", "Kofi Mensah left", "Kofi’s off Group B’s register."],
       ]);
     });
 
     // The Overview, the grid and the register's own button say "push" while
-    // next week's email is not on its schedule (how it ships); the reminder
-    // the press sends says "finished" in its subject, its first line and its
-    // last (the walk of stage two, G9).
+    // next week's email is not on its schedule (how it ships). Until the walk
+    // of stage two's fixes (G9) the reminder the press sends said "finished"
+    // in its subject, its first line and its last; it now follows the same
+    // switch, and says "finished" only while next week's email is on its
+    // schedule and the button is "Finish the register".
     test("Remind emails the two of them once each, a second press is refused, and the card says who was reminded", () => {
       const m = seen.remind;
       assert.deepEqual(m.pressed.body, { emailed: 2, failed: 0, names: ["Rahul", "Sofia"] });
       assert.deepEqual(
         m.mail.map((mail) => [mail.to, mail.subject, mail.kind, mail.links]),
-        ["rahul", "sofia"].map((uid) => [address(uid), "Group B’s register isn’t finished", "course-facilitator", [groupPage(RUN, GROUP.B), groupPage(RUN, GROUP.B)]]),
+        ["rahul", "sofia"].map((uid) => [address(uid), "Group B’s register isn’t pushed", "course-facilitator", [groupPage(RUN, GROUP.B), groupPage(RUN, GROUP.B)]]),
       );
       assert.equal(
         readFrom(m.mail[0], "Hi "),
-        "Hi Rahul, Group B’s register for Tue 17 Nov isn’t finished yet. Push attendance to lock the register, show everyone their mark and " +
+        "Hi Rahul, Group B’s register for Tue 17 Nov isn’t pushed yet. Push attendance to lock the register, show everyone their mark and " +
           `email the group about next week. Open the register Or paste this into your browser: ${groupPage(RUN, GROUP.B)} If the session didn’t ` +
-          `happen, the register can say so, and it still needs finishing. If it’s still not finished 60 hours after the session, Claudia and admins get a task. ${FOOTER}`,
+          `happen, the register can say so, and it still needs pushing. If it’s still not pushed 60 hours after the session, Claudia and admins get a task. ${FOOTER}`,
       );
+      assert.doesNotMatch(`${m.mail[1].subject} ${m.mail[1].text}`, /finish/i);
       assert.deepEqual(short(m.again), [409, "Nobody is left to remind about Group B’s register: its facilitators have been reminded already, or can’t be emailed."]);
       const b = m.overview.sessions.find((session) => session.group === "Group B");
       assert.deepEqual([b.remind, b.reminded], [null, "Rahul and Sofia were reminded on Wed 18 Nov at 9am."]);
     });
 
+    test("the reminder's words, both versions, follow the switch the register's button reads", () => {
+      const facts = (scheduled) => ({
+        groupName: "Group B",
+        sessionStartsAt: new Date("2026-11-17T18:00:00Z"),
+        scheduled,
+        task: { hours: 60, leadName: "Claudia" },
+      });
+      // While next week's email is not on its schedule (how it ships): "Push attendance".
+      assert.deepEqual(lib.reminderWords(facts(false)), {
+        subject: "Group B’s register isn’t pushed",
+        lead: "Group B’s register for Tue 17 Nov isn’t pushed yet.",
+        effect: "Push attendance to lock the register, show everyone their mark and email the group about next week.",
+        notHeld: "If the session didn’t happen, the register can say so, and it still needs pushing.",
+        next: "If it’s still not pushed 60 hours after the session, Claudia and admins get a task.",
+      });
+      // While it is: "Finish the register".
+      assert.deepEqual(lib.reminderWords(facts(true)), {
+        subject: "Group B’s register isn’t finished",
+        lead: "Group B’s register for Tue 17 Nov isn’t finished yet.",
+        effect: "Finish the register to lock it and show everyone their mark. Nobody’s emailed.",
+        notHeld: "If the session didn’t happen, the register can say so, and it still needs finishing.",
+        next: "If it’s still not finished 60 hours after the session, Claudia and admins get a task.",
+      });
+      // The Overview the lead pressed Remind on read the same switch: its words are the push ones.
+      assert.equal(lookAt("Group B's register not finished").lead.overview.sessions.find((session) => session.group === "Group B").pill, "Register not pushed");
+    });
+
+    // Its Name column holds whole names, so two people who go by one first
+    // name are told apart, and its groups come in People in groups' order
+    // (the walk of stage two's fixes, G10); until then first names, A to D.
     test("the CSV is the grid: every row, every mark in words, Came and Of, and Kofi's leaving", () => {
       assert.equal(
         seen.csv,
         `${BOM}Group,Name,Week 1,Week 2,Week 3,Week 4,Week 5,Week 6,Came,Of,Left\n` +
-          "Group A,Dev,Present,Present,Present,,,,3,3,\n" +
-          "Group A,Joel,Late,Present,Absent,,,,2,3,\n" +
-          "Group A,Priya,Absent,Late,Present,,,,2,3,\n" +
-          "Group B,Amara,Present,Late,Present,,,,3,3,\n" +
-          "Group B,Ella,Present,Present,Left early,,,,3,3,\n" +
-          "Group B,Kofi,Excused,,,,,,0,1,Yes",
+          "Group B,Amara Okafor,Present,Late,Present,,,,3,3,\n" +
+          "Group B,Ella Robinson,Present,Present,Left early,,,,3,3,\n" +
+          "Group B,Kofi Mensah,Excused,,,,,,0,1,Yes\n" +
+          "Group A,Dev Patel,Present,Present,Present,,,,3,3,\n" +
+          "Group A,Joel Adeyemi,Late,Present,Absent,,,,2,3,\n" +
+          "Group A,Priya Nair,Absent,Late,Present,,,,2,3,",
       );
       const grid = lookAt("the end of week 3").lead.attendance;
       assert.deepEqual(
         grid.groups.flatMap((group) => group.people.map((person) => [group.name, person.name, person.came])),
-        [["Group A", "Dev", "3 of 3"], ["Group A", "Joel", "2 of 3"], ["Group A", "Priya", "2 of 3"], ["Group B", "Amara", "3 of 3"], ["Group B", "Ella", "3 of 3"], ["Group B", "Kofi", "0 of 1"]],
+        [
+          ["Group B", "Amara Okafor", "3 of 3"],
+          ["Group B", "Ella Robinson", "3 of 3"],
+          ["Group B", "Kofi Mensah", "0 of 1"],
+          ["Group A", "Dev Patel", "3 of 3"],
+          ["Group A", "Joel Adeyemi", "2 of 3"],
+          ["Group A", "Priya Nair", "2 of 3"],
+        ],
       );
     });
   });
@@ -2248,19 +2588,74 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       }
     });
 
+    // Groups were Monday first on People in groups and Facilitators, A to D on
+    // Attendance and the Times view, in meeting order on the Overview's
+    // sessions and in stored order on Messages (the walk of stage two, G10).
+    // Every tab now lists them in People in groups' order, but for the
+    // Overview's sessions this week, which read in time, as wk-overview draws
+    // them.
+    test("every tab of the programme page lists the groups in one order, the order People in groups draws them in", () => {
+      for (const label of MOMENTS) {
+        const look = lookAt(label);
+        for (const { tabs, programme } of RUNS) {
+          const order = look[tabs].people.groups.map(([name]) => name);
+          const where = `${label}: ${programme}`;
+          assert.deepEqual(look[tabs].facilitators.map(([name]) => name), order, `${where}, Facilitators`);
+          assert.deepEqual(look[tabs].times, order, `${where}, Times`);
+          assert.deepEqual(look[tabs].attendance.groups.map((group) => group.name), order, `${where}, Attendance`);
+          assert.deepEqual(
+            look[tabs].messages.to.slice(1, 1 + order.length).map(([option]) => option.replace(/ \(\d+\)$/, "")),
+            order,
+            `${where}, Messages`,
+          );
+          // The Overview's sessions this week are a list of what happens when,
+          // and read in time, as wk-overview draws them: by their day, and two
+          // on one day in the tabs' order.
+          const sessions = look[tabs].overview.sessions;
+          const inTime = [...sessions].sort(
+            (a, b) => a.dateKey.localeCompare(b.dateKey) || order.indexOf(a.group) - order.indexOf(b.group),
+          );
+          assert.deepEqual(sessions, inTime, `${where}, the Overview's sessions in time`);
+        }
+      }
+      // Monday first: Group B meets on Tuesdays, Group A on Thursdays, so the
+      // tabs list B before A; in week 3 the Overview shows both sessions in
+      // time, Thursday's (the week's first) before Tuesday's.
+      assert.deepEqual(lookAt("the end of week 3").lead.people.groups.map(([name]) => name), ["Group B", "Group A"]);
+      assert.deepEqual(lookAt("Group B's register not finished").lead.overview.sessions.map((session) => [session.group, session.when]), [
+        ["Group A", "Thu 12 Nov · 6pm"],
+        ["Group B", "Tue 17 Nov · 6pm"],
+      ]);
+    });
+
     test("each group's count on the Messages tab is the people its facilitators' pages, rosters and registers name, and who read it as their group", () => {
       for (const label of MOMENTS) {
         const look = lookAt(label);
-        for (const { runId, tabs, programme, groups } of RUNS) {
+        for (const { runId, tabs, viewer, programme, groups } of RUNS) {
           const everyone = Object.values(groups).flatMap((name) => shownIn(look, runId, name));
           const onTheList = (names) => names.filter((name) => look.onTheList[runId].includes(uidOf[name])).length;
           const facilitators = [...new Set(Object.keys(groups).flatMap((key) => look.staffing[key]))];
+          // Never the writer's own email, and the facilitators are not offered
+          // to the one facilitator there is (the walk of stage two's fixes, G2).
+          const alone = facilitators.length === 1 && facilitators[0] === viewer;
           const expected = [
             [`Everyone on ${programme} (${everyone.length})`, onTheList(everyone)],
             ...Object.entries(groups).map(([, name]) => [`${name} (${shownIn(look, runId, name).length})`, onTheList(shownIn(look, runId, name))]),
-            [`The facilitators (${facilitators.length})`, facilitators.length],
+            ...(alone ? [] : [[`The facilitators (${facilitators.length})`, facilitators.filter((uid) => uid !== viewer).length]]),
           ];
           assert.deepEqual(look[tabs].messages.to, expected, `${label}: ${programme}`);
+          // Who is placed and not yet told, as the board has them: said under
+          // To and on the facilitators' write line (the walk of stage two's fixes, G1).
+          const notTold = (key) => Object.values(look[tabs].people.placed).filter(([group, told]) => group === key && !told).length;
+          assert.deepEqual(
+            look[tabs].messages.waiting,
+            [
+              waitingWords(Object.keys(groups).reduce((sum, key) => sum + notTold(key), 0), "in groups"),
+              ...Object.entries(groups).map(([key, name]) => waitingWords(notTold(key), `in ${name}`)),
+              ...(alone ? [] : [null]),
+            ],
+            `${label}: ${programme}, under To`,
+          );
           for (const [key, name] of Object.entries(groups)) {
             const names = shownIn(look, runId, name);
             const emails = onTheList(names);
@@ -2270,7 +2665,8 @@ describe("stage two of the course hub, one term from Publish to the end of week 
               assert.equal(
                 theirs.page.write,
                 `Write to ${name} (${names.length}) Posts an update to the group` +
-                  (emails > 0 ? ` and emails ${people(emails)}. Replies go to ai-safety@uonsu.com.` : ". Nobody in it can be emailed yet."),
+                  (emails > 0 ? ` and emails ${people(emails)}. Replies go to ai-safety@uonsu.com.` : ". Nobody in it can be emailed yet.") +
+                  (notTold(key) > 0 ? ` ${waitingWords(notTold(key), "in it", "it")}` : ""),
                 `${label}: ${uid}`,
               );
               assert.deepEqual(theirs.roster, { members: names, notYetTold: label === BEFORE_PUBLISH }, `${label}: ${uid}'s roster`);
@@ -2291,11 +2687,14 @@ describe("stage two of the course hub, one term from Publish to the end of week 
             const grid = look[tabs].attendance.groups.find((group) => group.name === name);
             const marks = marksByPerson(lead);
             const staying = grid.people.filter((person) => person.left === null);
-            assert.deepEqual(staying.map((person) => person.name), shownIn(look, runId, name), `${label}: ${name}'s rows`);
-            for (const person of staying) assert.deepEqual(person.marks, marks[person.name] ?? [], `${label}: ${person.name}`);
+            // The grid names each person in full, the register by the name
+            // they go by (the walk of stage two's fixes, G10): the same
+            // people, with the same marks.
+            assert.deepEqual(staying.map((person) => person.name), shownIn(look, runId, name).map((first) => FULL[uidOf[first]]), `${label}: ${name}'s rows`);
+            for (const person of staying) assert.deepEqual(person.marks, marks[FIRST_OF[person.name]] ?? [], `${label}: ${person.name}`);
             assert.deepEqual(
               grid.people.filter((person) => person.left !== null).map((person) => person.name),
-              runId === RUN && name === "Group B" && AFTER_PUBLISH.indexOf(label) >= AFTER_PUBLISH.indexOf("Kofi removed") ? ["Kofi"] : [],
+              runId === RUN && name === "Group B" && AFTER_PUBLISH.indexOf(label) >= AFTER_PUBLISH.indexOf("Kofi removed") ? ["Kofi Mensah"] : [],
               `${label}: ${name}'s leavers`,
             );
           }
@@ -2364,15 +2763,43 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       );
     });
 
-    // Updates to the facilitators count and email every facilitator of a live
-    // group. The incubator's one group is run by its lead, so on her own tab
-    // that audience is herself (the walk of stage two, G2), while Publish
-    // never writes to her as a facilitator.
-    test("on the incubator the facilitators are its lead herself", () => {
+    // Updates to the facilitators counted and emailed every facilitator of a
+    // live group. The incubator's one group is run by its lead, so her own tab
+    // offered "The facilitators (1)", and an update to it emailed her (the
+    // walk of stage two, G2), while Publish never writes to her as a
+    // facilitator. The writer is now left out of their own update's email,
+    // and is not offered the facilitators when they are the only one.
+    test("on the incubator its lead is its one facilitator: she is not offered herself, and never emailed her own update", () => {
       for (const label of MOMENTS) {
-        assert.deepEqual(lookAt(label).incubatorLead.messages.to.at(-1), ["The facilitators (1)", 1], label);
+        assert.deepEqual(
+          lookAt(label).incubatorLead.messages.to.filter(([option]) => option.startsWith("The facilitators")),
+          [],
+          label,
+        );
         assert.deepEqual(lookAt(label).staffing["the incubator's Group A"], ["tess"], label);
       }
+      // Asked for anyway, the email has nobody to go to, and nothing is posted.
+      assert.deepEqual(short(seen.weekOne.tessToFacilitators), [400, "Nobody it’s to can be emailed yet. Turn off Also email it to post it."]);
+      assert.ok(!lookAt("the end of week 3").stored.some((update) => update.title === "Notes for Monday"));
+      // AGI Strategy's lead runs no group, and is offered all its facilitators.
+      assert.deepEqual(lookAt("the end of week 3").lead.messages.to.at(-1), ["The facilitators (4)", 4]);
+    });
+
+    test("a writer who is one facilitator among several is offered them all, and their email goes to the others", () => {
+      const l = seen.leadFacilitates;
+      assert.deepEqual(l.staffed.body, { ok: true, facilitatorUids: ["rahul", "sofia", "claudia"] });
+      // Five read it, the lead among them; four are emailed.
+      assert.deepEqual(l.offered, ["The facilitators (5)", 4]);
+      assert.deepEqual([l.posted.counted, l.posted.answer.body.email], [4, { sent: 4, held: 0, suppressed: 0, failed: 0 }]);
+      assert.deepEqual(l.posted.mail.map((mail) => mail.to).sort(), ["amelia", "rahul", "sofia", "tom"].map(address));
+    });
+
+    test("a writer who is in the group they write to, and on its list, is left out of its email", () => {
+      const a = seen.adminInTheGroup;
+      // Four read it, the writer among them; Joel stopped the list, and the writer is not emailed.
+      assert.deepEqual(a.offered, ["Group A (4)", 2]);
+      assert.deepEqual([a.posted.counted, a.posted.answer.body.email], [2, { sent: 2, held: 0, suppressed: 0, failed: 0 }]);
+      assert.deepEqual(a.posted.mail.map((mail) => mail.to).sort(), [address("dev"), address("priya")]);
     });
   });
 });
