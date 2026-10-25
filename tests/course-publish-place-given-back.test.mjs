@@ -301,13 +301,13 @@ const offersRemove = (view, uid) => {
 async function everyKindOfCard(who) {
   await placed(who);
   await testThenPress(who);
-  // Bea leaves from her programme's page; Dev, told, says "I can’t make it",
+  // Bea leaves from the programme's page; Dev, told, says "I can’t make it",
   // which is the same leave; the lead takes Tariq off the run.
   await leaves("bea");
   await cantMakeIt("dev");
   assert.equal((await remove("claudia", "tariq")).status, 200);
   // Two late acceptances are handed over and placed; Una, placed and not
-  // told, gives her place back on the form. (Bea and Dev gave theirs back by
+  // told, gives the place back on the form. (Bea and Dev gave theirs back by
   // leaving, so Amara and Tariq are the two already there.)
   holdsAPlace("una", "Una Byrne");
   holdsAPlace("kit", "Kit Morgan");
@@ -327,9 +327,9 @@ describe("1. Publish leaves out somebody placed and not told who gave their plac
     test(`as ${label}: the count, the test and the press leave Amara out, and the summary says so`, async () => {
       await placed(who);
       await cantMakeIt("amara");
-      // Her seat is where it was: nothing of the run moved.
+      // Amara's seat is where it was: nothing of the run moved.
       assert.deepEqual([seat("amara").status, seat("amara").groupId, seat("amara").allocatedEmailAt], ["active", B, undefined]);
-      assert.equal((await cards(who)).amara, true, "her card says Gave their place back");
+      assert.equal((await cards(who)).amara, true, "Amara's card says Gave their place back");
 
       // The count: Bea, Dev and Tariq, and the three facilitators of the two
       // groups with somebody in them. Before this job: 7, Amara among them.
@@ -370,7 +370,7 @@ describe("1. Publish leaves out somebody placed and not told who gave their plac
       for (const mail of await Promise.all(realMail().filter(isFacilitating).map(opened))) {
         assert.equal(groupSizeIn(mail.text), mail.subject.includes("Group B") ? 1 : 2, mail.subject);
       }
-      // Nothing stamps her as told, lists her or pushes to her.
+      // Nothing stamps Amara as told, lists Amara or pushes to Amara.
       assert.deepEqual([seat("amara").allocatedEmailAt, seat("amara").allocatedEmailDelivery], [undefined, undefined]);
       for (const uid of ["bea", "dev", "tariq"]) assert.ok(seat(uid).allocatedEmailAt instanceof Date, uid);
       assert.deepEqual(onTheList(), ["bea@example.com", "dev@example.com", "tariq@example.com"]);
@@ -379,7 +379,7 @@ describe("1. Publish leaves out somebody placed and not told who gave their plac
       // Afterwards the board still says so, and owes nothing.
       const after = await summary(who);
       assert.deepEqual([after.emails, after.people, after.facilitators, after.gaveBack], [0, 0, 0, 1]);
-      // Removing her frees the seat, and the sentence goes.
+      // Removing Amara frees the seat, and the sentence goes.
       assert.equal((await remove(who, "amara")).status, 200);
       assert.equal(read(`courseGroups/${B}`).memberCount, 1);
       assert.equal("gaveBack" in (await summary(who)), false);
@@ -436,7 +436,7 @@ describe("2. beside a card that left by each door, one removed, a late placement
       await everyKindOfCard(who);
       // Who is where: Amara told in B; Bea and Dev left by themselves; Tariq
       // removed; Kit placed in A and not told; Una placed in B and not told,
-      // having given her place back.
+      // having given the place back.
       assert.deepEqual(
         Object.fromEntries(["amara", "bea", "dev", "tariq", "kit", "una"].map((uid) => [uid, [seat(uid).status, Boolean(seat(uid).allocatedEmailAt)]])),
         {
@@ -466,7 +466,7 @@ describe("2. beside a card that left by each door, one removed, a late placement
       assert.deepEqual([pressed.body.report.people.sent, pressed.body.report.facilitators.sent], [1, 1]);
       const tom = await opened(sent[1]);
       assert.match(tom.subject, /^You’re facilitating Group B/);
-      // Amara: told. Una gave her place back and Dev left: neither is counted.
+      // Amara: told. Una gave the place back and Dev left: neither is counted.
       assert.equal(groupSizeIn(tom.text), 1);
       assert.deepEqual([seat("una").allocatedEmailAt, seat("una").allocatedEmailDelivery], [undefined, undefined]);
       assert.ok(seat("kit").allocatedEmailAt instanceof Date);
@@ -485,7 +485,7 @@ describe("2. beside a card that left by each door, one removed, a late placement
     const columns = new Set(shown.groups.map((group) => group.id));
     const counted = tally.boardTally(shown.people, (row) => !row.groupId || !columns.has(row.groupId));
     assert.deepEqual([counted.accepted, counted.placed, counted.toPlace.map((row) => row.uid), counted.left], [6, 3, [], 3]);
-    // Una gave her place back while placed; Bea and Dev gave theirs back by
+    // Una gave the place back while placed; Bea and Dev gave theirs back by
     // leaving. Tariq was removed, which gives nothing back.
     const badges = await cards("claudia");
     const saysItsGiven = Object.keys(badges).filter((uid) => badges[uid]).sort();
@@ -516,7 +516,7 @@ describe("3. the board draws it: the sentence, the badges, the button's number a
         Object.fromEntries(["amara", "kit", "una", "bea", "dev", "tariq"].map((uid) => [uid, offersRemove(view, uid)])),
         { amara: true, kit: true, una: true, bea: false, dev: false, tariq: false },
       );
-      // The lead takes Una off: the sentence goes, and so does her Remove.
+      // The lead takes Una off: the sentence goes, and so does the card's Remove.
       assert.equal((await remove(who, "una")).status, 200);
       const tidied = await drawn(who);
       assert.ok(!tidied.text.includes("gave their place back, so they aren’t emailed"));
@@ -570,15 +570,15 @@ describe("3. the board draws it: the sentence, the badges, the button's number a
 
 describe("4. putting somebody who left back is still how they come back", () => {
   for (const [label, who] of CALLERS) {
-    test(`as ${label}: Bea's card stops saying she gave her place back, and Publish tells her`, async () => {
+    test(`as ${label}: Bea's card stops saying Gave their place back, and Publish tells Bea`, async () => {
       await placed();
       await testThenPress("zach");
       await leaves("bea");
-      assert.equal((await cards(who)).bea, true, "she gave her place back by leaving");
+      assert.equal((await cards(who)).bea, true, "Bea gave the place back by leaving");
       const placedAgain = await place(who, [{ uid: "bea", groupId: A }]);
       assert.equal(placedAgain.body.placed, 1, JSON.stringify(placedAgain.body));
       assert.deepEqual([seat("bea").status, seat("bea").putBackAt instanceof Date, seat("bea").allocatedEmailAt], ["active", true, undefined]);
-      // Her place on the form stays given back; she is back on the run.
+      // The place on the form stays given back; Bea is back on the run.
       const row = (await board(who)).body.people.find((each) => each.uid === "bea");
       assert.deepEqual([row.fromForm.holdsPlace, row.putBack], [false, true]);
       assert.equal((await cards(who)).bea, false);
@@ -629,11 +629,11 @@ describe("5. Remove refuses somebody who left by themselves, by either door, and
 
     test(`as ${label}: somebody removed, placed and not told, or told and in their group is removed as before`, async () => {
       await everyKindOfCard("zach");
-      // Tariq, removed already: answered as before, and his seat untouched.
+      // Tariq, removed already: answered as before, and the seat untouched.
       const tariq = JSON.stringify(seat("tariq"));
       assert.equal((await remove(who, "tariq")).status, 200);
       assert.equal(JSON.stringify(seat("tariq")), tariq);
-      // Una, placed and not told, who gave her place back; and Amara, told.
+      // Una, placed and not told, who gave the place back; and Amara, told.
       const memberCount = read(`courseGroups/${B}`).memberCount;
       for (const uid of ["una", "amara"]) {
         assert.equal((await remove(who, uid)).status, 200, uid);
