@@ -227,7 +227,7 @@ export async function readRunRecords(db: Firestore, runId: string): Promise<RunR
     db.collection("courseAttendance").where("runId", "==", runId).get(),
     readSchedulerConfig(db),
   ]);
-  if (!runSnap.exists) return null;
+  if (!runSnap.exists || runSnap.data()?.destroying === true) return null;
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const groups = groupSnap.docs
     .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
@@ -707,7 +707,8 @@ export async function readRunHeader(
     db.collection("courseGroups").where("runId", "==", runId).get(),
     db.collection("courseEnrolments").where("runId", "==", runId).get(),
   ]);
-  if (!runSnap.exists) return null;
+  // A run being destroyed is gone already for everybody it served, as the tabs read it.
+  if (!runSnap.exists || runSnap.data()?.destroying === true) return null;
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const total = run.weekPlan.filter((entry) => entry.kind === "week").length;
   const current = total > 0 ? programmeWeekNow(run, now) : null;

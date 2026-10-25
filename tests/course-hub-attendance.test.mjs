@@ -638,6 +638,13 @@ describe("5. the line under the programme's name", () => {
     assert.match(await head("zach"), /Running · week 3 of 6 C Lead: Claudia · 11 taking part in 4 groups · Last sessions Wed 9 Dec/);
   });
 
+  test("a run being destroyed has no line, and no records to draw", async () => {
+    world.db.poke(`courseRuns/${RUN.agi}`, { destroying: true });
+    const said = await head("claudia");
+    assert.ok(!said.includes("taking part") && !said.includes("Running"), said);
+    assert.equal(await readRunRecords(world.db, RUN.agi), null);
+  });
+
   test("a reviewer keeps the form's own line", async () => {
     const said = await head("lloyd");
     assert.ok(!said.includes("taking part"), said);
