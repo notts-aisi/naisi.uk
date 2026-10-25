@@ -166,6 +166,9 @@ describe("2. the run's week editor writes them, client-direct", () => {
     assert.equal((html.match(/maxLength="160"/g) ?? []).length, 2);
     // Nothing has changed yet, so Save is off.
     assert.match(html, /<button[^>]*disabled=""[^>]*><span>Save questions<\/span><\/button>/);
+    // Both buttons are the house's full size, 44px tall: a touch target, not the small one.
+    assert.match(html, /<button class="btn secondary md"[^>]*><span>Add a question<\/span><\/button>/);
+    assert.match(html, /<button class="btn primary md"[^>]*><span>Save questions<\/span><\/button>/);
   });
 
   test("a group's copy says so, and a week with none says that", () => {

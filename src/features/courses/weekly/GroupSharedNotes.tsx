@@ -84,12 +84,18 @@ export default function GroupSharedNotes({
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || weekNumber === null) return;
+    const body = box.current?.value ?? "";
+    // A blank note is the route's refusal too; said here, it costs no request.
+    if (!body.trim()) {
+      setSaid({ ok: false, text: SHARED_NOTE_REFUSAL.empty });
+      return;
+    }
     setBusy(true);
     setSaid(null);
     const refused = await send(base, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: box.current?.value ?? "", weekNumber }),
+      body: JSON.stringify({ body, weekNumber }),
     });
     setBusy(false);
     if (refused) {

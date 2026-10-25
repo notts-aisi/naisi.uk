@@ -174,7 +174,7 @@ export default function WeekQuestionsEditor({
       )}
 
       <div className={styles.actions}>
-        <Button type="button" variant="secondary" size="sm" onClick={add} disabled={off || full}>
+        <Button type="button" variant="secondary" onClick={add} disabled={off || full}>
           {QUESTIONS_EDITOR_WORDS.add}
         </Button>
         <span className={styles.spacer} />
