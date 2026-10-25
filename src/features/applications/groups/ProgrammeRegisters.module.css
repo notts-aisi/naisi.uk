@@ -159,10 +159,14 @@
 }
 
 .nameHead {
+  min-width: 10rem;
   text-align: left;
 }
 
+/* Each session takes the same width, and the names take what is left, so a
+   register with one session so far reads like one with six. */
 .sessionHead {
+  width: 7.5rem;
   text-align: center;
 }
 

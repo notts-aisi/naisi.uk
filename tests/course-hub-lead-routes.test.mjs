@@ -297,19 +297,20 @@ describe("1 and 2. every route a track lead passes, as every kind of caller", ()
     world.db.seed("users/erin", { uid: "erin", email: "erin@example.com", displayName: "Erin Walsh", role: "pending" });
     const answer = await call("claudia", more.candidates.GET, run, { course: true });
     const { groups, people } = answer.body;
-    // The name a person goes by, as the board and the register say it.
-    assert.ok(people.some((person) => person.uid === "rahul" && person.name === "Rahul" && person.role === "member"), JSON.stringify(people));
+    // The account's whole name: two members who go by one first name are told apart.
+    assert.ok(people.some((person) => person.uid === "rahul" && person.name === "Rahul Mehta" && person.role === "member"), JSON.stringify(people));
     assert.ok(!people.some((person) => person.uid === "refused"), "a refused account is offered");
     assert.ok(!people.some((person) => person.uid === "erin"), "an account still waiting is offered");
     for (const person of people) assert.deepEqual(Object.keys(person).sort(), ["name", "role", "uid"]);
     assert.deepEqual(
-      groups.map((group) => [group.name, group.when, group.facilitators.map((f) => f.uid), group.facilitatorWords]),
+      groups.map((group) => [group.name, group.when, group.facilitators.map((f) => `${f.uid}:${f.name}`)]),
       [
-        ["Group B", "Tuesdays at 6pm", ["rahul", "sofia"], "Rahul and Sofia"],
-        ["Group C", "Wednesdays at 1pm", ["tom"], "Tom"],
-        ["Group A", "Thursdays at 6pm", ["sofia"], "Sofia"],
+        ["Group B", "Tuesdays at 6pm", ["rahul:Rahul Mehta", "sofia:Sofia Rossi"]],
+        ["Group C", "Wednesdays at 1pm", ["tom:Tom Fletcher"]],
+        ["Group A", "Thursdays at 6pm", ["sofia:Sofia Rossi"]],
       ],
     );
+    for (const group of groups) assert.deepEqual(Object.keys(group).sort(), ["facilitators", "id", "name", "when"]);
     assert.ok(!JSON.stringify(answer.body).includes("@"), "an address reached the lead");
   });
 

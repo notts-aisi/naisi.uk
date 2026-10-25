@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { namesInWords, weeklySlotWords } from "@/lib/courses/facilitatingEmail";
-import { displayNameOf } from "@/lib/courses/registerAccess";
+import { weeklySlotWords } from "@/lib/courses/facilitatingEmail";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser, type Role } from "@/lib/firebase/session";
@@ -16,7 +15,9 @@ import { isEligibleAdmissionsReviewer } from "@/lib/firestore/users";
  * The people are the ones that route will accept: every approved account
  * (member, committee or admin), the same `role in` query it intersects a
  * request with. NAMES, IDS AND ROLES ONLY: never an address, so the lead of a
- * programme, who never sees one, can staff a group.
+ * programme, who never sees one, can staff a group. A name here is the
+ * account's whole name where it has one (`fullNameOf`): two members who go by
+ * the same first name have to be told apart in a list to pick from.
  *
  * WHO MAY READ: somebody who may staff the run's groups (an admin, one of
  * the run's track leads, or the lead of the programme that names it:
@@ -43,9 +44,15 @@ export type RunFacilitatorGroup = {
   when: string | null;
   /** Who facilitates it now, in the group's own order. */
   facilitators: { uid: string; name: string }[];
-  /** Their names in a sentence: "Rahul and Sofia". Empty when nobody does. */
-  facilitatorWords: string;
 };
+
+/** The account's whole name, then the name they go by, then a placeholder. Never an address. */
+function fullNameOf(data: Record<string, unknown>): string {
+  const profile = (data.profile as Record<string, unknown> | undefined) ?? {};
+  const display = typeof data.displayName === "string" ? data.displayName.trim() : "";
+  const preferred = typeof profile.preferredName === "string" ? profile.preferredName.trim() : "";
+  return display || preferred || "NAISI member";
+}
 
 /** Somebody the facilitators route would accept. */
 export type FacilitatorCandidate = { uid: string; name: string; role: Role };
@@ -87,7 +94,7 @@ export async function GET(_req: Request, ctx: Ctx) {
   const people: FacilitatorCandidate[] = peopleSnap.docs
     .map((doc) => {
       const data = doc.data() ?? {};
-      return { uid: doc.id, name: displayNameOf(data), role: data.role as Role };
+      return { uid: doc.id, name: fullNameOf(data), role: data.role as Role };
     })
     .sort((a, b) => a.name.localeCompare(b.name, "en") || a.uid.localeCompare(b.uid));
   const nameOf = new Map(people.map((person) => [person.uid, person.name] as const));
@@ -102,16 +109,12 @@ export async function GET(_req: Request, ctx: Ctx) {
       const day = ((a.session.weekday + 6) % 7) - ((b.session.weekday + 6) % 7);
       return day || a.session.startTimeLocal.localeCompare(b.session.startTimeLocal) || a.name.localeCompare(b.name);
     })
-    .map((group) => {
-      const facilitators = group.facilitatorUids.map((uid) => ({ uid, name: nameOf.get(uid) ?? "NAISI member" }));
-      return {
-        id: group.id,
-        name: group.name.trim() || "Untitled group",
-        when: weeklySlotWords(group.session),
-        facilitators,
-        facilitatorWords: namesInWords(facilitators.map((facilitator) => facilitator.name)),
-      };
-    });
+    .map((group) => ({
+      id: group.id,
+      name: group.name.trim() || "Untitled group",
+      when: weeklySlotWords(group.session),
+      facilitators: group.facilitatorUids.map((uid) => ({ uid, name: nameOf.get(uid) ?? "NAISI member" })),
+    }));
 
   const payload: RunFacilitatorsPayload = { groups, people };
   return NextResponse.json(payload);
