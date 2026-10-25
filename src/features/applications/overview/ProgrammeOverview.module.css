@@ -613,6 +613,52 @@
   color: var(--color-text-body);
 }
 
+/* The Updates card (wk-overview): each update's writer, its title as a link
+   to the Messages tab, and the staff list's line under it. */
+.updateList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.updateItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.updateBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.updateTitle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.updateTitle:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.updateMeta {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 48rem) { /* --bp-md */
   .page {
     gap: 22px;

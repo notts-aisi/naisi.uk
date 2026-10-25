@@ -1314,6 +1314,9 @@ number agrees between them and the CSV.
   week not published that a group has reached, a register not finished
   once its session has ended (with the reminder's and the task's times from
   Course settings and their jobs' switches), and somebody who left.
+- **Updates** shows the two newest updates on the run, each with the line the
+  Messages tab gives it (who wrote it, who it was to, the day, what its email
+  did), and "Write an update". Both lead to the Messages tab.
 - **Remind** emails the register reminder to that group's facilitators
   only, after a confirm with the count, and claims the reminder job's own
   marker for each, so a facilitator hears about one register once, whether

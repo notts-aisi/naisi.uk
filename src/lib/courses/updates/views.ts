@@ -38,3 +38,25 @@ export function staffUpdateRows(updates: readonly UpdateView[]): StaffUpdate[] {
     ),
   }));
 }
+
+/** How many updates the Overview shows, newest first, as wk-overview draws them. The rest are on the Messages tab. */
+export const OVERVIEW_UPDATES_SHOWN = 2;
+
+/** One row of the Overview's Updates card: its title, who wrote it, and the staff list's line. */
+export type OverviewUpdate = { id: string; title: string; author: string; authorUid: string; meta: string };
+
+/** The Overview's Updates card: the newest few, worded as the Messages tab words them. */
+export function overviewUpdateRows(updates: readonly UpdateView[]): OverviewUpdate[] {
+  return updates.slice(0, OVERVIEW_UPDATES_SHOWN).map((update) => ({
+    id: update.id,
+    title: update.title,
+    author: update.authorName,
+    authorUid: update.authorUid,
+    meta: staffMetaWords(
+      update.authorFirst,
+      toWordsForStaff(update.to, update.groupName),
+      update.postedOn,
+      emailedWords(update.email),
+    ),
+  }));
+}

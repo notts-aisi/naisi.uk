@@ -1,6 +1,7 @@
 import Link from "next/link";
 import InitialsChip from "@/components/ui/InitialsChip";
 import type { OverviewAttention, OverviewModel, OverviewSession } from "@/lib/courses/programmeOverview";
+import type { OverviewUpdate } from "@/lib/courses/updates/views";
 import RemindButton from "./RemindButton";
 import styles from "./ProgrammeOverview.module.css";
 
@@ -10,8 +11,9 @@ import styles from "./ProgrammeOverview.module.css";
  * and their registers, what needs attention, who came by week, and the
  * people. Only "Remind" runs in the browser.
  *
- * Not drawn, because they are not built: the board's "Email Freya" and the
- * Updates card, which the Updates job puts under People.
+ * Not drawn, because it is not built: the board's "Email Freya". The
+ * Updates card shows the newest updates and leads to the Messages tab, where
+ * they are written and read in full.
  */
 
 function Arrow() {
@@ -116,11 +118,14 @@ function SessionCard({
 
 export default function ProgrammeOverview({
   model,
+  updates,
   roundId,
   programmeId,
   programmePath,
 }: {
   model: OverviewModel;
+  /** The newest updates on the run, worded on the server (`overviewUpdateRows`). */
+  updates: OverviewUpdate[];
   roundId: string;
   programmeId: string;
   /** The programme's own address, no trailing slash. */
@@ -275,7 +280,32 @@ export default function ProgrammeOverview({
             </p>
             <p className={styles.peopleLine}>{people.line}</p>
           </section>
-          {/* The Updates card (board wk-overview) sits here, under People: the Updates job draws it. */}
+          <section className={styles.card} aria-labelledby="overview-updates">
+            <h2 id="overview-updates" className={styles.cardTitle}>
+              Updates
+            </h2>
+            <Link href={`${programmePath}/messages`} className={styles.textLink}>
+              Write an update
+              <Arrow />
+            </Link>
+            {updates.length === 0 ? (
+              <p className={styles.peopleLine}>No updates yet.</p>
+            ) : (
+              <ul className={styles.updateList}>
+                {updates.map((update) => (
+                  <li key={update.id} className={styles.updateItem}>
+                    <InitialsChip name={update.author} uid={update.authorUid} size="sm" />
+                    <span className={styles.updateBody}>
+                      <Link href={`${programmePath}/messages`} className={styles.updateTitle}>
+                        {update.title}
+                      </Link>
+                      <span className={styles.updateMeta}>{update.meta}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         </div>
       </div>
     </div>

@@ -108,6 +108,7 @@ describe("2. every caller of the reader hands it a reading worked out for the ca
     const names = callers.map(([file]) => file).sort();
     assert.deepEqual(names, [
       "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/messages/page.tsx",
+      "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/page.tsx",
       "app/(app)/learn/[runId]/group/[groupId]/page.tsx",
       "app/api/courses/runs/[runId]/updates/route.ts",
     ]);
