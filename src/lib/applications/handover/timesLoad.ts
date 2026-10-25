@@ -1,5 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import { readPitchingWeek } from "@/lib/courses/pitching/week";
 import type { SessionUser } from "@/lib/firebase/session";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { opensProgrammeGroups, roleOnProgramme } from "../access";
@@ -72,6 +73,11 @@ export type TimesView = {
   length: { counted: number; options: number[]; source: LengthSource };
   /** Null whenever `blank` says why. */
   picture: TimesPicture | null;
+  /**
+   * The run's pitching week, when one of its weeks is ticked as one, so the
+   * Groups tab's views can offer that week's pitches; null otherwise.
+   */
+  pitchingWeek: number | null;
 };
 
 export type TimesOutcome =
@@ -135,6 +141,7 @@ export async function loadTimesPicture(
     blank: "no-run",
     length: { counted: 0, options: [], source: { kind: "none" } },
     picture: null,
+    pitchingWeek: null,
   };
 
   if (programme.runId !== null) {
@@ -144,6 +151,7 @@ export async function loadTimesPicture(
     if (read) view.run = { id: read.run.id, courseId: read.run.courseId };
   }
   if (!view.run) return { status: "ok", view };
+  view.pitchingWeek = (await readPitchingWeek(db, view.run.id))?.weekNumber ?? null;
 
   const groups = await groupsOf(db, view.run.id);
   const source = lengthFromGroups(groups);
