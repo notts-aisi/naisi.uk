@@ -1262,8 +1262,10 @@ left.
 
 **Before that** (handed over and not placed, or placed and not told yet),
 nothing takes them off the run. The panel names them under "No longer hold
-a place", and their card on the board says "Gave their place back". Then,
-by hand:
+a place", and their card on the board says "Gave their place back". Once
+they are removed it lists them under "Taken off the programme" instead, as
+it lists somebody who left under "Left the programme": nothing is left to do
+for either. Then, by hand:
 
 1. on the board, **Remove** them if they are in a group. That frees the
    seat. Publish leaves them out whether or not this comes first: a press

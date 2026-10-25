@@ -53,8 +53,15 @@ export type RunPanelView = {
   onTheList: number;
   /** Hold a place and are not on the run's list yet. A press hands them over. */
   toHandOver: HandOverPersonView[];
-  /** On the run's list from this programme, and no longer holding a place. */
+  /**
+   * On the run's list from this programme, no longer holding a place, and
+   * their seat still on the run (or no seat): nothing takes them off it.
+   */
   gaveBack: HandOverPersonView[];
+  /** The same, having left the run by themselves: nothing is left to do. */
+  left: HandOverPersonView[];
+  /** The same, taken off the run by staff (Remove): nothing is left to do. */
+  takenOff: HandOverPersonView[];
   /** Hold a place, and their row on the run says something other than accepted. */
   notAccepted: HandOverPersonView[];
   /** Rows on the run that this programme did not put there. */

@@ -1,7 +1,8 @@
 /**
  * The follow-ups to Publish: Remove gives the place on the form back, as
- * leaving does, and what the person's own page then says; and the register
- * reminder opens the register.
+ * leaving does, and what the person's own page then says; the register
+ * reminder opens the register; and the hand-over panel lists who left and who
+ * was taken off apart.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -13,6 +14,7 @@
  *   "Your application" (`loadStatus`, drawn by `StatusPage`), and the list of applications
  *   POST  /api/admissions/forms/[roundId]/programmes/[programmeId]/registers/remind
  *   the `courses-register-reminders` job
+ *   GET   /api/admissions/forms/[roundId]/programmes/[programmeId]/run   the Course run panel, and `RunHandOver`
  *
  * ## What this guards
  *
@@ -36,6 +38,10 @@
  *  5. THE REGISTER REMINDER'S "Open the register" goes to the register's own
  *     page, whichever sends it: the lead's Remind (as an admin and as the
  *     programme's lead) or the job.
+ *  6. THE HAND-OVER PANEL (an admin's alone) lists the people on the run's
+ *     list who no longer hold a place in three ways: left by themselves, taken
+ *     off by staff (each with nothing to do), and everybody else, whose seat
+ *     is still on the run, with the runbook's steps as before.
  *
  * Built on `tests/lib/leavingWorld.mjs`: week 3 of AGI Strategy's run, the
  * clock at noon on Tue 17 Nov 2026 in London. Amara is in Group A, told, and
@@ -79,6 +85,8 @@ const fit = await w.loadTs(join("features", "courses", "allocationFit.ts"));
 const record = await w.loadTs(join("lib", "courses", "finishing", "record.ts"));
 const remindRoute = await w.formRoute("programmes", "[programmeId]", "registers", "remind");
 const { registerRemindersJob } = await w.loadTs(join("lib", "scheduler", "jobs", "registerReminders.ts"));
+const { default: RunHandOver } = await w.loadTs(join("features", "applications", "editor", "RunHandOver.tsx"));
+const panelWords = await w.loadTs(join("features", "applications", "editor", "runHandOverWords.ts"));
 
 const CALLERS = [
   ["an admin", "zach"],
@@ -430,5 +438,70 @@ describe("5. the register reminder's \"Open the register\" goes to the register'
     for (const mail of reminders) {
       for (const link of (await opened(mail)).links) assert.match(link, /\/group\/[^/]+\/register$/, `${mail.to}: ${link}`);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. The hand-over panel lists who left and who was taken off apart
+// ---------------------------------------------------------------------------
+
+/** The Course run panel as the route answers `who`, and as the panel draws that answer. */
+async function panelOf(who = "zach") {
+  const answer = await call(who, routes.run.GET, { roundId: ROUND, programmeId: AGI });
+  if (answer.status !== 200) return { status: answer.status, panel: null, text: "" };
+  const html = renderToStaticMarkup(createElement(RunHandOver, { roundId: ROUND, programmeId: AGI, initial: answer.body.panel }));
+  return { status: answer.status, panel: answer.body.panel, text: textOf(html) };
+}
+
+const names = (people) => people.map((person) => person.name);
+
+describe("6. the hand-over panel lists who left and who was taken off apart from who still holds a seat", () => {
+  test("the words, as the boards' voice was asked for them", () => {
+    assert.deepEqual(
+      [panelWords.LEFT_TITLE, panelWords.LEFT_NOTE, panelWords.TAKEN_OFF_TITLE, panelWords.TAKEN_OFF_NOTE],
+      [
+        "Left the programme",
+        "They left by themselves, so their seat is free and their place is given back. There’s nothing to do.",
+        "Taken off the programme",
+        "They were taken off the programme on the board, so their seat is free and their place is given back. There’s nothing to do.",
+      ],
+    );
+  });
+
+  test("as an admin: Sam, who left, and Omar, whom staff took off, each have a list of their own and nothing to do", async () => {
+    const { status, panel, text } = await panelOf("zach");
+    assert.equal(status, 200);
+    assert.deepEqual([names(panel.left), names(panel.takenOff)], [["Sam Whitfield"], ["Omar Haddad"]]);
+    for (const name of ["Sam Whitfield", "Omar Haddad"]) assert.ok(!names(panel.gaveBack).includes(name), name);
+    assert.ok(text.includes(`Left the programme (1) Sam Whitfield ${panelWords.LEFT_NOTE}`), text);
+    assert.ok(text.includes(`Taken off the programme (1) Omar Haddad ${panelWords.TAKEN_OFF_NOTE}`), text);
+    // Everybody else who no longer holds a place keeps the runbook's steps.
+    assert.equal(text.split("Remove them from their group on the board").length - 1, panel.gaveBack.length > 0 ? 1 : 0);
+  });
+
+  test("once the programme's lead removes Amara and Dev leaves, the admin's panel lists each of them where they belong", async () => {
+    assert.equal((await remove("claudia", "amara")).status, 200);
+    await w.settle();
+    assert.equal((await w.leave("dev")).status, 200);
+    const { panel, text } = await panelOf("zach");
+    assert.deepEqual([names(panel.left), names(panel.takenOff)], [["Dev Patel", "Sam Whitfield"], ["Amara Okafor", "Omar Haddad"]]);
+    assert.ok(text.includes(`Left the programme (2) Dev Patel Sam Whitfield ${panelWords.LEFT_NOTE}`), text);
+    assert.ok(text.includes(`Taken off the programme (2) Amara Okafor Omar Haddad ${panelWords.TAKEN_OFF_NOTE}`), text);
+    for (const person of [...panel.left, ...panel.takenOff]) {
+      assert.equal(person.applicationPath, `/admin/admissions/forms/${ROUND}/programmes/${AGI}/applications/${person.uid}`);
+    }
+  });
+
+  test("somebody put back on the run after leaving is listed with the people whose seat is still on the run", async () => {
+    assert.equal((await w.leave("dev")).status, 200);
+    assert.equal((await w.join.place("zach", [{ uid: "dev", groupId: A }])).body.placed, 1);
+    const { panel } = await panelOf("zach");
+    assert.ok(names(panel.gaveBack).includes("Dev Patel"));
+    assert.ok(!names(panel.left).includes("Dev Patel"));
+  });
+
+  test("the programme's lead and a member are refused the panel, as before", async () => {
+    assert.equal((await panelOf("claudia")).status, 403);
+    assert.equal((await panelOf("amara")).status, 403);
   });
 });

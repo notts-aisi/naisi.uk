@@ -2,6 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import type { SessionUser } from "@/lib/firebase/session";
 import type { CourseApplicationDoc } from "@/lib/firestore/courseApplications";
+import { courseEnrolmentId, normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
 import { COURSE_RUN_STATUS_LABEL } from "@/lib/firestore/courses";
 import { canRunTerm } from "../access";
 import { applicationFormPath } from "../editor/olderRounds";
@@ -11,7 +12,7 @@ import { isId, type ApplicationForm } from "../normalise";
 import { loadForm } from "../repo";
 import { listDecisions, listSentApplications } from "../staffRepo";
 import { handOverBlocker } from "./handOver";
-import { compareWithRun, nameOnRecord, placeHoldersOn, type PlaceHolder } from "./holders";
+import { compareWithRun, nameOnRecord, placeHoldersOn, splitBySeat, type PlaceHolder } from "./holders";
 import {
   RUNS_COLLECTION,
   RUN_APPLICATIONS_COLLECTION,
@@ -34,7 +35,9 @@ import type { HandOverPersonView, RunChoiceView, RunPanelView } from "./views";
  *
  * For an admin, on a programme's Settings tab: the runs the programme can
  * name, the run it names, what stops a hand-over, and how the people who
- * hold a place compare with the run's own list.
+ * hold a place compare with the run's own list. Of the people on that list
+ * who no longer hold a place, each one's seat on the run is read, by id, to
+ * tell apart who left, who was taken off and whose seat is still on the run.
  *
  * ADMIN ONLY, AND DECIDED BEFORE ANYTHING IS READ. The panel names people,
  * and naming a run and handing people over are part of running the term.
@@ -128,6 +131,29 @@ async function listRunChoices(
   return choices;
 }
 
+/**
+ * The status of each of these people's seats on the run, by uid: one read,
+ * each seat at the one id that is that person's on this run. A seat that is
+ * not a learner's on this run is left out, as no seat.
+ */
+async function seatStatusesOn(
+  db: Firestore,
+  runId: string,
+  people: readonly PlaceHolder[],
+): Promise<Map<string, string>> {
+  const statuses = new Map<string, string>();
+  if (people.length === 0) return statuses;
+  const snaps = await db.getAll(
+    ...people.map((person) => db.collection("courseEnrolments").doc(courseEnrolmentId(runId, person.uid))),
+  );
+  for (const snap of snaps) {
+    if (!snap.exists) continue;
+    const seat = normalizeCourseEnrolment(snap.id, snap.data() ?? {});
+    if (seat.runId === runId && seat.role === "learner") statuses.set(seat.uid, seat.status);
+  }
+  return statuses;
+}
+
 /** The panel, for an admin. See the note at the top. */
 export async function loadRunPanel(
   db: Firestore,
@@ -174,6 +200,8 @@ export async function loadRunPanel(
     onTheList: 0,
     toHandOver: [],
     gaveBack: [],
+    left: [],
+    takenOff: [],
     notAccepted: [],
     otherRows: 0,
   };
@@ -187,10 +215,19 @@ export async function loadRunPanel(
   const holders = placeHoldersOn(form, programmeId, applications, decisions);
   const names = new Map(applications.map((application) => [application.uid, nameOnRecord(application)]));
   const compared = compareWithRun({ holders, rows, roundId, programmeId, names });
+  // Of the people who no longer hold a place, who left the run and who was
+  // taken off it: nothing is left to do for either, so they are listed apart
+  // from the people whose seat is still on the run.
+  const bySeat = splitBySeat(
+    compared.gaveBack,
+    programme.runId === null ? new Map() : await seatStatusesOn(db, programme.runId, compared.gaveBack),
+  );
   panel.holders = holders.length;
   panel.onTheList = compared.onTheList.length;
   panel.toHandOver = compared.toHandOver.map(person);
-  panel.gaveBack = compared.gaveBack.map(person);
+  panel.gaveBack = bySeat.stillOnTheRun.map(person);
+  panel.left = bySeat.left.map(person);
+  panel.takenOff = bySeat.takenOff.map(person);
   panel.notAccepted = compared.notAccepted.map(person);
   panel.otherRows = compared.otherRows;
   return { status: "ok", panel };
