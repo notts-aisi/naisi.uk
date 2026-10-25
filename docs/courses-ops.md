@@ -1626,6 +1626,82 @@ group meets next, until that evening has passed.
 change route writes it, and no client lane may set it, change it or create a
 group carrying it.
 
+## Add to calendar
+
+One private link per person, which their calendar app subscribes to and
+fetches again by itself, so a moved, online or cancelled session reaches
+their calendar without them doing anything (board st-calendar-phone). The
+record is `src/lib/firestore/calendarLinks.ts`; making, finding, replacing
+and deleting a link is `src/lib/courses/calendarLink.ts`; what a link's
+calendar holds is `src/lib/courses/calendarFeed.ts`; the file is
+`src/lib/events/ics.ts`.
+
+### Where people find it
+
+"Add to calendar" is on the session ticket of the programme page and of
+Home, for whoever's group the ticket is: a member Publish has told, or one of
+the group's facilitators. An online week's ticket carries Join online in its
+place. The dialog says how many sessions the link adds and when, and has four
+buttons: Apple Calendar (the link's `webcal:` address, which an iPhone or a
+Mac subscribes to), Google Calendar and Outlook (each one's own "add a
+calendar from a link"; Outlook is Microsoft 365, the university's, and
+somebody with a personal Outlook.com account adds the copied link instead),
+and Copy the link. Under the board's note, "Get a new link" replaces it.
+
+### What the calendar holds
+
+Every session of every group Publish has told the person about, and of every
+group they facilitate, dated as the site dates it, with each week's move,
+online week and cancellation applied. A seat counts from the week its owner
+joined; a seat that left (by themselves, or taken off by staff) keeps only
+the sessions that started before the day it left. A draft or cancelled run, a
+run being destroyed and an archived group add nothing, and nothing at all is
+shown while the account does not stand.
+
+Each session says its day and time, its programme and group ("AGI Strategy ·
+Group B") and that week's room. An online week says "Join on naisi.uk" with a
+link to the person's programme page, where Join online is. The meeting link,
+anybody's name and anybody's address are never in it. An evening cancelled
+through Change a session stays, marked cancelled; a week pushed back moves.
+Each session keeps the same id from one fetch to the next, and its sequence
+number grows with every change, so a calendar moves the entry it holds rather
+than adding a second.
+
+### The link
+
+`calendarLinks/{uid}`: `{ uid, token, createdAt }`, made the first time the
+person opens the dialog and the same every time after. "Get a new link"
+writes a new token over it, and the old link opens nothing from that moment.
+The link is deleted with the person's account.
+
+Every link that opens nothing (never made, mistyped, replaced, deleted, an
+account that does not stand) answers the same empty calendar, never a 404:
+a calendar app that holds a replaced link keeps its last copy when the link
+stops answering, and an empty answer empties that copy on its next fetch. A
+failure of ours (the database unreachable) answers 503 with Retry-After, so
+calendars keep what they had. The token is never written to a log line.
+
+### How often a calendar looks
+
+The file asks to be fetched again every hour, which Apple Calendar and
+Outlook heed. Google Calendar fetches on its own schedule, which can be many
+hours, so a change can take that long to reach a Google calendar; the
+programme page and the update the group is sent say it first. Nothing caches
+the file on the way (`private, no-store`).
+
+### If somebody's link has got out
+
+They open the dialog and press "Get a new link"; every calendar holding the
+old one empties on its next fetch. If they cannot open the dialog (they have
+left the programme), deleting their `calendarLinks/{uid}` document does the
+same.
+
+### Rules
+
+`calendarLinks` refuses every browser, its owner's and admins' included: the
+link route shows the owner their link, and the feed route reads it on the
+server.
+
 ## Offering a place somebody gave back
 
 A place given back after decision day can be offered, on the site, to
