@@ -10,6 +10,7 @@ import {
   groupsInWords,
   hasLeft,
   listGroups,
+  programmeWeekNow,
   weeksOf,
   type GroupSessionFacts,
   type ListedGroup,
@@ -19,7 +20,7 @@ import {
 import { firstNameOfUser, readRunLead, type RunLead } from "@/lib/courses/programmeLead";
 import { emailsCountLine, readReminderState, remindLabel, type ReminderState } from "@/lib/courses/registerRemind";
 import { followUpDueAt } from "@/lib/courses/unmarkedRegisters";
-import { addDaysToKey, currentWeekFor, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
+import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { courseNudgeSessionWhere } from "@/lib/email/courseNudgeEmail";
 import { readCoursesConfig, type CoursesConfig } from "@/lib/firestore/config";
 import { sessionModeForWeek } from "@/lib/firestore/courseGroups";
@@ -182,8 +183,8 @@ function cardWeek(
   now: Date,
 ): { phase: "before" | "running" | "after"; index: number; startKey: string; weekNumber: number | null; breakLabel: string | null } | null {
   const slots = taughtSlots(records);
-  if (slots.length === 0) return null;
-  const current = currentWeekFor(records.run, now);
+  const current = slots.length > 0 ? programmeWeekNow(records.run, now) : null;
+  if (!current) return null;
   if (current.phase === "before") {
     return { phase: "before", index: slots[0].index, startKey: slots[0].startKey, weekNumber: slots[0].weekNumber, breakLabel: null };
   }

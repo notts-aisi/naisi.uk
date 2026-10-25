@@ -495,11 +495,26 @@ function personRow(
 // The grid
 // ---------------------------------------------------------------------------
 
+/**
+ * WHERE THE PROGRAMME IS: its run's own calendar, the weeks its plan dates.
+ * Run-level by design, and the one place these tabs ask it: the lead's pages
+ * speak of the programme's week ("This week", "Running · week 3 of 6", the
+ * Overview's week card), while every group's sessions beside it are dated by
+ * the group's own calendar (`resolveSessions`). Null for a run whose start
+ * date cannot be used.
+ */
+export function programmeWeekNow(
+  run: Pick<CourseRunDoc, "startDate" | "weekPlan">,
+  now: Date,
+): ReturnType<typeof currentWeekFor> | null {
+  if (!isValidDateKey(run.startDate)) return null;
+  return currentWeekFor(run, now);
+}
+
 /** The run's own current week, when it is in a taught week. */
 export function runThisWeek(run: Pick<CourseRunDoc, "startDate" | "weekPlan">, now: Date): number | null {
-  if (!isValidDateKey(run.startDate)) return null;
-  const current = currentWeekFor(run, now);
-  return current.phase === "running" ? current.weekNumber : null;
+  const current = programmeWeekNow(run, now);
+  return current?.phase === "running" ? current.weekNumber : null;
 }
 
 /** The groups each person is listed in, and the rows themselves, for one viewer. */
@@ -694,9 +709,8 @@ export async function readRunHeader(
   if (!runSnap.exists) return null;
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const total = run.weekPlan.filter((entry) => entry.kind === "week").length;
-  if (!isValidDateKey(run.startDate) || total === 0) return null;
-  const current = currentWeekFor(run, now);
-  if (current.phase === "before") return null;
+  const current = total > 0 ? programmeWeekNow(run, now) : null;
+  if (!current || current.phase === "before") return null;
 
   const groups = groupSnap.docs
     .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
