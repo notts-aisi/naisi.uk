@@ -332,7 +332,8 @@ describe("1. Publish leaves out somebody placed and not told who gave their plac
       assert.equal((await cards(who)).amara, true, "Amara's card says Gave their place back");
 
       // The count: Bea, Dev and Tariq, and the three facilitators of the two
-      // groups with somebody in them. Before this job: 7, Amara among them.
+      // groups with somebody in them. Until Publish read the form (October
+      // 2026) it was 7, Amara among them.
       const shown = await summary(who);
       assert.deepEqual(
         [shown.emails, shown.people, shown.facilitators, shown.more, shown.noAddress, shown.emptyGroups, shown.refusals, shown.gaveBack],
