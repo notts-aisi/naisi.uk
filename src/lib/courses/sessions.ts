@@ -6,6 +6,7 @@ import {
 } from "./weekPlan";
 import { resolveCalendar, type ResolvedCalendar } from "./groupResolve";
 import {
+  isCancelledOn,
   sessionForWeek,
   type CourseGroupDoc,
   type GroupSession,
@@ -100,6 +101,16 @@ export type ResolvedSession = {
   dateKey: string;
   /** The slot itself, overrides applied for occurrence 1. */
   session: GroupSession;
+  /**
+   * Cancelled through "Change a session", the group keeping pace
+   * (`isCancelledOn`): nobody meets, the week's reading stays open, and the
+   * next session covers both weeks. STILL LISTED, because the register's
+   * columns are the taught weeks; what it changes is decided by each reader.
+   * `sessionRange` never names it, the register chase never chases it, and
+   * next week's email about it says it is off. Occurrence 1 only, like the
+   * week's other changes (see the module header).
+   */
+  cancelled: boolean;
 };
 
 /**
@@ -210,14 +221,17 @@ export function resolveSessions(
           meetingUrl: null,
           notes: "",
         } as GroupSession);
+    const firstDateKey =
+      slotStartKey && isMeetable(first) ? sessionDateKey(slotStartKey, first.weekday) : "";
     out.push({
       weekNumber,
       weekId,
       occurrence: 1,
       sessionKey: sessionKey(weekNumber, 1),
       slotStartKey,
-      dateKey: slotStartKey && isMeetable(first) ? sessionDateKey(slotStartKey, first.weekday) : "",
+      dateKey: firstDateKey,
       session: first,
+      cancelled: group ? isCancelledOn(group, weekId, firstDateKey) : false,
     });
 
     // Occurrence 2, the group's second standing slot, when it has one. NO
@@ -234,6 +248,8 @@ export function resolveSessions(
         slotStartKey,
         dateKey: slotStartKey ? sessionDateKey(slotStartKey, extra.weekday) : "",
         session: extra,
+        // The change records have no occurrence dimension (module header).
+        cancelled: false,
       });
     }
   }
@@ -299,6 +315,11 @@ export function sessionInstants(session: ResolvedSession): {
  * the ends of the range are read off without parsing anything. A group with no
  * usable start date has no range at all, which is a real state rather than a
  * failure: the register still has its columns, and the card simply says less.
+ *
+ * A CANCELLED SESSION IS NO MEETING. It is never `next`, and it is neither end
+ * of the range: a group that cancels its last session and keeps pace finishes
+ * on the session before it, and every card that says "next" names the evening
+ * people actually meet.
  */
 export type SessionRange = {
   /** First datable session, "YYYY-MM-DD". Empty when none can be dated. */
@@ -319,6 +340,7 @@ export function sessionRange(
   let nextStartsAt = Infinity;
 
   for (const session of sessions) {
+    if (session.cancelled) continue;
     if (session.dateKey) {
       if (!firstDateKey || session.dateKey < firstDateKey) firstDateKey = session.dateKey;
       if (session.dateKey > lastDateKey) lastDateKey = session.dateKey;
