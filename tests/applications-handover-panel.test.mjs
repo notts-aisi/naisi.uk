@@ -271,13 +271,17 @@ describe("the panel itself", () => {
   const code = stripSource(readFileSync(join(EDITOR, "RunHandOver.tsx"), "utf8"), { keepStrings: true });
 
   test("it tells the admin what a press does to the people it hands over: nothing they can see", () => {
+    // Since a placement is shown only once Publish has told its owner (the
+    // course hub, October 2026), being put in a group changes nothing in the
+    // member area either: the sentence names the moment that does.
     const said = code.replace(/\s+/g, " ");
     assert.ok(
       said.includes(
-        "Nobody is emailed, nobody is put in a group, and nothing changes in their member area until they are in one.",
+        "Nobody is emailed, nobody is put in a group, and nothing changes in their member area until Publish has told them their group.",
       ),
       "the panel no longer says a hand-over shows the person nothing",
     );
+    assert.ok(!said.includes("until they are in one"), "the panel still says being put in a group shows them something");
   });
 
   test("asks through the editor's one door, and nowhere else", () => {

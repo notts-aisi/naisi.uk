@@ -186,8 +186,8 @@ export default function RunHandOver({
 
             <p className={styles.small}>
               Handing over puts them on the run’s allocation board. Nobody is emailed, nobody is put in a
-              group, and nothing changes in their member area until they are in one. Press it again whenever
-              somebody new has a place: nothing is written twice.
+              group, and nothing changes in their member area until Publish has told them their group. Press it
+              again whenever somebody new has a place: nothing is written twice.
             </p>
 
             {panel.gaveBack.length > 0 && (
