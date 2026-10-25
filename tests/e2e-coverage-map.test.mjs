@@ -583,12 +583,6 @@ const NOT_COVERED = {
     coverWhen:
       "With the applicant spec for the new form: it types in the box on the last step, leaves, comes back and finds it there.",
   },
-  "/api/admissions/forms/[roundId]/application/reply": {
-    reason:
-      "An applicant's reply to their offer or invitation on the new application form. Executed against an in-memory store by tests/applications-wave-f-reply-route.test.mjs (the gate, the body, hidden forms, every state of an application against every reply, the counters, a refusal writing nothing, the waiting account an accepted invitation approves), and, for somebody in a group Publish has told them about, whose I can’t make it is leaving the programme, by tests/course-hub-cant-make-it-after-placement.test.mjs; pressed by hand at 390 for each outcome, but no browser spec drives it yet.",
-    coverWhen:
-      "Before the first decision day on an application form: an applicant spec that opens /applications/<form> after a send, says they are coming, and gives a place back.",
-  },
   "/api/admissions/forms/[roundId]/application/send": {
     reason:
       "The new application form's send. Executed by tests/applications-apply-routes.test.mjs (issues refused, the two copies, the counters, sending again, the version a send replaces), with no browser spec yet.",
@@ -961,12 +955,6 @@ const NOT_COVERED = {
   "/api/courses/runs/[runId]/enrolments/[uid]/reinstate": {
     reason:
       "Courses: /api/courses/runs/[runId]/enrolments/[uid]/reinstate is staff-facing, taken deliberately, and answered on the screen that called it.",
-    coverWhen:
-      "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
-  },
-  "/api/courses/runs/[runId]/enrolments/[uid]/remove": {
-    reason:
-      "Courses: /api/courses/runs/[runId]/enrolments/[uid]/remove is staff-facing, taken deliberately, and answered on the screen that called it.",
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
@@ -1384,12 +1372,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the first application form has closed on dev and a whole decision day is rehearsed there, because that rehearsal is the journey a spec would drive.",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/applications": {
-    reason:
-      "Application review: the list screen is reached from the term page, by each programme's card and by the rows under Needs you, and was checked by hand at 1440 and 390 as a lead, a reviewer and an admin.",
-    coverWhen:
-      "When the end-to-end fixtures can seed an application form with sent applications for a lead to open from the term page.",
-  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/applications/freed-places": {
     reason:
       "Application forms: the freed-places page is reached from a programme's Applications tab, is rendered to HTML as each caller by tests/applications-freed-places-page.test.mjs, and was checked by hand at 1440 and 390 against a seeded emulator.",
@@ -1456,12 +1438,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the credentials store is built and holds a real secret.",
   },
-  "/(app)/dashboard": {
-    reason:
-      "The dashboard summarises the task manager and owns no write of its own, so it breaks only when its sources do. The protected-route-gate battery asserts only that a signed-out visitor is redirected off it.",
-    coverWhen:
-      "When the task manager is next changed, or when the risk-ordered list reaches it: today it is covered only by the committee noticing within the hour.",
-  },
   "/(app)/events/manage": {
     reason:
       "Events authoring: /(app)/events/manage is committee-facing, and a failure surfaces on the editor that caused it.",
@@ -1522,12 +1498,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
   },
-  "/(app)/learn/[runId]/group/[groupId]/register": {
-    reason:
-      "Course hub: a group's register on its own page (board wk-register), its gate and every caller executed by tests/course-hub-facilitator-pages.test.mjs; the browser specs course-hub-facilitators-week, course-hub-groups-go-out and register-push drive it since the group page's restyle, and none of them has yet passed in CI with it.",
-    coverWhen:
-      "When those three specs have passed in CI with the register on its own page: add this page to their covers and remove this entry.",
-  },
   "/(app)/learn/[runId]/group/[groupId]/review": {
     reason:
       "Learn hub: /(app)/learn/[runId]/group/[groupId]/review is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
@@ -1558,24 +1528,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the same browser spec deletes the note it added.",
   },
-  "/api/courses/groups/[groupId]/summary": {
-    reason:
-      "Course hub: what a facilitator's Home says about their group (board wk-fac-home-phone); every caller and every field executed by tests/course-hub-facilitator-pages.test.mjs, and Home checked at 390 and 1440 on the preview kit.",
-    coverWhen:
-      "When the end-to-end fixtures sign a facilitator in to Home on a run with registers, answers waiting for review and next week's email on its schedule.",
-  },
-  "/(app)/learn/[runId]/leave": {
-    reason:
-      "Course hub: the confirmation behind “Leave the programme” on a programme's page; tests/course-hub-leaving.test.mjs renders it as every kind of caller and drives the leave it sends, its words and its writes on the run and on the form.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a run the application form placed somebody on, with that person signed in and Publish's email stamped on their seat.",
-  },
-  "/(app)/learn/[runId]/notes": {
-    reason:
-      "Course hub: a person's own notes and reflections on a programme's readings, read only, reached from the page somebody reads once they have left; tests/course-hub-leaving.test.mjs renders it as every kind of caller, with only their own words on it.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a run somebody has left, with their progress rows and that person signed in.",
-  },
   "/(app)/learn/[runId]/nudge": {
     reason:
       "Learn hub: /(app)/learn/[runId]/nudge is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
@@ -1587,12 +1539,6 @@ const NOT_COVERED = {
       "Learn hub: /(app)/learn/[runId]/progress is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
     coverWhen:
       "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
-  },
-  "/(app)/learn/[runId]/reading": {
-    reason:
-      "Course hub: every published week's readings, read only, reached from the page somebody reads once they have left; tests/course-hub-leaving.test.mjs renders it as every kind of caller, with weeks not published left out and a group's own copy of a week preferred.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a run somebody has left, with published weeks and that person signed in.",
   },
   "/(app)/learn/[runId]/weeks/[n]": {
     reason:
@@ -1641,12 +1587,6 @@ const NOT_COVERED = {
       "The About page is static: server-rendered from words in its own file, with no read and no form, and a break is visible to anybody who opens it.",
     coverWhen:
       "When the page gains anything read from the database or anything a visitor can submit, because from then on a break is no longer visible at a glance.",
-  },
-  "/(public)/applications/[roundId]": {
-    reason:
-      "The per-round applicant status page. For an older round it is the detail behind the hub the funnel already asserts. For an application form it is now the sent status, the outcome and the reply buttons, drawn from a view model that tests/applications-wave-f-status.test.mjs and tests/applications-wave-f-replies.test.mjs execute, and, once the place is a group or the person has left it, tests/course-hub-cant-make-it-after-placement.test.mjs, with no browser spec yet.",
-    coverWhen:
-      "When the first round publishes its decisions, because this is the screen an applicant refreshes.",
   },
   "/(public)/courses": {
     reason:
