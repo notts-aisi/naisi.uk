@@ -79,6 +79,8 @@ const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frida
 export type CalendarLineGroup = {
   /** "AGI Strategy": said only when the link holds more than one group's sessions. */
   programmeName: string;
+  /** "Group B": said too when two of those groups are on the same programme. */
+  groupName: string;
   /** The sessions the calendar holds for the group, cancelled evenings left out. */
   count: number;
   /** The group's usual day, `Date.getDay()`. */
@@ -90,17 +92,17 @@ export type CalendarLineGroup = {
 };
 
 /**
- * "6 sessions on Tuesdays at 6pm, from Tue 3 Nov", or with the programme's
- * name ("6 AGI Strategy sessions ...") when the link holds more than one
- * group's. One session is said by its own day: "1 session, on Tue 3 Nov at
- * 6pm". "" for a group the line cannot describe.
+ * "6 sessions on Tuesdays at 6pm, from Tue 3 Nov", or with a name ("6 AGI
+ * Strategy sessions ...") when the link holds more than one group's. One
+ * session is said by its own day: "1 session, on Tue 3 Nov at 6pm". "" for a
+ * group the line cannot describe.
  */
-function clauseOf(group: CalendarLineGroup, named: boolean): string {
+function clauseOf(group: CalendarLineGroup, name: string): string {
   const day = WEEKDAYS[group.weekday];
   const clock = clockWords(group.startTimeLocal);
   const first = dayWords(group.firstDateKey);
   if (!day || !clock || !first || group.count < 1) return "";
-  const what = named && group.programmeName.trim() ? `${group.programmeName.trim()} ` : "";
+  const what = name ? `${name} ` : "";
   if (group.count === 1) return `1 ${what}session, on ${first} at ${clock}`;
   return `${group.count} ${what}sessions on ${day}s at ${clock}, from ${first}`;
 }
@@ -112,8 +114,16 @@ function clauseOf(group: CalendarLineGroup, named: boolean): string {
  * names each group's programme.
  */
 export function sessionsLine(groups: readonly CalendarLineGroup[]): string {
-  const named = groups.filter((group) => group.count > 0).length > 1;
-  const clauses = groups.map((group) => clauseOf(group, named)).filter(Boolean);
+  const counted = groups.filter((group) => group.count > 0);
+  const programmes = counted.map((group) => group.programmeName.trim());
+  // Two groups on one programme are told apart by their own names too.
+  const nameOf = (group: CalendarLineGroup): string => {
+    if (counted.length < 2) return "";
+    const programme = group.programmeName.trim();
+    const shared = programmes.filter((name) => name === programme).length > 1;
+    return shared ? [programme, group.groupName.trim()].filter(Boolean).join(" ") : programme;
+  };
+  const clauses = counted.map((group) => clauseOf(group, nameOf(group))).filter(Boolean);
   if (clauses.length === 0) return CALENDAR_CHANGES;
   const said =
     clauses.length === 1

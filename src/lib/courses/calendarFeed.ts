@@ -238,6 +238,7 @@ export async function readCalendarFeed(db: Firestore, owner: SessionUser): Promi
     if (seat.live && first && count > 0) {
       groups.push({
         programmeName,
+        groupName: group.name,
         count,
         weekday: group.session.weekday,
         startTimeLocal: group.session.startTimeLocal,
