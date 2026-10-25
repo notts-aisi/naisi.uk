@@ -103,15 +103,19 @@ export default async function ReConsentPage() {
           <strong style={{ color: "var(--color-text)" }}>What changed:</strong>{" "}
           the section on courses and programmes now covers a programme while
           it runs and when it ends. It says what a programme&apos;s lead sees,
-          including every register of its groups; that on an incubator your
-          group sees a pitch you send, with your name, and how teams are made;
-          what leaving a programme does and who reads your reason; that a
-          place somebody gives back can be offered to somebody else until the
-          end of the first week; how we record who finished; and that
-          certificates are sent to the people who finished and to
-          facilitators, private until you turn the link on. It also says that
-          facilitators see names only, never email addresses, and that
-          downloads of a programme&apos;s attendance are recorded.
+          including every register of its groups and the notes its
+          groups&apos; facilitators share; that the people in your group see
+          the notes you share with it; that on an incubator your group sees a
+          pitch you send, with your name, and how teams are made; what leaving
+          a programme does and who reads your reason; that a place somebody
+          gives back can be offered to somebody else until the end of the
+          first week; how we record who finished; that certificates are sent
+          to the people who finished and to facilitators, private until you
+          turn the link on; and that you can add your sessions to your
+          calendar with a private link, which your calendar&apos;s provider
+          fetches and you can replace. It also says that facilitators see
+          names only, never email addresses, and that downloads of a
+          programme&apos;s attendance are recorded.
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}

@@ -1,7 +1,8 @@
 /**
  * Version 7 of the Privacy Policy, written for a programme while it runs and
  * when it ends: the programme's lead, pitching week and teams on an incubator,
- * leaving, a place that comes back, who finished, and certificates
+ * leaving, a place that comes back, who finished, certificates, the notes a
+ * group and its facilitators share, and the calendar link
  * (`docs/courses-ops.md`).
  *
  * What changed from v6, in the words a member would use:
@@ -19,7 +20,8 @@
  *     the group email that hands out none (the group roster route, and
  *     `displayNameOf` in `src/lib/courses/registerAccess.ts`). v6 said
  *     "contact details". Before the first session they will also see who has
- *     said they are coming, the one thing from an application they see.
+ *     said they are coming, the one thing from an application they see. They
+ *     also read the notes their group's facilitators keep for each other (16).
  *  4. **Pitching week.** A pitch is seen by the person's group with their
  *     name, and the pitch form says so; nobody in the group is told who picked
  *     what; the lead and admins see how many would join a pitch, not who
@@ -43,9 +45,15 @@
  *     placing people in groups, every register of its groups, the pitches and
  *     the teams, a leaver's reason, and who finished. A register's notes about
  *     named people are not among what a lead reads: the register's GET sends a
- *     lead the marks and none of the notes.
+ *     lead the marks and none of the notes. The lead does read the notes its
+ *     groups' facilitators share (16) and the notes each group shares on its
+ *     week pages (17), both on the programme's Attendance tab, and writes
+ *     neither.
  * 10. **What other participants see.** On an incubator, a pitch is seen by
- *     the group, and a team's page by the team.
+ *     the group, and a team's page by the team. A comment on a piece of
+ *     material is shown to the run only on a programme anyone can join; on a
+ *     programme that places people in groups, the people in a group see the
+ *     notes it shares instead (17).
  * 11. **Three downloads are logged, not two.** A programme's attendance joins
  *     the membership list and a worksheet's answers, with what that file holds
  *     and never holds.
@@ -57,9 +65,34 @@
  *     team, a decision about finishing, and a certificate whose link is off
  *     (`clearCoursePitches`, `clearCourseTeams` and `clearCourseFinishing` in
  *     `src/lib/firestore/accountDeletion.ts`); a pitch sent with a partner
- *     stays the partner's, without the name.
+ *     stays the partner's, without the name. The calendar link (18), the notes
+ *     shared with a group (17) and the notes written for a group's other
+ *     facilitators (16) go too (`deleteCalendarLink`,
+ *     `deleteCourseGroupSharedNotes` and `deleteCourseGroupNotes`).
  * 15. **Destroying a term's applications takes nobody off a programme.** A
  *     place on a run stays with the rest of the person's course record.
+ * 16. **Notes facilitators share.** A group's facilitators keep notes for
+ *     each other, which can name a person. The group's facilitators, the
+ *     programme's lead and admins read them, and nobody in the group: the one
+ *     reader (`src/lib/courses/groupNotes/readers.ts`) is called by the group
+ *     page and the programme's Attendance tab alone. A note goes with the
+ *     account of the facilitator who wrote it.
+ * 17. **Notes shared with your group.** On a programme that places people in
+ *     groups, each week's page shows the group's notes in place of the run's
+ *     comments under each reading. A note is shown with its writer's name, its
+ *     day and its week to the group, its facilitators, the programme's lead
+ *     and admins, and the page names them under the notes
+ *     (`src/lib/courses/sharedNotes/`). Only its writer deletes it, leaving
+ *     keeps it with the group, and it goes with the writer's account.
+ *     "Feedback on the material" says which kind of programme has which.
+ * 18. **Your calendar link.** Add to calendar gives each person a private
+ *     link to their sessions: the day, time and room of each, the programme's
+ *     and the group's name, a cancelled session marked, "Join on naisi.uk" for
+ *     an online week and never the meeting link, and no person's name or
+ *     address. The person's calendar provider fetches it and keeps what it
+ *     shows. A replaced link opens an empty calendar, and a session after the
+ *     day somebody left is not in it (`src/lib/courses/calendarFeed.ts`,
+ *     `src/lib/courses/calendarLink.ts`, and the feed route).
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -596,6 +629,26 @@ export default function PrivacyContentV7({
                   been submitted.
                 </li>
                 <li>
+                  <strong>Your calendar link.</strong> &quot;Add to
+                  calendar&quot; on your programme page gives you a private
+                  link to your sessions, which you can add to Apple Calendar,
+                  Google Calendar, Outlook or any calendar that subscribes to a
+                  link. It shows the day, time and room of each session of
+                  your group (and of any group you facilitate), with the
+                  programme&apos;s and the group&apos;s name, and marks a
+                  session that is cancelled. An online week says to join on
+                  naisi.uk, never the meeting link. It shows no names and no
+                  email address. Once you add it, your calendar&apos;s
+                  provider (Apple, Google or Microsoft, for example) fetches it
+                  from us every so often and keeps what it shows, under its own
+                  privacy policy, so a session that moves or is cancelled
+                  changes in your calendar too. Anyone else holding the link
+                  can see the same, so keep it to yourself. You can replace it
+                  at any time from the same place, and the old link then shows
+                  nothing. If you leave a programme, no session after the day
+                  you left is in it. It is deleted with your account.
+                </li>
+                <li>
                   <strong>Participant notes.</strong> After a session your
                   facilitator can write a private note about a named
                   participant, for example about how someone is finding the
@@ -603,6 +656,16 @@ export default function PrivacyContentV7({
                   Facilitators are students. These notes are personal data
                   about you, and if you ask to see the notes written about you,
                   we will show you them.
+                </li>
+                <li>
+                  <strong>Notes facilitators share.</strong> A group&apos;s
+                  facilitators can keep notes for each other about how their
+                  group is going, and a note can mention you by name. The
+                  group&apos;s facilitators, the programme&apos;s lead and
+                  admins read them; nobody in the group does. A note goes when
+                  the account of the facilitator who wrote it is deleted. If
+                  you ask to see what is written about you, we will show you
+                  these notes too.
                 </li>
                 <li>
                   <strong>Your written work.</strong> Answers to exercises,
@@ -614,6 +677,19 @@ export default function PrivacyContentV7({
                   anything you write to the rest of your group unless you
                   choose to share it, and we will not use anything you write in
                   a course to make decisions about you outside the programme.
+                </li>
+                <li>
+                  <strong>Notes shared with your group.</strong> On a programme
+                  that places you in a group, each week&apos;s page has notes
+                  the people in your group and its facilitators share with each
+                  other. A note you add is shown with your name, the day you
+                  wrote it and the week it was written on, to everyone in your
+                  group, its facilitators, the programme&apos;s lead and
+                  admins, and to nobody else; the page says so under the notes.
+                  While you are in the group you can delete a note you wrote,
+                  and nobody else can. If you leave the programme, the notes
+                  you shared stay with your group, as your marks stay on its
+                  register. They are deleted with your account.
                 </li>
                 <li>
                   <strong>Pitching week.</strong> On an incubator, one week can
@@ -649,9 +725,12 @@ export default function PrivacyContentV7({
                 </li>
                 <li>
                   <strong>Feedback on the material.</strong> You can give a
-                  piece of course material a star rating and leave a comment on
-                  it. Both are stored against your account and your name, and
-                  the comment is shown to the rest of your run. We do not
+                  piece of course material a star rating. On a programme anyone
+                  can join you can also leave a comment on it, which is shown
+                  to the rest of your run; on a programme that places you in a
+                  group, you share notes with your group instead (see Notes
+                  shared with your group). Ratings and comments are stored
+                  against your account and your name. We do not
                   currently run anonymous surveys on this site. If we add one,
                   the form will say that it is anonymous and how that is done,
                   and we will update this policy first.
@@ -783,9 +862,11 @@ export default function PrivacyContentV7({
                   a reviewer sees, and records the decision for that programme.
                   After decision day the lead can also offer a place that comes
                   back. Once the programme is running, the lead places its
-                  people in groups, reads every register of its groups, sees
-                  the pitches and makes the teams on an incubator, reads the
-                  reason somebody gives for leaving, and says who finished.
+                  people in groups, reads every register of its groups, the
+                  notes its groups&apos; facilitators share, and the notes each
+                  of its groups shares on its week pages, sees the pitches and
+                  makes the teams on an incubator, reads the reason somebody
+                  gives for leaving, and says who finished.
                   Admins see every application but their own, with your email
                   addresses. On decision day they are the only ones who choose
                   what somebody no programme took will hear, and they send the
@@ -796,9 +877,10 @@ export default function PrivacyContentV7({
                 <li>
                   <strong>Facilitators</strong> (students, in most cases only a
                   year or two ahead of you) see their own groups: who is in
-                  them, by name only, attendance, written work, and the
-                  participant notes their colleagues wrote about people in that
-                  group. They never see your email address: they can email
+                  them, by name only, attendance, written work, the participant
+                  notes their colleagues wrote about people in that group, and
+                  the notes the group&apos;s facilitators share with each
+                  other. They never see your email address: they can email
                   their group through the site without seeing anybody&apos;s.
                   Before the first session, they will also see whether each
                   person in their group has said they are coming. Apart from
@@ -807,8 +889,11 @@ export default function PrivacyContentV7({
                 </li>
                 <li>
                   <strong>Other participants</strong> on your run see your
-                  name, and any comment or star rating you choose to leave on a
-                  piece of course material. On an incubator, the people in
+                  name. On a programme anyone can join, they also see any
+                  comment or star rating you leave on a piece of course
+                  material; on a programme that places you in a group, the
+                  people in your group see the notes you share with it. On an
+                  incubator, the people in
                   your group also see any pitch you send, with your name, and
                   the people in your team see that you are in it and anything
                   you write on your team&apos;s page. They see nothing else
@@ -1137,7 +1222,9 @@ export default function PrivacyContentV7({
                 and profile, your newsletter subscriptions and their history,
                 your collaborator application if you made one, any outstanding
                 email-verification links, your course enrolments, applications
-                and drafts, your progress and your answers to exercises, a
+                and drafts, your progress and your answers to exercises, your
+                calendar link, the notes you shared with a group, notes you
+                wrote for the other facilitators of a group, a
                 pitch you sent alone, your name on a pitch you sent with a
                 partner, your picks in pitching week, your place in a team, any
                 decision a lead recorded about whether you finished, a
