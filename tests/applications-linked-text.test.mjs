@@ -992,7 +992,7 @@ const BUILT = new Map([
   [
     "src/features/applications/status/StatusPage.tsx",
     {
-      built: ["EVENTS", "EVENTS", "HUB", "`mailto:${CONTACT}`", "applyHref", "applyHref", "applyHref"],
+      built: ["EVENTS", "EVENTS", "EVENTS", "HUB", "`mailto:${CONTACT}`", "applyHref", "applyHref", "applyHref"],
       from: "constants in the file (two pages of this site and the society's own address), and the form's page from its id",
     },
   ],

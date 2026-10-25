@@ -54,7 +54,7 @@ export const LEAVING_STEPS = [
   "the leaving email reaches each who left, word for word, and nobody else, and no email carries a reason or the meeting link",
   "the facilitator's Home says who left, the group page lists both last with the day, and the register shows them read only with their marks",
   "the lead's Overview quotes each reason, and the Applications tab gives neither",
-  "the lead's Settings tab counts the places given back, and lists the two who left as no longer holding one",
+  "the lead's Settings tab counts the places given back, and lists the two who left apart, with nothing to do",
   "the lead's Attendance grid and its CSV say each left and on which day, with the marks they had",
   "the allocation board counts both as left, Remove refuses them with the day they left, and Publish owes them nothing",
   "the two who left can no longer read their group or open its pages",
