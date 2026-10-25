@@ -10,7 +10,7 @@ import {
   placementIsShownTo,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
-import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 
 /**
@@ -81,6 +81,12 @@ export type RunAccess = {
    * not this: the run closes to them as it always has.
    */
   hasLeft: boolean;
+  /**
+   * The run's groups that are not archived, as the gate read them (one
+   * equality on `runId`). A page that has to know when a member's own week
+   * opens reads their group's calendar from here rather than reading again.
+   */
+  groups: CourseGroupDoc[];
 };
 
 /**
@@ -167,13 +173,12 @@ export const getRunAccess = cache(
 
     // Archived groups no longer staff anyone — same filter the overview route
     // applies before it resolves its group card.
-    const facilitatesGroup = groupSnap.docs
+    const groups = groupSnap.docs
       .map((d) => normalizeCourseGroup(d.id, d.data() ?? {}))
-      .some(
-        (g) =>
-          !g.archived &&
-          isNamedWithStanding(user, "courseGroups.facilitatorUids", g.facilitatorUids),
-      );
+      .filter((g) => !g.archived);
+    const facilitatesGroup = groups.some((g) =>
+      isNamedWithStanding(user, "courseGroups.facilitatorUids", g.facilitatorUids),
+    );
 
     const isEnrolled = live?.role === "learner";
     const hasLeft = Boolean(
@@ -217,6 +222,7 @@ export const getRunAccess = cache(
       isTrackLead,
       canLearn: isEnrolled || isFacilitator || isAdmin,
       hasLeft,
+      groups,
     };
   },
 );
