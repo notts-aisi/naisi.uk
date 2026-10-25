@@ -430,8 +430,8 @@ describe("3. a group's facilitators change its sessions from its own page", () =
     }
   });
 
-  test("another group's facilitator, the lead, a member and somebody signed out are sent away", async () => {
-    for (const who of ["tom", "amara", "bea", "nobody"]) {
+  test("another group's facilitator, the lead, a track lead, a reviewer, members and somebody signed out are sent away", async () => {
+    for (const who of ["tom", "claudia", "yusuf", "lloyd", "tess", "amara", "dev", "nina", "bea", "nobody"]) {
       const drawn = await groupSessions(who);
       assert.ok(drawn.to, `${who} was shown the page`);
       assert.equal(find(drawn.element, "SessionsBoard").length, 0);

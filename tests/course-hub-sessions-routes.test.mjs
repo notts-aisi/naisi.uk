@@ -34,6 +34,7 @@
  */
 import { beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
+import { render } from "@react-email/render";
 import { AGI, AWAY, A, B, C, LINK, NOW, ROUND, RUN, TUE_24, makeSessionsWorld } from "./lib/sessionsWorld.mjs";
 
 const w = await makeSessionsWorld("__sessionsRoutes");
@@ -51,6 +52,14 @@ const weekOf = (n, groupId = B) => sessionsOf(groupId).find((s) => s.weekNumber 
 
 /** Everything a message handed to the mail door says, as one string. */
 const allOf = (message) => JSON.stringify(message);
+
+/** A message as its reader reads it: the plain-text lines, blank ones left out. */
+async function linesOf(message) {
+  const text = (await render(message.react, { plainText: true })).trim();
+  return text.split("\n").filter((line) => line.trim() !== "");
+}
+const RULE = "----------------------------------------";
+const FOOTER = "Nottingham AI Safety Initiative · University of Nottingham · ai-safety@uonsu.com";
 
 // ---------------------------------------------------------------------------
 // 1. Who
@@ -464,6 +473,37 @@ describe("4. every refusal comes before the write", () => {
 // ---------------------------------------------------------------------------
 // The run's other people never hear of it
 // ---------------------------------------------------------------------------
+
+describe("the update's email, word for word", () => {
+  test("cancelled, keeping pace: the board's update, as a notice to the group, from whoever pressed", async () => {
+    await press("claudia", B, CANCEL);
+    const message = onlyEmail();
+    assert.equal(message.subject, "Tue 24 Nov’s session is cancelled");
+    assert.deepEqual(await linesOf(message), [
+      "TUE 24 NOV’S SESSION IS CANCELLED",
+      "Sent as an important notice",
+      "You are getting this because you are in this course group, so it reaches you whatever your notification settings say, and it is never marketing.",
+      "Rahul and Sofia are both away. Week 4’s reading stays open.",
+      RULE,
+      "Sent by Claudia · Group B · AGI Strategy Fellowship (Autumn 2026)",
+      RULE,
+      FOOTER,
+    ]);
+  });
+
+  test("held online: where the link is, and no link", async () => {
+    world.db.poke(`courseGroups/${B}`, { "session.meetingUrl": LINK });
+    await press("rahul", B, { week: 6, dateKey: "2026-12-08", kind: "online", reason: "The room is being painted." });
+    const message = onlyEmail();
+    assert.equal(message.subject, "Tue 8 Dec’s session is online");
+    const lines = await linesOf(message);
+    assert.deepEqual(lines.slice(3, 4), [
+      "The room is being painted. Same day and time. The link to join is on your programme page, not in your emails.",
+    ]);
+    assert.equal(lines[5], "Sent by Rahul · Group B · AGI Strategy Fellowship (Autumn 2026)");
+    assert.ok(!allOf(message).includes(LINK));
+  });
+});
 
 describe("the update reaches Group B's people and nobody else", () => {
   test("not the members of other groups, not somebody not yet told, not somebody who left, not a facilitator", async () => {
