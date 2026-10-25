@@ -9,7 +9,7 @@ import type { CourseUpdateEmail, CourseUpdateTo } from "@/lib/firestore/courseUp
  * wk-programme, wk-fac-group, st-fac-before-phone), with their apostrophes.
  * The words they do not draw (an empty list, a refusal, a held email, a
  * writer whose account is gone, the test's marking) are written in the same
- * voice and listed for Claude Design in the build notes.
+ * voice and listed in the build notes for the boards' designers to confirm.
  */
 
 /** Where a reply to an update's email goes: said on the page, and set on every email. */

@@ -6,8 +6,8 @@
  *
  * Every number and date comes in from a record; nothing here knows a term.
  * The board's own words are kept exactly, apostrophes included. Words the
- * board does not draw are in its voice, and are listed for Claude Design in
- * the job's notes.
+ * board does not draw are in its voice, and are listed in the job's notes for
+ * the boards' designers to confirm.
  *
  * NEVER A TARGET NUMBER TO A MEMBER. The rule's number appears only in the
  * sentences built for the programme's lead and admins (`ruleSentence`,

@@ -4,9 +4,10 @@
  * have left (board wk-left-phone).
  *
  * The left page's words are the board's. The confirmation is not drawn on any
- * board: its words are written in the boards' voice and listed for Claude
- * Design. Every name and date in them is a slot filled from a record by the
- * caller: the programme's short name, the group, the lead, the day they left.
+ * board: its words are written in the boards' voice and listed for the
+ * boards' designers to confirm. Every name and date in them is a slot filled
+ * from a record by the caller: the programme's short name, the group, the
+ * lead, the day they left.
  *
  * Pure, with no imports, so the confirmation form in the browser, the server
  * pages and the tests all read the same sentences.
