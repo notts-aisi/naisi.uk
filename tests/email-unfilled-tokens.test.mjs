@@ -106,7 +106,10 @@ const { loadTs } = createLoader({
     ["@/lib/firebase/admin", "export function getAdminDb() { return globalThis.__placement.db; }"],
     ["@/lib/firebase/session", "export async function getCurrentUser() { return globalThis.__placement.user; }"],
     ["@/lib/firebase/impersonation", "export async function assertNotImpersonating() { return null; }"],
-    ["@/lib/firebase/eligibility", "export function isNamedWithStanding() { return false; }"],
+    [
+      "@/lib/firebase/eligibility",
+      "export function isNamedWithStanding() { return false; }\nexport function holdsStanding() { return false; }",
+    ],
     ["@/lib/firestore/suppression", "export async function isSuppressed() { return false; }"],
     [
       "@/lib/firestore/subscriptions",

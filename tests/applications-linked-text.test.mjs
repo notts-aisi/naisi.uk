@@ -907,6 +907,13 @@ const BUILT = new Map([
     { built: ["`${base}/${tab.segment}`"], from: "a programme's own pages: its path and one of the tabs listed in the file" },
   ],
   [
+    "src/features/applications/groups/GroupsViews.tsx",
+    {
+      built: ["groupsViewPath(roundId, programmeId, view)"],
+      from: "the Groups tab's own path, made from the form's and the programme's ids, encoded, and one of the views listed in the file",
+    },
+  ],
+  [
     "src/features/applications/editor/Refusals.tsx",
     {
       built: [

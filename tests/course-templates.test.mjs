@@ -816,7 +816,10 @@ test("MODEL §5.4 the note route derives weekNumber and byName server-side", () 
   assert.match(NOTES_CODE, /byName: displayNameOf\(actorSnap\.data\(\) \?\? \{\}\)/);
   assert.equal(/body\.byName/.test(NOTES_CODE), false);
   // One indistinguishable 403 covering both "no such run" and "not yours".
-  assert.match(NOTES_CODE, /runSnap\.exists &&\s*\(actor\.role === "admin"/);
+  // The trusted tier opens with the one gate a track lead passes (an admin is
+  // in it), asked only of a run that exists.
+  assert.match(NOTES_CODE, /runSnap\.exists &&\s*\(\(staffing !== null && doesTrackLeadWork\(staffing\)\)/);
+  assert.match(NOTES_CODE, /const staffing = runSnap\.exists\s*\?\s*await runStaffingOf\(/);
   assert.equal((NOTES_CODE.match(/error: "Forbidden"/g) ?? []).length, 1);
   assert.equal(/error: "Run not found"/.test(NOTES_CODE), false);
   // The group lookup is a bounded field-masked scan, not an array-contains
