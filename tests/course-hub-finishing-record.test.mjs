@@ -37,7 +37,6 @@ import {
   RUN,
   decision,
   decisionPath,
-  finishSeed,
   makeFinishWorld,
   rulePath,
 } from "./lib/finishWorld.mjs";
