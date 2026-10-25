@@ -871,6 +871,20 @@ async function reads(label) {
   seen.reads[label] = read;
 }
 
+/** AGI Strategy's own list of applications (the Applications tab), as its lead reads it. */
+async function theList() {
+  const list = await call("claudia", routes.list.GET, of("agi"));
+  const board = list.body?.board;
+  if (!board) return { refused: list.status };
+  const row = (uid) => board.rows.find((r) => r.uid === uid) ?? null;
+  return {
+    counts: board.counts,
+    placed: board.progress.placed,
+    placesLeft: board.progress.placesLeft,
+    hannah: row("hannah") && { standing: row("hannah").standing, byInvitation: row("hannah").byInvitation, withdrawn: row("hannah").withdrawn },
+  };
+}
+
 /** The freed-places page, as `who` would be shown it. */
 async function offerPage(who) {
   const loaded = await pages.freedPlaces.loadOfferBoard(world.db, sessionOf(who), ROUND, P.agi, new Date());
@@ -1113,6 +1127,7 @@ async function aFreedPlace() {
   at("accepting");
   f.accepted = await step("Hannah accepts", 200, "hannah", routes.reply.POST, params(), { body: { reply: "accept-invitation" } });
   f.hannahAccepted = await ownPage("hannah");
+  f.listOnceAccepted = await theList();
   await timesAndBoard("Hannah accepted, before the hand-over");
   await reads("Hannah accepted");
 
@@ -1129,6 +1144,7 @@ async function aFreedPlace() {
   f.pressMail = await Promise.all(mailSince(beforeThePress).map(opened));
   f.allMail = mailSince(f.mailBefore).map((mail) => [mail.to, mail.subject]);
   f.groupB = { memberCount: groupDoc(GROUP.B).memberCount };
+  f.listAtTheEnd = await theList();
   await reads("Hannah published");
   await timesAndBoard("the end");
   seen.pages.end = Object.fromEntries(await Promise.all([...AGI_PLACES, ...POOLED, ...INCUBATOR_PLACES].map(async (who) => [who, await ownPage(who)])));
@@ -1953,6 +1969,22 @@ describe("stage one of the course hub, one term from decision day to the first s
       assert.deepEqual(read.rahul, FACILITATING(["Amara", "Hannah", "Kofi"], false));
       assert.deepEqual(read.sofia, FACILITATING(["Amara", "Hannah", "Kofi"], false));
       assert.deepEqual(f().groupB, { memberCount: 3 });
+    });
+
+    // The programme's own list counts a place held by `holdingOf`, which reads
+    // an accepted freed place as one. Each row's standing is the programme's
+    // decision document, and for somebody who ranked the programme that says
+    // pool: only a row on the list by an invitation to a programme the person
+    // did not rank is read as accepted.
+    test("the programme's list counts Hannah's place in its head, and her row keeps the programme's decision, Pooled", () => {
+      for (const list of [f().listOnceAccepted, f().listAtTheEnd]) {
+        assert.deepEqual(list, {
+          counts: { all: 7, toReview: 0, accepted: 5, pooled: 2, declined: 0 },
+          placed: 6,
+          placesLeft: 0,
+          hannah: { standing: "pooled", byInvitation: false, withdrawn: false },
+        });
+      }
     });
 
     test("Nell, pooled too, was emailed once, on decision day, and never after", () => {
