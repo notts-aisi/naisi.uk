@@ -702,6 +702,35 @@ Not covered, on purpose: the sign-in provider's own verification and
 password-reset mail (sent by the provider to the address the person typed), and
 web push (it reaches only devices that subscribed on that copy of the site).
 
+## Which address mail comes from
+
+There are two, so somebody reading their inbox can tell the newsletter from
+everything else the site sends, and filter either.
+
+| What is sent | Comes from |
+| --- | --- |
+| An issue of the newsletter, and its test send | `NEWSLETTER_FROM_EMAIL` (newsletter@naisi.uk) |
+| Everything else: confirmations, reminders, and every event, course, task and admissions message | `SMTP_FROM_EMAIL` (notifications@naisi.uk) |
+
+Both are set in `apphosting.yaml`, which both backends read. `sendEmail()`
+picks between them (`fromAddressFor` in `src/lib/email/send.ts`): a call that
+passes `sender: "newsletter"` comes from the newsletter's address, and every
+other call from the default. With `NEWSLETTER_FROM_EMAIL` unset or blank the
+newsletter comes from `SMTP_FROM_EMAIL` too, so a copy of the site that has
+not set it (a laptop, the test harness) sends exactly as it did before. Both
+carry the same display name (`SMTP_FROM_NAME`, or a call's own `fromName`),
+and replies to either go to `EMAIL_DEFAULT_REPLY_TO`.
+
+The rule a maintainer keeps: only the newsletter's own two routes
+(`POST /api/newsletter/[id]/send` and its test send) pass
+`sender: "newsletter"`, and nothing else in `src` reads
+`NEWSLETTER_FROM_EMAIL` or names either address. `tests/email-senders.test.mjs`
+walks the tree for it, which is why every call to `sendEmail` writes its
+arguments out where it is made: a call handed a variable or a spread is one
+the walk cannot read, and the guard fails it rather than guessing. The course
+announcement renders the newsletter's template and still comes from the
+default address, because the template is how a message looks, not who sent it.
+
 ## Adding a sender
 
 1. **Register it** in `tests/notification-classification.test.mjs` with a class,
@@ -723,6 +752,9 @@ web push (it reaches only devices that subscribed on that copy of the site).
    grid marker at all. It is a per-file rule because two files genuinely carry
    both lanes.
 4. **A file whose entries are all transactional must reference neither.**
+5. **Leave `sender` out.** A new send comes from `SMTP_FROM_EMAIL` like every
+   other message; only an issue of the newsletter passes `sender: "newsletter"`
+   (see "Which address mail comes from").
 
 ## Deliberately not built
 
