@@ -107,6 +107,16 @@ describe("the page, open", () => {
     assert.ok(!said.includes("Sent"), "the card is drawn beside its form");
   });
 
+  test("a pitch whose reading has left the week opens on Another paper, with the title it was pitched under", async () => {
+    await ask.pitch("amara", pitchBody());
+    world.db.poke(`courseRuns/${INC.run}/weeks/w03`, {
+      materials: world.db.read(`courseRuns/${INC.run}/weeks/w03`).materials.filter((material) => material.id !== "m_probe_paper"),
+    });
+    const { html } = await draw("amara", { editing: true });
+    assert.match(html, /<option value="typed" selected="">Another paper<\/option>/);
+    assert.match(html, /name="paperTitle" value="Probes that transfer"/);
+  });
+
   test("the partner's form changes the words and names who sent it, without a partner picker", async () => {
     await ask.pitch("amara", pitchBody({ partnerUid: "dev" }));
     const { html, text: said } = await draw("dev", { editing: true });

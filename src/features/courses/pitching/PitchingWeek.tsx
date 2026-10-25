@@ -125,7 +125,14 @@ function PitchForm({
   const pathname = usePathname();
   const formBox = useRef<HTMLFormElement>(null);
   const twistBox = useRef<HTMLTextAreaElement>(null);
-  const firstPaper = mine ? (mine.readingId ?? ANOTHER_PAPER) : (view.readings[0]?.id ?? ANOTHER_PAPER);
+  // A pitch whose reading has since left the week opens on "Another paper",
+  // with the title it was pitched under, rather than on somebody else's paper.
+  const readingStill = mine?.readingId ? view.readings.some((reading) => reading.id === mine.readingId) : false;
+  const firstPaper = mine
+    ? readingStill && mine.readingId
+      ? mine.readingId
+      : ANOTHER_PAPER
+    : (view.readings[0]?.id ?? ANOTHER_PAPER);
   const [paperChoice, setPaperChoice] = useState(firstPaper);
   const [twistLeft, setTwistLeft] = useState(PITCH_LIMITS.twist - (mine?.twist.length ?? 0));
   const [busy, setBusy] = useState(false);
@@ -151,7 +158,9 @@ function PitchForm({
           ? { kind: "typed", title: String(form.get("paperTitle") ?? "") }
           : { kind: "reading", materialId: choice },
       twist: String(form.get("twist") ?? ""),
-      partnerUid: sentByMe ? String(form.get("partner") ?? "") || null : (mine?.partner?.uid ?? null),
+      // Who is on a pitch is its sender's to choose, so a partner's save names
+      // nobody and the server keeps the pitch's people as they are.
+      partnerUid: sentByMe ? String(form.get("partner") ?? "") || null : null,
     };
     setBusy(true);
     setError(null);
@@ -206,7 +215,7 @@ function PitchForm({
             id={`${id}-paper-title`}
             name="paperTitle"
             className={styles.input}
-            defaultValue={mine && !mine.readingId ? mine.paperTitle : ""}
+            defaultValue={mine && !readingStill ? mine.paperTitle : ""}
             maxLength={PITCH_LIMITS.paper}
             autoComplete="off"
           />

@@ -14,11 +14,9 @@ import styles from "./ProgrammePitches.module.css";
  * forward", "Move to…" and "Tell everyone their team". Making teams is the
  * next piece of work.
  *
- * Every address here is a page of this site built from stored ids.
+ * Every address here is a page of this site, written out from its own path
+ * with stored ids encoded into it, so none can name another site.
  */
-
-const programmePath = (view: Pick<StaffPitchesView, "roundId" | "programmeId">) =>
-  `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}`;
 
 /**
  * The Groups tab's views, with Pitches current: the times picture, the run's
@@ -28,7 +26,10 @@ function GroupsViews({ view }: { view: StaffPitchesView }) {
   if (!view.run) return null;
   return (
     <nav className={styles.views} aria-label="Groups views">
-      <Link href={`${programmePath(view)}/groups`} className={styles.view}>
+      <Link
+        href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups`}
+        className={styles.view}
+      >
         Times
       </Link>
       <Link
@@ -38,7 +39,7 @@ function GroupsViews({ view }: { view: StaffPitchesView }) {
         People in groups
       </Link>
       <Link
-        href={`${programmePath(view)}/groups/pitches`}
+        href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/pitches`}
         className={`${styles.view} ${styles.viewCurrent}`}
         aria-current="page"
       >
@@ -46,10 +47,6 @@ function GroupsViews({ view }: { view: StaffPitchesView }) {
       </Link>
     </nav>
   );
-}
-
-function runEditorPath(run: NonNullable<StaffPitchesView["run"]>): string {
-  return `/admin/courses/${encodeURIComponent(run.courseId)}/runs/${encodeURIComponent(run.id)}`;
 }
 
 /** A calm sentence in place of the list, with the one place to go next. */
@@ -64,7 +61,10 @@ function Blank({ view }: { view: StaffPitchesView }) {
             : `The course run ${name} names is no longer on the site. Name another on the Settings tab, under Course run.`}
         </p>
         <div className={styles.blankActions}>
-          <Link href={`${programmePath(view)}/setup`} className={styles.button}>
+          <Link
+            href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/setup`}
+            className={styles.button}
+          >
             Go to Settings
           </Link>
         </div>
@@ -79,7 +79,10 @@ function Blank({ view }: { view: StaffPitchesView }) {
       </p>
       {view.run && view.canOpenRunEditor && (
         <div className={styles.blankActions}>
-          <Link href={runEditorPath(view.run)} className={styles.button}>
+          <Link
+            href={`/admin/courses/${encodeURIComponent(view.run.courseId)}/runs/${encodeURIComponent(view.run.id)}`}
+            className={styles.button}
+          >
             Open the run editor
           </Link>
         </div>
@@ -145,7 +148,7 @@ export function PitchesAreTheLeads({ roundId, programmeId }: { roundId: string; 
   return (
     <Refusal
       title="Only the lead and admins can open the pitches"
-      href={`${programmePath({ roundId, programmeId })}/applications`}
+      href={`/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/applications`}
       action="Go to applications"
     >
       The pitches from pitching week, and how many people would join each, are for the

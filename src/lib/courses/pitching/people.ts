@@ -1,7 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
-import type { SessionUser } from "@/lib/firebase/session";
+import type { Role, SessionUser } from "@/lib/firebase/session";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
@@ -23,6 +23,32 @@ import {
  * A placement here is a LEARNER's active seat in a group. A facilitator's own
  * enrolment is not one: facilitators run the session and do not pitch.
  */
+
+/**
+ * A stored account, read as the session shape the standing table
+ * (`src/lib/firebase/eligibility.ts`) takes, for asking whether somebody who
+ * is not the caller still stands: a partner, a lead. Only the role, the SU
+ * flag and the permission keys decide a bar; nothing else is copied.
+ */
+export function storedSession(uid: string, data: Record<string, unknown>): SessionUser {
+  const perms = (data.permissions as Record<string, unknown> | undefined) ?? {};
+  return {
+    uid,
+    email: null,
+    role: (typeof data.role === "string" ? data.role : "pending") as Role,
+    suRecognised: data.suRecognised === true,
+    permissions: {
+      draftNewsletter: perms.draftNewsletter === true,
+      approveNewsletter: perms.approveNewsletter === true,
+      draftEvent: perms.draftEvent === true,
+      approveEvent: perms.approveEvent === true,
+      draftCourse: perms.draftCourse === true,
+      approveCourse: perms.approveCourse === true,
+      manageMembership: perms.manageMembership === true,
+      circulateWorksheet: perms.circulateWorksheet === true,
+    },
+  };
+}
 
 /** The allocation board's ceiling on one run's rows. */
 const MAX_ROWS = 500;

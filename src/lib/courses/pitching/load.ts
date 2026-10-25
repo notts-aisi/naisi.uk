@@ -5,6 +5,7 @@ import { resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { displayNameOf } from "@/lib/courses/registerAccess";
 import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
 import { londonDateKey } from "@/lib/courses/weekPlan";
+import { holdsStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -16,7 +17,7 @@ import {
   type PitchRow,
   type PitchingView,
 } from "./model";
-import { ownSeat, seatsOn } from "./people";
+import { ownSeat, seatsOn, storedSession } from "./people";
 import { readPitchingWeek, type PitchingWeek } from "./week";
 import { editUntilWords, eyebrowWords, ledeWords, pitchedByWords, teamsWords, type SessionStart } from "./words";
 
@@ -149,7 +150,12 @@ export function pitchesOfGroup(pitches: PitchDoc[], weekId: string, groupId: str
   return pitches.filter((pitch) => pitch.weekId === weekId && pitch.groupId === groupId);
 }
 
-/** Display names for these people, and whether each account stands. Names only, never an address. */
+/**
+ * Display names for these people, and whether each account still meets the
+ * bar a seat on a run is held to (`courseEnrolments.uid`, asked of the
+ * standing table: their seat is already known, so only the standing half is
+ * asked here). Names only, never an address.
+ */
 export async function peopleNamed(
   db: Firestore,
   uids: Iterable<string>,
@@ -163,7 +169,7 @@ export async function peopleNamed(
     const data = (doc.data() ?? {}) as Record<string, unknown>;
     out.set(doc.id, {
       name: displayNameOf(data),
-      approved: data.role === "member" || data.role === "committee" || data.role === "admin",
+      approved: holdsStanding(storedSession(doc.id, data), "courseEnrolments.uid"),
     });
   }
   return out;

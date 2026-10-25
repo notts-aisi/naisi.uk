@@ -1,7 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import { storedSession } from "@/lib/courses/pitching/people";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
-import type { Role, SessionUser } from "@/lib/firebase/session";
 import { firstWord } from "@/lib/firestore/applicationEmails";
 import { own } from "../keys";
 import type { ProgrammeKind } from "../model";
@@ -31,27 +31,6 @@ export type RunProgramme = {
   /** The lead's first name, or null when there is no lead who stands. */
   leadFirstName: string | null;
 };
-
-/** A stored account, read as the session shape the standing table takes. */
-function storedSession(uid: string, data: Record<string, unknown>): SessionUser {
-  const perms = (data.permissions as Record<string, unknown> | undefined) ?? {};
-  return {
-    uid,
-    email: null,
-    role: (typeof data.role === "string" ? data.role : "pending") as Role,
-    suRecognised: data.suRecognised === true,
-    permissions: {
-      draftNewsletter: perms.draftNewsletter === true,
-      approveNewsletter: perms.approveNewsletter === true,
-      draftEvent: perms.draftEvent === true,
-      approveEvent: perms.approveEvent === true,
-      draftCourse: perms.draftCourse === true,
-      approveCourse: perms.approveCourse === true,
-      manageMembership: perms.manageMembership === true,
-      circulateWorksheet: perms.circulateWorksheet === true,
-    },
-  };
-}
 
 /** The first word of the name a person chose, then of their account's. */
 function firstNameOf(data: Record<string, unknown>): string {

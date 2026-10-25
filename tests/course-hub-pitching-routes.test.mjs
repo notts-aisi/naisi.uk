@@ -236,6 +236,15 @@ describe("pitching", () => {
     assert.equal((await ask.view("bea")).body.view.mine.id, first.mine.id);
   });
 
+  test("a partner's save names nobody and keeps the pitch's people, even once the sender has left", async () => {
+    await pitched("amara", { partnerUid: "dev" });
+    world.db.poke(`courseEnrolments/${INC.run}__amara`, { status: "withdrawn" });
+    const saved = await ask.pitch("dev", pitchBody({ twist: "Two sizes, then three.", partnerUid: null }));
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.equal(saved.body.view.mine.twist, "Two sizes, then three.");
+    assert.deepEqual(pitchTitled("Probe transfer").pitcherUids, ["amara", "dev"]);
+  });
+
   test("a paper is one of the week's readings, or typed", async () => {
     const typed = await pitched("amara", { paper: { kind: "typed", title: "A paper about probes" } });
     assert.equal(typed.mine.paperTitle, "A paper about probes");
