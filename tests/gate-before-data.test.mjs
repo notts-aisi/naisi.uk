@@ -210,6 +210,18 @@ const PURE = {
  */
 const PUBLIC = new Map([
   [
+    "src/app/api/courses/calendar/[token]/sessions.ics/route.ts#GET",
+    {
+      touches: "finds whose calendar link the token is, then reads that account and their seats, groups and runs",
+      gate: "calendarLinkOwner(",
+      why:
+        "A person's calendar, fetched by their calendar app, which has no session to send: the random secret " +
+        "in the address is the gate. One equality on the token, and an unknown, replaced or malformed one reads " +
+        "nothing more; an account that does not stand reads no seat. It writes nothing, and every link that " +
+        "opens nothing answers the same empty calendar.",
+    },
+  ],
+  [
     "src/app/api/events/[id]/calendar.ics/route.ts#GET",
     {
       touches: "reads one event",

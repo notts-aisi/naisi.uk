@@ -400,6 +400,17 @@ const PUBLIC_HANDLERS = new Map([
     },
   ],
   [
+    "src/app/api/courses/calendar/[token]/sessions.ics/route.ts#GET",
+    {
+      anonymous: true,
+      writes: false,
+      sends: false,
+      why:
+        "A person's calendar, fetched by their calendar app, which has no session: the secret in the address " +
+        "opens it. Read-only, and what it may carry is tests/course-hub-calendar-feed.test.mjs's subject.",
+    },
+  ],
+  [
     "src/app/api/events/[id]/calendar.ics/route.ts#GET",
     {
       anonymous: true,

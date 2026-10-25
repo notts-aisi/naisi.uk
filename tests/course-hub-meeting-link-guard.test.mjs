@@ -121,6 +121,10 @@ const READERS = {
     does: "asks",
     why: "next week's email asks whether there is a link, to say Online; it never prints it",
   },
+  "lib/courses/calendarFeed.ts": {
+    does: "asks",
+    why: "a person's calendar link asks whether a session has a link to join, to say Join on naisi.uk with their programme page; it never prints it",
+  },
 };
 
 describe("1. every file that names a group's meeting link is listed", () => {

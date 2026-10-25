@@ -94,6 +94,7 @@ const MUST_GUARD = [
   ["src/app/api/courses/[courseId]/page/generate-themes/route.ts", "regenerates the public weekly themes and their provenance"],
   ["src/app/api/courses/[courseId]/publish/route.ts", "publishes a course to the public catalogue"],
   ["src/app/api/courses/[courseId]/templates/route.ts", "writes a reusable curriculum template"],
+  ["src/app/api/courses/calendar/route.ts", "makes or replaces the caller's own calendar link, a secret kept in their name"],
   ["src/app/api/courses/exercise-responses/[responseId]/review/route.ts", "reviews a learner's submitted work and releases the comment"],
   ["src/app/api/courses/groups/[groupId]/attendance/route.ts", "marks a session register, and lets an admin correct a locked one"],
   ["src/app/api/courses/groups/[groupId]/attendance/push/route.ts", "locks a register, rewrites every member's attendance record and mails the group"],
