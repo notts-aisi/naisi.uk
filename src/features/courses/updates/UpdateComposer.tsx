@@ -63,6 +63,11 @@ export type ComposerAudience = {
   emails: number;
   /** Over what one send can take, so the email is not offered. */
   refused: boolean;
+  /**
+   * Who is placed in the audience and not yet told their group, and that
+   * they read the update once Publish tells them; null when nobody is.
+   */
+  notYetTold: string | null;
 };
 
 type Note = { tone: "ok" | "problem"; text: string };
@@ -172,6 +177,7 @@ export default function UpdateComposer({
 
   const toId = `${ids}-to`;
   const toHintId = `${ids}-to-hint`;
+  const waitingId = `${ids}-to-waiting`;
   const titleId = `${ids}-title`;
   const messageId = `${ids}-message`;
   const countId = `${ids}-count`;
@@ -199,7 +205,7 @@ export default function UpdateComposer({
               id={toId}
               value={audience.key}
               disabled={!hydrated || busy !== null}
-              aria-describedby={toHintId}
+              aria-describedby={audience.notYetTold ? `${toHintId} ${waitingId}` : toHintId}
               onChange={(event) => {
                 setSelectedKey(event.target.value);
                 setNote(null);
@@ -220,6 +226,11 @@ export default function UpdateComposer({
             <span className={styles.label}>{TO_LABEL}</span>
             <p className={styles.fixedTo}>{audience.label}</p>
           </>
+        )}
+        {audience.notYetTold && (
+          <p className={styles.hint} id={waitingId}>
+            {audience.notYetTold}
+          </p>
         )}
       </div>
 

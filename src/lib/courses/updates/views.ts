@@ -2,7 +2,14 @@ import type { ComposerAudience } from "@/features/courses/updates/UpdateComposer
 import type { StaffUpdate } from "@/features/courses/updates/UpdatesList";
 import type { UpdateAudienceCount } from "./audience";
 import type { UpdateView } from "./readers";
-import { audienceOptionLabel, emailedWords, staffMetaWords, toWordsForStaff, UNNAMED_GROUP } from "./words";
+import {
+  audienceOptionLabel,
+  emailedWords,
+  notYetToldWords,
+  staffMetaWords,
+  toWordsForStaff,
+  UNNAMED_GROUP,
+} from "./words";
 
 /**
  * What a page hands the composer and the staff list: each a short list of
@@ -21,6 +28,10 @@ export function composerAudiences(
     label: audienceOptionLabel(count.to, { programme: programmeName, group: count.groupName ?? UNNAMED_GROUP }, count.people),
     emails: count.emails,
     refused: count.refused,
+    notYetTold: notYetToldWords(
+      count.notYetTold,
+      count.to === "group" ? `in ${count.groupName ?? UNNAMED_GROUP}` : "in groups",
+    ),
   }));
 }
 

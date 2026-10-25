@@ -368,7 +368,7 @@ export default async function GroupHomePage({
                   {writeToGroupWords(groupCount.groupName ?? group.name, groupCount.people)}
                 </Link>
                 <p className={updateStyles.writeLine} style={{ order: 1, flexBasis: "100%" }}>
-                  {writeToGroupLine(groupCount.emails)}
+                  {writeToGroupLine(groupCount.emails, groupCount.notYetTold)}
                 </p>
               </>
             )}

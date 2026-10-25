@@ -123,6 +123,12 @@ export type UpdateAudienceCount = {
   emails: number;
   /** Over what one send can take: the email is not offered. */
   refused: boolean;
+  /**
+   * People placed in a live group of the audience whom Publish has not told
+   * their group yet: in neither number above, and they read the update once
+   * Publish tells them. Always 0 for the facilitators.
+   */
+  notYetTold: number;
 };
 
 /**
@@ -140,19 +146,30 @@ export async function updateAudienceCounts(
   const live = groups.filter((group) => !group.archived && group.runId === run.id);
 
   // Who reads it: the run's places that Publish has told, live, by group.
+  // And who will once Publish tells them: placed in a live group, not told.
+  const liveIds = new Set(live.map((group) => group.id));
   const snap = await db.collection("courseEnrolments").where("runId", "==", run.id).get();
   let everyone = 0;
+  let everyoneNotYetTold = 0;
   const inGroup = new Map<string, number>();
+  const notYetToldIn = new Map<string, number>();
   for (const doc of snap.docs) {
     const enrolment = normalizeCourseEnrolment(doc.id, doc.data() ?? {});
     if (enrolment.runId !== run.id || enrolment.role !== "learner") continue;
-    if (enrolment.status !== "active" || !placementIsTold(enrolment)) continue;
+    if (enrolment.status !== "active") continue;
+    if (!placementIsTold(enrolment)) {
+      if (enrolment.groupId && liveIds.has(enrolment.groupId)) {
+        everyoneNotYetTold += 1;
+        notYetToldIn.set(enrolment.groupId, (notYetToldIn.get(enrolment.groupId) ?? 0) + 1);
+      }
+      continue;
+    }
     everyone += 1;
     if (enrolment.groupId) inGroup.set(enrolment.groupId, (inGroup.get(enrolment.groupId) ?? 0) + 1);
   }
 
   const counts: UpdateAudienceCount[] = [];
-  const add = async (to: "everyone" | "group", group: CourseGroupDoc | null, people: number) => {
+  const add = async (to: "everyone" | "group", group: CourseGroupDoc | null, people: number, notYetTold: number) => {
     const email = await updateEmailAudience(db, run, groups, to, group?.id ?? null);
     counts.push({
       to,
@@ -161,13 +178,14 @@ export async function updateAudienceCounts(
       people,
       emails: email.refused ? 0 : email.recipients.length,
       refused: email.refused,
+      notYetTold,
     });
   };
 
-  if (!only) await add("everyone", null, everyone);
+  if (!only) await add("everyone", null, everyone, everyoneNotYetTold);
   for (const group of live) {
     if (only && !only.groupIds.includes(group.id)) continue;
-    await add("group", group, inGroup.get(group.id) ?? 0);
+    await add("group", group, inGroup.get(group.id) ?? 0, notYetToldIn.get(group.id) ?? 0);
   }
   if (!only) {
     // The same derivation the press makes for the facilitators, once for both numbers.
@@ -179,6 +197,7 @@ export async function updateAudienceCounts(
       people: facilitators.people,
       emails: facilitators.recipients.length,
       refused: false,
+      notYetTold: 0,
     });
   }
   return counts;

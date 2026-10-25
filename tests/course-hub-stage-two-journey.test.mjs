@@ -1043,7 +1043,10 @@ async function groupPageOf(who, runId, groupId) {
   const drawn = await draw(pages.group, who, { runId, groupId });
   if (drawn.to) return { sentTo: drawn.to };
   const [list] = find(drawn.element, "StaffUpdatesSection");
-  const write = /Write to [^()]+ \(\d+\) Posts an update to the group(?:\.| and emails \d+ (?:person|people)\.)(?: Nobody in it can be emailed yet\.| Replies go to \S+@\S+\.[a-z]+\.)?/.exec(drawn.text)?.[0] ?? null;
+  const write =
+    /Write to [^()]+ \(\d+\) Posts an update to the group(?:\.| and emails \d+ (?:person|people)\.)(?: Nobody in it can be emailed yet\.| Replies go to \S+@\S+\.[a-z]+\.)?(?: \d+ (?:person|people) placed in it (?:hasn’t|haven’t) been told their group yet\. They’ll read it once Publish tells them, and won’t be emailed it\.)?/.exec(
+      drawn.text,
+    )?.[0] ?? null;
   return { write, updates: (list?.props.updates ?? []).map((row) => [row.title, row.meta]) };
 }
 
@@ -1099,6 +1102,8 @@ async function tabsOf(who, name, runId) {
   return {
     messages: {
       to: (composer?.props.audiences ?? []).map((audience) => [audience.label, audience.emails]),
+      /** The line under To for each audience: who is placed there and not yet told, or null. */
+      waiting: (composer?.props.audiences ?? []).map((audience) => audience.notYetTold),
       updates: (list?.props.updates ?? []).map((row) => [row.title, row.meta]),
     },
     people: {
@@ -1781,6 +1786,12 @@ function shownIn(look, runId, groupName) {
 }
 const uidOf = Object.fromEntries(CAST.map(([uid]) => [FIRST[uid], uid]));
 const people = (n) => (n === 1 ? "1 person" : `${n} people`);
+/** The line said of the people placed somewhere and not yet told, word for word, or null for nobody. */
+const waitingWords = (n, where, update = "this") =>
+  n > 0
+    ? `${people(n)} placed ${where} ${n === 1 ? "hasn’t" : "haven’t"} been told their group yet. ` +
+      `They’ll read ${update} once Publish tells them, and won’t be emailed it.`
+    : null;
 
 /** The updates meant for a reader, newest first: those to one of the audiences they are in. */
 const meant = (look, runId, audiences) =>
@@ -1824,13 +1835,21 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     // they are told (the walk of stage two, G1).
     test("the Messages tab counts nobody in a group until Publish, while People in groups shows the six placed", () => {
       // To offers the groups in People in groups' order, Monday first, since
-      // the walk of stage two's fixes (G10): Group B meets on Tuesdays.
+      // the walk of stage two's fixes (G10): Group B meets on Tuesdays. And
+      // under To it now says who is placed and not yet told, and that they
+      // will read what is written once Publish tells them (G1).
       assert.deepEqual(e().leadTabs.messages, {
         to: [
           ["Everyone on AGI Strategy (0)", 0],
           ["Group B (0)", 0],
           ["Group A (0)", 0],
           ["The facilitators (3)", 3],
+        ],
+        waiting: [
+          "6 people placed in groups haven’t been told their group yet. They’ll read this once Publish tells them, and won’t be emailed it.",
+          "3 people placed in Group B haven’t been told their group yet. They’ll read this once Publish tells them, and won’t be emailed it.",
+          "3 people placed in Group A haven’t been told their group yet. They’ll read this once Publish tells them, and won’t be emailed it.",
+          null,
         ],
         updates: [],
       });
@@ -1862,8 +1881,14 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       }
     });
 
+    // Until the walk of stage two's fixes (G1) his line stopped at "Nobody in
+    // it can be emailed yet.", with the three placed in his group not told.
     test("Rahul's page says nobody in Group B can be emailed yet, and his update to it is kept, emailed to nobody", () => {
-      assert.equal(e().rahulsPage.write, "Write to Group B (0) Posts an update to the group. Nobody in it can be emailed yet.");
+      assert.equal(
+        e().rahulsPage.write,
+        "Write to Group B (0) Posts an update to the group. Nobody in it can be emailed yet. 3 people placed in it haven’t been told " +
+          "their group yet. They’ll read it once Publish tells them, and won’t be emailed it.",
+      );
       assert.deepEqual([e().toGroupB.counted, e().toGroupB.answer.status, e().toGroupB.answer.body.email], [0, 200, null]);
     });
 
@@ -2473,6 +2498,18 @@ describe("stage two of the course hub, one term from Publish to the end of week 
             [`The facilitators (${facilitators.length})`, facilitators.length],
           ];
           assert.deepEqual(look[tabs].messages.to, expected, `${label}: ${programme}`);
+          // Who is placed and not yet told, as the board has them: said under
+          // To and on the facilitators' write line (the walk of stage two's fixes, G1).
+          const notTold = (key) => Object.values(look[tabs].people.placed).filter(([group, told]) => group === key && !told).length;
+          assert.deepEqual(
+            look[tabs].messages.waiting,
+            [
+              waitingWords(Object.keys(groups).reduce((sum, key) => sum + notTold(key), 0), "in groups"),
+              ...Object.entries(groups).map(([key, name]) => waitingWords(notTold(key), `in ${name}`)),
+              null,
+            ],
+            `${label}: ${programme}, under To`,
+          );
           for (const [key, name] of Object.entries(groups)) {
             const names = shownIn(look, runId, name);
             const emails = onTheList(names);
@@ -2482,7 +2519,8 @@ describe("stage two of the course hub, one term from Publish to the end of week 
               assert.equal(
                 theirs.page.write,
                 `Write to ${name} (${names.length}) Posts an update to the group` +
-                  (emails > 0 ? ` and emails ${people(emails)}. Replies go to ai-safety@uonsu.com.` : ". Nobody in it can be emailed yet."),
+                  (emails > 0 ? ` and emails ${people(emails)}. Replies go to ai-safety@uonsu.com.` : ". Nobody in it can be emailed yet.") +
+                  (notTold(key) > 0 ? ` ${waitingWords(notTold(key), "in it", "it")}` : ""),
                 `${label}: ${uid}`,
               );
               assert.deepEqual(theirs.roster, { members: names, notYetTold: label === BEFORE_PUBLISH }, `${label}: ${uid}'s roster`);
