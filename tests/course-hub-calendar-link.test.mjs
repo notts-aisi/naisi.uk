@@ -334,7 +334,7 @@ describe("4. the dialog's words", () => {
 
   test("no sentence in the dialog or the calendar's words has a dash", () => {
     const source = readFileSync(join(SRC, "lib", "courses", "calendarWords.ts"), "utf8");
-    assert.doesNotMatch(source, /[–—]/);
+    assert.doesNotMatch(source, /[\u2013\u2014]/);
   });
 });
 
