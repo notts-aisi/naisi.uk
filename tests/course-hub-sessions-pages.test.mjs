@@ -410,10 +410,18 @@ describe("2. the dialog draws the board's words", () => {
 // ---------------------------------------------------------------------------
 
 describe("3. a group's facilitators change its sessions from its own page", () => {
+  // The page drawn to wk-fac-group: the two are its head's buttons, side by
+  // side and in that order, "Write to Group B (7)" filled and "Change a
+  // session" outlined, as the board draws them.
   test("the group page offers Change a session beside Write to Group B", async () => {
     const drawn = await groupPage("rahul");
-    assert.match(drawn.html, new RegExp(`<a href="${GROUP_PATH(B)}/update" class="writeLink">Write to Group B \\(3\\)</a>`));
-    assert.match(drawn.html, new RegExp(`<a href="${GROUP_PATH(B)}/sessions" class="writeLink">Change a session</a>`));
+    assert.match(
+      drawn.html,
+      new RegExp(
+        `<div class="buttons"><a href="${GROUP_PATH(B)}/update" class="button">Write to Group B \\(3\\)</a>` +
+          `<a href="${GROUP_PATH(B)}/sessions" class="buttonGhost">Change a session</a></div>`,
+      ),
+    );
     assert.equal(drawn.wrote, false);
   });
 

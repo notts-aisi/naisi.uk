@@ -20,7 +20,9 @@ import {
  *
  * Each note comes back with its writer's names, worked out from their account
  * when it is read, and its day in London. Newest first. One equality on one
- * field per read, sorted in memory, so no read needs a declared index.
+ * field per read, sorted in memory, so no read needs a declared index. A
+ * read is bounded by what a run's facilitators write in a term: a few notes a
+ * group a week.
  */
 
 /** One note as a page shows it: who wrote it, on what day, and its words. */
@@ -39,9 +41,6 @@ export type GroupNoteView = {
   /** Plain text, shown as text. */
   body: string;
 };
-
-/** A group's notes at most, read at once. Far beyond a term of a group's notes. */
-const MAX_NOTES = 500;
 
 /** Newest first; a note with no stamp yet (just written) first of all; then by id, so the order is stable. */
 function newestFirst(a: CourseGroupNoteDoc, b: CourseGroupNoteDoc): number {
@@ -76,7 +75,7 @@ async function withWriters(db: Firestore, notes: CourseGroupNoteDoc[]): Promise<
 
 /** One group's notes, newest first, for a reader the caller has already let read them. */
 export async function readGroupNotes(db: Firestore, group: { id: string; runId: string }): Promise<GroupNoteView[]> {
-  const snap = await db.collection(COURSE_GROUP_NOTES_COLLECTION).where("groupId", "==", group.id).limit(MAX_NOTES).get();
+  const snap = await db.collection(COURSE_GROUP_NOTES_COLLECTION).where("groupId", "==", group.id).get();
   const notes = snap.docs
     .map((doc) => normalizeCourseGroupNote(doc.id, doc.data() ?? {}))
     .filter((note): note is CourseGroupNoteDoc => note !== null && note.runId === group.runId && note.groupId === group.id)
@@ -86,11 +85,7 @@ export async function readGroupNotes(db: Firestore, group: { id: string; runId: 
 
 /** Every group's notes on one run, by group id, newest first, for a reader the caller has already let read them. */
 export async function readRunGroupNotes(db: Firestore, runId: string): Promise<Map<string, GroupNoteView[]>> {
-  const snap = await db
-    .collection(COURSE_GROUP_NOTES_COLLECTION)
-    .where("runId", "==", runId)
-    .limit(MAX_NOTES * 10)
-    .get();
+  const snap = await db.collection(COURSE_GROUP_NOTES_COLLECTION).where("runId", "==", runId).get();
   const notes = snap.docs
     .map((doc) => normalizeCourseGroupNote(doc.id, doc.data() ?? {}))
     .filter((note): note is CourseGroupNoteDoc => note !== null && note.runId === runId)

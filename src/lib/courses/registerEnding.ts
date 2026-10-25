@@ -139,6 +139,52 @@ function instantOf(value: unknown): Date | null {
   return stamp && typeof stamp.toDate === "function" ? stamp.toDate() : null;
 }
 
+/**
+ * WHERE NEXT WEEK'S EMAIL STANDS FOR ONE SESSION, while the email is on its
+ * schedule: gone (the claim the job and the push take is there), still ahead,
+ * due and waiting for its week, held for an empty value, about to go, or
+ * missed because its session started first. One answer for the register's
+ * foot and for the facilitator's Home, from the same timing the job keeps
+ * and the same claim it takes. Null for a claim that holds no time.
+ */
+export async function nextEmailLineFor(
+  db: Firestore,
+  args: {
+    run: CourseRunDoc;
+    group: CourseGroupDoc;
+    /** Every session the group holds, in order. */
+    sessions: readonly ResolvedSession[];
+    /** The session the email is about. */
+    session: ResolvedSession;
+    config: { nextWeekEmailDaysBefore: number; weeklyFeedbackUrl: string };
+    now: Date;
+  },
+): Promise<NextEmailLine | null> {
+  const { run, group, sessions, session, config, now } = args;
+  const index = sessions.findIndex((s) => s.sessionKey === session.sessionKey);
+  const timing = nextWeekEmailTiming(sessions, index, config.nextWeekEmailDaysBefore, now);
+  const markerId = nextWeekEmailMarkerId(run.id, group.id, session);
+  const marker = markerId ? await db.collection("courseNudges").doc(markerId).get() : null;
+  const sentAt = marker?.exists ? instantOf(marker.data()?.sentAt) : null;
+  if (marker?.exists) return sentAt ? { state: "went", at: londonDayAndClock(sentAt) } : null;
+  if (timing.state === "waiting") return { state: "goes", at: londonDayAndClock(timing.sendAt) };
+  if (timing.state === "past") return { state: "missed", weekNumber: session.weekNumber };
+  if (timing.state !== "due") return null;
+  const reading = await readNextWeekEmail(db, {
+    run,
+    group,
+    session,
+    template: await resolveCourseNudgeTemplate(db),
+    feedbackUrl: config.weeklyFeedbackUrl,
+    appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "",
+  });
+  if (!reading.published) return { state: "waiting-for-week", weekNumber: session.weekNumber };
+  if (reading.missing.length > 0) {
+    return { state: "held", missing: missingNudgeValueWords(reading.missing, session.weekNumber) };
+  }
+  return { state: "shortly" };
+}
+
 export async function readRegisterEnding(
   db: Firestore,
   args: {
@@ -188,41 +234,10 @@ export async function readRegisterEnding(
     appUrl,
   });
 
-  let nextEmail: NextEmailLine | null = null;
-  const next = nextSession;
-  if (switches.scheduled && next) {
-    const index = sessions.findIndex((s) => s.sessionKey === next.sessionKey);
-    const timing = nextWeekEmailTiming(sessions, index, config.nextWeekEmailDaysBefore, now);
-    const markerId = nextWeekEmailMarkerId(run.id, group.id, next);
-    const marker = markerId ? await db.collection("courseNudges").doc(markerId).get() : null;
-    const sentAt = marker?.exists ? instantOf(marker.data()?.sentAt) : null;
-    if (marker?.exists) {
-      nextEmail = sentAt ? { state: "went", at: londonDayAndClock(sentAt) } : null;
-    } else if (timing.state === "waiting") {
-      nextEmail = { state: "goes", at: londonDayAndClock(timing.sendAt) };
-    } else if (timing.state === "past") {
-      nextEmail = { state: "missed", weekNumber: next.weekNumber };
-    } else if (timing.state === "due") {
-      const reading = await readNextWeekEmail(db, {
-        run,
-        group,
-        session: next,
-        template: await resolveCourseNudgeTemplate(db),
-        feedbackUrl: config.weeklyFeedbackUrl,
-        appUrl,
-      });
-      if (!reading.published) {
-        nextEmail = { state: "waiting-for-week", weekNumber: next.weekNumber };
-      } else if (reading.missing.length > 0) {
-        nextEmail = {
-          state: "held",
-          missing: missingNudgeValueWords(reading.missing, next.weekNumber),
-        };
-      } else {
-        nextEmail = { state: "shortly" };
-      }
-    }
-  }
+  const nextEmail: NextEmailLine | null =
+    switches.scheduled && nextSession
+      ? await nextEmailLineFor(db, { run, group, sessions, session: nextSession, config, now })
+      : null;
 
   const [names, lead] = await Promise.all([
     switches.remindersOn ? facilitatorNames(db, group) : Promise.resolve([] as string[]),

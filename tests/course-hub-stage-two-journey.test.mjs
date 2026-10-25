@@ -135,6 +135,11 @@ const STYLESHEETS = [
   "./UpdateComposer.module.css",
   "./Messages.module.css",
   "@/features/courses/updates/Messages.module.css",
+  // The facilitator's pages (boards wk-fac-group, wk-fac-home-phone): their own sheet and the
+  // member's pages' shared one, since the group page and the Attendance tab draw their cards.
+  "@/features/courses/weekly/weekly.module.css",
+  "./facilitator.module.css",
+  "@/features/courses/facilitator/facilitator.module.css",
   "./GroupsViews.module.css",
   "./ProgrammePitches.module.css",
   "./PitchingWeek.module.css",
@@ -1079,10 +1084,14 @@ async function groupPageOf(who, runId, groupId) {
   const drawn = await draw(pages.group, who, { runId, groupId });
   if (drawn.to) return { sentTo: drawn.to };
   const [list] = find(drawn.element, "StaffUpdatesSection");
-  const write =
-    /Write to [^()]+ \(\d+\) Posts an update to the group(?:\.| and emails \d+ (?:person|people)\.)(?: Nobody in it can be emailed yet\.| Replies go to \S+@\S+\.[a-z]+\.)?(?: \d+ (?:person|people) placed in it (?:hasn’t|haven’t) been told their group yet\. They’ll read it once Publish tells them, and won’t be emailed it\.)?/.exec(
+  // Since board wk-fac-group the page's head draws "Write to Group B (7)" and
+  // "Change a session" side by side, with the line under both: the button and
+  // its line are read as they always were, around the second button.
+  const found =
+    /(Write to [^()]+ \(\d+\)) Change a session (Posts an update to the group(?:\.| and emails \d+ (?:person|people)\.)(?: Nobody in it can be emailed yet\.| Replies go to \S+@\S+\.[a-z]+\.)?(?: \d+ (?:person|people) placed in it (?:hasn’t|haven’t) been told their group yet\. They’ll read it once Publish tells them, and won’t be emailed it\.)?)/.exec(
       drawn.text,
-    )?.[0] ?? null;
+    );
+  const write = found ? `${found[1]} ${found[2]}` : null;
   return { write, updates: (list?.props.updates ?? []).map((row) => [row.title, row.meta]) };
 }
 
@@ -2204,10 +2213,9 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         amara: "Your first session Group B with Rahul and Sofia Tue 3 Nov, 6pm to 8pm Room C20",
         omar: "Your first session Group A with Tess Mon 2 Nov, 5pm to 7pm Room B5",
       });
-      assert.ok(
-        u.groupPage.includes("Everyone in the group, when it meets, and the register. Names only: no email addresses appear here. Back to the course"),
-        u.groupPage,
-      );
+      // The page drawn to wk-fac-group says what it says of names under its
+      // "Your group", in the board's words.
+      assert.ok(u.groupPage.includes("Names only. Email addresses stay with admins."), u.groupPage);
       assert.equal(
         u.roster,
         "Who is in this group 3 members Refresh Names only. Nobody's email address appears on this page. To reach the group, use the " +

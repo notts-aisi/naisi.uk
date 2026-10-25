@@ -1,16 +1,35 @@
 import Link from "next/link";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { redirect } from "next/navigation";
-import type { CSSProperties } from "react";
-import AttendanceGrid from "@/features/courses/AttendanceGrid";
-import GroupRoster from "@/features/courses/GroupRoster";
-import SessionCard from "@/features/courses/SessionCard";
-import { cancelledIn, coversTitle, nextSessionCard } from "@/features/courses/sessionChange/cardFacts";
+import { firstName as firstNameOf } from "@/app/(app)/dashboard/homeWords";
+import GroupNotesCard from "@/features/courses/facilitator/GroupNotesCard";
+import {
+  FacilitatorTicket,
+  GroupPeopleCard,
+  GroupRegistersCard,
+  PaceCard,
+  ToReviewCard,
+} from "@/features/courses/facilitator/GroupCards";
+import facilitator from "@/features/courses/facilitator/facilitator.module.css";
+import { ticketFacts } from "@/features/courses/sessionChange/cardFacts";
 import SessionNotice from "@/features/courses/sessionChange/SessionNotice";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
-import updateStyles from "@/features/courses/updates/Messages.module.css";
-import { CHANGE_A_SESSION } from "@/lib/courses/sessionChange/words";
 import { StaffUpdatesSection } from "@/features/courses/updates/UpdatesList";
+import weekly from "@/features/courses/weekly/weekly.module.css";
+import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
+import { loadFacilitatorGroup } from "@/lib/courses/facilitatorGroup";
+import {
+  MY_PROGRAMMES,
+  coFacilitatorsWords,
+  groupHeadParts,
+  notesTitle,
+  notesWhoLine,
+  programmeWords,
+  ticketHeading,
+} from "@/lib/courses/facilitatorPageWords";
+import { readGroupNotes } from "@/lib/courses/groupNotes/readers";
+import { sessionEyebrow, weekOfWords } from "@/lib/courses/memberPageWords";
+import { CHANGE_A_SESSION, slotWords } from "@/lib/courses/sessionChange/words";
 import { updateAudienceCounts } from "@/lib/courses/updates/audience";
 import { loadRunGroups, loadUpdatesFor, narrowToGroup, updateReadingOf } from "@/lib/courses/updates/readers";
 import { staffUpdateRows } from "@/lib/courses/updates/views";
@@ -23,7 +42,6 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import {
   normalizeCourseGroup,
   sessionForWeek,
-  sessionModeForWeek,
   sessionModesOf,
   type GroupSession,
 } from "@/lib/firestore/courseGroups";
@@ -31,15 +49,29 @@ import { weekDocId } from "@/lib/firestore/courses";
 import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/route";
 
 /**
- * Server shell for the facilitator's group page: who is in the group, when it
- * meets, and the attendance register.
+ * A FACILITATOR'S GROUP PAGE (boards wk-fac-group at 1440 and
+ * wk-fac-group-phone at 390): the group, its week and how it meets; "Write to
+ * Group B (7)" and "Change a session"; the next session as a ticket with how
+ * many are expected and "Take the register"; the group's people with each
+ * finished register's marks, and who left; the registers; the work to
+ * review; the updates; the pace; and the notes the group's facilitators share
+ * (C30). Drawn on the server, from the records the programme's own tabs read
+ * (`src/lib/courses/facilitatorGroup.ts`), so a facilitator and the lead never
+ * read two stories about one group.
+ *
+ * THE REGISTER is a page of its own beside this one (`./register`), as board
+ * wk-register draws it: "Take the register" and each register's "See it" lead
+ * there.
+ *
+ * NOT DRAWN, though the board draws them: who can't make it tonight (that
+ * feature does not exist yet) and the facilitator guide (no record holds one).
  *
  * ── THE GATE IS TWO CHECKS, NOT ONE ─────────────────────────────────────────
  * `[runId]/layout.tsx` has already established that the caller holds SOME role
  * on this run. That is nowhere near enough here: a learner, an admissions
  * reviewer and a facilitator of a DIFFERENT group all pass that bar, and none
  * of them may mark this group's register. So this page re-reads the group
- * document and requires the caller's uid to be on `facilitatorUids` — group
+ * document and requires the caller's uid to be on `facilitatorUids`: group
  * membership cannot be inferred from the run, and the whole point of small
  * groups is that they are small.
  *
@@ -50,29 +82,36 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * ── ARCHIVING A GROUP UNSTAFFS IT ───────────────────────────────────────────
  * ONE RULE, stated identically here, in the review page beside it, in the
  * routes behind both, and in `runAccess.ts`: a non-admin reads a group they
- * facilitate only while it is LIVE. Admins bypass it — an archived cohort is
+ * facilitate only while it is LIVE. Admins bypass it: an archived cohort is
  * exactly the thing an admin is asked to go back and look at.
  *
  * Redirects, never 403s: someone guessing group ids learns nothing about which
- * ones exist. And this is a UI gate — the roster, attendance and email ROUTES
- * re-derive the same access from the same documents and are the real boundary.
+ * ones exist. And this is a UI gate: the register, the notes and the email
+ * ROUTES re-derive the same access from the same documents and are the real
+ * boundary.
+ *
+ * ── THE NOTES ───────────────────────────────────────────────────────────────
+ * Read here, on the server, after this gate: the group's facilitators and
+ * admins read them on this page, and only the group's facilitators are given
+ * the box to add one (the notes route takes a note from nobody else). The
+ * programme's lead reads them on the programme's Attendance tab.
  * ────────────────────────────────────────────────────────────────────────────
  *
  * ── WHY THE SESSION IS RESOLVED HERE AND NOT FETCHED ────────────────────────
  * The roster route deliberately does NOT carry the meeting link (group docs
  * are read-locked to the authoring tier precisely because they hold it), and
- * the run overview only ever describes ONE group — the caller's own, which for
+ * the run overview only ever describes ONE group: the caller's own, which for
  * someone facilitating two groups is neither of the ones they are looking at.
- * So the session card is fed from the group document this gate has already
- * read, with the Admin SDK, after establishing that the reader is a
- * facilitator of this group or an admin: the two people the overview route
- * also lets see a meeting link.
+ * So the ticket is fed from the group document this gate has already read,
+ * with the Admin SDK, after establishing that the reader is a facilitator of
+ * this group or an admin: the two people the overview route also lets see a
+ * meeting link.
  */
 
 export const dynamic = "force-dynamic";
 
 // ---------------------------------------------------------------------------
-// Session label (duplicated on purpose — see below)
+// Session label (duplicated on purpose: see below)
 // ---------------------------------------------------------------------------
 
 /** Index = `GroupSession.weekday` (`Date.getDay()`, 0 = Sunday). */
@@ -108,68 +147,6 @@ function sessionLabel(session: GroupSession): string {
 }
 
 // ---------------------------------------------------------------------------
-// Page chrome
-// ---------------------------------------------------------------------------
-
-/**
- * Inline, like the review page beside it: these shells own a heading, a
- * sentence and two links, and a stylesheet per route for that would be more
- * indirection than the thing it styles. Anything with real layout in it lives
- * in a component with its own module.
- */
-const pageStyle: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "var(--space-6)",
-};
-
-const eyebrowStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "var(--text-sm)",
-  textTransform: "uppercase",
-  letterSpacing: "0.08em",
-  color: "var(--color-text-muted)",
-};
-
-const subStyle: CSSProperties = {
-  margin: "var(--space-2) 0 0",
-  maxWidth: "62ch",
-  fontSize: "var(--text-sm)",
-  lineHeight: 1.6,
-  color: "var(--color-text-muted)",
-};
-
-const linkRowStyle: CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: "var(--space-2)",
-  marginTop: "var(--space-4)",
-};
-
-/** The row of "Write to Group B (7)" and "Change a session", wrapping on a phone. */
-const groupActionsStyle: CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  alignItems: "center",
-  gap: "var(--space-2) 10px",
-  marginTop: "var(--space-4)",
-};
-
-/** 44px-tall targets: these are the page's two real actions. */
-const actionLinkStyle: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  minHeight: "2.75rem",
-  padding: "0 var(--space-4)",
-  border: "1px solid var(--color-border-strong)",
-  borderRadius: "var(--radius-md)",
-  color: "var(--color-text)",
-  fontSize: "var(--text-sm)",
-  fontWeight: 600,
-  textDecoration: "none",
-};
-
-// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -182,7 +159,7 @@ export default async function GroupHomePage({
 
   const access = await getRunAccess(runId);
   if (!access) {
-    // Null is "no session" OR "no such run" — deliberately fused in
+    // Null is "no session" OR "no such run", deliberately fused in
     // `getRunAccess`. `getSessionUser` is memoised by now, so telling the two
     // apart costs nothing and leaks nothing.
     const user = await getSessionUser();
@@ -192,7 +169,7 @@ export default async function GroupHomePage({
   const runHome = `/learn/${encodeURIComponent(runId)}`;
 
   // Dynamic segments arrive URL-DECODED, so a `%2F` reaches us as a real path
-  // separator and `doc()` would throw — a 500 out of a gate whose whole job is
+  // separator and `doc()` would throw: a 500 out of a gate whose whole job is
   // to redirect. Same guard `getRunAccess` applies to the run id.
   if (!groupId || groupId.includes("/") || groupId === "." || groupId === "..") {
     redirect(runHome);
@@ -205,7 +182,7 @@ export default async function GroupHomePage({
   if (!groupSnap.exists) redirect(runHome);
   const group = normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {});
 
-  // Live group only for a non-admin — the same predicate every route behind
+  // Live group only for a non-admin: the same predicate every route behind
   // this page gates on (see the archiving note above).
   const facilitatesThisGroup =
     !group.archived &&
@@ -219,7 +196,7 @@ export default async function GroupHomePage({
   }
 
   /**
-   * THIS GROUP's whole calendar, for the session card underneath, not the
+   * THIS GROUP's whole calendar, for the ticket and the week chip, not the
    * run's.
    *
    * `resolveGroupCalendar` is the group-first replacement for `currentWeekFor`
@@ -256,7 +233,7 @@ export default async function GroupHomePage({
 
   // A break week and the before/after phases have no week doc of their own, so
   // the session override falls back to the anchor (the last taught week that
-  // started) — the slot the group will return to. Empty means "no override",
+  // started), the slot the group will return to. Empty means "no override",
   // which `sessionForWeek` resolves to the recurring slot.
   const weekNumber = currentWeek
     ? (currentWeek.weekNumber ?? currentWeek.anchorWeekNumber)
@@ -300,15 +277,14 @@ export default async function GroupHomePage({
     // The gate above is the check the overview route calls `canSeeMeetingUrl`:
     // a facilitator of this group, or an admin. Nobody else reaches this line.
     meetingUrl: session.meetingUrl,
-    // The whole map, exactly as the overview route sends it — this shape IS
+    // The whole map, exactly as the overview route sends it: this shape IS
     // `OverviewGroup`, and a divergence here would mean the facilitator's own
-    // card is fed differently from their members'. The card below is handed
-    // the CURRENT week's entry out of it, which is the week the slot fields
-    // above were resolved for.
+    // ticket is fed differently from their members'. The ticket reads the
+    // entry of the next session's own week out of it (`ticketFacts`), as the
+    // run home's ticket does, so the facilitator sees what their members will.
     sessionModes: sessionModesOf(group),
-    // Left empty on purpose rather than paid for with a second read: the
-    // roster below names the facilitators, and repeating them on the card
-    // above it would say the same thing twice.
+    // Left empty on purpose rather than paid for with a second read: the head
+    // names the group's other facilitators, and the ticket draws no faces.
     facilitatorNames: [],
     usualSlot: {
       weekday: group.session.weekday,
@@ -320,99 +296,156 @@ export default async function GroupHomePage({
     cancelledSessions: changes.cancelled,
   };
 
-  const nextCard = nextSessionCard(sessionGroup);
-  const eyebrow = [access.run.courseTitle, access.run.label].filter(Boolean).join(" · ");
   const groupPath = `${runHome}/group/${encodeURIComponent(groupId)}`;
+  const registerHref = `${groupPath}/register`;
+  const reviewHref = (week: number | null) => `${groupPath}/review${week === null ? "" : `?week=${week}`}`;
 
   // Updates (Q18): the way to write one to this group, counted as its press
   // counts, and the updates this group's page shows, through the one reader.
   // An archived group has no count, so no way to write to it.
   const runGroups = await loadRunGroups(db, runId);
-  const [[groupCount], reading] = await Promise.all([
+  const [[groupCount], reading, model, programme, notes] = await Promise.all([
     updateAudienceCounts(db, access.run, runGroups, { groupIds: [groupId] }, access.user.uid),
     updateReadingOf(db, access.user, access.run, runGroups),
+    loadFacilitatorGroup(db, access.run, group, { isAdmin: access.isAdmin }, now),
+    runProgrammeOf(db, runId),
+    readGroupNotes(db, group),
   ]);
   const { updates } = await loadUpdatesFor(db, access.run, narrowToGroup(reading, groupId), runGroups);
 
-  return (
-    <div style={pageStyle}>
-      <div>
-        {eyebrow && <p style={eyebrowStyle}>{eyebrow}</p>}
-        <h1 style={{ margin: "var(--space-2) 0 0" }}>{group.name || "Group"}</h1>
-        <p style={subStyle}>
-          Everyone in the group, when it meets, and the register. Names only: no
-          email addresses appear here.{" "}
-          <Link href={runHome} style={{ color: "var(--color-accent)" }}>
-            Back to the course
-          </Link>
-        </p>
+  // The head: the group, its week, its programme, its usual day, time and
+  // room, and the group's other facilitators by their whole names.
+  const groupName = group.name || "Group";
+  const others = model.facilitators.filter((person) => person.uid !== access.user.uid);
+  const headParts = groupHeadParts({
+    programme: programmeWords(programme?.kind ?? null, programme?.shortName ?? access.run.courseTitle),
+    slot: slotWords(group.session.weekday, group.session.startTimeLocal),
+    room: group.session.location,
+    with: coFacilitatorsWords(others.map((person) => person.name)),
+  });
+  const chip =
+    currentWeek?.phase === "running"
+      ? currentWeek.breakLabel || weekOfWords(currentWeek.weekNumber ?? currentWeek.anchorWeekNumber, groupCalendar.totalWeeks)
+      : null;
 
-        <div style={linkRowStyle}>
-          <Link href={`${groupPath}/review`} style={actionLinkStyle}>
-            Review exercises
-          </Link>
-          {/* The copy-on-write surface: this group's weeks, its schedule, and
-              the notice that tells everyone when either changes. Same gate as
-              this page, restated in its own shell. */}
-          <Link href={`${groupPath}/edit`} style={actionLinkStyle}>
-            Weeks &amp; schedule
-          </Link>
-          <Link href={`${groupPath}/email`} style={actionLinkStyle}>
-            Email the group
+  // The next session's ticket: its own day, time, room and link.
+  const facts = ticketFacts(sessionGroup);
+  const todayKey = londonDateKey(now);
+
+  return (
+    <div className={facilitator.page}>
+      <div className={`${weekly.bar} ${facilitator.phoneBar}`}>
+        <div className={weekly.barStart}>
+          <Link href="/learn" className={weekly.back}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={weekly.icon}>
+              <path d="M15 6l-6 6 6 6" />
+            </svg>
+            <span>{MY_PROGRAMMES}</span>
           </Link>
         </div>
-
-        {/* "Write to Group B (7)" and "Change a session" side by side, the
-            write link's line under both (wk-fac-group). The line comes second
-            in the page and is drawn last. An archived group has neither:
-            nobody writes to it or changes it. */}
-        {!group.archived && (
-          <div style={groupActionsStyle}>
-            {groupCount && (
-              <>
-                <Link href={`${groupPath}/update`} className={updateStyles.writeLink}>
-                  {writeToGroupWords(groupCount.groupName ?? group.name, groupCount.people)}
-                </Link>
-                <p className={updateStyles.writeLine} style={{ order: 1, flexBasis: "100%" }}>
-                  {writeToGroupLine(groupCount.emails, groupCount.notYetTold)}
-                </p>
-              </>
-            )}
-            <Link href={`${groupPath}/sessions`} className={updateStyles.writeLink}>
-              {CHANGE_A_SESSION}
-            </Link>
-          </div>
-        )}
+        <div className={weekly.barEnd} />
       </div>
 
-      {/* An evening is off (Q25): the notice the group reads, then the
-          session it meets at next, as on their programme page. */}
-      {sessionGroup.sessionNotice ? (
-        <>
-          <SessionNotice notice={sessionGroup.sessionNotice} now={now} />
-          {nextCard && <SessionCard {...nextCard} />}
-        </>
-      ) : (
-        <SessionCard
-          group={sessionGroup}
-          slotStartKey={currentWeek?.slotStartKey ?? null}
-          // The same week key the slot above was resolved for, so the
-          // facilitator's card swaps exactly as their members' does: this page
-          // is where they check that the flip they just made looks right.
-          mode={sessionModeForWeek(group, weekId)}
-          title={coversTitle(sessionGroup, weekNumber)}
-          cancelled={cancelledIn(sessionGroup, weekNumber)}
-        />
-      )}
+      <header className={facilitator.head}>
+        <div className={facilitator.headMain}>
+          <Link href="/learn" className={`${facilitator.crumb} ${facilitator.crumbDesk}`}>
+            {MY_PROGRAMMES}
+          </Link>
+          <div className={weekly.titleRow}>
+            <h1 className={weekly.title}>{groupName}</h1>
+            {chip && <span className={weekly.weekChip}>{chip}</span>}
+          </div>
+          {headParts.length > 0 && (
+            <p className={facilitator.headLine}>
+              {headParts.map((part, index) => (
+                <span key={part} className={facilitator.nowrap}>
+                  {index > 0 && (
+                    <span className={facilitator.headSep} aria-hidden="true">
+                      ·
+                    </span>
+                  )}
+                  {index > 0 && <span className={weekly.srOnly}>, </span>}
+                  {part}
+                </span>
+              ))}
+            </p>
+          )}
+        </div>
 
-      <GroupRoster groupId={groupId} groupName={group.name} />
+        {/* "Write to Group B (7)" and "Change a session" (wk-fac-group), the
+            write link's line under both: it says how many the update emails.
+            An archived group has neither: nobody writes to it or changes it. */}
+        {!group.archived && (
+          <div className={facilitator.headActions}>
+            <div className={facilitator.buttons}>
+              {groupCount && (
+                <Link href={`${groupPath}/update`} className={facilitator.button}>
+                  {writeToGroupWords(groupCount.groupName ?? group.name, groupCount.people)}
+                </Link>
+              )}
+              <Link href={`${groupPath}/sessions`} className={facilitator.buttonGhost}>
+                {CHANGE_A_SESSION}
+              </Link>
+            </div>
+            {groupCount && (
+              <p className={facilitator.actionsLine}>{writeToGroupLine(groupCount.emails, groupCount.notYetTold)}</p>
+            )}
+          </div>
+        )}
+      </header>
 
-      {/* The register owns its own heading, its own week controls and its own
-          horizontal overflow — a wide table handles its own responsiveness
-          rather than widening the shell (the `.mainWide` rule). */}
-      <AttendanceGrid groupId={groupId} runId={runId} />
+      <div className={facilitator.columns}>
+        <div className={facilitator.colMain}>
+          {/* An evening is off (Q25): the notice the group reads, over the
+              session it meets at next, as on their programme page. */}
+          {sessionGroup.sessionNotice && <SessionNotice notice={sessionGroup.sessionNotice} now={now} />}
+          {facts && (
+            <FacilitatorTicket
+              facts={facts}
+              eyebrow={sessionEyebrow({
+                isToday: facts.dateKey === todayKey,
+                isFirst: facts.dateKey === range.firstDateKey,
+                startTimeLocal: facts.startTimeLocal,
+                weekNumbers: facts.weekNumbers,
+              })}
+              heading={ticketHeading(facts.dateKey, facts.startTimeLocal)}
+              roomChanged={Boolean(facts.room) && facts.room !== group.session.location.trim()}
+              expected={model.expected > 0 ? model.expected : null}
+              registerHref={registerHref}
+            />
+          )}
+          <GroupPeopleCard
+            people={model.people}
+            leavers={model.leavers}
+            finishedWeeks={model.finishedWeeks}
+            notYetTold={model.notYetTold}
+          />
+          <GroupRegistersCard
+            registers={model.registers}
+            scheduled={model.scheduled}
+            registerHref={registerHref}
+            firstSessionDateKey={model.firstSessionDateKey}
+          />
+        </div>
 
-      <StaffUpdatesSection updates={staffUpdateRows(updates)} headingId="group-updates" />
+        <div className={facilitator.colSide}>
+          <ToReviewCard rows={model.toReview} reviewHref={reviewHref} />
+          <StaffUpdatesSection updates={staffUpdateRows(updates)} headingId="group-updates" />
+          {model.weeksBehind !== null && (
+            <PaceCard weeksBehind={model.weeksBehind} editHref={group.archived ? null : `${groupPath}/edit`} />
+          )}
+          <GroupNotesCard
+            title={notesTitle(
+              others.map((person) => person.firstName || firstNameOf(person.name)),
+              model.facilitators.some((person) => person.uid === access.user.uid),
+            )}
+            whoLine={notesWhoLine(groupName, programme?.leadFirstName ? { firstName: programme.leadFirstName, isReader: false } : null)}
+            notes={notes}
+            writeFor={facilitatesThisGroup ? groupId : null}
+            headingId="group-notes"
+          />
+        </div>
+      </div>
     </div>
   );
 }

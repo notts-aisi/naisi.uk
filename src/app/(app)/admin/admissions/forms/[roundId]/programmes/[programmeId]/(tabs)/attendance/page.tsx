@@ -1,8 +1,12 @@
+import GroupNotesCard from "@/features/courses/facilitator/GroupNotesCard";
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import NotYours from "@/features/applications/groups/NotYours";
 import ProgrammeAttendance from "@/features/applications/groups/ProgrammeAttendance";
 import RunBlank from "@/features/applications/groups/RunBlank";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
+import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
+import { leadNotesHeading, notesWhoLine } from "@/lib/courses/facilitatorPageWords";
+import { readRunGroupNotes } from "@/lib/courses/groupNotes/readers";
 import { buildRunAttendance, readRunRecords } from "@/lib/courses/programmeAttendance";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -20,6 +24,13 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  *
  * `?group=<id>` opens the tab on one group: the Overview's "See it" links
  * here that way. An id that is not one of the run's groups is ignored.
+ *
+ * THE NOTES EACH GROUP'S FACILITATORS SHARE (C30) are read here too, under
+ * the grid, a card per group that has any: the programme's lead and admins
+ * read them and write none. They are read on the server after the tab's own
+ * gate, and the cards are handed only what they show. The register's own
+ * notes, on a person or a session, are not among them: those are the
+ * group's facilitators' and admins' alone.
  */
 export default async function ProgrammeAttendancePage({
   params,
@@ -45,13 +56,28 @@ export default async function ProgrammeAttendancePage({
   if (!records) return <RunBlank view={{ ...view, blank: "run-gone" }} />;
   const model = buildRunAttendance(records, { isAdmin: view.viewer === "admin" }, new Date());
   const asked = typeof query.group === "string" ? query.group : "all";
+  const [notes, programme] = await Promise.all([readRunGroupNotes(db, view.run.id), runProgrammeOf(db, view.run.id)]);
+  const lead = view.viewer === "lead" ? { firstName: "", isReader: true } : programme?.leadFirstName ? { firstName: programme.leadFirstName, isReader: false } : null;
+  const noted = model.groups.filter((group) => (notes.get(group.id) ?? []).length > 0);
   return (
-    <ProgrammeAttendance
-      model={model}
-      roundId={view.roundId}
-      programmeId={view.programmeId}
-      programmeName={view.programmeName}
-      initialGroup={model.groups.some((group) => group.id === asked) ? asked : "all"}
-    />
+    <>
+      <ProgrammeAttendance
+        model={model}
+        roundId={view.roundId}
+        programmeId={view.programmeId}
+        programmeName={view.programmeName}
+        initialGroup={model.groups.some((group) => group.id === asked) ? asked : "all"}
+      />
+      {noted.map((group) => (
+        <GroupNotesCard
+          key={group.id}
+          title={leadNotesHeading(group.name)}
+          whoLine={notesWhoLine(group.name, lead)}
+          notes={notes.get(group.id) ?? []}
+          writeFor={null}
+          headingId={`notes-${group.id}`}
+        />
+      ))}
+    </>
   );
 }

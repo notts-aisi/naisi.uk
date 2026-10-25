@@ -2447,11 +2447,13 @@ test("GUARD — virtual/in-person reaches the member, on the card and in the ema
   // holds, so the map travels for each of them rather than only for the one
   // the calendar resolved through.
   assert.match(OVERVIEW, /sessionModes: sessionModesOf\(source\),/);
-  // The facilitator's own group page builds the same shape and hands the card
-  // the same week's entry, so the person who just flipped the switch sees what
-  // their members will.
+  // The facilitator's own group page builds the same shape and hands its
+  // ticket the same week's entry, so the person who just flipped the switch
+  // sees what their members will. Since board wk-fac-group the page draws the
+  // run home's ticket, which reads the mode of its own session's week through
+  // `ticketFacts` (the CARD_FACTS row above pins how), handed this whole map.
   assert.match(GROUP_PAGE, /sessionModes: sessionModesOf\(group\),/);
-  assert.match(GROUP_PAGE, /mode=\{sessionModeForWeek\(group, weekId\)\}/);
+  assert.match(GROUP_PAGE, /const facts = ticketFacts\(sessionGroup\);/);
   // The nudge resolves it for the group's OWN week address, not the run's.
   assert.match(
     NUDGE,
