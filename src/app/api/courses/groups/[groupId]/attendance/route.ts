@@ -114,7 +114,11 @@ export type AttendanceSession = {
    * cancelled through "Change a session". Out of every denominator.
    */
   held: boolean;
-  /** The facilitator's note on the session as a whole. */
+  /**
+   * The facilitator's note on the session as a whole. "" for a caller the
+   * gate admits only as the programme's lead: a register's notes are the
+   * group's facilitators' and admins' (C30).
+   */
   notes: string;
   /** ISO instant of PUSH ATTENDANCE, or null while this is still a draft. */
   pushedAt: string | null;
@@ -155,9 +159,11 @@ export type AttendancePayload = {
   records: Record<string, Record<string, AttendanceStatus>>;
   /**
    * Post-session notes about individual participants, `sessionKey -> uid ->
-   * note`. PERSONAL DATA ABOUT A NAMED STUDENT: served only to the people this
-   * route's gate admits, never to the cohort and never to the member it is
-   * about. The drawer that renders them says so in as many words.
+   * note`. PERSONAL DATA ABOUT A NAMED STUDENT: served only to the group's
+   * live facilitators and admins (`readsNotes` on the gate's answer), never
+   * to the programme's lead, the cohort or the member it is about. Empty for
+   * the lead, who reads the marks. The drawer that renders them says so in as
+   * many words.
    */
   participantNotes: Record<string, Record<string, string>>;
   /** True when the caller may correct a register that is already pushed. */
@@ -512,7 +518,8 @@ export async function GET(
   }
 
   // Reading is one person wider than marking: the lead of the programme
-  // that names the run reads every register of it (`gateGroupRegisterRead`).
+  // that names the run reads every register of it (`gateGroupRegisterRead`),
+  // its marks and none of its notes (`readsNotes`).
   const gated = await gateGroupRegisterRead(groupId, actor, db);
   if (!gated.ok) {
     return NextResponse.json({ error: gated.error }, { status: gated.status });
@@ -611,7 +618,9 @@ export async function GET(
     }
     if (Object.keys(week).length > 0) records[column.sessionKey] = week;
 
-    const rawNotes = (data.participantNotes ?? {}) as Record<string, unknown>;
+    // A register's notes go to the group's facilitators and admins only: a
+    // caller the gate admits as the programme's lead is sent none of them.
+    const rawNotes = (gated.readsNotes ? (data.participantNotes ?? {}) : {}) as Record<string, unknown>;
     const notes: Record<string, string> = {};
     for (const [uid, note] of Object.entries(rawNotes)) {
       if (!memberUids.has(uid)) continue;
@@ -625,7 +634,7 @@ export async function GET(
     const pushedAt = normalizeCourseAttendance(snap.id, data).pushedAt;
     stateByKey.set(column.sessionKey, {
       held: data.held !== false,
-      notes: typeof data.notes === "string" ? data.notes : "",
+      notes: gated.readsNotes && typeof data.notes === "string" ? data.notes : "",
       pushedAt: pushedAt ? pushedAt.toISOString() : null,
     });
   }

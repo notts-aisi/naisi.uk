@@ -14,7 +14,9 @@
  *
  *  1. EVERY REGISTER OF THE RUN, READ ONLY. The lead reads each group's
  *     register, an archived group's too, with the people Publish has told,
- *     as the group's facilitators do; corrections stay an admin's.
+ *     as the group's facilitators do; corrections stay an admin's. The
+ *     register's notes, on a person or on a session, are the group's
+ *     facilitators' and admins' (C30): the lead reads the marks and no note.
  *  2. MARKING STAYS THE GROUP'S FACILITATORS' AND ADMINS'. The lead is
  *     refused every write to a register, and nothing is written.
  *  3. NOBODY ELSE READS MORE. The lead of another programme, the programme's
@@ -110,15 +112,31 @@ describe("1. the lead reads every register of their run", () => {
     }
   });
 
-  test("the marks a facilitator saved, and their notes on a person", async () => {
-    const marked = await mark("rahul", B, "amara");
+  // Changed for C30 and the privacy draft's item 9: the lead used to be sent
+  // the facilitators' notes on a person with the marks. The register's notes
+  // are now the group's facilitators' and admins', so the lead reads the
+  // mark and no note, a session's own note included, while the facilitators
+  // and an admin read both, as strictly as before.
+  test("the marks a facilitator saved, and none of the register's notes", async () => {
+    const marked = await call("rahul", register.POST, { groupId: B }, {
+      body: { weekNumber: 1, marks: [{ uid: "amara", status: "present" }], notes: "Ran late because of the fire alarm." },
+      course: true,
+    });
     assert.equal(marked.status, 200, JSON.stringify(marked.body));
     const noted = await call("rahul", participantNotes.POST, { groupId: B }, { body: { weekNumber: 1, uid: "dev", note: "Quiet this week." }, course: true });
     assert.equal(noted.status, 200, JSON.stringify(noted.body));
     const asLead = (await read("claudia", B)).body;
     const key = asLead.sessions[0].sessionKey;
     assert.equal(asLead.records[key].amara, "present");
-    assert.equal(asLead.participantNotes[key].dev, "Quiet this week.");
+    assert.deepEqual(asLead.participantNotes, {}, "the lead is sent a facilitator's note on a person");
+    assert.equal(asLead.sessions[0].notes, "", "the lead is sent the session's own note");
+    assert.doesNotMatch(JSON.stringify(asLead), /Quiet this week|fire alarm/);
+    for (const who of ["rahul", "sofia", "zach"]) {
+      const answer = (await read(who, B)).body;
+      assert.equal(answer.records[key].amara, "present", who);
+      assert.equal(answer.participantNotes[key].dev, "Quiet this week.", who);
+      assert.equal(answer.sessions[0].notes, "Ran late because of the fire alarm.", who);
+    }
   });
 
   test("an archived group's register too, which its facilitators no longer read", async () => {
@@ -216,5 +234,81 @@ describe("4. a lead who stops leading the run reads nothing", () => {
   test("the new lead reads every register at once", async () => {
     world.db.poke(formPath, { [`programmes.${AGI}.leadUid`]: "nadia" });
     for (const groupId of [B, A, C]) assert.equal((await read("nadia", groupId)).status, 200, groupId);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. The register's notes, as every kind of caller (C30)
+// ---------------------------------------------------------------------------
+
+describe("5. the register's notes are the group's facilitators' and admins'", () => {
+  /** Rahul marks week 1 with a note on the session and one on Dev, as the register's own routes take them. */
+  async function noted() {
+    const marked = await call("rahul", register.POST, { groupId: B }, {
+      body: { weekNumber: 1, marks: [{ uid: "amara", status: "late" }], notes: "Started ten minutes late." },
+      course: true,
+    });
+    assert.equal(marked.status, 200, JSON.stringify(marked.body));
+    const note = await call("rahul", participantNotes.POST, { groupId: B }, { body: { weekNumber: 1, uid: "dev", note: "Asked about week 2." }, course: true });
+    assert.equal(note.status, 200, JSON.stringify(note.body));
+  }
+
+  test("each caller of Group B's register: who reads the marks, who reads the notes, who is refused", async () => {
+    await noted();
+    const said = {};
+    for (const who of ["rahul", "sofia", "zach", "claudia", "tess", "lloyd", "yusuf", "tom", "amara", "bea", "nobody", null]) {
+      const answer = await read(who, B);
+      if (answer.status !== 200) {
+        said[who ?? "signed out"] = answer.status;
+        continue;
+      }
+      const key = answer.body.sessions[0].sessionKey;
+      said[who] = {
+        mark: answer.body.records[key]?.amara ?? null,
+        onDev: answer.body.participantNotes[key]?.dev ?? null,
+        onSession: answer.body.sessions[0].notes,
+      };
+    }
+    const both = { mark: "late", onDev: "Asked about week 2.", onSession: "Started ten minutes late." };
+    assert.deepEqual(said, {
+      // The group's facilitator, its co-facilitator and an admin: the marks and every note.
+      rahul: both,
+      sofia: both,
+      zach: both,
+      // The programme's lead: the marks, and no note of either kind.
+      claudia: { mark: "late", onDev: null, onSession: "" },
+      tess: 403,
+      lloyd: 403,
+      yusuf: 403,
+      // Another group's facilitator, a member of the group, a member of another group.
+      tom: 403,
+      amara: 403,
+      bea: 403,
+      nobody: 403,
+      "signed out": 401,
+    });
+  });
+
+  test("an archived group's register: the lead still reads its marks and still no note, an admin reads both", async () => {
+    await noted();
+    world.db.poke(`courseGroups/${B}`, { archived: true });
+    const asLead = (await read("claudia", B)).body;
+    const asAdmin = (await read("zach", B)).body;
+    const key = asLead.sessions[0].sessionKey;
+    assert.equal(asLead.records[key].amara, "late");
+    assert.deepEqual(asLead.participantNotes, {});
+    assert.equal(asLead.sessions[0].notes, "");
+    assert.equal(asAdmin.participantNotes[key].dev, "Asked about week 2.");
+    assert.equal(asAdmin.sessions[0].notes, "Started ten minutes late.");
+    assert.equal((await read("rahul", B)).status, 403, "an archived group's facilitator reads it");
+  });
+
+  test("a lead who also facilitates the group reads its notes as its facilitator", async () => {
+    await noted();
+    world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia", "claudia"] });
+    const answer = (await read("claudia", B)).body;
+    const key = answer.sessions[0].sessionKey;
+    assert.equal(answer.participantNotes[key].dev, "Asked about week 2.");
+    assert.equal(answer.sessions[0].notes, "Started ten minutes late.");
   });
 });

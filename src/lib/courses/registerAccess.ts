@@ -34,10 +34,15 @@ import { programmeLedBy } from "./programmeLead";
  *    consulted for access at all.
  *  · READING is one person wider (`gateGroupRegisterRead`, the register's
  *    GET alone): the lead of the programme that names the group's run reads
- *    every register of that run, marks and notes, and marks nothing. They
- *    answer for the whole programme's attendance, which is a different thing
- *    from staffing it. Their power is worked out from the form when they ask
- *    (`programmeLedBy`), and is nothing on any other run.
+ *    every register of that run, its marks and nothing they could change.
+ *    They answer for the whole programme's attendance, which is a different
+ *    thing from staffing it. Their power is worked out from the form when
+ *    they ask (`programmeLedBy`), and is nothing on any other run.
+ *  · THE REGISTER'S NOTES are the group's facilitators' and admins' (C30):
+ *    what a facilitator writes about a named person, and about a session as a
+ *    whole, is not sent to a caller the read gate admits only as the lead.
+ *    `readsNotes` says which callers get them, and the GET is the one door
+ *    that hands notes out to a reader.
  *
  * ── AUTHORIZATION BEFORE EXISTENCE ──────────────────────────────────────────
  * A missing group, an ARCHIVED group and a group you do not facilitate all
@@ -82,7 +87,18 @@ export function displayNameOf(data: Record<string, unknown>): string {
 }
 
 export type RegisterGate =
-  | { ok: true; group: CourseGroupDoc; runId: string; isAdmin: boolean }
+  | {
+      ok: true;
+      group: CourseGroupDoc;
+      runId: string;
+      isAdmin: boolean;
+      /**
+       * True for an admin and the group's live facilitators, the people the
+       * register's notes are written for. False for a caller admitted only
+       * as the programme's lead, who reads the marks and no note.
+       */
+      readsNotes: boolean;
+    }
   /** Map straight onto a `NextResponse.json({ error }, { status })`. */
   | { ok: false; status: number; error: string };
 
@@ -116,7 +132,7 @@ export async function gateGroupRegister(
   if (!group.runId || !isAddressableId(group.runId)) {
     return { ok: false, status: 400, error: "Group is not attached to a run" };
   }
-  return { ok: true, group, runId: group.runId, isAdmin };
+  return { ok: true, group, runId: group.runId, isAdmin, readsNotes: true };
 }
 
 /**
@@ -128,7 +144,8 @@ export async function gateGroupRegister(
  * The same refusals as the write gate: a missing group, a group on another
  * programme's run and a group the caller has no part in collapse onto one
  * 403, so probing ids tells nobody which exist. `isAdmin` stays the admin's
- * alone, so a lead reads the people Publish has told and corrects nothing.
+ * alone, so a lead reads the people Publish has told and corrects nothing,
+ * and `readsNotes` is false for a lead, who is sent no note.
  */
 export async function gateGroupRegisterRead(
   groupId: string,
@@ -163,7 +180,7 @@ export async function gateGroupRegisterRead(
   if (!group.runId || !isAddressableId(group.runId)) {
     return { ok: false, status: 400, error: "Group is not attached to a run" };
   }
-  return { ok: true, group, runId: group.runId, isAdmin };
+  return { ok: true, group, runId: group.runId, isAdmin, readsNotes: isAdmin || facilitatesLiveGroup };
 }
 
 /**
