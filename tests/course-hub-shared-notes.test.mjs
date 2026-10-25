@@ -206,6 +206,13 @@ describe("1. who writes a note on Group B", () => {
     assert.deepEqual(notes(), []);
   });
 
+  test("somebody who left by themselves keeps Publish's stamp, as leaving does, and writes and reads nothing", async () => {
+    world.db.poke(`courseEnrolments/${RUN.agi}__sam`, { allocatedEmailAt: new Date("2026-10-28T18:00:00Z") });
+    assert.deepEqual(said(await write("sam", A, { body: "After I left.", weekNumber: 3 })), [403, "Forbidden"]);
+    assert.deepEqual(await readingOf("sam"), { all: false, reads: "", writes: "", own: null });
+    assert.deepEqual(notes(), []);
+  });
+
   test("a place that is not active writes nothing: a run completed reads, and does not write", async () => {
     world.db.poke(`courseEnrolments/${RUN.agi}__chloe`, { status: "completed" });
     assert.equal((await write("chloe", B, { body: "After the end.", weekNumber: 3 })).status, 403);
@@ -651,6 +658,19 @@ describe("6. the notes' own component, and the programme's Attendance tab", () =
     assert.doesNotMatch(text, /Add a note|Delete/);
     // A group with no notes has no card.
     assert.doesNotMatch(text, /Notes shared with Group C|Notes shared with Group D/);
+  });
+
+  test("the sections the tab is handed offer the lead and an admin no way to add a note", async () => {
+    await write("chloe", B, { body: "From Group B.", weekNumber: 3 });
+    const { run, groups } = runAndGroups();
+    for (const who of ["claudia", "zach"]) {
+      const sections = await readers.sharedNotesForAttendance(world.courseDb, session(who), run, groups, "Claudia");
+      assert.deepEqual(sections.map((section) => [section.groupId, section.canWrite]), [[B, false]], who);
+    }
+    // Anybody else is handed nothing at all.
+    for (const who of ["chloe", "rahul", "yusuf"]) {
+      assert.deepEqual(await readers.sharedNotesForAttendance(world.courseDb, session(who), run, groups, "Claudia"), [], who);
+    }
   });
 
   test("an admin reads them there too, with the lead named", async () => {
