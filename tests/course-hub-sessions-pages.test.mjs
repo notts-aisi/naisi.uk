@@ -498,7 +498,7 @@ describe("4. what the group's people read after each kind of change", () => {
     // The card under it: the next session, with the weeks it covers.
     const card = render(SessionCard, cardFacts.nextSessionCard(group));
     assert.match(card, /^Tue 1 Dec · weeks 4 and 5 /);
-    assert.match(card, /Tuesday 1 December · 18:00–20:00/);
+    assert.match(card, /Tuesday 1 December · 18:00\u201320:00/);
     assert.match(card, /Hallward B12/);
 
     // The update is on their page too.
@@ -576,7 +576,7 @@ describe("4. what the group's people read after each kind of change", () => {
       mode: null,
       cancelled: cardFacts.cancelledIn(group, 4),
     });
-    assert.match(card, /Wednesday 25 November · 19:00–21:00/);
+    assert.match(card, /Wednesday 25 November · 19:00\u201321:00/);
     assert.match(card, /Portland A13/);
     assert.doesNotMatch(card, /Hallward B12/);
   });
@@ -619,7 +619,7 @@ describe("4. what the group's people read after each kind of change", () => {
       id: B,
       name: "Group B",
       calendar: { currentWeek: null, nextSession: null },
-      sessionLabel: "Tuesdays 18:00–20:00",
+      sessionLabel: "Tuesdays 18:00\u201320:00",
       weekday: 2,
       startTimeLocal: "18:00",
       durationMinutes: 120,
@@ -659,13 +659,13 @@ describe("5. the room notice never carries the meeting link", () => {
   test("its online wording says where the link is, and a link handed to it anyway is not read", () => {
     const online = roomNotice.prefillFor({
       weekLabel: "Week 6",
-      slotLabel: "Mondays 18:00–20:00",
+      slotLabel: "Mondays 18:00\u201320:00",
       mode: "virtual",
       location: "Hallward B12",
     });
     assert.equal(
       online,
-      "Week 6: we're meeting online this week rather than in person. The link to join is on your programme page, not in your emails. We're still meeting Mondays 18:00–20:00.",
+      "Week 6: we're meeting online this week rather than in person. The link to join is on your programme page, not in your emails. We're still meeting Mondays 18:00\u201320:00.",
     );
     const handed = roomNotice.prefillFor({ weekLabel: "Week 6", slotLabel: "", mode: "virtual", location: "", meetingUrl: LINK });
     assert.ok(!handed.includes(LINK), handed);
@@ -681,7 +681,7 @@ describe("5. the room notice never carries the meeting link", () => {
         groupId: B,
         groupName: "Group B",
         groupHref: GROUP_PATH(B),
-        session: { weekLabel: "Week 6", slotLabel: "Tuesdays 18:00–20:00", mode: "virtual", location: "Hallward B12" },
+        session: { weekLabel: "Week 6", slotLabel: "Tuesdays 18:00\u201320:00", mode: "virtual", location: "Hallward B12" },
       }),
     );
     const said = text(html);

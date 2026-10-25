@@ -5,8 +5,8 @@
  * on the server say the same thing in the same words.
  *
  * The words the boards draw (wk-session, wk-changes) are copied exactly, with
- * their apostrophes. The words they do not draw are written in the same voice
- * and listed for Claude Design in the build notes.
+ * their apostrophes. The words they do not draw are written in the same voice,
+ * and are listed in the build notes for the boards' designers to settle.
  *
  * Dates are civil dates ("2026-11-24"), formatted at noon UTC in London, so no
  * offset can move the day a date key names.

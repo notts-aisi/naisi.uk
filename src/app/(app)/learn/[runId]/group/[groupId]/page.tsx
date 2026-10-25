@@ -391,7 +391,7 @@ export default async function GroupHomePage({
           group={sessionGroup}
           slotStartKey={currentWeek?.slotStartKey ?? null}
           // The same week key the slot above was resolved for, so the
-          // facilitator's card swaps exactly as their members' does — this page
+          // facilitator's card swaps exactly as their members' does: this page
           // is where they check that the flip they just made looks right.
           mode={sessionModeForWeek(group, weekId)}
           title={coversTitle(sessionGroup, weekNumber)}

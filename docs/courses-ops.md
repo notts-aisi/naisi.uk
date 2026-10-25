@@ -1078,6 +1078,9 @@ full of absences, and it is never chased. Next week's email goes either way:
 the push sends it while the schedule is off, and the schedule sends it on time
 while it is on.
 
+A session cancelled ahead of time, through "Change a session", is never chased
+either, and its own email says it is off: see Changing a session.
+
 ## Placing a term's accepted people on a course run
 
 The term's application form decides who holds a place on each programme
@@ -1387,6 +1390,75 @@ Destroying the run deletes its updates (the dialog counts them as Updates).
 Deleting somebody's account leaves the updates they wrote: they belong to
 the run and the people they were to. Such an update shows its writer as
 NAISI.
+
+## Changing a session
+
+One week's session of one group can be held online, moved for that week only,
+cancelled with the group keeping pace, or cancelled with the rest of the
+group's weeks pushed back a week; a changed session can be put back as usual.
+The code is `src/lib/courses/sessionChange/` and one route,
+`/api/courses/groups/[groupId]/session/change`.
+
+### Who, and where
+
+- **The programme's lead and admins**: the Groups tab's Sessions view, one week
+  of the run with each group's session in it. `?week=5` shows another week.
+- **A group's facilitators**: "Change a session" on their group's page, which
+  lists the group's sessions from today.
+- **A run's track leads** may change a session through the same route; the
+  Sessions view is the lead's and admins', as the tab's other views are.
+- Nobody else. A session that has started cannot be changed: it is the
+  register's.
+
+### What each one does
+
+- **Hold it online**: same day and time, the week switched online. Only for a
+  group with a join link; the link is on the group's programme page, never in
+  an email.
+- **Move it**: that week's day (within its week), time and room. A moved
+  session meets in its room, so an online switch for that week goes.
+- **Cancel it, and keep pace**: nobody meets that evening, the week's reading
+  stays open, the next session covers both weeks, and the group finishes when
+  it would have (or a week sooner, when the cancelled session was its last).
+- **Cancel it, and push the rest back a week**: a "No session this week" break
+  goes into the group's own plan where the week was, so it and every week
+  after it move back one week, and the group finishes a week later. From then
+  on the group keeps its own plan, as after Add break in the pace editor.
+- **Hold it as usual** (for a session changed one of the first three ways):
+  back to the group's weekly slot and room.
+
+A cancellation is of one evening: if the run is re-dated, or the group
+re-paced, so that the week's session falls on another date, the week is held
+on its new date.
+
+### Telling the group
+
+With "Tell the group" on (as it opens), the button says how many people it
+emails, and the press posts an update to the group through the updates route,
+emailed to them as any update to a group is (see Updates on a run): the reason
+the group was given and what is now true. If the change went through and the
+update did not, the dialog says so and offers to tell the group again. The
+reason and a moved room are refused if they hold a link.
+
+The group's programme page shows a cancelled evening as "No session tonight"
+(before the day, "No session on Tue 24 Nov"), with the reason and when the
+group meets next, until that evening has passed.
+
+### What else follows
+
+- **Next week's email** about a cancelled session says it is off, why, and when
+  the group meets next, and leaves out when and where the group meets; the email
+  about the session after it says it covers both weeks. A moved session's email
+  names its new day, time and room, and an online one says Online.
+- **The register chase** skips a cancelled session: no reminder, no task. Its
+  register still has a column; leave it empty.
+- **The run's catch-up email** names no cancelled evening.
+
+### Rules
+
+`courseGroups.sessionChanges` is server-owned like `sessionModes`: only the
+change route writes it, and no client lane may set it, change it or create a
+group carrying it.
 
 ## Offering a place somebody gave back
 
