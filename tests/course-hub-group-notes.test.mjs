@@ -30,8 +30,8 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { readFileSync, readdirSync } from "node:fs";
+import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FIELD_VALUE_STUB } from "./lib/applicationsStore.mjs";
 import { makeWorld } from "./lib/handoverWorld.mjs";
@@ -191,6 +191,12 @@ describe("2. what a note keeps, and the notes it refuses", () => {
     }
     // Nobody signed in is told so before their body is read.
     assert.equal((await write(null, B, { body: "" })).status, 401);
+    // The body comes before the gate: somebody who may not write a note on the
+    // group is told about the body first, as every signed-in caller is.
+    for (const who of ["chloe", "claudia", "zach", "tom"]) {
+      const answer = await write(who, B, { body: "   " });
+      assert.deepEqual([answer.status, answer.body.error], [400, "Write your note in the box first, then save it."], who);
+    }
   });
 });
 
@@ -310,5 +316,73 @@ describe("4. what takes the notes away", () => {
       /try \{\s*summary\.courseGroupNotesDeleted = await deleteCourseGroupNotes\(db, uid\);\s*\} catch \(err\) \{[^}]*partialFailure = true;/,
     );
     assert.match(source, /deleteOwnedCourseRows\(db, COURSE_GROUP_NOTES_COLLECTION, uid, "authorUid"\)/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. Every file that addresses the notes, and every caller of their reader
+// ---------------------------------------------------------------------------
+
+/**
+ * THE TREE. A note is read only on the server, by a page that has already
+ * decided its reader may see the group's notes, and written only by the notes
+ * route. So every file under `src` that addresses `courseGroupNotes` is
+ * listed here with what it does, and every caller of the reader is one of the
+ * two pages that gate it. A new file fails this section until somebody
+ * decides what it is.
+ */
+const ADDRESSERS = {
+  "lib/firestore/courseGroupNotes.ts": "the record: its shape, its limit and its normaliser",
+  "lib/courses/groupNotes/readers.ts": "the one reader, server-only, called after a page's gate",
+  "app/api/courses/groups/[groupId]/notes/route.ts": "the one writer, a live facilitator of the group",
+  "lib/firestore/courseDeletion.ts": "destroying the run counts the notes and drains them",
+  "lib/firestore/accountDeletion.ts": "deleting an account deletes the notes it wrote",
+};
+const READER_CALLERS = {
+  "app/(app)/learn/[runId]/group/[groupId]/page.tsx": "the group page: its live facilitators and admins",
+  "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance/page.tsx":
+    "the programme's Attendance tab: its lead and admins",
+};
+
+function sourceFiles(dir = SRC, out = []) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) sourceFiles(path, out);
+    else if (/\.(ts|tsx)$/.test(entry.name)) out.push(path);
+  }
+  return out;
+}
+const inSrc = (path) => relative(SRC, path).split(sep).join("/");
+
+describe("5. every file that addresses the notes, and every caller of their reader, is listed", () => {
+  const files = sourceFiles().map((path) => [inSrc(path), readFileSync(path, "utf8")]);
+  assert.ok(files.length > 500, `the walk found only ${files.length} files: it is not reading the tree`);
+
+  test("the files that address courseGroupNotes are the record, the reader, the route and the two deletions", () => {
+    const addressing = files
+      .filter(([, code]) => /COURSE_GROUP_NOTES_COLLECTION|["'`]courseGroupNotes["'`]/.test(code))
+      .map(([file]) => file)
+      .sort();
+    assert.deepEqual(addressing, Object.keys(ADDRESSERS).sort());
+  });
+
+  test("the reader is called by the two gated pages and nothing else, and no client file reaches it", () => {
+    const callers = files
+      .filter(([file, code]) => file !== "lib/courses/groupNotes/readers.ts" && /\bread(?:Run)?GroupNotes\s*\(/.test(code))
+      .map(([file]) => file)
+      .sort();
+    assert.deepEqual(callers, Object.keys(READER_CALLERS).sort());
+    for (const [file, code] of files) {
+      if (!/^\s*["']use client["'];?/.test(code)) continue;
+      assert.doesNotMatch(code, /from "@\/lib\/courses\/groupNotes\/readers"/, `${file} is a client file and imports the reader`);
+    }
+  });
+
+  test("the one writer writes, and nothing else writes a note", () => {
+    for (const [file, code] of files) {
+      if (!(file in ADDRESSERS)) continue;
+      const writes = /\.collection\(COURSE_GROUP_NOTES_COLLECTION\)[^;]*\.(?:set|update|add|create)\(|COURSE_GROUP_NOTES_COLLECTION\)\.doc\(\);/.test(code);
+      assert.equal(writes, file === "app/api/courses/groups/[groupId]/notes/route.ts", `${file}: ${writes ? "writes a note" : "writes none"}`);
+    }
   });
 });
