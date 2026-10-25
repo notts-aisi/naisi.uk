@@ -5,6 +5,7 @@ import { resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { displayNameOf } from "@/lib/courses/registerAccess";
 import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
 import { londonDateKey } from "@/lib/courses/weekPlan";
+import { isReading, weekSources } from "@/lib/courses/weekBlocks/reader";
 import { holdsStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
@@ -226,9 +227,11 @@ export async function pitchingView(
     .map((seat) => ({ uid: seat.uid, name: nameOf(seat.uid) }))
     .sort((a, b) => a.name.localeCompare(b.name) || a.uid.localeCompare(b.uid));
 
-  const readings = (resolved.week?.materials ?? [])
-    .filter((material) => material.type === "reading" && material.title.trim())
-    .map((material) => ({ id: material.id, title: material.title.trim() }));
+  // The week's readings through the one reader: a block week's sources to
+  // read, or a week written before blocks' readings.
+  const readings = (resolved.week ? weekSources(resolved.week) : [])
+    .filter((source) => isReading(source) && source.title.trim())
+    .map((source) => ({ id: source.id, title: source.title.trim() }));
 
   const open = pitchingIsOpen(run, start, now);
   const pickLimit = run.pitchSettings.pickLimit;

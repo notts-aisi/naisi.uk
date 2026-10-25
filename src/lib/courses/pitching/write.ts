@@ -1,6 +1,7 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
+import { isReading, weekSources } from "@/lib/courses/weekBlocks/reader";
 import type { SessionUser } from "@/lib/firebase/session";
 import {
   PITCHES_COLLECTION,
@@ -87,8 +88,10 @@ export async function savePitch(
   if (input.paper.kind === "reading") {
     const { week: weekDoc } = await resolveWeekDoc(db, runId, group.id, week.weekId);
     const materialId = input.paper.materialId;
-    const reading = (weekDoc?.materials ?? []).find(
-      (material) => material.type === "reading" && material.id === materialId && material.title.trim(),
+    // One of the week's readings through the one reader, whichever shape the
+    // week is.
+    const reading = (weekDoc ? weekSources(weekDoc) : []).find(
+      (source) => isReading(source) && source.id === materialId && source.title.trim(),
     );
     if (!reading) {
       return {

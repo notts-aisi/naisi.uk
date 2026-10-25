@@ -12,6 +12,8 @@ import {
 } from "@/lib/firestore/courseEmails";
 import { firstWord } from "@/lib/firestore/applicationEmails";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
+import type { WeekBlock } from "@/lib/courses/weekBlocks/model";
+import { weekSummaryText } from "@/lib/courses/weekBlocks/reader";
 import { sendEmail } from "./send";
 
 /**
@@ -561,6 +563,7 @@ export function groupNudgeFacts(args: {
     materials?: readonly { optional?: boolean }[] | null;
     exercises?: readonly { required?: boolean }[] | null;
     estimatedMinutes?: number | null;
+    blocks?: readonly WeekBlock[] | null;
   };
 }): { sessionWhen: string; sessionWhere: string; context: CourseNudgeRunContext } {
   return {
@@ -571,7 +574,10 @@ export function groupNudgeFacts(args: {
       runLabel: args.runLabel,
       weekNumber: args.session.weekNumber,
       weekTitle: args.week.title ?? "",
-      weekSummary: args.week.summary ?? "",
+      // A block week with no summary of its own says what its Why this week
+      // says (`weekSummaryText`, the one reader), so its email is not held
+      // for an empty value it never had a box for.
+      weekSummary: weekSummaryText(args.week),
       weekPrep: courseWeekPrepLine(args.week),
       weekUrl: courseWeekUrl(args.appUrl, args.runId, args.session.weekNumber),
       // Empty until an admin sets a form, and the renderer then drops the
@@ -739,7 +745,9 @@ export function courseWeekPrepLine(week: {
   materials?: readonly { optional?: boolean }[] | null;
   exercises?: readonly { required?: boolean }[] | null;
   estimatedMinutes?: number | null;
+  blocks?: readonly WeekBlock[] | null;
 }): string {
+  if (Array.isArray(week.blocks)) return blockWeekPrepLine(week.blocks);
   const materials = (week.materials ?? []).filter((m) => !m.optional).length;
   const exercises = (week.exercises ?? []).filter((x) => x.required).length;
   const duration = durationLabel(week.estimatedMinutes);
@@ -762,6 +770,26 @@ export function courseWeekPrepLine(week: {
   const verb = materials + exercises === 1 ? "is" : "are";
   const tail = duration ? `, ${duration} in total` : "";
   return `There ${verb} ${parts.join(" and ")} this week${tail}.`;
+}
+
+/**
+ * The `{weekPrep}` sentence for a block week: what its This week box asks
+ * for, counted by task, and its "In all" (HANDOFF: on the new week page the
+ * email's "reading" is the week's page and its This week box, not a list of
+ * readings). Never "exercise". "" when the week has no task to do yet, which
+ * holds an email that goes whole rather than send it without the line.
+ */
+function blockWeekPrepLine(blocks: readonly WeekBlock[]): string {
+  const thisWeek = blocks.find((block) => block.type === "thisWeek");
+  if (!thisWeek || thisWeek.type !== "thisWeek") return "";
+  const tasks = thisWeek.rows.filter((row) => row.type === "task").length;
+  if (tasks === 0) return "";
+  const verb = tasks === 1 ? "is" : "are";
+  const things = `${countWord(tasks)} ${tasks === 1 ? "thing" : "things"}`;
+  const total = thisWeek.total.trim();
+  // "About 2¼ hours" reads mid-sentence as "about 2¼ hours".
+  const inAll = total ? `, ${/^[A-Z][a-z]/.test(total) ? total[0].toLowerCase() + total.slice(1) : total} in all` : "";
+  return `There ${verb} ${things} to do this week${inAll}.`;
 }
 
 /** The `{weekUrl}` value — the learning space's week page for this run. */

@@ -13,6 +13,8 @@ import {
 import { ownAttendanceSessions, sessionsFromJoinWeek } from "@/lib/courses/ownAttendance";
 import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
 import { londonDateKey } from "@/lib/courses/weekPlan";
+import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
+import { weekChecklistItems, weekSources, type WeekSource } from "@/lib/courses/weekBlocks/reader";
 import { formatRunStartShort } from "@/lib/courses/window";
 import { ATTENDANCE_STATUS_LABEL, attendanceDocId } from "@/lib/firestore/courseAttendance";
 import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
@@ -238,6 +240,17 @@ function readingItem(material: Material): ReadingItem {
   };
 }
 
+/** A block week's source as a reading list row: "Read · 22 minutes". */
+function sourceReadingItem(source: WeekSource): ReadingItem {
+  return {
+    id: source.id,
+    title: source.title.trim() || source.kindLabel,
+    href: source.url ? webAddress(source.url) : null,
+    meta: [source.kindLabel, source.time].filter(Boolean).join(" · "),
+    body: null,
+  };
+}
+
 /** Every published week's readings, as the person's group reads them. Read only. */
 export async function loadReadingList(
   db: Firestore,
@@ -252,7 +265,9 @@ export async function loadReadingList(
     weeks: published.weeks.map((week) => ({
       weekNumber: week.weekNumber,
       title: week.title,
-      items: week.materials.map(readingItem),
+      // A block week's sources, every pack's included; a week written before
+      // blocks keeps its materials, drawn exactly as they always were.
+      items: isBlockWeek(week) ? weekSources(week).map(sourceReadingItem) : week.materials.map(readingItem),
     })),
   };
 }
@@ -301,8 +316,8 @@ export async function loadOwnNotes(
   const weekTitle = new Map<number, string>();
   for (const { week } of docs) {
     weekTitle.set(week.weekNumber, week.title);
-    for (const material of week.materials) titleOf.set(material.id, material.title.trim());
-    for (const item of week.checklist) titleOf.set(item.id, item.title.trim());
+    for (const source of weekSources(week)) titleOf.set(source.id, source.title.trim());
+    for (const item of weekChecklistItems(week)) titleOf.set(item.id, item.title.trim());
   }
 
   const byWeek = new Map<number, NoteItem[]>();

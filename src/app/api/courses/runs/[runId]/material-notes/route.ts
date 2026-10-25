@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/firebase/session";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { asUidList } from "@/lib/firestore/events";
 import { COURSE_FIELD_LIMITS, normalizeCourseWeek } from "@/lib/firestore/courses";
+import { weekSources } from "@/lib/courses/weekBlocks/reader";
 import {
   COURSE_MATERIAL_NOTES_COLLECTION,
   MATERIAL_NOTE_LIMITS,
@@ -233,7 +234,9 @@ export async function POST(
     const snap = await scan().get();
     for (const d of snap.docs) {
       const week = normalizeCourseWeek(d.id, d.data() ?? {});
-      if (week.materials.some((m) => m.id === itemId)) {
+      // The week's sources, whichever shape the week is (a block week keeps
+      // them in its parts and packs): `weekSources` is the one reader.
+      if (weekSources(week).some((source) => source.id === itemId)) {
         weekNumber = week.weekNumber;
         found = true;
         break;

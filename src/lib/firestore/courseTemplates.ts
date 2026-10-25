@@ -2,6 +2,7 @@ import { slugId } from "./slugId";
 import type { CourseWeekDoc } from "./courses";
 import type { CourseMaterialNoteDoc } from "./courseMaterialNotes";
 import { weekBlocksField } from "../courses/weekBlocks/model";
+import { weekSources } from "../courses/weekBlocks/reader";
 
 /**
  * `courseTemplates/{templateId}` + `courseTemplates/{templateId}/weeks/{wNN}`
@@ -367,10 +368,13 @@ export function aggregateRetrospective(input: {
   for (const week of [...weeks].sort(
     (a, b) => a.weekNumber - b.weekNumber || a.id.localeCompare(b.id),
   )) {
-    for (const material of week.materials) {
-      if (meta.has(material.id)) continue;
-      meta.set(material.id, { weekNumber: week.weekNumber, title: material.title });
-      order.push(material.id);
+    // The week's sources, whichever shape it is: a block week's are in its
+    // parts and packs (`weekSources`, the one reader); a week written before
+    // blocks gives its materials, as it always did.
+    for (const source of weekSources(week)) {
+      if (meta.has(source.id)) continue;
+      meta.set(source.id, { weekNumber: week.weekNumber, title: source.title });
+      order.push(source.id);
     }
   }
 

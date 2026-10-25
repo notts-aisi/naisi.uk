@@ -26,6 +26,7 @@ import {
 } from "@/lib/firestore/courses";
 import { TASK_FIELD_LIMITS } from "@/lib/firestore/tasks";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { weekChecklistItems, weekSummaryText } from "@/lib/courses/weekBlocks/reader";
 
 /**
  * Lazy task mirroring — projecting the cohort's CURRENT week into the caller's
@@ -400,11 +401,13 @@ export async function POST(
       weekNumber,
       uid: actor.uid,
       title: `${courseTitle} — Week ${weekNumber}`.slice(0, TASK_FIELD_LIMITS.title),
-      description: week.summary.slice(0, TASK_FIELD_LIMITS.description),
+      // Through the one reader, so a block week's card says what its Why this
+      // week says and mirrors its checklist blocks' items.
+      description: weekSummaryText(week).slice(0, TASK_FIELD_LIMITS.description),
       // A published week with no `mirrorToMyWork` items still earns a card: the
       // task IS the weekly nudge (source `fellowship-reminder`), and the
       // checklist is a bonus rather than its reason to exist.
-      checklist: week.checklist,
+      checklist: weekChecklistItems(week),
       dueDate,
       now,
     });
