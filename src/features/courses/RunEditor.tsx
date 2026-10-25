@@ -54,6 +54,7 @@ import {
   type CurriculumSource,
 } from "./useTemplates";
 import GroupEditor, { NewGroupForm } from "./GroupEditor";
+import PitchSettingsEditor from "./pitching/PitchSettingsEditor";
 import RolePickers from "./RolePickers";
 import RunDangerZone from "./RunDangerZone";
 import SaveTemplateDialog from "./SaveTemplateDialog";
@@ -1362,6 +1363,19 @@ export default function RunEditor({ courseId, runId }: Props) {
           </div>
         </div>
       </Card>
+
+      {/* ---- Pitching week ----
+          The run's half of an incubator's pitching week: how many pitches a
+          person may pick, team sizes and the day teams are made. Which week
+          it is stays a tick on that week's own details. */}
+      <PitchSettingsEditor
+        runId={runId}
+        settings={run.pitchSettings}
+        weekPlan={run.weekPlan}
+        weeks={weeks}
+        runAction={runAction}
+        onSaved={reload}
+      />
 
       {/* ---- Groups and roles ----
           One child, two mount forms: the roster read that both sections need
