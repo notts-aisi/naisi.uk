@@ -1083,7 +1083,10 @@ while it is on.
 The term's application form decides who holds a place on each programme
 (see [docs/applications.md](applications.md), "From the form onto a course
 run"). Groups are formed on a course run's allocation board. This is the
-order the two are joined in, and it is an admin's job from start to finish.
+order the two are joined in. Steps 1 to 4 are an admin's. From step 5 on,
+the programme's lead does it too, on the run their programme names, from
+the programme's own page (see "A programme's lead on the run their
+programme names" below).
 
 ### The order
 
@@ -1100,7 +1103,8 @@ order the two are joined in, and it is an admin's job from start to finish.
 4. **After decisions have been sent, press "Hand over".** On the same panel.
    Everybody who holds a place on the programme gets a row on the run's own
    list. Nobody is emailed and nobody is put in a group.
-5. **Open the allocation board** (the panel links to it) and put people in
+5. **Open the allocation board** (the panel links to it, and the
+   programme's Groups tab draws it as People in groups) and put people in
    groups. Each card says which groups that person can make, from the week
    they painted on the form, or that they gave no availability.
 6. **Publish** from the board when everybody is in a group. That is the
@@ -1130,11 +1134,12 @@ order the two are joined in, and it is an admin's job from start to finish.
   programme. Check the run before the first press.
 - **A track lead on such a run is not shown these people.** The board, the
   run's own applications page and Publish serve somebody the form placed to
-  admins only. A track lead still edits the run, staffs its groups and sees
+  an admin and to the lead of the programme that names the run, and to
+  nobody else. A track lead still edits the run, staffs its groups and sees
   everybody who applied to the run itself. A row the form wrote is one an
-  admin places and an admin publishes: a track lead who presses Publish,
-  or its test, on such a run is told so and nothing happens. The run's own
-  counts do include
+  admin or that lead places and publishes: a track lead who presses
+  Publish, or its test, on such a run is told so and nothing happens. The
+  run's own counts do include
   them, as numbers: the run's applications page shows a track lead "8
   accepted" above an empty list.
 - **The "Paid" or "Unpaid" badge on a card is the membership record's.** It
@@ -1206,7 +1211,9 @@ back". Then, by hand:
 2. on the run's own applications page, change their row from Accepted. A
    row the form wrote carries no address, so that page emails nobody about
    it. Until this is done Publish goes on waiting for them, because Publish
-   refuses while anybody accepted is not in a group.
+   refuses while anybody accepted is not in a group. This step is an
+   admin's (or the run's admissions reviewer's): the programme's lead does
+   step 1 from the Groups tab and asks an admin for this one.
 
 Their own application page says they gave the place back as soon as they
 reply. Somebody who was in a group, and had been told it by Publish, goes
@@ -1219,13 +1226,60 @@ Each press that puts anybody on a run appends one line to the course log
 programme, and how many people. It names none of them. Destroying the run
 clears it with the run's other lines.
 
+## A programme's lead on the run their programme names
+
+Each programme's lead does, for their own programme, what an admin does from
+the allocation board on: they place its people, staff its groups and publish
+them. Everything is reached from the programme's own page, which they
+already open; nothing under `/admin/courses` is needed.
+
+### What the lead does, and where
+
+- **Groups tab, People in groups**: the run's allocation board, the same
+  board and routes an admin's mount uses. Place, move and remove people,
+  send the test and press Publish, with the same test lock and the same
+  count on the button.
+- **Groups tab, Times**: the times picture.
+- **Groups tab, Facilitators**: who facilitates each group, changed by hand.
+  The list to pick from is names only. Changing it emails nobody; somebody
+  added after groups have gone out is told by the next press of Publish.
+- **Attendance tab**: every register of the run, group by group, read only.
+  Marking stays with the group's facilitators and admins.
+- **Applications tab, Offer freed places** (see the next section).
+- Everything else a run's track lead may do on the run, through the same
+  routes: the run's own applications queue, putting somebody back on the
+  run, copying weeks, a note on a material, the retrospective, a group's
+  week, the run's email and its week nudge. Their doors under `/learn` stay
+  the cohort's; the programme's page is the lead's.
+
+### What stays an admin's
+
+Naming the run and the hand-over (the Settings tab's Course run panel),
+adding groups and changing a group's day, time or room (the run editor),
+changing a row on the run's own applications page, and correcting a
+finished register.
+
+### How it is decided
+
+The lead's power is worked out from the form each time it is used: the
+programme whose `runId` names the run, that programme's `leadUid`, and that
+account still meeting the bar a lead is appointed behind (an admin or
+SU-recognised committee). Nothing is copied onto the run: the run's
+`trackLeadUids` stay who an admin named. So a lead who is replaced, whose
+account changes, or whose programme stops naming the run has none of it at
+the next request, and the new lead has it at once. A lead of one programme
+is nobody on another programme's run, and a programme's reviewers gain
+nothing. Nothing is deployed for any of this: no rule and no index changes.
+
 ## Offering a place somebody gave back
 
 A place given back after decision day can be offered, on the site, to
 somebody who was told "No offer this time" and ranked that programme (see
 [docs/applications.md](applications.md), "A place given back after decision
 day"). It uses decision day's invitation and its Accept, with an email of its
-own, and it is an admin's job this term.
+own, and it is the job of an admin or the programme's lead. A lead who is
+not an admin is shown a person's score once their own review of that
+application is done, as on every other list of applications.
 
 The window is from the send until the end of week 1 of the course run the
 programme names: midnight in London at the end of the last day of the week

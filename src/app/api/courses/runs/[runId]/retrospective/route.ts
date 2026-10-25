@@ -25,7 +25,7 @@ import {
  *
  * WHO MAY READ: admins ∪ `approveCourse` ∪ `draftCourse` ∪ this run's track
  * leads ∪ the lead of the programme that names the run (`runStaffingOf`). The
- * people who author and steer curricula, which is the entire point — this
+ * people who author and steer curricula, which is the entire point: this
  * view exists to be read while drafting the next version.
  *
  * ── THE ANONYMITY BOUNDARY ──────────────────────────────────────────────────

@@ -18,7 +18,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * group's `memberCount` decrement.
  *
  * WHO MAY REMOVE: admins ∪ the run's `trackLeadUids` ∪ the lead of the
- * programme that names the run (`runStaffingOf`) — the allocation gate.
+ * programme that names the run (`runStaffingOf`): the allocation gate.
  *
  * A SOFT removal, deliberately: the enrolment doc survives. The deterministic
  * doc id (`courseEnrolments/{runId}__{uid}`) is the one-enrolment-per-(run,

@@ -20,7 +20,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  *     touch" is one query over enrolments).
  *
  * Gated to admins, the parent run's track leads and the lead of the programme
- * that names the run (`runStaffingOf`) — the people who staff a run.
+ * that names the run (`runStaffingOf`): the people who staff a run.
  * Facilitators cannot add each other.
  */
 

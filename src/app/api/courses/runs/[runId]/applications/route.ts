@@ -29,7 +29,7 @@ import { hasPaidMembership, normalizeUser } from "@/lib/firestore/users";
  * facilitator grants no sight of anyone's application, and reviewing
  * applications grants no access to the cohort. Track leads are here to READ
  * (they staff and steer the run); only admins and admissions reviewers may
- * decide — see the decide route.
+ * decide: see the decide route.
  *
  * ── THE PII BOUNDARY ────────────────────────────────────────────────────────
  * `email` is populated ONLY when the caller is an admin. A non-admin reviewer

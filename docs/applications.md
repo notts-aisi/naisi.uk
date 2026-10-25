@@ -1165,9 +1165,9 @@ One change is now made after the send, and it is held strictly:
   (`freedPlaceWindow`). No date is typed in code. A programme that names no
   run, or a run with no start date or no week 1, has no window;
 - **only by whoever `offersFreedPlaces()` admits**, asked of the caller's role
-  on the programme: an admin, this term. It is one line in
+  on the programme: an admin, or the programme's own lead. It is one line in
   `freedPlaces/rules.ts`, asked by the page, both routes and the writer's own
-  transaction, so giving it to a programme's lead is that line;
+  transaction;
 - **with one line in the log for each press**, of kind
   `application-freed-places-offered`, saying how many and on which
   programme, and naming nobody.
@@ -1274,8 +1274,11 @@ are free and until when, and the people a freed place can be offered to, each
 with their score for the programme, when they are free in a few words
 (`freeInWords`), and the groups their week covers. Nothing it is sent carries
 an address or a painted week. The preview is composed by the function the
-send uses, from the page's own fields. A lead or a reviewer who opens it is
-told it is an admin's; anybody with no role on the programme is not shown it.
+send uses, from the page's own fields. A lead who is not an admin is shown a
+person's score once their own review of that application is done, as on
+every other list of applications (`reviewsVisibleTo`, through `lookingAt`). A
+reviewer who opens it is told it is for the programme's lead and admins;
+anybody with no role on the programme is not shown it.
 
 `tests/applications-freed-places-offer.test.mjs` breaks each part of the rule
 through the routes, as every kind of caller and across the window's edges in
@@ -1294,8 +1297,10 @@ starts from such a row (the allocation board, a placement, Publish, the
 cohort's mailing list), and what the person is shown starts from the place
 on the run that a placement then makes.
 
-So the two are joined at that list and nowhere else, in three steps, each
-taken by an admin.
+So the two are joined at that list and nowhere else, in three steps. The
+first two are an admin's. The third is an admin's and the programme's lead's,
+on the run their programme names, from the programme's own Groups tab (see
+"The programme's lead on the run" below).
 
 | Step | When | The one function | What it writes |
 | --- | --- | --- | --- |
@@ -1453,7 +1458,7 @@ it is, whatever it says, and nobody is ever taken off a run from here.
 `tests/applications-handover.test.mjs` runs the press as every kind of
 caller, against every way a term and a run can stand.
 
-### A row from the form is an admin's
+### A row from the form is an admin's and its programme's lead's
 
 The course routes were written for people who applied to a run itself,
 and the people a run names read those rows: its track leads open the
@@ -1463,20 +1468,27 @@ may read an application is decided programme by programme, and being named
 on a run gives nobody that right.
 
 So `rowIsServedTo()` (`src/lib/firestore/courseApplications.ts`) gives a
-row with `fromForm` to an admin and to nobody else, on every staff route
-that reads or acts on rows:
+row with `fromForm` to an admin, and to the lead of the programme that names
+the run for the rows that programme's hand-over wrote, and to nobody else,
+on every staff route that reads or acts on rows. Who the caller is on the
+run is worked out once per request by `runStaffingOf`
+(`src/lib/courses/runStaffing.ts`), and the route hands that answer to
+`rowIsServedTo`. The lead already reads those people's applications on the
+programme's Applications tab, so nothing new about them reaches the lead,
+and never an address:
 
-| Route | For somebody who is not an admin |
+| Route | For somebody who is neither an admin nor the programme's lead |
 | --- | --- |
 | the allocation board | such a row is not listed |
 | a placement | answered `not-accepted`, exactly as for a uid with no accepted row |
-| Publish | such a person is not emailed, and not named in the refusal |
+| Publish, and its test | the press is refused with a sentence that says who publishes such a run; nobody is emailed or named |
 | the run's own queue | such a row is not listed. The run's counters still count it, as a number |
 | decide, and reviewer notes | answered "Application not found", as for a row that is not there |
 
-The gates of those routes are unchanged. A track lead still opens the
-board, and still sees, places and publishes everybody who applied to the
-run itself.
+A track lead still opens the board, and still sees, places and publishes
+everybody who applied to the run itself. A run that holds a row its presser
+is not served holds their press of Publish, with a sentence that says who
+publishes it.
 
 **A browser reads no more than the routes serve.** `firestore.rules` gives
 a `courseApplications` document to an admin and to the person it is about,
@@ -1492,7 +1504,9 @@ nothing they have not been told.
 `src` that addresses the collection, with what it does about such a row,
 and a new reader fails it until somebody decides.
 `tests/applications-handover-board.test.mjs` runs each staff route as an
-admin, as the run's track lead and as its reviewer.
+admin, as the run's track lead and as its reviewer, and
+`tests/course-hub-lead-rows.test.mjs` as the programme's lead, with a row
+from another programme planted on the run.
 
 ### What the board is told
 
@@ -1510,8 +1524,10 @@ the board is drawn (`formPlaceFactsFor` in `handover/board.ts`):
 
 The painted week itself never leaves the application system: the board is
 handed the outcome of the comparison and nothing else. A group with no
-session time set is never one somebody can make. The read is an admin's
-(`rowIsServedTo`), and an admin may read every application.
+session time set is never one somebody can make. The read is an admin's and
+the programme's lead's (`rowIsServedTo`): an admin may read every
+application, and the lead is answered about their own programme's rows and
+no others.
 
 **What a card then says** is one function, `cardFit`
 (`src/features/courses/allocationFit.ts`), for both kinds of person on the
@@ -1541,6 +1557,32 @@ row from the run's own form answers with the snapshot its apply route took.
 A row the hand-over wrote carries none, so its answer is "not known" and no
 badge is drawn. A screen never says "Unpaid" about somebody because a field
 is absent.
+
+### The programme's lead on the run
+
+The lead of the programme that names a run does, on that run and no other,
+everything a run's track lead may do there, through the same routes and the
+same checks, and three things more: they are served the rows their
+programme's hand-over wrote, they open the programme's Groups tab (People in
+groups is the run's allocation board, Times the times picture, Facilitators
+who staffs each group), and they read every register of the run on the
+Attendance tab, read only. Naming the run and the hand-over stay an admin's.
+
+Their power is worked out from the form each time it is used, by one module
+(`src/lib/courses/programmeLead.ts`): the programme whose `runId` names the
+run, its `leadUid`, and that account still meeting the bar a lead is
+appointed behind, asked through `isNamedWithStanding`. Nothing is copied
+onto the run, so a lead who is replaced, whose account changes, or whose
+programme stops naming the run has none of it at the next request. Should
+two programmes ever name one run, nobody leads it through either. The same
+module says who signs Publish's facilitators' email.
+
+`tests/course-hub-lead-routes.test.mjs`, `-rows`, `-registers` and `-pages`
+run every route and page as an admin, the lead, the lead of another
+programme, a lead who lost their standing, a lead replaced by another, a
+reviewer, the run's track lead, a facilitator, a member placed on the run
+and somebody signed out; `tests/course-hub-lead-every-gate.test.mjs` walks
+the tree for a gate that admits a track lead and not the lead.
 
 ### A place given back
 
@@ -1755,13 +1797,14 @@ All in `src/lib/applications/`.
   applicant. Nothing that builds what an applicant is sent, and nothing the
   form draws, reads `intro` or falls back on it. A new line or label for
   applicants gets a field of its own.
-- **A row the form puts on a course run is an admin's.** A staff route that
-  reads or acts on `courseApplications` asks `rowIsServedTo()` before it
-  lists, places, publishes, decides or annotates a row, so that a row with
-  `fromForm` goes to an admin and to nobody a run names. A new reader of
-  the collection is added to the list in
-  `tests/applications-handover-row-readers.test.mjs` with what it does about
-  such a row.
+- **A row the form puts on a course run is an admin's and its programme's
+  lead's.** A staff route that reads or acts on `courseApplications` asks
+  `rowIsServedTo()`, with the caller's standing from `runStaffingOf`, before
+  it lists, places, publishes, decides or annotates a row, so that a row
+  with `fromForm` goes to an admin and to the lead of the programme that
+  wrote it, and to nobody else a run names. A new reader of the collection
+  is added to the list in `tests/applications-handover-row-readers.test.mjs`
+  with what it does about such a row.
 - **Nothing of an application is stored on the course side.** A hand-over
   writes who somebody is and where their place came from. Whatever the
   course side needs to know about what they wrote, it asks for when it is

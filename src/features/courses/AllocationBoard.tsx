@@ -1474,8 +1474,8 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
                 Add groups in the{" "}
                 <Link className={styles.link} href={editorHref}>
                   run editor
-                </Link>{" "}
-                — each one needs a session time and a facilitator — and they will
+                </Link>
+                , each with a session time and a facilitator, and they will
                 appear here as columns to place people into.
               </p>
             ) : (

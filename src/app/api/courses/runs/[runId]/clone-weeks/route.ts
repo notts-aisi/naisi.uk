@@ -122,7 +122,7 @@ export async function POST(
   const source = sourceSnap.data() ?? {};
 
   // Admins, approvers, the TARGET run's track leads and the lead of the
-  // programme that names the target run (`runStaffingOf`) — the people who
+  // programme that names the target run (`runStaffingOf`): the people who
   // own this run's curriculum. Authority over the source run isn't required
   // separately because of the same-course check below: a track lead can only
   // ever pull content out of a run of the course they already lead.

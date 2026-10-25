@@ -64,7 +64,7 @@ const OWN = {
   displayName: "Nell Carter",
   email: "nobody@example.com",
   status: "accepted",
-  availability: "Tuesdays 18:00–19:30",
+  availability: "Tuesdays 18:00\u201319:30",
 };
 
 beforeEach(async () => {

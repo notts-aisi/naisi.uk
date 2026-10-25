@@ -40,7 +40,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * not silently stripped, because a probe at a trust boundary deserves an
  * answer the sender can see. Admins, the run's track leads and the lead of
  * the programme that names the run edit forks through this same route WITH
- * `guideBlocks` — the handler branches on role,
+ * `guideBlocks`, and the handler branches on role,
  * so the boundary holds against a crafted request whatever the UI offers.
  * `title` and `weekNumber` are accepted from nobody here: the week's name and
  * number stay canonical-shaped so the rail, the mirror ids and the register
