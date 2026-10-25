@@ -388,6 +388,18 @@ const USERS = new Map([
       "are filled is only real when the composer runs. Only `server-only` is stubbed",
   ],
   [
+    "course-hub-attendance.test.mjs",
+    "renders a programme's Attendance tab and its layout (.tsx server components) and the grid itself to HTML as " +
+      "every kind of caller, and runs the CSV route, against a stored term in its third week, because who is a row, " +
+      "the marks, the counts and the line under the programme's name are decided by the pages as they run",
+  ],
+  [
+    "course-hub-overview.test.mjs",
+    "renders a programme's Overview tab (.tsx server component) and its tabs to HTML as every kind of caller, and " +
+      "runs the Remind route and the register reminder job, whose graph reaches the reminder's email template, " +
+      "because what needs attention and who is emailed are decided by the page, the route and the job as they run",
+  ],
+  [
     "course-hub-lead-pages.test.mjs",
     "renders a programme's Groups tab (People in groups, Facilitators) and Attendance tab (.tsx server components), the " +
       "registers view and the allocation board itself to HTML, as every kind of caller, against a stored term, because " +

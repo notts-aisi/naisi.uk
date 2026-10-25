@@ -114,8 +114,12 @@ async function readCandidateRunIds(db: Firestore): Promise<string[]> {
 /**
  * Everything one facilitator's email needs, or the reason not to send it.
  * Each reason lands on their marker verbatim.
+ *
+ * Exported for the one other door to this reminder, a lead's "Remind" on the
+ * programme's Overview (`src/lib/courses/registerRemind.ts`), so a press and
+ * this job ask the same questions of the same facilitator.
  */
-async function resolveFacilitator(
+export async function resolveFacilitator(
   db: Firestore,
   uid: string,
   facilitatorUids: string[],

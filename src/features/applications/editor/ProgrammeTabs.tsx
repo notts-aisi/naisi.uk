@@ -20,7 +20,8 @@ import styles from "./ProgrammeFrame.module.css";
  * (`opensProgrammeGroups`), and are drawn like the tabs not built yet for a
  * reviewer: they show the people holding a place by name, in their groups,
  * when they are free and in the registers. Their pages refuse anybody else
- * on their own.
+ * on their own. Overview, the run's week, sessions and registers, is a link
+ * for the same two, and says so when the programme names no run yet.
  *
  * Messages, where updates are written to the people taking part, is a link
  * for the same two, by the same answer, and its page refuses anybody else.
@@ -28,7 +29,7 @@ import styles from "./ProgrammeFrame.module.css";
 
 type Tab = {
   /** The route segment under the programme, for the tabs that have a page. */
-  segment: "applications" | "groups" | "attendance" | "messages" | "setup" | null;
+  segment: "overview" | "applications" | "groups" | "attendance" | "messages" | "setup" | null;
   label: string;
   count?: number | null;
 };
@@ -47,12 +48,12 @@ export default function ProgrammeTabs({
   groups: number | null;
   /** True for the programme's lead and for an admin. */
   canEdit: boolean;
-  /** True for an admin and the programme's lead: Groups, Attendance and Messages are links. */
+  /** True for an admin and the programme's lead: Overview, Groups, Attendance and Messages are links. */
   groupsOpen: boolean;
 }) {
   const active = useSelectedLayoutSegment();
   const tabs: Tab[] = [
-    { segment: null, label: "Overview" },
+    { segment: groupsOpen ? "overview" : null, label: "Overview" },
     { segment: null, label: "Interest" },
     { segment: "applications", label: "Applications", count: applications },
     { segment: groupsOpen ? "groups" : null, label: "Groups", count: groups },

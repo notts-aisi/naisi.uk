@@ -258,6 +258,18 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/lib/courses/registerRemind.ts#group.facilitatorUids",
+    {
+      reads: 2,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "The facilitators of one group of the run a programme names, for its lead's Remind: " +
+        "each held to the standing the role is appointed behind, and asked for an address and " +
+        "their own email switch, by the reminder job's resolveFacilitator before the email goes.",
+    },
+  ],
+  [
     "src/app/api/courses/groups/[groupId]/email/route.ts#group.facilitatorUids",
     {
       reads: 1,

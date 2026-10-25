@@ -414,9 +414,14 @@ const REGISTRY = {
     "tasks",
     "The one reminder to a group's facilitators about an unfinished register: work they took on, like a worksheet's due-soon reminder, so their own tasks row is its off switch. `resolveFacilitator` reads it beside the address and the suppression check. Email only: this job has no push leg.",
   ),
+  "src/lib/courses/registerRemind.ts#sendRegisterReminderEmail": G(
+    "tasks",
+    "The same reminder, pressed now by a programme's lead or an admin (the Overview's Remind), to the facilitators of one group whose register is not finished. Each goes through the job's own `resolveFacilitator`, which reads their tasks row beside the address and the suppression check, and claims the job's own marker, so a facilitator hears about one register once. Email only.",
+    "src/lib/scheduler/jobs/registerReminders.ts",
+  ),
   "src/lib/email/registerReminderEmail.ts#sendEmail": G(
     "tasks",
-    "The register reminder's send door. It has one caller and that caller consults the row before it gets here.",
+    "The register reminder's send door. Its two callers, the job and a lead's Remind, both consult the row through the job's own resolveFacilitator before they get here.",
     "src/lib/scheduler/jobs/registerReminders.ts",
   ),
   "src/lib/email/courseNudgeEmail.ts#sendEmail": G(

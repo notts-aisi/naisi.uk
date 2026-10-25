@@ -23,9 +23,13 @@
  *     out to the dashboard.
  *  3. EVERY STATE HAS A SENTENCE: no run named, a run that has gone, each in
  *     words for a lead and for an admin.
- *  4. NAMES AND TIMES ONLY. The Attendance tab is handed the run's groups by
- *     name, weekly time and facilitators, and nothing about anybody in them;
- *     the views read the people through the course routes.
+ *  4. THE GRID, WORKED OUT ON THE SERVER. The Attendance tab (wk-attendance)
+ *     is handed the run's grid, built from its records once: the groups that
+ *     still meet by name, their slot and facilitators, and names and marks,
+ *     never an address. Its view marks nothing. (It was handed the groups by
+ *     name and time alone while each card read its register through the
+ *     route; the grid replaced that view, and this section pins the grid as
+ *     strictly.)
  *
  * Real: the pages (server components), the tree's gate, the loaders, the
  * views rendered to HTML, and the board. Faked: the session, the Admin SDK
@@ -51,7 +55,7 @@ const SESSION = "export async function getCurrentUser() { return globalThis.__le
 const STYLESHEETS = [
   "./GroupsViews.module.css",
   "./GroupFacilitators.module.css",
-  "./ProgrammeRegisters.module.css",
+  "./ProgrammeAttendance.module.css",
   "./TimesPicture.module.css",
   "./editor.module.css",
   "@/features/applications/editor/editor.module.css",
@@ -103,7 +107,6 @@ const TABS = join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "
 const { default: PeoplePage } = await loadTs(join(TABS, "groups", "page.tsx"));
 const { default: FacilitatorsPage } = await loadTs(join(TABS, "groups", "facilitators", "page.tsx"));
 const { default: AttendancePage } = await loadTs(join(TABS, "attendance", "page.tsx"));
-const { default: ProgrammeRegisters } = await loadTs(join("features", "applications", "groups", "ProgrammeRegisters.tsx"));
 
 /**
  * The board itself, with its data hook stood in by a run that has no groups
@@ -273,7 +276,7 @@ describe("2. for the lead and an admin, decided before the run is read", () => {
       world.db.poke("users/claudia", { admissionsReviewer: true });
       world.db.poke(formPath, { [`programmes.${AGI}.leadUid`]: "nadia", [`programmes.${AGI}.reviewerUids`]: ["lloyd", "claudia"] });
       const replaced = await draw(Page, "claudia");
-      assert.equal(find(replaced.element, "AllocationBoard").length + find(replaced.element, "ProgrammeRegisters").length, 0);
+      assert.equal(find(replaced.element, "AllocationBoard").length + find(replaced.element, "ProgrammeAttendance").length, 0);
       assert.match(replaced.text, /Only the programme’s lead and admins can open/);
       assert.deepEqual(replaced.reads, ["admissionRounds"]);
     });
@@ -315,36 +318,52 @@ describe("3. a programme with no run, in words for each", () => {
 // 4. Names and times only
 // ---------------------------------------------------------------------------
 
-describe("4. the Attendance tab is handed the groups by name and time", () => {
-  test("each group that still meets, Monday first, and nothing about anybody in it", async () => {
+describe("4. the Attendance tab is handed the run's grid, worked out on the server", () => {
+  test("each group that still meets, in name order, with names and marks and nothing else", async () => {
     world.db.poke(`courseGroups/${C}`, { archived: true });
     const drawn = await draw(AttendancePage, "claudia");
-    const [registers] = find(drawn.element, "ProgrammeRegisters");
-    assert.deepEqual(registers.props.groups, [
-      { id: B, name: "Group B", when: "Tuesdays at 6pm", facilitators: "Rahul and Sofia" },
-      { id: A, name: "Group A", when: "Thursdays at 6pm", facilitators: "Sofia" },
+    const [grid] = find(drawn.element, "ProgrammeAttendance");
+    // The board's order is by name (A, B, C, D), where the cards ran Monday first.
+    assert.deepEqual(
+      grid.props.model.groups.map((group) => ({ id: group.id, name: group.name, tag: group.tag, line: group.line })),
+      [
+        { id: A, name: "Group A", tag: "A", line: "Thursdays 6pm · Sofia" },
+        { id: B, name: "Group B", tag: "B", line: "Tuesdays 6pm · Rahul and Sofia" },
+      ],
+    );
+    assert.deepEqual(
+      { roundId: grid.props.roundId, programmeId: grid.props.programmeId, programmeName: grid.props.programmeName, initialGroup: grid.props.initialGroup },
+      { roundId: ROUND, programmeId: AGI, programmeName: "AGI Strategy", initialGroup: "all" },
+    );
+    // The run, its groups, its enrolments and registers, the accounts they
+    // name and the switch the register's ending reads: nothing else.
+    assert.deepEqual([...new Set(drawn.reads)].sort(), [
+      "admissionRounds",
+      "config",
+      "courseAttendance",
+      "courseEnrolments",
+      "courseGroups",
+      "courseRuns",
+      "users",
     ]);
-    assert.deepEqual([...new Set(drawn.reads)].sort(), ["admissionRounds", "courseGroups", "courseRuns", "users"]);
     assert.ok(!drawn.html.includes("@"), "an address reached the page");
+    assert.equal(drawn.wrote, false);
   });
 
-  test("the view draws a filter of groups, a register for each and the legend, and marks nothing", () => {
-    const html = renderToStaticMarkup(
-      createElement(ProgrammeRegisters, {
-        groups: [
-          { id: B, name: "Group B", when: "Tuesdays at 6pm", facilitators: "Rahul and Sofia" },
-          { id: A, name: "Group A", when: "Thursdays at 6pm", facilitators: "Sofia" },
-        ],
-      }),
+  test("the grid draws By person and By week, a filter of groups, the CSV, the legend, and marks nothing", async () => {
+    const drawn = await draw(AttendancePage, "claudia");
+    const said = drawn.text;
+    assert.match(said, /By person By week Group All A B C Download CSV/);
+    assert.match(drawn.html, /aria-pressed="true"[^>]*>By person<\/button>/);
+    assert.match(drawn.html, /aria-pressed="true"[^>]*>All<\/button>/);
+    assert.match(said, /Group A Thursdays 6pm · Sofia/);
+    assert.match(said, /P Present L Late LE Left early E Excused A Absent · Not yet Tonight P Saved, not pushed Late and left early count as came\./);
+    assert.match(
+      said,
+      /Each person sees their own marks on their programme page once their facilitator finishes the register\. Nobody sees a target, or how many they could miss\./,
     );
-    const said = text(html);
-    assert.match(said, /Group All B A/);
-    assert.match(html, /aria-pressed="true"[^>]*>All<\/button>/);
-    assert.match(said, /Group B Tuesdays at 6pm · Rahul and Sofia/);
-    assert.match(said, /P Present L Late LE Left early E Excused A Absent · Not marked/);
-    assert.match(said, /Each person sees their own marks on their programme page once their facilitator finishes the register\./);
-    // Nothing that marks: the only buttons are the filter's.
-    const buttons = [...html.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]);
-    assert.deepEqual(buttons, ["All", "B", "A"]);
+    // Nothing that marks: the only buttons are the views, the filter and the download.
+    const buttons = [...drawn.html.matchAll(/<button[^>]*>([\s\S]*?)<\/button>/g)].map((m) => text(m[1]));
+    assert.deepEqual(buttons, ["By person", "By week", "All", "A", "B", "C", "Download CSV"]);
   });
 });

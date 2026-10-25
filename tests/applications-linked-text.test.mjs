@@ -907,6 +907,22 @@ const BUILT = new Map([
     { built: ["`${base}/${tab.segment}`"], from: "a programme's own pages: its path and one of the tabs listed in the file" },
   ],
   [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/page.tsx",
+    {
+      built: ["`${programmePath}/applications`"],
+      from: "the programme's own Applications tab, for a reviewer told the Overview is not theirs: made from the form's and the programme's ids in the address, encoded",
+    },
+  ],
+  [
+    "src/features/applications/overview/ProgrammeOverview.tsx",
+    {
+      built: ["week.open.href", "session.seeIt", "item.link.href", "item.link.href", "`${programmePath}/attendance`"],
+      from:
+        "the programme's own path and the run's own ids, worked out on the server by buildProgrammeOverview: its " +
+        "Attendance tab, with a group's id to open on, and for an admin the week's editor under /admin/courses. Nothing anybody typed",
+    },
+  ],
+  [
     "src/features/applications/groups/GroupsViews.tsx",
     {
       built: ["groupsViewPath(roundId, programmeId, view)"],

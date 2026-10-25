@@ -348,6 +348,13 @@ const ROUND_SURFACES = {
       "one programme's Attendance tab, every register of the run it names. It reaches the round only through " +
       "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview": {
+    kind: "form",
+    why:
+      "one programme's Overview tab, the week, sessions and registers of the run it names. It reaches the round " +
+      "only through loadProgrammeRun and the form's own loader, each of which answers 'none' or null for a round " +
+      "that is not a form, and the page then says there is no programme here",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/pitches": {
     kind: "form",
     why:
@@ -510,6 +517,20 @@ const ROUND_SURFACES = {
     why:
       "sends the admin a test of a freed-place email, through sendFreedPlaceTest, which loads " +
       "the round with the form's own loader and finds nothing for a round that is not a form",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/attendance/export": {
+    kind: "form",
+    why:
+      "every register of the run a programme names, as a CSV for its lead and admins. It reaches the round only " +
+      "through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is " +
+      "not a form, so nothing is read, logged or handed over for one",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/registers/remind": {
+    kind: "form",
+    why:
+      "emails the facilitators of one group of the run a programme names about an unfinished register. It " +
+      "reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers " +
+      "'none' for a round that is not a form, so nobody is emailed for one",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email": {
     kind: "form",

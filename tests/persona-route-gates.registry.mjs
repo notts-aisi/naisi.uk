@@ -726,6 +726,26 @@ export const ROUTES = {
         "session.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/attendance/export": {
+    POST: {
+      expect: signedIn(404),
+      why:
+        "The Attendance tab's Download CSV, gated like the tab: signed in, then the role from the " +
+        "form (loadProgrammeRun), so a form, a programme or a role that is not there is the same " +
+        "404 for everybody, a reviewer is refused, and only the programme's lead and admins are " +
+        "handed a file, after its export-log row is written. It takes no body.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/registers/remind": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "The Overview's Remind: the body (which group, which session, how many the button said " +
+        "it emails) is checked before anything is read, so every signed-in persona meets the same " +
+        "400 on an empty body. Then the role from the form, as the Overview's own gate: only the " +
+        "programme's lead and admins email a group's facilitators.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email": {
     POST: {
       expect: signedIn(400),
@@ -2343,6 +2363,14 @@ export const PAGES = {
       "The admissions tree's gate, then the programme layout's and the page's own: the Facilitators view is the " +
       "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme the caller " +
       "has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: the Overview of the run a " +
+      "programme names is the programme's lead's and an admin's, so a reviewer is told so before the run is read, " +
+      "and a programme the caller has no role on, or one that does not exist, renders 'there is no programme here' " +
+      "with a 200.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
