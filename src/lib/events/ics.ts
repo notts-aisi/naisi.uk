@@ -1,18 +1,34 @@
 /**
- * Minimal iCalendar (RFC 5545) builder. Emits one VEVENT inside a VCALENDAR
- * with every timestamp in UTC ("Z" form) so any calendar client resolves it
- * correctly without needing a VTIMEZONE block. Shared by the public
- * `calendar.ics` download route and the RSVP-approval email attachment.
+ * Minimal iCalendar (RFC 5545) builder, with every timestamp in UTC ("Z"
+ * form) so any calendar client resolves it correctly without needing a
+ * VTIMEZONE block. Two files come out of it, from ONE event builder:
  *
- * Beside it live the "open this in a web calendar" link builders: Google, and
- * the two Outlook hosts. Those carry the event in a query string rather than
- * in a file, which is the only path that survives an in-app browser (Instagram
- * and Facebook block the file download on iOS), so a page that offers a
- * calendar entry offers both shapes.
+ *  - `buildEventIcs`: one VEVENT, for the public `calendar.ics` download
+ *    route and the RSVP-approval email attachment;
+ *  - `buildCalendarIcs`: many VEVENTs and the properties a subscribed
+ *    calendar reads (its name, how often to fetch it again), for a person's
+ *    own calendar link to their course sessions.
+ *
+ * Every line of both is folded at 75 octets (RFC 5545 section 3.1), never
+ * inside a character, so a long title or address reaches a strict reader
+ * whole.
+ *
+ * Beside them live the link builders. Two shapes:
+ *
+ *  - "open this event in a web calendar": Google, and the two Outlook hosts.
+ *    Those carry the event in a query string rather than in a file, which is
+ *    the only path that survives an in-app browser (Instagram and Facebook
+ *    block the file download on iOS), so a page that offers a calendar entry
+ *    offers both shapes;
+ *  - "subscribe to this calendar": Apple's `webcal:` address, Google's and
+ *    Outlook's own ways to add a calendar from a link. A subscription is
+ *    fetched again by the calendar app, so a later change reaches it; an
+ *    import is a copy taken once, and is never what these build.
  */
 
-type IcsArgs = {
-  /** Stable unique id for the event (the Firestore doc id works). */
+/** One event in a calendar file. */
+export type IcsEvent = {
+  /** Stable unique id for the event (the Firestore doc id works). `@naisi.uk` is added. */
   uid: string;
   title: string;
   description?: string;
@@ -29,7 +45,17 @@ type IcsArgs = {
    * it, so this is the property that decides whether a correction lands.
    */
   updatedAt?: Date | null;
+  /**
+   * STATUS, when the file says one. "cancelled" keeps the entry in a
+   * subscribed calendar and marks it off, so the evening reads as off rather
+   * than silently gone; "confirmed" says it is on, which is what turns a
+   * cancelled entry back on when the evening is put back.
+   */
+  status?: "confirmed" | "cancelled";
 };
+
+/** The single-event file's arguments: one event. */
+type IcsArgs = IcsEvent;
 
 /** The fields both web-calendar link builders take. */
 type CalendarLinkArgs = {
@@ -91,37 +117,130 @@ export function icsSequenceFor(updatedAt: Date | null | undefined): number {
   return Math.min(seconds, MAX_SEQUENCE);
 }
 
-export function buildEventIcs(args: IcsArgs): string {
-  const start = args.startAt;
-  const end = endFor(args);
+/** The longest a line may be, in octets, before it is folded (RFC 5545 section 3.1). */
+export const ICS_LINE_OCTETS = 75;
 
+const encoder = new TextEncoder();
+
+/**
+ * One content line, folded: no line longer than 75 octets, each continuation
+ * starting with one space (which counts towards its 75), and never a break
+ * inside a character, so a reader that unfolds it gets the line back exactly.
+ */
+export function foldIcsLine(line: string): string {
+  if (encoder.encode(line).length <= ICS_LINE_OCTETS) return line;
+  const parts: string[] = [];
+  let current = "";
+  let octets = 0;
+  let room = ICS_LINE_OCTETS;
+  for (const char of line) {
+    const size = encoder.encode(char).length;
+    if (octets + size > room) {
+      parts.push(current);
+      current = char;
+      octets = size;
+      room = ICS_LINE_OCTETS - 1;
+    } else {
+      current += char;
+      octets += size;
+    }
+  }
+  parts.push(current);
+  return parts.join("\r\n ");
+}
+
+/** The lines of a whole file: folded, and ended with CRLF, as RFC 5545 requires. */
+function serialise(lines: readonly string[]): string {
+  return lines.map(foldIcsLine).join("\r\n") + "\r\n";
+}
+
+/**
+ * ONE EVENT'S LINES, for both files. `stamp` is DTSTAMP: when the file was
+ * made. The property order is the event download's own, so its file is the
+ * one it always was.
+ */
+function eventLines(event: IcsEvent, stamp: Date): string[] {
   const lines = [
+    "BEGIN:VEVENT",
+    `UID:${escapeIcsText(event.uid)}@naisi.uk`,
+    `DTSTAMP:${formatUtc(stamp)}`,
+    `SEQUENCE:${icsSequenceFor(event.updatedAt)}`,
+    `DTSTART:${formatUtc(event.startAt)}`,
+    `DTEND:${formatUtc(endFor(event))}`,
+    `SUMMARY:${escapeIcsText(event.title)}`,
+  ];
+  if (event.updatedAt) lines.push(`LAST-MODIFIED:${formatUtc(event.updatedAt)}`);
+  if (event.description) lines.push(`DESCRIPTION:${escapeIcsText(event.description)}`);
+  if (event.location) lines.push(`LOCATION:${escapeIcsText(event.location)}`);
+  if (event.url) lines.push(`URL:${escapeIcsText(event.url)}`);
+  if (event.status) lines.push(`STATUS:${event.status === "cancelled" ? "CANCELLED" : "CONFIRMED"}`);
+  lines.push("END:VEVENT");
+  return lines;
+}
+
+export function buildEventIcs(args: IcsArgs): string {
+  return serialise([
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//NAISI//Events//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
-    "BEGIN:VEVENT",
-    `UID:${escapeIcsText(args.uid)}@naisi.uk`,
-    `DTSTAMP:${formatUtc(new Date())}`,
-    `SEQUENCE:${icsSequenceFor(args.updatedAt)}`,
-    `DTSTART:${formatUtc(start)}`,
-    `DTEND:${formatUtc(end)}`,
-    `SUMMARY:${escapeIcsText(args.title)}`,
-  ];
-  if (args.updatedAt) lines.push(`LAST-MODIFIED:${formatUtc(args.updatedAt)}`);
-  if (args.description) lines.push(`DESCRIPTION:${escapeIcsText(args.description)}`);
-  if (args.location) lines.push(`LOCATION:${escapeIcsText(args.location)}`);
-  if (args.url) lines.push(`URL:${escapeIcsText(args.url)}`);
-  lines.push("END:VEVENT", "END:VCALENDAR");
+    ...eventLines(args, new Date()),
+    "END:VCALENDAR",
+  ]);
+}
 
-  // RFC 5545 requires CRLF line endings.
-  return lines.join("\r\n") + "\r\n";
+/** A calendar a person subscribes to: its name, how often to fetch it again, and its events. */
+export type IcsCalendar = {
+  /** What a calendar app calls it. */
+  name: string;
+  /** How often a subscribed calendar should fetch the file again, in whole minutes. */
+  refreshMinutes: number;
+  events: readonly IcsEvent[];
+  /** When the file is made, for every DTSTAMP. Now, unless a caller says. */
+  stamp?: Date;
+};
+
+/** An RFC 5545 duration of whole minutes: "PT1H", "PT90M". */
+function durationOf(minutes: number): string {
+  const whole = Math.max(1, Math.floor(minutes));
+  return whole % 60 === 0 ? `PT${whole / 60}H` : `PT${whole}M`;
+}
+
+/**
+ * MANY EVENTS, AS A CALENDAR A PERSON SUBSCRIBES TO.
+ *
+ * Each event keeps its UID from one file to the next, so a calendar that
+ * fetches the file again moves, changes or marks off the entry it already
+ * holds; SEQUENCE and LAST-MODIFIED grow with every change behind it.
+ *
+ * The calendar's own properties are the ones subscribed calendars read: NAME
+ * (RFC 7986) and X-WR-CALNAME for its name, REFRESH-INTERVAL (RFC 7986) and
+ * X-PUBLISHED-TTL for how often to fetch it again. A file with no events is
+ * still a calendar: its name, and nothing in it.
+ */
+export function buildCalendarIcs(calendar: IcsCalendar): string {
+  const stamp = calendar.stamp ?? new Date();
+  const every = durationOf(calendar.refreshMinutes);
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//NAISI//Sessions//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    `NAME:${escapeIcsText(calendar.name)}`,
+    `X-WR-CALNAME:${escapeIcsText(calendar.name)}`,
+    `REFRESH-INTERVAL;VALUE=DURATION:${every}`,
+    `X-PUBLISHED-TTL:${every}`,
+  ];
+  for (const event of calendar.events) lines.push(...eventLines(event, stamp));
+  lines.push("END:VCALENDAR");
+  return serialise(lines);
 }
 
 /**
  * Build an "Add to Google Calendar" link (the TEMPLATE render form). Opens
- * Google Calendar with the event pre-filled — one tap, no file download.
+ * Google Calendar with the event pre-filled: one tap, no file download.
  */
 export function googleCalendarUrl(args: CalendarLinkArgs): string {
   const params = new URLSearchParams({
@@ -178,4 +297,50 @@ export function outlookLiveUrl(args: CalendarLinkArgs): string {
 /** Add to a Microsoft 365 calendar (a university or work account). */
 export function outlookOfficeUrl(args: CalendarLinkArgs): string {
   return outlookUrl(OUTLOOK_OFFICE_BASE, args);
+}
+
+// ---------------------------------------------------------------------------
+// Subscribing to a calendar by its link
+// ---------------------------------------------------------------------------
+
+/**
+ * A calendar's address as `webcal:`, the scheme a calendar app registers for
+ * SUBSCRIBING: on an iPhone or a Mac it opens Calendar's "Subscribe" sheet
+ * rather than downloading a copy. Only an `https:` or `http:` address is
+ * rewritten; anything else is no calendar address, and answers "".
+ */
+export function webcalUrl(feedUrl: string): string {
+  const match = /^https?:\/\/(.+)$/i.exec(feedUrl);
+  return match ? `webcal://${match[1]}` : "";
+}
+
+/**
+ * Google Calendar's own "add a calendar from a link" (the `cid` form), which
+ * subscribes rather than imports: Google fetches the link again by itself.
+ * Google is handed the `webcal:` address, and the first signed-in account
+ * (`/u/0/`) is addressed, both as the maintained add-to-calendar libraries
+ * build this link. Google fetches a subscribed calendar again on its own
+ * schedule, which is hours rather than minutes.
+ */
+export function googleSubscribeUrl(feedUrl: string): string {
+  const webcal = webcalUrl(feedUrl);
+  if (!webcal) return "";
+  return `https://calendar.google.com/calendar/u/0/r?cid=${encodeURIComponent(webcal)}`;
+}
+
+/**
+ * Outlook's "add a calendar from the web" on Microsoft 365, the host of a
+ * university or work account (see the two hosts above: the university's mail
+ * is Microsoft 365). It subscribes, and `name` is what the calendar is called
+ * there. The account index (`/0/`) is in the path because that is the form
+ * the subscribe page is opened by, unlike the compose link above. Somebody
+ * with a personal Outlook.com account adds the copied link instead.
+ */
+export function outlookSubscribeUrl(feedUrl: string, name: string): string {
+  const webcal = webcalUrl(feedUrl);
+  if (!webcal) return "";
+  return (
+    "https://outlook.office.com/calendar/0/addfromweb/?" +
+    `url=${encodeURIComponent(webcal)}&name=${encodeURIComponent(name)}`
+  );
 }
