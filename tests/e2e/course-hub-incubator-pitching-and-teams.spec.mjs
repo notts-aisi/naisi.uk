@@ -549,6 +549,8 @@ test(
       await region.waitFor({ timeout: WAIT_MS });
       const send = region.getByRole("button", { name: "Send pitch", exact: true });
       await whenEnabled(send, "Send pitch");
+      // The form says who sees a pitch before it is sent (the privacy policy's "Pitching week").
+      await region.getByText("Your group sees your pitch and who pitched it.", { exact: true }).waitFor({ timeout: WAIT_MS });
 
       const paper = region.getByLabel("Paper", { exact: true });
       assert.deepEqual(

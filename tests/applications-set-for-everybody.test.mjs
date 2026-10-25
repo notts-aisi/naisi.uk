@@ -1103,7 +1103,7 @@ describe("a form whose shared questions are all in the set for everybody can ope
 // ---------------------------------------------------------------------------
 
 describe("the privacy policy's sentences about answers are still what happens", () => {
-  const policy = read("src/content/legal/privacy/v6.tsx").replace(/\s+/g, " ");
+  const policy = read("src/content/legal/privacy/v7.tsx").replace(/\s+/g, " ");
 
   test("every answer is read by the people who read the application, and only a programme's own questions are scored", () => {
     assert.match(

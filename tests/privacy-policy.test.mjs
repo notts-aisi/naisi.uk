@@ -4,16 +4,30 @@
  *
  * Run with `npm test`.
  *
- * The current version is v6: v5's text, rewritten where the application form
+ * The current version is v7: v6's text, changed where the course hub (a
+ * programme while it runs and when it ends) made it untrue or left something
+ * out. Certificates are sent to the people who finished and to facilitators,
+ * each private until its owner turns the link on, where v6 said a person
+ * mints their own and nothing is issued unless they choose to; what a
+ * programme's lead sees is named; pitching week, teams, leaving, a place that
+ * comes back and who finished are described; facilitators see names only; and
+ * a programme's attendance is a third logged download. §2g holds those
+ * passages against the code. Three of them are worded as what will happen,
+ * because they are not built yet (certificates, facilitators seeing who has
+ * said they are coming, a team's page), and §2g holds that nothing has been
+ * built that they would then have to describe.
+ *
+ * v6 (7 October 2026) was v5's text, rewritten where the application form
  * (docs/applications.md) made it untrue. The people who read an application
  * see whose it is, where v5 said reviewers scored with names hidden; who
  * reads one is named; scores, comments and decisions are kept beside the
  * application and never on it; and decision day, the replies and what stays
  * afterwards are described. It also says how somebody with no account joins
  * on the form and what the browser keeps while they do, and names every form
- * the spam check runs on. §2d holds the application form's passages against
- * the code, and §2e the three lists of places (where Google reCAPTCHA runs,
- * where Google's sign-in script loads, what is kept in local storage).
+ * the spam check runs on. v7 carries every one of those passages word for
+ * word, so §2d still holds them against the code, and §2e the three lists of
+ * places (where Google reCAPTCHA runs, where Google's sign-in script loads,
+ * what is kept in local storage). v6 is frozen below.
  *
  * v5 (7 September 2026) was v4's text plus the
  * notification grid's four passages (the four rows and the two choices per
@@ -144,15 +158,18 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v6.tsx");
+const CURRENT = read("src/content/legal/privacy/v7.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
  * no pattern written as a sentence would ever match the raw source. Every
- * content check below runs against this, because v6 is the text the site
+ * content check below runs against this, because v7 is the text the site
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v6, frozen: read by §1b and by §2g, which proves the new sentences are not in it. */
+const V6 = read("src/content/legal/privacy/v6.tsx");
+const V6_FLAT = V6.replace(/\s+/g, " ");
 /** v5, frozen: read by §1b and by §2d, which proves the new sentences are not in it. */
 const V5 = read("src/content/legal/privacy/v5.tsx");
 const V5_FLAT = V5.replace(/\s+/g, " ");
@@ -181,9 +198,9 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v6 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 6);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.6");
+  test("privacy v7 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 7);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.7");
   });
 
   test("versions are newest first, which entry [0] depends on", () => {
@@ -339,6 +356,13 @@ const FROZEN_VERSIONS = new Map([
     {
       sha256: "8dc0f2b4de657ad5fb00009b66957880c5822d285db08405f63f9446f4b00684",
       why: "the notification grid's version, current from 7 September 2026 until v6 replaced it; the wording every member accepted at sign-in in that time, frozen when the application form moved the version rather than editing the names sentence in place",
+    },
+  ],
+  [
+    "privacy/v6",
+    {
+      sha256: "752d84f1765d1f0353fba8169011913e40d194b33f1be4755f1c3f550f5178a4",
+      why: "the application form's version, current from 7 October 2026 until v7 replaced it; the wording every member and every applicant accepted in that time, frozen when the course hub moved the version rather than editing the certificates promise in place",
     },
   ],
 ]);
@@ -588,9 +612,15 @@ const MUST_NAME = [
   // No screen that reads an application is sent a conduct flag: the one
   // reader of `memberConductFlags` is the admin route on the Members page.
   ["the conduct flag and its reason are admin-only", /The flag and the reason are visible to admins alone/i],
-  ["certificates are minted by the participant", /able to mint a certificate for yourself/i],
-  ["minting a certificate is opt-in", /Nothing is issued unless you choose to/i],
-  ["what a certificate page shows", /names you, the programme and the date/i],
+  // OWNER DECISION, 25 October 2026 (Q8 with Q26, as the boards draw them):
+  // the programme's lead or an admin sends a certificate to everybody who
+  // finished and to each facilitator, and each starts private until its owner
+  // turns its link on. The three entries these replace pinned v6's model, in
+  // which a person minted their own and nothing was issued unless they chose
+  // to; v7 takes that promise back, which is why it is a new version.
+  ["certificates are sent to who finished and to facilitators", /we will send a certificate to everybody the programme&apos;s record says finished it \(see Who finished\), and to each person who facilitated one of its groups/i],
+  ["a certificate starts private, until its owner turns the link on", /It starts private: until you turn its link on, only you can open it\./i],
+  ["what a certificate page shows, and never shows", /The page shows your name, that you finished the programme or facilitated a group on it, the programme, the term, how many weeks it ran and the day it was issued\. It shows no email address, no photo and nobody else&apos;s name\./i],
   // OWNER DECISION, 7 October 2026: names are shown, and the form does not
   // say so, which leaves this page as the one place an applicant is told.
   // The two entries these replace pinned the opposite promise ("Reviewers
@@ -599,7 +629,11 @@ const MUST_NAME = [
   ["the people who read an application see whose it is", /They see your name\. Nothing hides who you are from the people who read, score and decide your application/i],
   ["who reads an application", /Admins, and the lead and the reviewers of each programme you ranked/i],
   ["a programme joined by invitation reads the application only once it is accepted", /can read your application from then on, and not before/i],
-  ["only the two logged downloads are recorded", /Two of those downloads are recorded/],
+  // A programme's attendance became the third logged download (its Download
+  // CSV writes the log first and refuses without it); §2g walks the tree for
+  // every caller of the log.
+  ["only the three logged downloads are recorded", /Three of those downloads are recorded/],
+  ["what the attendance file holds, and never holds", /It holds each person&apos;s group, name and marks, how many sessions they came to and the day they left, if they did, and never an email address or a note\./i],
   ["who can see what", /Who can see what/],
   // What the application form holds (docs/applications.md, "Where the data
   // is"). One entry per thing an applicant would not guess at.
@@ -623,6 +657,31 @@ const MUST_NAME = [
   ["replies are recorded", /We record your answer and when you gave it/i],
   ["a place approves a join request that was waiting", /that approves the request/i],
   ["what an applicant's own page does not show", /It does not show the scores, the comments, what each programme decided/i],
+  // A programme while it runs and when it ends (v7). One entry per thing a
+  // person taking part would not guess at; §2g holds each to the code.
+  ["a place that comes back", /until the end of the programme&apos;s first week its lead or an admin can offer that place to somebody who ranked the programme and was told no offer this time, as long as the programme had not turned them down/i],
+  ["a freed place's offer is emailed whatever the settings say, and is not reminded daily", /we email it to you whatever your notification settings say, with a day to reply by\. You answer it as you would an invitation\. The daily reminder about an invitation is not sent for these offers\./i],
+  ["\"I cannot make it\" from somebody in a group is leaving", /If you are already in a group when you say you cannot make it, that is the same as leaving the programme, and your reason goes where a leaver&apos;s does/i],
+  ["pitching week, and that sending a pitch shares it with the group", /Sending a pitch is choosing to share it: everybody in your group sees it, with your name and your partner&apos;s, and the pitch form says so\./i],
+  ["who picked a pitch is told to nobody in the group", /Nobody else in your group is told which ones you picked\./i],
+  ["the lead sees how many would join a pitch, and not who", /The programme&apos;s lead and admins see each pitch and how many would join it, but not who\./i],
+  ["how teams are made", /The site can make a team from a pitch \(the people who pitched it, then people who said they would join it\) or, where the programme&apos;s own questions on the application asked you to rank its projects, from your ranking\./i],
+  ["what the team email says", /We then email you your team&apos;s name and the names of the people in it, and nothing else about them\./i],
+  ["a team's page, and who reads what is written there", /What anybody in the team writes there is seen by everybody in the team, the programme&apos;s lead and admins, and the page says so beside what you write\./i],
+  ["leaving, with its day", /If you leave a programme, we record that you left and when, and you leave your group straight away\./i],
+  ["who reads a leaver's reason", /If you give a reason, only admins and, where the programme has one, its lead read it\./i],
+  ["where a leaver's reason is kept, and that it goes with the account", /It is kept with your place on the programme, not with your application, and it is deleted with your account\./i],
+  ["leaving gives a place on the form back, without the reason", /leaving gives that place back, so the people who read your application see that you gave it back, but not your reason/i],
+  ["a leaver's marks stay on the register", /Your marks up to then stay on your group&apos;s register with the day you left/i],
+  ["who finished", /we mark as finished everybody who came to at least the number of sessions its lead has set/i],
+  ["the lead's changes to who finished are recorded", /The lead can then change anybody&apos;s, and we record who changed it and when\./i],
+  ["only the lead and admins see the number and the list", /Only the lead and admins see that number, and the list with how many sessions each person came to and how many exercises they answered\./i],
+  ["somebody who did not finish is not told so", /Somebody who did not finish is not told so\./i],
+  ["what a programme's lead does and reads once it is running", /Once the programme is running, the lead places its people in groups, reads every register of its groups, sees the pitches and makes the teams on an incubator, reads the reason somebody gives for leaving, and says who finished\./i],
+  ["facilitators see names only, and never an email address", /who is in them, by name only, attendance, written work/i],
+  ["facilitators email their group without seeing an address", /They never see your email address: they can email their group through the site without seeing anybody&apos;s\./i],
+  ["what the people in a group and a team see on an incubator", /On an incubator, the people in your group also see any pitch you send, with your name, and the people in your team see that you are in it and anything you write on your team&apos;s page\./i],
+  ["destroying a term's applications takes nobody off a programme", /Nobody is taken off a programme by it: a place on a course run, which notes the application form and programme it came from, stays with the rest of that person&apos;s course record\./i],
 ];
 
 describe("the courses section", () => {
@@ -674,44 +733,81 @@ describe("the courses section", () => {
     // job enforces one.
     assert.ok(
       !/30 days afterwards/i.test(CURRENT_FLAT) && !/delete or anonymise/i.test(CURRENT_FLAT),
-      "v6 must not promise a deletion period unless a job enforces that " +
+      "v7 must not promise a deletion period unless a job enforces that " +
         "period.",
     );
     assert.ok(
       !/Deleting your account deletes/.test(CURRENT_FLAT),
-      "v6 must not say deleting the account deletes everything about you: " +
+      "v7 must not say deleting the account deletes everything about you: " +
         "the cascade keeps memberRecords, worksheet answers, tasks and RSVPs.",
     );
   });
 
-  test("certificates are described in the conditional, opt-in voice the owner chose", () => {
-    // OWNER DECISION. Certificates will exist for participants and
-    // completers of the fellowship and the incubator, and the PARTICIPANT
-    // mints their own: nothing is issued unless they ask for it, so somebody
-    // who does not want a page on our site naming them simply never mints
-    // one. Applicants agree to the mechanism when they apply. Every clause
-    // below is load-bearing, because the whole justification for a public
-    // page that outlives an account deletion is that the person chose to
-    // create it.
-    assert.match(CURRENT_FLAT, /able to mint a certificate for yourself/i);
-    assert.match(CURRENT_FLAT, /Nothing is issued unless you choose to/i);
-    assert.match(CURRENT_FLAT, /anyone holding the link can open/i);
-    assert.match(CURRENT_FLAT, /not listed anywhere/i);
-    assert.match(CURRENT_FLAT, /By applying to a programme you\s+agree that we may offer this/i);
-    // And the retention carve-out that follows from it.
-    assert.match(CURRENT_FLAT, /A certificate you minted is a deliberate\s+exception/i);
-    assert.match(CURRENT_FLAT, /Email us and we\s+will withdraw it, account or no account/i);
+  test("certificates are described as the owner decided: sent, and private until their owner turns the link on", () => {
+    // OWNER DECISION, 25 October 2026 (Q8 with Q26, as the boards draw them).
+    // When a programme ends, its lead or an admin sends a certificate to
+    // everybody its record says finished and to each of its facilitators.
+    // Each starts private: only its owner can open it until they turn its
+    // link on, and they can turn it off again. Making one is part of running
+    // the programme; whether anybody else sees it is the owner's choice. That
+    // replaces v6's model, in which a participant minted their own and
+    // nothing was issued unless they asked, so the retention carve-out below
+    // now turns on the link rather than on who chose to make the page.
+    //
+    // NOT BUILT YET, so the paragraph says what will happen ("we will send"),
+    // the way v6 worded certificates. Every clause below is load-bearing:
+    // certificates are built to these words, or a new version says otherwise
+    // first.
+    const page = CURRENT.slice(CURRENT.indexOf("export default function")).replace(/\s+/g, " ");
+    assert.match(page, /When a programme ends, we will send a certificate to everybody/i);
+    assert.match(page, /The programme&apos;s lead or an admin sends each one as an email with a link to its page on our site\./i);
+    assert.match(page, /It starts private: until you turn its link on, only you can open it\./i);
+    assert.match(page, /While the link is on, anyone holding it can open the page and check the certificate, and you can turn it off again at any time\./i);
+    assert.match(page, /The link is not guessable and the page is not listed anywhere\./i);
+    assert.match(page, /A copy you have downloaded or passed on is yours, and outside our reach\./i);
+    assert.match(page, /Add to LinkedIn sends nothing until you press it; if you do, your browser takes the certificate&apos;s title, the date and its link to LinkedIn\./i);
+    assert.match(page, /Somebody who did not finish is not sent one, and is not told\./i);
+    assert.match(page, /Making a certificate is part of running the programme\. Whether anybody else sees it is your choice\./i);
+    // v6's model is gone, every clause of it.
+    for (const gone of [/\bmint/i, /Nothing is issued unless you choose to/i, /agree that we may offer this/i]) {
+      assert.ok(
+        !gone.test(page),
+        `v7 matches ${gone}: it describes v6's certificates, which a person minted for ` +
+          "themselves. Under v7 they are sent, and start private.",
+      );
+    }
 
-    // The cascade check stays, with the opposite message: no sweep exists
-    // yet, so the carve-out above is currently a statement about a feature
-    // nobody can trip over. The day one appears, the carve-out is the
-    // paragraph that has to be revisited.
+    // The retention carve-out that follows from it: the link, not who made
+    // the page, decides whether it outlives the account.
+    assert.match(page, /A certificate whose link is on is a deliberate exception\.<\/strong> If its link is on when your account is deleted, its page is not removed/i);
+    assert.match(page, /Email us and we will withdraw it, account or no account\. A certificate whose link is off is deleted with your account\./i);
+    assert.match(page, /any decision a lead recorded about whether you finished, a certificate whose link is off, your admission applications/i);
+
+    // The cascade check stays, with the rule it now waits for. No sweep
+    // exists, because no certificate does: the day one appears, it deletes a
+    // certificate whose link is off and keeps one whose link is on, and this
+    // check is replaced by one that runs it.
     const cascade = read("src/lib/firestore/accountDeletion.ts");
     assert.ok(
-      !/collection\(\s*"certificates"\s*\)/.test(cascade),
-      "account deletion now sweeps certificates, so the retention carve-out " +
-        "that says a minted certificate survives an account deletion must be " +
-        "revisited: say what the sweep removes and what it leaves.",
+      !/collection\(\s*["'`][A-Za-z]*[cC]ertificate[A-Za-z]*["'`]\s*\)/.test(cascade),
+      "account deletion now sweeps certificates. v7 says a certificate whose " +
+        "link is off is deleted with the account and one whose link is on is " +
+        "kept until somebody asks us to withdraw it: pin that rule here, by " +
+        "running the sweep, in place of this check.",
+    );
+    // And nothing anywhere makes a certificate yet, which is what keeps the
+    // future tense honest. A collection of them appearing is the moment the
+    // paragraph stops being a promise and becomes a description.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/collection\(\s*["'`][A-Za-z]*[cC]ertificate[A-Za-z]*["'`]\s*\)|\b[A-Z_]*CERTIFICATES?_COLLECTION\b/),
+      new Map(),
+      "keeping certificates",
+      "Certificates are being built. Build them to v7's words (sent by the " +
+        "programme's lead or an admin to who finished and to facilitators, " +
+        "private until the owner turns the link on, the page showing no " +
+        "email address, photo or other name, and a link that is off deleted " +
+        "with the account), and replace this check with pairings that hold " +
+        "each of those sentences to the code.",
     );
   });
 
@@ -726,7 +822,7 @@ describe("the courses section", () => {
     );
     assert.ok(
       !/deleting your account\s+does not/i.test(CURRENT_FLAT),
-      "v6 still says deleting the account keeps the push record; the cascade " +
+      "v7 still says deleting the account keeps the push record; the cascade " +
         "removes it.",
     );
     assert.ok(
@@ -749,7 +845,7 @@ describe("the courses section", () => {
     // not say that every export is logged.
     assert.ok(
       !/every export is logged/i.test(CURRENT_FLAT),
-      "v6 must not claim every export is logged: the policy speaks only of " +
+      "v7 must not claim every export is logged: the policy speaks only of " +
         "the exports the site itself generates.",
     );
   });
@@ -760,7 +856,7 @@ describe("the courses section", () => {
     // list, which §1b checks, because v3 is frozen.
     assert.ok(
       !/OWNER TO CONFIRM/.test(CURRENT),
-      "v6 carries an OWNER TO CONFIRM block again: resolve it with the owner " +
+      "v7 carries an OWNER TO CONFIRM block again: resolve it with the owner " +
         "before merging, then delete it.",
     );
   });
@@ -789,10 +885,12 @@ describe("the courses section", () => {
       ["RSVP dietary and accessibility answers are given by explicit consent", /dietary and accessibility\s+answers you give on an event signup form/i],
       ["the Google profile photo is fetched from Google by the visitor", /visitor&apos;s browser fetches it from Google&apos;s servers/i],
       ["a video thumbnail in an email is fetched from YouTube", /fetches\s+that thumbnail from YouTube/i],
-      ["the export log names the kinds that exist", /Two\s+kinds are logged today/i],
+      // Three since a programme's attendance joined the log: §2g walks the tree
+      // for every caller of `logExport` and holds the list to exactly three.
+      ["the export log names the kinds that exist", /Three\s+kinds are logged today, a membership list, the\s+responses to a circulated worksheet and a programme&apos;s\s+attendance/i],
       ["Google's sign-in script and where it is loaded from", /sign-in script is loaded from/i],
     ]) {
-      assert.match(CURRENT_FLAT, pattern, `v6 no longer says: ${name}`);
+      assert.match(CURRENT_FLAT, pattern, `v7 no longer says: ${name}`);
     }
   });
 });
@@ -823,7 +921,7 @@ describe("the committee tooling passage", () => {
     assert.match(CURRENT_FLAT, /We do not record which page you were on, what you typed, or when you pasted/i);
     assert.ok(
       !/how many times you opened each page/i.test(CURRENT_FLAT),
-      "v6 claims a per-page open count again; the code keeps one running total.",
+      "v7 claims a per-page open count again; the code keeps one running total.",
     );
   });
 });
@@ -873,14 +971,14 @@ describe("the notification grid passage", () => {
     assert.match(
       CURRENT_FLAT,
       /by category, with a separate email choice and notification choice for each/i,
-      "v6 no longer says a category carries an email choice AND a notification " +
+      "v7 no longer says a category carries an email choice AND a notification " +
         "choice. The grid stores two parallel maps, and the page is where a " +
         "member is told that.",
     );
     assert.match(
       CURRENT_FLAT,
       /the newsletter, event announcements, course announcements, and tasks and worksheets/i,
-      "v6 no longer names the four rows the grid draws.",
+      "v7 no longer names the four rows the grid draws.",
     );
   });
 
@@ -896,7 +994,7 @@ describe("the notification grid passage", () => {
     );
     assert.ok(
       !/left them switched on/i.test(CURRENT_FLAT),
-      "v6 says the newsletter and event announcements also go to somebody " +
+      "v7 says the newsletter and event announcements also go to somebody " +
         "who left a switch on. The account set-up form's two switches start " +
         "off, so nobody is in that position.",
     );
@@ -933,14 +1031,14 @@ describe("the notification grid passage", () => {
     assert.match(
       CURRENT_FLAT,
       /Each category has its own notification choice, set separately from its email choice/i,
-      "v6 still describes push as one blanket choice, or as following the " +
+      "v7 still describes push as one blanket choice, or as following the " +
         "email one. Every row has its own push cell, resolved by " +
         "src/lib/push/preferences.ts independently of the email cell.",
     );
     assert.match(
       CURRENT_FLAT,
       /a notification can still arrive for a category whose email you have switched off/i,
-      "v6 no longer states the consequence a member actually meets: the task " +
+      "v7 no longer states the consequence a member actually meets: the task " +
         "and worksheet senders mirror to push after an email their row " +
         "skipped, and the cell copy in src/lib/firestore/notifications.ts " +
         "promises exactly that.",
@@ -974,7 +1072,7 @@ describe("the notification grid passage", () => {
     assert.match(
       CURRENT_FLAT,
       /Important notices carry no unsubscribe link/i,
-      "v6 no longer tells a member the notice lane has no unsubscribe link, " +
+      "v7 no longer tells a member the notice lane has no unsubscribe link, " +
         "while src/lib/email/notice.ts still refuses to grow one.",
     );
     const notice = read("src/lib/email/notice.ts");
@@ -1125,16 +1223,36 @@ describe("the application form passage", () => {
     assert.match(
       CURRENT_FLAT,
       /They see your name\. Nothing hides who you are from the people who read, score and decide your application/i,
-      "v6 no longer tells an applicant that the people reading their application " +
+      "v7 no longer tells an applicant that the people reading their application " +
         "know whose it is. The form does not say it, so this page has to.",
     );
-    for (const stale of [/name-blind/i, /without your name/i, /the application form will say so/i]) {
+    for (const stale of [/name-blind/i, /the application form will say so/i]) {
       assert.ok(
         !stale.test(CURRENT_FLAT),
-        `v6 matches ${stale}: it promises a review with names hidden, or a form that ` +
+        `v7 matches ${stale}: it promises a review with names hidden, or a form that ` +
           "says when they are shown. An application form does neither.",
       );
     }
+    // "Without your name" is how v5 promised a review with names hidden ("they
+    // see your application without your name"), and until v7 the words were
+    // pinned out of the page altogether. v7 says them once, about something
+    // else: a pitch sent with a partner stays the partner's, without the name
+    // of somebody whose account is deleted. That sentence is the one place on
+    // the page they may appear, so any other use of them still fails here.
+    const withoutYourName = [...PAGE_FLAT.matchAll(/without your name/gi)];
+    assert.equal(
+      withoutYourName.length,
+      1,
+      "v7 says \"without your name\" somewhere other than the pitch a partner " +
+        "keeps: it promises a review with names hidden, or says something a " +
+        "reader could take for one. An application form hides no name.",
+    );
+    assert.match(PAGE_FLAT, /A pitch you sent with a partner: it stays theirs, without your name\./);
+    assert.ok(
+      !/without your name/i.test(CURRENT_FLAT.slice(0, CURRENT_FLAT.indexOf("export default function"))),
+      "the policy file's header says \"without your name\", which this check held " +
+        "out of the whole file before v7. The one use it allows is the page's.",
+    );
     // The two places that make the sentence true: a form is made with names
     // shown, and what a reviewer is sent carries the applicant's name.
     assert.match(
@@ -1159,7 +1277,7 @@ describe("the application form passage", () => {
     assert.match(
       PAGE_FLAT,
       /whether a programme you ranked higher has accepted you, and whether your request to join NAISI is still waiting/i,
-      "v6 no longer says that the people who read an application are shown " +
+      "v7 no longer says that the people who read an application are shown " +
         "when its owner's request to join is still waiting.",
     );
     assert.match(
@@ -1182,7 +1300,7 @@ describe("the application form passage", () => {
     // "Your rights" instead. So that section has to go on saying it.
     assert.ok(
       !/If you ask us what a reviewer wrote about your application, we will tell you/i.test(PAGE_FLAT),
-      "v6 promises again, where it describes reviewing, to tell an applicant " +
+      "v7 promises again, where it describes reviewing, to tell an applicant " +
         "what a reviewer wrote. Feedback is not promised: the right to a copy " +
         "of the data is, under Your rights.",
     );
@@ -1202,7 +1320,7 @@ describe("the application form passage", () => {
     assert.match(PAGE_FLAT, /Admins see every application but their own, with your email addresses/i);
     assert.ok(
       !/Admins see every application, with your email addresses/i.test(PAGE_FLAT),
-      "v6 says again that an admin sees every application. An admin who has " +
+      "v7 says again that an admin sees every application. An admin who has " +
         "applied is not shown their own on any committee screen.",
     );
     // The review screens: the term a caller is shown leaves their own
@@ -1280,7 +1398,7 @@ describe("the application form passage", () => {
     assert.match(PAGE_FLAT, /On the application form for the fellowships and the incubator it is on the last step/i);
     assert.ok(
       !/does not have a box for these/i.test(PAGE_FLAT),
-      "v6 says the application form has no access-requirements box. It has one.",
+      "v7 says the application form has no access-requirements box. It has one.",
     );
     assert.match(
       read("src/features/applications/apply/CheckStep.tsx"),
@@ -1317,7 +1435,7 @@ describe("the application form passage", () => {
     assert.match(PAGE_FLAT, /Only admins can open what you wrote under access requirements, and each time one does it is recorded\. A programme&apos;s lead cannot\./i);
     assert.ok(
       !/person making the final decision/i.test(PAGE_FLAT),
-      "v6 names a person making the final decision. An application form has " +
+      "v7 names a person making the final decision. An application form has " +
         "none, and nobody but an admin can open an access-requirements answer.",
     );
     const reader = read("src/lib/applications/review/accessRequirements.ts");
@@ -1388,7 +1506,7 @@ describe("the application form passage", () => {
     assert.match(PAGE_FLAT, /and only admins can read it/i);
     assert.ok(
       !/SU-recognised committee members can read it/i.test(PAGE_FLAT),
-      "v6 still says SU-recognised committee members can read the short record.",
+      "v7 still says SU-recognised committee members can read the short record.",
     );
     const rules = read("firestore.rules");
     for (const head of [
@@ -1441,7 +1559,7 @@ describe("the application form passage", () => {
     );
     assert.ok(
       !/names the applicant and the programme/i.test(PAGE_FLAT),
-      "v6 still says a decision's log line names the applicant.",
+      "v7 still says a decision's log line names the applicant.",
     );
     const sentences = read("src/lib/applications/review/audit.ts");
     assert.match(sentences, /const AN_APPLICANT = "an applicant";/);
@@ -1557,7 +1675,7 @@ describe("the application form passage", () => {
     assert.match(PAGE_FLAT, /It is shown to admins only, and it does not affect whether you are offered a place/i);
     assert.ok(
       !/It is not shown to the people who read your application, and it does not affect/i.test(PAGE_FLAT),
-      "v6 says again that nobody who reads an application is shown the answer. " +
+      "v7 says again that nobody who reads an application is shown the answer. " +
         "An admin is, on the decision-day page.",
     );
     // The membership record is a different thing, and the screens where
@@ -2281,7 +2399,7 @@ describe("the account record passage", () => {
     assert.ok(at !== -1, "could not find the sentence about a changed degree");
     assert.ok(
       !/only admins (?:can )?(?:see|read) (?:that|it|what it said before)/i.test(PAGE_FLAT.slice(at, at + 500)),
-      "v6 says only admins can read what a degree or graduation said before. " +
+      "v7 says only admins can read what a degree or graduation said before. " +
         "It is part of the account record, which the Security section says " +
         "SU-recognised committee members can read as well.",
     );
@@ -2301,6 +2419,441 @@ describe("the account record passage", () => {
       serverTime: "the server's time",
     });
     assert.deepEqual(Object.keys(waiting.patch), ["profile.subject"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2g The course hub passage
+// ---------------------------------------------------------------------------
+
+/**
+ * What v7 says about a programme while it runs and when it ends, held against
+ * the code that makes it true (docs/courses-ops.md).
+ *
+ * Each test is a claim the page makes about somebody's data, paired with the
+ * code behind it the way §2d holds the application form: a rule is RUN, the
+ * tree is WALKED against a named list checked in both directions, or one line
+ * of source is matched. The suites that run each feature as every kind of
+ * caller are named beside its pairing; this section holds the seam between
+ * them and the page. When one fails, either the code stopped doing what the
+ * page promises or the page stopped saying what the code does, and a change
+ * to the words is a new version.
+ *
+ * Three passages say what will happen, because the thing is not built yet:
+ * certificates, facilitators seeing who has said they are coming, and a
+ * team's page. They are built to these words. Certificates carry a check of
+ * their own in §2, which fails the day the site starts keeping them.
+ */
+
+/** A file's code with its comments taken out, so a note about a field is not taken for a use of it. */
+const withoutComments = (source) =>
+  source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+
+const finishingWords = await loadTs("lib/courses/finishing/words.ts");
+const freedPlaceRules = await loadTs("lib/applications/freedPlaces/rules.ts");
+const invitationReminders = await loadTs("lib/applications/decisionDay/reminders.ts");
+const applicationAccess = await loadTs("lib/applications/access.ts");
+
+describe("the course hub passage", () => {
+  test("the frozen v6 carries none of these sentences, so the move was a version and not an edit", () => {
+    for (const pattern of [
+      /we will send a certificate to everybody/i,
+      /until you turn its link on, only you can open it/i,
+      /A certificate whose link is off is deleted with your account/i,
+      /Sending a pitch is choosing to share it/i,
+      /We then email you your team&apos;s name/i,
+      /If you give a reason, only admins and, where the programme has one, its lead read it/i,
+      /A place that comes back/i,
+      /we mark as finished everybody who came to at least/i,
+      /reads every register of its groups/i,
+      /by name only/i,
+      /Three\s+kinds are logged today/i,
+      /Nobody is taken off a programme by it/i,
+    ]) {
+      assert.ok(
+        !pattern.test(V6_FLAT),
+        `the accepted v6 text matches ${pattern}: the course hub's wording was edited into ` +
+          "the frozen version instead of living in v7, which is the in-place edit " +
+          "§1b exists to refuse",
+      );
+    }
+  });
+
+  test("a programme's lead reads every register of its groups, and is sent none of their notes", () => {
+    // OWNER DECISION, 25 October 2026: the notes a facilitator writes on a
+    // register, about a named person or about a session as a whole, are the
+    // group's facilitators' and admins' (C30). A programme's lead reads every
+    // register of the run its programme names, its marks and none of its
+    // notes, so the page names the registers among what the lead sees, and no
+    // note.
+    const fromLead = PAGE_FLAT.slice(PAGE_FLAT.indexOf("<strong>The lead of each programme</strong>"));
+    const lead = fromLead.slice(0, fromLead.indexOf("</li>"));
+    assert.ok(lead.length > 200, "could not find what the page says a programme's lead sees");
+    assert.match(lead, /reads every register of its groups,/);
+    assert.ok(
+      !/\bnotes?\b/i.test(lead),
+      "v7 says a programme's lead reads the notes on a register. They are the " +
+        "group's facilitators' and admins', and the register's GET sends a " +
+        "lead none of them.",
+    );
+
+    // Admitted to read every register of the run: the read gate asks the
+    // form whether the caller leads the programme that names the run.
+    const gate = read("src/lib/courses/registerAccess.ts");
+    assert.match(
+      gate,
+      /\(await programmeLedBy\(db, actor, group\.runId\)\) !== null;/,
+      "the register's read gate no longer admits the programme's lead, so the " +
+        "policy says the lead reads registers the lead cannot open.",
+    );
+    // And not one of the readers of its notes.
+    assert.match(
+      gate,
+      /return \{ ok: true, group, runId: group\.runId, isAdmin, readsNotes: isAdmin \|\| facilitatesLiveGroup \};/,
+      "the register's read gate no longer says that its notes are for an " +
+        "admin and the group's live facilitators alone, so a caller admitted " +
+        "only as the programme's lead may be sent them. The policy says the " +
+        "lead reads the registers and names no note.",
+    );
+    const register = read("src/app/api/courses/groups/[groupId]/attendance/route.ts");
+    assert.match(
+      register,
+      /const rawNotes = \(gated\.readsNotes \? \(data\.participantNotes \?\? \{\}\) : \{\}\) as Record<string, unknown>;/,
+      "the register's GET sends the notes about named people to every caller " +
+        "its gate admits, the programme's lead included.",
+    );
+    assert.match(
+      register,
+      /notes: gated\.readsNotes && typeof data\.notes === "string" \? data\.notes : "",/,
+      "the register's GET sends a session's own note to every caller its gate " +
+        "admits, the programme's lead included.",
+    );
+    // The drawer that writes a note is the register's own gate, which admits
+    // the group's live facilitators and admins and no lead.
+    assert.match(
+      read("src/app/api/courses/groups/[groupId]/participant-notes/route.ts"),
+      /const gated = await gateGroupRegister\(groupId, actor, db\);/,
+    );
+    // Every file that names the notes about named people, and why it may.
+    // The register's GET is the one door that hands them to a reader.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bparticipantNotes\b/),
+      new Map([
+        ["src/app/api/courses/groups/[groupId]/attendance/route.ts", "the register's GET, the one door that hands a register's notes to a reader, and only to the readers its gate's readsNotes names"],
+        ["src/app/api/courses/groups/[groupId]/participant-notes/route.ts", "the note drawer's write, behind the register's own gate: the group's live facilitators and admins"],
+        ["src/features/courses/AttendanceGrid.tsx", "the register's grid, which draws the notes the GET sent it"],
+        ["src/features/courses/useAttendance.ts", "the grid's data, which holds the notes the GET sent and keeps one just saved"],
+        ["src/lib/courses/ownAttendance.ts", "a comment saying a member's own attendance is read without the room's notes"],
+        ["src/lib/firestore/accountDeletion.ts", "takes a deleted person's notes out of every register"],
+        ["src/lib/firestore/courseAttendance.ts", "the register document's own shape"],
+      ]),
+      "naming the notes on a register",
+      "The policy says a register's notes about named people are read by the " +
+        "group's facilitators and admins, and names no other reader. If this " +
+        "file hands them to anybody else, the sentence is wrong and a new " +
+        "version has to say so.",
+    );
+    // tests/course-hub-lead-registers.test.mjs runs the GET as each caller.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-hub-lead-registers.test.mjs")));
+  });
+
+  test("a leaver's reason is read by the programme's lead and admins, kept with the place, and copied nowhere that outlives it", () => {
+    assert.match(
+      PAGE_FLAT,
+      /If you give a reason, only admins and, where the programme has one, its lead read it\. It is kept with your place on the programme, not with your application, and it is deleted with your account\./i,
+    );
+    // Every file that names it, and why it may. One reads it out to anybody:
+    // the programme's Overview.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bdropOutReason\b/),
+      new Map([
+        ["src/lib/firestore/courseEnrolments.ts", "the place's own shape, where the reason is kept, and its length limit"],
+        ["src/lib/courses/leaveRun.ts", "the one writer: leaving puts the reason on the place, and nowhere else"],
+        ["src/lib/courses/programmeOverview.ts", "the one reader: the programme's Overview, which is built for its lead and admins"],
+        ["src/app/api/courses/runs/[runId]/enrol/route.ts", "leaving from the programme page trims what was typed to the place's limit"],
+        ["src/app/api/admissions/forms/[roundId]/application/reply/route.ts", "\"I can't make it\" from somebody in a group trims the reason to the place's limit and leaves"],
+        ["src/app/api/courses/runs/[runId]/allocate/route.ts", "putting somebody who left back on the board clears the reason"],
+        ["src/app/api/courses/runs/[runId]/enrolments/[uid]/reinstate/route.ts", "reinstating somebody who left clears the reason"],
+        ["src/app/(app)/learn/[runId]/leave/page.tsx", "the leaving page's box, which takes the limit and nothing else"],
+        ["src/features/courses/DropOutCard.tsx", "the leaving box, which takes the limit and nothing else"],
+      ]),
+      "naming the reason somebody gave for leaving",
+      "The policy says only admins and the programme's lead read it, that it is " +
+        "kept with the place on the programme, and that it goes with the " +
+        "account. If this file shows it to anybody else or copies it somewhere " +
+        "that outlives the place, the sentence is wrong and a new version has " +
+        "to say so.",
+    );
+    // The Overview is built for the programme's lead and admins alone: its one
+    // page answers anybody else before building it.
+    const overviewPage = "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/page.tsx";
+    assert.deepEqual(
+      sourceFilesNaming(/\bbuildProgrammeOverview\(/),
+      [overviewPage, "src/lib/courses/programmeOverview.ts"],
+      "the programme's Overview, which reads out a leaver's reason, is built somewhere new.",
+    );
+    const overview = read(overviewPage);
+    const asked = overview.indexOf('if (outcome.status === "not-yours")');
+    const built = overview.indexOf("buildProgrammeOverview(");
+    assert.ok(asked !== -1 && built !== -1 && asked < built, "the Overview is built before the caller is asked whether they lead the programme");
+    assert.match(read("src/lib/applications/handover/programmeRun.ts"), /if \(!opensProgrammeGroups\(role\)\) return \{ status: "not-yours" \};/);
+    assert.equal(applicationAccess.opensProgrammeGroups("admin"), true);
+    assert.equal(applicationAccess.opensProgrammeGroups("lead"), true);
+    assert.equal(applicationAccess.opensProgrammeGroups("reviewer"), false, "a programme's reviewer now opens its Overview, and the reason somebody gave for leaving");
+    assert.equal(applicationAccess.opensProgrammeGroups(null), false);
+
+    // Kept with the place, never on the application: the leave writes it on
+    // the place and gives a place on the form back with nothing about why.
+    const leave = read("src/lib/courses/leaveRun.ts");
+    assert.match(leave, /dropOutReason: reason,/);
+    assert.match(leave, /if \(place\) givePlaceBack\(tx, place\);/);
+    // The log of course actions outlives the account, so its line says what
+    // was done and never what was said.
+    const row = /await db\.collection\(COURSE_AUDIT_COLLECTION\)\.add\(\{([\s\S]*?)\}\);/.exec(withoutComments(leave));
+    assert.ok(row, "could not find the log line leaving writes");
+    assert.match(row[1], /detail: "Left the course\.",/);
+    assert.ok(
+      !/reason/i.test(row[1]),
+      "the log line about somebody leaving now carries their reason. The log " +
+        "outlives the account, and the policy says the reason is deleted with it.",
+    );
+    // And it goes with the account: a deletion removes the place it is kept on.
+    assert.match(read("src/lib/firestore/accountDeletion.ts"), /summary\.courseEnrolmentsDeleted = enrolSnap\.size;/);
+    // tests/course-hub-leaving.test.mjs and
+    // tests/course-hub-cant-make-it-after-placement.test.mjs run both doors.
+    for (const suite of ["course-hub-leaving.test.mjs", "course-hub-cant-make-it-after-placement.test.mjs"]) {
+      assert.ok(existsSync(join(REPO_ROOT, "tests", suite)), `tests/${suite} is gone`);
+    }
+  });
+
+  test("a place that comes back is offered by the programme's lead or an admin until the end of the first week, and is not reminded each day", () => {
+    assert.equal(freedPlaceRules.offersFreedPlaces("admin"), true);
+    assert.equal(freedPlaceRules.offersFreedPlaces("lead"), true);
+    assert.equal(freedPlaceRules.offersFreedPlaces("reviewer"), false, "a programme's reviewer can now offer a place that comes back");
+    assert.equal(freedPlaceRules.offersFreedPlaces(null), false);
+
+    // "Until the end of the programme's first week": the window, run, on a
+    // run whose week 1 is Thu 29 Oct to Wed 4 Nov. It opens with the send and
+    // closes at midnight in London at the end of that Wednesday.
+    const run = {
+      startDate: "2026-10-29",
+      weekPlan: [
+        { kind: "week", weekNumber: 1 },
+        { kind: "week", weekNumber: 2 },
+      ],
+    };
+    const sent = new Date(Date.UTC(2026, 9, 26, 12));
+    assert.equal(freedPlaceRules.freedPlaceWindow(null, run, sent).state, "before-send");
+    assert.equal(freedPlaceRules.freedPlaceWindow(sent, run, new Date(Date.UTC(2026, 10, 4, 23, 59))).state, "open");
+    assert.equal(freedPlaceRules.freedPlaceWindow(sent, run, new Date(Date.UTC(2026, 10, 5, 0, 0))).state, "closed");
+
+    // "The daily reminder about an invitation is not sent for these offers":
+    // an invitation beside "No offer this time" is skipped by name, and an
+    // invitation from decision day is not skipped for that reason.
+    const now = new Date(Date.UTC(2026, 10, 2, 12));
+    const invitation = { programmeId: "governance", replyBy: "2026-11-04", response: null };
+    const offered = {
+      sent: { at: new Date(Date.UTC(2026, 9, 10)) },
+      status: "invited",
+      result: { kind: "no-offer", publishedAt: new Date(Date.UTC(2026, 9, 26)) },
+      invitation,
+    };
+    assert.deepEqual(invitationReminders.invitationReminderDue(offered, now), { due: false, why: "freed-place" });
+    const invited = { ...offered, result: { kind: "invited", publishedAt: new Date(Date.UTC(2026, 9, 26)) } };
+    assert.notEqual(invitationReminders.invitationReminderDue(invited, now).why, "freed-place");
+    // tests/applications-freed-places-*.test.mjs run the offer, its email and its reply.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "applications-freed-places-offer.test.mjs")));
+  });
+
+  test("who finished: the number is shown to the programme's lead and admins, and a member is told only whether they finished", () => {
+    // The words, run: the lead's sentences say who sees the rule, and a
+    // member's carry a programme's name and nothing else.
+    assert.equal(
+      finishingWords.ruleSentence(4, 6),
+      "We’ve ticked everyone who came to at least 4 of 6 sessions. Change any you disagree with. Only you and admins see this rule.",
+    );
+    assert.match(finishingWords.RULE_HINT, /Only you and admins see this\.$/);
+    assert.equal(finishingWords.youFinished("AGI Strategy Fellowship"), "You finished AGI Strategy Fellowship.");
+    assert.equal(finishingWords.hasEnded("AGI Strategy Fellowship"), "AGI Strategy Fellowship has ended.");
+    // "Arriving late or leaving early counts as coming".
+    assert.match(
+      read("src/lib/courses/programmeAttendance.ts"),
+      /const CAME: ReadonlySet<AttendanceStatus> = new Set\(\["present", "late", "left-early"\]\);/,
+    );
+    // The rule and the list are read only behind the lead's and admins' gate:
+    // the programme's Settings and Overview pages, and the one writer.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\b(?:readFinishRule|loadWhoFinished)\(/),
+      new Map([
+        ["src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup/page.tsx", "the programme's Settings tab, which answers anybody but its lead and admins before it reads the rule"],
+        ["src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/page.tsx", "the programme's Overview, built for its lead and admins (loadProgrammeRun)"],
+        ["src/lib/applications/handover/finishingAct.ts", "the one writer, which answers anybody but the lead and admins first (loadProgrammeRun)"],
+        ["src/lib/courses/finishing/record.ts", "where the rule is read"],
+        ["src/lib/courses/finishing/whoFinished.ts", "where the lead's list is built"],
+      ]),
+      "reading the rule or the list of who finished",
+      "The policy says only the programme's lead and admins see the number " +
+        "and the list. If this file shows either to anybody else, the sentence " +
+        "is wrong and a new version has to say so.",
+    );
+    for (const page of [
+      "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup/page.tsx",
+      "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/page.tsx",
+    ]) {
+      const source = read(page);
+      const asked = source.indexOf('if (outcome.status === "not-yours")');
+      const reads = source.search(/\b(?:readFinishRule|loadWhoFinished)\(/);
+      assert.ok(asked !== -1 && reads !== -1 && asked < reads, `${page} reads who finished before it asks whether the caller leads the programme`);
+    }
+    assert.match(read("src/lib/applications/handover/finishingAct.ts"), /if \(outcome\.status === "not-yours"\) return refuse\(403, LEADS_AND_ADMINS\);/);
+    // A member's own pages are sent whether they finished, as true or false,
+    // and nothing else of who finished.
+    assert.match(read("src/lib/courses/finishing/record.ts"), /export async function finishedForMember\([\s\S]*?\): Promise<boolean> \{/);
+    for (const route of ["src/app/api/courses/me/route.ts", "src/app/api/courses/runs/[runId]/overview/route.ts"]) {
+      const imported = [...read(route).matchAll(/import \{([^}]*)\} from "@\/lib\/courses\/finishing\/[A-Za-z]+";/g)].map((match) => match[1].trim());
+      assert.deepEqual(imported, ["finishedForMember"], `${route} reads more of who finished than whether the caller finished`);
+      assert.match(read(route), /\bfinished: boolean;/);
+    }
+  });
+
+  test("a deletion takes somebody off pitching week, out of their team and out of who finished, and a partner keeps a shared pitch", () => {
+    assert.match(
+      PAGE_FLAT,
+      /a pitch you sent alone, your name on a pitch you sent with a partner, your picks in pitching week, your place in a team, any decision a lead recorded about whether you finished/i,
+    );
+    assert.match(PAGE_FLAT, /A pitch you sent with a partner: it stays theirs, without your name\./i);
+    const cascade = read("src/lib/firestore/accountDeletion.ts");
+    for (const step of [
+      "summary.coursePitchesCleared = await clearCoursePitches(db, uid);",
+      "summary.courseTeamsCleared = await clearCourseTeams(db, uid);",
+      "summary.courseFinishingCleared = await clearCourseFinishing(db, uid);",
+    ]) {
+      assert.ok(cascade.includes(step), `the account deletion no longer runs \`${step}\`, which the policy lists among what a deletion removes`);
+    }
+    // A pitch sent alone goes; one sent with a partner stays theirs, without
+    // the name; every pick is taken off.
+    assert.match(
+      cascade,
+      /if \(others\.length === 0\) \{\s*writes\.push\(\(batch\) => batch\.delete\(doc\.ref\)\);\s*\} else \{\s*writes\.push\(\(batch\) =>\s*batch\.update\(doc\.ref, \{ pitcherUids: others, wouldJoinUids: FieldValue\.arrayRemove\(uid\) \}\),\s*\);\s*\}/,
+    );
+    assert.match(cascade, /writes\.push\(\(batch\) => batch\.update\(doc\.ref, \{ wouldJoinUids: FieldValue\.arrayRemove\(uid\) \}\)\);/);
+    // Off the team, and the team stays with whoever else is in it.
+    assert.match(cascade, /writes\.push\(\(batch\) => batch\.update\(doc\.ref, \{ memberUids: people, toldAs: told \}\)\);/);
+    // A decision a lead recorded about them is deleted.
+    assert.match(cascade, /for \(const doc of about\.docs\) \{\s*touched\.add\(doc\.id\);\s*writes\.push\(\(batch\) => batch\.delete\(doc\.ref\)\);\s*\}/);
+    // The suites that run each of the three on a store.
+    for (const suite of ["course-hub-pitching-deletion.test.mjs", "course-hub-teams-deletion.test.mjs", "course-hub-finishing-deletion.test.mjs"]) {
+      assert.ok(existsSync(join(REPO_ROOT, "tests", suite)), `tests/${suite} is gone`);
+    }
+  });
+
+  test("facilitators are shown names and never an address, and email their group without seeing one", () => {
+    assert.ok(
+      !/contact details/i.test(PAGE_FLAT),
+      "v7 says facilitators see contact details again. They are shown names " +
+        "only: the group's roster and its register carry no address, and the " +
+        "group email hands none out.",
+    );
+    // The roster: names only, in the payload's own shape and in its code.
+    const roster = read("src/app/api/courses/groups/[groupId]/roster/route.ts");
+    assert.match(roster, /facilitators: Array<\{ uid: string; displayName: string \}>;/);
+    assert.match(roster, /members: Array<\{ uid: string; displayName: string \}>;/);
+    assert.ok(!/email/i.test(withoutComments(roster)), "the group's roster route now reads an email address");
+    // The register's names come from helpers that never read an address.
+    for (const [file, helper] of [
+      ["src/lib/courses/registerAccess.ts", "export function displayNameOf("],
+      ["src/lib/courses/programmeLead.ts", "export function fullNameOfUser("],
+    ]) {
+      const code = withoutComments(read(file));
+      const from = code.indexOf(helper);
+      assert.ok(from !== -1, `could not find ${helper} in ${file}`);
+      const body = code.slice(from, code.indexOf("\n}\n", from));
+      assert.ok(!/email/i.test(body), `${helper} in ${file} now reads an email address, and a register shows what it returns`);
+    }
+    // The group email answers with counts, and never an address.
+    const groupEmail = read("src/app/api/courses/groups/[groupId]/email/route.ts");
+    assert.match(groupEmail, /return NextResponse\.json\(\{ ok: true, sent, skipped, pushed \}\);/);
+    assert.match(groupEmail, /let skipped = 0;/);
+    assert.match(groupEmail, /let pushed = 0;/);
+  });
+
+  test("three downloads are logged, each before its file is handed over, and the attendance file holds what the page says", () => {
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\blogExport\(/).filter((file) => file !== "src/lib/firestore/dataExports.ts"),
+      new Map([
+        ["src/app/api/admin/membership/export/route.ts", "the membership list for a period, the first of the three the policy names"],
+        ["src/app/api/worksheets/circulations/[circulationId]/export/route.ts", "the answers to a circulated worksheet, the second of the three"],
+        ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/attendance/export/route.ts", "a programme's attendance, for its lead and admins, the third of the three"],
+      ]),
+      "writing the record of a download",
+      "The policy says three downloads are recorded and names them. A " +
+        "download recorded and not named, or named and no longer recorded, " +
+        "makes the sentence wrong: say so in a new version.",
+    );
+    // "All three refuse to hand over the file if that record cannot be
+    // written": the record first, and a failure to write it is a refusal.
+    for (const route of [
+      "src/app/api/admin/membership/export/route.ts",
+      "src/app/api/worksheets/circulations/[circulationId]/export/route.ts",
+      "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/attendance/export/route.ts",
+    ]) {
+      const code = withoutComments(read(route));
+      const logged = code.indexOf("await logExport(db, {");
+      const refused = code.indexOf("{ status: 503 }", logged);
+      const handed = code.indexOf("return new Response(", logged);
+      assert.ok(logged !== -1 && refused !== -1 && handed !== -1, `${route} no longer records the download before it answers`);
+      assert.ok(refused < handed, `${route} hands the file over without refusing when the record cannot be written`);
+      assert.ok(code.indexOf("return new Response(") > logged, `${route} hands a file over before it records the download`);
+    }
+    // "The attendance file is for the programme's lead and admins. It holds
+    // each person's group, name and marks, how many sessions they came to
+    // and the day they left, if they did, and never an email address or a
+    // note."
+    assert.match(
+      read("src/lib/courses/programmeAttendance.ts"),
+      /const header = \[\s*"Group",\s*"Name",\s*\.\.\.model\.weeks\.map\(\(week\) => `Week \$\{week\.weekNumber\}`\),\s*"Came",\s*"Of",\s*"Left",\s*\];/,
+      "the attendance file's columns changed, so the policy's list of what it holds is no longer what it holds.",
+    );
+    const attendance = read("src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/attendance/export/route.ts");
+    const refusedFirst = attendance.indexOf('if (outcome.status === "not-yours")');
+    const readFirst = attendance.indexOf("await readRunRecords(db");
+    assert.ok(refusedFirst !== -1 && readFirst !== -1 && refusedFirst < readFirst, "the attendance file is built before the caller is asked whether they lead the programme");
+  });
+
+  test("a pitch is shown to the group with its people's names, the form says so, and nobody's picks are shown to the group", () => {
+    assert.match(PAGE_FLAT, /and the pitch form says so\./);
+    // The line on the form, above the button that sends it, in the words of
+    // the question the owner answered with v7.
+    const pitching = read("src/features/courses/pitching/PitchingWeek.tsx");
+    const form = pitching.slice(pitching.indexOf("function PitchForm("), pitching.indexOf("function PitchItem("));
+    const line = form.indexOf(">Your group sees your pitch and who pitched it.<");
+    const send = form.indexOf('<button type="submit"');
+    assert.ok(line !== -1, "the pitch form no longer says who sees a pitch, which the policy says it does");
+    assert.ok(send !== -1 && line < send, "the pitch form says who sees a pitch only after the button that sends it");
+    // What the group is shown of a pitch: who pitched it, and never who would
+    // join it or how many would.
+    const row = /export type PitchRow = \{([\s\S]*?)\n\};/.exec(read("src/lib/courses/pitching/model.ts"));
+    assert.ok(row, "could not find the shape of a pitch as the group is shown it");
+    assert.match(row[1], /pitchedBy: string;/);
+    assert.ok(!/wouldJoin|joiners|pickers|count/i.test(row[1]), "a pitch as the group is shown it now carries who would join it, or how many");
+    // The lead and admins see how many would join each pitch, and not who:
+    // the two lists of pitches they are shown count the picks.
+    for (const [file, counted] of [
+      ["src/lib/applications/handover/pitchesLoad.ts", /wouldJoin: pitch\.wouldJoinUids\.filter\([^\n]*\)\.length,/],
+      ["src/lib/applications/handover/teamsLoad.ts", /const wouldJoin = pitch\.wouldJoinUids\.filter\([^\n]*\)\.length;/],
+    ]) {
+      assert.match(read(file), counted, `${file} no longer counts who would join a pitch, and may show who`);
+    }
+  });
+
+  test("destroying a term's applications takes nobody off a programme", () => {
+    assert.match(PAGE_FLAT, /Nobody is taken off a programme by it: a place on a course run/);
+    const destroy = read("src/lib/admissions/destroy.ts");
+    assert.ok(
+      !/courseEnrolments|courseApplications|COURSE_ENROLMENTS|COURSE_APPLICATIONS/.test(destroy),
+      "destroying a term's applications now reaches the places on a course " +
+        "run, which the policy says stay with the rest of a person's course record.",
+    );
   });
 });
 
@@ -2327,7 +2880,7 @@ describe("the re-consent gate", () => {
     );
     assert.ok(
       !/the next time you sign in you will be shown/i.test(PAGE_FLAT),
-      "v6 says again that a member is asked at their next sign-in. They are " +
+      "v7 says again that a member is asked at their next sign-in. They are " +
         "asked the next time they open the member area, or their " +
         "collaborator space.",
     );
@@ -2360,37 +2913,80 @@ describe("the re-consent gate", () => {
     }
   });
 
-  test("the accept page's \"What changed\" names what this version changes for every member", () => {
-    // The paragraph is what somebody reads before they press Accept. Most of
-    // v6 is about the application form, which only an applicant meets. Three
-    // things in it reach people who never apply, and the paragraph says each:
-    // the spam check on the event sign-up form, what the application form
-    // keeps in a browser, and that a change to a degree or a graduation on a
-    // profile is kept with what it said before (which v6 says under "Data we
-    // collect", and §2d holds to the code).
+  test("the accept page's \"What changed\" names what this version changes", () => {
+    // The paragraph is what somebody reads before they press Accept, in the
+    // words the owner approved with v7. v7 is about a programme while it runs
+    // and when it ends, and the paragraph names each thing in it, in order.
+    // Every phrase is held on both sides: the paragraph says it, and v7 says
+    // the sentence it summarises, so the paragraph cannot describe a page the
+    // policy is not.
     const accept = read("src/app/re-consent/page.tsx").replace(/\s+/g, " ");
     const from = accept.indexOf("What changed:");
     assert.ok(from !== -1, "the accept page no longer has its \"What changed\" paragraph");
     const paragraph = accept.slice(from, accept.indexOf("</p>", from));
-    assert.match(paragraph, /names the event sign-up form among the forms that use Google reCAPTCHA/);
-    assert.match(paragraph, /says what the application form keeps in your browser if you start it before you have an account/);
     assert.match(
       paragraph,
-      /says that a change you make to your degree or expected graduation on your profile is kept with what it said before/,
-      "the accept page no longer tells a member that v6 says a changed degree " +
-        "or graduation is kept. It is the one thing in this version that " +
-        "touches every member's own profile.",
+      /the section on courses and programmes now covers a programme while it runs and when it ends\./,
     );
-    // And the policy still says it, so the paragraph describes the page.
-    assert.match(
-      CURRENT_FLAT,
-      /If you later change your degree \(or area of work\) or your expected graduation on your profile, we keep what it said before and when you changed it/,
+    for (const [what, said, policy] of [
+      [
+        "what a programme's lead sees",
+        /It says what a programme&apos;s lead sees, including every register of its groups;/,
+        /Once the programme is running, the lead places its people in groups, reads every register of its groups,/,
+      ],
+      [
+        "that a group sees a pitch with its sender's name",
+        /that on an incubator your group sees a pitch you send, with your name,/,
+        /Sending a pitch is choosing to share it: everybody in your group sees it, with your name/,
+      ],
+      ["how teams are made", /and how teams are made;/, /The site can make a team from a pitch/],
+      [
+        "what leaving does and who reads the reason",
+        /what leaving a programme does and who reads your reason;/,
+        /If you give a reason, only admins and, where the programme has one, its lead read it\./,
+      ],
+      [
+        "a place that comes back",
+        /that a place somebody gives back can be offered to somebody else until the end of the first week;/,
+        /until the end of the programme&apos;s first week its lead or an admin can offer that place/,
+      ],
+      [
+        "who finished",
+        /how we record who finished;/,
+        /we mark as finished everybody who came to at least the number of sessions its lead has set/,
+      ],
+      [
+        "certificates",
+        /and that certificates are sent to the people who finished and to facilitators, private until you turn the link on\./,
+        /It starts private: until you turn its link on, only you can open it\./,
+      ],
+      [
+        "facilitators see names only",
+        /It also says that facilitators see names only, never email addresses,/,
+        /They never see your email address:/,
+      ],
+      [
+        "a programme's attendance is a logged download",
+        /and that downloads of a programme&apos;s attendance are recorded\./,
+        /Three of those downloads are recorded/,
+      ],
+    ]) {
+      assert.match(paragraph, said, `the accept page no longer says v7 changed ${what}`);
+      assert.match(CURRENT_FLAT, policy, `the accept page says v7 changed ${what}, and v7 does not say it`);
+    }
+    // A register's notes are not among what a lead reads (§2g), so the
+    // paragraph does not say they are.
+    assert.ok(
+      !/notes facilitators write/i.test(paragraph),
+      "the accept page says a programme's lead sees the notes facilitators " +
+        "write. v7 does not: a register's notes are its group's facilitators' " +
+        "and admins'.",
     );
-    // Nothing here about the newsletter: v6 says of it what v5 said.
+    // Nothing here about the newsletter: v7 says of it what v6 said.
     assert.ok(
       !/newsletter/i.test(paragraph),
-      "the accept page says v6 changed something about the newsletter. Its " +
-        "sentence is version 5's, word for word.",
+      "the accept page says v7 changed something about the newsletter. Its " +
+        "sentence is version 6's, word for word.",
     );
   });
 

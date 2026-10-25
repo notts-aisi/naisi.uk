@@ -101,21 +101,17 @@ export default async function ReConsentPage() {
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           <strong style={{ color: "var(--color-text)" }}>What changed:</strong>{" "}
-          the section on courses and programmes now describes our one
-          application form for the fellowships and the incubator. The main
-          change is that the people who read an application see the
-          applicant&apos;s name: the version before said reviewers scored with
-          names hidden. It also says who reads an application (admins, and the
-          lead and reviewers of each programme you rank), that only admins can
-          open what you write under access requirements, that the versions you
-          sent before are kept for the people reading it, that nothing about a
-          decision is shown or sent before decision day, what you are told
-          then and how you reply, and what stays in our records afterwards.
-          Outside that section, it now names the event sign-up form among the
-          forms that use Google reCAPTCHA, says what the application form
-          keeps in your browser if you start it before you have an account,
-          and says that a change you make to your degree or expected
-          graduation on your profile is kept with what it said before.
+          the section on courses and programmes now covers a programme while
+          it runs and when it ends. It says what a programme&apos;s lead sees,
+          including every register of its groups; that on an incubator your
+          group sees a pitch you send, with your name, and how teams are made;
+          what leaving a programme does and who reads your reason; that a
+          place somebody gives back can be offered to somebody else until the
+          end of the first week; how we record who finished; and that
+          certificates are sent to the people who finished and to
+          facilitators, private until you turn the link on. It also says that
+          facilitators see names only, never email addresses, and that
+          downloads of a programme&apos;s attendance are recorded.
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}

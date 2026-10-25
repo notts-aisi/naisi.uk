@@ -262,6 +262,14 @@
   color: var(--color-text-muted);
 }
 
+/* Who sees a pitch, over the button that sends it. */
+.whoSees {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-soft);
+}
+
 .problem {
   margin: 0;
   font-size: var(--text-sm);
