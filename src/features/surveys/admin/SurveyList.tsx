@@ -30,7 +30,7 @@ function Row({ row }: { row: ListRow }) {
         <p className={styles.rowSub}>{row.programme}</p>
       </div>
       <div>
-        <span className={styles.answers}>{row.answers}</span>
+        <span className={row.state === "draft" ? styles.rowSub : styles.answers}>{row.answers}</span>
         {row.share !== null && (
           <span className={styles.bar} aria-hidden="true">
             <span className={styles.barFill} style={{ width: `${Math.round(row.share * 100)}%` }} />
@@ -46,15 +46,15 @@ function Row({ row }: { row: ListRow }) {
         ) : (
           <>
             {row.unanswered && (
-              <span className={styles.actionNote}>
+              <span className={styles.remind}>
                 <Link
                   href={`${base}/send`}
-                  className={styles.action}
+                  className={styles.remindButton}
                   aria-label={`Remind people who haven’t answered ${row.name}: opens its Send tab`}
                 >
                   {LIST_WORDS.remind}
-                </Link>{" "}
-                {row.unanswered}
+                </Link>
+                <span className={styles.actionNote}>{row.unanswered}</span>
               </span>
             )}
             <Link href={`${base}/results`} className={styles.action} aria-label={`${LIST_WORDS.results} for ${row.name}`}>
