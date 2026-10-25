@@ -43,6 +43,9 @@
  *     off by staff (each with nothing to do), and everybody else, whose seat
  *     is still on the run, with the runbook's steps as before.
  *
+ *  7. THREE LINES OF COPY WITHOUT A DASH: Remove's refusal of a facilitator's
+ *     seat, the register's caption, and the label of a joiner's empty cell.
+ *
  * Built on `tests/lib/leavingWorld.mjs`: week 3 of AGI Strategy's run, the
  * clock at noon on Tue 17 Nov 2026 in London. Amara is in Group A, told, and
  * holds a place through the form; Chloe applied to the run itself; Una is
@@ -60,6 +63,7 @@ import { switches } from "./lib/hubAttendanceWorld.mjs";
 import {
   A,
   AGI,
+  COURSE,
   D,
   NOW,
   ROUND,
@@ -503,5 +507,70 @@ describe("6. the hand-over panel lists who left and who was taken off apart from
   test("the programme's lead and a member are refused the panel, as before", async () => {
     assert.equal((await panelOf("claudia")).status, 403);
     assert.equal((await panelOf("amara")).status, 403);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. Three lines of copy without a dash
+// ---------------------------------------------------------------------------
+
+/** The register as its grid draws it, from the register route's own answer. */
+function drawGrid(payload, groupId) {
+  w.ui.attendance = {
+    group: payload.group,
+    sessions: payload.sessions,
+    members: payload.members,
+    notYetTold: payload.notYetTold,
+    leavers: payload.leavers,
+    records: payload.records,
+    participantNotes: payload.participantNotes,
+    canEditPushed: payload.canEditPushed,
+    ending: payload.ending,
+    loading: false,
+    loaded: true,
+    error: null,
+    reload: () => {},
+    mark: async () => {},
+    edit: async () => ({}),
+    push: async () => ({}),
+    saveNote: async () => ({}),
+  };
+  return renderToStaticMarkup(createElement(w.components.AttendanceGrid, { groupId }));
+}
+
+describe("7. three lines of copy say what they say without a dash", () => {
+  for (const [label, who] of CALLERS) {
+    test(`as ${label}: Remove refuses a facilitator's seat in two plain sentences, and writes nothing`, async () => {
+      world.db.seed(enrolmentPath("grace"), {
+        runId: RUN.agi,
+        courseId: COURSE.agi,
+        uid: "grace",
+        role: "facilitator",
+        status: "active",
+        groupId: D,
+      });
+      const before = snapshot();
+      const refused = await remove(who, "grace");
+      assert.deepEqual(
+        [refused.status, refused.body.error],
+        [409, "That's a facilitator enrolment. Unassign them in the group editor instead."],
+      );
+      assert.deepEqual(changedSince(before), []);
+    });
+  }
+
+  test("the register's caption, and the label of a joiner's empty cells, as the grid draws them for the lead", async () => {
+    world.db.poke(enrolmentPath("bea"), { joinedWeekNumber: 3 });
+    const answer = await call("claudia", routes.register.GET, { groupId: A }, { course: true });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    const html = drawGrid(answer.body, A);
+    const caption = textOf((/<caption[^>]*>([\s\S]*?)<\/caption>/.exec(html) ?? [])[1] ?? "");
+    assert.match(caption, /^Attendance for Group A: 4 members, 3 sessions so far\. Each cell cycles through present/, caption);
+    assert.doesNotMatch(caption, /[\u2013\u2014]/);
+    const labels = [...html.matchAll(/aria-label="(Not in the group yet[^"]*)"/g)].map((match) => match[1]);
+    assert.ok(labels.length >= 1, "no cell of a week before Bea joined was drawn");
+    // Bea's marks from before the week Bea joined stay on record, and the label says so.
+    for (const said of labels) assert.match(said, /^Not in the group yet: joined in week 3(?:, recorded [A-Z][a-z ]+)?$/);
+    assert.ok(labels.includes("Not in the group yet: joined in week 3, recorded Present"), JSON.stringify(labels));
   });
 });

@@ -703,7 +703,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
             refuses. The spec scopes a row and then counts columns instead. */}
         <table className={styles.table} data-testid="attendance-grid">
           <caption className={styles.caption}>
-            Attendance for {group?.name || "this group"} — {members.length}{" "}
+            Attendance for {group?.name || "this group"}: {members.length}{" "}
             {members.length === 1 ? "member" : "members"}, {sessions.length}{" "}
             {sessions.length === 1 ? "session" : "sessions"} so far. Each cell cycles
             through present, late, left early, absent, excused and back to not marked.
@@ -873,7 +873,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
                         <span
                           className={styles.notYet}
                           role="img"
-                          aria-label={`Not in the group yet — joined in week ${member.joinedWeekNumber}${
+                          aria-label={`Not in the group yet: joined in week ${member.joinedWeekNumber}${
                             status ? `, recorded ${ATTENDANCE_STATUS_LABEL[status]}` : ""
                           }`}
                         >

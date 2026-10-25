@@ -145,7 +145,7 @@ export async function POST(_req: Request, ctx: Ctx) {
 
       if (existing.role === "facilitator") {
         throw new RemoveError(
-          "That's a facilitator enrolment — unassign them in the group editor instead.",
+          "That's a facilitator enrolment. Unassign them in the group editor instead.",
           409,
         );
       }
