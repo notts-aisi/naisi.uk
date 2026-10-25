@@ -2853,6 +2853,20 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === courseFinishing ===
+    // Who finished a programme (src/lib/courses/finishing/model.ts): a run's
+    // rule (the least number of sessions somebody must have come to) and the
+    // programme lead's decisions about who finished. Written only by the two
+    // routes under
+    // /api/admissions/forms/[roundId]/programmes/[programmeId]/finishing and
+    // read only on the server: the lead and admins are shown the rule and the
+    // list, and each member is told only whether they finished, through their
+    // own pages' payloads. So every browser is refused, admins and the person
+    // a decision is about included.
+    match /courseFinishing/{docId} {
+      allow read, write: if false;
+    }
+
     // ==================== V3 W1 PR5: courses open mode ====================
     //
     // === courseAudit ===

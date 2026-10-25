@@ -700,6 +700,18 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed a published run with a register not finished and a facilitator whose address reaches the suite's mail catcher.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing": {
+    reason:
+      "Course hub: one person's Finished switch on the Overview once a run's last session is over (board en-finish). tests/course-hub-finishing-routes.test.mjs executes it as every kind of caller, before and after the end, and tests/course-hub-finishing-pages.test.mjs draws the section it answers with.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a run whose last session is over, with finished registers, and its programme's lead signed in.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing/rule": {
+    reason:
+      "Course hub: the rule for who finished, on a programme's Settings tab. tests/course-hub-finishing-routes.test.mjs executes it as every kind of caller, at its edges, and tests/course-hub-finishing-pages.test.mjs draws the card.",
+    coverWhen:
+      "With the spec for the switch above: setting the rule is that spec's first step.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams": {
     reason:
       "Course hub: an incubator's teams, made from the pitches or the agenda and changed by its lead or an admin. tests/course-hub-teams-routes.test.mjs executes it as every kind of caller, at the size limits, and tests/course-hub-teams-page.test.mjs draws the tab from its answer.",

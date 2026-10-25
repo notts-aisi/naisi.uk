@@ -546,6 +546,20 @@ const ROUND_SURFACES = {
       "reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers " +
       "'none' for a round that is not a form, so nobody is emailed for one",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing": {
+    kind: "form",
+    why:
+      "records whether one person finished the run a programme names, through decideFinished. It " +
+      "reaches the round only through loadProgrammeRun, which starts from the form's own loader and " +
+      "answers 'none' for a round that is not a form, so nothing is written for one",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing/rule": {
+    kind: "form",
+    why:
+      "sets the rule for who finished the run a programme names, through setFinishRule, which reaches " +
+      "the round only through loadProgrammeRun and answers a round that is not a form as a programme " +
+      "that is not here",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams": {
     kind: "form",
     why:
