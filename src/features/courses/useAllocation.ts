@@ -117,6 +117,12 @@ export type AllocRow = {
    * the week itself is never sent. See `allocationFit.ts`.
    */
   fromForm: FormPlace | null;
+  /**
+   * Staff put them back on the run after they left it, and they are on it
+   * still: their card no longer says they gave their place back. Present
+   * only then.
+   */
+  putBack?: true;
 };
 
 /**
@@ -136,6 +142,11 @@ export type PublishSummary = {
   emptyGroups: string[];
   /** Why a press would be refused because an email cannot be written. */
   refusals: string[];
+  /**
+   * How many people placed and not told yet gave their place back: a press
+   * leaves them out. Present only when there is somebody.
+   */
+  gaveBack?: number;
   test: {
     state: "none" | "stale" | "fresh";
     /** "5:38pm", or "Mon 26 Oct at 5:38pm". */

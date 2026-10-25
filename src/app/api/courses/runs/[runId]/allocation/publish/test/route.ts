@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { formPlaceFactsFor } from "@/lib/applications/handover/board";
 import { loadPublishPlan, pressBatch, recordPublishTest } from "@/lib/courses/allocationPublish";
 import { PUBLISH_ADMIN_ONLY } from "@/lib/courses/publishWords";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
@@ -32,7 +33,8 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * "The first" is the first a press would send: `pressBatch` puts the people
  * owed an email first and the facilitators after, each in the plan's order.
  * When a press would send nobody of one kind, the test has no email of that
- * kind to show, and sends the other alone.
+ * kind to show, and sends the other alone. Somebody who gave their place back
+ * is owed nothing, so the test never shows their email.
  */
 
 type Ctx = { params: Promise<{ runId: string }> };
@@ -71,9 +73,13 @@ export async function POST(_req: Request, ctx: Ctx) {
   const rows = appSnap.docs.map((d) => normalizeCourseApplication(d.id, d.data() ?? {}));
   const served = rows.filter((a) => rowIsServedTo(a, staffing));
   const accepted = served.filter((a) => a.status === "accepted");
+  // As Publish reads it: a card that says "Gave their place back" is nobody
+  // the press writes to, so the test never borrows their email either.
+  const formPlaces = await formPlaceFactsFor(db, staffing, accepted.filter((a) => a.fromForm !== null), []);
   const plan = await loadPublishPlan(db, run, {
     accepted,
     adminOnly: served.length < rows.length,
+    formPlaces,
   });
   if (plan.adminOnly) return NextResponse.json({ error: PUBLISH_ADMIN_ONLY }, { status: 403 });
   if (plan.refusals.length > 0) {

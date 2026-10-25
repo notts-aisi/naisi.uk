@@ -5,6 +5,7 @@ import {
   NOTHING_TO_SEND,
   PUBLISH_ADMIN_ONLY,
   emptyGroupsLine,
+  gaveBackLine,
   moreLine,
   noAddressLine,
   publishAudienceLine,
@@ -100,6 +101,11 @@ export default function AllocationPublish({
             ) : null}
             {summary.emptyGroups.length > 0 ? (
               <p className={styles.line}>{emptyGroupsLine(summary.emptyGroups)}</p>
+            ) : null}
+            {/* Their cards say "Gave their place back": the press leaves them
+                out, and Remove frees the seat each still holds. */}
+            {summary.gaveBack && summary.gaveBack > 0 ? (
+              <p className={styles.lineWarn}>{gaveBackLine(summary.gaveBack)}</p>
             ) : null}
             {summary.refusals.map((sentence) => (
               <p key={sentence} className={styles.lineWarn}>

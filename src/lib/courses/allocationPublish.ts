@@ -6,6 +6,7 @@ import type { CourseApplicationDoc } from "@/lib/firestore/courseApplications";
 import {
   courseEnrolmentId,
   enrolmentHasLeft,
+  enrolmentIsPutBack,
   normalizeCourseEnrolment,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
@@ -47,6 +48,7 @@ import {
   type RefusedGroup,
 } from "@/lib/courses/placementEmail";
 import { resolveCalendar } from "./groupResolve";
+import { gaveTheirPlaceBack, type PlaceOnTheForm } from "./placeGivenBack";
 import { readNamingProgramme, readRunLead, type RunLead } from "./programmeLead";
 import { resolveSessions, sessionRange, type ResolvedSession } from "./sessions";
 import { COURSE_TZ, isValidDateKey } from "./weekPlan";
@@ -70,6 +72,18 @@ import { formatRunStart, formatRunStartShort } from "./window";
  *    in a group, with no `allocatedEmailAt` stamp. The stamp is written after
  *    their email went, and a move to another group clears it, so a moved
  *    person is owed one again and is told their new group.
+ *  - NEVER SOMEBODY WHO GAVE THEIR PLACE BACK. A person the application form
+ *    put on the run who has since given their place back on the form keeps
+ *    their seat until somebody Removes it, and their card on the board says
+ *    "Gave their place back". They are owed nothing: no press writes to them,
+ *    the count leaves them out, "Send a test to me" never borrows their
+ *    email, and nothing stamps them as told. The board says how many
+ *    (`gaveBack`). It is asked of the facts the board's cards are drawn from
+ *    (`PlanInput.formPlaces`, and their seat) through the function the card
+ *    asks (`gaveTheirPlaceBack` in `./placeGivenBack.ts`), so a card and the
+ *    press cannot disagree about anybody. Somebody staff put back on the run
+ *    after they left (`enrolmentIsPutBack`) is back: their place on the form
+ *    stays given back, but their card no longer says so, and they are told.
  *  - A FACILITATOR of a live group with somebody in it whom Publish has told
  *    or this press writes to, who has no marker for that group yet
  *    (`facilitatingMarkerId`). Once per facilitator per group: a facilitator
@@ -175,6 +189,16 @@ export type PlanInput = {
    * publish it.
    */
   adminOnly: boolean;
+  /**
+   * Whether each person the application form put on the run still holds the
+   * place that put them there, by uid: what the board's cards are drawn from,
+   * read the same way (`formPlaceFactsFor` in
+   * `src/lib/applications/handover/board.ts`). A person this has no entry
+   * for (they applied to the run itself) has no place on the form to give
+   * back. Every route that reads a plan hands it over:
+   * `tests/course-publish-place-given-back.test.mjs` holds that.
+   */
+  formPlaces: ReadonlyMap<string, PlaceOnTheForm>;
 };
 
 /** One finished email: what a composer returned, ready for the mail door. */
@@ -231,6 +255,12 @@ export type PublishPlan = {
   incubator: boolean;
   /** Accepted people with no active place in a group, by name. Never somebody who has left the run. */
   unplaced: string[];
+  /**
+   * People placed in a group and not told yet who gave their place back on
+   * the form, by name: their cards say "Gave their place back", and no press
+   * writes to them. Each still holds a seat until somebody Removes it.
+   */
+  gaveBack: string[];
   /** Why an email cannot be written, a sentence each. Empty when every email can be. */
   refusals: string[];
   /** Everybody owed their group's email, in the order a press sends them. */
@@ -697,6 +727,7 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
     adminOnly: false,
     incubator,
     unplaced: [],
+    gaveBack: [],
     refusals: [],
     people: [],
     facilitators: [],
@@ -758,6 +789,9 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   // How many are placed in each group, told or not: whether a group has
   // anybody in it for its facilitators to be told about at all. And how many
   // of them Publish has told already: where each facilitator's count starts.
+  // Somebody who gave their place back still sits in their group until they
+  // are Removed, so it is not empty; a group with nobody else in it keeps its
+  // facilitators waiting, as one nobody in which can be told yet does.
   const placedIn = new Map<string, number>();
   const toldIn = new Map<string, number>();
   for (const row of accepted) {
@@ -769,10 +803,23 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
 
   // Everyone placed but not yet told. The stamp is the once-only guard: it is
   // written after their email went, and a move clears it.
-  const owed = accepted.flatMap((row) => {
+  const placedUntold = accepted.flatMap((row) => {
     const group = groupOf(row.uid);
     return group && !enrolmentByUid.get(row.uid)?.allocatedEmailAt ? [{ row, group }] : [];
   });
+  // NOBODY WHO GAVE THEIR PLACE BACK IS OWED ANYTHING (see the note at the
+  // top). This asks the question their card asks, of the facts the card is
+  // drawn from. A person with no facts, or a plan read with none, gave
+  // nothing back, as a card with no facts says nothing. Names come from the
+  // application's own copy, as the unplaced ones' do.
+  const gaveBack = (uid: string): boolean => {
+    const seat = enrolmentByUid.get(uid);
+    return gaveTheirPlaceBack(input.formPlaces?.get(uid), { putBack: seat !== undefined && enrolmentIsPutBack(seat) });
+  };
+  const owed = placedUntold.filter(({ row }) => !gaveBack(row.uid));
+  const givenBack = placedUntold
+    .filter(({ row }) => gaveBack(row.uid))
+    .map(({ row }) => row.displayName || "NAISI member");
 
   // The facilitators of every live group, and whether each has been told
   // about that group yet. Only a group with somebody in it is one they are
@@ -987,6 +1034,7 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
     adminOnly: false,
     incubator,
     unplaced,
+    gaveBack: givenBack,
     refusals: [...new Set(refusals)],
     people,
     facilitators,

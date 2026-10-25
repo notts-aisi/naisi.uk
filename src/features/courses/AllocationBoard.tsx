@@ -1113,6 +1113,7 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
           more: summary.more,
           noAddress: summary.noAddress,
           emptyGroups: summary.emptyGroups,
+          gaveBack: summary.gaveBack ?? 0,
           republish: data.run.allocationPublishedAt != null,
         }),
       )

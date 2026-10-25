@@ -98,6 +98,18 @@ export function emptyGroupsLine(groups: readonly string[]): string {
   return `${nameList(groups)} ${one ? "has" : "have"} nobody in ${one ? "it" : "them"} yet, so ${one ? "its" : "their"} facilitators are not emailed.`;
 }
 
+/**
+ * People placed in a group and not told yet who gave their place back on the
+ * form: Publish leaves them out, and each still holds a seat until Removed.
+ * Not drawn on any board: written in the boards' voice and listed in the
+ * build notes for the boards' designers to confirm.
+ */
+export function gaveBackLine(n: number): string {
+  return n === 1
+    ? "1 person gave their place back, so they aren’t emailed. Remove them to free their seat."
+    : `${n} people gave their place back, so they aren’t emailed. Remove them to free their seats.`;
+}
+
 /** Emails past one press's cap. */
 export function moreLine(more: number): string {
   return `${emailsLabel(more)} more after this. Press Publish again to send ${more === 1 ? "it" : "them"}.`;
@@ -115,6 +127,8 @@ export function publishConfirmText(input: {
   more: number;
   noAddress: readonly string[];
   emptyGroups: readonly string[];
+  /** People placed and not told yet who gave their place back, whom the press leaves out. */
+  gaveBack?: number;
   republish: boolean;
 }): string {
   const lines: string[] = [];
@@ -138,6 +152,7 @@ export function publishConfirmText(input: {
   if (input.more > 0) lines.push(moreLine(input.more));
   if (input.noAddress.length > 0) lines.push(noAddressLine(input.noAddress));
   if (input.emptyGroups.length > 0) lines.push(emptyGroupsLine(input.emptyGroups));
+  if (input.gaveBack && input.gaveBack > 0) lines.push(gaveBackLine(input.gaveBack));
   if (input.emails > 0) {
     lines.push(input.republish ? "Only people and facilitators not told before are emailed. Emails cannot be unsent." : "Emails cannot be unsent.");
   }

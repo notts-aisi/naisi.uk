@@ -24,8 +24,16 @@
  * line, the second as a warning. A group whose session has no time yet is
  * left out of all of it, because there is no session to make or miss.
  *
- * Pure, with no import, so the board and a test ask the same function.
+ * "GAVE THEIR PLACE BACK" IS PUBLISH'S ANSWER TOO. Whether a card says it is
+ * asked of `gaveTheirPlaceBack` (`src/lib/courses/placeGivenBack.ts`), the
+ * function Publish's plan asks before it writes to anybody, of the same
+ * facts, so a card that says it is never somebody Publish emails, and a card
+ * that does not is never somebody Publish leaves out for it.
+ *
+ * Pure, with one import (that answer, itself pure), so the board and a test
+ * ask the same function.
  */
+import { gaveTheirPlaceBack } from "@/lib/courses/placeGivenBack";
 
 /** What the server says about somebody the application form placed on the run. */
 export type FormPlace = {
@@ -41,6 +49,8 @@ export type FitRow = {
   /** Session labels ticked on the run's own form. Empty for somebody from the application form. */
   availability: string[];
   fromForm: FormPlace | null;
+  /** Staff put them back on the run after they left it: present, and true, only then. */
+  putBack?: boolean;
 };
 
 /** The fields of a column this reads. */
@@ -55,7 +65,11 @@ export type CardFit = {
   noteWarns: boolean;
   /** They are sitting in a group whose session they cannot make. */
   conflict: boolean;
-  /** They gave their place back on the application form after they were put on this board. */
+  /**
+   * They gave their place back on the application form after they were put
+   * on this board, and nobody has put them back on the run since: the card
+   * says "Gave their place back", and Publish writes nothing to them.
+   */
   gaveBack: boolean;
 };
 
@@ -70,6 +84,10 @@ export const GAVE_PLACE_BACK = "Gave their place back";
  */
 export function cardFit(row: FitRow, group: FitGroup | null, groups: readonly FitGroup[]): CardFit {
   const inASession = group !== null && group.sessionLabel !== "";
+  // The one answer, which Publish's plan asks too. Somebody who applied to the
+  // run itself has no place on the form to give back, and somebody staff put
+  // back on the run since they left is back.
+  const gaveBack = gaveTheirPlaceBack(row.fromForm, { putBack: row.putBack === true });
 
   if (row.fromForm === null) {
     return {
@@ -78,11 +96,10 @@ export function cardFit(row: FitRow, group: FitGroup | null, groups: readonly Fi
       noteWarns: false,
       // They ticked something, and this group's session is not among it.
       conflict: inASession && row.availability.length > 0 && !row.availability.includes(group.sessionLabel),
-      gaveBack: false,
+      gaveBack,
     };
   }
 
-  const gaveBack = !row.fromForm.holdsPlace;
   if (row.fromForm.availability !== "given") {
     return {
       slots: [],

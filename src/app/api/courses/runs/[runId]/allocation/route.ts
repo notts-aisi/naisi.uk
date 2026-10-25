@@ -20,6 +20,7 @@ import {
 } from "@/lib/firestore/courseApplications";
 import {
   courseEnrolmentId,
+  enrolmentIsPutBack,
   normalizeCourseEnrolment,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
@@ -152,6 +153,13 @@ export type AllocRow = {
    * says so.
    */
   fromForm: FormPlaceFacts | null;
+  /**
+   * Staff put them back on the run after they left it, and they are on it
+   * still (`enrolmentIsPutBack`): their card no longer says they gave their
+   * place back, and Publish tells them. Present, and true, only then, so
+   * every other row is exactly as it was.
+   */
+  putBack?: true;
 };
 
 /**
@@ -181,6 +189,13 @@ export type PublishSummary = {
   emptyGroups: string[];
   /** Why a press would be refused because an email cannot be written. */
   refusals: string[];
+  /**
+   * How many people placed in a group and not told yet gave their place back
+   * on the form: their cards say "Gave their place back", and a press leaves
+   * them out. Present only when there is somebody, so a summary with nobody
+   * is exactly as it was before this was counted.
+   */
+  gaveBack?: number;
   test: {
     state: TestState;
     /** "5:38pm", or "Mon 26 Oct at 5:38pm" on another day. Null with no test. */
@@ -463,6 +478,7 @@ export async function GET(
             holdsPlace: fromForm.holdsPlace,
           }
         : null,
+      ...(enrolment && enrolmentIsPutBack(enrolment) ? { putBack: true as const } : {}),
     };
   });
   // Unplaced first (the work), then alphabetical — the board reads as a queue.
@@ -472,10 +488,13 @@ export async function GET(
   });
 
   // What a press of Publish would do now, read through the plan Publish reads.
-  // A row this caller is not served holds the press for somebody who is.
+  // A row this caller is not served holds the press for somebody who is. The
+  // plan is handed the facts the cards above were drawn from, so a card that
+  // says "Gave their place back" is somebody the press leaves out.
   const plan = await loadPublishPlan(db, run, {
     accepted,
     adminOnly: served.length < rows.length,
+    formPlaces: formFacts,
   });
   const batch = pressBatch(plan);
   let testedBy: string | null = null;
@@ -492,6 +511,7 @@ export async function GET(
     noAddress: batch.noAddress,
     emptyGroups: plan.emptyGroups,
     refusals: plan.refusals,
+    ...(plan.gaveBack.length > 0 ? { gaveBack: plan.gaveBack.length } : {}),
     test: {
       state: plan.test.state,
       when: plan.test.at ? testWhen(plan.test.at) : null,
