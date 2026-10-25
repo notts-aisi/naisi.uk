@@ -702,6 +702,23 @@
   color: var(--color-text-muted);
 }
 
+/* "Settings", inside the sentence over the list: a link in the line of text. */
+.wfSentenceLink {
+  color: var(--color-accent-text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.wfSentenceLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.wfSentenceLink:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
 .wfHeadSide {
   display: flex;
   flex: none;

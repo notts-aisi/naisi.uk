@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import InitialsChip from "@/components/ui/InitialsChip";
 import { useHydrated } from "@/hooks/useHydrated";
 import type { WhoFinishedModel } from "@/lib/courses/finishing/whoFinished";
+import { NO_RULE_AFTER, NO_RULE_BEFORE, NO_RULE_LINK, NO_RULE_SENTENCE } from "@/lib/courses/finishing/words";
 // The Overview's own stylesheet: this card is a part of that page.
 import styles from "./ProgrammeOverview.module.css";
 
@@ -133,7 +135,24 @@ export default function WhoFinished({
           <h2 id="who-finished" className={styles.wfTitle}>
             Who finished
           </h2>
-          <p className={styles.wfSentence}>{model.sentence}</p>
+          <p className={styles.wfSentence}>
+            {model.sentence === NO_RULE_SENTENCE ? (
+              // With no rule, "Settings" leads to the rule's card, as the
+              // People card's "Set who counts as finished" does before the end.
+              <>
+                {NO_RULE_BEFORE}
+                <Link
+                  href={`/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/setup#who-finished`}
+                  className={styles.wfSentenceLink}
+                >
+                  {NO_RULE_LINK}
+                </Link>
+                {NO_RULE_AFTER}
+              </>
+            ) : (
+              model.sentence
+            )}
+          </p>
         </div>
         <div className={styles.wfHeadSide}>
           <span className={styles.wfCounts}>{model.counts}</span>

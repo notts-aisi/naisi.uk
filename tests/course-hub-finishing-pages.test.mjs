@@ -182,10 +182,25 @@ describe("1. the section, once the last session is over", () => {
     assert.doesNotMatch(sectionHtml((await renderPage(pages.overview, "claudia")).html), /Una Byrne/);
   });
 
-  test("with no rule, the sentence says so and nobody is ticked but by hand", async () => {
+  // "Settings" in this sentence is a link to the rule's card, as the People
+  // card's "Set who counts as finished" is before the end; until the walk of
+  // stage three's fixes it was plain text (H11). The words are unchanged: the
+  // text read here has a gap where the link's tags were.
+  test("with no rule, the sentence says so, leads to the rule's card, and nobody is ticked but by hand", async () => {
     world.db.seed(rulePath, { kind: "gone" });
-    const text = textOf(sectionHtml((await renderPage(pages.overview, "claudia")).html));
-    assert.match(text, /^Who finished There’s no rule for who finished yet, so we haven’t ticked anybody\. Set one in Settings, or tick people yourself\. Only you and admins see this\. 1 finished · 9 not/);
+    const html = sectionHtml((await renderPage(pages.overview, "claudia")).html);
+    assert.match(textOf(html), /^Who finished There’s no rule for who finished yet, so we haven’t ticked anybody\. Set one in Settings , or tick people yourself\. Only you and admins see this\. 1 finished · 9 not/);
+    assert.ok(
+      html.includes(
+        `<p class="wfSentence">There’s no rule for who finished yet, so we haven’t ticked anybody. Set one in <a href="${PATH}/setup#who-finished" class="wfSentenceLink">Settings</a>, or tick people yourself. Only you and admins see this.</p>`,
+      ),
+      html.slice(0, 600),
+    );
+  });
+
+  test("with a rule, the sentence has no link: the rule is set", async () => {
+    const html = sectionHtml((await renderPage(pages.overview, "claudia")).html);
+    assert.match(html, /<p class="wfSentence">We’ve ticked everyone who came to at least 4 of 6 sessions\. Change any you disagree with\. Only you and admins see this rule\.<\/p>/);
   });
 
   test("a reviewer, the lead of another programme and everybody else are drawn no section", async () => {

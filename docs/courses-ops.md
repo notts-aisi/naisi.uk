@@ -1819,7 +1819,8 @@ ever shown it: no member's page and no member's payload carries it.
 It leads the **Overview** once the last session is over, above the rest of
 the page: everybody who took part (the lead sees the people Publish told, an
 admin everybody placed), fewest sessions first, each with a **Finished**
-switch. A switch saves at once. A change is stored only where it disagrees
+switch. While there is no rule the sentence over the list says so, and its
+"Settings" leads to the rule's card. A switch saves at once. A change is stored only where it disagrees
 with the rule, with who made it and when, and is marked "Changed by you" (or
 by whoever made it); putting a switch back to what the rule says removes the
 change, so a register corrected afterwards still counts for that person.
