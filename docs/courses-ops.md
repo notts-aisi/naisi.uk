@@ -1363,7 +1363,9 @@ number agrees between them and the CSV.
   its record: somebody absent at two sessions in a row without saying, a
   week not published that a group has reached, a register not finished
   once its session has ended (with the reminder's and the task's times from
-  Course settings and their jobs' switches), and somebody who left.
+  Course settings and their jobs' switches), and somebody who left. Once the
+  run's last session is over it chases nobody's absences, and the
+  Attendance grid draws no "in a row": there is no session left to miss.
 - **Updates** shows the two newest updates on the run, each with the line the
   Messages tab gives it (who wrote it, who it was to, the day, what its email
   did), and "Write an update". Both lead to the Messages tab.

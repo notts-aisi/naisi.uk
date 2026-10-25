@@ -1,6 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { clockWords, namesInWords } from "@/lib/courses/facilitatingEmail";
+import { runEndOf } from "@/lib/courses/finishing/runEnd";
 import { firstNameOfUser, fullNameOfUser, standingUserOf } from "@/lib/courses/programmeLead";
 import { displayNameOf } from "@/lib/courses/registerAccess";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
@@ -130,7 +131,9 @@ export type GridPerson = {
   leftDateKey: string | null;
   /**
    * How many sessions in a row they were last marked absent, when that is at
-   * least `ABSENT_IN_A_ROW`; 0 otherwise. Never for somebody who left.
+   * least `ABSENT_IN_A_ROW`; 0 otherwise. Never for somebody who left, and
+   * never once the run's last session is over: there are no more sessions to
+   * come to, so nothing chases it.
    */
   absentInARow: number;
   /** The weeks of that run of absences, oldest first. */
@@ -451,12 +454,13 @@ function lastMarkedWeek(sessions: Map<number, GroupSessionFacts>, uid: string): 
   return last;
 }
 
-/** One person's row in one group. */
+/** One person's row in one group. `over`: the run's last session is over (`runEndOf`). */
 function personRow(
   enrolment: CourseEnrolmentDoc,
   name: string,
   weeks: readonly number[],
   sessions: Map<number, GroupSessionFacts>,
+  over: boolean,
 ): GridPerson {
   const left = hasLeft(enrolment);
   const leftAt = left ? enrolment.droppedOutAt : null;
@@ -505,9 +509,10 @@ function personRow(
   }
 
   // The latest run of absences, walking back over the sessions that have
-  // happened and carry a mark: an unmarked one says nothing either way.
+  // happened and carry a mark: an unmarked one says nothing either way. Once
+  // the run is over there is no session left to miss, so nothing is chased.
   const absentWeeks: number[] = [];
-  if (!left) {
+  if (!left && !over) {
     for (let at = cells.length - 1; at >= 0; at -= 1) {
       const cell = cells[at];
       const facts = sessions.get(cell.weekNumber);
@@ -580,6 +585,9 @@ export function listGroups(
   weeks: readonly number[],
 ): ListedGroup[] {
   const sessionsByGroup = new Map(records.groups.map((group) => [group.id, groupSessions(records, group, now)]));
+  // Once the run's last session is over (the moment who finished opens, the
+  // one answer it asks), nobody's absences are chased any more.
+  const over = runEndOf(records.run, records.groups, now).over;
 
   // A removed row has no group on it any more: it belongs where a register
   // last marked it.
@@ -611,7 +619,7 @@ export function listGroups(
       }
       seen.add(enrolment.uid);
       const name = fullNameOfUser(records.accounts.get(enrolment.uid) ?? {});
-      people.push({ enrolment, row: personRow(enrolment, name, weeks, sessions) });
+      people.push({ enrolment, row: personRow(enrolment, name, weeks, sessions, over) });
     }
     people.sort((a, b) => a.row.name.localeCompare(b.row.name, "en-GB") || a.row.uid.localeCompare(b.row.uid));
     return { group, sessions, facilitators: facilitatorsOf(records, group), people, notYetTold };

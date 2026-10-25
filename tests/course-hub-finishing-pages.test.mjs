@@ -28,6 +28,9 @@
  *     last session's end; before it, the running line.
  *  5. The switches are not pressable before the page is live, no address
  *     reaches any of it, and drawing a page writes nothing.
+ *  6. ABSENCES: Needs attention names each run of absences, and the grid
+ *     marks it "in a row", until the run's last session is over; from that
+ *     moment neither chases anybody, since there is no session left to miss.
  *
  * Real: the pages, the layout, the section's component, the libraries. Faked:
  * the session, the Admin SDK handle, `next/link`, `next/navigation`, the
@@ -39,8 +42,10 @@ import {
   AGI,
   BEFORE,
   END,
+  LAST_ENDS,
   ROUND,
   RULE,
+  RUN,
   decision,
   decisionPath,
   makeFinishWorld,
@@ -51,7 +56,7 @@ import {
 mock.timers.enable({ apis: ["Date"], now: END });
 
 const made = await makeFinishWorld("__finishPages");
-const { world, reset, pages, renderPage, head, everything } = made;
+const { world, reset, pages, renderPage, head, everything, lib } = made;
 
 const PATH = `/admin/admissions/forms/${ROUND}/programmes/${AGI}`;
 
@@ -285,4 +290,40 @@ describe("5. no address, no write", () => {
     }
   });
 
+});
+
+// ---------------------------------------------------------------------------
+// 6. Absences, once there is nothing left to miss
+// ---------------------------------------------------------------------------
+
+describe("6. once the last session is over, nobody's absences are chased", () => {
+  /** Needs attention's runs of absences, as the lead reads them: [name, how many]. */
+  const chased = (text) =>
+    [...text.matchAll(/(\S+ \S+) has missed (\d+) sessions in a row without saying/g)].map((match) => [match[1], Number(match[2])]);
+
+  /** The Attendance grid's "in a row" badges, as `viewer` is drawn them: [name, how many]. */
+  async function badges(viewer) {
+    const records = await lib.attendance.readRunRecords(world.courseDb, RUN.agi);
+    return lib.attendance
+      .buildRunAttendance(records, viewer, new Date())
+      .groups.flatMap((group) => group.people.filter((person) => person.absentInARow > 0).map((person) => [person.name, person.absentInARow]));
+  }
+
+  test("before it, Needs attention names each run of absences, and the grid marks them", async () => {
+    mock.timers.setTime(BEFORE.getTime());
+    const runs = [["Freya Thompson", 5], ["Farah Hussain", 2], ["Bea Lindqvist", 3]];
+    assert.deepEqual(chased((await renderPage(pages.overview, "claudia")).text), runs);
+    assert.deepEqual(await badges({ isAdmin: false }), runs);
+  });
+
+  test("from the moment it ends, neither chases anybody, for the lead or an admin", async () => {
+    mock.timers.setTime(LAST_ENDS.getTime());
+    for (const who of ["claudia", "zach"]) {
+      const text = (await renderPage(pages.overview, who)).text;
+      assert.deepEqual(chased(text), [], who);
+      assert.doesNotMatch(text, /in a row/, who);
+    }
+    assert.deepEqual(await badges({ isAdmin: false }), []);
+    assert.deepEqual(await badges({ isAdmin: true }), []);
+  });
 });

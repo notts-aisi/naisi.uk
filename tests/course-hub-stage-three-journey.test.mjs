@@ -1079,6 +1079,10 @@ async function tabsOf(who) {
     /** The rule's card: what the page hands it, and its words. */
     rule: setup ? setup.props.finishing : { text: settingsPage.text.slice(0, 300) },
     settingsText: settingsPage.text,
+    /** The grid's "in a row" badges: [name, how many]. */
+    inARow: grid
+      ? grid.props.model.groups.flatMap((group) => group.people.filter((person) => person.absentInARow > 0).map((person) => [person.name, person.absentInARow]))
+      : null,
   };
 }
 
@@ -1942,7 +1946,12 @@ describe("stage three of the course hub, one term from week 3 to after its end",
         groupB.people.map((person) => [person.name, person.came]),
         [["Amara Okafor", "5 of 5"], ["Farah Hussain", "3 of 5"], ["Isaac Mensah", "4 of 5"], ["Kofi Asante", "3 of 5"], ["Sam Whitfield", "1 of 2"]],
       );
-      assert.deepEqual(a().lead.overview.attention.map(([kind]) => kind), ["absent", "left", "left"]);
+      // Until the walk of stage three Needs attention went on chasing Farah's
+      // two absences in a row after the run's last session, and the grid drew
+      // her "2 in a row" (H9). There is no session left to come to, so neither
+      // chases anybody once the run is over.
+      assert.deepEqual(a().lead.overview.attention.map(([kind]) => kind), ["left", "left"]);
+      assert.deepEqual([a().lead.inARow, a().admin.inARow], [[], []]);
       assert.deepEqual(a().registers.rahul.leavers.map((leaver) => [leaver.name, leaver.left]), [["Sam Whitfield", "Left Fri 13 Nov"]]);
       assert.deepEqual(a().registers.amelia.leavers.map((leaver) => [leaver.name, leaver.left]), [["Joel Adeyemi", "Left Wed 4 Nov"]]);
     });
