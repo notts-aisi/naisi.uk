@@ -244,13 +244,13 @@ describe("the words", () => {
 
   test("the project line, with the paper as the slot and the twist's first letter lowered only when that changes no name", () => {
     assert.equal(
-      words.projectLine("Probes that transfer", "Test whether the probes still work on a smaller open model"),
+      words.teamProjectLine("Probes that transfer", "Test whether the probes still work on a smaller open model"),
       "Replicate Probes that transfer, then: test whether the probes still work on a smaller open model",
     );
-    assert.equal(words.projectLine("A paper", "GPT-2 sized models only"), "Replicate A paper, then: GPT-2 sized models only");
-    assert.equal(words.projectLine("A paper", "AI labs first"), "Replicate A paper, then: AI labs first");
-    assert.equal(words.projectLine("A paper", "I’d rebuild it"), "Replicate A paper, then: I’d rebuild it");
-    assert.equal(words.projectLine(null, "Rebuild the evaluation"), "Rebuild the evaluation");
+    assert.equal(words.teamProjectLine("A paper", "GPT-2 sized models only"), "Replicate A paper, then: GPT-2 sized models only");
+    assert.equal(words.teamProjectLine("A paper", "AI labs first"), "Replicate A paper, then: AI labs first");
+    assert.equal(words.teamProjectLine("A paper", "I’d rebuild it"), "Replicate A paper, then: I’d rebuild it");
+    assert.equal(words.teamProjectLine(null, "Rebuild the evaluation"), "Rebuild the evaluation");
   });
 
   test("the day the teams are made, and the line that says it, up to and on that day", () => {

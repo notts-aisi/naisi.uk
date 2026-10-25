@@ -73,7 +73,7 @@ export function asSentenceTail(text: string): string {
  * paper is the pitch's own (a reading of pitching week, or one typed in). A
  * pitch with no paper on record gives its twist alone.
  */
-export function projectLine(paperTitle: string | null, twist: string): string {
+export function teamProjectLine(paperTitle: string | null, twist: string): string {
   const paper = (paperTitle ?? "").trim();
   const then = twist.trim();
   if (!paper) return then;

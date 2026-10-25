@@ -31,7 +31,7 @@ import {
   madeFromPitchWords,
   movedWords,
   pitchIsATeam,
-  projectLine,
+  teamProjectLine,
   removedWords,
   tooFewForATeam,
 } from "@/lib/courses/teams/words";
@@ -177,7 +177,7 @@ async function makeFromPitch(db: Firestore, context: TeamsContext, pitchId: stri
       newTeam(context, {
         groupId: pitch.groupId,
         name: pitch.title,
-        project: projectLine(pitch.paper?.title ?? null, pitch.twist),
+        project: teamProjectLine(pitch.paper?.title ?? null, pitch.twist),
         source: { kind: "pitch", pitchId: pitch.id },
         memberUids: made.uids,
       }),
