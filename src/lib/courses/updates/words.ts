@@ -133,6 +133,8 @@ export function testSubject(title: string): string {
 export const UPDATES_HEADING = "Updates";
 export const SHOW_OLDER = "Show older updates";
 export const NO_UPDATES_YET = "No updates yet.";
+export const UPDATES_DID_NOT_LOAD = "The updates didn’t load.";
+export const TRY_AGAIN = "Try again";
 
 /**
  * Who an update was to, on a member's page: "to everyone on AGI Strategy",

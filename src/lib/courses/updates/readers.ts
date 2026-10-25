@@ -129,13 +129,17 @@ export async function updateReadingOf(
   }
 
   // The caller's own place, ADDRESSED and never queried: there is no way to
-  // spell somebody else's row.
+  // spell somebody else's row. Only a learner's row is a place on the run: a
+  // facilitator's own row says they facilitate, which their live groups above
+  // have already answered, so a facilitator whose groups are all archived
+  // reads nothing.
   const isAdmin = actor.role === "admin";
   const own = await db.collection("courseEnrolments").doc(courseEnrolmentId(run.id, actor.uid)).get();
   if (own.exists) {
     const enrolment = normalizeCourseEnrolment(own.id, own.data() ?? {});
     const live =
       enrolment.runId === run.id &&
+      enrolment.role === "learner" &&
       (enrolment.status === "active" || enrolment.status === "completed") &&
       placementIsShownTo(enrolment, { isAdmin }) &&
       isNamedWithStanding(actor, "courseEnrolments.uid", enrolment.uid);

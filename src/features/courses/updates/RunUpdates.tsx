@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { SHOW_OLDER, UPDATES_HEADING, UPDATES_SHOWN_FIRST, NO_UPDATES_YET } from "@/lib/courses/updates/words";
+import {
+  NO_UPDATES_YET,
+  SHOW_OLDER,
+  TRY_AGAIN,
+  UPDATES_DID_NOT_LOAD,
+  UPDATES_HEADING,
+  UPDATES_SHOWN_FIRST,
+} from "@/lib/courses/updates/words";
 import { ReaderUpdateItem, type ReaderUpdate } from "./UpdatesList";
 import styles from "./Updates.module.css";
 
@@ -59,24 +66,47 @@ export default function RunUpdates({ runId }: { runId: string }) {
   }, [runId, attempt]);
 
   if (state.kind === "loading" || state.kind === "none") return null;
+  return (
+    <RunUpdatesView
+      updates={state.kind === "ready" ? state.updates : null}
+      showAll={showAll}
+      onShowOlder={() => setShowAll(true)}
+      onRetry={() => setAttempt((n) => n + 1)}
+    />
+  );
+}
 
-  if (state.kind === "failed") {
+/**
+ * The section itself, from what the route answered: `null` when it did not
+ * answer. Pure, so a test can draw each state.
+ */
+export function RunUpdatesView({
+  updates,
+  showAll,
+  onShowOlder,
+  onRetry,
+}: {
+  updates: readonly ReaderUpdate[] | null;
+  showAll: boolean;
+  onShowOlder?: () => void;
+  onRetry?: () => void;
+}) {
+  if (updates === null) {
     return (
       <section className={styles.card} aria-labelledby="run-updates-heading">
         <h2 className={styles.heading} id="run-updates-heading">
           {UPDATES_HEADING}
         </h2>
         <p className={styles.problem}>
-          The updates didn’t load.
-          <button type="button" className={styles.olderButton} onClick={() => setAttempt((n) => n + 1)}>
-            Try again
+          {UPDATES_DID_NOT_LOAD}
+          <button type="button" className={styles.olderButton} onClick={onRetry}>
+            {TRY_AGAIN}
           </button>
         </p>
       </section>
     );
   }
 
-  const { updates } = state;
   const shown = showAll ? updates : updates.slice(0, UPDATES_SHOWN_FIRST);
   return (
     <section className={styles.card} aria-labelledby="run-updates-heading">
@@ -90,7 +120,7 @@ export default function RunUpdates({ runId }: { runId: string }) {
       )}
       {!showAll && updates.length > UPDATES_SHOWN_FIRST && (
         <div className={styles.older}>
-          <button type="button" className={styles.olderButton} onClick={() => setShowAll(true)}>
+          <button type="button" className={styles.olderButton} onClick={onShowOlder}>
             {SHOW_OLDER}
             <svg
               width="16"
