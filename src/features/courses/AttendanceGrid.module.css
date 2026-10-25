@@ -517,6 +517,42 @@
    remove a keyframe's from-state — so the pop is answered explicitly here per
    house convention. */
 
+/* === Somebody who left the group: read only =============== */
+/* Listed last, under a dashed rule, in the muted colour wk-fac-group draws a
+   leaver in, with "Left Fri 13 Nov" under the name. Their cells are spans,
+   never buttons, and a session after they left is an empty cell. */
+
+.leaverFirst > th,
+.leaverFirst > td {
+  border-top: 1px dashed var(--color-border-strong);
+}
+
+.leaverRow > .nameCell {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.leaverName {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leftNote {
+  display: block;
+  font-size: var(--text-caption);
+  font-weight: 400;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leftBlank {
+  display: inline-block;
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .glyphPop {
     animation: none;

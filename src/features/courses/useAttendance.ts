@@ -60,6 +60,8 @@ export type AttendanceMark = { uid: string; status: AttendanceStatus | null };
 
 export type { AttendanceSession };
 export type AttendanceMember = AttendancePayload["members"][number];
+/** Somebody who left the group: read only, beside the register's rows. */
+export type AttendanceLeaver = AttendancePayload["leavers"][number];
 export type AttendanceRecords = AttendancePayload["records"];
 export type AttendanceNotes = AttendancePayload["participantNotes"];
 
@@ -77,6 +79,8 @@ export type AttendanceState = {
    * has not told them their group. False until a payload has landed.
    */
   notYetTold: boolean;
+  /** Who left the group, read only, with the marks they had. Never a row anybody marks. */
+  leavers: AttendanceLeaver[];
   /** `sessionKey -> uid -> status`. Sparse: absent means unmarked. */
   records: AttendanceRecords;
   /** `sessionKey -> uid -> note`. Private to staff. */
@@ -131,6 +135,7 @@ export type AttendanceState = {
 
 const NO_SESSIONS: AttendanceSession[] = [];
 const NO_MEMBERS: AttendanceMember[] = [];
+const NO_LEAVERS: AttendanceLeaver[] = [];
 const NO_RECORDS: AttendanceRecords = {};
 const NO_NOTES: AttendanceNotes = {};
 
@@ -418,6 +423,7 @@ export function useAttendance(groupId: string): AttendanceState {
     sessions: data?.sessions ?? NO_SESSIONS,
     members: data?.members ?? NO_MEMBERS,
     notYetTold: data?.notYetTold === true,
+    leavers: data?.leavers ?? NO_LEAVERS,
     records: data?.records ?? NO_RECORDS,
     participantNotes: data?.participantNotes ?? NO_NOTES,
     canEditPushed: data?.canEditPushed ?? false,

@@ -1,0 +1,519 @@
+/* Leaving a programme: the confirmation, the page somebody reads once they
+   have left (board wk-left-phone), their notes and the reading list. Sizes
+   are the board's; colours are the theme's tokens for the board's values.
+   One column at every width: the phone board, given room at 1440. */
+
+.page {
+  max-width: 40rem;
+  margin: 0 auto;
+  min-width: 0;
+}
+
+/* ---- The bar: back, and the page's name ---- */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 56px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--space-4);
+}
+
+.barStart {
+  flex: 1 1 0;
+  min-width: max-content;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 44px;
+  min-width: 44px;
+  margin-left: -4px;
+  color: var(--color-accent-text);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.back:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.barTitle {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-base);
+  color: var(--color-text);
+}
+
+.barEnd {
+  flex: 1 1 0;
+}
+
+.icon {
+  display: block;
+  flex: none;
+}
+
+/* ---- The page ---- */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding-bottom: 28px;
+  min-width: 0;
+}
+
+.section {
+  min-width: 0;
+}
+
+.heading {
+  margin: 0 0 4px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+}
+
+.headingSpaced {
+  margin-bottom: 6px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.text {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text-soft);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.textMuted {
+  color: var(--color-text-muted);
+}
+
+.lede {
+  margin-top: 6px;
+}
+
+.mail {
+  color: var(--color-accent-text);
+  font-weight: 600;
+}
+
+.mail:hover {
+  color: var(--color-accent-text-hover);
+}
+
+/* ---- "You left": the card at the top ---- */
+
+.leftCard {
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  min-width: 0;
+}
+
+/* ---- A panel of rows: links, marks ---- */
+
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 4px 16px;
+  min-width: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 2px 0;
+  color: var(--color-text);
+  font-size: var(--text-ui);
+  font-weight: 500;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.row + .row,
+.panel > li + li .row {
+  border-top: 1px solid var(--color-border);
+}
+
+a.row:hover {
+  color: var(--color-accent-text-hover);
+}
+
+a.row:focus-visible,
+.eventCard:focus-visible,
+.back:focus-visible,
+.mail:focus-visible,
+.readingLink:focus-visible,
+.stay:focus-visible,
+.footLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.rowLabel {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.arrow {
+  color: var(--color-accent-text);
+  display: inline-flex;
+  flex: none;
+}
+
+.markValue {
+  flex: none;
+  color: var(--color-text-soft);
+  font-weight: 400;
+}
+
+/* ---- Still around: the events ---- */
+
+.events {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.eventCard {
+  display: flex;
+  align-items: stretch;
+  min-height: 96px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  text-decoration: none;
+  color: var(--color-text);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.eventCard:hover {
+  border-color: var(--color-border-strong);
+}
+
+.tile {
+  flex: none;
+  width: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 0;
+  border-right: 2px dashed var(--color-border-strong);
+  box-sizing: border-box;
+}
+
+.tileWeekday,
+.tileMonth {
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+.tileWeekday {
+  color: var(--color-text-muted);
+}
+
+.tileMonth {
+  color: var(--color-live);
+}
+
+.tileDay {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-text);
+}
+
+.eventBody {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.eventTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-base);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.eventLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* ---- The confirmation ---- */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.courseTitle {
+  font-weight: 700;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.field {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-base);
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+.field:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--focus-ring);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-danger-text);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.leave {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.7rem 1.35rem;
+  border-radius: var(--radius-md);
+  /* The danger colour as words on its own soft ground, not a label on a
+     fill: white on the danger fill is under 4.5:1 at this size. */
+  border: 1px solid var(--color-danger-line);
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.leave:hover:not(:disabled) {
+  border-color: var(--color-danger-text);
+}
+
+.leave:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.leave:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.stay {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.7rem 1.35rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.stay:hover {
+  border-color: var(--color-accent);
+}
+
+/* ---- The reading list and the notes ---- */
+
+.weekList {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.itemTitle {
+  margin: 0;
+  font-size: var(--text-ui);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.readingLink {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.readingLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 0;
+  min-width: 0;
+}
+
+.panel > li + li .item {
+  border-top: 1px solid var(--color-border);
+}
+
+.itemMeta {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+.itemText {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text-soft);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.itemLabel {
+  color: var(--color-text-muted);
+}
+
+/* ---- The foot of the programme page: "Leave the programme" ---- */
+
+.foot {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: var(--space-2);
+}
+
+.footLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.footLink:hover {
+  color: var(--color-danger-text);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .leave,
+  .stay {
+    width: 100%;
+  }
+}

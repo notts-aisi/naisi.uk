@@ -1236,6 +1236,44 @@ Their own application page says they gave the place back as soon as they
 reply. Somebody who was in a group, and had been told it by Publish, goes
 on seeing the run in their member area until step 1 is done.
 
+### When somebody leaves the programme
+
+Somebody taking part leaves from their programme page: "Leave the
+programme" at its foot opens a confirmation page, which says what leaving
+does, asks why (optional: the programme's lead and admins read it, on the
+Overview) and asks for the course's title, typed exactly. It is the leave an
+open run's session picker has always offered, for a run the form placed them
+on too. Somebody who applied to the run itself is still told to ask the
+team, and an admin uses Remove.
+
+- They leave their group at once. Their row keeps the group, Publish's stamp
+  and the day they left (`droppedOutAt`), with the reason (`dropOutReason`).
+- Their place on the form goes back exactly as "I can’t make it" gives it,
+  in the same transaction (see "Leaving the programme gives the place back"
+  in `docs/applications.md`). After the end of week 1 no freed place can be
+  offered for it.
+- They come off the cohort's mailing list, their weekly cards leave their
+  tasks, one line is logged, and one email goes to them and nobody else (the
+  "Left a course" template in Email designs).
+- Publish waits for nobody who has left.
+- They keep their programme page, which now says they left, with their marks
+  from finished registers before they left, their notes and reflections, the
+  reading list of every published week, the society's address and the
+  site's upcoming events. Nothing else of the run opens to them: not the
+  group's names, its updates, its sessions or its registers.
+
+Their facilitators' register lists them last, read only, with the marks
+they had, "Left" and the day, and refuses a mark for them; the lead's
+Attendance tab, its CSV and the Overview say the same. **Remove** records
+the day too, so both kinds of leaving show it (somebody who left by
+themselves and is then removed keeps the day they left). Somebody removed
+does not get the page that says they left: the run closes to them.
+
+To put somebody back, an admin places them again on the board and presses
+Publish, which emails them: placing them clears the day, the reason and
+Publish's stamp. Their place on the form stays given back: putting them back
+on the run does not change their application.
+
 ### What is logged
 
 Each press that puts anybody on a run appends one line to the course log

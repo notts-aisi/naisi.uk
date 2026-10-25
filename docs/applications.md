@@ -1607,6 +1607,35 @@ Nothing in this system takes anybody off a run. That is a person's act, made
 on the run, and the hand-over, the panel and the board only ever say who it
 concerns.
 
+### Leaving the programme gives the place back
+
+The other way round is the person's own act on the run: somebody in a group
+leaves from their programme page ("Leave the programme", behind the course's
+title typed to confirm), through the run's own leave
+(`DELETE /api/courses/runs/[runId]/enrol`). For a seat the hand-over's row
+gave them, that leave also gives their place on the form back, in the same
+transaction, exactly as "I can’t make it" gives it: `readPlaceToGiveBack`
+and `givePlaceBack` in `status/record.ts` ask the reply's own decision
+(`decideReply`) and share its writer, so `attendance` says they can't make
+it, the application is `withdrawn` with `withdrawnAt`, and the form's counts
+move. Every count of places, the freed places page and the programme's
+lists say so the moment they have left; whether the place can then be
+offered is the freed places rules' to say, and after the end of the run's
+week 1 it cannot.
+
+- **Only a place they hold on the programme the run's row names** is given
+  back. A place already given back, a place on another programme, or no
+  application at all is left as it stands, and they leave the run anyway.
+- **No reason is written onto the application.** What they say when they
+  leave is kept with their place on the run, where the programme's lead and
+  admins read it; a reason on the application is read by everybody who reads
+  applications. The reply buttons still ask for one.
+- **Their row on the run's own list is not changed**, and Publish waits for
+  nobody who has left (`enrolmentHasLeft`).
+
+`tests/course-hub-leaving.test.mjs` runs the leave as every kind of caller
+and holds what it writes on both sides.
+
 ### What the person sees
 
 **Nothing, because of the hand-over.** The hand-over writes a row the
@@ -1736,7 +1765,7 @@ All in `src/lib/applications/`.
 | `repo.ts` | The form, its sets, the caller's own application | server, applicant-safe |
 | `staffRepo.ts` | Everybody's applications, reviews, decisions | server, staff only |
 | `status/standing.ts`, `status/replies.ts`, `status/reasons.ts`, `status/view.ts`, `status/words.ts` | Where one person stands after sending, what each reply does, why somebody gave a place back and how the committee reads it, what their page says, the chip and title of an outcome | anywhere |
-| `status/load.ts`, `status/record.ts` | The page's read, and the one transaction a reply writes | server, applicant-safe |
+| `status/load.ts`, `status/record.ts` | The page's read, the one transaction a reply writes, and the same writes made inside the transaction that takes somebody off a run when they leave it | server, applicant-safe |
 | `accounts/approve.ts`, `accounts/afterReply.ts` | Approving a waiting account on an acceptance, and the call an accepted invitation makes | server, applicant-safe |
 | `lifecycle/openForm.ts` | Which form is open, which form speaks for each course, and whether a form places people on a course run, for a page that offers Apply | server, safe for a page any visitor can load |
 | `lifecycle/publicTerm.ts` | Where the term is (`none`, `before`, `open`, `closed`, `running`) and what is on it, for a page that draws the term | server, safe for a page any visitor can load |

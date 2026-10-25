@@ -19,6 +19,7 @@ import ParticipantNoteDrawer from "./ParticipantNoteDrawer";
 import PushConfirm from "./PushConfirm";
 import { registerEndingWords } from "./registerEndingWords";
 import useAttendance, {
+  type AttendanceLeaver,
   type AttendanceMark,
   type AttendanceMember,
   type AttendanceSession,
@@ -136,6 +137,9 @@ const GLYPH: Record<AttendanceStatus, string> = {
  * 44px square reads as a gap in the table instead.
  */
 const UNMARKED_GLYPH = "·";
+
+/** Shared empty list of people who left. Read only by contract. */
+const NO_LEAVERS: AttendanceLeaver[] = [];
 
 const STATUS_CLASS: Record<AttendanceStatus, string> = {
   present: styles.isPresent,
@@ -286,6 +290,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
     sessions,
     members,
     notYetTold,
+    leavers: givenLeavers,
     records,
     participantNotes,
     canEditPushed,
@@ -299,6 +304,9 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
     saveNote,
   } = useAttendance(groupId);
   const { toast, run: runAction, dismiss } = useActionToast();
+  // Who left the group, read only. Read as none when the data behind the
+  // register does not carry the list (a stand-in for the hook may not).
+  const leavers = givenLeavers ?? NO_LEAVERS;
 
   /** A save in flight, so the status can say "Saving…" while it is. */
   const [saving, setSaving] = useState(false);
@@ -570,7 +578,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
 
   // ---- States --------------------------------------------------------------
 
-  const hasGrid = members.length > 0 || sessions.length > 0;
+  const hasGrid = members.length > 0 || leavers.length > 0 || sessions.length > 0;
 
   if (loading && !hasGrid) return <GridSkeleton />;
 
@@ -587,7 +595,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
     );
   }
 
-  if (members.length === 0) {
+  if (members.length === 0 && leavers.length === 0) {
     // Somebody is placed here and has not been told their group yet, so the
     // register has no row for them until Publish emails them. The roster
     // above it on the group page already says when the names come, and a
@@ -699,6 +707,10 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
             {sessions.length === 1 ? "session" : "sessions"} so far. Each cell cycles
             through present, late, left early, absent, excused and back to not marked.
             A finished register is locked.
+            {leavers.length > 0 &&
+              ` ${leavers.length === 1 ? "1 person" : `${leavers.length} people`} who left the group ${
+                leavers.length === 1 ? "is" : "are"
+              } listed last, read only, with the marks they had.`}
           </caption>
           <thead>
             <tr>
@@ -935,6 +947,47 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
                           <span aria-hidden="true">{hasNote ? "✎" : "+"}</span>
                         </button>
                       </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+            {/* SOMEBODY WHO LEFT THE GROUP (wk-fac-group's "Sam Whitfield,
+                Left Fri 13 Nov"), as the lead's Attendance tab lists them:
+                read only, with the marks they had. Their cells are never
+                buttons, they count in no tally above, and a session after
+                they left is blank, so nothing here chases them. */}
+            {leavers.map((leaver, index) => (
+              <tr
+                key={`left-${leaver.uid}`}
+                className={index === 0 ? `${styles.leaverRow} ${styles.leaverFirst}` : styles.leaverRow}
+              >
+                <th scope="row" className={styles.nameCell}>
+                  <span className={styles.leaverName}>
+                    <MemberName name={leaver.displayName} />
+                  </span>
+                  <span className={styles.leftNote}>{leaver.left}</span>
+                </th>
+                {sessions.map((session) => {
+                  const status = leaver.records[session.sessionKey] ?? null;
+                  const key = cellKey(session.sessionKey, leaver.uid);
+                  return (
+                    <td key={key} className={styles.cell}>
+                      {status ? (
+                        <span
+                          className={`${styles.cellButton} ${styles.cellLocked} ${STATUS_CLASS[status]}`}
+                          role="img"
+                          aria-label={`${leaver.displayName}, week ${session.weekNumber}: ${ATTENDANCE_STATUS_LABEL[status]}. ${leaver.left}.`}
+                        >
+                          {GLYPH[status]}
+                        </span>
+                      ) : (
+                        <span
+                          className={styles.leftBlank}
+                          role="img"
+                          aria-label={`${leaver.displayName}, week ${session.weekNumber}: no mark. ${leaver.left}.`}
+                        />
+                      )}
                     </td>
                   );
                 })}

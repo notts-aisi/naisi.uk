@@ -2653,6 +2653,19 @@ export const PAGES = {
       "missing, and the page sends anybody who does not facilitate the live group, or is not an admin, to " +
       "the run's home.",
   },
+  "/(app)/learn/[runId]/leave": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page sends anybody who cannot leave a seat of their own on it to the run's home.",
+  },
+  "/(app)/learn/[runId]/notes": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page sends anybody with no learner seat of their own on it, taking part or left " +
+      "by themselves, to the run's home.",
+  },
   "/(app)/learn/[runId]/nudge": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
     why:
@@ -2671,6 +2684,13 @@ export const PAGES = {
     why:
       "A run under /learn: the run layout sends every approved account back to /learn when " +
       "the run is missing, and the run's own roster decides the rest once it exists.",
+  },
+  "/(app)/learn/[runId]/reading": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page sends anybody with no learner seat of their own on it, taking part or left " +
+      "by themselves, to the run's home.",
   },
   "/(app)/learn/[runId]/weeks/[n]": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),

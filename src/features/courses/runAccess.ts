@@ -70,6 +70,17 @@ export type RunAccess = {
   isTrackLead: boolean;
   /** May see cohort surfaces: the run home, weeks, progress. */
   canLearn: boolean;
+  /**
+   * LEFT THE RUN THEMSELVES, after it was theirs to see: their own learner
+   * row, withdrawn, shown to them (`placementIsShownTo`: leaving keeps
+   * Publish's stamp), on an account that still stands. They keep three
+   * things here and nothing else of the run: the programme page that says
+   * they left (with their own marks), their notes and reflections, and the
+   * reading list. No cohort surface opens to them: not the group's people,
+   * its updates, its sessions or its registers. Somebody staff removed is
+   * not this: the run closes to them as it always has.
+   */
+  hasLeft: boolean;
 };
 
 /**
@@ -165,6 +176,12 @@ export const getRunAccess = cache(
       );
 
     const isEnrolled = live?.role === "learner";
+    const hasLeft = Boolean(
+      enrolment &&
+        enrolment.role === "learner" &&
+        enrolment.status === "withdrawn" &&
+        isNamedWithStanding(user, "courseEnrolments.uid", enrolment.uid),
+    );
     // Three routes to facilitation, matching the overview route: a facilitator
     // enrolment, named on the run itself, or holding a group. The one
     // deliberate difference is that a `completed` facilitator enrolment still
@@ -199,6 +216,7 @@ export const getRunAccess = cache(
       isReviewer,
       isTrackLead,
       canLearn: isEnrolled || isFacilitator || isAdmin,
+      hasLeft,
     };
   },
 );

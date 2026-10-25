@@ -597,6 +597,33 @@ export function weeksOf(records: RunRecords): number[] {
   return [...weeks].sort((a, b) => a - b);
 }
 
+/** Somebody who left one group, as the grid lists them. */
+export type GroupLeaver = {
+  uid: string;
+  /** "Left Fri 13 Nov", or "Left" when the day is not on record. */
+  left: string;
+  /** The civil date they left, or null. */
+  leftDateKey: string | null;
+};
+
+/**
+ * WHO LEFT ONE GROUP, for the group's own register (the facilitators' page,
+ * wk-fac-group): exactly the people the lead's grid lists in that group as
+ * having left, with the same words for when, so the register and the grid
+ * can never disagree about who left a group or when. Listed for every
+ * viewer alike, where a register of the group marked them (see "Who is a
+ * row" above).
+ */
+export function leaversOfGroup(records: RunRecords, groupId: string, now: Date): GroupLeaver[] {
+  const listed = listGroups(records, { isAdmin: false }, now, weeksOf(records)).find(
+    (entry) => entry.group.id === groupId,
+  );
+  if (!listed) return [];
+  return listed.people
+    .filter(({ enrolment }) => hasLeft(enrolment))
+    .map(({ enrolment, row }) => ({ uid: enrolment.uid, left: row.left ?? "Left", leftDateKey: row.leftDateKey }));
+}
+
 /** Whether a group holds something the lead is shown first: a register not finished, a leaver, a run of absences. */
 function needsLooking(listed: ListedGroup): boolean {
   for (const facts of listed.sessions.values()) if (facts.tag === "not-finished") return true;
