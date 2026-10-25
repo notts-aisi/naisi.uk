@@ -41,6 +41,7 @@ import {
   type GroupWeekPatch,
   type OrphanCount,
 } from "./useGroupWeeks";
+import WeekQuestionsEditor from "./WeekQuestionsEditor";
 import styles from "./GroupWeekEditor.module.css";
 
 /**
@@ -66,8 +67,9 @@ import styles from "./GroupWeekEditor.module.css";
  *
  * ── THE TRUST BOUNDARY IS THE SERVER'S, RESTATED HERE ───────────────────────
  * Facilitators may edit text-safe content: materials, exercises, the checklist,
- * the summary, the week's estimated minutes, and whether the week is published
- * to their group. They may NOT edit the week's TITLE (it is how the cohort and
+ * the questions to think about, the summary, the week's estimated minutes, and
+ * whether the week is published to their group. They may NOT edit the week's
+ * TITLE (it is how the cohort and
  * every email refer to the week) and they may not touch `guideBlocks` — the
  * rich prose is the one `dangerouslySetInnerHTML` surface in the courses
  * feature and it stays with the course. The route enforces both; this file
@@ -1358,6 +1360,8 @@ function WeekPreview({ week }: { week: CourseWeekDoc }) {
         .filter(Boolean)
         .join(" · "),
     })),
+    // "Questions to think about", in the order the week page numbers them.
+    ...week.questions.map((question) => ({ kind: "question", title: question })),
     ...week.exercises.map((x) => ({
       kind: "exercise",
       title: x.prompt || "Untitled prompt",
@@ -1966,6 +1970,13 @@ export default function GroupWeekEditor({
           </Card>
 
           <MaterialsSection materials={week.materials} save={save} busy={busy} />
+          <WeekQuestionsEditor
+            questions={week.questions}
+            onSave={(questions) => save("questions", { questions })}
+            forGroup
+            headingLevel={2}
+            busy={busy}
+          />
           <ExercisesSection exercises={week.exercises} save={save} busy={busy} />
           <ChecklistSection checklist={week.checklist} save={save} busy={busy} />
 

@@ -1292,6 +1292,42 @@ a.weekItem:focus-visible {
   color: var(--color-text);
 }
 
+/* === Questions to think about (C29): numbered 01, 02, 03 in mono === */
+
+.questions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.question {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  min-width: 0;
+}
+
+.question + .question {
+  border-top: 1px solid var(--color-border);
+}
+
+.questionNumber {
+  flex: none;
+  padding-top: 2px;
+  font-family: var(--font-meta);
+  font-size: 0.8125rem;
+  color: var(--color-live);
+}
+
+.questionText {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
 /* === The programme home in one column, as the phone boards draw it ===
    The columns step aside and every card takes its place in the phone's
    order: the session, this week, updates, marks, the weeks, the group. */

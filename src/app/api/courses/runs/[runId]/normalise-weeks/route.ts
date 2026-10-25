@@ -252,6 +252,7 @@ export async function POST(
       materials: doc.materials,
       exercises: doc.exercises,
       checklist: doc.checklist,
+      questions: doc.questions,
       estimatedMinutes: doc.estimatedMinutes,
       published: doc.published,
       updatedAt: FieldValue.serverTimestamp(),

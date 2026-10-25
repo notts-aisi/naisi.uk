@@ -233,6 +233,8 @@ export function templateWeekFields(week: CourseWeekDoc): Record<string, unknown>
     materials: week.materials,
     exercises: week.exercises,
     checklist: week.checklist,
+    // "Questions to think about" travel with the week, as its materials do.
+    questions: week.questions,
     estimatedMinutes: week.estimatedMinutes,
     // Carried verbatim, the clone-weeks convention: a snapshot is a faithful
     // copy of authored state, and publication is scoped to whatever run the

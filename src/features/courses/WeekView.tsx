@@ -27,10 +27,12 @@ import {
   BEFORE_YOUR_SESSION,
   DUE_BEFORE,
   EXERCISE,
+  QUESTIONS_TO_THINK_ABOUT,
   REVIEWED_CHIP,
   START_EXERCISE,
   doneWords,
   nextWeekOpensWords,
+  questionNumber,
   readerLine,
 } from "@/lib/courses/memberPageWords";
 import {
@@ -422,6 +424,26 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole }: Props) 
                 ) : null
               }
             />
+          </section>
+        )}
+
+        {weekDoc.questions.length > 0 && (
+          <section className={`${weekly.card} ${weekly.cardTight}`} aria-labelledby="questions-to-think-about">
+            <div className={weekly.cardHead}>
+              <h2 id="questions-to-think-about" className={weekly.cardTitle}>
+                {QUESTIONS_TO_THINK_ABOUT}
+              </h2>
+            </div>
+            <ol className={weekly.questions}>
+              {weekDoc.questions.map((question, index) => (
+                <li key={index} className={weekly.question}>
+                  <span aria-hidden="true" className={weekly.questionNumber}>
+                    {questionNumber(index + 1)}
+                  </span>
+                  <p className={weekly.questionText}>{question}</p>
+                </li>
+              ))}
+            </ol>
           </section>
         )}
 

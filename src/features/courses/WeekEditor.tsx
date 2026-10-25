@@ -27,6 +27,7 @@ import {
 import { ensureWeekDoc, saveWeek } from "./courseMutations";
 import ExerciseBuilder from "./ExerciseBuilder";
 import MaterialListEditor from "./MaterialListEditor";
+import WeekQuestionsEditor from "./WeekQuestionsEditor";
 import styles from "./WeekEditor.module.css";
 
 /**
@@ -325,6 +326,19 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
     if (ok) reload();
   }
 
+  async function saveQuestions(questions: string[]): Promise<boolean> {
+    let ok = false;
+    await runAction(
+      async () => {
+        await saveWeek(runId, weekId, { questions });
+        ok = true;
+      },
+      { savingMessage: "Saving questions…", successMessage: "Questions saved" },
+    );
+    if (ok) reload();
+    return ok;
+  }
+
   async function saveChecklist() {
     const blank = checklist.findIndex((row) => !row.title.trim());
     if (blank !== -1) {
@@ -382,6 +396,7 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
         </div>
         <span className={styles.muted}>
           {saved.materials.length} material{saved.materials.length === 1 ? "" : "s"} ·{" "}
+          {saved.questions.length} question{saved.questions.length === 1 ? "" : "s"} ·{" "}
           {saved.exercises.length} exercise{saved.exercises.length === 1 ? "" : "s"} ·{" "}
           {saved.checklist.length} checklist item
           {saved.checklist.length === 1 ? "" : "s"}
@@ -531,6 +546,9 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
           onSaved={reload}
         />
       </Card>
+
+      {/* ---- Questions to think about (C29) ---- */}
+      <WeekQuestionsEditor questions={saved.questions} onSave={saveQuestions} />
 
       {/* ---- Exercises ---- */}
       <Card padding="lg">

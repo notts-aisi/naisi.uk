@@ -21,6 +21,7 @@ import {
   EMPTY_APPLICATION_COUNTS,
   courseRunChannel,
   pitchSettingsError,
+  sanitizeWeekQuestions,
   storedPitchSettings,
   weekDocId,
   type ChecklistItem,
@@ -789,6 +790,7 @@ export async function ensureWeekDoc(
     materials: [] as Material[],
     exercises: [] as Exercise[],
     checklist: [] as ChecklistItem[],
+    questions: [] as string[],
     estimatedMinutes: null,
     published: false,
     updatedAt: serverTimestamp(),
@@ -841,6 +843,11 @@ export async function saveWeek(
   }
   if (patch.checklist !== undefined) {
     out.checklist = patch.checklist.slice(0, COURSE_FIELD_LIMITS.maxChecklistItems);
+  }
+  if (patch.questions !== undefined) {
+    // Written as the week keeps them (one line each, blanks dropped, inside
+    // the limits), so what the rules check is what the week page draws.
+    out.questions = sanitizeWeekQuestions(patch.questions);
   }
   if (patch.estimatedMinutes !== undefined) {
     out.estimatedMinutes = positiveIntOrNull(patch.estimatedMinutes);
