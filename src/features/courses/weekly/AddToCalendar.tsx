@@ -325,30 +325,32 @@ export default function AddToCalendar({ home = false }: Props) {
         <span>{ADD_TO_CALENDAR}</span>
       </button>
       <Modal open={open} onClose={close} ariaLabel={CALENDAR_TITLE} width="sm" sheet>
-        <CalendarDialogBody
-          view={view}
-          confirming={confirming}
-          copied={copied}
-          onClose={close}
-          onRetry={(action) => void ask(action)}
-          onCopy={(url) => void copy(url)}
-          onStartReplacing={() => {
-            focusNext.current = "keep";
-            setConfirming(true);
-          }}
-          onKeep={() => {
-            focusNext.current = "new-link";
-            setConfirming(false);
-          }}
-          onReplace={() => {
-            setConfirming(false);
-            void ask("replace");
-          }}
-          keepRef={keepRef}
-          newLinkRef={newLinkRef}
-          renewedRef={renewedRef}
-          byHandRef={byHandRef}
-        />
+        {(dismiss) => (
+          <CalendarDialogBody
+            view={view}
+            confirming={confirming}
+            copied={copied}
+            onClose={dismiss}
+            onRetry={(action) => void ask(action)}
+            onCopy={(url) => void copy(url)}
+            onStartReplacing={() => {
+              focusNext.current = "keep";
+              setConfirming(true);
+            }}
+            onKeep={() => {
+              focusNext.current = "new-link";
+              setConfirming(false);
+            }}
+            onReplace={() => {
+              setConfirming(false);
+              void ask("replace");
+            }}
+            keepRef={keepRef}
+            newLinkRef={newLinkRef}
+            renewedRef={renewedRef}
+            byHandRef={byHandRef}
+          />
+        )}
       </Modal>
     </>
   );

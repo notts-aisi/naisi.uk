@@ -19,7 +19,13 @@ type Props = {
   onClose: () => void;
   /** Accessible label announced by screen readers. */
   ariaLabel: string;
-  children: ReactNode;
+  /**
+   * The dialog's content. A function is handed `dismiss`, the close that
+   * goes through history (see `useHistoryDismiss`), for a close button of
+   * the content's own: a user's dismissal unwinds the history entry the
+   * dialog pushed, where calling `onClose` directly would leave it behind.
+   */
+  children: ReactNode | ((dismiss: () => void) => ReactNode);
   /** `sm` = confirmations and single-field prompts; `md` = forms. */
   width?: "sm" | "md";
   /**
@@ -129,7 +135,7 @@ export default function Modal({ open, onClose, ariaLabel, children, width = "md"
         tabIndex={-1}
         className={`${styles.panel} ${styles[`width_${width}`]} ${sheet ? styles.sheet : ""} ${open ? styles.panelOpen : ""}`}
       >
-        {children}
+        {typeof children === "function" ? children(dismiss) : children}
       </div>
     </div>,
     document.body,
