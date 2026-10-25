@@ -499,6 +499,21 @@ describe("4. what the group's people read after each kind of change", () => {
     );
   });
 
+  test("the notice is up until the evening has passed, then gone", async () => {
+    await press("claudia", B, { week: 4, dateKey: TUE_24, kind: "cancel" }, { tell: false });
+    at("2026-11-24T22:30:00Z");
+    assert.equal((await readOverview("amara")).group.sessionNotice?.dateKey, TUE_24, "still up late on the evening");
+    at("2026-11-25T09:00:00Z");
+    assert.equal((await readOverview("amara")).group.sessionNotice, null);
+  });
+
+  test("a cancellation further out waits until no session comes before it", async () => {
+    await press("claudia", B, { week: 5, dateKey: "2026-12-01", kind: "cancel" }, { tell: false });
+    assert.equal((await readOverview("amara")).group.sessionNotice, null, "Tue 24 Nov's session comes first");
+    at("2026-11-25T09:00:00Z");
+    assert.equal((await readOverview("amara")).group.sessionNotice?.dateKey, "2026-12-01");
+  });
+
   test("nobody else reads it: another group, a member not yet told, one who left", async () => {
     await press("claudia", B, { week: 4, dateKey: TUE_24, kind: "cancel" });
     const bea = await readOverview("bea");
@@ -575,6 +590,18 @@ describe("4. what the group's people read after each kind of change", () => {
     assert.ok(!JSON.stringify(bea.body).includes(LINK), "Group A's member was handed Group B's link");
     // And the update's email carried none.
     assert.ok(!JSON.stringify(world.mail).includes(LINK));
+  });
+
+  test("the next session's link is under the group link's own gate: a finished place reads the card, not the link", async () => {
+    world.db.poke(`courseGroups/${B}`, { "session.meetingUrl": LINK });
+    world.db.poke(`courseEnrolments/${RUN.agi}__amara`, { status: "completed" });
+    const { status, group } = await readOverview("amara");
+    assert.equal(status, 200);
+    assert.equal(group.meetingUrl, null);
+    assert.equal(group.calendar.nextSession.meetingUrl, null);
+    // Her facilitator reads it, on the site.
+    const rahul = await readOverview("rahul");
+    assert.equal(rahul.body.groups.find((each) => each.id === B).calendar.nextSession.meetingUrl, LINK);
   });
 
   test("an online week with no link to give says where it will be, and promises no email", () => {

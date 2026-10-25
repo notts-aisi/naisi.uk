@@ -35,6 +35,7 @@ const made = makeWorld("__sessionsEmail");
 const { world, reset, call, courseRoute, lib } = made;
 
 const change = await courseRoute("groups", "[groupId]", "session", "change");
+const nudge = await courseRoute("runs", "[runId]", "nudge");
 const register = await courseRoute("groups", "[groupId]", "attendance");
 const push = await courseRoute("groups", "[groupId]", "attendance", "push");
 const { nextWeekEmailJob } = await lib("scheduler", "jobs", "nextWeekEmail.ts");
@@ -172,6 +173,24 @@ describe("2. the register's push sends the same rewritten email", () => {
     const text = await textOf(mailTo("amara")[0]);
     assert.match(text, /Tue 27 Oct is cancelled\. Rahul and Sofia are both away\./);
     assert.doesNotMatch(text, /Your group meets/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2b. The run's catch-up email
+// ---------------------------------------------------------------------------
+
+describe("2b. the run's catch-up email names no cancelled evening", () => {
+  test("Group B's members get the week without a sentence about meeting; Group A's keep theirs", async () => {
+    await changeB({ week: 2, dateKey: "2026-10-27", kind: "cancel" });
+    at("2026-10-23T09:00:00Z");
+    const sent = await call("zach", nudge.POST, { runId: RUN }, { body: {} });
+    assert.equal(sent.status, 200, JSON.stringify(sent.body));
+    const amara = await textOf(mailTo("amara")[0]);
+    assert.doesNotMatch(amara, /Your group meets/);
+    assert.doesNotMatch(amara, /27 October/);
+    const ana = await textOf(mailTo("ana")[0]);
+    assert.match(ana, /Your group meets Monday 26 October, 18:00–20:00, Room A13\./);
   });
 });
 

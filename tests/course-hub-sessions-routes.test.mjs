@@ -222,6 +222,14 @@ describe("2. cancel it, and keep pace", () => {
     assert.equal(w.sessionsLib.sessionRange(sessionsOf(), NOW).lastDateKey, "2026-12-01");
   });
 
+  test("a cancellation is of one evening: when the run is re-dated, the week is held on its new date", async () => {
+    await press("rahul", B, CANCEL, { tell: false });
+    assert.equal(weekOf(4).cancelled, true);
+    world.db.poke(`courseRuns/${RUN.agi}`, { startDate: "2026-11-05" });
+    assert.equal(weekOf(4).dateKey, "2026-12-01");
+    assert.equal(weekOf(4).cancelled, false, "Tue 24 Nov was the evening cancelled, not week 4 wherever it falls");
+  });
+
   test("two cancelled in a row: the next session covers all three weeks", async () => {
     await press("rahul", B, CANCEL, { tell: false });
     await press("rahul", B, { week: 5, dateKey: "2026-12-01", kind: "cancel" }, { tell: false });
