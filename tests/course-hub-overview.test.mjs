@@ -44,7 +44,6 @@ import {
   A,
   AGI,
   B,
-  C,
   COURSE,
   D,
   NOW,

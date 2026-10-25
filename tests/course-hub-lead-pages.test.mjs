@@ -107,7 +107,6 @@ const TABS = join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "
 const { default: PeoplePage } = await loadTs(join(TABS, "groups", "page.tsx"));
 const { default: FacilitatorsPage } = await loadTs(join(TABS, "groups", "facilitators", "page.tsx"));
 const { default: AttendancePage } = await loadTs(join(TABS, "attendance", "page.tsx"));
-const { default: ProgrammeAttendance } = await loadTs(join("features", "applications", "groups", "ProgrammeAttendance.tsx"));
 
 /**
  * The board itself, with its data hook stood in by a run that has no groups

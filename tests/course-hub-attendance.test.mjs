@@ -112,8 +112,6 @@ const { readRunRecords, buildRunAttendance, attendanceCsvTable, readRunHeader } 
   join("lib", "courses", "programmeAttendance.ts"),
 );
 
-const PAGE_PATH = `/admin/admissions/forms/${ROUND}/programmes/${AGI}`;
-
 /** The session `getCurrentUser()` builds from the stored account, with the reviewer flag the roles writer keeps. */
 function sessionFor(uid) {
   const base = made.sessionOf(uid);
