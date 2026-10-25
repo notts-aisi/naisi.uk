@@ -792,14 +792,11 @@ test(
         `${person.first}'s marks on their programme page`,
       );
       const used = new Set(marks.map((mark) => mark.kind));
-      assert.deepEqual(
-        drawn.legend,
-        MARK_ORDER.filter((kind) => used.has(kind)).map((kind) => {
-          const mark = marks.find((each) => each.kind === kind);
-          return `${mark.glyph}${mark.word}`;
-        }),
-        `${person.first}'s legend is not the marks they were shown, in the page's order`,
-      );
+      const legend = MARK_ORDER.filter((kind) => used.has(kind)).map((kind) => {
+        const mark = marks.find((each) => each.kind === kind);
+        return `${mark.glyph}${mark.word}`;
+      });
+      assert.deepEqual(drawn.legend, legend, `${person.first}'s legend is not the marks they were shown, in the page's order`);
       assert.ok(drawn.said.endsWith(MARKS_LINE), `${person.first}'s marks do not end with the board's line: ${drawn.said}`);
       // No count of any kind on the card: no "1 of 2", no "in full".
       assert.ok(!/\d+ of \d+/.test(drawn.said) && !/in full/i.test(drawn.said), `${person.first}'s marks carry a count: ${drawn.said}`);
@@ -808,6 +805,14 @@ test(
       for (const other of [...state.people, fern].filter((each) => each !== person)) {
         assert.ok(!drawn.said.includes(other.first), `${person.first}'s marks name ${other.first}`);
       }
+      // And nothing else at all: its heading, the marks, the legend and the
+      // line are the whole card, so no sentence, however it is worded, counts
+      // them. (Text content joins the card's elements with no space between.)
+      assert.equal(
+        drawn.said,
+        ["Your marks", ...marks.map((mark) => `${mark.glyph}${mark.date}`), ...legend, MARKS_LINE].join(""),
+        `${person.first}'s marks card says something besides its heading, marks, legend and line`,
+      );
       for (const other of state.people.filter((each) => each !== person)) {
         assert.ok(!JSON.stringify(body).includes(other.uid), `${person.first}'s programme page was handed ${other.first}'s uid`);
       }
