@@ -380,6 +380,15 @@ describe("3. the email reaches each person the update is to, and nobody else", (
     assert.equal(world.mail[0].surface, "course-run");
   });
 
+  test("to the facilitators: an archived group's facilitator is nobody to write to, and neither is one who lost their standing", async () => {
+    world.db.poke(`courseGroups/${C}`, { archived: true });
+    world.db.poke("users/sofia", { role: "pending" });
+    const [, , , facilitators] = await w.counts();
+    assert.deepEqual([facilitators.to, facilitators.people, facilitators.emails], ["facilitators", 1, 1]);
+    await press("claudia", { to: "facilitators", title: "The week 3 guide" });
+    assert.deepEqual(world.mail.map((m) => m.to), ["rahul@example.com"]);
+  });
+
   test("somebody who switched their course emails off is still emailed: it is a notice", async () => {
     world.db.poke("users/bea", { "profile.notifications": { categories: { courses: false } } });
     // The switch really is off: the grid lane, asked the same question, leaves her out.
