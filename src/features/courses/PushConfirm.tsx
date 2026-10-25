@@ -2,7 +2,9 @@
 
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
+import type { PushEmailLine } from "@/lib/courses/pushEmail";
 import styles from "./PushConfirm.module.css";
+import { pushEmailSentence } from "./registerEndingWords";
 import type { AttendanceSession } from "./useAttendance";
 
 /**
@@ -14,9 +16,12 @@ import type { AttendanceSession } from "./useAttendance";
  * so the dialog names what it does in the order it matters to the person
  * pressing it:
  *
- *   1. WHO GETS AN EMAIL. While the push sends next week's email, a count of
- *      their own group, which a facilitator can check against the room they
- *      were just in. While the email is on its schedule: nobody.
+ *   1. WHO GETS AN EMAIL, AND HOW MANY. While the push sends next week's
+ *      email: the group, counted, which a facilitator can check against the
+ *      room they were just in, and the session the email is about; or nobody,
+ *      and why (the group's last session, a week not published yet). While the
+ *      email is on its schedule: nobody. Never worked out here: it is the
+ *      route's answer for this register (`email`), the one the push acts on.
  *   2. THE REGISTER LOCKS. Said plainly, with the remedy: an admin can still
  *      correct it. A confirm that says "are you sure?" and nothing else teaches
  *      people to press through it.
@@ -47,8 +52,11 @@ export type PushConfirmProps = {
   eligible: number;
   /** How many of them carry no mark yet. */
   unmarked: number;
-  /** The next session, when there is one, so the dialog can name what the email is about. */
-  nextLabel: string | null;
+  /**
+   * What pressing the button emails, as the register's route answered it for
+   * this register: who, how many and about which session, or why nobody.
+   */
+  email: PushEmailLine | null;
   /**
    * True when next week's email is on its schedule: the button is "Finish the
    * register" and nobody is emailed.
@@ -69,13 +77,21 @@ export default function PushConfirm({
   groupName,
   eligible,
   unmarked,
-  nextLabel,
+  email,
   scheduled,
 }: PushConfirmProps) {
   if (!session) return null;
   const held = session.held;
   const which = `week ${session.weekNumber}${session.occurrence > 1 ? `, session ${session.occurrence}` : ""}`;
   const button = scheduled ? "Finish the register" : "Push attendance";
+  // The route's answer for this register. Without one (a payload from before
+  // the route gave it), the schedule's line still holds, and while the push
+  // sends the email nothing is said rather than a guess.
+  const emailLine = email
+    ? pushEmailSentence(groupName, email)
+    : scheduled
+      ? pushEmailSentence(groupName, { kind: "scheduled" })
+      : null;
 
   return (
     <Modal open={open} onClose={onClose} ariaLabel={`${button}: ${which}`} width="sm">
@@ -88,13 +104,7 @@ export default function PushConfirm({
         </h2>
 
         <ul className={styles.points}>
-          <li>
-            {scheduled
-              ? "Nobody’s emailed. Next week’s email goes on its own schedule, whatever happens here."
-              : nextLabel
-                ? `Everyone in ${groupName || "this group"} gets one email about ${nextLabel}.`
-                : "Nobody is emailed: this is the group’s last session, so there is nothing to remind them about."}
-          </li>
+          {emailLine && <li>{emailLine}</li>}
           <li>
             The register locks. An admin can still correct it afterwards, and every
             change they make is recorded.

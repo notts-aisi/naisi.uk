@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FieldValue, Timestamp, type Firestore } from "firebase-admin/firestore";
 import { readMirrorPlan, type RegisterOverride } from "@/lib/courses/attendanceMirror";
 import { nextWeekEmailMarkerId, sendNextWeekEmail } from "@/lib/courses/nextWeekEmail";
+import { sessionAfter } from "@/lib/courses/pushEmail";
 import {
   gateGroupRegister,
   isAddressableId,
@@ -65,7 +66,10 @@ import { nextWeekEmailIsScheduled } from "@/lib/scheduler/nextWeekEmailSchedule"
  *      the session whatever happens to the register, and finishing emails
  *      NOBODY. `src/lib/courses/nextWeekEmail.ts` holds the send and says how
  *      the two lanes never both send: one switch, read by both through
- *      `nextWeekEmailIsScheduled`, and one shared claim.
+ *      `nextWeekEmailIsScheduled`, and one shared claim. The register's page
+ *      says what a press will email before it is pressed, from the same
+ *      answer (`src/lib/courses/pushEmail.ts`): the session after this one
+ *      (`sessionAfter`) and the send's own decision about it.
  *
  * ── (1) AND (2) ARE ONE TRANSACTION. (4) IS NOT, AND MUST NOT BE. ───────────
  * A `.create()` collision inside a Firestore transaction aborts the WHOLE
@@ -409,7 +413,10 @@ export async function POST(
     );
   }
   const session = sessions[index];
-  const nextSession: ResolvedSession | null = sessions[index + 1] ?? null;
+  // The session next week's email is about: the one after this one in the
+  // group's whole schedule. The register's page asks the same function to say
+  // what this press emails, so the page and the press cannot disagree.
+  const nextSession: ResolvedSession | null = sessionAfter(sessions, session.sessionKey);
   if (session.cancelled) {
     return NextResponse.json(
       { error: didNotHappenLine(group.name.trim() || "This group", session.dateKey) },

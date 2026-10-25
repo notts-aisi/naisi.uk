@@ -61,8 +61,10 @@ import useAttendance, {
  * rebuilds every member's attendance record, so a finished column renders as
  * read-only for a facilitator and stays editable for an admin, whose every
  * change is logged. The confirm in front of the button (`PushConfirm`) names
- * who is emailed, that the register locks, and how many people are about to be
- * counted absent for want of a mark.
+ * who is emailed and how many, that the register locks, and how many people
+ * are about to be counted absent for want of a mark. Who is emailed is the
+ * route's answer for that register (`ending.pushEmails`), the one the push
+ * acts on, never worked out here from the columns.
  *
  * ── EVERY TAP SAVES, AND SAYS SO ────────────────────────────────────────────
  * The status beside the legend reads "Saved 7:58pm" after each save, the time
@@ -621,10 +623,9 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
   const pushTally = pushSession
     ? (tallies.get(pushSession.sessionKey) ?? { marked: 0, eligible: 0 })
     : { marked: 0, eligible: 0 };
-  const pushIndex = pushSession
-    ? sessions.findIndex((s) => s.sessionKey === pushSession.sessionKey)
-    : -1;
-  const nextAfterPush = pushIndex >= 0 ? (sessions[pushIndex + 1] ?? null) : null;
+  // What pressing it emails, as the route answered for this register. Never
+  // the next column: the columns are only the sessions that have started.
+  const pushEmail = pushSession ? (ending?.pushEmails?.[pushSession.sessionKey] ?? null) : null;
 
   // How this register ends: which button, and the words under it. While the
   // payload has not said, the page says what it always has.
@@ -1046,13 +1047,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
         groupName={group?.name ?? ""}
         eligible={pushTally.eligible}
         unmarked={Math.max(0, pushTally.eligible - pushTally.marked)}
-        nextLabel={
-          nextAfterPush
-            ? `week ${nextAfterPush.weekNumber}${
-                dateLabel(nextAfterPush.dateKey) ? ` on ${dateLabel(nextAfterPush.dateKey)}` : ""
-              }`
-            : null
-        }
+        email={pushEmail}
         scheduled={scheduled}
       />
 
