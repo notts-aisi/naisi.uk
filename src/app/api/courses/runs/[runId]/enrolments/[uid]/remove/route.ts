@@ -3,8 +3,11 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
+import { londonDateKey } from "@/lib/courses/weekPlan";
+import { formatRunStartShort } from "@/lib/courses/window";
 import {
   courseEnrolmentId,
+  normalizeCourseEnrolment,
   type CourseEnrolmentStatus,
 } from "@/lib/firestore/courseEnrolments";
 import { courseApplicationId } from "@/lib/firestore/courseApplications";
@@ -24,6 +27,15 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * programme's Overview, its Attendance tab and the group's register say the
  * day somebody went, whichever way they went.
  *
+ * NOBODY WHO LEFT BY THEMSELVES IS REMOVED. A seat withdrawn by its owner
+ * (either door: "Leave the programme" on their programme's page, or "I can’t
+ * make it" on their application page once Publish has told them their group)
+ * has already freed its place in the group, and turning it into a removal
+ * would close the run to them as for somebody staff took off, and take back
+ * the page that says they left. So the route refuses it in a sentence that
+ * says they left, and when, and writes nothing. The board offers no Remove
+ * for such a seat either: it offers Remove on an active seat only.
+ *
  * A SOFT removal, deliberately: the enrolment doc survives. The deterministic
  * doc id (`courseEnrolments/{runId}__{uid}`) is the one-enrolment-per-(run,
  * uid) invariant, so the row is that person's entire history on the run:
@@ -40,6 +52,19 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  */
 
 type Ctx = { params: Promise<{ runId: string; uid: string }> };
+
+/**
+ * The refusal for a seat whose person left by themselves: that they left, on
+ * which day in London (as the grid and the register say it, "Fri 6 Nov"), and
+ * that there is nothing to do. Not drawn on any board: written in the boards'
+ * voice and listed in the build notes for the boards' designers to confirm.
+ */
+function leftByThemselvesLine(leftAt: Date | null): string {
+  const day = leftAt ? formatRunStartShort(londonDateKey(leftAt)) : undefined;
+  return day
+    ? `They left on ${day}, so their seat is already free and there’s nothing to remove.`
+    : "They left by themselves, so their seat is already free and there’s nothing to remove.";
+}
 
 class RemoveError extends Error {
   constructor(
@@ -101,6 +126,12 @@ export async function POST(_req: Request, ctx: Ctx) {
       }
 
       const status = existing.status as CourseEnrolmentStatus;
+      // Somebody who left by themselves, by either door: their seat is
+      // already free, and nothing here is theirs to change. Refused with the
+      // day they left, before anything is written (see the note at the top).
+      if (status === "withdrawn") {
+        throw new RemoveError(leftByThemselvesLine(normalizeCourseEnrolment(snap.id, existing).droppedOutAt), 409);
+      }
       // Idempotent: a double-clicked Remove shouldn't surface a failure, and
       // must not decrement the counter twice.
       if (status === "removed") return;
@@ -111,8 +142,7 @@ export async function POST(_req: Request, ctx: Ctx) {
           : null;
       // `memberCount` counts enrolments that are both active AND grouped
       // (the allocate route's definition), so only that state releases a
-      // seat: a withdrawn row's seat was already released when it left
-      // "active".
+      // seat.
       const heldSeat = status === "active" && groupId !== null;
       // `courseRuns.enrolledCount` is the OTHER counter, and it counts a
       // narrower set: active AND self-enrolled, whatever group they are in
@@ -132,11 +162,10 @@ export async function POST(_req: Request, ctx: Ctx) {
         allocatedEmailAt: FieldValue.delete(),
         // WHEN THEY WERE TAKEN OFF, in the field leaving writes, so the
         // programme's Overview, its Attendance tab and the register say
-        // "Left Fri 13 Nov" for both kinds of leaving. Somebody who had
-        // already left by themselves keeps the day they left.
-        ...(status === "withdrawn" && existing.droppedOutAt
-          ? {}
-          : { droppedOutAt: FieldValue.serverTimestamp() }),
+        // "Left Fri 13 Nov" for both kinds of leaving. Somebody who left by
+        // themselves never reaches this write (refused above), so the day
+        // they left is never overwritten.
+        droppedOutAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
       if (heldSeat && groupId) {

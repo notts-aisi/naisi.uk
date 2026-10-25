@@ -510,7 +510,10 @@ function PersonCard({
 
           {/* An enrolment can only be removed once it exists. Un-placing
               someone (Move to → Unallocated) is a different, softer thing:
-              they stay on the run expecting a place. */}
+              they stay on the run expecting a place. Only a seat still on
+              the run is offered Remove: never one whose person left by
+              themselves (the Remove route refuses that, saying when), nor
+              one already removed. */}
           {row.enrolmentStatus === "active" && (
             <Button
               variant="ghost"
