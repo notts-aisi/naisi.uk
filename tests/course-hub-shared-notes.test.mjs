@@ -838,6 +838,11 @@ describe("8. every file that addresses the notes, and every caller of their read
     }
   });
 
+  test("firestore.rules refuses every browser the collection, admins included", () => {
+    const rules = readFileSync(join(SRC, "..", "firestore.rules"), "utf8");
+    assert.match(rules, /match \/courseGroupSharedNotes\/\{noteId\} \{\s*allow read, write: if false;\s*\}/);
+  });
+
   test("one route writes a note and one deletes one; nothing hands a note to a browser", () => {
     for (const [file, code] of files) {
       if (!(file in ADDRESSERS)) continue;

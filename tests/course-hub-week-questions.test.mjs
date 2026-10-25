@@ -365,3 +365,32 @@ describe("5. the week's page draws them, numbered, between the readings and the 
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// 6. The rules for the run's weeks keep the same limits
+// ---------------------------------------------------------------------------
+
+describe("6. the rules that check the run's week editor keep the same limits", () => {
+  /**
+   * The run's week editor writes client-direct, so `firestore.rules` is the
+   * boundary for its questions, and a rule cannot loop: it checks each place
+   * in the list by its index. Both halves of the limit live in two files, so
+   * this reads the rules' block and holds it to COURSE_FIELD_LIMITS.
+   */
+  test("at most five, each a string of 1 to 160 characters, every place checked", () => {
+    const rules = readFileSync(join(SRC, "..", "firestore.rules"), "utf8");
+    const runs = rules.indexOf("match /courseRuns/{runId} {");
+    assert.ok(runs > -1, "the rules have no courseRuns block");
+    const start = rules.indexOf("match /weeks/{weekId} {", runs);
+    const block = rules.slice(start, rules.indexOf("allow delete:", start));
+    const { maxWeekQuestions, weekQuestion } = courses.COURSE_FIELD_LIMITS;
+    assert.match(block, /function weekQuestionsOk\(questions\) \{\s*return questions is list\s*&& questions\.size\(\) <= (\d+)/);
+    assert.equal(Number(/questions\.size\(\) <= (\d+)\s*&& weekQuestionOk/.exec(block)?.[1]), maxWeekQuestions);
+    assert.match(block, /questions\[i\] is string\s*&& questions\[i\]\.size\(\) > 0\s*&& questions\[i\]\.size\(\) <= (\d+)\)/);
+    assert.equal(Number(/questions\[i\]\.size\(\) <= (\d+)\)/.exec(block)?.[1]), weekQuestion);
+    const places = [...block.matchAll(/weekQuestionOk\(questions, (\d+)\)/g)].map((m) => Number(m[1]));
+    assert.deepEqual(places, Array.from({ length: maxWeekQuestions }, (_, i) => i));
+    assert.match(block, /allow create, update: if canEditRun\(\)[\s\S]*&& weekQuestionsOk\(request\.resource\.data\.get\('questions', \[\]\)\);/);
+  });
+});
+
