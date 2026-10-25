@@ -226,6 +226,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/courses/runLead.ts",
+    {
+      why: "the lead of a course run: it reads an application form's programmes by the programme id that names the run, found by programmeNaming, to take that programme's lead",
+    },
+  ],
+  [
     "src/features/events/",
     {
       why: "an RSVP's sign-up answers, read by a question id taken from the event's sign-up form: the form itself, the attendee dashboard and the pizza helper",

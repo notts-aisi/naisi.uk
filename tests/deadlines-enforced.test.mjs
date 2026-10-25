@@ -280,11 +280,13 @@ const DEADLINE_NAMES = new Map([
     {
       files: [
         "src/app/api/worksheets/circulations/route.ts",
+        "src/lib/courses/heldEmailTask.ts",
         "src/lib/courses/unmarkedRegisters.ts",
         "src/lib/email/worksheetReminderEmails.ts",
         "src/lib/firestore/circulations.ts",
         "src/lib/firestore/courseTasks.ts",
         "src/lib/firestore/tasks.ts",
+        "src/lib/scheduler/jobs/nextWeekEmail.ts",
         "src/lib/scheduler/jobs/unmarkedRegisters.ts",
         "src/lib/scheduler/jobs/worksheetDueReminders.ts",
         "src/lib/worksheets/mint.ts",

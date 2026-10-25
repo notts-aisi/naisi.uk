@@ -110,6 +110,7 @@ const {
   isStaleWork,
   markerFamilyOf,
   normalizeSchedulerMarker,
+  registerReminderMarker,
   reminderMarker,
   stageRecipientMarker,
   stageReleaseMarker,
@@ -333,6 +334,7 @@ const FAMILY_SAMPLES = {
   wsremind: () =>
     worksheetReminderMarker("week-3-reading__c7d2e9f0", "uid1", "2026-10-11T1000"),
   evannounce: () => eventAnnouncementMarker("reading-group__b8c1d0e2", "email", "uid1"),
+  regremind: () => registerReminderMarker("tuesdays-1800__aa11bb22", "w03", "uid1"),
 };
 
 describe("marker ids", () => {

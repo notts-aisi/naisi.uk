@@ -233,17 +233,28 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
-    "src/app/api/courses/groups/[groupId]/attendance/push/route.ts#local:recipients",
+    "src/lib/courses/nextWeekEmail.ts#local:recipients",
     {
       reads: 1,
       origin: "assembled",
       sourceOutsideScan:
-        "Built from the group's own `courseEnrolments` rows by a query this route runs, and " +
-        "each uid comes off a document id rather than a recipient-shaped field, so there is " +
-        "nothing for the scan to name as its source.",
+        "Built by `resolveCohortAudience` from the run's cohort channel intersected with the " +
+        "group's own active `courseEnrolments` rows, and each uid comes off a document rather " +
+        "than a recipient-shaped field, so there is nothing for the scan to name as its source.",
       why:
-        "The members of the group whose register is being taken, resolved from its enrolment " +
-        "rows and never from anything the request carried.",
+        "The members of one group, for next week's email: the push lane and the schedule both " +
+        "send through here, and neither takes a recipient from a request.",
+    },
+  ],
+  [
+    "src/lib/scheduler/jobs/registerReminders.ts#group.facilitatorUids",
+    {
+      reads: 3,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "The facilitators of the group whose register is unfinished, each reminded once, " +
+        "each held to the standing the role is appointed behind before the email goes.",
     },
   ],
   [
