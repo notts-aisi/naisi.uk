@@ -367,10 +367,12 @@
   min-width: 0;
 }
 
-/* Home's row under the ticket (wk-home-phone): its buttons the width of the card. */
+/* Home's row under the ticket (wk-home-phone). On a phone its buttons are the
+   width of the card, as drawn; wider, each keeps its own width, as the
+   programme page's ticket does (no board draws Home wider than a phone). */
 .ticketFoot {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: max-content;
   gap: 8px;
   padding: 12px;
   border-top: 1px solid var(--color-border);
@@ -616,11 +618,9 @@
   cursor: default;
 }
 
-/* Home's: the whole row under the card, the board's smaller words. */
+/* Home's: on a phone the whole row under the card, in the board's smaller words (below). */
 .calendarButtonHome {
-  width: 100%;
-  padding: 0 10px;
-  font-size: var(--text-sm);
+  width: auto;
 }
 
 .calendarDialog {
@@ -657,7 +657,6 @@
   line-height: 1.25;
   letter-spacing: -0.01em;
   color: var(--color-text);
-  text-wrap: balance;
 }
 
 .calendarClose {
@@ -1936,6 +1935,17 @@ a.weekItem:focus-visible {
   /* The dialog is a sheet here (the Modal's `sheet`): it has a handle. */
   .calendarGrabber {
     display: block;
+  }
+
+  /* Home's row: the whole width of the card, as wk-home-phone draws it. */
+  .ticketFoot {
+    grid-template-columns: 1fr;
+  }
+
+  .calendarButtonHome {
+    width: 100%;
+    padding: 0 10px;
+    font-size: var(--text-sm);
   }
 }
 
