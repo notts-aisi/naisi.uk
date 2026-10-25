@@ -229,6 +229,9 @@ const STYLESHEETS = [
   "./Chip.module.css",
   "./Select.module.css",
   "./RunHome.module.css",
+  // The run home draws "Leave the programme" at its foot with the leaving
+  // pages' own stylesheet.
+  "./leaving/Leaving.module.css",
   "./RunCard.module.css",
   "./MyCoursesSummary.module.css",
   "./home.module.css",
