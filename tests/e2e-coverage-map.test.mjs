@@ -700,6 +700,24 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed a published run with a register not finished and a facilitator whose address reaches the suite's mail catcher.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams": {
+    reason:
+      "Course hub: an incubator's teams, made from the pitches or the agenda and changed by its lead or an admin. tests/course-hub-teams-routes.test.mjs executes it as every kind of caller, at the size limits, and tests/course-hub-teams-page.test.mjs draws the tab from its answer.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an incubator run that Publish has told, with a published pitching week or an agenda the form asked people to rank, and its lead signed in.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell": {
+    reason:
+      "Course hub: \"Tell everyone their team\". tests/course-hub-teams-email.test.mjs executes it as every kind of caller and renders every email it sends: the count, the test first, and a second press after a move.",
+    coverWhen:
+      "With the spec for the teams route above, with a mail catcher to read the emails.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell/test": {
+    reason:
+      "Course hub: the test of the team email, sent only to the address on the caller's own session; tests/course-hub-teams-email.test.mjs executes it and the lock it unlocks.",
+    coverWhen:
+      "With the spec for the press above, because the test is the press's first step.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/roles": {
     reason:
       "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId]/roles is pressed by a programme's lead or an admin, and tests/applications-editor-routes.test.mjs and tests/applications-access.test.mjs execute who may name whom.",
@@ -1521,6 +1539,12 @@ const NOT_COVERED = {
       "Course hub: a programme's Messages tab, where its lead and admins write updates; the page's every caller is executed by tests/course-hub-updates-pages.test.mjs and its route by tests/course-hub-updates-routes.test.mjs.",
     coverWhen:
       "When the end-to-end fixtures can seed a programme that names a run Publish has told, with its lead signed in.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams": {
+    reason:
+      "Course hub: an incubator's Teams tab, for its lead and admins. tests/course-hub-teams-page.test.mjs renders it and the programme's head as every kind of caller, in both ways teams are made.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an incubator run that Publish has told, with a published pitching week or an agenda the form asked people to rank, and its lead signed in.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     reason:

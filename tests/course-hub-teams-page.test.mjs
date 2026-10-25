@@ -239,9 +239,10 @@ describe("the programme's head", () => {
     await teamsMade();
     world.ui.segment = "teams";
     const lead = await draw("tess", INCUBATOR, Layout);
-    assert.match(lead.text, /Lead: Tess · 4 places in 4 groups · Everyone hears Fri 23 Oct · Teams by Thu 19 Nov/);
+    // The run is under way, so the head is the run's own line (Overview's), and Teams by is its last fact.
+    assert.match(lead.text, /Running · week 2 of 7 T Lead: Tess · 10 taking part in 2 groups · Last sessions Wed 16 Dec · Teams by Thu 19 Nov/);
     assert.match(lead.html, new RegExp(`<a href="/admin/admissions/forms/${ROUND}/programmes/${INCUBATOR}/teams"[^>]*aria-current="page"[^>]*>Teams<span[^>]*>2</span></a>`));
-    assert.match(lead.text, /Groups 4 Teams 2 Attendance/);
+    assert.match(lead.text, /Overview Interest Applications 0 Groups 4 Teams 2 Attendance Messages Settings/);
   });
 
   test("a reviewer sees the tab drawn and not a link", async () => {

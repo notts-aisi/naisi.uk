@@ -396,7 +396,7 @@ export const ROUTES = {
   "/api/admin/registrations/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "coursePitchesCleared", "courseProgressDeleted", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -485,7 +485,7 @@ export const ROUTES = {
   "/api/admin/users/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "coursePitchesCleared", "courseProgressDeleted", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -744,6 +744,34 @@ export const ROUTES = {
         "it emails) is checked before anything is read, so every signed-in persona meets the same " +
         "400 on an empty body. Then the role from the form, as the Overview's own gate: only the " +
         "programme's lead and admins email a group's facilitators.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the body is checked before anything is " +
+        "read, so every signed-in persona meets the same 400 on an empty one. Who may make and " +
+        "change an incubator's teams (its lead or an admin) is decided from the form once a valid " +
+        "body arrives; a reviewer is refused and anybody with no role on it is told the programme is not there.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "As the teams route: the body (how many emails the button showed) is checked before " +
+        "anything is read, then the role from the form. Nothing is sent until the presser has " +
+        "sent themselves a test.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell/test": {
+    POST: {
+      expect: signedIn(404),
+      why:
+        "It takes no body: after the session it reads the form the ids name, and the battery's ids " +
+        "name none, so every signed-in persona is told the programme is not there. With real ids the " +
+        "role comes from the form, and a test goes only to the address on the session.",
     },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email": {
@@ -2393,6 +2421,14 @@ export const PAGES = {
       "The admissions tree's gate, then the programme layout's and the page's own: Messages is the " +
       "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme " +
       "the caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: for those " +
+      "admitted, a form that is missing and a programme the caller has no role on render 'there " +
+      "is no programme here' in place of the page with a 200; a reviewer of the programme is told " +
+      "the tab is the lead's and admins', and a fellowship's address that teams are an incubator's.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),

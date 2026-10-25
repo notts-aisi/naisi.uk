@@ -168,6 +168,21 @@ const MUST_GUARD = [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places/test/route.ts",
     "sends a test of the freed-place email to the address on the session, and records it on the form",
   ],
+  // An incubator's teams, made and changed by its lead or an admin, and the
+  // email that tells each person theirs: writes in the caller's name, and the
+  // test emails the address on the session.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/route.ts",
+    "makes an incubator's teams and moves people between them, recorded as whoever the session says is acting",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell/route.ts",
+    "emails everyone in an incubator's teams their team in the caller's name, which cannot be unsent",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell/test/route.ts",
+    "sends a test of the team email to the address on the session, which during view-as is the member's, and records that it reached them",
+  ],
   // A programme's run as its lead reads and chases it. The attendance CSV
   // takes every register of the run off the platform and writes the
   // dataExports row that is the only record it happened; Remind emails a

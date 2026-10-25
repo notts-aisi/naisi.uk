@@ -247,6 +247,29 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/lib/applications/handover/teamsTell.ts#team.memberUids",
+    {
+      reads: 1,
+      origin: "roster",
+      writtenBy: "src/lib/applications/handover/teamsAct.ts",
+      why:
+        "Whether the person whose team email just went is still in that team when what they were " +
+        "told is recorded on it. It sends nothing. A team's people are written by the teams route, " +
+        "which puts in only people taking part in the team's own group.",
+    },
+  ],
+  [
+    "src/lib/applications/handover/teamsTell.ts#member.teammateUids",
+    {
+      reads: 1,
+      origin: "derived",
+      derivedFrom: ["src/lib/applications/handover/teamsTell.ts#team.memberUids"],
+      why:
+        "The other people in a person's team, named in their email: the team's stored people who " +
+        "still take part (`membersAsTold`). Names only; each email goes to its own person's address.",
+    },
+  ],
+  [
     "src/lib/scheduler/jobs/registerReminders.ts#group.facilitatorUids",
     {
       reads: 3,

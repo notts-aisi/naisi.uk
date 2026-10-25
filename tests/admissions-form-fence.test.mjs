@@ -368,6 +368,13 @@ const ROUND_SURFACES = {
       "one programme's Messages tab, the updates to the people on the run it names. It reaches the round only " +
       "through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams": {
+    kind: "form",
+    why:
+      "an incubator's Teams tab, for its lead and admins. It reaches the round only through " +
+      "loadProgrammeTeams, which starts from the form's own loader and answers 'none' for a round " +
+      "that is not a form, and the page then says there is no programme here",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     kind: "form",
     why:
@@ -531,6 +538,25 @@ const ROUND_SURFACES = {
       "emails the facilitators of one group of the run a programme names about an unfinished register. It " +
       "reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers " +
       "'none' for a round that is not a form, so nobody is emailed for one",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams": {
+    kind: "form",
+    why:
+      "makes and changes an incubator's teams, through actOnTeams. It loads the round with the " +
+      "form's own loader before it reads anybody's application or team, and answers a round that " +
+      "is not a form as a programme that is not here",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell": {
+    kind: "form",
+    why:
+      "emails everyone in an incubator's teams their team, through sendTeamEmails, which loads the " +
+      "round with the form's own loader and finds nothing for a round that is not a form",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell/test": {
+    kind: "form",
+    why:
+      "sends the caller a test of the team email, through sendTeamEmailTest, which loads the round " +
+      "with the form's own loader and finds nothing for a round that is not a form",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email": {
     kind: "form",

@@ -7,9 +7,11 @@
  * ## The rule this guards
  *
  * A pitch (`coursePitches`) carries who would join it (`wouldJoinUids`): the
- * picks. Nobody but a programme's lead and admins learns who picked what, and
- * they are told only how many; a person taking part is told which pitches
- * THEY picked and nothing else. The routes build every field they send, so
+ * picks. Nobody but a programme's lead and admins learns who picked what:
+ * they are told how many would join each pitch, and when they make a pitch a
+ * team, the people who said they would join it are put in that team, so they
+ * see them as its people. A person taking part is told which pitches THEY
+ * picked and nothing else. The routes build every field they send, so
  * the class of failure is a new reader, or a new field on what travels, that
  * carries somebody else's pick to a page.
  *
@@ -70,6 +72,18 @@ const READERS = {
   "lib/applications/handover/pitchesLoad.ts": {
     proof: ["wouldJoin: pitch.wouldJoinUids.filter((uid) => counts(uid, pitch.groupId)).length"],
     why: "the lead's and admins' list: each pitch's picks become a number, and nobody who picked is named",
+  },
+  "lib/courses/teams/make.ts": {
+    proof: ["export function pitchTeamPeople("],
+    why: "pure: who goes into a team made from one pitch, from its pitchers and the people in its group who would join it; it reads nothing and sends nothing",
+  },
+  "lib/applications/handover/teamsLoad.ts": {
+    proof: ["const wouldJoin = pitch.wouldJoinUids.filter((uid) => takingPart.get(uid)?.groupId === pitch.groupId).length;"],
+    why: "the Teams tab, for the programme's lead and admins: each pitch's picks become a number, as on the lead's list, and nobody who picked is named",
+  },
+  "lib/applications/handover/teamsAct.ts": {
+    proof: ["wouldJoinUids: pitch.wouldJoinUids,"],
+    why: "making a pitch a team, by the programme's lead or an admin: the people who would join it (in its group, in no team yet, up to the largest team) are put in it, so the lead learns who picked a pitch only as the people of the team they made from it",
   },
   "lib/firestore/accountDeletion.ts": {
     proof: ["FieldValue.arrayRemove(uid)"],
