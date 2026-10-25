@@ -819,7 +819,9 @@ Read this before trusting a passing run.
   `E2E_RECAPTCHA_BYPASS_SECRET` (in `.env.e2e.secrets.local` or the
   environment), `armRecaptcha` presents it to the gate's harness bypass
   (`src/lib/recaptcha/bypass.ts`), which needs the target to hold the same
-  value; the steps then run and the runner stops accepting skips. In local
+  value (the dev backend reads it from the dev project's Secret Manager,
+  named in `apphosting.dev.yaml`); the steps then run and the runner stops
+  accepting skips. In local
   mode they always run.
 - **Email coverage is the three auth templates only** — `VerifyLoginEmail`,
   `VerifyUniEmail`, `AlreadyRegisteredEmail`, exercised through their real

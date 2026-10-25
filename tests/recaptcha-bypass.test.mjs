@@ -6,8 +6,14 @@
  * backend that is given its secret, and it is safe only while four things
  * stay true:
  *
- *   1. Its secret is never provisioned through `apphosting.yaml`, which the
- *      production backend reads.
+ *   1. Its secret is provisioned through `apphosting.dev.yaml` and no other
+ *      configuration file, and there only as a secret the running server
+ *      alone reads. `apphosting.yaml` is read by the production backend too,
+ *      and any other `apphosting.<environment>.yaml` by a backend of that
+ *      name; the dev file is read only by the backend named "dev". It lives
+ *      in a file because a save of the dev backend's console settings drops
+ *      a secret restricted to the running server, which left the deployed
+ *      dev with no bypass for weeks once.
  *   2. Without the variable the path does not exist: the decision function
  *      returns false before looking at the header or the identity.
  *   3. It is consulted only for a request that carries NO token, so a human
@@ -65,15 +71,74 @@ function walk(dir, out = []) {
   return out;
 }
 
-test("the bypass secret is never provisioned through apphosting yaml", () => {
+/** The one configuration file that may name the bypass secret. */
+const DEV_YAML = "apphosting.dev.yaml";
+
+/**
+ * What is wrong with how an App Hosting file declares the bypass secret, as
+ * sentences; empty when it is declared exactly once, as a secret reference to
+ * the secret of the same name, available at RUNTIME only (never at BUILD, never
+ * a typed value). Comments are ignored: only the `env` entries count.
+ */
+function bypassEntryProblems(text) {
+  const lines = text.split("\n").filter((line) => !/^\s*#/.test(line));
+  const starts = lines
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => new RegExp(`^\\s*-\\s+variable:\\s*${ENV_NAME}\\s*$`).test(line));
+  if (starts.length !== 1) return [`${ENV_NAME} is declared ${starts.length} times, not once`];
+  const { line: first, index } = starts[0];
+  const dashAt = first.indexOf("-");
+  const fields = {};
+  for (const line of lines.slice(index + 1)) {
+    if (!line.trim()) continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent <= dashAt) break;
+    const match = /^\s*([A-Za-z]+):\s*(.*?)\s*$/.exec(line);
+    if (!match) return [`a line of its entry is not a key: ${JSON.stringify(line.trim())}`];
+    fields[match[1]] = match[2];
+  }
+  const problems = [];
+  const keys = Object.keys(fields).sort().join(",");
+  if (keys !== "availability,secret") problems.push(`its entry carries ${keys || "nothing"}, not exactly a secret and its availability`);
+  if (fields.secret !== ENV_NAME) problems.push(`it names the secret ${JSON.stringify(fields.secret)}, not ${ENV_NAME}`);
+  if ((fields.availability ?? "").replace(/\s+/g, "") !== "[RUNTIME]") {
+    problems.push(`its availability is ${JSON.stringify(fields.availability)}, not [RUNTIME]: a build must never see it`);
+  }
+  return problems;
+}
+
+test("the bypass secret is provisioned through the dev backend's own file and no other", () => {
   const yamls = readdirSync(REPO_ROOT).filter((f) => /^apphosting.*\.ya?ml$/.test(f));
   assert.ok(yamls.includes("apphosting.yaml"), "apphosting.yaml is missing; the check has nothing to read");
+  assert.ok(
+    yamls.includes(DEV_YAML),
+    `${DEV_YAML} is missing. It is where the dev backend gets the bypass secret; without it the ` +
+      "deployed dev refuses the harness and the nightly fails on every reCAPTCHA-gated step.",
+  );
   for (const file of yamls) {
+    if (file === DEV_YAML) continue;
     assert.ok(
       !read(file).includes(ENV_NAME),
-      `${file} mentions ${ENV_NAME}. That file is read by the production backend; the ` +
-        "bypass secret must never be provisioned through it.",
+      `${file} mentions ${ENV_NAME}. apphosting.yaml is read by the production backend, and an ` +
+        `apphosting.<environment>.yaml by every backend of that name; only ${DEV_YAML} may name it.`,
     );
+  }
+  assert.deepEqual(bypassEntryProblems(read(DEV_YAML)), [], `${DEV_YAML} declares ${ENV_NAME} wrongly`);
+});
+
+test("the dev file's check refuses every other way of declaring the secret", () => {
+  const entry = (body) => `env:\n  - variable: ${ENV_NAME}\n${body}`;
+  const good = entry(`    secret: ${ENV_NAME}\n    availability: [RUNTIME]\n`);
+  assert.deepEqual(bypassEntryProblems(good), [], "the control: the right declaration is accepted");
+  for (const [what, text] of [
+    ["a typed value", entry("    value: not-a-real-value\n    availability: [RUNTIME]\n")],
+    ["a build-time secret", entry(`    secret: ${ENV_NAME}\n    availability: [BUILD, RUNTIME]\n`)],
+    ["no availability, which means both", entry(`    secret: ${ENV_NAME}\n`)],
+    ["another secret", entry("    secret: SOMETHING_ELSE\n    availability: [RUNTIME]\n")],
+    ["two declarations", good + `  - variable: ${ENV_NAME}\n    secret: ${ENV_NAME}\n    availability: [RUNTIME]\n`],
+    ["none", "env:\n  - variable: OTHER\n    value: x\n"],
+  ]) {
+    assert.notDeepEqual(bypassEntryProblems(text), [], `the check accepted ${what}`);
   }
 });
 
