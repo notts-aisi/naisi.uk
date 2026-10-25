@@ -125,6 +125,8 @@ const MUST_GUARD = [
   ["src/app/api/courses/runs/[runId]/material-notes/route.ts", "records feedback attributed to the reader"],
   ["src/app/api/courses/runs/[runId]/normalise-weeks/route.ts", "rewrites every week id on a run"],
   ["src/app/api/courses/runs/[runId]/nudge/route.ts", "sends the weekly nudge email"],
+  ["src/app/api/courses/runs/[runId]/pitching/picks/route.ts", "records which pitches a member would join, which their lead makes teams from"],
+  ["src/app/api/courses/runs/[runId]/pitching/pitch/route.ts", "saves a pitch in the member's own name and chooses who pitches it with them"],
   ["src/app/api/courses/runs/[runId]/roles/route.ts", "grants and revokes staff roles on a run"],
   ["src/app/api/courses/runs/[runId]/status/route.ts", "moves a run along its lifecycle, opening or closing applications"],
   ["src/app/api/courses/runs/[runId]/sync-tasks/route.ts", "creates committee tasks on the board"],

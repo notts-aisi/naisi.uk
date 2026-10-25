@@ -251,6 +251,10 @@ const RUN_COUNT_KEYS = [
   // curriculum (V2-2). It is on the manifest because the cascade has a stage
   // for it, so the dialog names every collection the destroy takes.
   "materialNotes",
+  // `coursePitches`, pitching week's pitches and who would join each
+  // (src/lib/courses/pitching/). Member-authored, keyed by `runId`, and on
+  // the manifest because the cascade has a stage for it.
+  "pitches",
   "mirroredTasks",
   // The SECOND sweep on `tasks`, for the source the unmarked-register
   // scheduler job mints (V3 W2 PR25). Counted separately from the mirrors
@@ -338,15 +342,15 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   const counts = Object.fromEntries(
     [...RUN_COUNT_KEYS, ...COURSE_COUNT_KEYS].map((k) => [k, 10]),
   );
-  // Nineteen counters at ten rows each: fifteen that die, `materialNotes`,
-  // `auditRows`, `schedulerMarkers`, the V3 `coursePages` and the V3 W2
-  // `registerTasks` among them, plus the four survivors
-  // (`admissionSeatOffers` is released, `dataExportRows` is retained).
-  assert.equal(sumCounts(counts), 190);
+  // Twenty counters at ten rows each: sixteen that die, `materialNotes`,
+  // `auditRows`, `schedulerMarkers`, the V3 `coursePages`, the V3 W2
+  // `registerTasks` and the course hub's `pitches` among them, plus the four
+  // survivors (`admissionSeatOffers` is released, `dataExportRows` is retained).
+  assert.equal(sumCounts(counts), 200);
   // The progress denominator counts only what actually dies, so a large
   // retained counter cannot inflate it into a bar that never fills. Adding a
   // survivor must not move this number; adding a DESTROYED counter must.
-  assert.equal(destroyedTotal(counts), 150);
+  assert.equal(destroyedTotal(counts), 160);
 });
 
 test("MODEL — every key the cascade can report has copy, including the ones the manifest never shows", () => {
@@ -503,6 +507,10 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     // gate to shut (rules deny every client write to courseMaterialNotes), so
     // its position here is consistency, not necessity.
     "materialNotes",
+    // Pitching week's pitches: a run-keyed leaf like the four above, and the
+    // pitching routes refuse anybody without a live seat, so it drains before
+    // the enrolments that open them.
+    "pitches",
     "enrolments",
     "applications",
     // Immediately after the seat rows it points at: until those are deleted,

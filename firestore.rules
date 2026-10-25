@@ -2798,6 +2798,17 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // === coursePitches ===
+    // Pitching week's pitches (src/lib/courses/pitching/model.ts): what each
+    // person or pair pitched, and who said they would join it. Written only by
+    // the two pitching routes and read only on the server, which decide who
+    // is shown what: a person their own picks and nobody else's, the lead and
+    // admins how many would join each. So every browser is refused, admins
+    // included, and a row's own pitcher too.
+    match /coursePitches/{pitchId} {
+      allow read, write: if false;
+    }
+
     // ==================== V3 W1 PR5: courses open mode ====================
     //
     // === courseAudit ===

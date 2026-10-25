@@ -1036,6 +1036,24 @@ const NOT_COVERED = {
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
+  "/api/courses/runs/[runId]/pitching": {
+    reason:
+      "Course hub: pitching week's read, for the people taking part. tests/course-hub-pitching-routes.test.mjs executes it as every kind of caller on both sides of the close, and tests/course-hub-pitching-pages.test.mjs draws the page from its answer.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an incubator run with a published pitching week and a group that Publish has told.",
+  },
+  "/api/courses/runs/[runId]/pitching/picks": {
+    reason:
+      "Course hub: a person's picks in pitching week, the pitches they would join. tests/course-hub-pitching-routes.test.mjs executes it as every kind of caller, at the pick limit and across the close, and it was pressed by hand at 390 and 1440 against a seeded emulator.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an incubator run with a published pitching week and a group that Publish has told.",
+  },
+  "/api/courses/runs/[runId]/pitching/pitch": {
+    reason:
+      "Course hub: saving a person's pitch in pitching week. tests/course-hub-pitching-routes.test.mjs executes it as every kind of caller, with partners from inside and outside the group and across the close, and it was used by hand at 390 and 1440 against a seeded emulator.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an incubator run with a published pitching week and a group that Publish has told.",
+  },
   "/api/courses/runs/[runId]/retrospective": {
     reason:
       "Learn hub: /api/courses/runs/[runId]/retrospective belongs to the curriculum surface being rebuilt in October.",
@@ -1468,6 +1486,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed a published run with registers, with the programme's lead signed in.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/pitches": {
+    reason:
+      "Course hub: the lead's and admins' read-only list of a programme's pitches, reached from the Groups tab's views. tests/course-hub-pitching-lead.test.mjs executes its loader as every kind of caller and renders the page, and it was checked by hand at 1440 and 390.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an incubator run with a published pitching week and a group that Publish has told.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     reason:
       "Application forms: /(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup is a programme's settings, and a fault in it is seen by the lead or admin using it.",
@@ -1623,6 +1647,12 @@ const NOT_COVERED = {
       "Learn hub: /(app)/learn/[runId]/nudge is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
     coverWhen:
       "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
+  },
+  "/(app)/learn/[runId]/pitching": {
+    reason:
+      "Course hub: pitching week's page is reached from a card on the programme's home while the week is on. tests/course-hub-pitching-pages.test.mjs renders it in every state, and it was checked by hand at 390 and 1440 against a seeded emulator.",
+    coverWhen:
+      "When the end-to-end fixtures can seed an incubator run with a published pitching week and a group that Publish has told.",
   },
   "/(app)/learn/[runId]/progress": {
     reason:

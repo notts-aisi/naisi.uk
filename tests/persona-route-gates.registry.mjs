@@ -1472,6 +1472,33 @@ export const ROUTES = {
         "is missing.",
     },
   },
+  "/api/courses/runs/[runId]/pitching": {
+    GET: {
+      expect: signedIn(403),
+      why:
+        "Pitching week is read by somebody with a live learner seat in one of the run's groups, " +
+        "told by Publish, whose account stands, and by nobody else: every signed-in persona has no " +
+        "seat on a run that addresses nothing, and is refused the same way whether or not it exists.",
+    },
+  },
+  "/api/courses/runs/[runId]/pitching/picks": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the body is checked before anything is " +
+        "read, so every signed-in persona meets the same 400 on an empty one. The caller's own seat " +
+        "is asked once a valid body arrives.",
+    },
+  },
+  "/api/courses/runs/[runId]/pitching/pitch": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the body is checked before anything is " +
+        "read, so every signed-in persona meets the same 400 on an empty one. The caller's own seat " +
+        "is asked once a valid body arrives.",
+    },
+  },
   "/api/courses/runs/[runId]/retrospective": {
     GET: {
       expect: adminOnly(404, { draftCourse: 404, approveCourse: 404 }),
@@ -2308,6 +2335,14 @@ export const PAGES = {
       "programme's lead's and an admin's to read, so a reviewer is told so before the run is read, and a programme the " +
       "caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/pitches": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: for those " +
+      "admitted, a form that is missing and a programme the caller has no role on render 'there " +
+      "is no programme here' in place of the page with a 200, and a reviewer of the programme is " +
+      "told the list is the lead's and admins'.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
     why:
@@ -2505,6 +2540,13 @@ export const PAGES = {
     why:
       "A run under /learn: the run layout sends every approved account back to /learn when " +
       "the run is missing, and the run's own roster decides the rest once it exists.",
+  },
+  "/(app)/learn/[runId]/pitching": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the " +
+      "run is missing, and the page sends anybody not taking part in its pitching week to the " +
+      "run's home.",
   },
   "/(app)/learn/[runId]/progress": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
