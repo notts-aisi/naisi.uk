@@ -5,8 +5,9 @@
  *
  * Node 20 cannot import a `.ts` file, so every suite that executes shipping
  * code (rather than pattern-matching its source) transpiles it in memory with
- * the `typescript` devDependency, rewrites each import specifier to a data:
- * URL and imports the result. That dance was copied by hand into roughly fifty
+ * the `typescript` devDependency, rewrites each import specifier to the
+ * address of the module it names and imports the result. That dance was
+ * copied by hand into roughly fifty
  * files, and every copy was the same twenty lines with one difference: none of
  * them set a JSX option.
  *
@@ -52,13 +53,31 @@
  *    string can look like an import. That swallow has a cost worth knowing
  *    about: a bare specifier naming a package that genuinely is not installed
  *    survives into the emitted source, so the failure arrives later as Node
- *    refusing a specifier inside a `data:` URL rather than as this loader
- *    naming the file that imported it. Read such an error as a missing
+ *    refusing a specifier inside a transpiled module rather than as this
+ *    loader naming the file that imported it. Read such an error as a missing
  *    dependency of the module you loaded.
  *
  * Each transpiled module is cached per loader, so a graph that reaches one
  * module twice imports one instance of it, and a module's identity (its
  * top-level state, its `globalThis` handles) behaves as it does in production.
+ *
+ * ## Each module is written once, to a file named by its text
+ *
+ * A transpiled module is written to a file in a directory of this process's
+ * own (its worker threads share it), named by a hash of its text, and
+ * imported by that file's URL. Two
+ * modules are one instance exactly when their text is the same, and a
+ * module's address is short whatever it imports.
+ *
+ * Until October 2026 each module was a `data:` URL, and the address of every
+ * module it imported was written inside it, so a module's address held the
+ * whole graph beneath it, once for each path that reached a shared module.
+ * The addresses of the course routes reached 20 to 30 MB each, and the
+ * largest suite (`tests/course-hub-stage-one-journey.test.mjs`, which loads
+ * the most of them) needed between 3 and 4 GB of heap: one more import high in
+ * the graph took it past Node's limit, and it died out of memory while
+ * loading, before a test ran. `tests/ts-loader.test.mjs` holds that an
+ * address does not grow with what a module imports.
  *
  * ## What it does NOT do
  *
@@ -70,7 +89,7 @@
  * answer for a loader whose job is server code. The refusal is deliberate and
  * it is worth its own branch: the file is on disk, so accepting it would hand
  * `transpileModule` a stylesheet and the failure would surface as a parse
- * error inside a `data:` URL with nothing pointing back at the import. A suite
+ * error inside a transpiled module with nothing pointing back at the import. A suite
  * whose graph reaches a stylesheet or a JSON file stubs that specifier.
  *
  * It stubs NOTHING by itself. `server-only`, `next/server`,
@@ -82,8 +101,9 @@
  * way to say so.
  *
  * A stub's source is used verbatim: it is not transpiled and its own
- * specifiers are not rewritten, so a stub cannot import anything (a data: URL
- * has no `node_modules` to resolve against). Write stubs as plain JavaScript
+ * specifiers are not rewritten, so a stub cannot import anything (it is
+ * written outside the repository, with no `node_modules` to resolve against).
+ * Write stubs as plain JavaScript
  * with no imports, which is what every existing one already is.
  *
  * ## The rule
@@ -101,9 +121,12 @@
  * failure behind it. They move when they next need to change, and the list
  * shrinks by a line when one does.
  */
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { isMainThread, threadId } from "node:worker_threads";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SRC = join(REPO_ROOT, "src");
@@ -131,8 +154,32 @@ async function typescript() {
   return tsc;
 }
 
-function dataUrl(source) {
-  return `data:text/javascript;base64,${Buffer.from(source, "utf8").toString("base64")}`;
+/**
+ * This process's directory of transpiled modules: one per process, shared by
+ * its worker threads, and removed by the main thread when the process exits.
+ * A worker cannot clean up after itself: a suite that runs code in a worker
+ * (`tests/lib/timeBox.mjs`) stops it at a time limit, and a stopped worker runs
+ * no exit handler.
+ */
+const MODULE_DIR = join(tmpdir(), `naisi-ts-loader-${process.pid}`);
+if (isMainThread) process.on("exit", () => rmSync(MODULE_DIR, { recursive: true, force: true }));
+let moduleDirMade = false;
+
+/** The address of a module with this text: a file named by its hash, written once. */
+function moduleUrl(source) {
+  if (!moduleDirMade) {
+    mkdirSync(MODULE_DIR, { recursive: true });
+    moduleDirMade = true;
+  }
+  const file = join(MODULE_DIR, `${createHash("sha256").update(source).digest("hex")}.mjs`);
+  if (!existsSync(file)) {
+    // Written under a name of its own and then renamed into place, so a worker
+    // importing the same module at the same moment never reads half a file.
+    const part = `${file}.${threadId}.part`;
+    writeFileSync(part, source);
+    renameSync(part, file);
+  }
+  return pathToFileURL(file).href;
 }
 
 /** Only these two are compiled. See `firstFile` for why the line is drawn. */
@@ -154,7 +201,8 @@ function isFile(path) {
  * `session.ts`. And a file this loader cannot compile: `./thing.module.css`
  * exists, so accepting the bare path would feed a stylesheet to
  * `transpileModule` and the error would arrive as a parse failure inside a
- * `data:` URL, naming neither the stylesheet nor the module that imported it.
+ * transpiled module, naming neither the stylesheet nor the module that
+ * imported it.
  * Refusing here lets the caller say which specifier it was.
  */
 function firstFile(base) {
@@ -194,7 +242,7 @@ export function createLoader({ stubs } = {}) {
   function stubUrl(key) {
     const cached = graph.get(key);
     if (cached) return cached;
-    const url = dataUrl(STUBS.get(key));
+    const url = moduleUrl(STUBS.get(key));
     graph.set(key, url);
     return url;
   }
@@ -253,7 +301,7 @@ export function createLoader({ stubs } = {}) {
     const rewritten = outputText.replace(SPECIFIER, (whole, prefix, quote, specifier) =>
       rewrites.has(specifier) ? `${prefix}${quote}${rewrites.get(specifier)}${quote}` : whole,
     );
-    const url = dataUrl(rewritten);
+    const url = moduleUrl(rewritten);
     graph.set(file, url);
     return url;
   }

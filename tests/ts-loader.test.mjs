@@ -211,6 +211,25 @@ describe("the shared loader reads JSX", () => {
       /no module at src\/lib\/worksheets\/thereIsNoSuchModule\.ts/,
     );
   });
+
+  test("a module's address does not grow with what it imports", async () => {
+    // Each module used to be a `data:` URL with the address of everything it
+    // imported written inside it, so an address held the whole graph beneath
+    // it and the largest suite ran out of memory while loading. A module is
+    // now a file named by its own text: its address is short, and the
+    // importer's is no longer than the module it imports.
+    const { loadTs } = createLoader();
+    const { address, imported } = await loadTs(join(TESTS_DIR, "fixtures", "ts-loader", "addressOfImporter.ts"));
+    for (const url of [address, imported]) {
+      assert.ok(url.startsWith("file:"), `${url.slice(0, 40)} is not a file's address`);
+      assert.ok(url.length < 400, `an address of ${url.length} characters`);
+    }
+    assert.notEqual(address, imported);
+    assert.ok(!address.includes(imported), "the importer's address holds the address of what it imports");
+    // The same text is the same module, as it was when an address was the text.
+    const again = await createLoader().loadTs(join(TESTS_DIR, "fixtures", "ts-loader", "address.ts"));
+    assert.equal(again.address, imported);
+  });
 });
 
 // ---------------------------------------------------------------------------
