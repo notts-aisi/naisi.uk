@@ -37,9 +37,10 @@ function contestOrder(a: RankedPerson, b: RankedPerson): number {
  *     (they have fewest places left to go), then by name. Somebody turned
  *     away asks for their next choice in the next round.
  *  2. Then a team below the smallest size is let go: the smallest of them
- *     (fewest people, then the fewest who put it first, then the later on the
- *     agenda), whose people go back to step 1 with that item closed to them.
- *     One at a time, because letting one go can bring another up to size.
+ *     (fewest people, then the fewest who put it first, then the fewest who
+ *     ranked it at all, then the later on the agenda), whose people go back
+ *     to step 1 with that item closed to them. One at a time, because letting
+ *     one go can bring another up to size.
  *  3. When no team is below the smallest size, what is left are the teams.
  *
  * Somebody who ranked nothing, or whose every choice filled up or was let go,
@@ -60,6 +61,7 @@ export function teamsFromFirstChoices(
   const open = new Set(items);
   const placed = new Map<string, string>();
   const firstChoices = new Map(items.map((item) => [item, ranked.filter((person) => person.ranking[0] === item).length]));
+  const rankedAtAll = new Map(items.map((item) => [item, ranked.filter((person) => person.ranking.includes(item)).length]));
   const membersOf = (item: string) => ranked.filter((person) => placed.get(person.uid) === item);
   const depth = Math.max(0, ...ranked.map((person) => person.ranking.length));
 
@@ -81,8 +83,14 @@ export function teamsFromFirstChoices(
     });
     if (small.length === 0) break;
     const letGo = small
-      .map((item, at) => ({ item, at, count: membersOf(item).length, first: firstChoices.get(item) ?? 0 }))
-      .sort((a, b) => a.count - b.count || a.first - b.first || b.at - a.at)[0];
+      .map((item) => ({
+        item,
+        at: items.indexOf(item),
+        count: membersOf(item).length,
+        first: firstChoices.get(item) ?? 0,
+        demand: rankedAtAll.get(item) ?? 0,
+      }))
+      .sort((a, b) => a.count - b.count || a.first - b.first || a.demand - b.demand || b.at - a.at)[0];
     open.delete(letGo.item);
     for (const person of membersOf(letGo.item)) placed.delete(person.uid);
   }
