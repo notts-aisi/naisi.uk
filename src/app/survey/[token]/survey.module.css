@@ -1,0 +1,64 @@
+/*
+  A survey by its personal link: the only chrome is a small bar with the
+  brand link home and the word "Survey", as the board's phone bar has it.
+  One column at every width, as wide as a phone reads comfortably.
+*/
+
+.page {
+  min-height: 100dvh;
+  padding-bottom: max(var(--space-16), env(safe-area-inset-bottom, 0px));
+  background: var(--color-bg);
+}
+
+.frame {
+  max-width: 36rem;
+  margin-inline: auto;
+}
+
+.bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 3.5rem;
+  padding: max(0px, env(safe-area-inset-top, 0px)) var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  width: fit-content;
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.brand:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.barTitle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-base);
+  color: var(--color-text);
+}
+
+.barEnd {
+  display: block;
+}
+
+.body {
+  padding: var(--space-6) var(--space-4) var(--space-8);
+  min-width: 0;
+}
+
+@media (max-width: 48rem) {
+  .body {
+    padding: var(--space-5) var(--space-4) var(--space-8);
+  }
+}
