@@ -1,0 +1,68 @@
+/* The views of a programme's Groups tab (boards st-groups, st-times,
+   st-facilitators): a segmented row of links, the one on screen raised. */
+
+.frame {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+}
+
+.views {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-bg);
+}
+
+.view {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.view:hover {
+  color: var(--color-text);
+}
+
+.view:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+.viewCurrent {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .views {
+    display: flex;
+    width: 100%;
+  }
+  .view {
+    flex: 1 1 auto;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 10px;
+  }
+}

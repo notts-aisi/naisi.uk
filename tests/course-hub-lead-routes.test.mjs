@@ -67,7 +67,7 @@ const more = {
   groupWeek: await courseRoute("groups", "[groupId]", "weeks", "[weekId]"),
   email: await courseRoute("runs", "[runId]", "email"),
   nudge: await courseRoute("runs", "[runId]", "nudge"),
-  candidates: await courseRoute("runs", "[runId]", "facilitator-candidates"),
+  candidates: await courseRoute("runs", "[runId]", "facilitators"),
   register: await courseRoute("groups", "[groupId]", "attendance"),
   push: await courseRoute("groups", "[groupId]", "attendance", "push"),
   notes: await courseRoute("groups", "[groupId]", "participant-notes"),
@@ -227,7 +227,7 @@ const ROUTES = [
     passes: ["zach", "claudia", "yusuf"],
   },
   {
-    name: "GET who can facilitate",
+    name: "GET the run's groups, their facilitators and who could facilitate",
     ask: (who, o) => call(who, more.candidates.GET, run, { course: true, ...o }),
     expect: { zach: 200, claudia: 200, yusuf: 200 },
   },
@@ -292,15 +292,32 @@ describe("1 and 2. every route a track lead passes, as every kind of caller", ()
     assert.equal(everything(), before);
   });
 
-  test("the list of who can facilitate carries names and ids, and no address", async () => {
+  test("the groups and who could facilitate carry names, ids and roles, and no address", async () => {
     await ready();
+    world.db.seed("users/erin", { uid: "erin", email: "erin@example.com", displayName: "Erin Walsh", role: "pending" });
     const answer = await call("claudia", more.candidates.GET, run, { course: true });
-    const people = answer.body.people;
+    const { groups, people } = answer.body;
     // The name a person goes by, as the board and the register say it.
-    assert.ok(people.some((person) => person.uid === "rahul" && person.name === "Rahul"), JSON.stringify(people));
+    assert.ok(people.some((person) => person.uid === "rahul" && person.name === "Rahul" && person.role === "member"), JSON.stringify(people));
     assert.ok(!people.some((person) => person.uid === "refused"), "a refused account is offered");
-    for (const person of people) assert.deepEqual(Object.keys(person).sort(), ["name", "uid"]);
+    assert.ok(!people.some((person) => person.uid === "erin"), "an account still waiting is offered");
+    for (const person of people) assert.deepEqual(Object.keys(person).sort(), ["name", "role", "uid"]);
+    assert.deepEqual(
+      groups.map((group) => [group.name, group.when, group.facilitators.map((f) => f.uid), group.facilitatorWords]),
+      [
+        ["Group B", "Tuesdays at 6pm", ["rahul", "sofia"], "Rahul and Sofia"],
+        ["Group C", "Wednesdays at 1pm", ["tom"], "Tom"],
+        ["Group A", "Thursdays at 6pm", ["sofia"], "Sofia"],
+      ],
+    );
     assert.ok(!JSON.stringify(answer.body).includes("@"), "an address reached the lead");
+  });
+
+  test("an archived group is not offered for staffing", async () => {
+    await ready();
+    world.db.poke(`courseGroups/${C}`, { archived: true });
+    const { groups } = (await call("claudia", more.candidates.GET, run, { course: true })).body;
+    assert.deepEqual(groups.map((group) => group.name), ["Group B", "Group A"]);
   });
 
   test("a run's track lead who is a plain member is not handed the roster", async () => {

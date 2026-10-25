@@ -2,7 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import type { SessionUser } from "@/lib/firebase/session";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
-import { canRunTerm } from "../access";
+import { opensProgrammeGroups, roleOnProgramme } from "../access";
 import { isInTerm } from "../decisions";
 import { own } from "../keys";
 import { isId } from "../normalise";
@@ -25,11 +25,14 @@ import {
 /**
  * THE TIMES PICTURE'S ONE READ, for the Groups tab of a programme.
  *
- * ADMIN ONLY, AND DECIDED BEFORE ANYTHING IS READ. The picture counts the
- * people who hold a place by when they said they are free, and names the
- * ones no group suits. Only an admin sees the form's people on the course
- * side (`rowIsServedTo`), so only an admin is answered here, and anybody
- * else is answered before the form is opened.
+ * AN ADMIN'S AND THE PROGRAMME'S LEAD'S, DECIDED BEFORE ANYBODY IS READ. The
+ * picture counts the people who hold a place by when they said they are free,
+ * and names the ones no group suits. On the course side those people are
+ * seen by an admin and by the lead of the programme that names the run
+ * (`rowIsServedTo`), so those two are answered here (`opensProgrammeGroups`).
+ * Anybody else with a role on the programme, a reviewer, is answered once
+ * the form's settings say who leads it, before anybody's application, any
+ * decision or the run is read.
  *
  * WHAT IS READ: the form, the run its programme names and that run's groups,
  * then, once decisions have gone out, every sent application and decision on
@@ -49,6 +52,11 @@ import {
 export type TimesView = {
   roundId: string;
   programmeId: string;
+  /**
+   * Who is looking: an admin, or the programme's lead. A lead is not offered
+   * what only an admin can do from here (naming the run, the run editor).
+   */
+  viewer: "admin" | "lead";
   /** The programme in a sentence: "AGI Strategy". */
   programmeName: string;
   /** The run the programme names, while it is on the site. */
@@ -68,10 +76,13 @@ export type TimesView = {
 
 export type TimesOutcome =
   | { status: "ok"; view: TimesView }
-  /** No form here, or no such programme on it. */
+  /** No form here, no such programme on it, or no role on it. */
   | { status: "none" }
-  /** Somebody who is not an admin. Nothing was read. */
-  | { status: "not-admin" };
+  /**
+   * Somebody with a role on the programme who is neither an admin nor its
+   * lead. Only the form was read: nobody's application, decision or run.
+   */
+  | { status: "not-yours" };
 
 const GROUPS_COLLECTION = "courseGroups";
 
@@ -97,7 +108,7 @@ async function groupsOf(db: Firestore, runId: string): Promise<TimesGroup[]> {
   return groups;
 }
 
-/** The picture, for an admin. `requestedLength` is the address's `length`, as it came. */
+/** The picture, for an admin or the programme's lead. `requestedLength` is the address's `length`, as it came. */
 export async function loadTimesPicture(
   db: Firestore,
   actor: SessionUser,
@@ -105,16 +116,20 @@ export async function loadTimesPicture(
   programmeId: string,
   requestedLength: unknown,
 ): Promise<TimesOutcome> {
-  if (!canRunTerm(actor)) return { status: "not-admin" };
   if (!isId(roundId) || !isId(programmeId)) return { status: "none" };
   const form = await loadForm(db, roundId);
   if (!form) return { status: "none" };
   const programme = own(form.programmes, programmeId);
   if (!programme) return { status: "none" };
+  // Who leads it, from the form's settings, asked at the point of use.
+  const role = roleOnProgramme(actor, form, programmeId);
+  if (role === null) return { status: "none" };
+  if (!opensProgrammeGroups(role)) return { status: "not-yours" };
 
   const view: TimesView = {
     roundId: form.round.id,
     programmeId: programme.id,
+    viewer: role === "admin" ? "admin" : "lead",
     programmeName: programme.shortName,
     run: null,
     blank: "no-run",

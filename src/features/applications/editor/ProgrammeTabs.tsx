@@ -8,22 +8,24 @@ import styles from "./ProgrammeFrame.module.css";
  * The tabs across one programme's pages.
  *
  * Seven are drawn, because that is the programme's whole shape. Only the ones
- * whose pages exist are links: Applications, Settings, and Groups for an
- * admin. The others are drawn the same and are not links, so nobody is sent
- * to a page that is not there, and they say so to assistive technology.
+ * whose pages exist are links: Applications, Settings, and Groups and
+ * Attendance for an admin and the programme's lead. The others are drawn the
+ * same and are not links, so nobody is sent to a page that is not there, and
+ * they say so to assistive technology.
  *
  * Settings is left out for somebody who cannot open it: a reviewer reads and
  * scores, and the settings are the lead's.
  *
- * Groups is a link for an admin and is drawn like the tabs not built yet for
- * anybody else: it counts the people holding a place by when they are free,
- * which only an admin sees on the course side. Its page refuses anybody else
- * on its own.
+ * Groups and Attendance are links for an admin and the programme's lead
+ * (`opensProgrammeGroups`), and are drawn like the tabs not built yet for a
+ * reviewer: they show the people holding a place by name, in their groups,
+ * when they are free and in the registers. Their pages refuse anybody else
+ * on their own.
  */
 
 type Tab = {
   /** The route segment under the programme, for the tabs that have a page. */
-  segment: "applications" | "groups" | "setup" | null;
+  segment: "applications" | "groups" | "attendance" | "setup" | null;
   label: string;
   count?: number | null;
 };
@@ -42,7 +44,7 @@ export default function ProgrammeTabs({
   groups: number | null;
   /** True for the programme's lead and for an admin. */
   canEdit: boolean;
-  /** True for an admin: the Groups tab is a link. */
+  /** True for an admin and the programme's lead: Groups and Attendance are links. */
   groupsOpen: boolean;
 }) {
   const active = useSelectedLayoutSegment();
@@ -51,7 +53,7 @@ export default function ProgrammeTabs({
     { segment: null, label: "Interest" },
     { segment: "applications", label: "Applications", count: applications },
     { segment: groupsOpen ? "groups" : null, label: "Groups", count: groups },
-    { segment: null, label: "Attendance" },
+    { segment: groupsOpen ? "attendance" : null, label: "Attendance" },
     { segment: null, label: "Messages" },
   ];
   if (canEdit) tabs.push({ segment: "setup", label: "Settings" });

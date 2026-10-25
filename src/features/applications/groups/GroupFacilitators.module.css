@@ -1,0 +1,123 @@
+/* The Facilitators view of a programme's Groups tab (board st-facilitators):
+   one card, a row per group, its name and time beside who facilitates it. */
+
+.card {
+  min-width: 0;
+  padding: 22px 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.groups {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.group {
+  display: grid;
+  grid-template-columns: minmax(8rem, 11rem) minmax(0, 1fr);
+  gap: 8px 20px;
+  padding: 14px 0;
+}
+
+.group + .group {
+  border-top: 1px solid var(--color-border);
+}
+
+.groupHead {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.groupName {
+  color: var(--color-text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.groupBody {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.people {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.change {
+  margin-top: 2px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.muted {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.problem {
+  margin: 0;
+  color: var(--color-danger-text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.foot {
+  margin: 12px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .card {
+    padding: 18px 16px;
+  }
+  .group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .actions > * {
+    flex: 1 1 auto;
+  }
+}

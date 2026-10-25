@@ -94,13 +94,17 @@ import styles from "./AllocationBoard.module.css";
  */
 
 type Props = {
-  /**
-   * Only used to link back to the run editor from the no-groups empty state.
-   * That link is admin-shaped; when P7 mounts this board on the learn side for
-   * track leads, the href becomes a prop rather than a route built in here.
-   */
   courseId: string;
   runId: string;
+  /**
+   * Where the no-groups empty state sends somebody to add groups: the run
+   * editor, which sits under `/admin/courses` behind course permissions.
+   * Omitted, the board links there, as every mount did before a programme's
+   * Groups tab mounted it. Null says there is no link to give: a programme's
+   * lead adds no groups and cannot open the editor, so they are told an
+   * admin adds them.
+   */
+  runEditorHref?: string | null;
 };
 
 /** Column id for the unallocated pool. Not a group id — there is no such group. */
@@ -642,7 +646,11 @@ function BoardColumn({
 // Board
 // ---------------------------------------------------------------------------
 
-export default function AllocationBoard({ courseId, runId }: Props) {
+export default function AllocationBoard({ courseId, runId, runEditorHref }: Props) {
+  const editorHref =
+    runEditorHref === undefined
+      ? `/admin/courses/${encodeURIComponent(courseId)}/runs/${encodeURIComponent(runId)}`
+      : runEditorHref;
   const {
     data,
     loading,
@@ -1461,17 +1469,22 @@ export default function AllocationBoard({ courseId, runId }: Props) {
         {groups.length === 0 ? (
           <Card padding="lg">
             <h3 className={styles.emptyTitle}>No groups on this run yet</h3>
-            <p className={styles.muted}>
-              Add groups in the{" "}
-              <Link
-                className={styles.link}
-                href={`/admin/courses/${encodeURIComponent(courseId)}/runs/${encodeURIComponent(runId)}`}
-              >
-                run editor
-              </Link>{" "}
-              — each one needs a session time and a facilitator — and they will
-              appear here as columns to place people into.
-            </p>
+            {editorHref ? (
+              <p className={styles.muted}>
+                Add groups in the{" "}
+                <Link className={styles.link} href={editorHref}>
+                  run editor
+                </Link>{" "}
+                — each one needs a session time and a facilitator — and they will
+                appear here as columns to place people into.
+              </p>
+            ) : (
+              <p className={styles.muted}>
+                An admin adds the run’s groups in the run editor, each with a
+                session time, and they appear here as columns to place people
+                into.
+              </p>
+            )}
           </Card>
         ) : (
           <DndContext
