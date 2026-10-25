@@ -1340,6 +1340,76 @@ Each press appends one line to the course log (`courseAudit`, kind
 many places, on which programme and the day to accept by. It names nobody
 offered one. A test leaves no line: it is recorded on the form instead.
 
+## Pitching week
+
+An incubator's pitching week: each person in a group pitches a paper and a
+twist, alone or with one partner from their own group, then says which of
+their group's other pitches they would join, up to a limit, before their
+group's session that week starts. The lead makes teams from that (making
+teams on the site is not built yet). The code is `src/lib/courses/pitching/`.
+
+### Setting it up
+
+1. **Tick the week.** In the run editor, open the week, and under Week
+   details switch on **This is pitching week**, then save. It is off by
+   default and there is no week number anywhere in the code: the run's
+   pitching week is the lowest-numbered week ticked. The run editor's
+   Pitching week section says which week is ticked, and asks you to untick
+   any others.
+2. **Set the run's numbers**, in that Pitching week section of the run
+   editor: how many pitches a person may pick, the smallest and largest a
+   team may be, and the day the teams are made. Each is blank until somebody
+   types it, and nothing stands in for a blank one: the sentence it would
+   fill is left out. With no pick limit, people can pitch and nobody can
+   pick.
+3. **Publish the week.** Pitching opens to a group once the ticked week is
+   published, and closes, for each group, at the start of that group's
+   session in that week, from the group's own calendar: a group that meets
+   on another day, or whose session that week has moved, closes at its own
+   time. A week the group's calendar cannot date (no start time) never
+   opens. Times are London's.
+
+### What people see
+
+- **Somebody taking part** (a live seat in one of the run's groups, told by
+  Publish, whose account still stands) sees a card on the programme's home
+  from the moment the week is published until the end of their group's
+  session day in it, and a page, `/learn/<run>/pitching`: their own pitch,
+  their own group's pitches with who pitched each (names only, as the group
+  already sees them), "I’d join this" on each, and how many they have
+  picked of their limit. After the close, everything on the page is read
+  only, and both routes refuse.
+- **Nobody is told who picked what.** A person sees only which pitches they
+  picked themselves. The programme's lead and admins see how many would
+  join each pitch, most first, on the programme's Groups tab under
+  **Pitches** (`.../programmes/<programme>/groups/pitches`), and nobody who
+  picked is named there. A pick counts while its owner is still in that
+  pitch's group, told, with an account that stands.
+- **Facilitators, the lead and admins do not take part**: the page sends
+  them back to the run's home. A reviewer of the programme is told the list
+  is the lead's and admins'.
+
+### Things worth knowing
+
+- **One pitch each.** Saving again changes the one you have. Either person
+  on a pitch may change its words; only the one who sent it chooses or
+  changes the partner. A partner taken off a pitch may pitch again.
+- **The paper** is one of the week's readings, as the group has the week, or
+  typed in. The pitch keeps the reading's title as it was when pitched.
+- **Copying weeks does not carry the tick.** Copying a curriculum in from a
+  template or another run, and a group's own copy of a week, leave pitching
+  week unticked: tick it again on the run's week.
+- **Somebody moved to another group** after pitching keeps their pitch in the
+  old group, and their picks there stop counting.
+- **Deleting an account** takes the person off pitching week: a pitch only
+  they pitched is deleted, one they pitched with a partner stays the
+  partner's, and their name comes off every list of who would join a pitch.
+  **Destroying the run** deletes its pitches, and the destroy dialog counts
+  them as "Pitches".
+- **Nobody is emailed** by any of this.
+- **Deploy**: one new rules block, `coursePitches` shut to every browser
+  (the routes are the only writers and readers). No index.
+
 ## Cutover: membership periods
 
 Membership is a period-per-year object (`membershipPeriods/{periodId}`), and
