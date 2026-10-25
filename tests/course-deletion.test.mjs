@@ -291,6 +291,10 @@ const RUN_COUNT_KEYS = [
   // Staff writing keyed by `runId`, added to the manifest in the same change
   // that gave the cascade a stage for it, as updates was.
   "groupNotes",
+  // `courseGroupSharedNotes`, the notes a group's people and facilitators
+  // share with the group (C29). Keyed by `runId`, added to the manifest in the
+  // same change that gave the cascade a stage for it, as groupNotes was.
+  "groupSharedNotes",
   // `schedulerMarkers`, the scheduler tick's claim-before-send markers.
   // Added with the tick itself, under the house rule that a PR adding a
   // collection adds it to the manifest AND the cascade in that same PR. Two
@@ -358,16 +362,17 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   const counts = Object.fromEntries(
     [...RUN_COUNT_KEYS, ...COURSE_COUNT_KEYS].map((k) => [k, 10]),
   );
-  // Twenty-four counters at ten rows each: twenty that die, `materialNotes`,
-  // `auditRows`, `schedulerMarkers`, the V3 `coursePages`, the V3 W2
-  // `registerTasks` and the course hub's `pitches`, `updates`, `groupNotes`,
-  // `teams` and `finishing` among them, plus the four survivors
-  // (`admissionSeatOffers` is released, `dataExportRows` is retained).
-  assert.equal(sumCounts(counts), 240);
+  // Twenty-five counters at ten rows each: twenty-one that die,
+  // `materialNotes`, `auditRows`, `schedulerMarkers`, the V3 `coursePages`,
+  // the V3 W2 `registerTasks` and the course hub's `pitches`, `updates`,
+  // `groupNotes`, `groupSharedNotes`, `teams` and `finishing` among them, plus
+  // the four survivors (`admissionSeatOffers` is released, `dataExportRows` is
+  // retained).
+  assert.equal(sumCounts(counts), 250);
   // The progress denominator counts only what actually dies, so a large
   // retained counter cannot inflate it into a bar that never fills. Adding a
   // survivor must not move this number; adding a DESTROYED counter must.
-  assert.equal(destroyedTotal(counts), 200);
+  assert.equal(destroyedTotal(counts), 210);
 });
 
 test("MODEL — every key the cascade can report has copy, including the ones the manifest never shows", () => {
@@ -562,6 +567,9 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     // The notes each group's facilitators share: a run-keyed leaf, and every
     // note names its group, so it goes before the groups too.
     "groupNotes",
+    // The notes a group's people and facilitators share with it: a run-keyed
+    // leaf, every note names its group, so it goes before the groups too.
+    "groupSharedNotes",
     "groups",
     "weeks",
   ]);
@@ -610,6 +618,8 @@ test("MODEL — leaf before index: every dependent stage precedes the one that n
       "updates",
       // Every facilitators' note names its group by `groupId`.
       "groupNotes",
+      // Every note shared with a group names it by `groupId`.
+      "groupSharedNotes",
     ]) {
       assert.ok(
         stageAt(dependent) < stageAt(container),

@@ -13,6 +13,7 @@ import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
 import { TEAMS_MARKERS, TEAMS_TEST_KIND } from "@/lib/courses/teams/told";
 import { normalizeCourseEnrolment } from "./courseEnrolments";
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
+import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
 import {
   MEMBER_RECORDS_COLLECTION,
   MEMBER_RECORD_APPLICATIONS,
@@ -86,6 +87,12 @@ export type AccountDeletionSummary = {
    * and it goes with their account.
    */
   courseGroupNotesDeleted: number;
+  /**
+   * The notes this account shared with a group it was in or facilitated
+   * (`courseGroupSharedNotes`, C29). Deleted: a note is its writer's words,
+   * and it goes with their account.
+   */
+  courseGroupSharedNotesDeleted: number;
   /** Admission applications (drafts included) written by this account. */
   admissionApplicationsDeleted: number;
   /** Their access-requirements rows, deleted in the SAME batch. See below. */
@@ -532,6 +539,16 @@ export async function clearCourseFinishing(db: Firestore, uid: string): Promise<
  */
 export async function deleteCourseGroupNotes(db: Firestore, uid: string): Promise<number> {
   return deleteOwnedCourseRows(db, COURSE_GROUP_NOTES_COLLECTION, uid, "authorUid");
+}
+
+/**
+ * Delete every note this account shared with a group (`courseGroupSharedNotes`,
+ * C29), on every run, a page at a time. A note is its writer's own words,
+ * found by the one equality on `authorUid` and deleted; nobody else's note is
+ * touched, whatever group it is in.
+ */
+export async function deleteCourseGroupSharedNotes(db: Firestore, uid: string): Promise<number> {
+  return deleteOwnedCourseRows(db, COURSE_GROUP_SHARED_NOTES_COLLECTION, uid, "authorUid");
 }
 
 /**
@@ -1054,6 +1071,7 @@ export async function deleteAccountCascade(
     courseTeamsCleared: 0,
     courseFinishingCleared: 0,
     courseGroupNotesDeleted: 0,
+    courseGroupSharedNotesDeleted: 0,
     admissionApplicationsDeleted: 0,
     admissionApplicationPrivateDeleted: 0,
     admissionDecisionsDeleted: 0,
@@ -1362,6 +1380,17 @@ export async function deleteAccountCascade(
     summary.courseGroupNotesDeleted = await deleteCourseGroupNotes(db, uid);
   } catch (err) {
     console.error("[deleteAccount] courseGroupNotes delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c'''''. NOTES SHARED WITH A GROUP. The notes this account shared with a
+  //      group it was in, or facilitated, are their own words, addressed by
+  //      the writer's uid, and go with the account (see
+  //      courseGroupSharedNotes.ts).
+  try {
+    summary.courseGroupSharedNotesDeleted = await deleteCourseGroupSharedNotes(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseGroupSharedNotes delete failed:", uid, err);
     partialFailure = true;
   }
 

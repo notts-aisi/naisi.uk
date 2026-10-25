@@ -285,6 +285,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "The notes each group's facilitators wrote for each other on their group's page. Staff writing about the groups this destroy deletes, so they go with the run.",
   },
+  groupSharedNotes: {
+    label: "Notes shared with each group",
+    fate: "destroyed",
+    note: "The notes each group's people and facilitators shared with their group on the week pages. They belong to the groups this destroy deletes, so they go with the run.",
+  },
   schedulerMarkers: {
     label: "Scheduler send markers",
     fate: "destroyed",
