@@ -22,6 +22,12 @@ type Props = {
   children: ReactNode;
   /** `sm` = confirmations and single-field prompts; `md` = forms. */
   width?: "sm" | "md";
+  /**
+   * At phone width the panel rises from the bottom edge as a sheet, the
+   * whole width of the screen; wider, it is centred like any other. Off
+   * unless asked for.
+   */
+  sheet?: boolean;
 };
 
 /**
@@ -37,7 +43,7 @@ type Props = {
  * so tabbing out of the dialog would put focus on content the user can see but
  * cannot reach past the scrim.
  */
-export default function Modal({ open, onClose, ariaLabel, children, width = "md" }: Props) {
+export default function Modal({ open, onClose, ariaLabel, children, width = "md", sheet = false }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
   // SSR-safe "are we on the client" check. The portal needs `document.body`,
@@ -113,7 +119,7 @@ export default function Modal({ open, onClose, ariaLabel, children, width = "md"
   if (!isClient) return null;
 
   return createPortal(
-    <div className={styles.root} aria-hidden={!open} inert={!open}>
+    <div className={sheet ? `${styles.root} ${styles.sheetRoot}` : styles.root} aria-hidden={!open} inert={!open}>
       <div className={`${styles.scrim} ${open ? styles.scrimOpen : ""}`} onClick={dismiss} />
       <div
         ref={panelRef}
@@ -121,7 +127,7 @@ export default function Modal({ open, onClose, ariaLabel, children, width = "md"
         aria-modal="true"
         aria-label={ariaLabel}
         tabIndex={-1}
-        className={`${styles.panel} ${styles[`width_${width}`]} ${open ? styles.panelOpen : ""}`}
+        className={`${styles.panel} ${styles[`width_${width}`]} ${sheet ? styles.sheet : ""} ${open ? styles.panelOpen : ""}`}
       >
         {children}
       </div>

@@ -5,6 +5,7 @@ import { tilePartsOfDay } from "@/app/(app)/dashboard/homeWords";
 import type { TicketFacts } from "../sessionChange/cardFacts";
 import { ROOM_CHANGED, withWords } from "@/lib/courses/memberPageWords";
 import { JOIN_ONLINE, LINK_IS_HERE } from "@/lib/courses/sessionChange/words";
+import AddToCalendar from "./AddToCalendar";
 import styles from "./weekly.module.css";
 
 /**
@@ -17,9 +18,12 @@ import styles from "./weekly.module.css";
  * room, an online week shows "Online this week" and the link to join, and a
  * room that is not the group's usual one says so beside it.
  *
- * "Add to calendar" and "Can’t make it", which the boards draw under the
- * heading, are not here: neither feature exists yet, and the page draws no
- * control for one that does not.
+ * "Add to calendar" (`calendar`) is the person's own calendar link
+ * (st-calendar-phone): under the room on the programme page, and in a row of
+ * its own under the card on Home. An online week's ticket carries Join online
+ * in its place, as board wk-changes draws it. "Can’t make it", which the
+ * boards draw beside it, is not here: it does not exist yet, and the page
+ * draws no control for a feature that does not.
  */
 
 export type TicketPerson = { uid: string; name: string; firstName: string };
@@ -36,11 +40,14 @@ type Props = {
   facilitators: TicketPerson[];
   /** Home's narrower ticket, with the room and the people each on a line of their own. */
   home?: boolean;
+  /** Offer "Add to calendar": the reader's ticket is a group Publish has told them about, or one they facilitate. */
+  calendar?: boolean;
 };
 
-export default function SessionTicket({ facts, eyebrow, heading, roomChanged, facilitators, home = false }: Props) {
+export default function SessionTicket({ facts, eyebrow, heading, roomChanged, facilitators, home = false, calendar = false }: Props) {
   const tile = tilePartsOfDay(facts.dateKey);
   const withLine = withWords(facilitators.map((person) => person.firstName));
+  const offerCalendar = calendar && !facts.joinUrl;
   const faces = (
     <span className={styles.faces} aria-hidden="true">
       {facilitators.map((person) => (
@@ -57,64 +64,76 @@ export default function SessionTicket({ facts, eyebrow, heading, roomChanged, fa
 
   return (
     <section className={home ? `${styles.ticket} ${styles.ticketHome}` : styles.ticket} aria-label="Your next session">
-      {tile && (
-        <time className={styles.stub} dateTime={facts.dateKey}>
-          <span className={styles.stubWeekday}>{tile.weekday}</span>
-          <span className={styles.stubDay}>{tile.day}</span>
-          <span className={styles.stubMonth}>{tile.month}</span>
-        </time>
-      )}
-      <div className={styles.ticketMain}>
-        <div className={styles.ticketBody}>
-          <p className={styles.ticketEyebrow}>{eyebrow}</p>
-          <h2 className={styles.ticketWhen}>{heading}</h2>
-          {home ? (
-            <>
-              {(facts.room || modeChip) && (
+      <div className={styles.ticketRow}>
+        {tile && (
+          <time className={styles.stub} dateTime={facts.dateKey}>
+            <span className={styles.stubWeekday}>{tile.weekday}</span>
+            <span className={styles.stubDay}>{tile.day}</span>
+            <span className={styles.stubMonth}>{tile.month}</span>
+          </time>
+        )}
+        <div className={styles.ticketMain}>
+          <div className={styles.ticketBody}>
+            <p className={styles.ticketEyebrow}>{eyebrow}</p>
+            <h2 className={styles.ticketWhen}>{heading}</h2>
+            {home ? (
+              <>
+                {(facts.room || modeChip) && (
+                  <div className={styles.ticketFacts}>
+                    {facts.room && <span className={styles.ticketRoom}>{facts.room}</span>}
+                    {roomChanged && facts.room && <span className={styles.warnChip}>{ROOM_CHANGED}</span>}
+                    {modeChip}
+                  </div>
+                )}
+                {withLine && (
+                  <div className={styles.ticketWith}>
+                    {faces}
+                    <span>{withLine}</span>
+                  </div>
+                )}
+              </>
+            ) : (
+              (facts.room || modeChip || withLine) && (
                 <div className={styles.ticketFacts}>
                   {facts.room && <span className={styles.ticketRoom}>{facts.room}</span>}
-                  {roomChanged && facts.room && <span className={styles.warnChip}>{ROOM_CHANGED}</span>}
                   {modeChip}
+                  {roomChanged && facts.room ? (
+                    <span className={styles.warnChip}>{ROOM_CHANGED}</span>
+                  ) : (
+                    withLine && (
+                      <span className={styles.ticketWith}>
+                        {faces}
+                        <span>{withLine}</span>
+                      </span>
+                    )
+                  )}
                 </div>
-              )}
-              {withLine && (
-                <div className={styles.ticketWith}>
-                  {faces}
-                  <span>{withLine}</span>
+              )
+            )}
+            {facts.missing && <p className={styles.ticketNote}>{facts.missing}</p>}
+            {facts.joinUrl && (
+              <>
+                <div className={styles.ticketActions}>
+                  <a className={styles.joinButton} href={facts.joinUrl} target="_blank" rel="noopener noreferrer">
+                    {JOIN_ONLINE}
+                  </a>
                 </div>
-              )}
-            </>
-          ) : (
-            (facts.room || modeChip || withLine) && (
-              <div className={styles.ticketFacts}>
-                {facts.room && <span className={styles.ticketRoom}>{facts.room}</span>}
-                {modeChip}
-                {roomChanged && facts.room ? (
-                  <span className={styles.warnChip}>{ROOM_CHANGED}</span>
-                ) : (
-                  withLine && (
-                    <span className={styles.ticketWith}>
-                      {faces}
-                      <span>{withLine}</span>
-                    </span>
-                  )
-                )}
-              </div>
-            )
-          )}
-          {facts.missing && <p className={styles.ticketNote}>{facts.missing}</p>}
-          {facts.joinUrl && (
-            <>
+                <p className={styles.ticketNote}>{LINK_IS_HERE}</p>
+              </>
+            )}
+            {offerCalendar && !home && (
               <div className={styles.ticketActions}>
-                <a className={styles.joinButton} href={facts.joinUrl} target="_blank" rel="noopener noreferrer">
-                  {JOIN_ONLINE}
-                </a>
+                <AddToCalendar />
               </div>
-              <p className={styles.ticketNote}>{LINK_IS_HERE}</p>
-            </>
-          )}
+            )}
+          </div>
         </div>
       </div>
+      {offerCalendar && home && (
+        <div className={styles.ticketFoot}>
+          <AddToCalendar home />
+        </div>
+      )}
     </section>
   );
 }
