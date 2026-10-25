@@ -102,7 +102,7 @@ export const COURSE_NUDGE_PREVIEW_SAMPLE = {
   weekTitle: "Goal misgeneralisation",
   weekSummary:
     "Why a system that learned the right thing in training can still pursue the wrong one when the world shifts.",
-  sessionWhen: "Tuesday 21 October, 18:00–19:30",
+  sessionWhen: "Tue 21 Oct, 6pm to 7:30pm",
   sessionWhere: "Hallward Library, B12",
   weekPrep:
     "There are four things to read or watch and one exercise to write up this week, about 2 hours in total.",

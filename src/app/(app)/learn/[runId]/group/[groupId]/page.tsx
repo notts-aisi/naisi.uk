@@ -334,7 +334,7 @@ export default async function GroupHomePage({
         {eyebrow && <p style={eyebrowStyle}>{eyebrow}</p>}
         <h1 style={{ margin: "var(--space-2) 0 0" }}>{group.name || "Group"}</h1>
         <p style={subStyle}>
-          Everyone in the group, when it meets, and the register. Names only — no
+          Everyone in the group, when it meets, and the register. Names only: no
           email addresses appear here.{" "}
           <Link href={runHome} style={{ color: "var(--color-accent)" }}>
             Back to the course

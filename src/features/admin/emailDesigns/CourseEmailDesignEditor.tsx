@@ -165,7 +165,7 @@ const WEEK_TOKENS: TokenHelp[] = [
   },
   {
     token: "sessionWhen",
-    description: "When this recipient's group meets that week, e.g. Tuesday 21 October, 18:00 to 19:30.",
+    description: "When this recipient's group meets that week, e.g. Tue 21 Oct, 6pm to 7:30pm.",
   },
   {
     token: "sessionWhere",

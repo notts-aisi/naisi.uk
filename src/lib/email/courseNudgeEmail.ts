@@ -2,6 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import CourseNudgeEmail from "@/emails/CourseNudgeEmail";
 import { couldBeFollowed } from "@/lib/courses/followable";
+import { sessionWhenLabel } from "@/lib/courses/londonLabels";
 import { addDaysToKey, isValidDateKey } from "@/lib/courses/weekPlan";
 import type { GroupSession, GroupSessionMode } from "@/lib/firestore/courseGroups";
 import {
@@ -227,7 +228,7 @@ export function nudgeWeekMarkerIds(runId: string, slotStartKey: string): string[
  * The civil date this week's session falls on: the first day at or after the
  * slot's start whose weekday matches the group's.
  *
- * Feeds `courseNudgeSessionWhen`, which reads as a date ("Tuesday 26 August")
+ * Feeds `courseNudgeSessionWhen`, which reads as a date ("Tue 26 Aug")
  * rather than a recurring label once it has one. Returns "" on input the week
  * maths would reject, which degrades to the recurring label rather than throwing
  * mid-send.
@@ -320,7 +321,7 @@ export type CourseNudgeTokens = {
   weekTitle: string;
   /** The week's one-line summary, collapsed to a single line. */
   weekSummary: string;
-  /** Human session label, e.g. "Tuesday 26 August, 18:00–19:30". */
+  /** Human session label, e.g. "Tue 26 Aug, 6pm to 7:30pm" (`sessionWhenLabel`). */
   sessionWhen: string;
   /** Where that session is, e.g. "Hallward B12" or "Online". Empty for a room a reader could follow. */
   sessionWhere: string;
@@ -618,63 +619,26 @@ export function courseNudgeTokensFrom(
 // Deriving the harder token values
 // ---------------------------------------------------------------------------
 
-/** Index = `GroupSession.weekday` (`Date.getDay()`, 0 = Sunday). */
-const WEEKDAY_NAMES = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
-
-function endTimeLabel(start: string, minutes: number): string {
-  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(start);
-  if (!m || minutes <= 0) return "";
-  const total = (Number(m[1]) * 60 + Number(m[2]) + minutes) % 1440;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
-
 /**
  * The `{sessionWhen}` value for ONE recipient's group.
  *
  * Pass `sessionDateKey` (the `YYYY-MM-DD` civil date this week's session falls
  * on, which the route already computes to place the session inside the slot)
- * and it reads as a date — "Tuesday 26 August, 18:00–19:30" — which is what a
- * weekly email wants. Without it, it falls back to the recurring house label
- * ("Tuesdays 18:00–19:30") that the apply page, the admissions queue and the
- * allocation board all render, so a member never meets two spellings of their
- * own slot.
+ * and it reads as a date, "Tue 10 Nov, 6pm to 8pm", which is what a weekly
+ * email wants. Without it, it is the weekly habit, "Tuesdays, 6pm to 8pm".
+ * Either way in the words `sessionWhenLabel` gives a session everywhere it is
+ * written (the placement email's first session, and the session card on the
+ * programme's page), so a member never meets two spellings of one evening.
  *
- * Returns "" — never a partial string — when the group has no time set, which
+ * Returns "", never a partial string, when the group has no time set, which
  * is what makes the whole session sentence disappear rather than dangle.
  */
 export function courseNudgeSessionWhen(
   session: GroupSession | null | undefined,
   sessionDateKey?: string | null,
 ): string {
-  if (!session || !session.startTimeLocal) return "";
-  const end = endTimeLabel(session.startTimeLocal, session.durationMinutes);
-  const time = `${session.startTimeLocal}${end ? `–${end}` : ""}`;
-
-  if (sessionDateKey && /^\d{4}-\d{2}-\d{2}$/.test(sessionDateKey)) {
-    const at = new Date(`${sessionDateKey}T12:00:00Z`);
-    if (!Number.isNaN(at.getTime())) {
-      // Noon UTC: far enough from either boundary that no London offset can
-      // move the civil date this label names.
-      const day = new Intl.DateTimeFormat("en-GB", {
-        timeZone: "Europe/London",
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-      }).format(at);
-      return `${day}, ${time}`;
-    }
-  }
-
-  const day = WEEKDAY_NAMES[session.weekday];
-  return day ? `${day}s ${time}` : time;
+  if (!session) return "";
+  return sessionWhenLabel(session, sessionDateKey);
 }
 
 /**

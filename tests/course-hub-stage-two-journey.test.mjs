@@ -106,6 +106,8 @@ const world = {
   mail: [],
   /** Every notification handed to a push mirror. */
   pushes: [],
+  /** The roster route's answer the group page's roster card is drawn from, while one is drawn. */
+  roster: null,
 };
 globalThis.__stageTwo = { world, h: createElement };
 const W = "globalThis.__stageTwo.world";
@@ -136,6 +138,10 @@ const STYLESHEETS = [
   "./PitchingWeek.module.css",
   "./ProgrammeAttendance.module.css",
   "./ProgrammeOverview.module.css",
+  "./SessionCard.module.css",
+  "./GroupRoster.module.css",
+  "./EmptyState.module.css",
+  "./Skeleton.module.css",
 ];
 /** A card of the group page that reads in the browser: it draws its own name. */
 const CARD = (name) => `export default function ${name}() { return ${H}("div", null, "[${name}]"); }`;
@@ -209,6 +215,17 @@ const { loadTs } = createLoader({
     ["@/features/courses/SessionCard", CARD("SessionCard")],
     ["@/features/courses/GroupRoster", CARD("GroupRoster")],
     ["@/features/courses/AttendanceGrid", CARD("AttendanceGrid")],
+    // The roster card's data, as its hook holds it once the roster route has
+    // answered: the route is asked first, and the card is drawn from that.
+    [
+      "./useGroupRoster",
+      "export function useGroupRoster() {\n" +
+        `  const data = ${W}.roster;\n` +
+        "  return { group: data ? data.group : null, facilitators: data ? data.facilitators : [], members: data ? data.members : [],\n" +
+        "    notYetTold: data ? data.notYetTold === true : false, memberCount: data ? data.members.length : null,\n" +
+        "    loading: false, error: null, reload() {} };\n" +
+        "}",
+    ],
     ...STYLESHEETS.map((path) => [path, CLASS_NAMES]),
   ]),
 });
@@ -279,6 +296,10 @@ const pages = {
 const unsubscribe = await loadTs(join("app", "api", "unsubscribe", "route.ts"));
 const { RunUpdatesView } = await loadTs(join("features", "courses", "updates", "RunUpdates.tsx"));
 const { default: PitchingWeek } = await loadTs(join("features", "courses", "pitching", "PitchingWeek.tsx"));
+/** The session card itself, as the run home draws it (the group page's copy of it is stood in, above). */
+const { default: SessionCard } = await loadTs(join("features", "courses", "SessionCard.tsx"));
+/** The group page's roster card itself, drawn from the roster route's answer. */
+const { default: GroupRosterCard } = await loadTs(join("features", "courses", "GroupRoster.tsx"));
 
 // ---------------------------------------------------------------------------
 // The clock
@@ -962,6 +983,38 @@ async function memberSees(who) {
   };
 }
 
+/**
+ * A member's run home's session card, drawn as the run home draws it: from
+ * their own overview answer, dated by their group's own calendar, with the
+ * week's mode, and titled "Your first session" before the start.
+ */
+async function runHomeCardOf(who, runId) {
+  const answer = await courseCall(who, courseRoutes.overview.GET, { runId });
+  const group = answer.body?.group ?? null;
+  if (answer.status !== 200 || !group) return { refused: answer.status };
+  const current = group.calendar.currentWeek;
+  const weekNumber = current ? (current.weekNumber ?? current.anchorWeekNumber) : 0;
+  const card = createElement(SessionCard, {
+    group,
+    slotStartKey: current?.slotStartKey ?? null,
+    mode: weekNumber >= 1 ? (group.sessionModes[`w${String(weekNumber).padStart(2, "0")}`] ?? null) : null,
+    title: current?.phase === "before" ? "Your first session" : undefined,
+  });
+  return pageText(renderToStaticMarkup(card));
+}
+
+/** A facilitator's roster card, drawn from the roster route's answer to them. */
+async function rosterCardOf(who, groupId) {
+  const answer = await courseCall(who, courseRoutes.roster.GET, { groupId });
+  if (answer.status !== 200) return { refused: answer.status };
+  world.roster = answer.body;
+  try {
+    return pageText(renderToStaticMarkup(createElement(GroupRosterCard, { groupId, groupName: groupDoc(groupId).name })));
+  } finally {
+    world.roster = null;
+  }
+}
+
 /** A register as `who` reads it: its rows and every mark, `week -> name -> status`. */
 async function registerOf(who, groupId) {
   const answer = await courseCall(who, courseRoutes.register.GET, { groupId });
@@ -1281,6 +1334,10 @@ async function weekOneUpdates() {
   u.ameliaToEveryone = await courseCall("amelia", courseRoutes.updates.POST, { runId: RUN }, {
     body: { to: "everyone", title: "Hello", message: "Hi.", email: false },
   });
+  // The session card on two people's run home, and a facilitator's group page.
+  u.runHome = { amara: await runHomeCardOf("amara", RUN), omar: await runHomeCardOf("omar", INC_RUN) };
+  u.groupPage = (await draw(pages.group, "amelia", { runId: RUN, groupId: GROUP.A })).text;
+  u.roster = await rosterCardOf("amelia", GROUP.A);
   // The incubator's lead writes to her people, emailed.
   later();
   u.incubator = await post("the incubator's lead posts to everyone on it, emailed", "tess", INC_RUN, {
@@ -1943,9 +2000,11 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     });
 
     // The weekly email goes from the press that finishes a register while its
-    // job is off (how it ships), once the next week is published. It names the
-    // session in its own words, which the walk of stage one's fix (F5) did not
-    // reach: the placement and facilitators' emails say "Tue 3 Nov, 6pm" (G6).
+    // job is off (how it ships), once the next week is published. Since the
+    // walk of stage two's fixes (G6) it names the session as the placement
+    // email names a first session ("Tue 3 Nov, 6pm"), with its end added, and
+    // its foot has no dash; until then it said "Tuesday 10 November" and the
+    // hours with a dash between.
     test("finishing a register emails the group next week's email once that week is published, and says why not when it is not", () => {
       const reason = (n) => `Week ${n} isn't published yet, so the group wasn't sent a reminder. Publish it and use the run's catch-up send.`;
       assert.deepEqual(
@@ -1966,15 +2025,42 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.deepEqual([amara.subject, amara.kind], ["Week 2 · Week 2 of AGI Strategy Fellowship", "course-nudge"]);
       assert.equal(
         readFrom(amara, "Hi "),
-        `Hi Amara, Week 2 of AGI Strategy Fellowship is open: Week 2. Your group meets Tuesday 10 November, 18:00${EN_DASH}20:00, Room C20. ` +
+        "Hi Amara, Week 2 of AGI Strategy Fellowship is open: Week 2. Your group meets Tue 10 Nov, 6pm to 8pm, Room C20. " +
           "Open this week on the site Read what you can. The week stays open, and nobody is keeping score. You're getting this because " +
-          `you're on this course with NAISI. If the weekly email isn't useful to you, you can stop it here ${EM_DASH} you stay on the course either way. ${FOOTER}`,
+          `you're on this course with NAISI. If the weekly email isn't useful to you, you can stop it here. You stay on the course either way. ${FOOTER}`,
       );
+      for (const mail of SESSIONS.flatMap((key) => r()[key].finishMail)) {
+        assert.doesNotMatch(`${mail.subject} ${mail.text}`, new RegExp(`[${EN_DASH}${EM_DASH}]`), mail.to);
+      }
       // Its two links: the week's page and the way to stop it. No meeting link.
       assert.deepEqual(
         amara.links.map((href) => href.replace(/\?t=.*$/, "?t=")),
         [`${APP_URL}/learn/${RUN}/weeks/2`, `${APP_URL}/api/unsubscribe?t=`],
       );
+    });
+
+    // The run home's card wrote "Monday 2 November" and the hours with a dash
+    // between, and the facilitator's page and roster each had a dash in their
+    // note about names (the walk of stage two, G6). The card now says a
+    // session as the weekly email does, and neither note has a dash.
+    test("the run home's session card says a session as the weekly email does, and the group page and its roster have no dash", () => {
+      const u = seen.weekOne;
+      assert.deepEqual(u.runHome, {
+        amara: "Your first session Group B with Rahul and Sofia Tue 3 Nov, 6pm to 8pm Room C20",
+        omar: "Your first session Group A with Tess Mon 2 Nov, 5pm to 7pm Room B5",
+      });
+      assert.ok(
+        u.groupPage.includes("Everyone in the group, when it meets, and the register. Names only: no email addresses appear here. Back to the course"),
+        u.groupPage,
+      );
+      assert.equal(
+        u.roster,
+        "Who is in this group 3 members Refresh Names only. Nobody's email address appears on this page. To reach the group, use the " +
+          "email composer, which looks the addresses up when it sends and never shows them. Facilitator A Amelia Members D Dev J Joel P Priya",
+      );
+      for (const text of [...Object.values(u.runHome), u.groupPage, u.roster]) {
+        assert.doesNotMatch(text, new RegExp(`[${EN_DASH}${EM_DASH}]`), text);
+      }
     });
   });
 
