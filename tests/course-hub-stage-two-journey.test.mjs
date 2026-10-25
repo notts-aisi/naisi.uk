@@ -1068,7 +1068,10 @@ async function registerOf(who, groupId) {
     }
     marks[`week ${session.weekNumber}${session.pushedAt ? ", finished" : ""}`] = week;
   }
-  return { members: answer.body.members.map((member) => member.displayName), notYetTold: answer.body.notYetTold, marks };
+  // Somebody who left the group, read only, with the marks they had and the
+  // day (the walk of stage two's G3).
+  const leavers = answer.body.leavers.map((leaver) => ({ name: leaver.displayName, left: leaver.left, marks: leaver.records }));
+  return { members: answer.body.members.map((member) => member.displayName), notYetTold: answer.body.notYetTold, marks, leavers };
 }
 
 /** A facilitator's group page, as the server draws it: the way to write to the group, and its updates. */
@@ -2269,16 +2272,23 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     // The Attendance tab keeps somebody who left in the group whose register
     // marked them, with their marks, as wk-attendance draws "Sam Whitfield,
     // Left Fri 13 Nov"; the register on their facilitators' page, which
-    // wk-fac-group draws the same way, lists only who is still in the group
-    // (the walk of stage two, G3).
-    test("the lead's Attendance keeps Kofi, with his finished mark, while his facilitators' register drops him and it", () => {
+    // wk-fac-group draws the same way, keeps them too, read only, beside the
+    // people still in the group. The register used to drop him and his mark
+    // (the walk of stage two, G3), and Remove recorded no day, so both tabs
+    // said "Left" with none; Remove now records it.
+    test("the lead's Attendance and his facilitators' register both keep Kofi, with his finished mark and the day he was removed", () => {
       const look = lookAt("Kofi removed");
       const b = look.lead.attendance.groups.find((group) => group.name === "Group B");
       // The lead's tabs name him in full, the sentence about him by the name
       // he goes by (the walk of stage two's fixes, G10).
-      assert.deepEqual(b.people.find((person) => person.name === "Kofi Mensah"), { name: "Kofi Mensah", left: "Left", marks: [[1, "excused", "finished"]], came: "0 of 1", inARow: 0 });
-      assert.deepEqual(look.facilitators["rahul (Group B)"].register, { members: ["Amara", "Ella"], notYetTold: false, marks: { "week 1, finished": { Amara: "present", Ella: "present" } } });
-      assert.deepEqual(look.lead.overview.attention, [["left", "Kofi Mensah left", "Kofi’s off Group B’s register."]]);
+      assert.deepEqual(b.people.find((person) => person.name === "Kofi Mensah"), { name: "Kofi Mensah", left: "Left Wed 4 Nov", marks: [[1, "excused", "finished"]], came: "0 of 1", inARow: 0 });
+      assert.deepEqual(look.facilitators["rahul (Group B)"].register, {
+        members: ["Amara", "Ella"],
+        notYetTold: false,
+        marks: { "week 1, finished": { Amara: "present", Ella: "present" } },
+        leavers: [{ name: "Kofi", left: "Left Wed 4 Nov", marks: { w01: "excused" } }],
+      });
+      assert.deepEqual(look.lead.overview.attention, [["left", "Kofi Mensah left on Wed 4 Nov", "Kofi’s off Group B’s register from week 2."]]);
       assert.equal(look.lead.overview.people.line, "1 left. Freed places can be offered until Wed 4 Nov, the end of week 1.");
     });
 
@@ -2489,7 +2499,8 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.deepEqual(look.lead.overview.attention, [
         ["week", "Week 4 isn’t ready, and Groups A and B have reached it", "Groups A and B meet again from Thu 19 Nov. Week 4 isn’t published, so people in these groups can’t open it yet."],
         ["register", "Group B’s register for Tue 17 Nov isn’t pushed", "If it’s still not pushed on Fri 20 Nov at 8am, you and admins get a task."],
-        ["left", "Kofi Mensah left", "Kofi’s off Group B’s register."],
+        // The day he was removed, which Remove now records.
+        ["left", "Kofi Mensah left on Wed 4 Nov", "Kofi’s off Group B’s register from week 2."],
       ]);
     });
 
@@ -2554,7 +2565,8 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         `${BOM}Group,Name,Week 1,Week 2,Week 3,Week 4,Week 5,Week 6,Came,Of,Left\n` +
           "Group B,Amara Okafor,Present,Late,Present,,,,3,3,\n" +
           "Group B,Ella Robinson,Present,Present,Left early,,,,3,3,\n" +
-          "Group B,Kofi Mensah,Excused,,,,,,0,1,Yes\n" +
+          // The day he was removed, which Remove now records (it said "Yes" with none).
+          "Group B,Kofi Mensah,Excused,,,,,,0,1,2026-11-04\n" +
           "Group A,Dev Patel,Present,Present,Present,,,,3,3,\n" +
           "Group A,Joel Adeyemi,Late,Present,Absent,,,,2,3,\n" +
           "Group A,Priya Nair,Absent,Late,Present,,,,2,3,",
