@@ -108,6 +108,8 @@ const world = {
   pushes: [],
   /** The roster route's answer the group page's roster card is drawn from, while one is drawn. */
   roster: null,
+  /** The board route's answer the allocation board is drawn from, while it is drawn. */
+  board: null,
 };
 globalThis.__stageTwo = { world, h: createElement };
 const W = "globalThis.__stageTwo.world";
@@ -142,6 +144,11 @@ const STYLESHEETS = [
   "./GroupRoster.module.css",
   "./EmptyState.module.css",
   "./Skeleton.module.css",
+  "./AllocationBoard.module.css",
+  "./AllocationPublish.module.css",
+  "./ActionToast.module.css",
+  "./Badge.module.css",
+  "./Dropdown.module.css",
 ];
 /** A card of the group page that reads in the browser: it draws its own name. */
 const CARD = (name) => `export default function ${name}() { return ${H}("div", null, "[${name}]"); }`;
@@ -215,6 +222,16 @@ const { loadTs } = createLoader({
     ["@/features/courses/SessionCard", CARD("SessionCard")],
     ["@/features/courses/GroupRoster", CARD("GroupRoster")],
     ["@/features/courses/AttendanceGrid", CARD("AttendanceGrid")],
+    // The allocation board's data, as its hook holds it once the board route
+    // has answered: the route is asked first, and the board drawn from that.
+    [
+      "./useAllocation",
+      "export function useAllocation() {\n" +
+        `  return { data: ${W}.board, loading: false, error: null, reload() {}, place: async () => ({ ok: true }),\n` +
+        "    publishAllocation: async () => ({ ok: true }), sendPublishTest: async () => ({ ok: true }), removeEnrolment: async () => ({ ok: true }) };\n" +
+        "}\n" +
+        "export default useAllocation;",
+    ],
     // The roster card's data, as its hook holds it once the roster route has
     // answered: the route is asked first, and the card is drawn from that.
     [
@@ -304,6 +321,8 @@ const { default: PitchingWeek } = await loadTs(join("features", "courses", "pitc
 const { default: SessionCard } = await loadTs(join("features", "courses", "SessionCard.tsx"));
 /** The group page's roster card itself, drawn from the roster route's answer. */
 const { default: GroupRosterCard } = await loadTs(join("features", "courses", "GroupRoster.tsx"));
+/** People in groups' board itself, drawn from the board route's answer. */
+const { default: AllocationBoard } = await loadTs(join("features", "courses", "AllocationBoard.tsx"));
 
 // ---------------------------------------------------------------------------
 // The clock
@@ -1010,6 +1029,18 @@ async function runHomeCardOf(who, runId) {
   return pageText(renderToStaticMarkup(card));
 }
 
+/** People in groups, as `who` is drawn it from the board route's answer to them. */
+async function boardOf(who, runId) {
+  const answer = await courseCall(who, courseRoutes.board.GET, { runId });
+  if (answer.status !== 200) return { refused: answer.status };
+  world.board = answer.body;
+  try {
+    return pageText(renderToStaticMarkup(createElement(AllocationBoard, { courseId: COURSE, runId, runEditorHref: null })));
+  } finally {
+    world.board = null;
+  }
+}
+
 /** A facilitator's roster card, drawn from the roster route's answer to them. */
 async function rosterCardOf(who, groupId) {
   const answer = await courseCall(who, courseRoutes.roster.GET, { groupId });
@@ -1454,6 +1485,7 @@ async function weeksOneAndTwo() {
   l.removed = await courseStep("the lead removes Kofi", 200, "claudia", courseRoutes.remove.POST, { runId: RUN, uid: "kofi" });
   l.mailed = world.mail.length - beforeTheRemove;
   l.summary = await publishSummary("claudia", RUN);
+  l.board = await boardOf("claudia", RUN);
   await lookAround("Kofi removed");
 
   // Then the lead asks Sofia to run Group A with Tom as well, which Publish
@@ -2208,6 +2240,18 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     // place: the board's rail counts Kofi as left and names nobody as having
     // no group, and her press tells Sofia while his row still says Accepted.
     test("the board counts Kofi as left and names nobody as having no group", () => {
+      // As People in groups draws it for the lead: his card stays, marked
+      // Removed, so it can be moved back, and the column's number leaves him out.
+      const board = l().board;
+      assert.ok(
+        board.startsWith(
+          "AGI Strategy Fellowship · Autumn 2026 6 accepted · 5 placed · 0 unallocated · 1 left Refresh Select several " +
+            "All 5 accepted applicants are placed, and 1 has left. No one is in two groups.",
+        ),
+        board,
+      );
+      assert.match(board, /Unallocated 0 Accepted applicants with no group yet\. Kofi Unpaid Removed /);
+      assert.doesNotMatch(board, /has no group|have no group/);
       assert.deepEqual(lookAt("Kofi removed").lead.people.rail, [6, 5, [], 1]);
       assert.deepEqual(lookAt("Kofi removed").lead.people.placed.kofi, [null, false]);
       // Once an admin has changed his row he is off the run's list, and off the board.
