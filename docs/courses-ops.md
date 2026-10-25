@@ -1824,7 +1824,9 @@ with the rule, with who made it and when, and is marked "Changed by you" (or
 by whoever made it); putting a switch back to what the rule says removes the
 change, so a register corrected afterwards still counts for that person.
 Somebody who left is listed under **Left the programme** with the day they
-left, and has no switch: they are never "not finished".
+left, and has no switch: they are never "not finished". On a phone the list
+is a card a row, each switch beside the person's name, so none is behind a
+sideways scroll.
 
 A register that is still not finished after the last session changes who
 came: Needs attention, lower on the same page, names it.
