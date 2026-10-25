@@ -270,6 +270,17 @@ describe("3. a week's page before it opens", () => {
     });
   }
 
+  test("somebody in Group B who also facilitates Group C is drawn every published week, as a facilitator", async () => {
+    const path = "courseGroups/agi-autumn-2026-tbc__grp00003";
+    const groupC = w.world.db.read(path);
+    w.world.db.seed(path, { ...groupC, facilitatorUids: [...groupC.facilitatorUids, "chloe"] });
+    const shell = await w.weekShell("chloe", 4);
+    assert.equal(shell.component, "WeekView");
+    assert.equal(shell.props.viewerRole, "facilitator");
+    const schedule = await scheduleOf("chloe");
+    assert.deepEqual(schedule[3].slice(2), [true, null]);
+  });
+
   test("a member of another group is drawn week 4: her own group's session has ended", async () => {
     assert.equal((await w.weekShell("amara", 4)).component, "WeekView");
   });
