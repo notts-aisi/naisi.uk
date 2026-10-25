@@ -8,6 +8,7 @@ import {
   type QuerySnapshot,
 } from "firebase-admin/firestore";
 import { deleteCalendarLink } from "@/lib/courses/calendarLink";
+import { takeNamesOffForAccount } from "@/lib/surveys/namesOff";
 import { FINISHING_COLLECTION } from "@/lib/courses/finishing/model";
 import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
@@ -49,6 +50,18 @@ export type AccountDeletionSummary = {
    * empties on its next fetch.
    */
   calendarLinkDeleted: boolean;
+  /**
+   * The account's rows on surveys (`surveyPeople`): who a survey was sent to,
+   * the secret in their personal link, whether they answered. Deleted, so a
+   * link they were sent opens nothing.
+   */
+  surveyPeopleDeleted: number;
+  /**
+   * Survey answers the account sent (`surveyAnswers`), taken off them: the
+   * person comes off at once and the answers stay in the totals, as the
+   * survey's own box tells them. Counted once per answer.
+   */
+  surveyAnswersNamesTakenOff: number;
   registrationDeleted: boolean;
   collaboratorDeleted: boolean;
   userDocDeleted: boolean;
@@ -1066,6 +1079,8 @@ export async function deleteAccountCascade(
     subscriptionsDeleted: 0,
     pushSubscriptionsDeleted: 0,
     calendarLinkDeleted: false,
+    surveyPeopleDeleted: 0,
+    surveyAnswersNamesTakenOff: 0,
     registrationDeleted: false,
     collaboratorDeleted: false,
     userDocDeleted: false,
@@ -1178,6 +1193,24 @@ export async function deleteAccountCascade(
     summary.calendarLinkDeleted = await deleteCalendarLink(db, uid);
   } catch (err) {
     console.error("[deleteAccount] calendar link delete failed:", uid, (err as { code?: unknown } | null)?.code ?? "unknown");
+    partialFailure = true;
+  }
+
+  // 1e. SURVEYS. The account's name comes off its survey answers at once and
+  //     the answers stay in the totals; its rows on surveys (who a survey was
+  //     sent to, the secret in their link, whether they answered) are deleted
+  //     (`takeNamesOffForAccount`, `src/lib/surveys/namesOff.ts`). One
+  //     equality on `respondent.uid` in each collection.
+  //
+  //     BEST-EFFORT, with the 207 keeping the registration row so the sweep
+  //     is retried: a failure here leaves a name on answers only admins read,
+  //     which the retry takes off.
+  try {
+    const off = await takeNamesOffForAccount(db, uid);
+    summary.surveyPeopleDeleted = off.people;
+    summary.surveyAnswersNamesTakenOff = off.answers;
+  } catch (err) {
+    console.error("[deleteAccount] survey names-off failed:", uid, (err as { code?: unknown } | null)?.code ?? "unknown");
     partialFailure = true;
   }
 
