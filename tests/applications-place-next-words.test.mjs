@@ -13,7 +13,7 @@
  * `src/lib/applications/decisionDay/emailCopy.ts`), and so is the one that
  * says why pressing "I'm coming" helps (`comingHelps`): for a fellowship it
  * helps us plan groups, and an incubator's people are told only that it helps
- * us plan (the owner's decision of 24 October 2026). Eight things have to
+ * us plan (the owner's decision of 24 October 2026). Nine things have to
  * hold:
  *
  *  1. THE WORDS OF EACH KIND. A fellowship's are pinned in the three places
@@ -44,6 +44,16 @@
  *     programme's own "You're in" body still replaces the email's paragraph
  *     with the rest, and the page, which has no programme wording, keeps its
  *     kind's line.
+ *  9. THE EMAIL PUBLISH SENDS THEM NAMES NO GROUP EITHER. When groups go out,
+ *     the people of a run an incubator names are sent "Placed on an
+ *     incubator" (`src/lib/courses/incubatorStartEmail.ts`) in place of
+ *     "Placed in a group" (the walk of stage one, October 2026). Its seed copy
+ *     is composed for real, with every value a run can lack and every way a
+ *     place can be said, and scanned for the word and for everything else an
+ *     incubator's people are never told. No token it fills can carry a
+ *     group's name or who facilitates one, and wording that asks for one is
+ *     refused. Publish chooses it by the programme's kind, and the push that
+ *     mirrors it names no group.
  *
  * The send, the preview before it, the test an admin sends and a programme's
  * own test all compose through `composeDecisionEmail`:
@@ -85,6 +95,9 @@ const model = await loadTs(join("lib", "applications", "model.ts"));
 const normalise = await loadTs(join("lib", "applications", "normalise.ts"));
 const project = await loadTs(join("lib", "applications", "applicant", "project.ts"));
 const { default: StatusPage } = await loadTs(join("features", "applications", "status", "StatusPage.tsx"));
+// The email an incubator's people are sent when Publish goes out, and its seed copy.
+const incubatorStart = await loadTs(join("lib", "courses", "incubatorStartEmail.ts"));
+const courseEmails = await loadTs(join("lib", "firestore", "courseEmails.ts"));
 
 // ---------------------------------------------------------------------------
 // One stored form, with a programme of each kind
@@ -747,5 +760,90 @@ describe("why saying I’m coming helps, in the words of each kind", () => {
     const form = formWith({ [FELLOWSHIP]: { emailWording: { accepted: { subject: "", body: "Our own words." } } } });
     assert.equal(emailFor(INCUBATOR, form).paragraphs[1], replyParagraph(COMING_LINE.incubator));
     assert.ok(pageOf(placedByRanking(INCUBATOR), form).includes(`Optional. ${COMING_LINE.incubator}`));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. The email Publish sends an incubator's people
+// ---------------------------------------------------------------------------
+
+describe("the email Publish sends an incubator's people names no group either", () => {
+  const SEED = courseEmails.courseTemplateDefaults["course-allocated-incubator"];
+  /** A person on an incubator's run, as Publish's plan tells the email about them. */
+  const FACTS = {
+    name: "Chloe Martin",
+    courseTitle: "Research Incubator",
+    runLabel: "Autumn 2026",
+    programmeName: "Research incubator",
+    weeklySlot: "Mondays at 5pm",
+    firstSession: "Mon 2 Nov",
+    where: { kind: "room", room: "Room B5" },
+    leadName: "Tess",
+    programmeUrl: "https://staging.example.com/learn/research-incubator-autumn-2026",
+  };
+  /** Every way the email can say where the session is, and saying nothing. */
+  const WHERE = [
+    { kind: "room", room: "Room B5" },
+    { kind: "online", linkOnPage: true },
+    { kind: "online", linkOnPage: false },
+    { kind: "on-page" },
+    { kind: "room", room: "https://meet.example/j/8675309?pwd=opensesame" },
+    null,
+  ];
+  /** Every word of one composed email a person reads: its subject, then its text. */
+  const wordsOfEmail = (email) => `${email.subject} ${textOf(email.blocks.map((block) => block.html ?? block.text ?? "").join(" "))}`;
+
+  test("its seed copy, with every value a run can lack and every way a place is said: never the word, and nothing only a fellowship is told", () => {
+    let read = 0;
+    for (const where of WHERE) {
+      for (const leadName of ["Tess", null]) {
+        const email = incubatorStart.composeIncubatorStartEmail(SEED, { ...FACTS, where, leadName });
+        assert.equal(email.ok, true, JSON.stringify({ where, leadName }));
+        const words = wordsOfEmail(email);
+        assert.doesNotMatch(words, A_GROUP, words);
+        assert.doesNotMatch(words, NOT_AN_INCUBATOR, words);
+        read += 1;
+      }
+    }
+    assert.equal(read, WHERE.length * 2);
+  });
+
+  test("it says what an incubator's people are owed: the weekly session, the day it starts, who runs it, and their programme's page", () => {
+    const email = incubatorStart.composeIncubatorStartEmail(SEED, FACTS);
+    assert.equal(email.subject, "Your Research incubator sessions: Mondays at 5pm");
+    assert.equal(
+      textOf(email.blocks.map((block) => block.html).join(" ")),
+      "Hi Chloe, You’ll meet on Mondays at 5pm, starting Mon 2 Nov. Where: Room B5 Tess runs the sessions. " +
+        "Week 1 is on your programme’s page. Open your programme Tess Research incubator lead, NAISI",
+    );
+  });
+
+  test("no token it fills can carry a group's name or who facilitates one, and wording that asks for one is refused", () => {
+    for (const token of incubatorStart.INCUBATOR_START_TOKENS) assert.doesNotMatch(token, /group|facilitat/i, token);
+    for (const token of ["groupName", "facilitatorNames", "coFacilitators", "groupSize", "groupUrl"]) {
+      const asking = { subject: "Your sessions", blocks: [{ id: "b", type: "richText", html: `<p>{${token}}</p>` }] };
+      assert.deepEqual(
+        incubatorStart.composeIncubatorStartEmail(asking, FACTS),
+        { ok: false, problems: [{ kind: "unknown-token", tokens: [token] }] },
+        token,
+      );
+    }
+  });
+
+  test("the scanners find the word in what a fellowship's people are sent at Publish", () => {
+    // So the scan above reads the email: the same scan, run on the seed copy
+    // of "Placed in a group", finds the word.
+    const fellowship = courseEmails.courseTemplateDefaults["course-allocated"];
+    const words = `${fellowship.subject} ${textOf(fellowship.blocks.map((block) => block.html ?? block.text ?? "").join(" "))}`;
+    assert.match(words, A_GROUP);
+  });
+
+  test("Publish chooses it by the kind of the programme that names the run, and its push names no group", () => {
+    const plan = codeOf("lib", "courses", "allocationPublish.ts");
+    assert.ok(plan.includes('const incubator = naming.kind === "incubator";'), "the plan no longer asks the kind");
+    assert.ok(plan.includes("const templates = { allocated: incubator ? onAnIncubator : inAGroup, facilitating };"));
+    assert.ok(plan.includes("email: incubator ? writeIncubatorStart(group, name) : writePlacement(group, name),"));
+    const route = codeOf("app", "api", "courses", "runs", "[runId]", "allocation", "publish", "route.ts");
+    assert.ok(route.includes("body: plan.incubator ? `${run.courseTitle}: the details are in your email.` :"), "the push to an incubator's people");
   });
 });

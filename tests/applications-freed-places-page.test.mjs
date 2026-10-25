@@ -22,11 +22,17 @@
  *     function the send composes with, it is the text that arrives.
  *  6. THE APPLICATIONS TAB LEADS THERE, for an admin and the programme's
  *     lead once decisions have gone out, and for nobody else.
+ *  7. A FREED PLACE ACCEPTED READS AS ACCEPTED, on the Applications tab and
+ *     on the application itself, as an accepted invitation does: under the
+ *     Accepted tab and not the Pooled one, with the chip and the line under
+ *     it that an accepted invitation has, so the tabs, the chip and the head
+ *     agree. Said no to, or given back, it reads as anybody who left does.
  *
- * Real: the loader, both pages (rendered to HTML), the client board, the
- * Applications tab's board, the routes a press makes, and every library
- * beneath them. Stubbed: what `tests/lib/freedPlacesWorld.mjs` stubs, the page
- * gate (it returns the session), the router, `next/link` and the stylesheets.
+ * Real: the loader, the three pages (rendered to HTML), the client board, the
+ * Applications tab's board, the application's own screen, the routes a press
+ * makes, and every library beneath them. Stubbed: what
+ * `tests/lib/freedPlacesWorld.mjs` stubs, the page gate (it returns the
+ * session), the router, `next/link` and the stylesheets.
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
@@ -57,6 +63,10 @@ const STYLESHEETS = [
   "./decisionDay.module.css",
   "./editor.module.css",
   "@/features/applications/kit/kit.module.css",
+  // The single application, opened from the tab.
+  "./ReviewScreen.module.css",
+  "./AccessRequirementsBlock.module.css",
+  "./MemberText.module.css",
 ];
 const made = makeFreedWorld("__freedPageWorld", [
   ...STYLESHEETS.map((path) => [path, CLASS_NAMES]),
@@ -72,6 +82,12 @@ const rules = await lib("applications", "freedPlaces", "rules.ts");
 const PROGRAMME = join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "(tabs)", "applications");
 const { default: FreedPlacesPage } = await loadTs(join(PROGRAMME, "freed-places", "page.tsx"));
 const { default: ApplicationsPage } = await loadTs(join(PROGRAMME, "page.tsx"));
+const { default: ApplicationPage } = await loadTs(
+  join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "applications", "[uid]", "page.tsx"),
+);
+// The list's own rows and its own filter, which its tabs use.
+const reviewLoad = await lib("applications", "review", "load.ts");
+const listModel = await loadTs(join("features", "applications", "review", "listModel.ts"));
 
 const REPLY_BY = "2026-10-29";
 const LIST = `/admin/admissions/forms/${ROUND}/programmes/${AGI}/applications`;
@@ -381,5 +397,97 @@ describe("the Applications tab leads there, under the places left", () => {
     assert.deepEqual(steps(text), before);
     assert.ok(before.every((count) => count !== undefined), JSON.stringify(before));
     assert.equal(world.db.read(applicationPath("omar")).status, "accepted");
+  });
+
+  /** The tab strip's counts, as the page draws them: "Accepted 4" and so on. */
+  const tabsOf = (html) => {
+    const at = html.indexOf('aria-label="Show applications by decision"');
+    assert.ok(at !== -1, "the tabs are not on the page");
+    const strip = textOf(html.slice(at, html.indexOf("</div>", at)).replace(/^[^>]*>/, ""));
+    return Object.fromEntries([...strip.matchAll(/([A-Z][a-z]+(?: [a-z]+)?) (\d+)/g)].map((match) => [match[1], Number(match[2])]));
+  };
+  /** One applicant's row of the list, as words. */
+  const rowOf = (html, name) => {
+    const row = html.split("<tr").find((piece) => piece.includes(name));
+    assert.ok(row, `${name} has no row`);
+    return textOf(`<tr${row.slice(0, row.indexOf("</tr>"))}`);
+  };
+  /** The application itself, opened from the tab. */
+  async function applicationAs(uid, applicant) {
+    world.user = sessionOf(uid);
+    return textOf(
+      renderToStaticMarkup(await ApplicationPage({ params: Promise.resolve({ roundId: ROUND, programmeId: AGI, uid: applicant }) })),
+    );
+  }
+
+  // A freed place is offered to somebody this programme's lead pooled, who
+  // ranked it. Until the walk of stage one (F7) their row kept the lead's
+  // Pool once they accepted, under the Pooled tab, while the head above it
+  // counted their place. It reads as an invitation accepted does now.
+  test("an accepted freed place reads as accepted, on the tab and on the application, as an accepted invitation does", async () => {
+    const before = await pageAs("zach", ApplicationsPage);
+    const tabsBefore = tabsOf(before);
+    assert.match(rowOf(before, "Omar Haddad"), /Pooled/);
+
+    await api.test("zach", { uid: "omar", groupId: GROUP.monday, replyBy: REPLY_BY });
+    await api.offer("zach", { picks: [{ uid: "omar", groupId: GROUP.monday }], replyBy: REPLY_BY, invitations: 1 });
+    // Offered and not answered: still the lead's Pool, with nothing under it.
+    const offered = await pageAs("zach", ApplicationsPage);
+    assert.deepEqual(tabsOf(offered), tabsBefore);
+    assert.equal(rowOf(offered, "Omar Haddad").includes("Accepted"), false, rowOf(offered, "Omar Haddad"));
+
+    await api.reply("omar", { reply: "accept-invitation" });
+    const html = await pageAs("zach", ApplicationsPage);
+    // One more under Accepted and one fewer under Pooled; All and the head as they were.
+    assert.deepEqual(tabsOf(html), { ...tabsBefore, Accepted: tabsBefore.Accepted + 1, Pooled: tabsBefore.Pooled - 1 });
+    assert.ok(textOf(html).includes("5 of 7"), textOf(html));
+    // The chip, and the line under it that an accepted invitation has. He
+    // ranked the programme, so the choice column still says so.
+    const row = rowOf(html, "Omar Haddad");
+    assert.ok(row.includes("Accepted Accepted an invitation"), row);
+    assert.equal(row.includes("Pooled"), false, row);
+    assert.equal(row.includes("Invited"), false, row);
+    assert.ok(row.includes("1st"), row);
+    // And the row is under the Accepted tab and not the Pooled one: the
+    // list's own filter, asked of the rows the page was drawn from.
+    const loaded = await reviewLoad.loadProgrammeBoard(world.db, sessionOf("zach"), ROUND, AGI);
+    assert.equal(loaded.ok, true);
+    const omar = loaded.board.rows.find((entry) => entry.uid === "omar");
+    assert.deepEqual([omar.standing, omar.byInvitation, omar.freedPlace], ["accepted", false, true]);
+    const under = (status) => listModel.filterRows(loaded.board.rows, { ...listModel.DEFAULT_QUERY, status }).map((entry) => entry.uid);
+    assert.ok(under("accepted").includes("omar"), JSON.stringify(under("accepted")));
+    assert.equal(under("pooled").includes("omar"), false);
+
+    // The application itself says the same: its chip reads Accepted, beside
+    // the lead's decision kept as the record of what was decided.
+    const application = await applicationAs("zach", "omar");
+    assert.ok(application.includes("Decision Accepted Pooled by"), application);
+    assert.ok(application.includes("Omar accepted an invitation to AGI Strategy. There’s no decision to make here."), application);
+    assert.equal(application.includes("has been told their result"), false, application);
+  });
+
+  test("a freed place said no to, or given back, is not read as accepted", async () => {
+    const REASON = { kind: "times", other: "" };
+    for (const [how, replies] of [
+      ["said no to", [{ reply: "decline-invitation", reason: REASON }]],
+      ["given back", [{ reply: "accept-invitation" }, { reply: "cant-make-it", reason: REASON }]],
+    ]) {
+      reset();
+      await api.test("zach", { uid: "omar", groupId: GROUP.monday, replyBy: REPLY_BY });
+      await api.offer("zach", { picks: [{ uid: "omar", groupId: GROUP.monday }], replyBy: REPLY_BY, invitations: 1 });
+      const tabsBefore = tabsOf(await pageAs("zach", ApplicationsPage));
+      for (const body of replies) {
+        const said = await api.reply("omar", body);
+        assert.equal(said.status, 200, `${how}: ${JSON.stringify(said.body)}`);
+      }
+      const html = await pageAs("zach", ApplicationsPage);
+      const row = rowOf(html, "Omar Haddad");
+      // Withdrawn, with the lead's decision under it, as for anybody who left.
+      assert.ok(row.includes("Withdrawn Was pooled"), `${how}: ${row}`);
+      assert.equal(row.includes("Accepted an invitation"), false, `${how}: ${row}`);
+      // He has left the term, so he is in no tab but All.
+      const tabs = tabsOf(html);
+      assert.deepEqual([tabs.Accepted, tabs.Pooled], [tabsBefore.Accepted, tabsBefore.Pooled - 1], how);
+    }
   });
 });

@@ -193,6 +193,7 @@ const routes = {
   applicationSend: await formRoute(R, "application", "send"),
   reply: await formRoute(R, "application", "reply"),
   list: await formRoute(R, "programmes", PG, "applications"),
+  review: await formRoute(R, "applications", "[uid]"),
   decision: await formRoute(R, "applications", "[uid]", "decision"),
   pool: await formRoute(R, "pool"),
   send: await formRoute(R, "send"),
@@ -889,7 +890,26 @@ async function theList() {
     counts: board.counts,
     placed: board.progress.placed,
     placesLeft: board.progress.placesLeft,
-    hannah: row("hannah") && { standing: row("hannah").standing, byInvitation: row("hannah").byInvitation, withdrawn: row("hannah").withdrawn },
+    hannah: row("hannah") && {
+      standing: row("hannah").standing,
+      byInvitation: row("hannah").byInvitation,
+      freedPlace: row("hannah").freedPlace,
+      withdrawn: row("hannah").withdrawn,
+    },
+  };
+}
+
+/** One application, opened under AGI Strategy by its lead: what it says of where the person stands there. */
+async function theApplication(uid) {
+  const opened = await call("claudia", routes.review.GET, { roundId: ROUND, uid }, { query: { programme: P.agi } });
+  const decision = opened.body?.review?.decision;
+  if (!decision) return { refused: opened.status };
+  return {
+    standing: decision.standing,
+    byInvitation: decision.byInvitation,
+    freedPlace: decision.freedPlace,
+    kind: decision.kind,
+    told: decision.told,
   };
 }
 
@@ -1048,12 +1068,16 @@ async function theIncubatorPublishes() {
   seen.incubator = i;
   i.before = await publishSummary("zach", INC_RUN);
   const beforeTheTest = world.mail.length;
+  const pushesBefore = world.pushes.length;
   i.test = await courseStep("Send a test to me, on the incubator's run", 200, "zach", courseRoutes.publishTest.POST, { runId: INC_RUN });
   i.afterTest = await publishSummary("zach", INC_RUN);
   i.pressed = await courseStep("Publish the incubator's run", 200, "zach", courseRoutes.publish.POST, { runId: INC_RUN }, {
     body: { emails: i.afterTest?.emails ?? -1 },
   });
   i.mail = await Promise.all(mailSince(beforeTheTest).map(opened));
+  i.pushes = world.pushes.slice(pushesBefore);
+  i.markers = markers().filter(([group]) => group === INC_GROUP);
+  i.afterPress = await publishSummary("zach", INC_RUN);
   await reads("the incubator published");
   i.pages = Object.fromEntries(await Promise.all(INCUBATOR_PLACES.map(async (who) => [who, await ownPage(who)])));
 }
@@ -1133,6 +1157,7 @@ async function aFreedPlace() {
   f.accepted = await step("Hannah accepts", 200, "hannah", routes.reply.POST, params(), { body: { reply: "accept-invitation" } });
   f.hannahAccepted = await ownPage("hannah");
   f.listOnceAccepted = await theList();
+  f.applicationOnceAccepted = await theApplication("hannah");
   await timesAndBoard("Hannah accepted, before the hand-over");
   await reads("Hannah accepted");
 
@@ -1150,6 +1175,7 @@ async function aFreedPlace() {
   f.allMail = mailSince(f.mailBefore).map((mail) => [mail.to, mail.subject]);
   f.groupB = { memberCount: groupDoc(GROUP.B).memberCount };
   f.listAtTheEnd = await theList();
+  f.applicationAtTheEnd = await theApplication("hannah");
   await reads("Hannah published");
   await timesAndBoard("the end");
   seen.pages.end = Object.fromEntries(await Promise.all([...AGI_PLACES, ...POOLED, ...INCUBATOR_PLACES].map(async (who) => [who, await ownPage(who)])));
@@ -1215,8 +1241,14 @@ const KOFI_PAGE =
   "your group and when it meets. I’m coming Optional. It helps us plan groups. I can’t make it This frees your " +
   "place for someone else. Questions? ai-safety@uonsu.com";
 
-const B_WHEN = "Tuesday 3 November, 18:00";
-const A_WHEN = "Thursday 29 October, 18:00";
+/**
+ * Each group's first session as the placement email writes it: in the words
+ * the facilitators' email and the boards write a session in ("Tue 3 Nov",
+ * "6pm"), since the walk of stage one found this email alone writing
+ * "Tuesday 3 November, 18:00" (F5).
+ */
+const B_WHEN = "Tue 3 Nov, 6pm";
+const A_WHEN = "Thu 29 Oct, 6pm";
 const B_PLACED = (first) => placementWords({ first, group: "Group B", facilitators: "Rahul and Sofia", when: B_WHEN, room: "Room C20" });
 const A_PLACED = (first) => placementWords({ first, group: "Group A", facilitators: "Amelia", when: A_WHEN, room: "Room A13" });
 const B_SUBJECT = `Your AGI Strategy Fellowship group: first session ${B_WHEN}`;
@@ -1691,53 +1723,70 @@ describe("stage one of the course hub, one term from decision day to the first s
   describe("6b. the incubator's run is published the same way", () => {
     const i = () => seen.incubator;
 
-    test("its own test first, then its count of three: its two people and its lead, who facilitates", () => {
-      assert.deepEqual([i().before.emails, i().before.people, i().before.facilitators, i().before.test.state], [3, 2, 1, "none"]);
-      assert.deepEqual(i().test.body, { ok: true, delivery: "sent", emails: 2, recorded: true });
+    // Its one group's only facilitator is the incubator's lead, who signs
+    // "You’re facilitating". Until the walk of stage one (F1) Publish counted
+    // her, tested her email and sent it, a letter to herself from herself. The
+    // lead of the programme that names the run is never sent it now, and the
+    // board's count, the test, the press and its report all leave her out.
+    test("its own test first, then its count of two: its two people, and not its lead, who facilitates and would sign", () => {
+      assert.deepEqual(
+        [i().before.emails, i().before.people, i().before.facilitators, i().before.emptyGroups, i().before.test.state],
+        [2, 2, 0, [], "none"],
+      );
+      assert.deepEqual(i().test.body, { ok: true, delivery: "sent", emails: 1, recorded: true });
       assert.deepEqual(i().afterTest.test, { state: "fresh", when: "6:08pm", who: null });
+      assert.equal(i().afterTest.emails, 2);
       assert.deepEqual(i().pressed.body.report, {
         people: { sent: 2, held: 0, suppressed: 0 },
-        facilitators: { sent: 1, held: 0, suppressed: 0 },
+        facilitators: { sent: 0, held: 0, suppressed: 0 },
         failed: [],
         noAddress: [],
         alreadyTold: 0,
         more: 0,
       });
+      // The count, what went and what the report says are one number, and
+      // nothing is left owed or waiting on her.
+      assert.equal(i().pressed.body.report.people.sent + i().pressed.body.report.facilitators.sent, i().afterTest.emails);
+      assert.equal(i().mail.filter((mail) => mail.kind === "course-application").length, i().afterTest.emails);
+      assert.deepEqual([i().afterPress.emails, i().afterPress.facilitators, i().afterPress.emptyGroups], [0, 0, []]);
+      assert.deepEqual(i().markers, []);
     });
 
-    // Publish's placement email is one wording for every run, so the
-    // incubator's people, who were told on decision day that an email about
-    // how the first week works would come and were never told about a group,
-    // are told their group in the words a fellowship's people are.
-    test("Publish tells the incubator's people their group, in the words a fellowship's people read", () => {
-      const subject = "Your Research Incubator group: first session Monday 2 November, 17:00";
+    // An incubator's people were told on decision day that an email about
+    // how the first week works would come, and are never told about a group.
+    // Until the walk of stage one (F1) Publish sent them "Placed in a group".
+    // A run an incubator names is sent "Placed on an incubator" now: the
+    // weekly session, the day it starts, who runs it and their programme's
+    // page, every value a record's, and never a group or a facilitator.
+    test("Publish tells the incubator's people their weekly session, in their own email, and never about a group", () => {
+      const subject = "Your Research incubator sessions: Mondays at 5pm";
       assert.deepEqual(
         i().mail.map((mail) => [mail.to, mail.subject, mail.kind]),
         [
           [address("zach"), `[TEST] ${subject}`, "course-test"],
-          [address("zach"), "[TEST] You’re facilitating Group A: Mondays at 5pm", "course-test"],
           [address("omar"), subject, "course-application"],
           [address("wen"), subject, "course-application"],
-          [address("tess"), "You’re facilitating Group A: Mondays at 5pm", "course-application"],
         ],
       );
-      for (const uid of INCUBATOR_PLACES) {
+      for (const mail of i().mail) {
+        const to = mail.to === address("zach") ? "omar" : mail.to.split("@")[0];
         assert.equal(
-          readFrom(i().mail.find((mail) => mail.to === address(uid)), "You've been placed"),
-          placementWords({
-            first: NAME[uid].split(" ")[0],
-            group: "Group A",
-            course: "Research Incubator",
-            facilitators: "Tess",
-            when: "Monday 2 November, 17:00",
-            room: "Room B5",
-          }),
+          readFrom(mail, "Hi "),
+          `Hi ${NAME[to].split(" ")[0]}, You’ll meet on Mondays at 5pm, starting Mon 2 Nov. Where: Room B5 ` +
+            "Tess runs the sessions. Week 1 is on your programme’s page. Open your programme " +
+            `Tess Research incubator lead, NAISI ${FOOTER}`,
+          mail.to,
         );
+        // The one link is their programme's page, where week 1 is: no meeting link, no token.
+        assert.deepEqual(mail.links, [`${APP_URL}/learn/${INC_RUN}`], mail.to);
+        assert.deepEqual([...`${mail.subject} ${mail.text}`.matchAll(/\{[a-zA-Z]+\}/g)].map((m) => m[0]), [], mail.to);
+        // Never the word, and nothing a fellowship's people are told.
+        assert.doesNotMatch(`${mail.subject} ${mail.text}`, /group|facilitat|small group|campus/i, mail.to);
       }
-      // The facilitators' email to the lead is signed by the lead.
-      assert.equal(
-        readFrom(i().mail.find((mail) => mail.to === address("tess")), "Hi "),
-        facilitatingWords({ first: "Tess", group: "Group A", slot: "Mondays at 5pm", from: "Mon 2 Nov", to: "Mon 14 Dec", room: "Room B5", size: 2, lead: "Tess", programme: "Research incubator" }),
+      // And the push that mirrors the email names no group either.
+      assert.deepEqual(
+        i().pushes.map((push) => [push.uid, push.title, push.body]),
+        INCUBATOR_PLACES.map((uid) => [uid, "You've got a place", "Research Incubator: the details are in your email."]),
       );
     });
 
@@ -1981,18 +2030,27 @@ describe("stage one of the course hub, one term from decision day to the first s
     });
 
     // The programme's own list counts a place held by `holdingOf`, which reads
-    // an accepted freed place as one. Each row's standing is the programme's
-    // decision document, and for somebody who ranked the programme that says
-    // pool: only a row on the list by an invitation to a programme the person
-    // did not rank is read as accepted.
-    test("the programme's list counts Hannah's place in its head, and her row keeps the programme's decision, Pooled", () => {
+    // an accepted freed place as one. Until the walk of stage one (F7) her row
+    // kept the lead's decision, Pool, and was counted under Pooled, while the
+    // head counted her place. Now a freed place accepted reads as an
+    // invitation accepted does: her row stands as accepted, under the Accepted
+    // tab and out of the Pooled one, so the tabs, the chip and the head agree.
+    // She ranked the programme, so she is not `byInvitation`.
+    test("the programme's list and her application read Hannah's freed place as accepted: its tabs, her row and its head agree", () => {
       for (const list of [f().listOnceAccepted, f().listAtTheEnd]) {
         assert.deepEqual(list, {
-          counts: { all: 7, toReview: 0, accepted: 5, pooled: 2, declined: 0 },
+          counts: { all: 7, toReview: 0, accepted: 6, pooled: 1, declined: 0 },
           placed: 6,
           placesLeft: 0,
-          hannah: { standing: "pooled", byInvitation: false, withdrawn: false },
+          hannah: { standing: "accepted", byInvitation: false, freedPlace: true, withdrawn: false },
         });
+        // The tabs say what the head says: every place held is under Accepted.
+        assert.equal(list.counts.accepted, list.placed);
+      }
+      // Her application, as the lead opens it, says the same, and keeps the
+      // lead's Pool as the record of what was decided.
+      for (const application of [f().applicationOnceAccepted, f().applicationAtTheEnd]) {
+        assert.deepEqual(application, { standing: "accepted", byInvitation: false, freedPlace: true, kind: "pool", told: true });
       }
     });
 

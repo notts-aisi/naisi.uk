@@ -406,9 +406,12 @@ describe("7. a placement and a publish then work, with the code that was already
     assert.equal(published.status, 200, JSON.stringify(published.body));
     // Since the course hub's Publish (October 2026) the answer says what
     // became of every email, and the press also tells each facilitator of a
-    // group with somebody in it, once per group: Claudia runs both groups.
+    // group with somebody in it, once per group, but never the lead of the
+    // programme that names the run, who signs that email (the walk of stage
+    // one, October 2026). Claudia runs both groups and leads AGI Strategy,
+    // so she is sent none (until then, one for each group, from herself).
     assert.deepEqual(published.body.report.people, { sent: 4, held: 0, suppressed: 0 });
-    assert.deepEqual(published.body.report.facilitators, { sent: 2, held: 0, suppressed: 0 });
+    assert.deepEqual(published.body.report.facilitators, { sent: 0, held: 0, suppressed: 0 });
     assert.deepEqual([published.body.report.failed, published.body.report.noAddress], [[], []]);
     // To the account's own address: a row from the form carries none.
     assert.deepEqual(
@@ -417,7 +420,7 @@ describe("7. a placement and a publish then work, with the code that was already
     );
     assert.deepEqual(
       real().filter((message) => message.subject.startsWith("You’re facilitating")).map((message) => message.to),
-      ["claudia@example.com", "claudia@example.com"],
+      [],
     );
     for (const uid of AGI_HOLDERS) {
       assert.ok(world.db.read(`courseEnrolments/${RUN.agi}__${uid}`).allocatedEmailAt instanceof Date, uid);
@@ -432,7 +435,7 @@ describe("7. a placement and a publish then work, with the code that was already
     assert.equal(again.status, 200, JSON.stringify(again.body));
     assert.deepEqual(
       [again.body.report.people.sent, again.body.report.facilitators.sent, real().length],
-      [0, 0, 6],
+      [0, 0, 4],
     );
   });
 });

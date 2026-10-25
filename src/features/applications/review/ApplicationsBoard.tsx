@@ -811,8 +811,10 @@ function Row({
               </div>
             ) : null}
           </div>
-        ) : row.byInvitation ? (
-          // In the programme by an invitation they accepted. Nothing to decide.
+        ) : row.byInvitation || row.freedPlace ? (
+          // In the programme by an invitation they accepted: one to a
+          // programme they did not rank, or a freed place on one they did.
+          // Nothing to decide.
           <div>
             <StandingChip standing="accepted" />
             <div className={styles.sub}>Accepted an invitation</div>

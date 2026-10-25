@@ -51,6 +51,14 @@ export type ApplicationRow = {
    * `accepted`, and there is no decision to make about them here.
    */
   byInvitation: boolean;
+  /**
+   * They ranked this programme and its lead pooled them, and they hold a
+   * place on it now: a freed place, offered after decision day, which they
+   * accepted. `standing` is `accepted`, the row is counted under Accepted and
+   * not Pooled, and it reads as an accepted invitation does. False once they
+   * have given it back.
+   */
+  freedPlace: boolean;
   /** This programme's place in their ranking: 1 for a 1st choice. 0 for a row `byInvitation`. */
   choice: number;
   /** When this programme is not their 1st choice, the programme that is. */
@@ -457,6 +465,12 @@ export type ReviewPayload = {
      * programme and nobody can: `standing` is `accepted` and `kind` is null.
      */
     byInvitation: boolean;
+    /**
+     * They hold a freed place here, offered after decision day and accepted:
+     * `standing` is `accepted`, and `kind` is still the lead's Pool, the
+     * record of what was decided.
+     */
+    freedPlace: boolean;
     kind: ProgrammeDecisionKind | null;
     poolReason: PoolReason | null;
     couldSuitProgrammeId: string | null;

@@ -11,9 +11,10 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
 
 /**
  * "Send a test to me" on a run's allocation board: the first person's real
- * "your group" email and the first facilitator's real "You’re facilitating"
- * email, exactly as a press of Publish would send them now, each marked as a
- * test, to the address on the caller's own session.
+ * "your group" email ("Placed on an incubator" on a run an incubator names)
+ * and the first facilitator's real "You’re facilitating" email, exactly as a
+ * press of Publish would send them now, each marked as a test, to the address
+ * on the caller's own session.
  *
  * THE SAME CALLERS AS PUBLISH, decided the same way: an admin, the lead of
  * the programme that names the run, or one of the run's track leads on a run

@@ -45,8 +45,11 @@ import { sendEmail } from "./send";
  *
  * THE PLACEMENT EMAIL (`allocated`) IS SENT AS COMPOSED, AND NO OTHER WAY. The
  * allocation publish route writes it with `composePlacementEmail`
- * (`src/lib/courses/placementEmail.ts`), which fills every token or says why
- * it cannot, and hands the finished subject and blocks to this function.
+ * (`src/lib/courses/placementEmail.ts`), or for the people of a run an
+ * incubator names with `composeIncubatorStartEmail`
+ * (`src/lib/courses/incubatorStartEmail.ts`), each of which fills every token
+ * or says why it cannot, and hands the finished subject and blocks to this
+ * function.
  * Nothing here fills a token for that kind, and a placement email that still
  * carries one is refused rather than sent. The facilitators' email that goes
  * beside it at Publish (`facilitating`, written by `composeFacilitatingEmail`)

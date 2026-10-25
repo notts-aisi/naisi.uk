@@ -14,13 +14,15 @@ import {
   sessionModeForWeek,
   type CourseGroupDoc,
 } from "@/lib/firestore/courseGroups";
+import type { ProgrammeKind } from "@/lib/applications/model";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
 import { loadCourseEmailTemplate, type CourseEmailTemplate } from "@/lib/email/courseApplicationEmails";
-// The two composers by their `@/` paths, as every caller of a token filler
+// The three composers by their `@/` paths, as every caller of a token filler
 // imports one, so the tree walk in tests/email-unfilled-tokens.test.mjs
 // finds these calls and holds them to "whole".
 import {
+  clockWords,
   composeFacilitatingEmail,
   facilitatingRefusal,
   namesInWords,
@@ -28,6 +30,12 @@ import {
   type FacilitatingFacts,
   type RefusedFacilitatorGroup,
 } from "@/lib/courses/facilitatingEmail";
+import {
+  composeIncubatorStartEmail,
+  incubatorStartRefusal,
+  type IncubatorStartFacts,
+  type RefusedIncubatorGroup,
+} from "@/lib/courses/incubatorStartEmail";
 import {
   composePlacementEmail,
   placementRefusal,
@@ -38,7 +46,7 @@ import {
   type RefusedGroup,
 } from "@/lib/courses/placementEmail";
 import { resolveCalendar } from "./groupResolve";
-import { readNamingProgramme, readRunLead } from "./programmeLead";
+import { readNamingProgramme, readRunLead, type RunLead } from "./programmeLead";
 import { resolveSessions, sessionRange, type ResolvedSession } from "./sessions";
 import { COURSE_TZ, isValidDateKey } from "./weekPlan";
 import { formatRunStart, formatRunStartShort } from "./window";
@@ -46,12 +54,13 @@ import { formatRunStart, formatRunStartShort } from "./window";
 /**
  * WHAT A PRESS OF PUBLISH WOULD DO, worked out before anything is sent.
  *
- * Publish tells each person placed in a group which group they are in, and
- * each facilitator of a group with somebody in it that they are facilitating
- * it. Three requests ask the same question of a run and have to get the same
- * answer: the allocation board (the count on its button and the line about
- * the last test), "Send a test to me" (the first email of each kind), and
- * Publish itself. So the reading and the deciding are done here once, by
+ * Publish tells each person placed in a group which group they are in (or,
+ * on an incubator, when its weekly session is), and each facilitator of a
+ * group with somebody in it that they are facilitating it. Three requests
+ * ask the same question of a run and have to get the same answer: the
+ * allocation board (the count on its button and the line about the last
+ * test), "Send a test to me" (the first email of each kind), and Publish
+ * itself. So the reading and the deciding are done here once, by
  * `loadPublishPlan`, and each route takes what it needs from the plan.
  *
  * ## Who is owed an email
@@ -68,6 +77,26 @@ import { formatRunStart, formatRunStartShort } from "./window";
  *    nor is one whose people this press cannot write to; they are told by the
  *    press that tells somebody there. An archived group's facilitators are
  *    never told: its page refuses them.
+ *  - NEVER THE LEAD of the programme that names the run, whatever group they
+ *    facilitate. "You’re facilitating" is signed by that lead, so it would be
+ *    a letter to themselves from themselves (an incubator's lead facilitates
+ *    its one group). They are left out before anything is counted, so the
+ *    button, the test, the press and what it reports all leave them out
+ *    alike, and no group waits on them.
+ *
+ * ## What the people are sent depends on the programme
+ *
+ * The people of a run a fellowship names, or that no programme names, are
+ * sent "Placed in a group" (`composePlacementEmail`): their group, its
+ * facilitators, and when and where it first meets. An incubator has one
+ * weekly session for everybody and its people are never told the word
+ * "group", so the people of a run an incubator names are sent "Placed on an
+ * incubator" (`composeIncubatorStartEmail`) in its place: the weekly
+ * session, the day it starts, who runs it and their programme's page. The
+ * kind is read off the programme that names the run, through the one answer
+ * that finds it (`readNamingProgramme` in `./programmeLead.ts`), and the
+ * wording in force is that template's, so a test is of the email the press
+ * will send.
  *
  * ## A facilitator is told how many have been told
  *
@@ -193,6 +222,12 @@ export type PublishTestStanding = {
 export type PublishPlan = {
   /** Rows from the application form are on this run and the viewer is neither an admin nor its programme's lead. */
   adminOnly: boolean;
+  /**
+   * The programme that names the run is an incubator, so its people are sent
+   * "Placed on an incubator", which names no group, and nothing else Publish
+   * says to them may name one either.
+   */
+  incubator: boolean;
   /** Accepted people with no active place in a group, by name. */
   unplaced: string[];
   /** Why an email cannot be written, a sentence each. Empty when every email can be. */
@@ -203,6 +238,11 @@ export type PublishPlan = {
   facilitators: PlannedFacilitator[];
   /** Groups with a facilitator who is not told yet because nobody is placed there. */
   emptyGroups: string[];
+  /**
+   * The wording in force: `allocated` is the people's email this run is sent,
+   * "Placed in a group" or, for a run an incubator names, "Placed on an
+   * incubator".
+   */
   templates: { allocated: CourseEmailTemplate; facilitating: CourseEmailTemplate };
   /** `wordingFingerprint` of the two templates, as this plan read them. */
   wording: string;
@@ -253,6 +293,13 @@ export function groupPageUrl(runId: string, groupId: string): string | null {
   return `${base}/learn/${encodeURIComponent(runId)}/group/${encodeURIComponent(groupId)}`;
 }
 
+/** The run's own page in the member area, where its weeks are, or null when the site does not know its own address. */
+export function programmePageUrl(runId: string): string | null {
+  const base = appUrl();
+  if (!base) return null;
+  return `${base}/learn/${encodeURIComponent(runId)}`;
+}
+
 // ---------------------------------------------------------------------------
 // When and where a group first meets, on its own calendar
 // ---------------------------------------------------------------------------
@@ -270,24 +317,26 @@ function firstSessionOf(run: CourseRunDoc, group: CourseGroupDoc): ResolvedSessi
 }
 
 /**
- * "{Weekday} {day} {month}, {HH:MM}" for a group's first taught session: the
- * placement email's {firstSessionWhen} token. A HUMAN label, deliberately not
- * an instant: the session is a London wall-clock slot and the email should
- * read the way a facilitator would say it. Undefined when the group's
- * calendar has no valid start date, no taught week, or its slot has no time
- * yet, and publishing is then refused for that group (`whyNoFirstSession`
- * says which it was).
+ * "Tue 3 Nov, 6pm" for a group's first taught session: the placement email's
+ * {firstSessionWhen} token, in the words the facilitators' email and the
+ * member's Home write a session in ("Tue 3 Nov", "6pm"). A HUMAN label,
+ * deliberately not an instant: the session is a London wall-clock slot and
+ * the email should read the way a facilitator would say it. Undefined when
+ * the group's calendar has no valid start date, no taught week, or its slot
+ * has no time yet, and publishing is then refused for that group
+ * (`whyNoFirstSession` says which it was).
+ *
+ * THE SHAPE STAYS A DATE, A COMMA AND A TIME, as it was when it read
+ * "Tuesday 3 November, 18:00", so wording an admin saved around the token in
+ * Email designs ("Your first session is {firstSessionWhen}.") reads as it
+ * did.
  */
 export function firstSessionWhen(run: CourseRunDoc, group: CourseGroupDoc): string | undefined {
   const first = firstSessionOf(run, group);
   if (!first) return undefined;
-  const dayLabel = new Intl.DateTimeFormat("en-GB", {
-    timeZone: COURSE_TZ,
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).format(new Date(`${first.dateKey}T12:00:00Z`));
-  return `${dayLabel}, ${first.session.startTimeLocal}`;
+  const day = formatRunStartShort(first.dateKey);
+  const at = clockWords(first.session.startTimeLocal);
+  return day && at ? `${day}, ${at}` : undefined;
 }
 
 /** Why a group has no first session, so the refusal can say what to set. */
@@ -334,6 +383,35 @@ function groupTerm(run: CourseRunDoc, group: CourseGroupDoc): { first: string | 
   return {
     first: range.firstDateKey ? (formatRunStartShort(range.firstDateKey) ?? null) : null,
     last: range.lastDateKey ? (formatRunStartShort(range.lastDateKey) ?? null) : null,
+  };
+}
+
+/**
+ * What an incubator's email is told about one person on its run: the weekly
+ * session of the group they are placed in, as the facilitators' email says
+ * it (its standing slot and place, and its first session on its own
+ * calendar), who runs it, and their programme's page. Nothing of the group's
+ * name or who facilitates it: the email has no token for either.
+ */
+function incubatorStartFacts(
+  run: CourseRunDoc,
+  group: CourseGroupDoc,
+  name: string,
+  naming: Naming,
+  leadName: string | null,
+): IncubatorStartFacts {
+  return {
+    name,
+    courseTitle: run.courseTitle,
+    runLabel: run.label,
+    // A programme with no short name is called what the run's course is.
+    programmeName: naming.programmeName ?? run.courseTitle,
+    weeklySlot: weeklySlotWords(group.session),
+    firstSession: groupTerm(run, group).first,
+    // The weekly slot's own place, not one week's change of room.
+    where: placementWhere(group.session, null),
+    leadName,
+    programmeUrl: programmePageUrl(run.id),
   };
 }
 
@@ -524,22 +602,34 @@ export async function releasePressLock(db: Firestore, runId: string, token: stri
 // The programme that names the run
 // ---------------------------------------------------------------------------
 
+/** The programme that names a run, as far as Publish needs it. */
+type Naming = {
+  /**
+   * Its lead, while they still meet the bar a lead is appointed behind: who
+   * signs the facilitators' email and runs an incubator's sessions, and who
+   * is never sent "You're facilitating".
+   */
+  lead: RunLead | null;
+  /** Its short name ("AGI Strategy"), or null when it has none. */
+  programmeName: string | null;
+  /** Its kind: an incubator's people are sent their own email. */
+  kind: ProgrammeKind | null;
+};
+
+const NAMED_BY_NOBODY: Naming = { lead: null, programmeName: null, kind: null };
+
 /**
- * Who signs the facilitators' email: the first name of the lead of the
- * programme that names this run, and that programme's short name. The lead
- * is `readRunLead`'s answer (`./programmeLead.ts`), the one answer to who
- * leads that programme and whether they still meet the bar, so a lead who
- * has been replaced, or no longer stands, signs nothing: the email's
- * sign-off is an optional unit, and goes without them.
+ * The programme that names this run: its kind, its short name and its lead.
+ * Both come from the one answer (`./programmeLead.ts`): one programme naming
+ * the run or nobody, and its lead only while they still meet the bar, so a
+ * lead who has been replaced, or no longer stands, signs nothing: the
+ * facilitators' sign-off is an optional unit, and goes without them.
  */
-async function signerOf(
-  db: Firestore,
-  runId: string,
-): Promise<{ leadName: string | null; programmeName: string | null }> {
+async function namingOf(db: Firestore, runId: string): Promise<Naming> {
   const naming = await readNamingProgramme(db, runId);
-  if (!naming) return { leadName: null, programmeName: null };
+  if (!naming) return NAMED_BY_NOBODY;
   const lead = await readRunLead(db, runId, naming);
-  return { leadName: lead?.firstName || null, programmeName: naming.shortName };
+  return { lead, programmeName: naming.shortName, kind: naming.kind };
 }
 
 // ---------------------------------------------------------------------------
@@ -566,22 +656,28 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   const runId = run.id;
   const templatesRead = Promise.all([
     loadCourseEmailTemplate("course-allocated"),
+    loadCourseEmailTemplate("course-allocated-incubator"),
     loadCourseEmailTemplate("course-facilitating"),
   ]);
   // Same cost ceiling as the board's read. Groups are NOT filtered on
   // archived here: a group archived after placements landed still owns those
   // placements, and its members' emails still need its name and slot.
-  const [groupSnap, testSnap] = await Promise.all([
+  const [groupSnap, testSnap, naming] = await Promise.all([
     db.collection("courseGroups").where("runId", "==", runId).limit(50).get(),
     db.collection(NUDGES).doc(publishTestId(runId)).get(),
+    namingOf(db, runId),
   ]);
-  const [allocated, facilitating] = await templatesRead;
-  const templates = { allocated, facilitating };
+  const [inAGroup, onAnIncubator, facilitating] = await templatesRead;
+  // The people's email is the one for the kind of programme that names the
+  // run (see the note at the top), and the wording in force is that one's.
+  const incubator = naming.kind === "incubator";
+  const templates = { allocated: incubator ? onAnIncubator : inAGroup, facilitating };
   const wording = wordingFingerprint(templates);
   const test = testStandingOf(testSnap.exists ? testSnap.data() : undefined, wording);
 
   const empty: PublishPlan = {
     adminOnly: false,
+    incubator,
     unplaced: [],
     refusals: [],
     people: [],
@@ -655,6 +751,11 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   for (const group of groupById.values()) {
     if (group.archived) continue;
     for (const uid of group.facilitatorUids) {
+      // NEVER THE LEAD of the programme that names the run, while they stand:
+      // the email is theirs to sign. Left out here, before anything is
+      // counted, so no count, test, press or report includes them (see the
+      // note at the top).
+      if (uid === naming.lead?.uid) continue;
       facilitatorSlots.push({ group, uid, markerId: facilitatingMarkerId(runId, group.id, uid) });
     }
   }
@@ -675,8 +776,7 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   // One read for every account this needs: the people owed an email
   // (address and greeting), and every facilitator of their groups and of the
   // groups that may be owed a facilitators' email (names, and for those owed
-  // one, the address). The programme's lead is read by `signerOf`.
-  const signer = mayTell.length > 0 ? await signerOf(db, runId) : { leadName: null, programmeName: null };
+  // one, the address). The programme's lead is read by \`namingOf\`.
   const uids = new Set<string>();
   for (const { row, group } of owed) {
     uids.add(row.uid);
@@ -686,6 +786,8 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   const users = await readUsers(db, uids);
   const names = new Map<string, string>();
   for (const [uid, data] of users) names.set(uid, displayNameOf(data));
+  // The first name the lead goes by, while they still stand.
+  const leadName = naming.lead?.firstName || null;
 
   const facilitatorNamesOf = (group: CourseGroupDoc): string[] =>
     group.facilitatorUids
@@ -696,14 +798,25 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
       .filter(Boolean);
 
   // ── The people's emails ─────────────────────────────────────────────────
+  // "Placed in a group", or on a run an incubator names "Placed on an
+  // incubator", which names no group (see the note at the top).
   const people: PlannedPerson[] = [];
   const refusedPeople = new Map<string, RefusedGroup>();
-  for (const { row, group } of owed) {
-    const data = users.get(row.uid);
-    const name = data ? displayNameOf(data) : row.displayName || "NAISI member";
-    // The proven address: `users.email` is the Google sign-in address. The
-    // application's own copy is the fallback for a since-deleted account.
-    const to = emailOf(data) || row.email?.trim() || null;
+  const refusedIncubator = new Map<string, RefusedIncubatorGroup>();
+  const writeIncubatorStart = (group: CourseGroupDoc, name: string): WrittenEmail | null => {
+    const written = composeIncubatorStartEmail(templates.allocated, incubatorStartFacts(run, group, name, naming, leadName));
+    if (!written.ok && !refusedIncubator.has(group.id)) {
+      refusedIncubator.set(group.id, {
+        name: group.name.trim(),
+        problems: written.problems,
+        ...(written.problems.some((problem) => problem.kind === "missing" && problem.token === "firstSession")
+          ? { noFirstSession: whyNoFirstSession(run, group) }
+          : {}),
+      });
+    }
+    return written.ok ? { subject: written.subject, blocks: written.blocks } : null;
+  };
+  const writePlacement = (group: CourseGroupDoc, name: string): WrittenEmail | null => {
     const written = composePlacementEmail(templates.allocated, placementFacts(run, group, name, facilitatorNamesOf(group)));
     if (!written.ok && !refusedPeople.has(group.id)) {
       refusedPeople.set(group.id, {
@@ -714,13 +827,21 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
           : {}),
       });
     }
+    return written.ok ? { subject: written.subject, blocks: written.blocks } : null;
+  };
+  for (const { row, group } of owed) {
+    const data = users.get(row.uid);
+    const name = data ? displayNameOf(data) : row.displayName || "NAISI member";
+    // The proven address: `users.email` is the Google sign-in address. The
+    // application's own copy is the fallback for a since-deleted account.
+    const to = emailOf(data) || row.email?.trim() || null;
     people.push({
       uid: row.uid,
       name,
       to,
       groupId: group.id,
       groupName: group.name,
-      email: written.ok ? { subject: written.subject, blocks: written.blocks } : null,
+      email: incubator ? writeIncubatorStart(group, name) : writePlacement(group, name),
     });
   }
 
@@ -779,8 +900,8 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
       coFacilitators: others.length > 0 ? namesInWords(others) : null,
       groupSize: size,
       groupUrl: groupPageUrl(runId, group.id),
-      leadName: signer.programmeName ? signer.leadName : null,
-      programmeName: signer.programmeName,
+      leadName: naming.programmeName ? leadName : null,
+      programmeName: naming.programmeName,
     };
     const written = writeFacilitating(facts);
     if (!written.ok && !refusedFacilitators.has(group.id)) {
@@ -821,12 +942,17 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   // the people's words, and its facilitators' email adds nothing new to say:
   // its sentences are for groups the first list does not name.
   const facilitatorOnly = [...refusedFacilitators.entries()]
-    .filter(([groupId]) => !refusedPeople.has(groupId))
+    .filter(([groupId]) => !refusedPeople.has(groupId) && !refusedIncubator.has(groupId))
     .map(([, refused]) => refused);
-  const refusals = [...placementRefusal([...refusedPeople.values()]), ...facilitatingRefusal(facilitatorOnly)];
+  const refusals = [
+    ...placementRefusal([...refusedPeople.values()]),
+    ...incubatorStartRefusal([...refusedIncubator.values()]),
+    ...facilitatingRefusal(facilitatorOnly),
+  ];
 
   return {
     adminOnly: false,
+    incubator,
     unplaced,
     refusals: [...new Set(refusals)],
     people,

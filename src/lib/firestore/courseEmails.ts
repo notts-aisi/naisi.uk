@@ -20,6 +20,12 @@ export const COURSE_TEMPLATE_IDS = [
   "course-application-waitlisted",
   "course-application-rejected",
   "course-allocated",
+  // The email an incubator's people are sent when groups go out, in place of
+  // the one above: the weekly session, and never a group. Publish chooses it
+  // by the kind of the programme that names the run. Written by
+  // `composeIncubatorStartEmail` (`src/lib/courses/incubatorStartEmail.ts`)
+  // under the placement email's rules.
+  "course-allocated-incubator",
   // The email each facilitator of a group is sent when groups go out, beside
   // the placement email. Written by `composeFacilitatingEmail`
   // (`src/lib/courses/facilitatingEmail.ts`) under the placement email's rules.
@@ -60,6 +66,7 @@ export type CourseTemplateTrigger =
   | "waitlisted"
   | "rejected"
   | "allocated"
+  | "allocated-incubator"
   | "facilitating"
   | "week-nudge"
   | "dropped-out"
@@ -80,6 +87,7 @@ export const COURSE_TEMPLATE_TRIGGER: Record<CourseTemplateId, CourseTemplateTri
   "course-application-waitlisted": "waitlisted",
   "course-application-rejected": "rejected",
   "course-allocated": "allocated",
+  "course-allocated-incubator": "allocated-incubator",
   "course-facilitating": "facilitating",
   "course-week-nudge": "week-nudge",
   "course-dropped-out": "dropped-out",
@@ -168,7 +176,7 @@ export type CourseTokenMap = {
   groupName?: string;
   /** Comma-joined display names, e.g. "Priya and Sam". */
   facilitatorNames?: string;
-  /** Human-formatted first session, e.g. "Tuesday 7 October, 6pm". */
+  /** Human-formatted first session, e.g. "Tue 7 Oct, 6pm". */
   firstSessionWhen?: string;
   /**
    * Where that first session is: the room, or "Online" for a group that
@@ -299,6 +307,7 @@ export const COURSE_DEFAULT_LABELS: Record<CourseTemplateId, string> = {
   "course-application-waitlisted": "Course application waitlisted",
   "course-application-rejected": "Course application rejected",
   "course-allocated": "Placed in a group",
+  "course-allocated-incubator": "Placed on an incubator",
   "course-facilitating": "You’re facilitating",
   "course-week-nudge": "Weekly reminder",
   "course-dropped-out": "Left a course",
@@ -399,6 +408,43 @@ export const courseTemplateDefaults: Record<
           "<p>Where: {firstSessionWhere}</p>" +
           "<p>Everything you need is in the learning space on the website: the week's reading, your group's details and your progress.</p>" +
           "<p>Do the first week's reading before you come; the sessions work best when everyone arrives with opinions.</p>",
+      ),
+    ],
+  },
+  /**
+   * The email an incubator's people are sent at Publish, in place of the one
+   * above, when the programme that names the run is an incubator.
+   * `composeIncubatorStartEmail` fills it
+   * (`src/lib/courses/incubatorStartEmail.ts`) by the placement email's
+   * rules. An incubator is one weekly session for everybody on it, and its
+   * people are never told the word "group": nothing here says it, and no
+   * token this email fills can, because none holds a group's name or who
+   * facilitates it. `tests/applications-place-next-words.test.mjs` reads this
+   * copy for the word. Three things shape it:
+   *
+   *  - `{weeklySlot}`, `{firstSession}` and `{programmeUrl}` are what the
+   *    email is for. Publishing is refused for a run that lacks one.
+   *  - `{where}` and `{leadName}` can be missing: no room yet, or a programme
+   *    with no lead. EACH SITS IN A PARAGRAPH OF ITS OWN (the lead's name
+   *    twice: who runs the sessions, and the sign-off), because that
+   *    paragraph is left out whole when there is nothing to put in it. Neither
+   *    may go in the subject.
+   *  - The button is a link styled as one, in the colours of the decision-day
+   *    emails' main button. No meeting link is ever filled in: an online
+   *    session is told the link is on the programme's page.
+   */
+  "course-allocated-incubator": {
+    label: COURSE_DEFAULT_LABELS["course-allocated-incubator"],
+    subject: "Your {programmeName} sessions: {weeklySlot}",
+    blocks: [
+      rt(
+        "<p>Hi {firstName},</p>" +
+          "<p>You’ll meet on {weeklySlot}, starting {firstSession}.</p>" +
+          "<p>Where: {where}</p>" +
+          "<p>{leadName} runs the sessions.</p>" +
+          "<p>Week 1 is on your programme’s page.</p>" +
+          '<p><a href="{programmeUrl}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#6a82ff;color:#050810;font-weight:600;text-decoration:none">Open your programme</a></p>' +
+          '<p>{leadName}<br /><span style="color:#71717a">{programmeName} lead, NAISI</span></p>',
       ),
     ],
   },

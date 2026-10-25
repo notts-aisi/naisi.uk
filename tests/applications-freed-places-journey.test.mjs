@@ -69,15 +69,19 @@ describe("from a freed place to a group", () => {
     const published = await api.publish();
     assert.equal(published.status, 200, JSON.stringify(published.body));
     // Publish sends the presser a test first and tells each group's
-    // facilitators (the course hub's Publish, October 2026), so the mail is
-    // the presser's two tests, a placement email to each holder, and one
-    // "You’re facilitating" to Claudia for each of the two groups.
+    // facilitators (the course hub's Publish, October 2026). Both groups'
+    // facilitator is Claudia, who leads AGI Strategy, the programme that
+    // names the run: she signs "You’re facilitating" and is never sent it
+    // (the walk of stage one, October 2026; until then she was sent it once
+    // for each group, from herself). So the mail is the presser's one test,
+    // of the placement email, and a placement email to each holder.
     const tests = world.mail.filter((message) => message.subject.startsWith("[TEST]"));
     const facilitating = world.mail.filter((message) => message.subject.startsWith("You’re facilitating"));
     const placing = world.mail.filter((message) => !tests.includes(message) && !facilitating.includes(message));
-    assert.deepEqual(tests.map((message) => message.to), ["zach@example.com", "zach@example.com"]);
+    assert.deepEqual(tests.map((message) => message.to), ["zach@example.com"]);
     assert.deepEqual(placing.map((message) => message.to).sort(), HOLDERS.map((uid) => `${uid}@example.com`));
-    assert.deepEqual(facilitating.map((message) => message.to), ["claudia@example.com", "claudia@example.com"]);
+    assert.deepEqual(facilitating.map((message) => message.to), []);
+    assert.deepEqual(published.body.report.facilitators, { sent: 0, held: 0, suppressed: 0 });
     world.mail.length = 0;
   });
 
@@ -126,9 +130,9 @@ describe("from a freed place to a group", () => {
     const published = await api.publish();
     assert.equal(published.status, 200, JSON.stringify(published.body));
     // The answer says what became of each email (the course hub's Publish):
-    // one placement email, to him, and nothing to his group's facilitators,
-    // who were told on the first press. No second test: the wording has not
-    // changed since the first.
+    // one placement email, to him, and nothing to his group's facilitator,
+    // Claudia, who leads the programme and signs that email. No second test:
+    // the wording has not changed since the first.
     assert.deepEqual(published.body.report.people, { sent: 1, held: 0, suppressed: 0 });
     assert.deepEqual(published.body.report.facilitators, { sent: 0, held: 0, suppressed: 0 });
     assert.deepEqual(sentTo(), ["omar@example.com"]);

@@ -725,9 +725,11 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
                     {decision.placedOn}, a higher choice of theirs, accepted them.
                   </p>
                 ) : null}
-                {decision.byInvitation ? (
+                {decision.byInvitation || decision.freedPlace ? (
                   // Nobody decided this here: the committee invited them and
-                  // they said yes, so there is nothing for this programme to decide.
+                  // they said yes, so there is nothing for this programme to
+                  // decide. A freed place is an invitation too, offered after
+                  // decision day to somebody this programme pooled.
                   <p className={styles.decided}>
                     {applicant.firstName} accepted an invitation to {programme.shortName}. There’s
                     no decision to make here.

@@ -2,6 +2,7 @@ import { formatRunStartShort } from "@/lib/courses/window";
 import {
   BORDERLINE_MARGIN,
   hasBeenTold,
+  holdingOf,
   isInTerm,
   owesDecision,
   placementFor,
@@ -75,6 +76,14 @@ import type {
  * head's places line already says of them. Nobody has a row for an
  * invitation that is only picked, or sent and not yet answered.
  *
+ * SOMEBODY WHO ACCEPTED A FREED PLACE READS AS ACCEPTED TOO, marked
+ * `freedPlace` ({@link holdsFreedPlace}). They ranked the programme and its
+ * lead pooled them, and that decision stands as the record of what was
+ * decided. But they hold the place now, and the head's places line counts
+ * it, so their row stands as accepted, under the Accepted tab and not the
+ * Pooled one, with the line an accepted invitation has: the tabs, the chip
+ * and the head say one thing.
+ *
  * Pure, with no server import: the route gates the caller and loads the
  * documents, and hands them here.
  */
@@ -93,6 +102,32 @@ type Working = {
 
 function commentCount(reviews: readonly ReviewDoc[]): number {
   return reviews.reduce((total, review) => total + review.comments.length, 0);
+}
+
+/**
+ * DOES THIS PERSON HOLD A FREED PLACE ON THIS PROGRAMME? The one reading of
+ * it, for the list and for the single application.
+ *
+ * A freed place is offered after decision day to somebody who ranked the
+ * programme and whom its own lead pooled (`offerProblem` in
+ * `../freedPlaces/rules.ts`), and once they accept it {@link holdingOf}, the
+ * one answer every count of places reads, says they hold the place by an
+ * invitation. So it is asked in exactly those words here: ranked, pooled by
+ * this programme, and holding its place by an invitation. Somebody who has
+ * left the term holds nothing, so it is false for them.
+ */
+export function holdsFreedPlace(
+  form: Pick<ApplicationForm, "programmeIds">,
+  term: Pick<TermPicture, "ranked" | "decisions">,
+  application: ApplicationDoc,
+  programmeId: string,
+): boolean {
+  const ranked = term.ranked.get(application.uid) ?? [];
+  if (!ranked.includes(programmeId)) return false;
+  const decision = term.decisions.get(application.uid) ?? null;
+  if (standingWith(decision, programmeId) !== "pooled") return false;
+  const holding = holdingOf({ uid: application.uid, ranked, decision, application }, new Set(form.programmeIds));
+  return holding.byInvitation === programmeId;
 }
 
 function buildRow(input: {
@@ -138,8 +173,12 @@ function buildRow(input: {
       : null;
   }
 
-  // An invitation accepted is a place accepted: nobody decided it here.
-  const standing = byInvitation ? "accepted" : standingWith(decision, programmeId);
+  // A freed place accepted: the lead's Pool stands as the record of what was
+  // decided, and the place is held all the same (see the note at the top).
+  const freedPlace = !byInvitation && holdsFreedPlace(form, term, application, programmeId);
+  // An invitation accepted is a place accepted: nobody decided it here. So is
+  // a freed place.
+  const standing = byInvitation || freedPlace ? "accepted" : standingWith(decision, programmeId);
   const owes = owesDecision(ranked, decision, programmeId);
   // Somebody who has left the term holds no place, whatever was decided.
   const inTerm = isInTerm(application);
@@ -167,6 +206,7 @@ function buildRow(input: {
       withdrawn: application.status === "withdrawn",
       gaveBack: gaveBackOf(application),
       byInvitation,
+      freedPlace,
       choice: at + 1,
       firstChoiceName: at === 0 ? null : (programmeOn(form, ranked[0])?.shortName ?? null),
       score: score === null ? null : formatScore(score),
@@ -263,6 +303,9 @@ export function buildProgrammeBoard(input: {
   // Here by an invitation they accepted, and still in the term: on the list,
   // decided and accepted, though the programme's lead decided none of it.
   const joined = tally?.joined ?? 0;
+  // Holding a freed place: the tally counts them where the lead's Pool put
+  // them, and their row reads as accepted, so the two tabs move with it.
+  const freed = working.filter(({ row, inTerm }) => inTerm && row.freedPlace).length;
   const decided = (tally ? tally.accepted + tally.pooled + tally.declined : 0) + joined;
   const applications = (tally?.applications ?? 0) + joined;
   const toReview = tally?.toReview ?? 0;
@@ -309,8 +352,9 @@ export function buildProgrammeBoard(input: {
     counts: {
       all: applications,
       toReview,
-      accepted: (tally?.accepted ?? 0) + joined,
-      pooled: tally?.pooled ?? 0,
+      accepted: (tally?.accepted ?? 0) + joined + freed,
+      // Never below zero: each of them is one the tally counted as pooled.
+      pooled: (tally?.pooled ?? 0) - freed,
       declined: tally?.declined ?? 0,
     },
     queue,

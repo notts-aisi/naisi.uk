@@ -184,7 +184,7 @@ export type PlacementFacts = {
   groupName: string | null;
   /** "Priya and Sam", or null while the group has no facilitator. */
   facilitatorNames: string | null;
-  /** "Tuesday 27 October, 18:00", or null when no first session can be worked out. */
+  /** "Tue 27 Oct, 6pm", or null when no first session can be worked out. */
   firstSessionWhen: string | null;
   firstSessionWhere: PlacementWhere | null;
 };

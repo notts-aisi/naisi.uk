@@ -2,6 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { listForms } from "@/lib/applications/handover/run";
 import { own } from "@/lib/applications/keys";
+import type { ProgrammeKind } from "@/lib/applications/model";
 import type { ApplicationForm } from "@/lib/applications/normalise";
 import { holdsStanding, isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { Role, SessionUser } from "@/lib/firebase/session";
@@ -55,6 +56,8 @@ export type NamingProgramme = {
   leadUid: string | null;
   /** The programme's short name ("AGI Strategy"), or null when it has none. */
   shortName: string | null;
+  /** A fellowship or an incubator: Publish sends an incubator's people their own email. */
+  kind: ProgrammeKind;
 };
 
 /**
@@ -76,6 +79,7 @@ export function namingProgrammeIn(
         programmeId,
         leadUid: programme.leadUid,
         shortName: programme.shortName.trim() || null,
+        kind: programme.kind,
       });
     }
   }
