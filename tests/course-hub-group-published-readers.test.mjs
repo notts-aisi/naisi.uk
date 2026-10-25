@@ -120,6 +120,11 @@ const READERS = {
     asks: 1,
     why: "who an update is to and who its email reaches: an untold seat counts as nobody, and the email goes through the cohort audience, which leaves it out",
   },
+  "lib/courses/sharedNotes/readers.ts": {
+    kind: "told",
+    asks: 1,
+    why: "who reads and writes a group's shared notes: the caller's own place counts only once Publish has told them, whoever asks, an admin's own untold place included, so an untold seat neither reads nor writes its group's notes",
+  },
   "lib/courses/registerAccess.ts": {
     kind: "shown",
     asks: 1,

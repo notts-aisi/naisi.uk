@@ -394,6 +394,16 @@ const RAW_SITES = {
       "document already sitting at that address ours? It " +
       "decides whether to write, never whether the caller may.",
   },
+  "src/app/api/courses/groups/[groupId]/shared-notes/[noteId]/route.ts": {
+    role: "not-a-gate",
+    matches: { authorUid: 1 },
+    provedBy: ['if (!holdsStanding(actor, "courseEnrolments.uid")) {'],
+    why:
+      "A note shared with a group (`courseGroupSharedNotes.authorUid`) is its writer's own words, and the " +
+      "comparison decides only that the caller is deleting their own note: an ownership scalar, not an " +
+      "appointment, caught because worksheets name their author the same way. The roster floor is " +
+      "applied above it, so an account that has lost its standing deletes nothing.",
+  },
   "src/app/api/tasks/[id]/send-for-review/route.ts": {
     role: "not-a-gate",
     matches: { reviewerUids: 1 },

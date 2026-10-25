@@ -2211,6 +2211,27 @@ service cloud.firestore {
         function run() {
           return get(/databases/$(database)/documents/courseRuns/$(runId)).data;
         }
+        // "Questions to think about" (C29): at most five, each a line of
+        // text of 1 to 160 characters (COURSE_FIELD_LIMITS.maxWeekQuestions
+        // and .weekQuestion in src/lib/firestore/courses.ts; keep the three in
+        // step). A rule cannot loop, so each of the five places is checked by
+        // its index, and a list shorter than an index passes that index's
+        // check. A week with none, or written before the field, holds [].
+        function weekQuestionOk(questions, i) {
+          return questions.size() <= i
+            || (questions[i] is string
+                && questions[i].size() > 0
+                && questions[i].size() <= 160);
+        }
+        function weekQuestionsOk(questions) {
+          return questions is list
+            && questions.size() <= 5
+            && weekQuestionOk(questions, 0)
+            && weekQuestionOk(questions, 1)
+            && weekQuestionOk(questions, 2)
+            && weekQuestionOk(questions, 3)
+            && weekQuestionOk(questions, 4);
+        }
         // Who may author curriculum in THIS run: admin, any approver, the
         // run's drafter-owner, or one of its track leads. Resolved against
         // the PARENT run doc — weeks carry no role fields of their own, so
@@ -2241,7 +2262,8 @@ service cloud.firestore {
           && request.resource.data.get('guideBlocks', []).size() <= 40
           && request.resource.data.get('materials', []).size() <= 30
           && request.resource.data.get('exercises', []).size() <= 15
-          && request.resource.data.get('checklist', []).size() <= 15;
+          && request.resource.data.get('checklist', []).size() <= 15
+          && weekQuestionsOk(request.resource.data.get('questions', []));
 
         // Destroying authored content outranks editing it: a drafter or
         // track lead can blank a week's fields but not remove the doc.
@@ -2931,6 +2953,20 @@ service cloud.firestore {
     // their own gates. So every browser is refused, admins, the programme's
     // lead and a note's own writer included.
     match /courseGroupNotes/{noteId} {
+      allow read, write: if false;
+    }
+
+    // === courseGroupSharedNotes ===
+    // The notes a group's people and facilitators share with the group on
+    // its week pages (C29, src/lib/firestore/courseGroupSharedNotes.ts):
+    // written only by the shared notes routes on the Admin SDK (one adds a
+    // note for the group's people and its live facilitators, one deletes a
+    // note for the person who wrote it), and read only on the server through
+    // src/lib/courses/sharedNotes/readers.ts, which decides who reads which
+    // group's notes: a group's notes never reach another group. So every
+    // browser is refused, admins, the programme's lead, the group's own
+    // people and a note's own writer included.
+    match /courseGroupSharedNotes/{noteId} {
       allow read, write: if false;
     }
 
