@@ -46,19 +46,20 @@ import { registerSwitchesIn, type RegisterSwitches } from "@/lib/scheduler/regis
  *  - Somebody who LEFT: an enrolment that has left the run, withdrawn by its
  *    owner or removed by staff, listed with the marks they had before they
  *    left (C27), for every viewer alike, and only where a register of the
- *    group holds a mark for them. Leaving clears the stamp Publish leaves, so
- *    the mark is the proof they were on that register; somebody who left
- *    before any register marked them took no part, and is nobody's row. A
- *    withdrawn row keeps its group and its date (`droppedOutAt`); a removed
- *    row keeps neither, so it is listed in the group whose register last
- *    marked it, as "Left" with no date.
+ *    group holds a mark for them: the mark is the proof they were on that
+ *    register, and somebody who left before any register marked them took
+ *    no part, and is nobody's row. Both kinds keep the day they went
+ *    (`droppedOutAt`; a row removed before Remove recorded it has none, and
+ *    reads "Left"). A withdrawn row keeps its group; a removed row does not,
+ *    so it is listed in the group whose register last marked it.
  *
  * ── WHAT COUNTS ─────────────────────────────────────────────────────────────
  * "Came" counts present, late and left early, as the board says; "of" counts
  * every mark on a held register of a session that has started, excused and
  * absent included. A mark saved on a register not finished yet counts too,
  * drawn with a ring, because the board counts it ("Saved, not finished").
- * A session the register says did not happen counts for nobody.
+ * A session the register says did not happen counts for nobody, and nor
+ * does one cancelled through "Change a session".
  *
  * ── ONE SESSION A WEEK ──────────────────────────────────────────────────────
  * A column is a taught week, and each group's first session of it. Every
@@ -387,7 +388,11 @@ export function groupSessions(records: RunRecords, group: CourseGroupDoc, now: D
     const { startsAt, endsAt } = sessionInstants(session);
     const register =
       records.registers.get(attendanceDocId(records.run.id, group.id, session.weekNumber, session.occurrence)) ?? null;
-    const held = register ? register.held : true;
+    // A session cancelled through "Change a session" did not happen, as a
+    // register that says so did not: nothing is chased or reminded for it,
+    // and it counts in no figure, as the register jobs and who finished
+    // already read it.
+    const held = !session.cancelled && (register ? register.held : true);
     const finished = register?.pushedAt instanceof Date;
     const started = startsAt !== null && startsAt.getTime() <= now.getTime();
     const ended = endsAt !== null && endsAt.getTime() <= now.getTime();
