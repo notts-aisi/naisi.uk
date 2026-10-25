@@ -15,6 +15,7 @@ import {
   type CourseRunDoc,
 } from "./courses";
 import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
+import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
 import { COURSE_AUDIT_COLLECTION } from "./courseAudit";
 import { COURSE_PAGES_COLLECTION } from "./coursePages";
 import { COURSE_UPDATES_COLLECTION } from "./courseUpdates";
@@ -167,6 +168,13 @@ export type RunDestroyCounts = {
    * cascade deletes.
    */
   pitches: number;
+  /**
+   * `courseTeams` rows: an incubator's teams on this run, each with its
+   * people and what each of them was told (`src/lib/courses/teams/`). Keyed
+   * by `runId` on the row like every other leaf here, and it dies with the
+   * run: a team names a group this cascade deletes.
+   */
+  teams: number;
   mirroredTasks: number;
   /**
    * `tasks` carrying `source: "course-register"` and pointing at this run: the
@@ -905,6 +913,7 @@ export async function countRunDestroyTargets(
     attendanceRegisters,
     materialNotes,
     pitches,
+    teams,
     mirroredTasks,
     registerTasks,
     subscriptionRows,
@@ -930,6 +939,8 @@ export async function countRunDestroyTargets(
     ),
     // The same single equality the pitches stage drains on.
     countAgg(db.collection(PITCHES_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the teams stage drains on.
+    countAgg(db.collection(TEAMS_COLLECTION).where("runId", "==", runId)),
     // Both halves of the mirror predicate, exactly as drainSourcedTasks
     // deletes them: a manifest that counted on the pointer alone would
     // promise to destroy rows the cascade (rightly) leaves alone.
@@ -980,6 +991,7 @@ export async function countRunDestroyTargets(
     attendanceRegisters,
     materialNotes,
     pitches,
+    teams,
     mirroredTasks,
     registerTasks,
     subscriptionRows,
@@ -1406,6 +1418,13 @@ export async function destroyRunCascade(
       // refuse anybody without a live seat on the run, so the row is drained
       // here, before the enrolments that open that door.
       drain: () => drainQuery(db, PITCHES_COLLECTION, byRunId(PITCHES_COLLECTION), budget),
+    },
+    {
+      key: "teams",
+      // An incubator's teams: a leaf keyed by `runId`, written only by the
+      // teams routes, which refuse a run being destroyed. Drained with the
+      // pitches the teams were made from, before the enrolments.
+      drain: () => drainQuery(db, TEAMS_COLLECTION, byRunId(TEAMS_COLLECTION), budget),
     },
     {
       key: "enrolments",
