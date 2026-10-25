@@ -1215,8 +1215,14 @@ const KOFI_PAGE =
   "your group and when it meets. I’m coming Optional. It helps us plan groups. I can’t make it This frees your " +
   "place for someone else. Questions? ai-safety@uonsu.com";
 
-const B_WHEN = "Tuesday 3 November, 18:00";
-const A_WHEN = "Thursday 29 October, 18:00";
+/**
+ * Each group's first session as the placement email writes it: in the words
+ * the facilitators' email and the boards write a session in ("Tue 3 Nov",
+ * "6pm"), since the walk of stage one found this email alone writing
+ * "Tuesday 3 November, 18:00" (F5).
+ */
+const B_WHEN = "Tue 3 Nov, 6pm";
+const A_WHEN = "Thu 29 Oct, 6pm";
 const B_PLACED = (first) => placementWords({ first, group: "Group B", facilitators: "Rahul and Sofia", when: B_WHEN, room: "Room C20" });
 const A_PLACED = (first) => placementWords({ first, group: "Group A", facilitators: "Amelia", when: A_WHEN, room: "Room A13" });
 const B_SUBJECT = `Your AGI Strategy Fellowship group: first session ${B_WHEN}`;
@@ -1710,7 +1716,7 @@ describe("stage one of the course hub, one term from decision day to the first s
     // how the first week works would come and were never told about a group,
     // are told their group in the words a fellowship's people are.
     test("Publish tells the incubator's people their group, in the words a fellowship's people read", () => {
-      const subject = "Your Research Incubator group: first session Monday 2 November, 17:00";
+      const subject = "Your Research Incubator group: first session Mon 2 Nov, 5pm";
       assert.deepEqual(
         i().mail.map((mail) => [mail.to, mail.subject, mail.kind]),
         [
@@ -1729,7 +1735,7 @@ describe("stage one of the course hub, one term from decision day to the first s
             group: "Group A",
             course: "Research Incubator",
             facilitators: "Tess",
-            when: "Monday 2 November, 17:00",
+            when: "Mon 2 Nov, 5pm",
             room: "Room B5",
           }),
         );

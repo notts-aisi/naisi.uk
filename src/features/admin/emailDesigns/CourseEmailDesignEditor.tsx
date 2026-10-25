@@ -79,7 +79,7 @@ const ALWAYS_TOKENS: TokenHelp[] = [
 const GROUP_TOKENS: TokenHelp[] = [
   { token: "groupName", description: "The small group they were placed in." },
   { token: "facilitatorNames", description: "Who facilitates that group, e.g. Priya and Sam." },
-  { token: "firstSessionWhen", description: "Their group's first session, date and time." },
+  { token: "firstSessionWhen", description: "Their group's first session, date and time, e.g. Tue 3 Nov, 6pm." },
   {
     token: "firstSessionWhere",
     description:

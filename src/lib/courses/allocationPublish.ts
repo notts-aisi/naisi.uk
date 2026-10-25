@@ -21,6 +21,7 @@ import { loadCourseEmailTemplate, type CourseEmailTemplate } from "@/lib/email/c
 // imports one, so the tree walk in tests/email-unfilled-tokens.test.mjs
 // finds these calls and holds them to "whole".
 import {
+  clockWords,
   composeFacilitatingEmail,
   facilitatingRefusal,
   namesInWords,
@@ -270,24 +271,26 @@ function firstSessionOf(run: CourseRunDoc, group: CourseGroupDoc): ResolvedSessi
 }
 
 /**
- * "{Weekday} {day} {month}, {HH:MM}" for a group's first taught session: the
- * placement email's {firstSessionWhen} token. A HUMAN label, deliberately not
- * an instant: the session is a London wall-clock slot and the email should
- * read the way a facilitator would say it. Undefined when the group's
- * calendar has no valid start date, no taught week, or its slot has no time
- * yet, and publishing is then refused for that group (`whyNoFirstSession`
- * says which it was).
+ * "Tue 3 Nov, 6pm" for a group's first taught session: the placement email's
+ * {firstSessionWhen} token, in the words the facilitators' email and the
+ * member's Home write a session in ("Tue 3 Nov", "6pm"). A HUMAN label,
+ * deliberately not an instant: the session is a London wall-clock slot and
+ * the email should read the way a facilitator would say it. Undefined when
+ * the group's calendar has no valid start date, no taught week, or its slot
+ * has no time yet, and publishing is then refused for that group
+ * (`whyNoFirstSession` says which it was).
+ *
+ * THE SHAPE STAYS A DATE, A COMMA AND A TIME, as it was when it read
+ * "Tuesday 3 November, 18:00", so wording an admin saved around the token in
+ * Email designs ("Your first session is {firstSessionWhen}.") reads as it
+ * did.
  */
 export function firstSessionWhen(run: CourseRunDoc, group: CourseGroupDoc): string | undefined {
   const first = firstSessionOf(run, group);
   if (!first) return undefined;
-  const dayLabel = new Intl.DateTimeFormat("en-GB", {
-    timeZone: COURSE_TZ,
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).format(new Date(`${first.dateKey}T12:00:00Z`));
-  return `${dayLabel}, ${first.session.startTimeLocal}`;
+  const day = formatRunStartShort(first.dateKey);
+  const at = clockWords(first.session.startTimeLocal);
+  return day && at ? `${day}, ${at}` : undefined;
 }
 
 /** Why a group has no first session, so the refusal can say what to set. */

@@ -21,7 +21,7 @@ export const COURSE_PREVIEW_SAMPLE = {
   startDate: "Monday 6 October",
   groupName: "Tuesday 6pm — Group B",
   facilitatorNames: "Priya and Sam",
-  firstSessionWhen: "Tuesday 7 October, 6pm",
+  firstSessionWhen: "Tue 7 Oct, 6pm",
   firstSessionWhere: "Hallward Library, B12",
   feedbackUrl: "https://example.com/naisi-course-feedback",
 } as const;

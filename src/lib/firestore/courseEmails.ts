@@ -168,7 +168,7 @@ export type CourseTokenMap = {
   groupName?: string;
   /** Comma-joined display names, e.g. "Priya and Sam". */
   facilitatorNames?: string;
-  /** Human-formatted first session, e.g. "Tuesday 7 October, 6pm". */
+  /** Human-formatted first session, e.g. "Tue 7 Oct, 6pm". */
   firstSessionWhen?: string;
   /**
    * Where that first session is: the room, or "Online" for a group that

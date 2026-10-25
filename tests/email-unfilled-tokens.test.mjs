@@ -1243,12 +1243,15 @@ describe("publishing an allocation", { concurrency: false }, () => {
     // Each of the group's facilitators is told too, once, after the people.
     assert.deepEqual(world.sent.filter(isFacilitating).map((mail) => mail.to), ["priya@example.com", "sam@example.com"]);
     const mail = await opened(world.sent[0]);
-    assert.equal(mail.subject, "Your AI Safety Fundamentals group: first session Tuesday 27 October, 18:00");
+    // The first session in the words the facilitators' email and the boards
+    // write one ("Tue 27 Oct", "6pm"), since the course hub's walk (October
+    // 2026): until then this email alone wrote "Tuesday 27 October, 18:00".
+    assert.equal(mail.subject, "Your AI Safety Fundamentals group: first session Tue 27 Oct, 6pm");
     for (const said of [
       "You've been placed, Amara",
       "You're in Group A for AI Safety Fundamentals (Autumn 2026).",
       "Your group is facilitated by Priya and Sam.",
-      "Your first session is Tuesday 27 October, 18:00",
+      "Your first session is Tue 27 Oct, 6pm .",
       "Where: Hallward B12",
     ]) {
       assert.ok(mail.text.includes(said), `missing: ${said}`);
@@ -1256,6 +1259,32 @@ describe("publishing an allocation", { concurrency: false }, () => {
     assert.ok((await stored(`courseEnrolments/${RUN}__amara`)).allocatedEmailAt, "the person told is not stamped");
     assert.ok((await stored(`courseRuns/${RUN}`)).allocationPublishedAt);
     assert.deepEqual(world.pushed, ["amara", "ben"]);
+  });
+
+  test("the first session is written as the boards write a session: the short date, a comma, the time of day", async () => {
+    stage({
+      groups: {
+        a: group("Group A", { session: slot({ startTimeLocal: "12:00" }) }),
+        b: group("Group B", { session: slot({ weekday: 3, startTimeLocal: "09:00" }) }),
+        c: group("Group C", { session: slot({ weekday: 4, startTimeLocal: "18:30" }) }),
+        d: group("Group D", { session: slot({ weekday: 1, startTimeLocal: "00:00" }) }),
+      },
+      people: { amara: "a", ben: "b", chloe: "c", dev: "d" },
+    });
+    const response = await press();
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.deepEqual(
+      Object.fromEntries(placedMail().map((mail) => [mail.to, mail.subject])),
+      {
+        "amara@example.com": "Your AI Safety Fundamentals group: first session Tue 27 Oct, 12pm",
+        "ben@example.com": "Your AI Safety Fundamentals group: first session Wed 28 Oct, 9am",
+        "chloe@example.com": "Your AI Safety Fundamentals group: first session Thu 29 Oct, 6:30pm",
+        // The run's first day is a Monday, so a Monday group meets on it.
+        "dev@example.com": "Your AI Safety Fundamentals group: first session Mon 26 Oct, 12am",
+      },
+    );
+    // Nothing of the old long form, and no 24-hour clock.
+    for (const mail of placedMail()) assert.doesNotMatch(mail.subject, /October|\d{2}:\d{2}/, mail.subject);
   });
 
   test("no email from the route carries a token, whatever its groups lack", async () => {
@@ -1399,7 +1428,8 @@ describe("publishing an allocation", { concurrency: false }, () => {
     assert.equal(sent.status, 200);
     const mail = await opened(world.sent[0]);
     assert.equal(mail.subject, "Your AI Safety Fundamentals group, Amara");
-    assert.ok(mail.text.includes("You're in Group A , facilitated by Priya and Sam. First session: Tuesday 27 October, 18:00."), mail.text);
+    // The first session in the boards' words, as above.
+    assert.ok(mail.text.includes("You're in Group A , facilitated by Priya and Sam. First session: Tue 27 Oct, 6pm."), mail.text);
 
     stage({ template: before, groups: { a: group("Group A", { facilitatorUids: [] }) } });
     const refused = await press();
