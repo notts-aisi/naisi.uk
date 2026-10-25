@@ -1094,27 +1094,43 @@ async function aPlaceGivenBack() {
   g.reply = await step("Ella gives her place back", 200, "ella", routes.reply.POST, params(), {
     body: { reply: "cant-make-it", reason: { kind: "times", other: "" } },
   });
-  g.mailedByTheReply = mailSince(mailBefore).map((mail) => mail.to);
+  // Q12: in a group Publish told her about, her reply is leaving the
+  // programme, and the leave's email goes after the answer without being
+  // waited for.
+  await new Promise((resolve) => setImmediate(resolve));
+  g.mailedByTheReply = mailSince(mailBefore).map((mail) => [mail.to, mail.subject, mail.kind]);
   g.page = await ownPage("ella");
   g.panel = (await call("zach", routes.run.GET, of("agi"))).body?.panel ?? null;
+  // Off Group B at once, with nobody pressing anything.
+  g.groupB = { memberCount: groupDoc(GROUP.B).memberCount };
+  g.enrolment = (({ status, groupId, allocatedEmailAt, droppedOutAt, dropOutReason }) => ({
+    status,
+    groupId,
+    told: allocatedEmailAt instanceof Date,
+    droppedOutAt: droppedOutAt instanceof Date ? droppedOutAt.toISOString() : droppedOutAt ?? null,
+    dropOutReason: dropOutReason ?? null,
+  }))(enrolmentDoc("ella"));
+  // Her place on the form, given back in the same transaction.
+  g.application = (({ status, attendance, releaseReason }) => ({
+    status,
+    attendance: attendance?.answer ?? null,
+    releaseReason: releaseReason ?? null,
+  }))(world.db.read(`admissionApplications/${ROUND}__ella`));
+  // Her facilitators' register: who left the group, as it lists them.
+  g.registerLeavers =((await courseCall("rahul", courseRoutes.register.GET, { groupId: GROUP.B })).body?.leavers ?? []).map(
+    (leaver) => [leaver.displayName, leaver.left],
+  );
   await reads("Ella gave her place back");
   await timesAndBoard("Ella gave her place back");
+  // Her seat is free the moment she has left: the page already offers it.
+  // Nothing is pressed here; the programme's lead offers it in 8.
   g.offerPage = await offerPage("zach");
-  // Offered before the runbook's two steps: Group B still holds her seat.
-  g.testBeforeTheSeatIsFree = await call("zach", routes.freedPlacesTest.POST, of("agi"), { body: { uid: "hannah", groupId: GROUP.B, replyBy: "2026-10-30" } });
-  g.offerBeforeTheSeatIsFree = await call("zach", routes.freedPlaces.POST, of("agi"), {
-    body: { picks: [{ uid: "hannah", groupId: GROUP.B }], replyBy: "2026-10-30", invitations: 1 },
-  });
   g.summaryBeforeTidying = await publishSummary();
 
-  // The runbook's two steps: Remove on the board, then the row changed from Accepted.
+  // What is left of the runbook: her row on the run's own list changed from
+  // Accepted. (Q12: Remove on the board, the runbook's other step, is not
+  // one for somebody Publish had told: her reply took her out of her group.)
   at("tidying");
-  const beforeTheRemove = world.mail.length;
-  g.removed = await courseStep("an admin removes Ella on the board", 200, "zach", courseRoutes.remove.POST, { runId: RUN, uid: "ella" });
-  g.mailedByTheRemove = mailSince(beforeTheRemove).map((mail) => mail.to);
-  g.groupB = { memberCount: groupDoc(GROUP.B).memberCount };
-  g.enrolment = (({ status, groupId, allocatedEmailAt }) => ({ status, groupId, allocatedEmailAt: allocatedEmailAt ?? null }))(enrolmentDoc("ella"));
-  await reads("Ella removed");
   g.summaryBetween = await publishSummary();
   g.publishBetween = await courseCall("zach", courseRoutes.publish.POST, { runId: RUN }, { body: { emails: g.summaryBetween?.emails ?? -1 } });
   const beforeTheRowChange = world.mail.length;
@@ -1240,6 +1256,25 @@ const KOFI_PAGE =
   "starts w/c 26 Oct You’ll be in a small group with a facilitator, on campus. Before you start, we’ll email you " +
   "your group and when it meets. I’m coming Optional. It helps us plan groups. I can’t make it This frees your " +
   "place for someone else. Questions? ai-safety@uonsu.com";
+
+/**
+ * A fellowship place's page once Publish has told its owner their group (Q12):
+ * no "I’m coming" and no "I can’t make it", but the way to their programme's
+ * page and what giving the place back now means there. In the words written
+ * for the boards' designers to confirm (`src/lib/applications/status/runWords.ts`).
+ */
+const AGI_TOLD_PAGE = (group) =>
+  "Your application AGI Strategy Fellowship Accepted Autumn 2026 · Fri 23 Oct You’re in AGI Strategy. 6 WEEKS · " +
+  `starts w/c 26 Oct You’re in ${group}. Your programme’s page has your sessions and each week’s reading. Go to ` +
+  `your programme Changed your mind? Giving your place back now means leaving ${group}. You can do that from your ` +
+  "programme’s page. Questions? ai-safety@uonsu.com";
+
+/** An incubator place's page once Publish has told its owner: the same, naming no group. */
+const INCUBATOR_TOLD_PAGE =
+  "Your application Research Incubator Accepted Autumn 2026 · Fri 23 Oct You’re in Research incubator. 10 WEEKS · " +
+  "starts w/c 2 Nov Your programme’s page has your sessions and each week’s reading. Go to your programme Changed " +
+  "your mind? Giving your place back now means leaving the programme. You can do that from your programme’s page. " +
+  "Questions? ai-safety@uonsu.com";
 
 /**
  * Each group's first session as the placement email writes it: in the words
@@ -1468,6 +1503,9 @@ describe("stage one of the course hub, one term from decision day to the first s
       assert.deepEqual(timesAt("named, nobody handed over").board.canMake, { "Group B": 0, "Group A": 0 });
       assert.deepEqual(timesAt("named, nobody handed over").picture.canMake, { "Group A": 2, "Group B": 3 });
       // Ella has given her place back and is still on the board, her card saying so.
+      // (Q12: in a group Publish told her about, her reply was leaving it, so
+      // her seat reads as left, the group and Publish's stamp kept as leaving
+      // keeps them; until then a reply left the seat active.)
       const gaveBack = timesAt("Ella gave her place back");
       assert.deepEqual(gaveBack.picture.canMake, { "Group A": 2, "Group B": 2 });
       assert.deepEqual(gaveBack.board.canMake, { "Group B": 3, "Group A": 2 });
@@ -1476,7 +1514,7 @@ describe("stage one of the course hub, one term from decision day to the first s
         canMake: ["Group B"],
         holdsPlace: false,
         group: "Group B",
-        enrolment: "active",
+        enrolment: "withdrawn",
         emailed: true,
       });
       // Hannah has accepted the freed place and is not handed over yet.
@@ -1708,14 +1746,21 @@ describe("stage one of the course hub, one term from decision day to the first s
       );
     });
 
-    // What a placed person's own application page says is decided on the
-    // application side, which reads nothing of the course run. So after
-    // Publish has emailed somebody their group, their page still says the
-    // email is to come, and still asks them to say they are coming to help
-    // plan groups: word for word what it said before Publish.
-    test("after Publish a placed person's application page says what it said before it", () => {
-      for (const uid of AGI_PLACES) assert.equal(seen.pages.published[uid].text, seen.pages.placed[uid].text, uid);
-      assert.equal(seen.pages.published.kofi.text, KOFI_PAGE);
+    // CHANGED ON PURPOSE (Q12, the walk of stage three's H4). Until then a
+    // placed person's own application page read nothing of the course run, so
+    // after Publish had emailed them their group it still said the email was
+    // to come and still offered "I can’t make it" as if nothing had happened.
+    // Once Publish has told them, giving the place back is leaving their
+    // group: the page points to their programme's page, where leaving is, and
+    // says so, and the reply buttons are gone.
+    test("after Publish a placed person's application page points to their programme's page, and says giving the place back now means leaving their group", () => {
+      const groupOf = Object.fromEntries(PLACEMENTS.map(({ uid, groupId }) => [uid, GROUP_NAME[groupId]]));
+      for (const uid of AGI_PLACES) {
+        assert.equal(seen.pages.placed[uid].view.inGroup, undefined, uid);
+        assert.equal(seen.pages.published[uid].text, AGI_TOLD_PAGE(groupOf[uid]), uid);
+        assert.deepEqual(seen.pages.published[uid].view.inGroup, { runId: RUN, groupName: groupOf[uid], leave: "open" }, uid);
+      }
+      assert.equal(seen.pages.placed.kofi.text, KOFI_PAGE);
     });
   });
 
@@ -1790,28 +1835,55 @@ describe("stage one of the course hub, one term from decision day to the first s
       );
     });
 
-    test("then the incubator's people read their run; their application page still says the email is to come", () => {
+    // CHANGED ON PURPOSE (Q12): once Publish has told them, their application
+    // page points to their programme's page as a fellowship's does, and names
+    // no group, which an incubator's people are never told of.
+    test("then the incubator's people read their run; their application page points to their programme's page, naming no group", () => {
       const read = readAt("the incubator published");
       for (const uid of INCUBATOR_PLACES) {
         assert.deepEqual(read[uid], IN("Group A", INC_RUN, "the incubator's Group A"), uid);
-        assert.equal(i().pages[uid].text, seen.pages.placed[uid].text, uid);
+        assert.equal(i().pages[uid].text, INCUBATOR_TOLD_PAGE, uid);
+        assert.deepEqual(i().pages[uid].view.inGroup, { runId: INC_RUN, groupName: null, leave: "open" }, uid);
+        assert.doesNotMatch(i().pages[uid].text, /group/i, uid);
       }
     });
   });
 
   // -------------------------------------------------------------------------
-  describe("7. a place given back after Publish", () => {
+  // CHANGED ON PURPOSE (Q12, the walk of stage three's H4 and 4a's question 3).
+  // Until then "I can’t make it" after Publish gave the place back on the form
+  // and left Ella in Group B until an admin took her out with the runbook's
+  // two steps. Once Publish has told somebody their group, the reply is
+  // leaving the programme: the same leave as "Leave the programme", written
+  // by the same code, in one transaction with the place on the form.
+  describe("7. a place given back after Publish is leaving the programme", () => {
     const g = () => seen.gaveBack;
 
-    test("Ella's reply gives the place back on her own page, and emails nobody", () => {
+    test("Ella's reply takes her out of Group B at once and gives the place back; her page says she left, and the one email is the leave's, to her", () => {
       assert.equal(g().reply.status, 200);
-      assert.deepEqual(g().mailedByTheReply, []);
+      assert.deepEqual(g().mailedByTheReply, [[address("ella"), "You've left AGI Strategy Fellowship", "course-enrolment"]]);
       assert.equal(
         g().page.text,
-        "Autumn 2026 · Fri 23 Oct Your application Place given back You’ve told us you can’t make it. Your place in AGI " +
-          "Strategy has gone back so someone else can take it. If that changes, email ai-safety@uonsu.com and we’ll see " +
-          "what we can do. Our events are open to everyone, so come along to one. See what’s on",
+        "Autumn 2026 · Fri 23 Oct Your application Left the programme You left AGI Strategy. That was on Wed 28 Oct. " +
+          "Thanks for coming along. Your notes and the reading list are still on your programme’s page. Changed your " +
+          "mind? Email ai-safety@uonsu.com and we’ll see what we can do. Go to your programme",
       );
+      // The seat as leaving leaves one: withdrawn, the day and her reason,
+      // the group and Publish's stamp kept; and her seat freed in Group B.
+      assert.deepEqual(g().enrolment, {
+        status: "withdrawn",
+        groupId: GROUP.B,
+        told: true,
+        droppedOutAt: "2026-10-28T09:00:00.000Z",
+        dropOutReason: "The times don’t work for me",
+      });
+      assert.deepEqual(g().groupB, { memberCount: 2 });
+      // The place on the form given back as "I can’t make it" gives it, with
+      // the reason kept with her seat and not on the application.
+      assert.deepEqual(g().application, { status: "withdrawn", attendance: "cant-make-it", releaseReason: null });
+      // A register keeps the row of somebody who left only where it marked
+      // them, and Group B first meets on Tue 3 Nov: she left before any did.
+      assert.deepEqual(g().registerLeavers, []);
     });
 
     test("the Settings panel and her card on the board name her, and the times picture stops counting her", () => {
@@ -1823,15 +1895,17 @@ describe("stage one of the course hub, one term from decision day to the first s
       assert.deepEqual([timesAt("Ella gave her place back").picture.holders, timesAt("Ella gave her place back").picture.canMake["Group B"]], [5, 2]);
     });
 
-    // Nothing takes somebody off a run because they gave their place back on
-    // the form: the runbook's two steps do, by hand.
-    test("until an admin acts, she still reads Group B, and her facilitators' roster and register still name her", () => {
+    // Nobody acts: her reply took her off the group. She reads none of the
+    // run but the page that says she left (her run's gate keeps her seat, in
+    // Group B, and opens no cohort page), and her facilitators' roster and
+    // register name her no more (the register lists her as having left).
+    test("with nobody acting, she reads nothing of Group B, and her facilitators' roster and register name her no more", () => {
       readsAre(
         "Ella gave her place back",
         {
           amara: IN("Group B"),
           dev: IN("Group A"),
-          ella: IN("Group B"),
+          ella: { programmes: [], run: { canLearn: false, group: "Group B" } },
           joel: IN("Group A"),
           kofi: IN("Group B"),
           priya: IN("Group A"),
@@ -1840,46 +1914,36 @@ describe("stage one of the course hub, one term from decision day to the first s
         },
         {
           amelia: FACILITATING(["Dev", "Joel", "Priya"], false),
-          rahul: FACILITATING(["Amara", "Ella", "Kofi"], false),
-          sofia: FACILITATING(["Amara", "Ella", "Kofi"], false),
+          rahul: FACILITATING(["Amara", "Kofi"], false),
+          sofia: FACILITATING(["Amara", "Kofi"], false),
         },
       );
     });
 
-    test("her seat is not free until then: the place is free, and no group Hannah can make has a seat", () => {
+    // Until Q12 her seat was not free until an admin removed her, so neither
+    // a group Hannah could make nor the offer had one. It is free the moment
+    // she has left: the page offers Hannah Group B at once (the lead offers it
+    // in 8, so nothing is pressed here).
+    test("her seat is free at once: the place is free, Group B has a seat, and Hannah can be offered it", () => {
       const page = g().offerPage;
       assert.deepEqual([page.free, page.heading, page.gaveBack], [1, "Offer 1 freed place", "Ella Robinson gave theirs back."]);
       // In People in groups' order, Monday first, as every tab of the
       // programme's page lists groups (the walk of stage two's fixes, G10).
       assert.deepEqual(page.groups, [
-        ["Group B", "Tuesdays at 6pm", "Tuesday evenings", "Tue 3 Nov", 0],
+        ["Group B", "Tuesdays at 6pm", "Tuesday evenings", "Tue 3 Nov", 1],
         ["Group A", "Thursdays at 6pm", "Thursday evenings", "Thu 29 Oct", 0],
       ]);
       const NO_SEAT = "No group whose time they can make has a seat and a session still to come.";
       assert.deepEqual(
         page.people.map((person) => [person.uid, person.chips, person.groups, person.cannot]),
         [
-          ["hannah", ["Fits Group B"], [], NO_SEAT],
+          ["hannah", ["Fits Group B"], ["Group B"], null],
           ["nell", ["Fits Group A"], [], NO_SEAT],
         ],
       );
-      assert.deepEqual(short(g().offerBeforeTheSeatIsFree), [409, "Group B has no free seat."]);
-      // A test rehearses the email's words and offers nothing, so it is not
-      // refused for want of a seat; the offer is.
-      assert.deepEqual(g().testBeforeTheSeatIsFree.body, { ok: true, delivery: "sent", subject: "A place has come up on AGI Strategy", recorded: true });
-      // Nobody is owed Publish's email while she is still in her group, told.
+      assert.deepEqual(page.window, { open: true, sentence: "You can offer freed places until Wed 4 Nov, the end of week 1." });
+      // Nobody is owed Publish's email: she has left, and Publish waits for nobody who has.
       assert.equal(g().summaryBeforeTidying.emails, 0);
-    });
-
-    test("Remove frees her seat, takes the run away from her and her name off the roster, and emails nobody", () => {
-      assert.deepEqual(g().removed.body, { ok: true });
-      assert.deepEqual(g().mailedByTheRemove, []);
-      assert.deepEqual(g().groupB, { memberCount: 2 });
-      assert.deepEqual(g().enrolment, { status: "removed", groupId: null, allocatedEmailAt: null });
-      const read = readAt("Ella removed");
-      assert.deepEqual(read.ella, NOTHING);
-      assert.deepEqual(read.rahul, FACILITATING(["Amara", "Kofi"], false));
-      assert.deepEqual(read.sofia, FACILITATING(["Amara", "Kofi"], false));
     });
 
     // Until the walk of stage two's fixes (G4) Publish waited for her row to
@@ -2077,22 +2141,27 @@ describe("stage one of the course hub, one term from decision day to the first s
 
   // -------------------------------------------------------------------------
   describe("9. the incubator's people read “It helps us plan.”", () => {
-    test("on their own page at every moment, and never the word group; the fellowship's people read “It helps us plan groups.”", () => {
+    // CHANGED ON PURPOSE (Q12): "I’m coming" and its line are offered only
+    // until Publish has told somebody their group. The fellowship's run is
+    // published by the "published" moment and the incubator's only after it,
+    // so each kind is held to its line while its people can press it, and to
+    // the page that points to their programme once they are told; an
+    // incubator's people never read the word group at any moment.
+    test("on their own page until they are told, and never the word group; the fellowship's people read “It helps us plan groups.”", () => {
+      const INCUBATOR_PAGE =
+        "Your application Research Incubator Accepted Autumn 2026 · Fri 23 Oct You’re in Research incubator. 10 WEEKS · " +
+        "starts w/c 2 Nov We’ll email you before you start with how the first week works. I’m coming Optional. It " +
+        "helps us plan. I can’t make it This frees your place for someone else. Questions? ai-safety@uonsu.com";
+      const told = { placed: { incubator: false, fellowship: false }, published: { incubator: false, fellowship: true }, end: { incubator: true, fellowship: true } };
       for (const moment of ["placed", "published", "end"]) {
         for (const uid of INCUBATOR_PLACES) {
           const { view, text } = seen.pages[moment][uid];
           assert.deepEqual([view.kind, view.comingHelps, view.next], ["place", "It helps us plan.", "We’ll email you before you start with how the first week works."], `${moment}: ${uid}`);
-          assert.equal(
-            text,
-            "Your application Research Incubator Accepted Autumn 2026 · Fri 23 Oct You’re in Research incubator. 10 WEEKS · " +
-              "starts w/c 2 Nov We’ll email you before you start with how the first week works. I’m coming Optional. It " +
-              "helps us plan. I can’t make it This frees your place for someone else. Questions? ai-safety@uonsu.com",
-            `${moment}: ${uid}`,
-          );
+          assert.equal(text, told[moment].incubator ? INCUBATOR_TOLD_PAGE : INCUBATOR_PAGE, `${moment}: ${uid}`);
           assert.doesNotMatch(text, /group/i, `${moment}: ${uid}`);
         }
         assert.equal(seen.pages[moment].kofi.view.comingHelps, "It helps us plan groups.", moment);
-        assert.equal(seen.pages[moment].kofi.text, KOFI_PAGE, moment);
+        assert.equal(seen.pages[moment].kofi.text, told[moment].fellowship ? AGI_TOLD_PAGE("Group B") : KOFI_PAGE, moment);
       }
     });
   });

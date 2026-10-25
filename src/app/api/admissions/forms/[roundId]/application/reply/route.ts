@@ -14,8 +14,14 @@ import {
 } from "@/lib/applications/applicant/requests";
 import { ApplicantError, FORM_NOT_FOUND } from "@/lib/applications/applicant/store";
 import { isFormVisible } from "@/lib/applications/applicant/window";
+import { reasonInWords } from "@/lib/applications/status/reasons";
 import { recordReply } from "@/lib/applications/status/record";
 import { parseReplyRequest } from "@/lib/applications/status/replies";
+import { standingOf } from "@/lib/applications/status/standing";
+import { leaveRun } from "@/lib/courses/leaveRun";
+import { leaveClosedLine } from "@/lib/courses/leavingWords";
+import { readPlaceOnRun } from "@/lib/courses/placeOnRun";
+import { ENROLMENT_LIMITS } from "@/lib/firestore/courseEnrolments";
 
 /**
  * An applicant's reply to what decision day told them.
@@ -36,8 +42,10 @@ import { parseReplyRequest } from "@/lib/applications/status/replies";
  * ## What it touches
  *
  * The caller's OWN application, addressed by the session's uid, and the
- * form's counters when the reply moves the application's status. It reads no
- * decision and no review, which is why it cannot be asked about anybody's
+ * form's counters when the reply moves the application's status. For
+ * somebody in a group, what the leave touches as well: their own seat on the
+ * run their programme names, and what leaving moves with it (below). It reads
+ * no decision and no review, which is why it cannot be asked about anybody's
  * outcome but the one already published on the caller's own document.
  *
  * ## Accepting an invitation approves an account that is still waiting
@@ -50,9 +58,27 @@ import { parseReplyRequest } from "@/lib/applications/status/replies";
  * `src/lib/applications/accounts/afterReply.ts`. No other reply, and no
  * other kind of account, is touched.
  *
+ * ## "I can’t make it" from somebody in a group is leaving the programme
+ *
+ * Once Publish has told somebody their group, giving the place back is
+ * leaving the programme (Q12), and this is the second door to the one leave
+ * "Leave the programme" on their programme page makes. Whether they are in
+ * such a group, and whether they may leave it, is `readPlaceOnRun`'s answer
+ * (`src/lib/courses/placeOnRun.ts`, which asks the leave's own
+ * `leavePathFor`); what leaving writes is the leave's own `leaveRun`
+ * (`src/lib/courses/leaveRun.ts`): they leave their group at once, the day is
+ * recorded, their place on the form goes back in the same transaction, and
+ * the reason they chose here is kept where leaving keeps one (with their seat
+ * on the run, for the programme's lead and admins), not on the application.
+ * Whatever leaving refuses (after the run's last session, a seat that is not
+ * theirs to leave) is refused here in the same words. Somebody accepted and
+ * not in such a group (not placed yet, or placed and not told) gives their
+ * place back below, as before groups went out.
+ *
  * ## What it does not do
  *
- * It emails nobody.
+ * It emails nobody, but for the leave's own email to somebody who has just
+ * left their group.
  *
  * ## A form a stranger may not learn about
  *
@@ -99,6 +125,44 @@ export async function POST(req: Request, ctx: Ctx) {
     const form = isId(roundId) ? await loadForm(db, roundId) : null;
     if (!form) return NextResponse.json({ error: FORM_NOT_FOUND }, { status: 404 });
     hidden = !isFormVisible(form, now);
+
+    // "I can’t make it" from somebody in a group Publish has told them about
+    // takes the one leave, decided and written by the leave's own functions.
+    if (request.reply === "cant-make-it") {
+      const held = await loadOwnApplication(db, form, user.uid);
+      const standing = held ? standingOf(held) : null;
+      const onRun =
+        standing?.kind === "place" && standing.programmeId
+          ? await readPlaceOnRun(db, form, standing.programmeId, user.uid, now)
+          : null;
+      if (onRun?.kind === "in-a-group") {
+        if ("closed" in onRun.leave) {
+          return NextResponse.json(
+            { error: leaveClosedLine(onRun.leave.closed, onRun.run.courseTitle) },
+            { status: 409 },
+          );
+        }
+        const said = reasonInWords(request.reason);
+        const left = await leaveRun(db, {
+          run: onRun.run,
+          path: onRun.leave.path,
+          user,
+          reason: said ? said.slice(0, ENROLMENT_LIMITS.dropOutReason) : null,
+          now,
+        });
+        if (left.kind === "left") {
+          const mine = await loadOwnApplication(db, form, user.uid);
+          return NextResponse.json({
+            ok: true,
+            changed: left.dropped,
+            application: mine ? projectApplicationForOwner(mine) : null,
+          });
+        }
+        // The seat changed between the read above and the leave's own (an
+        // admin moved them a moment ago): nothing was written, and the reply
+        // is the one made by somebody who is not in a group.
+      }
+    }
 
     const recorded = await recordReply(db, form, user.uid, request, now);
     // After the reply has committed. It answers, and never throws.

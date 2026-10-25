@@ -32,6 +32,14 @@ export type OutcomeWords = {
   title: string;
 };
 
+/** The chip of somebody who left the programme. Drawn by the page from here too. */
+export const LEFT_CHIP = "Left the programme";
+
+/** "You left AGI Strategy.", or "You left the programme." when the form no longer carries it. */
+export function leftTitle(shortName: string | null): string {
+  return shortName ? `You left ${shortName}.` : "You left the programme.";
+}
+
 export function outcomeWords(view: StatusView): OutcomeWords | null {
   if (view.kind === "place") {
     return {
@@ -49,6 +57,12 @@ export function outcomeWords(view: StatusView): OutcomeWords | null {
         ? `You’re invited to ${view.programme.shortName}.`
         : "You’re invited to another programme.",
     };
+  }
+  // Left the programme, by either door: never "You’ve told us you can’t make
+  // it", which is said of somebody who gave the place back before a group.
+  if (view.kind === "left") {
+    const name = view.programme?.shortName ?? null;
+    return { chip: LEFT_CHIP, tone: "neutral", title: leftTitle(name) };
   }
   if (view.kind === "released") {
     const name = view.programme?.shortName ?? null;
