@@ -282,7 +282,7 @@ describe("the words", () => {
       subject: "Your team: Probe transfer",
       greeting: "Hi Wen,",
       paragraphs: [
-        "You’re in Probe transfer, one of Alignment Research’s teams.",
+        "Your team is Probe transfer, one of Alignment Research’s teams.",
         "Your project: Replicate Probes that transfer, then: test whether the probes still work on a smaller open model.",
         "You’re with George and Lily.",
         "Your weekly session stays as it is: the teams work inside it.",
@@ -291,7 +291,7 @@ describe("the words", () => {
       signOff: "Zach",
     });
     const alone = words.teamEmailWords({ ...facts, project: "", teammates: [], firstName: "", leadFirstName: null });
-    assert.deepEqual(alone.paragraphs.slice(0, 2), ["You’re in Probe transfer, one of Alignment Research’s teams.", "Nobody else is in it yet."]);
+    assert.deepEqual(alone.paragraphs.slice(0, 2), ["Your team is Probe transfer, one of Alignment Research’s teams.", "Nobody else is in it yet."]);
     assert.equal(alone.greeting, null);
     assert.equal(alone.signOff, null);
     assert.equal(words.teamEmailWords({ ...facts, teamName: " " }), null);

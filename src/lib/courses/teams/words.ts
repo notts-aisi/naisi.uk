@@ -209,7 +209,7 @@ export function teamEmailWords(facts: TeamEmailFacts): TeamEmailWords | null {
   if (!team || !programme) return null;
   const project = facts.project.trim();
   const teammates = facts.teammates.map((name) => name.trim()).filter(Boolean);
-  const paragraphs = [`You’re in ${team}, one of ${programme}’s teams.`];
+  const paragraphs = [`Your team is ${team}, one of ${programme}’s teams.`];
   if (project) paragraphs.push(`Your project: ${stop(project)}`);
   paragraphs.push(teammates.length > 0 ? `You’re with ${namesInWords(teammates)}.` : "Nobody else is in it yet.");
   paragraphs.push("Your weekly session stays as it is: the teams work inside it.");

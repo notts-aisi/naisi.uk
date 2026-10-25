@@ -37,7 +37,9 @@
  * may import the types and the parsers from here.
  */
 
-import { isAddressableId } from "@/lib/addressableId";
+// Relative, as everything `src/lib/firestore/courses.ts` reaches is: older
+// suites load that module with a loader that follows relative imports only.
+import { isAddressableId } from "../../addressableId";
 
 export const TEAMS_COLLECTION = "courseTeams";
 

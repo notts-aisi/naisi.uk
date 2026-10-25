@@ -1,13 +1,10 @@
 import { Refusal } from "@/features/applications/editor/Refusals";
 
-/**
+/*
  * What the Teams tab says to somebody it is not for, in place of the page.
- * Drawn on the server, before the run is read.
+ * Drawn on the server, before the run is read. Every address here is a page
+ * of this site, written out from its own path with the ids encoded into it.
  */
-
-function applicationsPath(roundId: string, programmeId: string): string {
-  return `/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/applications`;
-}
 
 /**
  * A reviewer of the programme. The tab names everybody taking part, by team,
@@ -18,7 +15,7 @@ export function TeamsAreTheLeads({ roundId, programmeId }: { roundId: string; pr
   return (
     <Refusal
       title="Only the programme’s lead and admins can open Teams"
-      href={applicationsPath(roundId, programmeId)}
+      href={`/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/applications`}
       action="Go to applications"
     >
       Teams shows everybody taking part by name, in their teams, so only the programme’s lead or an admin can
@@ -38,7 +35,7 @@ export function TeamsAreAnIncubators({
   programmeName: string;
 }) {
   return (
-    <Refusal title="Teams are an incubator’s" href={applicationsPath(roundId, programmeId)} action="Go to applications">
+    <Refusal title="Teams are an incubator’s" href={`/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/applications`} action="Go to applications">
       {programmeName} is a fellowship, so its people are in groups, and it has no teams.
     </Refusal>
   );

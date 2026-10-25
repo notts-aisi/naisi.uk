@@ -93,7 +93,7 @@ describe("the test, first", () => {
       },
     );
     // The first person a press would tell, as they would read it.
-    assert.match(mail.text, /Hi Amara, You’re in Probe transfer, one of Research incubator’s teams\./);
+    assert.match(mail.text, /Hi Amara, Your team is Probe transfer, one of Research incubator’s teams\./);
     const marker = world.db.read(`courseNudges/teamstest__${INC.run}__tess`);
     assert.deepEqual(marker, { kind: "teams-test", runId: INC.run, byUid: "tess", at: AT.wednesdayNoon });
     // The test changed nothing about anybody's team.
@@ -175,7 +175,7 @@ describe("the press", () => {
       new RegExp(
         [
           "Hi Amara,",
-          "You’re in Probe transfer, one of Research incubator’s teams\\.",
+          "Your team is Probe transfer, one of Research incubator’s teams\\.",
           "Your project: Replicate Probes that transfer, then: test whether the probes still work on a smaller open model\\.",
           "You’re with Dev and Lena\\.",
           "Your weekly session stays as it is: the teams work inside it\\.",
@@ -312,7 +312,7 @@ describe("the press", () => {
     world.mail.length = 0;
     await ask.tell("tess", 8);
     const maya = (await letters()).find((mail) => mail.to === "maya@example.com");
-    assert.match(maya.text, /You’re in Frontier lab safety policies, one of Research incubator’s teams\. You’re with Lena\./);
+    assert.match(maya.text, /Your team is Frontier lab safety policies, one of Research incubator’s teams\. You’re with Lena\./);
     assert.ok(!/Your project/.test(maya.text));
   });
 });

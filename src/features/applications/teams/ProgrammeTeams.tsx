@@ -282,10 +282,6 @@ export default function ProgrammeTeams({ view: initial }: { view: TeamsView }) {
     );
   }
 
-  const runEditor = view.run
-    ? `/admin/courses/${encodeURIComponent(view.run.courseId)}/runs/${encodeURIComponent(view.run.id)}`
-    : null;
-
   if (view.madeFrom === null) {
     return (
       <section className={`${styles.card} ${styles.blank}`}>
@@ -294,9 +290,12 @@ export default function ProgrammeTeams({ view: initial }: { view: TeamsView }) {
           people ranked on the application form. {view.canOpenRunEditor ? "Set it" : "An admin sets it"} in the run
           editor’s Pitching week section.
         </p>
-        {view.canOpenRunEditor && runEditor ? (
+        {view.canOpenRunEditor && view.run ? (
           <div className={styles.blankActions}>
-            <Link href={runEditor} className={styles.linkButton}>
+            <Link
+              href={`/admin/courses/${encodeURIComponent(view.run.courseId)}/runs/${encodeURIComponent(view.run.id)}`}
+              className={styles.linkButton}
+            >
               Open the run editor
             </Link>
           </div>
