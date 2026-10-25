@@ -10,7 +10,7 @@ import {
 import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
 import { normalizeCourseAttendance, type CourseAttendanceDoc } from "@/lib/firestore/courseAttendance";
 import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
-import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import {
   FINISHING_COLLECTION,
@@ -93,7 +93,11 @@ export function runEndOf(run: CourseRunDoc, groups: readonly CourseGroupDoc[], n
   };
 }
 
-/** The run's live groups and when it ends, read from the run alone. */
+/**
+ * The run's live groups and when it ends, read from the run alone. The groups
+ * come back in the one order every tab of a programme's page lists them in
+ * (`compareGroupsByMeeting`), so a caller that draws them draws that order.
+ */
 export async function readRunEnd(
   db: Firestore,
   run: CourseRunDoc,
@@ -103,7 +107,7 @@ export async function readRunEnd(
   const groups = liveGroupsOf(
     run.id,
     snap.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})),
-  );
+  ).sort(compareGroupsByMeeting);
   return { groups, end: runEndOf(run, groups, now) };
 }
 
