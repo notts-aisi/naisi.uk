@@ -265,6 +265,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "The operational log for this run: registers pushed and edited, facilitators appointed and removed, drop-outs, the run being settled. Unlike the delivery log these describe rows this destroy is deleting, so they do not outlive it.",
   },
+  updates: {
+    label: "Updates",
+    fate: "destroyed",
+    note: "The updates written to this run's people and its facilitators, with what each one's email did. Staff writing, and it goes with the run. The emails themselves stay in the delivery log.",
+  },
   schedulerMarkers: {
     label: "Scheduler send markers",
     fate: "destroyed",
