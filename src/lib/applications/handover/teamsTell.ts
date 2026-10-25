@@ -179,7 +179,7 @@ export type TestOutcome =
  * test, to the address on the caller's own session and nobody else. A test
  * that reached them is recorded, which lets them press.
  */
-export async function sendTeamsTest(
+export async function sendTeamEmailTest(
   db: Firestore,
   user: SessionUser,
   roundId: string,
@@ -269,7 +269,7 @@ async function recordTold(db: Firestore, member: TeamMemberStanding): Promise<vo
 }
 
 /** "Tell everyone their team". `request.emails` is the number the button showed. */
-export async function tellEveryone(
+export async function sendTeamEmails(
   db: Firestore,
   user: SessionUser,
   roundId: string,

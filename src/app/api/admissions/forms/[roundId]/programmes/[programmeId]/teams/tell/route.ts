@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { tellEveryone } from "@/lib/applications/handover/teamsTell";
+import { sendTeamEmails } from "@/lib/applications/handover/teamsTell";
 import { isId } from "@/lib/applications/normalise";
 import { parseTellRequest } from "@/lib/courses/teams/model";
 import { NO_PROGRAMME } from "@/lib/courses/teams/words";
@@ -49,7 +49,7 @@ export async function POST(req: Request, ctx: Ctx) {
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
-  const outcome = await tellEveryone(db, user, roundId, programmeId, parsed.value);
+  const outcome = await sendTeamEmails(db, user, roundId, programmeId, parsed.value);
   if (!outcome.ok) {
     const body: { error: string; emails?: number } = { error: outcome.error };
     if (typeof outcome.emails === "number") body.emails = outcome.emails;

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { sendTeamsTest } from "@/lib/applications/handover/teamsTell";
+import { sendTeamEmailTest } from "@/lib/applications/handover/teamsTell";
 import { isId } from "@/lib/applications/normalise";
 import { NO_PROGRAMME } from "@/lib/courses/teams/words";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -34,7 +34,7 @@ export async function POST(_req: Request, ctx: Ctx) {
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
-  const outcome = await sendTeamsTest(db, user, roundId, programmeId);
+  const outcome = await sendTeamEmailTest(db, user, roundId, programmeId);
   if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
   return NextResponse.json({ ok: true, delivery: outcome.delivery, subject: outcome.subject, view: outcome.view });
 }
