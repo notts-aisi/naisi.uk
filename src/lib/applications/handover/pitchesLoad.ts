@@ -24,8 +24,8 @@ import { RUNS_COLLECTION, readRun } from "./run";
  *
  * WHAT: each pitch of the run's pitching week, who pitched it, its twist, and
  * how many people would join it. A pick is counted while its owner is still
- * in the pitch's group, told by Publish (`seatsOn`), so somebody who left or
- * moved stops counting. Who picked what is not on this list: that is for
+ * in the pitch's group, told by Publish (`seatsOn`), with an account that
+ * stands, so somebody who left, moved or was refused stops counting. Who picked what is not on this list: that is for
  * making teams, which is not built yet. Read only: it writes nothing.
  *
  * Most would join first, then by title, as the board orders them.
@@ -117,7 +117,14 @@ export async function loadProgrammePitches(
     }),
   );
   const severalGroups = new Set(pitches.map((pitch) => pitch.groupId)).size > 1;
-  const named = await peopleNamed(db, pitches.flatMap((pitch) => pitch.pitcherUids));
+  const named = await peopleNamed(
+    db,
+    pitches.flatMap((pitch) => [...pitch.pitcherUids, ...pitch.wouldJoinUids]),
+  );
+  // A pick counts while its owner is in the pitch's group, told, and their
+  // account still stands: the people the pitching routes still answer.
+  const counts = (uid: string, groupId: string) =>
+    groupOf.get(uid) === groupId && named.get(uid)?.approved === true;
 
   view.pitches = pitches
     .map((pitch) => ({
@@ -128,7 +135,7 @@ export async function loadProgrammePitches(
         pitch.pitcherUids.map((uid) => named.get(uid)?.name ?? "NAISI member"),
         undefined,
       ),
-      wouldJoin: pitch.wouldJoinUids.filter((uid) => groupOf.get(uid) === pitch.groupId).length,
+      wouldJoin: pitch.wouldJoinUids.filter((uid) => counts(uid, pitch.groupId)).length,
       groupName: severalGroups ? (groupNames.get(pitch.groupId) ?? null) : null,
     }))
     .sort((a, b) => b.wouldJoin - a.wouldJoin || a.title.localeCompare(b.title) || a.id.localeCompare(b.id));

@@ -392,7 +392,7 @@ export async function deleteMembershipImportRows(
  * A person is on one pitch a week and picks a handful, so one batch is
  * plenty; it is written in batches of 400 all the same.
  */
-async function clearCoursePitches(db: Firestore, uid: string): Promise<number> {
+export async function clearCoursePitches(db: Firestore, uid: string): Promise<number> {
   const pitches = db.collection(PITCHES_COLLECTION);
   const [pitched, picked] = await Promise.all([
     pitches.where("pitcherUids", "array-contains", uid).get(),
