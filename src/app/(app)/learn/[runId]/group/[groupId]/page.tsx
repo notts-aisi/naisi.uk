@@ -6,6 +6,12 @@ import AttendanceGrid from "@/features/courses/AttendanceGrid";
 import GroupRoster from "@/features/courses/GroupRoster";
 import SessionCard from "@/features/courses/SessionCard";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
+import updateStyles from "@/features/courses/updates/Messages.module.css";
+import { StaffUpdatesSection } from "@/features/courses/updates/UpdatesList";
+import { updateAudienceCounts } from "@/lib/courses/updates/audience";
+import { loadRunGroups, loadUpdatesFor, narrowToGroup, updateReadingOf } from "@/lib/courses/updates/readers";
+import { staffUpdateRows } from "@/lib/courses/updates/views";
+import { writeToGroupLine, writeToGroupWords } from "@/lib/courses/updates/words";
 import { resolveGroupCalendar } from "@/lib/courses/groupResolve";
 import { resolveSessions, sessionRange } from "@/lib/courses/sessions";
 import { type CurrentWeek } from "@/lib/courses/weekPlan";
@@ -283,6 +289,16 @@ export default async function GroupHomePage({
   const eyebrow = [access.run.courseTitle, access.run.label].filter(Boolean).join(" · ");
   const groupPath = `${runHome}/group/${encodeURIComponent(groupId)}`;
 
+  // Updates (Q18): the way to write one to this group, counted as its press
+  // counts, and the updates this group's page shows, through the one reader.
+  // An archived group has no count, so no way to write to it.
+  const runGroups = await loadRunGroups(db, runId);
+  const [[groupCount], reading] = await Promise.all([
+    updateAudienceCounts(db, access.run, runGroups, { groupIds: [groupId] }),
+    updateReadingOf(db, access.user, access.run, runGroups),
+  ]);
+  const { updates } = await loadUpdatesFor(db, access.run, narrowToGroup(reading, groupId), runGroups);
+
   return (
     <div style={pageStyle}>
       <div>
@@ -310,6 +326,15 @@ export default async function GroupHomePage({
             Email the group
           </Link>
         </div>
+
+        {groupCount && (
+          <div className={updateStyles.write}>
+            <Link href={`${groupPath}/update`} className={updateStyles.writeLink}>
+              {writeToGroupWords(groupCount.groupName ?? group.name, groupCount.people)}
+            </Link>
+            <p className={updateStyles.writeLine}>{writeToGroupLine(groupCount.emails)}</p>
+          </div>
+        )}
       </div>
 
       <SessionCard
@@ -327,6 +352,8 @@ export default async function GroupHomePage({
           horizontal overflow — a wide table handles its own responsiveness
           rather than widening the shell (the `.mainWide` rule). */}
       <AttendanceGrid groupId={groupId} runId={runId} />
+
+      <StaffUpdatesSection updates={staffUpdateRows(updates)} headingId="group-updates" />
     </div>
   );
 }

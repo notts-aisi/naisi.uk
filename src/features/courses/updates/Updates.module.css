@@ -1,0 +1,183 @@
+/* Updates on a page: the card a member's programme page and a staff page draw
+   them in (wk-programme, wk-fac-group). Sizes are the boards': a 19px heading,
+   15px titles, a 13px line under each, the message at 14.5px. */
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-5) var(--space-1);
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.1875rem;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.empty {
+  margin: var(--space-3) 0 var(--space-4);
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* ── A member's update ───────────────────────────────────────────────────── */
+
+.item {
+  display: flex;
+  gap: var(--space-3);
+  padding: 0.875rem 0;
+  min-width: 0;
+}
+
+.item + .item {
+  border-top: 1px solid var(--color-border);
+}
+
+.chip {
+  flex: none;
+  margin-top: 2px;
+}
+
+.itemBody {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.itemTitle {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.itemMeta {
+  margin: 2px 0 0;
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+/* The message is text a person typed: its line breaks are kept, and it
+   breaks anywhere rather than pushing the page sideways. */
+.message {
+  margin: 6px 0 0;
+  font-size: 0.90625rem;
+  line-height: 1.5;
+  color: var(--color-text-soft);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.older {
+  border-top: 1px solid var(--color-border);
+}
+
+.olderButton {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent-text);
+  font-family: inherit;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.olderButton:focus-visible {
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--focus-ring);
+}
+
+.problem {
+  margin: var(--space-3) 0 var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* ── A staff list's update ───────────────────────────────────────────────── */
+
+.rows {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0 0 var(--space-2);
+}
+
+.row + .row {
+  border-top: 1px solid var(--color-border);
+}
+
+.details {
+  min-width: 0;
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: var(--space-3) 0;
+  cursor: pointer;
+  list-style: none;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary:focus-visible {
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--focus-ring);
+}
+
+.rowTitle {
+  font-size: var(--text-ui);
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.rowMeta {
+  margin-top: 2px;
+  font-size: var(--text-caption);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.rowMessage {
+  margin: 0 0 var(--space-3);
+}
+
+@media (max-width: 48rem) {
+  .card {
+    padding: var(--space-5) var(--space-4) var(--space-1);
+  }
+}

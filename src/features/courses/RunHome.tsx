@@ -12,6 +12,7 @@ import { useMagneticPull } from "@/hooks/useMagneticPull";
 import FacilitatorGroupPanel from "./FacilitatorGroupPanel";
 import { weekHref } from "./links";
 import SessionCard from "./SessionCard";
+import RunUpdates from "./updates/RunUpdates";
 import WeekRail from "./WeekRail";
 import { useRunOverview } from "./useRunOverview";
 import { useSyncTasks } from "./useSyncTasks";
@@ -685,6 +686,11 @@ export default function RunHome({ runId, isAdmin, canEmailCohort, pitching = nul
         {access.isEnrolled && (
           <ProgressPanel runId={runId} ownAttendance={data.ownAttendance} />
         )}
+
+        {/* Updates the people running the programme wrote to the reader
+            (Q18), read by their own route: what the reader is shown is the
+            route's decision, and a reader shown nothing is drawn nothing. */}
+        <RunUpdates runId={runId} />
 
         {/* One card per group they hold. A single card renders exactly as it
             always did; two or three simply stack, because this column already
