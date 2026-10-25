@@ -44,6 +44,9 @@ afterEach(clearData);
 /** A moderation instant used wherever a stamp must round-trip verbatim. */
 const MODERATED_AT = new Date("2026-08-01T12:00:00Z");
 
+/** When Publish emailed a placed member their group (`allocatedEmailAt`). */
+const TOLD_AT = new Date("2026-10-27T18:00:00Z");
+
 const ZERO_COUNTS = {
   pending: 0,
   accepted: 0,
@@ -152,6 +155,11 @@ async function seedEnrolment(runId, uid, overrides = {}) {
       applicationId: null,
       joinedWeekNumber: 1,
       createdAt: new Date(),
+      // Publish has told them. Its owner reads a row, and writes progress on
+      // its run, only once it is told (course-placements-told.test.mjs holds
+      // that rule), so every test here starts from a told row and refuses
+      // or allows for the reason it names.
+      allocatedEmailAt: TOLD_AT,
       ...overrides,
     });
   });
@@ -872,6 +880,9 @@ describe("server-owned course collections", () => {
         runId: "run1",
         uid: "learner",
         status: "active",
+        // Told by Publish: its owner reads a placement only once Publish has
+        // emailed them their group (course-placements-told.test.mjs).
+        allocatedEmailAt: TOLD_AT,
       });
       await db.collection("courseExerciseResponses").doc("run1__learner__w01__x1").set({
         runId: "run1",

@@ -2490,15 +2490,30 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // === told placements ===
+    // Whether a courseEnrolments row is a placement its owner has been told:
+    // a facilitator's row, a seat they took on an open run, or one Publish
+    // has emailed them about (a move deletes that stamp). The pages keep the
+    // same rule in `placementIsTold` (src/lib/firestore/courseEnrolments.ts),
+    // and course-placements-told.test.mjs fails if the two differ. Read each
+    // field with its default, as the normaliser does.
+    function isToldPlacement(row) {
+      return row.get('role', 'learner') == 'facilitator'
+        || row.get('selfEnrolled', false) == true
+        || row.get('allocatedEmailAt', null) is timestamp;
+    }
+
     // === courseEnrolments ===
     // The no-double-placement invariant lives in this collection's doc id
     // (one per (run, uid)) and its single scalar groupId — which is exactly
     // why clients can never write: a client-side "move groups" would bypass
-    // the allocation transaction that keeps memberCount honest. Own-row read
-    // powers the /learn hub's "your runs" view.
+    // the allocation transaction that keeps memberCount honest. An admin
+    // reads every row; anybody else only their own, once it is told.
     match /courseEnrolments/{docId} {
       allow read: if isAdmin()
-        || (isSignedIn() && resource.data.uid == request.auth.uid);
+        || (isSignedIn()
+            && resource.data.uid == request.auth.uid
+            && isToldPlacement(resource.data));
       allow write: if false;
     }
 
@@ -2520,10 +2535,14 @@ service cloud.firestore {
       // The enrolment ROW is an authority like a named array is, so it carries
       // the roster floor too: `courseProgress` is the single client-direct
       // member write in this feature and it hangs off this predicate.
+      // It must also be told: nobody, an admin included, writes progress on
+      // a run Publish has not told them they are on.
       function isEnrolledActive(runId) {
         return exists(/databases/$(database)/documents/courseEnrolments/$(runId + '__' + request.auth.uid))
           && get(/databases/$(database)/documents/courseEnrolments/$(runId + '__' + request.auth.uid))
                .data.status == 'active'
+          && isToldPlacement(
+               get(/databases/$(database)/documents/courseEnrolments/$(runId + '__' + request.auth.uid)).data)
           && isApprovedAccount();
       }
       // The full shape contract, shared by create and update:
