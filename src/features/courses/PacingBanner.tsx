@@ -68,7 +68,7 @@ function variantFor(
     const anchor = cw.anchorWeekNumber;
     return {
       tone: "neutral",
-      text: `It's ${cw.breakLabel} for ${who} — no new week right now.`,
+      text: `It’s ${cw.breakLabel} for ${who}, so there’s no new week right now.`,
       targetWeek: anchor >= 1 && anchor !== viewedWeek ? anchor : null,
     };
   }
@@ -77,13 +77,13 @@ function variantFor(
   if (viewedWeek < week) {
     return {
       tone: "neutral",
-      text: `${capitalise(who)} is on Week ${week} — this is an earlier week.`,
+      text: `${capitalise(who)} is on week ${week}. This is an earlier week.`,
       targetWeek: week,
     };
   }
   return {
     tone: "success",
-    text: `You're looking ahead — ${who} is on Week ${week}.`,
+    text: `You’re looking ahead. ${capitalise(who)} is on week ${week}.`,
     targetWeek: week,
   };
 }
