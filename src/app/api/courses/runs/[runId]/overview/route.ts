@@ -10,6 +10,7 @@ import {
   type GroupCalendar,
   type WeekSource,
 } from "@/lib/courses/groupResolve";
+import { finishedForMember } from "@/lib/courses/finishing/record";
 import { resolveSessions, sessionRange } from "@/lib/courses/sessions";
 import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
 import {
@@ -401,6 +402,15 @@ export type OverviewPayload = {
       lastComputedAt: string | null;
     };
   } | null;
+  /**
+   * WHETHER THE CALLER FINISHED THIS RUN: true only once its last session is
+   * over and their own finished record says so (`finishedForMember`, the one
+   * answer every page asks). False says nothing more: not over yet, not
+   * decided, not finished, or not a learner here, so a page told false says
+   * the run has ended and claims nothing. Never the rule, and never the
+   * suggestion apart from the record.
+   */
+  finished: boolean;
   access: {
     isAdmin: boolean;
     /** An active or completed LEARNER enrolment — `enrolment.status` distinguishes. */
@@ -868,6 +878,13 @@ export async function GET(
         }
       : null;
 
+  // Asked only once the caller's own calendar is past its last week, so the
+  // run home a member opens every day reads nothing more while it runs.
+  const finished =
+    isEnrolled && liveEnrolment && currentWeek?.phase === "after"
+      ? await finishedForMember(db, run, liveEnrolment, new Date(), groups)
+      : false;
+
   const payload: OverviewPayload = {
     run: {
       id: run.id,
@@ -898,6 +915,7 @@ export async function GET(
     group,
     groups: groupCardPayloads,
     ownAttendance,
+    finished,
     access: {
       isAdmin,
       isEnrolled,

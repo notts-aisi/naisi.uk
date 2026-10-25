@@ -3,6 +3,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { holdsStanding, isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { isValidDateKey } from "@/lib/courses/weekPlan";
+import { finishedForMember } from "@/lib/courses/finishing/record";
 import { memberCurrentWeek, resolveCalendar } from "@/lib/courses/groupResolve";
 import {
   normalizeCourseApplication,
@@ -197,6 +198,13 @@ export type MyRunEntry = {
   pacedByGroup: boolean;
   /** Only ever the caller's OWN group, and only when they are enrolled in one. */
   groupName: string | null;
+  /**
+   * WHETHER THE CALLER FINISHED THIS RUN: true only once its last session is
+   * over and their own finished record says so (`finishedForMember`, the one
+   * answer every page asks). False for everything else, so a card told false
+   * says the run has ended and claims nothing.
+   */
+  finished: boolean;
 };
 
 export type MePayload = { runs: MyRunEntry[] };
@@ -509,6 +517,20 @@ export async function GET() {
     groupById.set(snap.id, normalizeCourseGroup(snap.id, snap.data() ?? {}));
   }
 
+  // Who finished, asked only of a learner's runs that are past their last
+  // week (by the caller's own calendar) or marked completed: a run still
+  // going costs nothing here.
+  const now = new Date();
+  const finishedRunIds = new Set<string>();
+  await Promise.all(
+    [...merged.values()].map(async ({ run, enrolment }) => {
+      if (!enrolment || enrolment.role !== "learner") return;
+      const group = enrolment.groupId ? (groupById.get(enrolment.groupId) ?? null) : null;
+      const over = run.status === "completed" || currentWeekSummary(run, group)?.phase === "after";
+      if (over && (await finishedForMember(db, run, enrolment, now))) finishedRunIds.add(run.id);
+    }),
+  );
+
   const runs: MyRunEntry[] = [...merged.values()]
     .map(({ run, roles, enrolment }): MyRunEntry => {
       // Resolved ONCE per row: the pacing, the taught-week total and the
@@ -536,6 +558,7 @@ export async function GET() {
         totalWeeks: calendar.weekPlan.filter((entry) => entry.kind === "week").length,
         pacedByGroup: calendar.source === "group",
         groupName: group?.name ?? null,
+        finished: finishedRunIds.has(run.id),
       };
     })
     // A row has to be SOMETHING to be worth a card: a role to open, or a

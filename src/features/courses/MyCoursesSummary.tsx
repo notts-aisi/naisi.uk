@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import type { MyRunEntry } from "@/app/api/courses/me/route";
+import { endedWord } from "@/lib/courses/finishing/words";
 import { SyncTasksTrigger } from "./useSyncTasks";
 import styles from "./MyCoursesSummary.module.css";
 
@@ -58,7 +59,8 @@ const MAX_ROWS = 4;
 function weekLine(entry: MyRunEntry): string {
   const week = entry.currentWeek;
   if (!week || week.phase === "before") return "Starts soon";
-  if (week.phase === "after") return "Finished";
+  // "Finished" only where the member's own finished record says so.
+  if (week.phase === "after") return endedWord(entry.finished === true);
   // A break slot has no week number — it names itself ("Reading week") and
   // anchors to the week before it.
   if (week.breakLabel) return week.breakLabel;

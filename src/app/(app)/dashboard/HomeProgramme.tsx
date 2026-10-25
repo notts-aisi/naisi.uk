@@ -57,11 +57,14 @@ function weekInHand(overview: OverviewPayload): { weekNumber: number; published:
 function headLine(entry: MyRunEntry): { long: string; short: string } {
   const week = entry.currentWeek;
   const number = week ? (week.weekNumber ?? week.anchorWeekNumber) : 0;
+  // After the last week: "finished" only where the member's own finished
+  // record says so (`entry.finished`), "ended" for everybody else.
+  const over = entry.finished === true ? "finished" : "ended";
   const weekPart =
     !week || week.phase === "before"
       ? "starts soon"
       : week.phase === "after"
-        ? "finished"
+        ? over
         : week.breakLabel
           ? week.breakLabel
           : number >= 1
