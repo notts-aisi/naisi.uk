@@ -1190,6 +1190,17 @@ programme names" below).
   roster or register, and gets none of the group's mail. Publish emails just
   them, and then they see their new group. The same goes for anybody placed
   late.
+- **Publish never emails somebody who gave their place back.** Somebody
+  placed and not told yet who replies "I can’t make it" keeps their seat
+  until somebody Removes it, and their card says "Gave their place back".
+  Publish asks the card's own question of the card's own facts
+  (`gaveTheirPlaceBack` in `src/lib/courses/placeGivenBack.ts`), so its
+  button does not count them, "Send a test to me" never shows their email,
+  and a press neither emails them nor marks them as told; the facilitators'
+  email does not count them either. The Publish area and the confirmation
+  say how many ("1 person gave their place back, so they aren’t emailed.
+  Remove them to free their seat."). See "When somebody gives their place
+  back" below.
 - **An incubator's people are sent their own email.** When the programme
   that names the run is an incubator, Publish sends its people "Placed on an
   incubator" in place of "Placed in a group": the weekly session (day, time
@@ -1255,15 +1266,16 @@ a place", and their card on the board says "Gave their place back". Then,
 by hand:
 
 1. on the board, **Remove** them if they are in a group. That frees the
-   seat and takes them off the cohort's mailing list. Do it before the next
-   Publish: Publish tells everybody placed and not yet told, and nothing
-   stops it emailing somebody whose card says they gave their place back;
+   seat. Publish leaves them out whether or not this comes first: a press
+   does not email them, count them on its button or mark them as told, and
+   the Publish area says how many are waiting to be removed;
 2. on the run's own applications page, change their row from Accepted. A
    row the form wrote carries no address, so that page emails nobody about
-   it. Until this is done Publish goes on waiting for them, because Publish
-   refuses while anybody accepted is not in a group. This step is an
-   admin's (or the run's admissions reviewer's): the programme's lead does
-   step 1 from the Groups tab and asks an admin for this one.
+   it. Somebody handed over and never placed holds Publish up until this is
+   done, because Publish refuses while anybody accepted is not in a group;
+   somebody removed in step 1 does not. This step is an admin's (or the
+   run's admissions reviewer's): the programme's lead does step 1 from the
+   Groups tab and asks an admin for this one.
 
 Their own application page says they gave the place back as soon as they
 reply, and, for somebody who left their group, that they left the programme
@@ -1314,14 +1326,20 @@ keeps their record, and no place on the form goes back after the end.
 Their facilitators' register lists them last, read only, with the marks
 they had, "Left" and the day, and refuses a mark for them; the lead's
 Attendance tab, its CSV and the Overview say the same. **Remove** records
-the day too, so both kinds of leaving show it (somebody who left by
-themselves and is then removed keeps the day they left). Somebody removed
-does not get the page that says they left: the run closes to them.
+the day too, so both kinds of leaving show it. Somebody who left by
+themselves is not offered Remove on the board, and the Remove route refuses
+them in a sentence with the day they left ("They left on Tue 17 Nov, so
+their seat is already free and there’s nothing to remove."), writing
+nothing. Somebody removed does not get the page that says they left: the
+run closes to them.
 
 To put somebody back, an admin places them again on the board and presses
 Publish, which emails them: placing them clears the day, the reason and
-Publish's stamp. Their place on the form stays given back: putting them back
-on the run does not change their application.
+Publish's stamp, and records when they were put back (`putBackAt`). Their
+place on the form stays given back: putting them back on the run does not
+change their application. Their card stops saying "Gave their place back"
+while they are back, so Publish tells them; if they leave again, it says so
+again.
 
 ### What is logged
 
