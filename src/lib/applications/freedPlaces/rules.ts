@@ -32,7 +32,8 @@ import { standingOf } from "../status/standing";
  *    OPEN: from the send until the end of week 1 of the course run the
  *    programme names, worked out from that run's own calendar
  *    ({@link freedPlaceWindow}). No date is typed in code.
- *  - ONLY BY WHOEVER {@link offersFreedPlaces} SAYS: an admin, this term.
+ *  - ONLY BY WHOEVER {@link offersFreedPlaces} SAYS: an admin, or the
+ *    programme's own lead.
  *
  * Pure, with type-only imports from the server side, so the page, the routes,
  * the writer and the tests all ask the same functions.
@@ -43,22 +44,24 @@ import { standingOf } from "../status/standing";
 // ---------------------------------------------------------------------------
 
 /**
- * WHO MAY OFFER A FREED PLACE, by their role on the programme. THE ONE LINE
- * TO CHANGE when a programme's lead is given the lead's access to their run:
- * `return role === "admin" || role === "lead";`. The page, both routes and
- * the writer's own transaction all ask this and nothing else, and the role is
- * `roleOnProgramme`'s, which asks a lead's standing at the point of use.
+ * WHO MAY OFFER A FREED PLACE, by their role on the programme: an admin, or
+ * the programme's own lead, who places its people on the run it names and
+ * publishes their groups. A reviewer reads and scores, and offers nothing.
+ * The page, both routes and the writer's own transaction all ask this and
+ * nothing else, and the role is `roleOnProgramme`'s, which asks a lead's
+ * standing at the point of use.
  *
  * An admin sees every score, so the page shows them. A lead who is not an
- * admin scores blind until their own review is done (`otherReviewsShownTo`),
- * which the page will have to respect on the day this line changes.
+ * admin is shown a person's score only once their own review of that
+ * application is done (`otherReviewsShownTo`), as on every other list of
+ * applications: the page asks the same rule of each person it lists.
  */
 export function offersFreedPlaces(role: ProgrammeRole | null): boolean {
-  return role === "admin";
+  return role === "admin" || role === "lead";
 }
 
 /** What anybody else with a role on the programme is told. */
-export const ADMINS_OFFER = "Only an admin can offer freed places this term.";
+export const ADMINS_OFFER = "Only an admin or the programme’s lead can offer freed places.";
 
 // ---------------------------------------------------------------------------
 // When: the window

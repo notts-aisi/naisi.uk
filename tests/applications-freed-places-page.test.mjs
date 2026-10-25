@@ -5,10 +5,12 @@
  *
  * ## The rules this guards
  *
- *  1. ONLY WHOEVER MAY OFFER IS SHOWN IT: an admin, this term. The
- *     programme's lead and its reviewer are told it is an admin's, and
- *     anybody with no role on it is answered as for a programme that is not
- *     there, before anybody's application is read.
+ *  1. ONLY WHOEVER MAY OFFER IS SHOWN IT: an admin, or the programme's lead
+ *     (since the course hub's lead access, Q1). Its reviewer is told who
+ *     offers, and anybody with no role on it is answered as for a programme
+ *     that is not there, before anybody's application is read. The lead is
+ *     shown a person's score once their own review of that application is
+ *     done, as on every list of applications.
  *  2. IT LISTS THE PEOPLE A FREED PLACE CAN BE OFFERED TO AND NOBODY ELSE:
  *     told "No offer this time", ranked the programme, pooled by it. Each
  *     with their score for it, when they are free in a few words, and which
@@ -18,8 +20,8 @@
  *  4. NOTHING IT IS SENT CARRIES AN ADDRESS OR A PAINTED WEEK.
  *  5. THE PREVIEW IS THE EMAIL: composed from the page's own fields by the
  *     function the send composes with, it is the text that arrives.
- *  6. THE APPLICATIONS TAB LEADS THERE, for an admin once decisions have
- *     gone out, and for nobody else.
+ *  6. THE APPLICATIONS TAB LEADS THERE, for an admin and the programme's
+ *     lead once decisions have gone out, and for nobody else.
  *
  * Real: the loader, both pages (rendered to HTML), the client board, the
  * Applications tab's board, the routes a press makes, and every library
@@ -53,6 +55,7 @@ const STYLESHEETS = [
   "./Select.module.css",
   "./InitialsChip.module.css",
   "./decisionDay.module.css",
+  "./editor.module.css",
   "@/features/applications/kit/kit.module.css",
 ];
 const made = makeFreedWorld("__freedPageWorld", [
@@ -97,15 +100,16 @@ async function pageAs(uid, Page = FreedPlacesPage) {
 // ---------------------------------------------------------------------------
 
 describe("who is shown the page", () => {
-  test("an admin is shown the board; the lead and the reviewer are told it is an admin's; anybody else is not found", async () => {
+  test("an admin and the lead are shown the board; the reviewer is told who offers; anybody else is not found", async () => {
     const answers = {};
     for (const uid of ["zach", "claudia", "lloyd", "tess", "yusuf", "omar", "nobody"]) {
       const loaded = await boardFor(uid);
       answers[uid] = loaded.ok ? "board" : loaded.kind;
     }
+    // The lead is shown the board since the course hub's lead access (Q1).
     assert.deepEqual(answers, {
       zach: "board",
-      claudia: "not-yours",
+      claudia: "board",
       lloyd: "not-yours",
       tess: "not-found",
       yusuf: "not-found",
@@ -114,8 +118,8 @@ describe("who is shown the page", () => {
     });
   });
 
-  test("for anybody but an admin, nobody's application is read", async () => {
-    for (const uid of ["claudia", "lloyd", "tess"]) {
+  test("for anybody who may not offer, nobody's application is read", async () => {
+    for (const uid of ["lloyd", "tess"]) {
       const before = world.db.stats.reads;
       await boardFor(uid);
       // The form, and nothing after it: the answer is decided on the form alone.
@@ -123,13 +127,37 @@ describe("who is shown the page", () => {
     }
   });
 
-  test("the lead and the reviewer read the page as an admin's, in words", async () => {
-    for (const uid of ["claudia", "lloyd"]) {
-      const text = textOf(await pageAs(uid));
-      assert.ok(text.includes("This page is for admins"), text);
-      assert.ok(text.includes(rules.ADMINS_OFFER), text);
-      assert.equal(text.includes("Omar"), false, "nobody is named to them");
-    }
+  test("the reviewer reads who offers, in words, and is shown nobody", async () => {
+    const text = textOf(await pageAs("lloyd"));
+    assert.ok(text.includes("This page is for the programme’s lead and admins"), text);
+    assert.ok(text.includes(rules.ADMINS_OFFER), text);
+    assert.equal(text.includes("Omar"), false, "nobody is named to them");
+  });
+
+  test("the lead is shown a score once their own review of that application is done, and an admin every score", async () => {
+    const scores = async (uid) =>
+      Object.fromEntries((await boardFor(uid)).board.people.map((person) => [person.uid, person.score]));
+    // Claudia scored Omar, so she is shown what both reviewers gave; she has
+    // not reviewed George, so his score is held back from her.
+    assert.deepEqual(await scores("claudia"), { omar: "3.5", george: null, lena: null, rory: null });
+    assert.deepEqual(await scores("zach"), { omar: "3.5", george: "3.0", lena: null, rory: null });
+    // Once she has, she is.
+    world.db.seed(`admissionReviews/${ROUND}__george__claudia`, {
+      roundId: ROUND,
+      applicantUid: "george",
+      reviewerUid: "claudia",
+      scores: { [`${AGI}.event`]: 4 },
+      comments: [],
+      notes: "",
+    });
+    assert.equal((await scores("claudia")).george, "3.5");
+  });
+
+  test("the lead's page is the board, and names the people a place can be offered to", async () => {
+    const text = textOf(await pageAs("claudia"));
+    assert.ok(text.includes("Offer 2 freed places"), text);
+    assert.ok(text.includes("Omar Haddad"), text);
+    assert.equal(text.includes("This page is for"), false);
   });
 });
 
@@ -324,13 +352,13 @@ describe("the page an admin reads", () => {
 describe("the Applications tab leads there, under the places left", () => {
   const LINK = `href="${LIST}/freed-places"`;
 
-  test("for an admin once decisions have gone out, and for nobody else", async () => {
-    const admin = await pageAs("zach", ApplicationsPage);
-    assert.ok(admin.includes(LINK));
-    assert.ok(textOf(admin).includes("Offer freed places"));
-    for (const uid of ["claudia", "lloyd"]) {
-      assert.equal((await pageAs(uid, ApplicationsPage)).includes(LINK), false, uid);
+  test("for an admin and the programme's lead once decisions have gone out, and for nobody else", async () => {
+    for (const uid of ["zach", "claudia"]) {
+      const page = await pageAs(uid, ApplicationsPage);
+      assert.ok(page.includes(LINK), uid);
+      assert.ok(textOf(page).includes("Offer freed places"), uid);
     }
+    assert.equal((await pageAs("lloyd", ApplicationsPage)).includes(LINK), false);
   });
 
   test("not before decisions have gone out", async () => {

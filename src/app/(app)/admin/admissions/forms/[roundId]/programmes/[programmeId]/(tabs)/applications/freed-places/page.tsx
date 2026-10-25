@@ -1,4 +1,4 @@
-import { AdminsOnly } from "@/features/applications/decisionDay/parts";
+import { Refusal } from "@/features/applications/editor/Refusals";
 import FreedPlacesBoard from "@/features/applications/freedPlaces/FreedPlacesBoard";
 import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
 import NotHere from "@/features/applications/review/NotHere";
@@ -20,10 +20,10 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * address or painted week is in it.
  *
  * Who may open it is `offersFreedPlaces` of the caller's role on the
- * programme (an admin, this term), decided before anybody's application is
- * read. The tree's layout has already shown "there is no programme here" to
- * anybody with no role on it; anybody else with a role is told the page is an
- * admin's. The routes behind its buttons ask the same question for themselves.
+ * programme (an admin, or the programme's lead), decided before anybody's
+ * application is read. The tree's layout has already shown "there is no
+ * programme here" to anybody with no role on it; a reviewer is told who
+ * offers. The routes behind its buttons ask the same question for themselves.
  */
 export default async function FreedPlacesPage({
   params,
@@ -44,6 +44,16 @@ export default async function FreedPlacesPage({
       </ApplicationsRoot>
     );
   }
-  if (!loaded.ok) return <AdminsOnly roundId={roundId} what={ADMINS_OFFER} />;
+  if (!loaded.ok) {
+    return (
+      <Refusal
+        title="This page is for the programme’s lead and admins"
+        href={`/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/applications`}
+        action="Go to applications"
+      >
+        {ADMINS_OFFER}
+      </Refusal>
+    );
+  }
   return <FreedPlacesBoard board={loaded.board} />;
 }
