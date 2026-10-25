@@ -44,13 +44,13 @@ import { registerSwitchesIn, type RegisterSwitches } from "@/lib/scheduler/regis
  *    the people Publish has told their group. The register reads the same way.
  *  - Somebody who LEFT: an enrolment that has left the run, withdrawn by its
  *    owner or removed by staff, listed with the marks they had before they
- *    left (C27). Leaving clears the stamp Publish leaves, so a left row is
- *    listed when the viewer may be shown it OR when a register of the group
- *    holds a mark for it: a mark is proof they were on that register. A
+ *    left (C27), for every viewer alike, and only where a register of the
+ *    group holds a mark for them. Leaving clears the stamp Publish leaves, so
+ *    the mark is the proof they were on that register; somebody who left
+ *    before any register marked them took no part, and is nobody's row. A
  *    withdrawn row keeps its group and its date (`droppedOutAt`); a removed
  *    row keeps neither, so it is listed in the group whose register last
- *    marked it, as "Left" with no date. Somebody removed before any register
- *    marked them took no part, and is nobody's row.
+ *    marked it, as "Left" with no date.
  *
  * ── WHAT COUNTS ─────────────────────────────────────────────────────────────
  * "Came" counts present, late and left early, as the board says; "of" counts
@@ -345,12 +345,13 @@ function takesPart(row: Pick<CourseEnrolmentDoc, "status">): boolean {
 }
 
 /**
- * WHETHER A ROW IS LISTED FOR THIS VIEWER: by the register's own rule
- * (`placementIsShownTo`, about the caller's role), or, for somebody who has
- * left, because a register of the group holds a mark for them.
+ * WHETHER A ROW IS LISTED FOR THIS VIEWER: somebody taking part by the
+ * register's own rule (`placementIsShownTo`, about the caller's role);
+ * somebody who has left only where a register of the group marked them.
  */
 function isListed(enrolment: CourseEnrolmentDoc, viewer: { isAdmin: boolean }, marked: boolean): boolean {
-  return placementIsShownTo(enrolment, viewer) || (hasLeft(enrolment) && marked);
+  if (hasLeft(enrolment)) return marked;
+  return placementIsShownTo(enrolment, viewer);
 }
 
 /** One group's sessions, a week each, with what the clock and the register say of them. */

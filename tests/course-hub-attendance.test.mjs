@@ -387,6 +387,15 @@ describe("2. who is a row", () => {
     assert.ok(!model.groups.some((group) => group.people.some((person) => person.uid === "omar")));
   });
 
+  test("somebody who left before any register marked them is nobody's row either, though their group is kept", async () => {
+    world.db.poke(registerPath(A, 1), { records: { amara: "present", dev: "late", bea: "present", tariq: "present" } });
+    world.db.poke(registerPath(A, 2), { records: { amara: "present", dev: "present", bea: "excused", tariq: "absent" } });
+    for (const isAdmin of [false, true]) {
+      const model = await gridFor(isAdmin);
+      assert.ok(!groupOf(model, A).people.some((person) => person.uid === "sam"), `isAdmin ${isAdmin}`);
+    }
+  });
+
   test("a group that stopped meeting is no block, and nobody's address or note is in the grid", async () => {
     world.db.poke(`courseGroups/${C}`, { archived: true });
     const model = await gridFor(true);
