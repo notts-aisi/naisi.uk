@@ -431,6 +431,18 @@ describe("4. the member's section, the composer, and a message as text", () => {
     assert.doesNotMatch(html, /checked=""/);
   });
 
+  test("the button's words follow the switch: Post with it off, and with nobody to email", async () => {
+    const words = await loadTs(join("lib", "courses", "updates", "words.ts"));
+    assert.equal(words.postButtonWords(true, 31), "Post and email 31 people");
+    assert.equal(words.postButtonWords(true, 1), "Post and email 1 person");
+    assert.equal(words.postButtonWords(false, 31), "Post");
+    assert.equal(words.postButtonWords(true, 0), "Post");
+    assert.equal(words.emailSwitchWords(31), "Emails 31 people");
+    assert.equal(words.emailSwitchWords(1), "Emails 1 person");
+    assert.equal(words.emailSwitchWords(0), "Nobody to email yet");
+    assert.equal(words.counterWords(141, 4000), "141 / 4,000");
+  });
+
   test("the run home draws the section, after the marks and before the facilitator's cards", () => {
     const source = readFileSync(join(SRC, "features", "courses", "RunHome.tsx"), "utf8");
     assert.equal((source.match(/<RunUpdates runId=\{runId\} \/>/g) ?? []).length, 1);

@@ -1285,6 +1285,70 @@ the next request, and the new lead has it at once. A lead of one programme
 is nobody on another programme's run, and a programme's reviewers gain
 nothing. Nothing is deployed for any of this: no rule and no index changes.
 
+## Updates on a run
+
+An update is a short post to the people on a run: everyone, one group, or
+the facilitators. It is kept for them on the site and, with "Also email it"
+on, emailed to each of them too. The code is under `src/lib/courses/updates/`
+and one route, `/api/courses/runs/[runId]/updates`.
+
+### Who writes, and where
+
+- **The programme's lead and admins**: the programme page's Messages tab.
+  To offers everyone, each live group and the facilitators, each with how
+  many people it is to. Below the composer, every update on the run, with
+  who it was to and what its email did.
+- **A group's facilitators**: "Write to Group B (8)" on their group's page,
+  which opens the composer for that group alone.
+- **A run's track leads** may write as the lead does, through the same
+  route; no page offers it to them yet.
+
+### Who reads, and where
+
+- A member of the run reads the updates to everyone and to their own group,
+  under Updates on the programme's page, once Publish has told them their
+  group. Three show first; "Show older updates" shows the rest.
+- A group's facilitators read the updates to everyone, to the facilitators
+  and to their own groups. Their group's page lists that group's.
+- The lead, the track leads and admins read them all, on the Messages tab.
+- Nobody else: not a reviewer, not somebody Publish has not told, not
+  somebody who left. An update to one group is never shown to another
+  group's people.
+
+### The email
+
+- A notice (docs/notifications.md): it reaches each person whatever their
+  course email switch says, and says so at its top. To everyone and to a
+  group it goes to the run's cohort list, so somebody who unsubscribed from
+  that list reads the update on the site and is not emailed; to the
+  facilitators it goes to each one's own address. The suppression list
+  always applies.
+- The number on the switch and the button is the number the press emails.
+  If it has changed by the time of the press, the press is refused with the
+  new number and nothing is posted.
+- Replies go to ai-safety@uonsu.com. The email carries no meeting link of its
+  own; what goes out is the title and the message as typed.
+- "Send a test to me" emails the presser alone, marked [TEST], and posts
+  nothing. Ten an hour.
+- Caps, on counters of their own: three emailed updates an hour per writer
+  and audience, ten a day per audience; ten an hour posted without an email.
+  The existing "Email the group" and run email composers keep their own.
+
+### What the list says about an email
+
+"Emailed to N" counts the messages handed to the mail service. "N held"
+means this copy of the site does not email those addresses (every address on
+a staging copy). "Email not finished" means the send began and its result
+was never written: the request was cut off part way, so some people may
+have it and some may not. The send log in Deliverability says who.
+
+### Deleting
+
+Destroying the run deletes its updates (the dialog counts them as Updates).
+Deleting somebody's account leaves the updates they wrote: they belong to
+the run and the people they were to. Such an update shows its writer as
+NAISI.
+
 ## Offering a place somebody gave back
 
 A place given back after decision day can be offered, on the site, to
