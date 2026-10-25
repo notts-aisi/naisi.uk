@@ -123,6 +123,16 @@ describe("2. somebody who did not finish is told it has ended, and nothing more"
     });
   }
 
+  test("at least 6, Chloe, at every session Group B held, is told she finished; Yasmin, at five of Group D's six, that it has ended", async () => {
+    world.db.seed(rulePath, RULE(6));
+    const chloe = await pagesOf("chloe");
+    assert.deepEqual([chloe.overview.body.finished, chloe.entry.finished], [true, true]);
+    assert.match(chloe.home, new RegExp(`You finished ${COURSE_TITLE}\\.`));
+    const yasmin = await pagesOf("yasmin");
+    assert.deepEqual([yasmin.overview.body.finished, yasmin.entry.finished], [false, false]);
+    assert.match(yasmin.home, new RegExp(`${COURSE_TITLE} has ended\\.`));
+  });
+
   test("the lead unticking somebody the rule ticked tells them it has ended", async () => {
     world.db.seed(decisionPath("amara"), decision("amara", false, "claudia"));
     const pages = await pagesOf("amara");

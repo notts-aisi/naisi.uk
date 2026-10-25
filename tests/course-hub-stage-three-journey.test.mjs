@@ -1015,6 +1015,8 @@ async function registerOf(who, groupId) {
       left: leaver.left,
       marks: Object.fromEntries(Object.entries(leaver.records).map(([key, status]) => [`week ${weekOf.get(key)}`, status])),
     })),
+    /** The session the register's foot is about, and whether its register is finished. */
+    focus: answer.body.ending.focus ? [answer.body.ending.focus.weekNumber, answer.body.ending.focus.finished] : null,
   };
 }
 
@@ -1077,6 +1079,10 @@ async function tabsOf(who) {
     /** The rule's card: what the page hands it, and its words. */
     rule: setup ? setup.props.finishing : { text: settingsPage.text.slice(0, 300) },
     settingsText: settingsPage.text,
+    /** The grid's "in a row" badges: [name, how many]. */
+    inARow: grid
+      ? grid.props.model.groups.flatMap((group) => group.people.filter((person) => person.absentInARow > 0).map((person) => [person.name, person.absentInARow]))
+      : null,
   };
 }
 
@@ -1320,6 +1326,20 @@ async function theDayAfterTheCancelled() {
     body: { groupId: GROUP.B, sessionKey: card?.remind?.[2] ?? sessionKey(CANCELLED_WEEK, 1), emails: card?.remind?.[1] ?? 2 },
   });
   c.remindMail = mailSince(before).map((mail) => [mail.to.split("@")[0], mail.subject]);
+  // Rahul, on his register: a mark, the switch, a note, and the push, each
+  // for the session he cancelled. What they wrote and sent is written down.
+  const store = storeNow();
+  const beforePresses = world.mail.length;
+  const press = (method, body) =>
+    courseCall("rahul", method, { groupId: GROUP.B }, { body: { weekNumber: CANCELLED_WEEK, ...body } }).then(short);
+  c.presses = {
+    mark: await press(courseRoutes.register.POST, { marks: [{ uid: "amara", status: "present" }] }),
+    held: await press(courseRoutes.register.POST, { held: true }),
+    note: await press(courseRoutes.register.POST, { notes: "The room was closed." }),
+    push: await press(courseRoutes.finish.POST, {}),
+  };
+  c.pressesWrote = changedSince(store);
+  c.pressesMail = world.mail.length - beforePresses;
 }
 
 // ---------------------------------------------------------------------------
@@ -1420,18 +1440,37 @@ async function membersAfter() {
 // 6. Somebody who finished presses "Leave the programme" after the end
 // ---------------------------------------------------------------------------
 
+/** Every document in the store, by path, as it stands. */
+const storeNow = () => new Map(world.db.paths().map((path) => [path, JSON.stringify(world.db.read(path))]));
+
+/** The paths that changed, appeared or went since `before`. */
+function changedSince(before) {
+  const after = storeNow();
+  return [...new Set([...before.keys(), ...after.keys()])].filter((path) => before.get(path) !== after.get(path)).sort();
+}
+
+/**
+ * The day after the end, as somebody who finished would try it: her run home,
+ * the confirmation's address, and the press itself (sent as the confirmation
+ * sends it, title typed right), with what the press wrote and sent, and what
+ * her own pages and the lead's list say of her afterwards.
+ */
 async function leavingAfterTheEnd() {
   at("leavingAfterTheEnd");
   const e = {};
   seen.lateLeave = e;
   e.runHome = (await draw(pages.run, "amara", { runId: RUN })).runHome;
-  e.confirmation = await draw(pages.leave, "amara", { runId: RUN });
+  const confirmation = await draw(pages.leave, "amara", { runId: RUN });
+  e.confirmation = confirmation.to ? { sentTo: confirmation.to } : confirmation.text;
+  e.applicationBefore = ownApplicationOf("amara");
+  const store = storeNow();
   const before = world.mail.length;
   e.answer = await call("amara", courseRoutes.enrol.DELETE, { runId: RUN }, { body: { confirmName: COURSE_TITLE, reason: null } });
   await settle();
   e.mail = await Promise.all(mailSince(before).map(opened));
+  e.changed = changedSince(store);
   e.application = ownApplicationOf("amara");
-  e.pages = await leftPagesOf("amara");
+  e.member = await memberPages("amara");
   e.section = whoFinished(await tabsOf("claudia"));
 }
 
@@ -1598,44 +1637,47 @@ const THE_LEAVING_EMAIL = (first) =>
 
 /**
  * Every member's own pages after the end, word for word: the run home (its
- * heading, then their own marks from the finished registers), the hub's
+ * heading, then their own marks from the finished registers, and no way out
+ * at its foot: leaving closed at the run's last session, H1), the hub's
  * card, and Home's line and attendance, which is drawn with no session to
  * come. Group B's week 4 is missing from the run home's marks (it had no
- * register) and reads "not marked yet" on Home's strip (H2).
+ * register), and Home's strip reads it as "no session" from the run's own
+ * record of the cancellation (until the walk of stage three it read "not
+ * marked yet", from the register alone: H2).
  */
 const MEMBER_PAGES = {
   amara: {
-    home: "AGI Strategy Fellowship · Autumn 2026 You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 5 of 5 sessions in full so far. Week 1, Tue 3 Nov Present Week 2, Tue 10 Nov Present Week 3, Tue 17 Nov Present Week 5, Tue 1 Dec Present Week 6, Tue 8 Dec Present See your progress week by week → Leave the programme",
+    home: "AGI Strategy Fellowship · Autumn 2026 You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 5 of 5 sessions in full so far. Week 1, Tue 3 Nov Present Week 2, Tue 10 Nov Present Week 3, Tue 17 Nov Present Week 5, Tue 1 Dec Present Week 6, Tue 8 Dec Present See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Finished Group B",
-    homeLine: "Group B · finished Hi You. AGI Strategy Fellowship · Group B · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 5 of 5 so far P W1 Week 1: Present P W2 Week 2: Present P W3 Week 3: Present - W4 Week 4: not marked yet P W5 Week 5: Present P W6 Week 6: Present Your progress week by week",
+    homeLine: "Group B · finished Hi You. AGI Strategy Fellowship · Group B · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 5 of 5 so far P W1 Week 1: Present P W2 Week 2: Present P W3 Week 3: Present - W4 Week 4: no session P W5 Week 5: Present P W6 Week 6: Present Your progress week by week",
   },
   dev: {
-    home: "AGI Strategy Fellowship · Autumn 2026 You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 5 of 6 sessions in full so far. Week 1, Thu 29 Oct Late Week 2, Thu 5 Nov Present Week 3, Thu 12 Nov Present Week 4, Thu 19 Nov Present Week 5, Thu 26 Nov Present Week 6, Thu 3 Dec Present See your progress week by week → Leave the programme",
+    home: "AGI Strategy Fellowship · Autumn 2026 You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 5 of 6 sessions in full so far. Week 1, Thu 29 Oct Late Week 2, Thu 5 Nov Present Week 3, Thu 12 Nov Present Week 4, Thu 19 Nov Present Week 5, Thu 26 Nov Present Week 6, Thu 3 Dec Present See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Finished Group A",
     homeLine: "Group A · finished Hi You. AGI Strategy Fellowship · Group A · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 5 of 6 so far L W1 Week 1: Late P W2 Week 2: Present P W3 Week 3: Present P W4 Week 4: Present P W5 Week 5: Present P W6 Week 6: Present Your progress week by week",
   },
   farah: {
-    home: "AGI Strategy Fellowship · Autumn 2026 AGI Strategy Fellowship has ended. Thanks for being part of it. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 2 of 5 sessions in full so far. Week 1, Tue 3 Nov Present Week 2, Tue 10 Nov Late Week 3, Tue 17 Nov Present Week 5, Tue 1 Dec Absent Week 6, Tue 8 Dec Absent See your progress week by week → Leave the programme",
+    home: "AGI Strategy Fellowship · Autumn 2026 AGI Strategy Fellowship has ended. Thanks for being part of it. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 2 of 5 sessions in full so far. Week 1, Tue 3 Nov Present Week 2, Tue 10 Nov Late Week 3, Tue 17 Nov Present Week 5, Tue 1 Dec Absent Week 6, Tue 8 Dec Absent See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Ended Group B",
-    homeLine: "Group B · ended Hi You. AGI Strategy Fellowship · Group B · ended No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 2 of 5 so far P W1 Week 1: Present L W2 Week 2: Late P W3 Week 3: Present - W4 Week 4: not marked yet A W5 Week 5: Absent A W6 Week 6: Absent Your progress week by week",
+    homeLine: "Group B · ended Hi You. AGI Strategy Fellowship · Group B · ended No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 2 of 5 so far P W1 Week 1: Present L W2 Week 2: Late P W3 Week 3: Present - W4 Week 4: no session A W5 Week 5: Absent A W6 Week 6: Absent Your progress week by week",
   },
   isaac: {
-    home: "AGI Strategy Fellowship · Autumn 2026 You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 4 of 5 sessions in full so far. Week 1, Tue 3 Nov Present Week 2, Tue 10 Nov Present Week 3, Tue 17 Nov Absent Week 5, Tue 1 Dec Present Week 6, Tue 8 Dec Present See your progress week by week → Leave the programme",
+    home: "AGI Strategy Fellowship · Autumn 2026 You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 4 of 5 sessions in full so far. Week 1, Tue 3 Nov Present Week 2, Tue 10 Nov Present Week 3, Tue 17 Nov Absent Week 5, Tue 1 Dec Present Week 6, Tue 8 Dec Present See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Finished Group B",
-    homeLine: "Group B · finished Hi You. AGI Strategy Fellowship · Group B · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 4 of 5 so far P W1 Week 1: Present P W2 Week 2: Present A W3 Week 3: Absent - W4 Week 4: not marked yet P W5 Week 5: Present P W6 Week 6: Present Your progress week by week",
+    homeLine: "Group B · finished Hi You. AGI Strategy Fellowship · Group B · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 4 of 5 so far P W1 Week 1: Present P W2 Week 2: Present A W3 Week 3: Absent - W4 Week 4: no session P W5 Week 5: Present P W6 Week 6: Present Your progress week by week",
   },
   kofi: {
-    home: "AGI Strategy Fellowship · Autumn 2026 You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 3 of 5 sessions in full so far. Week 1, Tue 3 Nov Excused Week 2, Tue 10 Nov Present Week 3, Tue 17 Nov Excused Week 5, Tue 1 Dec Present Week 6, Tue 8 Dec Present See your progress week by week → Leave the programme",
+    home: "AGI Strategy Fellowship · Autumn 2026 You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 3 of 5 sessions in full so far. Week 1, Tue 3 Nov Excused Week 2, Tue 10 Nov Present Week 3, Tue 17 Nov Excused Week 5, Tue 1 Dec Present Week 6, Tue 8 Dec Present See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Finished Group B",
-    homeLine: "Group B · finished Hi You. AGI Strategy Fellowship · Group B · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 3 of 5 so far EX W1 Week 1: Excused P W2 Week 2: Present EX W3 Week 3: Excused - W4 Week 4: not marked yet P W5 Week 5: Present P W6 Week 6: Present Your progress week by week",
+    homeLine: "Group B · finished Hi You. AGI Strategy Fellowship · Group B · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 3 of 5 so far EX W1 Week 1: Excused P W2 Week 2: Present EX W3 Week 3: Excused - W4 Week 4: no session P W5 Week 5: Present P W6 Week 6: Present Your progress week by week",
   },
   mei: {
-    home: "AGI Strategy Fellowship · Autumn 2026 AGI Strategy Fellowship has ended. Thanks for being part of it. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 3 of 6 sessions in full so far. Week 1, Thu 29 Oct Present Week 2, Thu 5 Nov Excused Week 3, Thu 12 Nov Present Week 4, Thu 19 Nov Absent Week 5, Thu 26 Nov Absent Week 6, Thu 3 Dec Present See your progress week by week → Leave the programme",
+    home: "AGI Strategy Fellowship · Autumn 2026 AGI Strategy Fellowship has ended. Thanks for being part of it. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 3 of 6 sessions in full so far. Week 1, Thu 29 Oct Present Week 2, Thu 5 Nov Excused Week 3, Thu 12 Nov Present Week 4, Thu 19 Nov Absent Week 5, Thu 26 Nov Absent Week 6, Thu 3 Dec Present See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Ended Group A",
     homeLine: "Group A · ended Hi You. AGI Strategy Fellowship · Group A · ended No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 3 of 6 so far P W1 Week 1: Present EX W2 Week 2: Excused P W3 Week 3: Present A W4 Week 4: Absent A W5 Week 5: Absent P W6 Week 6: Present Your progress week by week",
   },
   noah: {
-    home: "AGI Strategy Fellowship · Autumn 2026 You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 4 of 6 sessions in full so far. Week 1, Thu 29 Oct Present Week 2, Thu 5 Nov Present Week 3, Thu 12 Nov Absent Week 4, Thu 19 Nov Present Week 5, Thu 26 Nov Absent Week 6, Thu 3 Dec Present See your progress week by week → Leave the programme",
+    home: "AGI Strategy Fellowship · Autumn 2026 You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. Revisit week 6 Your progress You have been at 4 of 6 sessions in full so far. Week 1, Thu 29 Oct Present Week 2, Thu 5 Nov Present Week 3, Thu 12 Nov Absent Week 4, Thu 19 Nov Present Week 5, Thu 26 Nov Absent Week 6, Thu 3 Dec Present See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Finished Group A",
     homeLine: "Group A · finished Hi You. AGI Strategy Fellowship · Group A · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your attendance 4 of 6 so far P W1 Week 1: Present P W2 Week 2: Present A W3 Week 3: Absent P W4 Week 4: Present A W5 Week 5: Absent P W6 Week 6: Present Your progress week by week",
   },
@@ -1782,14 +1824,15 @@ describe("stage three of the course hub, one term from week 3 to after its end",
           "Group A,Mei Tanaka,Present,Excused,Present,,,,2,3,\n" +
           "Group A,Noah Bennett,Present,Present,Absent,,,,2,3,",
       );
-      // The register names people by the name they go by; the grid and
-      // wk-fac-group by their whole names (H8).
+      // The register names the people in the group by the name they go by,
+      // and somebody who left by their whole name, as the grid and
+      // wk-fac-group do (until the walk of stage three it said "Sam": H8).
       for (const who of ["rahul", "claudia"]) {
         const register = l().registers[who];
         assert.deepEqual(register.members, ["Amara", "Farah", "Isaac", "Kofi"], who);
-        assert.deepEqual(register.leavers, [{ name: "Sam", left: "Left Fri 13 Nov", marks: { "week 1": "present", "week 2": "absent" } }], who);
+        assert.deepEqual(register.leavers, [{ name: "Sam Whitfield", left: "Left Fri 13 Nov", marks: { "week 1": "present", "week 2": "absent" } }], who);
       }
-      assert.deepEqual(l().registers.amelia.leavers, [{ name: "Joel", left: "Left Wed 4 Nov", marks: { "week 1": "present" } }]);
+      assert.deepEqual(l().registers.amelia.leavers, [{ name: "Joel Adeyemi", left: "Left Wed 4 Nov", marks: { "week 1": "present" } }]);
     });
 
     test("his group goes on without him: Publish owes nothing, his group's roster and Rahul's update leave him out", () => {
@@ -1842,11 +1885,19 @@ describe("stage three of the course hub, one term from week 3 to after its end",
       assert.deepEqual(c().remindMail, []);
     });
 
-    // The facilitators' register still lists the cancelled week as a session
-    // held and not finished, and the member's Home its week as "not marked
-    // yet": both ask the register only (H2, still open).
-    test("the facilitators' register still lists week 4 as held and not finished", () => {
-      assert.deepEqual(c().register.sessions, [[1, true, true], [2, true, true], [3, true, true], [4, true, false]]);
+    // Until the walk of stage three the facilitators' register listed the
+    // cancelled week as a session held and not finished, its foot offered to
+    // finish it and promised a task, and the member's Home read its week as
+    // "not marked yet": both asked the register only (H2). The register now
+    // reads it as not held, its foot is about the last session that met, and
+    // every press of its register is refused in the register's own words for
+    // a session that did not happen, writing and sending nothing.
+    test("the facilitators' register reads week 4 as not held, its foot leaves it, and its register needs nothing", () => {
+      assert.deepEqual(c().register.sessions, [[1, true, true], [2, true, true], [3, true, true], [4, false, false]]);
+      assert.deepEqual(c().register.focus, [3, true]);
+      const refused = [409, "Group B’s session on Tue 24 Nov didn’t happen, so its register needs nothing."];
+      assert.deepEqual(c().presses, { mark: refused, held: refused, note: refused, push: refused });
+      assert.deepEqual([c().pressesWrote, c().pressesMail], [[], 0]);
     });
   });
 
@@ -1895,9 +1946,14 @@ describe("stage three of the course hub, one term from week 3 to after its end",
         groupB.people.map((person) => [person.name, person.came]),
         [["Amara Okafor", "5 of 5"], ["Farah Hussain", "3 of 5"], ["Isaac Mensah", "4 of 5"], ["Kofi Asante", "3 of 5"], ["Sam Whitfield", "1 of 2"]],
       );
-      assert.deepEqual(a().lead.overview.attention.map(([kind]) => kind), ["absent", "left", "left"]);
-      assert.deepEqual(a().registers.rahul.leavers.map((leaver) => [leaver.name, leaver.left]), [["Sam", "Left Fri 13 Nov"]]);
-      assert.deepEqual(a().registers.amelia.leavers.map((leaver) => [leaver.name, leaver.left]), [["Joel", "Left Wed 4 Nov"]]);
+      // Until the walk of stage three Needs attention went on chasing Farah's
+      // two absences in a row after the run's last session, and the grid drew
+      // her "2 in a row" (H9). There is no session left to come to, so neither
+      // chases anybody once the run is over.
+      assert.deepEqual(a().lead.overview.attention.map(([kind]) => kind), ["left", "left"]);
+      assert.deepEqual([a().lead.inARow, a().admin.inARow], [[], []]);
+      assert.deepEqual(a().registers.rahul.leavers.map((leaver) => [leaver.name, leaver.left]), [["Sam Whitfield", "Left Fri 13 Nov"]]);
+      assert.deepEqual(a().registers.amelia.leavers.map((leaver) => [leaver.name, leaver.left]), [["Joel Adeyemi", "Left Wed 4 Nov"]]);
     });
 
     test("the members' own calendars still run to tonight: their pages are on week 6 and claim nothing yet", () => {
@@ -1922,19 +1978,22 @@ describe("stage three of the course hub, one term from week 3 to after its end",
     });
 
     // The rule is a number of sessions, the same for every group, while a
-    // group that had a session cancelled held fewer. At "at least 6 of 6"
-    // Amara, who came to every one of the 5 sessions her group held, is not
-    // ticked, though the card's hint and the note under the list say a
-    // cancelled session "doesn’t count against anyone" (H3).
-    test("at least 6: only Dev is ticked; Amara, at every session Group B held, is not", () => {
+    // group that had a session cancelled held fewer. Until the walk of stage
+    // three, at "at least 6 of 6" Amara, who came to every one of the 5
+    // sessions her group held, was not ticked, though the card's hint and the
+    // note under the list say a cancelled session "doesn’t count against
+    // anyone" (H3). Coming to every session one's group held now meets the
+    // rule when the group held fewer, as the hint promises; the rule's
+    // ceiling is still the most sessions any group is due to hold (7, below).
+    test("at least 6: Dev, at all six of Group A's, and Amara, at all five Group B held, are ticked; Isaac, at four of them, is not", () => {
       assert.deepEqual(r().six.answer, [200, { atLeast: 6, sessions: 6 }]);
-      assert.deepEqual(r().six.section.rows, listOf(["dev"]));
-      assert.equal(r().six.section.counts, "1 finished · 6 not");
+      assert.deepEqual(r().six.section.rows, listOf(["amara", "dev"]));
+      assert.equal(r().six.section.counts, "2 finished · 5 not");
     });
 
     test("7 is refused with a sentence and changes nothing; an empty box clears the rule; 4 again", () => {
       assert.deepEqual(r().seven.answer, [409, "This programme’s groups meet 6 times, so nobody can come to more sessions than that."]);
-      assert.deepEqual([r().seven.card, r().seven.section.rows], [{ atLeast: 6 }, listOf(["dev"])]);
+      assert.deepEqual([r().seven.card, r().seven.section.rows], [{ atLeast: 6 }, listOf(["amara", "dev"])]);
       assert.deepEqual([r().cleared.answer, r().cleared.card, r().cleared.section.sentence], [[200, { atLeast: null, sessions: 6 }], { atLeast: null }, NO_RULE]);
       assert.deepEqual(r().back.section, r().four.section);
       assert.deepEqual([r().stored.kind, r().stored.atLeast], ["rule", 4]);
@@ -2064,51 +2123,55 @@ describe("stage three of the course hub, one term from week 3 to after its end",
       }
     });
 
-    // The run home after the end still draws "Leave the programme" at its
-    // foot for everybody taking part (H1), and says the person's sessions
-    // "so far" (H9).
-    test("every run home after the end still offers Leave the programme", () => {
+    // Until the walk of stage three the run home after the end still drew
+    // "Leave the programme" at its foot for everybody taking part, and a
+    // press took a finished record (H1). Leaving now closes at the run's last
+    // session, the moment who finished opens, so no run home draws it. The
+    // run home still says the person's sessions "so far" (H9: the present
+    // tense on the member's pages is a later slice's).
+    test("no run home after the end offers Leave the programme", () => {
       for (const uid of ["amara", "dev", "farah", "isaac", "kofi", "mei", "noah"]) {
-        assert.deepEqual(pagesOf(uid).runPage, { runHome: { canLeave: true } }, uid);
-        assert.ok(pagesOf(uid).home.endsWith("See your progress week by week → Leave the programme"), uid);
+        assert.deepEqual(pagesOf(uid).runPage, { runHome: { canLeave: false } }, uid);
+        assert.ok(pagesOf(uid).home.endsWith("See your progress week by week →"), uid);
+        assert.ok(!pagesOf(uid).home.includes("Leave the programme"), uid);
         assert.match(pagesOf(uid).home, / sessions in full so far\. /, uid);
       }
     });
   });
 
   // -------------------------------------------------------------------------
-  // Leaving is open until the run is gone, and who finished from the last
-  // session on, so for a day the two overlap for good: somebody who finished
-  // can still leave, and leaving takes their finished record, gives their
-  // place on the form back after the term and emails them that the weekly
-  // emails will stop (H1).
+  // Until the walk of stage three leaving was open until the run was gone,
+  // and who finished from the last session on, so the two overlapped for
+  // good: somebody who finished could still leave, and leaving took their
+  // finished record, gave their place on the form back after the term and
+  // emailed them that the weekly emails would stop (H1). Leaving now closes
+  // at the run's last session, the moment who finished opens, in the one
+  // function the run home, the confirmation and the route ask.
   describe("8. somebody who finished presses Leave the programme after the end", () => {
     const e = () => seen.lateLeave;
 
-    test("the link is there, the confirmation opens and promises a place given back, and the press takes her off", () => {
-      assert.equal(e().runHome.canLeave, true);
-      assert.equal(e().confirmation.text, seen.leaving.confirmation);
-      assert.deepEqual([e().answer.status, e().answer.body.ok], [200, true]);
-      assert.deepEqual(e().mail.map((mail) => [mail.to, mail.subject]), [[address("amara"), "You've left AGI Strategy Fellowship"]]);
-      assert.equal(e().mail[0].text, THE_LEAVING_EMAIL("Amara"));
+    test("there is no way out: no link, the confirmation sends her to the run's home, and the press is refused with a sentence", () => {
+      assert.equal(e().runHome.canLeave, false);
+      assert.deepEqual(e().confirmation, { sentTo: HOME });
+      assert.deepEqual(short(e().answer), [
+        409,
+        "AGI Strategy Fellowship has ended, so there’s nothing to leave. If you need something changed, email ai-safety@uonsu.com.",
+      ]);
     });
 
-    test("she is moved from finished to left, her pages say she left, and her place on the form is given back", () => {
-      assert.deepEqual(e().section.counts, "4 finished · 2 not");
-      assert.deepEqual(e().section.left, [["Amara Okafor", "Group B", "Left Thu 10 Dec"], ...LEFT]);
-      assert.equal(
-        e().pages.runPage,
-        "My programmes AGI Strategy You left AGI Strategy That was on Thu 10 Dec. Thanks for coming along. What stays here " +
-          "Your notes and reflections The reading list for all 6 weeks Your marks Week 1, Tue 3 Nov Present Week 2, Tue 10 Nov " +
-          "Present Week 3, Tue 17 Nov Present Week 5, Tue 1 Dec Present Week 6, Tue 8 Dec Present Changed your mind? Email " +
-          "ai-safety@uonsu.com and we’ll see what we can do.",
-      );
-      assert.deepEqual(e().application.standing, ["released", "cant-make-it"]);
-      // Her notes page shows her own words, and only hers.
-      assert.equal(
-        e().pages.notes,
-        "AGI Strategy Your notes and reflections Your notes and reflections Week 1: What could go wrong, and how fast Racing to the precipice Your note: Amara's own note.",
-      );
+    test("the press writes nothing and sends nothing", () => {
+      assert.deepEqual(e().changed, []);
+      assert.deepEqual(e().mail, []);
+    });
+
+    test("she keeps her finished record, her pages and her place on the form", () => {
+      assert.equal(e().section.counts, "5 finished · 2 not");
+      assert.deepEqual(e().section.left, LEFT);
+      assert.ok(e().section.rows.some(([name, , , , , finished]) => name === "Amara Okafor" && finished === true));
+      assert.deepEqual([e().member.overview, e().member.entry], [{ finished: true }, { finished: true, membership: "enrolled" }]);
+      assert.equal(e().member.home, MEMBER_PAGES.amara.home);
+      assert.deepEqual(e().application, e().applicationBefore);
+      assert.deepEqual(e().application, { status: "accepted", attendance: null, releaseReason: null, standing: ["place", null] });
     });
   });
 

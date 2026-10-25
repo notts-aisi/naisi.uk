@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
-import { dayLabel, groupSessions, readRunRecords } from "@/lib/courses/programmeAttendance";
+import { dayLabel, didNotHappenLine, groupSessions, readRunRecords } from "@/lib/courses/programmeAttendance";
 import { readReminderState, sendReminders } from "@/lib/courses/registerRemind";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
@@ -125,10 +125,7 @@ export async function POST(req: Request, ctx: Ctx) {
   // The register's own word for its ending, as its page and the Overview say it.
   const ending = records.switches.scheduled ? "finished" : "pushed";
   if (!facts.held) {
-    return NextResponse.json(
-      { error: `${group.name}’s session on ${day} didn’t happen, so its register needs nothing.` },
-      { status: 409 },
-    );
+    return NextResponse.json({ error: didNotHappenLine(group.name, facts.session.dateKey) }, { status: 409 });
   }
   if (facts.finished) {
     return NextResponse.json({ error: `${group.name}’s register for ${day} is already ${ending}.` }, { status: 409 });

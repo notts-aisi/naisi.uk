@@ -4,9 +4,10 @@
  * have left (board wk-left-phone).
  *
  * The left page's words are the board's. The confirmation is not drawn on any
- * board: its words are written in the boards' voice and listed for Claude
- * Design. Every name and date in them is a slot filled from a record by the
- * caller: the programme's short name, the group, the lead, the day they left.
+ * board: its words are written in the boards' voice and listed for the
+ * boards' designers to confirm. Every name and date in them is a slot filled
+ * from a record by the caller: the programme's short name, the group, the
+ * lead, the day they left.
  *
  * Pure, with no imports, so the confirmation form in the browser, the server
  * pages and the tests all read the same sentences.
@@ -73,6 +74,16 @@ export const STAY = "Stay";
 /** In place of the form when the course has no title to type: the leave route's own sentence. */
 export const UNTITLED_COURSE =
   "This course has no title yet, so there's nothing to type as confirmation. Email the team and we'll take you off it.";
+
+/**
+ * The leave route's answer once the run's last session is over: leaving has
+ * closed, as the board for after the end draws no way out. `name` is the
+ * course's title, as the member's own page says it has ended. Not on any
+ * board: written in the boards' voice.
+ */
+export function endedNothingToLeave(name: string): string {
+  return `${name} has ended, so there’s nothing to leave. If you need something changed, email ${SOCIETY_ADDRESS}.`;
+}
 
 /** Said when the press could not reach the site at all. */
 export const LEAVE_UNREACHABLE = "That didn’t go through: check your connection and try again.";

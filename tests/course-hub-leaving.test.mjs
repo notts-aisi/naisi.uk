@@ -46,6 +46,10 @@
  *     themselves; somebody removed is not shown the page that says they left.
  *  7. PUTTING SOMEBODY BACK clears the day, the reason and Publish's stamp, so
  *     they read the run again only once Publish has told them.
+ *  8. NOBODY LEAVES ONCE THE RUN'S LAST SESSION IS OVER, the moment who
+ *     finished opens: the link goes, the confirmation sends them to the run's
+ *     home, and the press is refused with a sentence, writing nothing and
+ *     sending nothing, for a placed seat and an open run's alike.
  *
  * Real: the routes, the pages (server components) rendered to HTML, the access
  * gate, the form's own reply decision and writer, the lead's grid and
@@ -53,6 +57,7 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { render } from "@react-email/render";
@@ -89,6 +94,8 @@ const freedPlacesRoute = await w.formRoute("programmes", "[programmeId]", "freed
 
 const TITLE = "AGI Strategy Fellowship";
 const HOME = `/learn/${RUN.agi}`;
+/** Who finished's own answer to when a run is over. */
+const runEnd = await w.loadTs(join("lib", "courses", "finishing", "record.ts"));
 
 beforeEach(() => {
   mock.timers.setTime(NOW.getTime());
@@ -851,6 +858,74 @@ describe("7. putting somebody who left back", () => {
     assert.equal(at(read(enrolmentPath("amara")).allocatedEmailAt), NOW.toISOString());
     assert.equal((await home("amara")).to, null);
     assert.equal(ui.runHome.canLeave, true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. Once the run's last session is over
+// ---------------------------------------------------------------------------
+
+describe("8. once the run's last session is over, nobody leaves", () => {
+  /** When a run's last session ends, as who finished reads it. */
+  const endOf = async (runId) => runEnd.readRunEndById(world.courseDb, runId, new Date());
+  const ENDED = (name) => `${name} has ended, so there’s nothing to leave. If you need something changed, email ai-safety@uonsu.com.`;
+
+  test("the line is the run's last session: a minute before it ends the way out is there, and from its end it is not", async () => {
+    const end = await endOf(RUN.agi);
+    assert.equal(end.lastDay, "Wed 9 Dec");
+    mock.timers.setTime(end.endsAt.getTime() - 60_000);
+    assert.equal((await home("amara")).to ?? ui.runHome?.canLeave, true);
+    assert.equal((await confirmation("amara")).to, null);
+    mock.timers.setTime(end.endsAt.getTime());
+    assert.equal((await home("amara")).to ?? ui.runHome?.canLeave, false);
+    assert.equal((await confirmation("amara")).to, HOME);
+  });
+
+  test("after it no page draws the way out, for a placed seat or an open run's, and the confirmation sends them home", async () => {
+    const asked = {};
+    for (const [who, runId] of [
+      ["amara", RUN.agi],
+      ["dev", RUN.agi],
+      ["kai", OPEN_RUN],
+    ]) {
+      mock.timers.setTime((await endOf(runId)).endsAt.getTime() + 24 * 3600_000);
+      const drawn = await home(who, runId);
+      asked[who] = [drawn.to ?? ui.runHome?.canLeave, (await confirmation(who, runId)).to];
+      assert.equal(drawn.wrote, false, `${who}: a page wrote`);
+    }
+    assert.deepEqual(asked, {
+      amara: [false, HOME],
+      dev: [false, HOME],
+      kai: [false, `/learn/${OPEN_RUN}`],
+    });
+  });
+
+  test("the press is refused with a sentence, and nothing is written or sent: no seat, no place on the form, no email", async () => {
+    for (const [who, runId, title, name] of [
+      ["amara", RUN.agi, TITLE, TITLE],
+      ["kai", OPEN_RUN, "Pre-course", "Pre-course"],
+    ]) {
+      mock.timers.setTime((await endOf(runId)).endsAt.getTime());
+      const before = snapshot();
+      const answer = await leave(who, { confirmName: title, reason: AMARA_SAID }, runId);
+      assert.deepEqual([answer.status, answer.body], [409, { error: ENDED(name) }], who);
+      assert.deepEqual(changedSince(before), [], who);
+    }
+    assert.equal(world.mail.length, 0);
+    // The place on the form is still held, and the seat still taken.
+    assert.deepEqual([read(applicationPath("amara")).status, read(enrolmentPath("amara")).status], ["accepted", "active"]);
+    assert.equal(read(enrolmentPath("kai", OPEN_RUN)).status, "active");
+  });
+
+  test("somebody who left before the end is answered the same after it, and nothing changes", async () => {
+    assert.equal((await leave("amara")).status, 200);
+    const mailed = world.mail.length;
+    mock.timers.setTime((await endOf(RUN.agi)).endsAt.getTime() + 24 * 3600_000);
+    const before = snapshot();
+    const answer = await leave("amara");
+    assert.deepEqual([answer.status, answer.body], [409, { error: ENDED(TITLE) }]);
+    assert.deepEqual(changedSince(before), []);
+    assert.equal(world.mail.length, mailed);
   });
 });
 

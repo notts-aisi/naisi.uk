@@ -702,6 +702,23 @@
   color: var(--color-text-muted);
 }
 
+/* "Settings", inside the sentence over the list: a link in the line of text. */
+.wfSentenceLink {
+  color: var(--color-accent-text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.wfSentenceLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.wfSentenceLink:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
 .wfHeadSide {
   display: flex;
   flex: none;
@@ -1046,5 +1063,138 @@
 
   .wfLine {
     white-space: normal;
+  }
+
+  /* Who finished, a card a row (en-finish draws no phone board): the person
+     and their Finished switch side by side, then their group, "came to" and
+     exercises under the name, each with its column's word, so no switch is
+     behind a sideways scroll. Every cell, word and control is the laptop
+     table's own, placed by the cells' classes; the switch keeps its 44px
+     target. */
+  .wfTable,
+  .wfTable > tbody,
+  .wfTable td,
+  .wfCaption {
+    display: block;
+  }
+
+  .wfTable {
+    min-width: 0;
+  }
+
+  /* Each cell says its column's word here; the headings stay for assistive
+     technology. */
+  .wfThead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .wfTable > tbody > tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 8px;
+    align-items: start;
+  }
+
+  /* A row for one person: a card, with a rule under it. */
+  .wfTable > tbody > tr:has(> .wfCellPerson) {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  /* "+3 more", "Left the programme" and "Nobody took part." take the width. */
+  .wfTable > tbody > tr > td[colspan] {
+    grid-column: 1 / -1;
+  }
+
+  .wfTd {
+    border-bottom: 0;
+  }
+
+  .wfTable .wfCellPerson,
+  .wfTable .wfCellGroup,
+  .wfTable .wfCellCame,
+  .wfTable .wfCellExercises,
+  .wfTable .wfCellFinished {
+    padding: 0 16px;
+  }
+
+  .wfTable .wfCellPerson {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .wfTable .wfCellGroup,
+  .wfTable .wfCellCame,
+  .wfTable .wfCellExercises {
+    grid-column: 1;
+    padding-left: calc(16px + 1.375rem + 12px);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+  }
+
+  .wfTable .wfCellGroup {
+    grid-row: 2;
+  }
+
+  .wfTable .wfCellCame {
+    grid-row: 3;
+  }
+
+  .wfTable .wfCellExercises {
+    grid-row: 4;
+  }
+
+  /* The column's word, as the laptop table's mono heading says it. */
+  .wfCellCame::before,
+  .wfCellExercises::before {
+    margin-right: 6px;
+    font-family: var(--font-meta);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .wfCellCame::before {
+    content: "Came to";
+  }
+
+  .wfCellExercises::before {
+    content: "Exercises";
+  }
+
+  /* Beside the name, at the top of the card. */
+  .wfTable .wfCellFinished {
+    grid-column: 2;
+    grid-row: 1 / span 4;
+    align-self: start;
+  }
+
+  .wfTable td.wfCellEmpty {
+    display: none;
+  }
+
+  .wfFinishedCell {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .wfChanged {
+    max-width: 7rem;
+    white-space: normal;
+    text-align: right;
+  }
+
+  .wfName,
+  .wfLeftName {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 }

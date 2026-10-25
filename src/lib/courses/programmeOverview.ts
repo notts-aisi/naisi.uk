@@ -35,7 +35,8 @@ import { weekDocId } from "@/lib/firestore/courses";
  * WHAT "NEEDS ATTENTION" CAN SAY, and each item goes away with the record
  * that put it there:
  *  - somebody marked absent at `ABSENT_IN_A_ROW` sessions in a row with no
- *    excuse (it goes when a later session marks them anything else);
+ *    excuse (it goes when a later session marks them anything else, and
+ *    once the run's last session is over: there is nothing left to miss);
  *  - a week not published that a group has reached, its previous session
  *    over (Published stands in for Ready, as the register's next-week email
  *    does; it goes when the week is published);

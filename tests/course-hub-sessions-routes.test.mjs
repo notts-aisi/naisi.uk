@@ -26,6 +26,14 @@
  *     link, nothing to put back, and a count that no longer holds are each
  *     refused before anything changes.
  *  5. THE FINISHING DATE under both kinds of cancel.
+ *  6. THE FACILITATORS' REGISTER of a session cancelled and kept pace: its
+ *     column reads as not held for everybody who reads the register, its
+ *     foot chases another session, and a mark, the switch, a note, the push
+ *     and an admin's correction are refused in the register's words for a
+ *     session that did not happen, writing and sending nothing. Put back as
+ *     usual, it is a session to mark again. A register finished before its
+ *     session was cancelled counts for nobody afterwards: not in a member's
+ *     stored figures, not in their own marks.
  *
  * Real: the route, the session resolver, the model, the updates route and
  * its audience, the notice door and the email template. Stubbed by the
@@ -40,6 +48,8 @@ import { AGI, AWAY, A, B, C, LINK, NOW, ROUND, RUN, TUE_24, makeSessionsWorld } 
 const w = await makeSessionsWorld("__sessionsRoutes");
 const { world, ask, press, everything, group, sessionsOf, reset, at, loadTs } = w;
 const model = await loadTs("lib/courses/sessionChange/model.ts");
+const register = await w.courseRoute("groups", "[groupId]", "attendance");
+const finish = await w.courseRoute("groups", "[groupId]", "attendance", "push");
 
 beforeEach(() => reset());
 
@@ -526,5 +536,130 @@ describe("the update reaches Group B's people and nobody else", () => {
     assert.deepEqual(group(A).sessionChanges, {});
     assert.deepEqual(group(C).sessionChanges, {});
     assert.equal(RUN.agi, w.run().id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. The facilitators' register of a cancelled session
+// ---------------------------------------------------------------------------
+
+describe("6. the facilitators' register of a session cancelled and kept pace", () => {
+  /** Wed 25 Nov, 9am: the morning after the evening that was cancelled. */
+  const MORNING_AFTER = new Date("2026-11-25T09:00:00Z");
+  const DID_NOT_HAPPEN = "Group B’s session on Tue 24 Nov didn’t happen, so its register needs nothing.";
+
+  /** The register as `who` reads it: each column's week and whether it was held, and the week its foot is about. */
+  async function columns(who) {
+    const answer = await w.call(who, register.GET, { groupId: B }, { course: true });
+    assert.equal(answer.status, 200, `${who}: ${JSON.stringify(answer.body)}`);
+    return {
+      held: answer.body.sessions.map((session) => [session.weekNumber, session.held]),
+      focus: answer.body.ending.focus?.weekNumber ?? null,
+    };
+  }
+
+  /** Every press of week 4's register, as `who`: a mark, the switch, a note, the push and an admin's correction. */
+  async function presses(who) {
+    const write = (handler, body) =>
+      w
+        .call(who, handler, { groupId: B }, { body: { weekNumber: 4, ...body }, course: true })
+        .then((answer) => [answer.status, answer.body?.error ?? null]);
+    return {
+      mark: await write(register.POST, { marks: [{ uid: "amara", status: "present" }] }),
+      held: await write(register.POST, { held: true }),
+      note: await write(register.POST, { notes: "The room was closed." }),
+      push: await write(finish.POST, {}),
+      correction: await write(register.PATCH, { marks: [{ uid: "amara", status: "absent" }] }),
+    };
+  }
+
+  test("its column reads as not held for its facilitators, the programme's lead and an admin, and its foot is about another session", async () => {
+    await press("rahul", B, CANCEL, { tell: false });
+    at(MORNING_AFTER);
+    for (const who of ["rahul", "sofia", "claudia", "zach"]) {
+      const read = await columns(who);
+      assert.deepEqual(read.held, [[1, true], [2, true], [3, true], [4, false]], who);
+      assert.notEqual(read.focus, 4, `${who}: the foot chases the cancelled session`);
+    }
+  });
+
+  test("every press of its register is refused in the register's words, for each who may write it, and nothing is written or sent", async () => {
+    await press("rahul", B, CANCEL, { tell: false });
+    at(MORNING_AFTER);
+    world.mail.length = 0;
+    const before = everything();
+    const refused = [409, DID_NOT_HAPPEN];
+    for (const who of ["rahul", "sofia", "zach"]) {
+      const answers = await presses(who);
+      // An admin's correction reaches the cancelled session's refusal; a
+      // facilitator's is refused before it, as every correction of theirs is.
+      assert.deepEqual(
+        answers,
+        {
+          mark: refused,
+          held: refused,
+          note: refused,
+          push: refused,
+          correction: who === "zach" ? refused : [403, "Only an admin can change a register after it has been pushed."],
+        },
+        who,
+      );
+    }
+    assert.equal(everything(), before);
+    assert.equal(world.mail.length, 0);
+  });
+
+  test("nobody else reaches the sentence: the gate answers them as before", async () => {
+    await press("rahul", B, CANCEL, { tell: false });
+    at(MORNING_AFTER);
+    for (const who of ["amara", "tom", null]) {
+      const answers = await presses(who);
+      for (const [press_, [status]] of Object.entries(answers)) {
+        assert.ok([401, 403].includes(status), `${who}: ${press_} answered ${status}`);
+      }
+    }
+  });
+
+  test("a register finished before its session was cancelled counts for nobody afterwards", async () => {
+    const overviewRoute = await w.courseRoute("runs", "[runId]", "overview");
+    const write = (who, handler, body) =>
+      w.call(who, handler, { groupId: B }, { body, course: true }).then((answer) => [answer.status, answer.body?.error ?? null]);
+    const ok = [200, null];
+    // Week 3 (Tue 17 Nov) met and is finished; week 4's register is marked and
+    // finished on Thu 19 Nov, before its evening, which the push allows.
+    const week3 = { weekNumber: 3, marks: [{ uid: "amara", status: "present" }, { uid: "ines", status: "present" }, { uid: "omar", status: "absent" }] };
+    assert.deepEqual(await write("rahul", register.POST, week3), ok);
+    assert.deepEqual(await write("rahul", finish.POST, { weekNumber: 3 }), ok);
+    assert.deepEqual(await write("rahul", register.POST, { weekNumber: 4, marks: [{ uid: "amara", status: "present" }] }), ok);
+    assert.deepEqual(await write("rahul", finish.POST, { weekNumber: 4 }), ok);
+    const rollup = () => world.db.read(`courseEnrolments/${RUN.agi}__amara`).attendance;
+    assert.deepEqual([rollup().sessionsHeld, rollup().attendedInFull], [2, 2]);
+
+    // Then the evening is cancelled, and an admin corrects week 3, which
+    // rebuilds everybody's figures from the group's registers.
+    await press("rahul", B, CANCEL, { tell: false });
+    assert.deepEqual(await write("zach", register.PATCH, { weekNumber: 3, marks: [{ uid: "omar", status: "late" }] }), ok);
+    assert.deepEqual([rollup().sessionsHeld, rollup().attendedInFull], [1, 1]);
+
+    // Her own marks, as the run home and Home read them: week 4 was not held.
+    const overview = await w.call("amara", overviewRoute.GET, { runId: RUN.agi }, { course: true });
+    assert.equal(overview.status, 200);
+    assert.deepEqual(
+      overview.body.ownAttendance.sessions.map((session) => [session.weekNumber, session.held, session.status]),
+      [[3, true, "present"], [4, false, "present"]],
+    );
+    assert.deepEqual(overview.body.group.cancelledSessions.map((session) => session.weekNumber), [4]);
+  });
+
+  test("put back as usual, it is a session to mark again", async () => {
+    await press("rahul", B, CANCEL, { tell: false });
+    await press("rahul", B, { week: 4, dateKey: TUE_24, kind: "restore" }, { tell: false });
+    at(MORNING_AFTER);
+    assert.deepEqual((await columns("rahul")).held, [[1, true], [2, true], [3, true], [4, true]]);
+    const marked = await w.call("rahul", register.POST, { groupId: B }, {
+      body: { weekNumber: 4, marks: [{ uid: "amara", status: "present" }] },
+      course: true,
+    });
+    assert.deepEqual([marked.status, marked.body.held], [200, true]);
   });
 });

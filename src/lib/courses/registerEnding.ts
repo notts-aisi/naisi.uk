@@ -64,8 +64,10 @@ export type RegisterEnding = {
   groupName: string;
   /**
    * The session the foot of the register is about: the latest that has
-   * started and is not finished, or else the latest finished one. Null before
-   * any session has started.
+   * started and is not finished, or else the latest finished one. Never a
+   * session cancelled through "Change a session": it met nobody, so its
+   * register is nobody's to finish, as the jobs that chase registers read it.
+   * Null before any session has started.
    */
   focus: {
     sessionKey: string;
@@ -142,7 +144,10 @@ export async function readRegisterEnding(
   const [config, scheduler] = await Promise.all([readCoursesConfig(db), readSchedulerConfig(db)]);
   const switches = registerSwitchesIn(scheduler);
 
-  const target = latest(columns, (column, startsAt) => !column.finished && startsAt <= now);
+  const target = latest(
+    columns,
+    (column, startsAt) => !column.finished && !column.session.cancelled && startsAt <= now,
+  );
   const done = target ? null : latest(columns, (column) => column.finished);
   const pick = target ?? done;
 

@@ -6,7 +6,7 @@ import {
   finishRuleId,
   normalizeFinishRule,
 } from "@/lib/courses/finishing/model";
-import { runEndOf } from "@/lib/courses/finishing/record";
+import { runEndOf, suggestedBy } from "@/lib/courses/finishing/record";
 import { loadWhoFinished, type WhoFinishedModel } from "@/lib/courses/finishing/whoFinished";
 import {
   LEADS_AND_ADMINS,
@@ -140,7 +140,7 @@ export async function decideFinished(
     // exactly where it differs from what the rule says of this person.
     const ruleSnap = await tx.get(ruleRef);
     const rule = ruleSnap.exists ? normalizeFinishRule(ruleSnap.id, ruleSnap.data() as Record<string, unknown>) : null;
-    const suggested = rule !== null && row.came >= rule.atLeast;
+    const suggested = suggestedBy(rule, row);
     if (change.finished === suggested) {
       tx.delete(decisionRef);
       return;

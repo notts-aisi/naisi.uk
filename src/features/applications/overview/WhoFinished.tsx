@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import InitialsChip from "@/components/ui/InitialsChip";
 import { useHydrated } from "@/hooks/useHydrated";
 import type { WhoFinishedModel } from "@/lib/courses/finishing/whoFinished";
+import { NO_RULE_AFTER, NO_RULE_BEFORE, NO_RULE_LINK, NO_RULE_SENTENCE } from "@/lib/courses/finishing/words";
 // The Overview's own stylesheet: this card is a part of that page.
 import styles from "./ProgrammeOverview.module.css";
 
@@ -20,6 +22,12 @@ import styles from "./ProgrammeOverview.module.css";
  *
  * Before the page is live the switches are drawn and not pressable, since
  * nothing would be listening.
+ *
+ * ON A PHONE (en-finish draws no phone board) the same table is drawn a card
+ * a row: the person and their Finished switch side by side, and their group,
+ * "came to" and exercises under the name, each with its column's word, so no
+ * switch is ever behind a sideways scroll. The stylesheet does that from the
+ * cells' own classes; the words and the controls are the laptop table's.
  */
 
 type OpenModel = Extract<WhoFinishedModel, { state: "open" }>;
@@ -127,7 +135,24 @@ export default function WhoFinished({
           <h2 id="who-finished" className={styles.wfTitle}>
             Who finished
           </h2>
-          <p className={styles.wfSentence}>{model.sentence}</p>
+          <p className={styles.wfSentence}>
+            {model.sentence === NO_RULE_SENTENCE ? (
+              // With no rule, "Settings" leads to the rule's card, as the
+              // People card's "Set who counts as finished" does before the end.
+              <>
+                {NO_RULE_BEFORE}
+                <Link
+                  href={`/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/setup#who-finished`}
+                  className={styles.wfSentenceLink}
+                >
+                  {NO_RULE_LINK}
+                </Link>
+                {NO_RULE_AFTER}
+              </>
+            ) : (
+              model.sentence
+            )}
+          </p>
         </div>
         <div className={styles.wfHeadSide}>
           <span className={styles.wfCounts}>{model.counts}</span>
@@ -138,7 +163,7 @@ export default function WhoFinished({
       <div className={styles.wfScroll}>
         <table className={styles.wfTable}>
           <caption className={styles.wfCaption}>Fewest sessions first</caption>
-          <thead>
+          <thead className={styles.wfThead}>
             <tr>
               <th scope="col" className={styles.wfTh}>
                 Name
@@ -163,7 +188,7 @@ export default function WhoFinished({
               const checked = busy && pressed ? pressed.finished : row.finished;
               return (
                 <tr key={row.uid}>
-                  <td className={styles.wfTd}>
+                  <td className={`${styles.wfTd} ${styles.wfCellPerson}`}>
                     <div className={styles.wfPerson}>
                       <InitialsChip name={row.name} uid={row.uid} size="sm" />
                       <div className={styles.wfPersonText}>
@@ -172,10 +197,10 @@ export default function WhoFinished({
                       </div>
                     </div>
                   </td>
-                  <td className={styles.wfTd}>{row.groupName}</td>
-                  <td className={styles.wfTd}>{row.came}</td>
-                  <td className={styles.wfTd}>{row.exercises ?? "None set"}</td>
-                  <td className={styles.wfTd}>
+                  <td className={`${styles.wfTd} ${styles.wfCellGroup}`}>{row.groupName}</td>
+                  <td className={`${styles.wfTd} ${styles.wfCellCame}`}>{row.came}</td>
+                  <td className={`${styles.wfTd} ${styles.wfCellExercises}`}>{row.exercises ?? "None set"}</td>
+                  <td className={`${styles.wfTd} ${styles.wfCellFinished}`}>
                     <div className={styles.wfFinishedCell}>
                       <label className={styles.wfSwitch}>
                         <input
@@ -228,18 +253,18 @@ export default function WhoFinished({
                 </tr>
                 {model.left.map((person) => (
                   <tr key={person.uid}>
-                    <td className={styles.wfTd}>
+                    <td className={`${styles.wfTd} ${styles.wfCellPerson}`}>
                       <div className={styles.wfPerson}>
                         <InitialsChip name={person.name} uid={person.uid} size="sm" />
                         <span className={styles.wfLeftName}>{person.name}</span>
                       </div>
                     </td>
-                    <td className={styles.wfTd}>
+                    <td className={`${styles.wfTd} ${styles.wfCellGroup}`}>
                       <span className={styles.wfMuted}>{person.groupName}</span>
                     </td>
-                    <td className={styles.wfTd} />
-                    <td className={styles.wfTd} />
-                    <td className={styles.wfTd}>
+                    <td className={`${styles.wfTd} ${styles.wfCellEmpty}`} />
+                    <td className={`${styles.wfTd} ${styles.wfCellEmpty}`} />
+                    <td className={`${styles.wfTd} ${styles.wfCellFinished}`}>
                       <span className={styles.wfMuted}>{person.left}</span>
                     </td>
                   </tr>

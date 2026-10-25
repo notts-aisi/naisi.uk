@@ -1,13 +1,11 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import {
-  dayLabel,
   listGroups,
   weeksOf,
   type GridPerson,
   type RunRecords,
 } from "@/lib/courses/programmeAttendance";
-import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
 import { normalizeCourseAttendance, type CourseAttendanceDoc } from "@/lib/firestore/courseAttendance";
 import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -16,11 +14,17 @@ import {
   FINISHING_COLLECTION,
   finishDecisionId,
   finishRuleId,
+  meetsRule,
   normalizeFinishDecision,
   normalizeFinishRule,
   type FinishDecision,
   type FinishRule,
 } from "./model";
+import { liveGroupsOf, runEndOf, type RunEnd } from "./runEnd";
+
+// When the run is over is its own module (`./runEnd.ts`), which the lead's
+// attendance asks too; every reader of the record keeps asking it here.
+export { liveGroupsOf, runEndOf, type RunEnd };
 
 /**
  * EVERY READER OF THE FINISHED RECORD ASKS HERE: the lead's list on the
@@ -46,52 +50,6 @@ import {
 // ---------------------------------------------------------------------------
 // When the run is over
 // ---------------------------------------------------------------------------
-
-export type RunEnd = {
-  /** The day of the run's last session, "YYYY-MM-DD", or null when none can be dated. */
-  lastDateKey: string | null;
-  /** "Wed 9 Dec", or null. */
-  lastDay: string | null;
-  /** When that session ends, or null. */
-  endsAt: Date | null;
-  /** True once the last session has ended. Never true for a run whose sessions cannot be dated. */
-  over: boolean;
-  /** The most sessions any live group of the run is due to hold, cancelled ones counted: the "of 6". */
-  sessions: number;
-};
-
-/** The groups of a run that still meet: not archived, and the run's own. */
-export function liveGroupsOf(runId: string, groups: readonly CourseGroupDoc[]): CourseGroupDoc[] {
-  return groups.filter((group) => !group.archived && group.runId === runId);
-}
-
-/**
- * When the run's last session ends, from each live group's own calendar
- * (`resolveSessions` applies a group's pacing and one-week changes). A
- * cancelled session is no meeting, so a group that cancelled its last
- * session finishes on the one before it.
- */
-export function runEndOf(run: CourseRunDoc, groups: readonly CourseGroupDoc[], now: Date): RunEnd {
-  let last: { endsAt: Date; dateKey: string } | null = null;
-  let sessions = 0;
-  for (const group of liveGroupsOf(run.id, groups)) {
-    const resolved = resolveSessions(run, group);
-    sessions = Math.max(sessions, resolved.length);
-    for (const session of resolved) {
-      if (session.cancelled) continue;
-      const { endsAt } = sessionInstants(session);
-      if (!endsAt) continue;
-      if (!last || endsAt.getTime() > last.endsAt.getTime()) last = { endsAt, dateKey: session.dateKey };
-    }
-  }
-  return {
-    lastDateKey: last?.dateKey ?? null,
-    lastDay: last ? dayLabel(last.dateKey) || null : null,
-    endsAt: last?.endsAt ?? null,
-    over: last !== null && last.endsAt.getTime() <= now.getTime(),
-    sessions,
-  };
-}
 
 /**
  * The run's live groups and when it ends, read from the run alone. The groups
@@ -174,19 +132,28 @@ export type FinishRecord = {
 };
 
 /**
+ * What the rule says of one person, from their row of the grid: false with no
+ * rule. The switch's route asks this too, so a decision is stored exactly
+ * where it differs from what the lead's list shows.
+ */
+export function suggestedBy(rule: FinishRule | null, row: Pick<GridPerson, "came" | "groupHeld">): boolean {
+  return rule !== null && meetsRule(row.came, row.groupHeld, rule.atLeast);
+}
+
+/**
  * A person's record, from their row of the grid. Null before the run is over
  * and for somebody who left: they are listed as having left, and have no
  * finished record at all.
  */
 export function recordOf(
-  row: Pick<GridPerson, "uid" | "came" | "left">,
+  row: Pick<GridPerson, "uid" | "came" | "groupHeld" | "left">,
   finishing: Finishing,
   end: RunEnd,
 ): FinishRecord | null {
   if (!end.over || row.left !== null) return null;
   const decision = finishing.decisions.get(row.uid) ?? null;
   const rule = finishing.rule;
-  const suggested = rule !== null && row.came >= rule.atLeast;
+  const suggested = suggestedBy(rule, row);
   if (decision) {
     return { finished: decision.finished, suggested, decidedBy: "lead", at: decision.at, decision };
   }

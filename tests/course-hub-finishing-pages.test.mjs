@@ -28,6 +28,14 @@
  *     last session's end; before it, the running line.
  *  5. The switches are not pressable before the page is live, no address
  *     reaches any of it, and drawing a page writes nothing.
+ *  6. ABSENCES: Needs attention names each run of absences, and the grid
+ *     marks it "in a row", until the run's last session is over; from that
+ *     moment neither chases anybody, since there is no session left to miss.
+ *  7. ON A PHONE (en-finish draws no phone board): a card a row, each person's
+ *     switch beside their name and never behind a sideways scroll, at its
+ *     44px target, and the laptop table as it was. Read from the cells' own
+ *     classes as drawn and from the stylesheet's phone block, since no
+ *     browser runs here.
  *
  * Real: the pages, the layout, the section's component, the libraries. Faked:
  * the session, the Admin SDK handle, `next/link`, `next/navigation`, the
@@ -35,12 +43,17 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   AGI,
   BEFORE,
   END,
+  LAST_ENDS,
   ROUND,
   RULE,
+  RUN,
   decision,
   decisionPath,
   makeFinishWorld,
@@ -51,7 +64,7 @@ import {
 mock.timers.enable({ apis: ["Date"], now: END });
 
 const made = await makeFinishWorld("__finishPages");
-const { world, reset, pages, renderPage, head, everything } = made;
+const { world, reset, pages, renderPage, head, everything, lib } = made;
 
 const PATH = `/admin/admissions/forms/${ROUND}/programmes/${AGI}`;
 
@@ -169,10 +182,25 @@ describe("1. the section, once the last session is over", () => {
     assert.doesNotMatch(sectionHtml((await renderPage(pages.overview, "claudia")).html), /Una Byrne/);
   });
 
-  test("with no rule, the sentence says so and nobody is ticked but by hand", async () => {
+  // "Settings" in this sentence is a link to the rule's card, as the People
+  // card's "Set who counts as finished" is before the end; until the walk of
+  // stage three's fixes it was plain text (H11). The words are unchanged: the
+  // text read here has a gap where the link's tags were.
+  test("with no rule, the sentence says so, leads to the rule's card, and nobody is ticked but by hand", async () => {
     world.db.seed(rulePath, { kind: "gone" });
-    const text = textOf(sectionHtml((await renderPage(pages.overview, "claudia")).html));
-    assert.match(text, /^Who finished There’s no rule for who finished yet, so we haven’t ticked anybody\. Set one in Settings, or tick people yourself\. Only you and admins see this\. 1 finished · 9 not/);
+    const html = sectionHtml((await renderPage(pages.overview, "claudia")).html);
+    assert.match(textOf(html), /^Who finished There’s no rule for who finished yet, so we haven’t ticked anybody\. Set one in Settings , or tick people yourself\. Only you and admins see this\. 1 finished · 9 not/);
+    assert.ok(
+      html.includes(
+        `<p class="wfSentence">There’s no rule for who finished yet, so we haven’t ticked anybody. Set one in <a href="${PATH}/setup#who-finished" class="wfSentenceLink">Settings</a>, or tick people yourself. Only you and admins see this.</p>`,
+      ),
+      html.slice(0, 600),
+    );
+  });
+
+  test("with a rule, the sentence has no link: the rule is set", async () => {
+    const html = sectionHtml((await renderPage(pages.overview, "claudia")).html);
+    assert.match(html, /<p class="wfSentence">We’ve ticked everyone who came to at least 4 of 6 sessions\. Change any you disagree with\. Only you and admins see this rule\.<\/p>/);
   });
 
   test("a reviewer, the lead of another programme and everybody else are drawn no section", async () => {
@@ -285,4 +313,140 @@ describe("5. no address, no write", () => {
     }
   });
 
+});
+
+// ---------------------------------------------------------------------------
+// 6. Absences, once there is nothing left to miss
+// ---------------------------------------------------------------------------
+
+describe("6. once the last session is over, nobody's absences are chased", () => {
+  /** Needs attention's runs of absences, as the lead reads them: [name, how many]. */
+  const chased = (text) =>
+    [...text.matchAll(/(\S+ \S+) has missed (\d+) sessions in a row without saying/g)].map((match) => [match[1], Number(match[2])]);
+
+  /** The Attendance grid's "in a row" badges, as `viewer` is drawn them: [name, how many]. */
+  async function badges(viewer) {
+    const records = await lib.attendance.readRunRecords(world.courseDb, RUN.agi);
+    return lib.attendance
+      .buildRunAttendance(records, viewer, new Date())
+      .groups.flatMap((group) => group.people.filter((person) => person.absentInARow > 0).map((person) => [person.name, person.absentInARow]));
+  }
+
+  test("before it, Needs attention names each run of absences, and the grid marks them", async () => {
+    mock.timers.setTime(BEFORE.getTime());
+    const runs = [["Freya Thompson", 5], ["Farah Hussain", 2], ["Bea Lindqvist", 3]];
+    assert.deepEqual(chased((await renderPage(pages.overview, "claudia")).text), runs);
+    assert.deepEqual(await badges({ isAdmin: false }), runs);
+  });
+
+  test("from the moment it ends, neither chases anybody, for the lead or an admin", async () => {
+    mock.timers.setTime(LAST_ENDS.getTime());
+    for (const who of ["claudia", "zach"]) {
+      const text = (await renderPage(pages.overview, who)).text;
+      assert.deepEqual(chased(text), [], who);
+      assert.doesNotMatch(text, /in a row/, who);
+    }
+    assert.deepEqual(await badges({ isAdmin: false }), []);
+    assert.deepEqual(await badges({ isAdmin: true }), []);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. On a phone
+// ---------------------------------------------------------------------------
+
+describe("7. on a phone, a card a row, each switch beside its person's name", () => {
+  const STYLESHEET = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "..", "src", "features", "applications", "overview", "ProgrammeOverview.module.css"),
+    "utf8",
+  ).replace(/\/\*[\s\S]*?\*\//g, "");
+
+  /** The stylesheet's top-level blocks: `{ prelude, body }`, nested blocks left in their parent's body. */
+  function blocks(css) {
+    const out = [];
+    let depth = 0;
+    let open = 0;
+    let from = 0;
+    for (let i = 0; i < css.length; i += 1) {
+      if (css[i] === "{") {
+        if (depth === 0) open = i;
+        depth += 1;
+      } else if (css[i] === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          out.push({ prelude: css.slice(from, open).trim(), body: css.slice(open + 1, i) });
+          from = i + 1;
+        }
+      }
+    }
+    return out;
+  }
+
+  /** Every selector of some flat rules, with the declarations it is given: `{ selector: { property: value } }`. */
+  function rules(body) {
+    const out = {};
+    for (const { prelude, body: declared } of blocks(body)) {
+      for (const selector of prelude.split(",").map((part) => part.trim().replace(/\s+/g, " "))) {
+        out[selector] ??= {};
+        for (const declaration of declared.split(";")) {
+          const at = declaration.indexOf(":");
+          if (at > 0) out[selector][declaration.slice(0, at).trim()] = declaration.slice(at + 1).trim();
+        }
+      }
+    }
+    return out;
+  }
+
+  const unconditional = rules(blocks(STYLESHEET).filter((block) => !block.prelude.startsWith("@")).map((block) => `${block.prelude}{${block.body}}`).join("\n"));
+  const phoneBlocks = blocks(STYLESHEET).filter((block) => block.prelude === "@media (max-width: 48rem)");
+  const phone = rules(phoneBlocks.map((block) => block.body).join("\n"));
+
+  /** The classes of each cell of each row of the section, as drawn: [first cell's text, [classes of every cell]]. */
+  function cellsOf(html) {
+    return [...sectionHtml(html).matchAll(/<tr>([\s\S]*?)<\/tr>/g)]
+      .map((match) => [...match[1].matchAll(/<td class="([^"]*)"[^>]*>([\s\S]*?)<\/td>/g)])
+      .filter((cells) => cells.length === 5)
+      .map((cells) => [textOf(cells[0][2]).replace(/^[A-Z]{2} /, "").split(" ").slice(0, 2).join(" "), cells.map((cell) => cell[1])]);
+  }
+
+  test("every row's cells are drawn with the places the phone layout gives them, and the headings stay for assistive technology", async () => {
+    const html = (await renderPage(pages.overview, "claudia")).html;
+    const rows = cellsOf(html);
+    const person = ["wfTd wfCellPerson", "wfTd wfCellGroup", "wfTd wfCellCame", "wfTd wfCellExercises", "wfTd wfCellFinished"];
+    const left = ["wfTd wfCellPerson", "wfTd wfCellGroup", "wfTd wfCellEmpty", "wfTd wfCellEmpty", "wfTd wfCellFinished"];
+    assert.equal(rows.length, 12);
+    for (const [name, classes] of rows) {
+      assert.deepEqual(classes, ["Omar Haddad", "Sam Whitfield"].includes(name) ? left : person, name);
+    }
+    assert.match(sectionHtml(html), /<thead class="wfThead"><tr><th scope="col" class="wfTh">Name<\/th>/);
+  });
+
+  test("on a phone the table is no wider than the screen, and each switch sits in the column beside the name, at its 44px target", () => {
+    assert.equal(phoneBlocks.length, 1, "one phone block, the house's 48rem");
+    // The laptop table, as drawn: wide, in its own scroller.
+    assert.equal(unconditional[".wfTable"]["min-width"], "760px");
+    assert.equal(unconditional[".wfScroll"]["overflow-x"], "auto");
+    // The switch's target, on every screen.
+    assert.deepEqual([unconditional[".wfSwitch"]["min-width"], unconditional[".wfSwitch"]["min-height"]], ["44px", "44px"]);
+    // On a phone: no minimum width, a grid a row, the person in the first
+    // column and their switch in the second, from the first line down.
+    assert.equal(phone[".wfTable"]["min-width"], "0");
+    assert.equal(phone[".wfTable > tbody > tr"].display, "grid");
+    assert.equal(phone[".wfTable > tbody > tr"]["grid-template-columns"], "minmax(0, 1fr) auto");
+    assert.deepEqual([phone[".wfTable .wfCellPerson"]["grid-column"], phone[".wfTable .wfCellPerson"]["grid-row"]], ["1", "1"]);
+    assert.deepEqual(
+      [phone[".wfTable .wfCellFinished"]["grid-column"], phone[".wfTable .wfCellFinished"]["grid-row"], phone[".wfTable .wfCellFinished"]["align-self"]],
+      ["2", "1 / span 4", "start"],
+    );
+    for (const [cell, row] of [[".wfTable .wfCellGroup", "2"], [".wfTable .wfCellCame", "3"], [".wfTable .wfCellExercises", "4"]]) {
+      assert.deepEqual([phone[cell]["grid-column"], phone[cell]["grid-row"]], ["1", row], cell);
+    }
+    assert.equal(phone[".wfTable td.wfCellEmpty"].display, "none");
+    // Each cell says its column's word, and the headings are hidden from
+    // sight only, never from assistive technology.
+    assert.equal(phone[".wfCellCame::before"].content, '"Came to"');
+    assert.equal(phone[".wfCellExercises::before"].content, '"Exercises"');
+    assert.equal(phone[".wfThead"].position, "absolute");
+    assert.notEqual(phone[".wfThead"].display, "none");
+  });
 });

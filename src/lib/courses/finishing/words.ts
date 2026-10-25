@@ -6,8 +6,8 @@
  *
  * Every number and date comes in from a record; nothing here knows a term.
  * The board's own words are kept exactly, apostrophes included. Words the
- * board does not draw are in its voice, and are listed for Claude Design in
- * the job's notes.
+ * board does not draw are in its voice, and are listed in the job's notes for
+ * the boards' designers to confirm.
  *
  * NEVER A TARGET NUMBER TO A MEMBER. The rule's number appears only in the
  * sentences built for the programme's lead and admins (`ruleSentence`,
@@ -33,9 +33,16 @@ export function ruleSentence(atLeast: number, of: number): string {
   return `We’ve ticked everyone who came to ${ruleSlot(atLeast, of)} sessions. Change any you disagree with. Only you and admins see this rule.`;
 }
 
-/** Over the list while the run has no rule: nobody is ticked by the site. */
-export const NO_RULE_SENTENCE =
-  "There’s no rule for who finished yet, so we haven’t ticked anybody. Set one in Settings, or tick people yourself. Only you and admins see this.";
+/**
+ * Over the list while the run has no rule: nobody is ticked by the site.
+ * "Settings" is a link to the rule's card on the programme's Settings tab, as
+ * "Set who counts as finished" is before the end, so the sentence comes in its
+ * three parts as well as whole.
+ */
+export const NO_RULE_BEFORE = "There’s no rule for who finished yet, so we haven’t ticked anybody. Set one in ";
+export const NO_RULE_LINK = "Settings";
+export const NO_RULE_AFTER = ", or tick people yourself. Only you and admins see this.";
+export const NO_RULE_SENTENCE = `${NO_RULE_BEFORE}${NO_RULE_LINK}${NO_RULE_AFTER}`;
 
 /** "28 finished · 3 not": upper case on the page, by its stylesheet. */
 export function countsLine(finished: number, not: number): string {

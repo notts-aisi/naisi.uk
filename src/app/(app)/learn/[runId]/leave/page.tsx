@@ -18,7 +18,8 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
  *
  * WHO. Somebody taking part, whose seat can be left by themselves
  * (`leavePathFor`: an open run, or a place the term's application form gave
- * them). Anybody else, and everybody who has left already, goes back to the
+ * them), until the run's last session is over. Anybody else, everybody who
+ * has left already, and everybody once the run has ended, goes back to the
  * run's home, which decides the rest. A redirect, not a refusal, the learning
  * space's rule: a guessed address says nothing.
  *
@@ -41,8 +42,9 @@ export default async function LeavePage({ params }: { params: Promise<{ runId: s
   const db = getAdminDb();
   if (!db) redirect(home);
 
-  const path = await leavePathFor(db, access.run, access.user.uid);
-  if (!path) redirect(home);
+  const answer = await leavePathFor(db, access.run, access.user.uid, new Date());
+  if (!("path" in answer)) redirect(home);
+  const { path } = answer;
 
   const [programme, groupSnap] = await Promise.all([
     runProgrammeOf(db, access.run.id).catch(() => null),

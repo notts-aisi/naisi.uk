@@ -1079,7 +1079,10 @@ the push sends it while the schedule is off, and the schedule sends it on time
 while it is on.
 
 A session cancelled ahead of time, through "Change a session", is never chased
-either, and its own email says it is off: see Changing a session.
+either, and its own email says it is off: see Changing a session. Its column
+reads **Not held** and its register needs nothing: a mark, the switch, a note
+and the push are each refused. To hold it after all, use Hold it as usual in
+Change a session.
 
 ## Placing a term's accepted people on a course run
 
@@ -1246,6 +1249,12 @@ open run's session picker has always offered, for a run the form placed them
 on too. Somebody who applied to the run itself is still told to ask the
 team, and an admin uses Remove.
 
+Leaving closes when the run's last session is over, the moment who finished
+opens: the programme page draws no link, the confirmation sends anybody who
+opens it back to the programme page, and a press is refused with a sentence
+that says the programme has ended and where to write. Somebody who finished
+keeps their record, and no place on the form goes back after the end.
+
 - They leave their group at once. Their row keeps the group, Publish's stamp
   and the day they left (`droppedOutAt`), with the reason (`dropOutReason`).
 - Their place on the form goes back exactly as "I can’t make it" gives it,
@@ -1354,7 +1363,9 @@ number agrees between them and the CSV.
   its record: somebody absent at two sessions in a row without saying, a
   week not published that a group has reached, a register not finished
   once its session has ended (with the reminder's and the task's times from
-  Course settings and their jobs' switches), and somebody who left.
+  Course settings and their jobs' switches), and somebody who left. Once the
+  run's last session is over it chases nobody's absences, and the
+  Attendance grid draws no "in a row": there is no session left to miss.
 - **Updates** shows the two newest updates on the run, each with the line the
   Messages tab gives it (who wrote it, who it was to, the day, what its email
   did), and "Write an update". Both lead to the Messages tab.
@@ -1489,7 +1500,11 @@ group meets next, until that evening has passed.
   about the session after it says it covers both weeks. A moved session's email
   names its new day, time and room, and an online one says Online.
 - **The register chase** skips a cancelled session: no reminder, no task. Its
-  register still has a column; leave it empty.
+  register still has a column, which reads Not held and takes nothing, and the
+  register's foot is about another session.
+- **Everybody's figures** leave it out: the lead's tabs, the stored figures on
+  each person's row and their own marks, and Home's attendance reads the week
+  as no session.
 - **The run's catch-up email** names no cancelled evening.
 
 ### Rules
@@ -1774,8 +1789,11 @@ the suggestion, the list, the words) and
 
 On the programme's **Settings** tab, the **Who finished** card, for a
 programme that names a run: **Came to at least [ ] sessions**, of the
-sessions their group held. There is no default: with no number the site
-ticks nobody, and the lead ticks people by hand. A number above the most
+sessions their group held. Somebody whose group held fewer than that while
+they were in it (a session was cancelled, or they joined after the start)
+meets the rule by coming to every session it held; a group that held none
+while they were in it meets nobody's. There is no default: with no number
+the site ticks nobody, and the lead ticks people by hand. A number above the most
 sessions any of the run's groups is due to hold is refused. It can be set or
 changed at any time, before the end or after it. Only the lead and admins are
 ever shown it: no member's page and no member's payload carries it.
@@ -1801,12 +1819,15 @@ ever shown it: no member's page and no member's payload carries it.
 It leads the **Overview** once the last session is over, above the rest of
 the page: everybody who took part (the lead sees the people Publish told, an
 admin everybody placed), fewest sessions first, each with a **Finished**
-switch. A switch saves at once. A change is stored only where it disagrees
+switch. While there is no rule the sentence over the list says so, and its
+"Settings" leads to the rule's card. A switch saves at once. A change is stored only where it disagrees
 with the rule, with who made it and when, and is marked "Changed by you" (or
 by whoever made it); putting a switch back to what the rule says removes the
 change, so a register corrected afterwards still counts for that person.
 Somebody who left is listed under **Left the programme** with the day they
-left, and has no switch: they are never "not finished".
+left, and has no switch: they are never "not finished". On a phone the list
+is a card a row, each switch beside the person's name, so none is behind a
+sideways scroll.
 
 A register that is still not finished after the last session changes who
 came: Needs attention, lower on the same page, names it.

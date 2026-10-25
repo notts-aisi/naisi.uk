@@ -1,6 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { clockWords, namesInWords } from "@/lib/courses/facilitatingEmail";
+import { runEndOf } from "@/lib/courses/finishing/runEnd";
 import { firstNameOfUser, fullNameOfUser, standingUserOf } from "@/lib/courses/programmeLead";
 import { displayNameOf } from "@/lib/courses/registerAccess";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
@@ -59,7 +60,9 @@ import { registerSwitchesIn, type RegisterSwitches } from "@/lib/scheduler/regis
  * absent included. A mark saved on a register not finished yet counts too,
  * drawn with a ring, because the board counts it ("Saved, not finished").
  * A session the register says did not happen counts for nobody, and nor
- * does one cancelled through "Change a session".
+ * does one cancelled through "Change a session". Each row also counts the
+ * sessions its group held while the person was in it, marked or not, which
+ * is what who finished's rule weighs "every session" against.
  *
  * ── ONE SESSION A WEEK ──────────────────────────────────────────────────────
  * A column is a taught week, and each group's first session of it. Every
@@ -128,7 +131,9 @@ export type GridPerson = {
   leftDateKey: string | null;
   /**
    * How many sessions in a row they were last marked absent, when that is at
-   * least `ABSENT_IN_A_ROW`; 0 otherwise. Never for somebody who left.
+   * least `ABSENT_IN_A_ROW`; 0 otherwise. Never for somebody who left, and
+   * never once the run's last session is over: there are no more sessions to
+   * come to, so nothing chases it.
    */
   absentInARow: number;
   /** The weeks of that run of absences, oldest first. */
@@ -136,6 +141,13 @@ export type GridPerson = {
   cells: GridCell[];
   came: number;
   of: number;
+  /**
+   * The sessions their group held while they were in it, marked or not: from
+   * the week they joined, and for somebody who left, until they left; held,
+   * not cancelled, and started. What "came to every session their group
+   * held" is counted against (who finished's rule).
+   */
+  groupHeld: number;
 };
 
 export type GridGroup = {
@@ -285,6 +297,20 @@ export function dayLabel(dateKey: string): string {
   return formatRunStartShort(dateKey) ?? "";
 }
 
+/**
+ * The register's answer to a press about a session that did not happen: its
+ * register says so, or it was cancelled through "Change a session". Remind on
+ * the Overview, and the facilitators' register and its push, all refuse in
+ * these words. "Group B’s session on Tue 24 Nov didn’t happen, so its
+ * register needs nothing."
+ */
+export function didNotHappenLine(groupName: string, dateKey: string): string {
+  const day = dayLabel(dateKey);
+  return day
+    ? `${groupName}’s session on ${day} didn’t happen, so its register needs nothing.`
+    : `${groupName}’s session didn’t happen, so its register needs nothing.`;
+}
+
 /** "Thursdays 6pm", the board's line for a group's weekly slot. Null with no day or time. */
 export function slotLine(session: { weekday: number; startTimeLocal: string }): string | null {
   const day = WEEKDAYS[session.weekday];
@@ -428,12 +454,13 @@ function lastMarkedWeek(sessions: Map<number, GroupSessionFacts>, uid: string): 
   return last;
 }
 
-/** One person's row in one group. */
+/** One person's row in one group. `over`: the run's last session is over (`runEndOf`). */
 function personRow(
   enrolment: CourseEnrolmentDoc,
   name: string,
   weeks: readonly number[],
   sessions: Map<number, GroupSessionFacts>,
+  over: boolean,
 ): GridPerson {
   const left = hasLeft(enrolment);
   const leftAt = left ? enrolment.droppedOutAt : null;
@@ -441,6 +468,7 @@ function personRow(
   const cells: GridCell[] = [];
   let came = 0;
   let of = 0;
+  let groupHeld = 0;
   for (const weekNumber of weeks) {
     const facts = sessions.get(weekNumber);
     if (!facts) {
@@ -467,6 +495,7 @@ function personRow(
       cells.push({ weekNumber, state: "not-held", mark: null, saved: false });
       continue;
     }
+    if (happened(facts)) groupHeld += 1;
     if (mark) {
       cells.push({ weekNumber, state: "mark", mark, saved: !facts.finished });
       if (happened(facts)) {
@@ -480,9 +509,10 @@ function personRow(
   }
 
   // The latest run of absences, walking back over the sessions that have
-  // happened and carry a mark: an unmarked one says nothing either way.
+  // happened and carry a mark: an unmarked one says nothing either way. Once
+  // the run is over there is no session left to miss, so nothing is chased.
   const absentWeeks: number[] = [];
-  if (!left) {
+  if (!left && !over) {
     for (let at = cells.length - 1; at >= 0; at -= 1) {
       const cell = cells[at];
       const facts = sessions.get(cell.weekNumber);
@@ -504,6 +534,7 @@ function personRow(
     cells,
     came,
     of,
+    groupHeld,
   };
 }
 
@@ -554,6 +585,9 @@ export function listGroups(
   weeks: readonly number[],
 ): ListedGroup[] {
   const sessionsByGroup = new Map(records.groups.map((group) => [group.id, groupSessions(records, group, now)]));
+  // Once the run's last session is over (the moment who finished opens, the
+  // one answer it asks), nobody's absences are chased any more.
+  const over = runEndOf(records.run, records.groups, now).over;
 
   // A removed row has no group on it any more: it belongs where a register
   // last marked it.
@@ -585,7 +619,7 @@ export function listGroups(
       }
       seen.add(enrolment.uid);
       const name = fullNameOfUser(records.accounts.get(enrolment.uid) ?? {});
-      people.push({ enrolment, row: personRow(enrolment, name, weeks, sessions) });
+      people.push({ enrolment, row: personRow(enrolment, name, weeks, sessions, over) });
     }
     people.sort((a, b) => a.row.name.localeCompare(b.row.name, "en-GB") || a.row.uid.localeCompare(b.row.uid));
     return { group, sessions, facilitators: facilitatorsOf(records, group), people, notYetTold };

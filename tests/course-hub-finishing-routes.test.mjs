@@ -208,6 +208,24 @@ describe("4. a switch", () => {
     assert.equal(world.db.read(decisionPath("amara")).finished, false);
   });
 
+  test("at least 6, the switch follows the one rule: Chloe, at every session Group B held, is its suggestion, so ticking her stores nothing", async () => {
+    world.db.seed(rulePath, RULE(6));
+    const on = await ask.decide("claudia", "chloe", true);
+    assert.equal(on.status, 200);
+    assert.equal(world.db.read(decisionPath("chloe")), undefined);
+    assert.deepEqual(
+      [on.body.model.rows.find((row) => row.uid === "chloe").finished, on.body.model.rows.find((row) => row.uid === "chloe").changed],
+      [true, null],
+    );
+    // Unticking her is the lead disagreeing with the rule: stored, and marked.
+    const off = await ask.decide("claudia", "chloe", false);
+    assert.equal(world.db.read(decisionPath("chloe")).finished, false);
+    assert.equal(off.body.model.rows.find((row) => row.uid === "chloe").changed, "Changed by you");
+    // Yasmin came to five of the six Group D held: the rule does not tick her, so ticking her is stored.
+    await ask.decide("claudia", "yasmin", true);
+    assert.equal(world.db.read(decisionPath("yasmin")).finished, true);
+  });
+
   test("an admin's change is named for the lead, and the lead's own for the admin", async () => {
     await ask.decide("zach", "farah", true);
     await ask.decide("claudia", "kofi", true);
