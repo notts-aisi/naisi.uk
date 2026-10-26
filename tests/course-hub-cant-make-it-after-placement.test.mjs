@@ -746,6 +746,7 @@ const LEAVE_CALLERS = {
 const PLACE_READERS = {
   "app/api/admissions/forms/[roundId]/application/reply/route.ts": "whether the reply is leaving the programme",
   "lib/applications/status/load.ts": "what the person's own application page, and the list of their applications, say",
+  "lib/applications/status/whenFree.ts": "whether the week a place painted is still theirs to change: until Publish has told them their group",
 };
 
 describe("7. the tree: one leave and one answer, each asked where this file says", () => {

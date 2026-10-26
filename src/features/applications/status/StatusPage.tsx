@@ -19,9 +19,11 @@ import {
   removedTitle,
 } from "@/lib/applications/status/words";
 import { CHANGED_AFTER, CHANGED_BEFORE, CHANGED_YOUR_MIND, leftOnLine } from "@/lib/courses/leavingWords";
+import type { WhenFreeView } from "@/lib/applications/status/whenFree";
 import OfferBanner from "./OfferBanner";
 import { InvitationReply, PlaceReply, ReplyTitle } from "./ReplyButtons";
 import Steps from "./Steps";
+import WhenYoureFree from "./WhenYoureFree";
 import styles from "./status.module.css";
 
 /**
@@ -178,11 +180,18 @@ export default function StatusPage({
   roundId,
   view,
   viewingAs,
+  free = null,
 }: {
   roundId: string;
   view: StatusView;
   /** An admin is looking at this as the member, so nothing may be answered. */
   viewingAs: boolean;
+  /**
+   * "When you’re free" (Q7), for somebody holding a place on a fellowship
+   * until Publish has told them their group: the form's grid, the week as
+   * painted and the line under the title (`loadWhenFree`). Null draws no card.
+   */
+  free?: WhenFreeView | null;
 }) {
   const applyHref = `/apply/${encodeURIComponent(roundId)}`;
 
@@ -425,6 +434,9 @@ export default function StatusPage({
               />
             </>
           )}
+          {free && !view.inGroup ? (
+            <WhenYoureFree roundId={roundId} grid={free.grid} availability={free.availability} line={free.line} />
+          ) : null}
           <p className={styles.questions}>
             Questions? <Contact />
           </p>
@@ -469,6 +481,9 @@ export default function StatusPage({
             </>
           )}
         </div>
+        {free && !view.inGroup ? (
+          <WhenYoureFree roundId={roundId} grid={free.grid} availability={free.availability} line={free.line} />
+        ) : null}
       </Frame>
     );
   }

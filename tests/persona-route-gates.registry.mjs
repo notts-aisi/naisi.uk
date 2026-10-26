@@ -550,6 +550,15 @@ export const ROUTES = {
         "a rejected account is refused first.",
     },
   },
+  "/api/admissions/forms/[roundId]/application/availability": {
+    PUT: {
+      expect: signedIn(400, { rejected: 403 }),
+      why:
+        "The applicant lane (requireApplicant): a pending account is an applicant and is admitted, one " +
+        "turned down at approval is refused. The body (the painted week's days) is then checked before any document " +
+        "is read, so an empty one is a 400 for every session that gets past the gate.",
+    },
+  },
   "/api/admissions/forms/[roundId]/application/reply": {
     POST: {
       expect: signedIn(400, { rejected: 403 }),
@@ -799,6 +808,15 @@ export const ROUTES = {
         "The rule for who finished, from the Settings tab: as the switch's route, the body (a whole " +
         "number of sessions, or null) is checked before anything is read, then the role from the " +
         "form. Only the programme's lead and admins are ever shown the number.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups-go-out": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "When groups go out, from the Groups tab: view-as is refused first, then the session, then the " +
+        "body (a whole date, or null) is checked before anything is read, then the role from the form. " +
+        "Only the programme's lead and admins set it.",
     },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams": {
@@ -1819,6 +1837,31 @@ export const ROUTES = {
         "View-as is refused first, then the session, then the gate: saving a pasted week is an " +
         "admin's, decided before the body or any document is read, and the admin meets the week " +
         "address check.",
+    },
+  },
+  "/api/courses/runs/[runId]/week-one/ticks/[itemId]": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "Ticking week 1 off before groups go out: view-as is refused first, then the session, then the " +
+        "body is checked before anything is read, so every signed-in persona meets the same 400 on an " +
+        "empty one. Once a valid body arrives, week 1's door decides, and it opens for nobody here.",
+    },
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/ready": {
+    PUT: {
+      expect: adminOnly(404),
+      drive: {
+        body: { ready: true },
+        why:
+          "An empty body is the same 400 for every signed-in persona; a body that says ready reaches " +
+          "the gate, which every persona here but the admin fails, and the admin meets the week address check.",
+      },
+      why:
+        "View-as is refused first, then the session, then the body, then the gate: storing a week's Ready " +
+        "is for the lead of the programme that names the run and admins, decided before anything of the run " +
+        "is read (only the forms, for whether the caller leads it). Every other session is forbidden, and " +
+        "the admin is told an id that is not w01 to w60 is no week.",
     },
   },
   "/api/courses/templates/[templateId]": {

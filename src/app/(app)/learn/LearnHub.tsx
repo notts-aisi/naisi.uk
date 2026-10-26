@@ -10,6 +10,8 @@ import Skeleton from "@/components/ui/Skeleton";
 import RunCard from "@/features/courses/RunCard";
 import { useMyRuns } from "@/features/courses/useMyRuns";
 import { leftHeading } from "@/lib/courses/leavingWords";
+import OnItsWay from "@/features/courses/weekOne/OnItsWay";
+import type { BeforeGroupsCard } from "@/lib/courses/weekOne/cards";
 import styles from "./page.module.css";
 
 /**
@@ -72,11 +74,17 @@ type Props = {
   instead: ReactNode;
   /** The runs the member left by themselves, newest first. None for anybody else. */
   left?: readonly LeftRun[];
+  /**
+   * "Your group’s on its way" for each place held before groups go out
+   * (Q13 B), worded on the server (`beforeGroupsCardsFor`): drawn under the
+   * heading, above the runs, whatever they are. Empty draws nothing.
+   */
+  beforeGroups?: readonly BeforeGroupsCard[];
 };
 
 const NO_RUNS_LEFT: readonly LeftRun[] = [];
 
-export default function LearnHub({ instead, left = NO_RUNS_LEFT }: Props) {
+export default function LearnHub({ instead, left = NO_RUNS_LEFT, beforeGroups = [] }: Props) {
   const { runs, loading, error } = useMyRuns();
 
   // The route already sorts archived rows last, so this is a partition of an
@@ -100,6 +108,12 @@ export default function LearnHub({ instead, left = NO_RUNS_LEFT }: Props) {
           here before your group is set.
         </p>
       </div>
+
+      {beforeGroups.length > 0 ? (
+        <div className={styles.above}>
+          <OnItsWay cards={beforeGroups} />
+        </div>
+      ) : null}
 
       {loading ? (
         <ul className={styles.grid}>

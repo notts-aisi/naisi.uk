@@ -114,9 +114,14 @@ import styles from "./blockWeek.module.css";
  * their boxes say so. Admins and the run's other staff read the week with no
  * ticks, boxes or count.
  *
- * A PLACE KEPT for two later pieces: `leadCards` draws above This week, where
- * week 1's line for somebody holding a place before groups go out (Q35) and
- * the before survey's card (Q50) go.
+ * BEFORE GROUPS GO OUT (Q35 B), somebody holding a place whom Publish has
+ * not told reads week 1 through its door (`payload.beforeGroups`): they take
+ * part as somebody placed does (ticks, boxes, their count), with no due day,
+ * no group, no rating panel, and "back" to My programmes. Their line
+ * ("Week 1 is open now...") is handed in as `leadCards`.
+ *
+ * `leadCards` draws above This week: week 1's line before groups go out
+ * (Q35) and, later, the before survey's card (Q50).
  */
 
 type Props = {
@@ -173,8 +178,12 @@ export default function BlockWeek({
   const placementGroupId = learner?.groupId ?? null;
   const asFacilitator =
     learner === null && payload.access.isFacilitator && payload.groups.some((group) => group.id !== placementGroupId);
-  const participant = learner !== null || asFacilitator;
-  const canWrite = learner ? learner.status === "active" : asFacilitator;
+  // Somebody holding a place whom Publish has not told yet (Q35 B) takes part
+  // in week 1 without a group: their ticks and boxes go through week 1's
+  // door, and there is no group, session or rating to draw for them.
+  const beforeGroups = Boolean(payload.beforeGroups);
+  const participant = learner !== null || asFacilitator || beforeGroups;
+  const canWrite = learner ? learner.status === "active" : asFacilitator || beforeGroups;
 
   const state: DoneState = {
     isTicked: ticks.isDone,
@@ -185,7 +194,8 @@ export default function BlockWeek({
   const schedule = payload.weekSchedule.find((entry) => entry.weekNumber === weekNumber) ?? null;
   const slotStartKey = schedule?.slotStartKey ?? "";
   const range = slotStartKey && isValidDateKey(slotStartKey) ? dayRangeWords(slotStartKey, addDaysToKey(slotStartKey, 6)) : "";
-  const first = payload.weekSchedule[0]?.weekNumber === weekNumber;
+  // Before groups go out there is no calendar yet, and the week is week 1: the first.
+  const first = payload.beforeGroups ? weekNumber === 1 : payload.weekSchedule[0]?.weekNumber === weekNumber;
   const cancelled = schedule?.cancelled === true ? (payload.group?.cancelledSessions.find((entry) => entry.weekNumber === weekNumber) ?? null) : null;
   const online = payload.group?.sessionModes[week.id] === "virtual";
 
@@ -334,6 +344,7 @@ export default function BlockWeek({
                   ? facilitatorTicksSeenByWords(leadFirstName)
                   : ticksSeenByWords(facilitatorNames, leadFirstName),
                 privateNoteHint: asFacilitator ? PRIVATE_NOTE_HINT_FACILITATOR : PRIVATE_NOTE_HINT,
+                canRate: !beforeGroups,
               })
             }
           />,
@@ -365,7 +376,8 @@ export default function BlockWeek({
     <div className={styles.page}>
       <div className={`${weekly.bar} ${styles.phoneBar}`}>
         <div className={weekly.barStart}>
-          <Link href={runHomeHref} className={weekly.back}>
+          {/* Before groups go out the run's home is not theirs yet: back is My programmes. */}
+          <Link href={payload.beforeGroups ? "/learn" : runHomeHref} className={weekly.back}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={weekly.icon}>
               <path d="M15 6l-6 6 6 6" />
             </svg>
@@ -732,6 +744,8 @@ type ChildContext = {
   readers: { access: string; readOut: string | null };
   ticksLine: string;
   privateNoteHint: string;
+  /** A ticked reading opens "Rate it or leave a note": not before groups go out, when nobody it names reads it yet. */
+  canRate: boolean;
 };
 
 /**
@@ -761,6 +775,7 @@ function renderPartChild(child: PartChild, rest: PartChild[], ctx: ChildContext)
             onTick={ctx.onTick}
             ticksLine={ctx.learner && run.some((source) => source.id === ctx.firstSourceId) ? ctx.ticksLine : null}
             privateNoteHint={ctx.privateNoteHint}
+            canRate={ctx.canRate}
           />
         ),
       };

@@ -143,6 +143,8 @@ const MUST_GUARD = [
   ["src/app/api/courses/runs/[runId]/status/route.ts", "moves a run along its lifecycle, opening or closing applications"],
   ["src/app/api/courses/runs/[runId]/updates/route.ts", "posts an update to a run's people and emails it, in the poster's name"],
   ["src/app/api/courses/runs/[runId]/weeks/[weekId]/blocks/route.ts", "replaces a week's blocks, and can take out items people have answered"],
+  ["src/app/api/courses/runs/[runId]/weeks/[weekId]/ready/route.ts", "stores a week's Ready, which opens week 1 to everybody holding a place"],
+  ["src/app/api/courses/runs/[runId]/week-one/ticks/[itemId]/route.ts", "ticks week 1 off in its caller's own name, for somebody holding a place before groups go out"],
   ["src/app/api/courses/runs/[runId]/sync-tasks/route.ts", "creates committee tasks on the board"],
   ["src/app/api/courses/templates/[templateId]/route.ts", "deletes a curriculum template"],
   // Admissions: the round authoring console. A round is the object an intake
@@ -230,6 +232,10 @@ const MUST_GUARD = [
     "src/app/api/courses/facilitator-asks/[askId]/answer/route.ts",
     "records the person's own yes or no to an ask, and a yes puts them on a group as its facilitator",
   ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups-go-out/route.ts",
+    "sets the day groups go out on a programme's run, which every holder of a place is told on Home, week 1 and their application",
+  ],
   // A programme's run as its lead reads and chases it. The attendance CSV
   // takes every register of the run off the platform and writes the
   // dataExports row that is the only record it happened; Remind emails a
@@ -260,6 +266,7 @@ const MUST_GUARD = [
   ["src/app/api/admissions/forms/[roundId]/application/route.ts", "saves the draft of an application in the applicant's own name, and creates the application on the first save"],
   ["src/app/api/admissions/forms/[roundId]/application/send/route.ts", "sends an application, which puts somebody's answers in front of each programme's lead and reviewers"],
   ["src/app/api/admissions/forms/[roundId]/application/access-requirements/route.ts", "reads and saves an applicant's own access-requirements answer; during a view-as session the session is the member's, so even the read would hand an admin that answer with nothing recording it"],
+  ["src/app/api/admissions/forms/[roundId]/application/availability/route.ts", "changes the week a place painted, in its owner's own application, until groups go out"],
   ["src/app/api/admissions/forms/[roundId]/application/reply/route.ts", "records an applicant's reply to their offer or invitation in their own name, which can give their place back, and accepting an invitation approves their own account if it was still waiting"],
   // The application form's review screens. Every write here is recorded under
   // the caller's own name: a score, an internal comment, a programme's

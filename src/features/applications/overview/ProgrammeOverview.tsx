@@ -4,6 +4,7 @@ import type { WhoFinishedModel } from "@/lib/courses/finishing/whoFinished";
 import { SET_THE_RULE } from "@/lib/courses/finishing/words";
 import type { OverviewAttention, OverviewModel, OverviewSession } from "@/lib/courses/programmeOverview";
 import type { OverviewUpdate } from "@/lib/courses/updates/views";
+import OverviewMarkReady from "./OverviewMarkReady";
 import RemindButton from "./RemindButton";
 import WhoFinished from "./WhoFinished";
 import styles from "./ProgrammeOverview.module.css";
@@ -12,7 +13,7 @@ import styles from "./ProgrammeOverview.module.css";
  * A PROGRAMME'S OVERVIEW (board wk-overview), drawn from the model the
  * server worded (`buildProgrammeOverview`): the week, the sessions this week
  * and their registers, what needs attention, who came by week, and the
- * people. Only "Remind" runs in the browser.
+ * people. Only "Remind" and week 1's "Mark ready" run in the browser.
  *
  * Not drawn, because it is not built: the board's "Email Freya". The
  * Updates card shows the newest updates and leads to the Messages tab, where
@@ -160,6 +161,12 @@ export default function ProgrammeOverview({
                 {week.span && <span className={styles.weekSpan}>{week.span}</span>}
               </div>
               {week.theme && <p className={styles.theme}>{week.theme}</p>}
+              {week.ready && (
+                <div className={styles.readyRow}>
+                  <p className={styles.readyLine}>{week.ready.line}</p>
+                  <OverviewMarkReady runId={week.ready.runId} weekId={week.ready.weekId} ready={week.ready.ready} />
+                </div>
+              )}
             </div>
             {week.open && (
               <Link href={week.open.href} className={styles.buttonLink}>
@@ -225,6 +232,11 @@ export default function ProgrammeOverview({
                 <div className={styles.itemText}>
                   <p className={styles.itemTitle}>{item.title}</p>
                   {item.detail && <p className={styles.itemDetail}>{item.detail}</p>}
+                  {item.ready && (
+                    <div className={styles.itemAction}>
+                      <OverviewMarkReady runId={item.ready.runId} weekId={item.ready.weekId} ready={item.ready.ready} />
+                    </div>
+                  )}
                 </div>
                 {item.link &&
                   (item.kind === "register" ? (

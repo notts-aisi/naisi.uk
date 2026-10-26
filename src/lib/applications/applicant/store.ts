@@ -1,12 +1,14 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import type { AvailabilityMask } from "@/lib/admissions/availability";
 import type { AdmissionApplicationStatus } from "@/lib/firestore/admissionApplications";
 import { FORM_VERSION, type AboutYou, type ApplicationContent, type QuestionSetDoc } from "../model";
 import { isId, normaliseApplication, normaliseContent, type ApplicationForm } from "../normalise";
 import { applicationRef, formRef, loadForm, loadOwnApplication, loadQuestionSets } from "../repo";
 import { orderedSets } from "../sections";
 import { contentForSend, issuesFor, type Issue } from "../validate";
+import { standingOf } from "../status/standing";
 import { keepVersion, sameContent } from "../versions/kept";
 import { aboutYouFromAccount } from "./account";
 import { cleanContent, openProgrammeIds } from "./draft";
@@ -346,5 +348,56 @@ export async function sendApplication(
       });
     }
     return first ? ("sent" as const) : ("sent-again" as const);
+  });
+}
+
+/**
+ * CHANGE THE WEEK A PLACE PAINTED, after decision day (Q7: "When you’re
+ * free" on the application page, until Publish has told them their group;
+ * whether it may is `../status/whenFree.ts`'s to decide before this is
+ * called). The application of record and its draft take the new week, held
+ * to the form's grid by the caller, and nothing else of what was sent
+ * changes.
+ *
+ * WHAT IT REPLACES IS KEPT, exactly as a send keeps what it replaces: the
+ * application of record as of this transaction, with the time it became
+ * that, so the committee can still read the week the decision was made on.
+ * The same week again writes nothing. Inside the transaction the
+ * application must still be sent and still a place.
+ */
+export async function changeSentAvailability(
+  db: Firestore,
+  form: ApplicationForm,
+  uid: string,
+  next: AvailabilityMask,
+): Promise<{ changed: boolean }> {
+  const grid = form.round.availabilityGrid;
+  const appRef = applicationRef(db, form.round.id, uid);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(appRef);
+    const application = snap.exists ? normaliseApplication(snap.id, snap.data(), grid) : null;
+    if (!application) throw new ApplicantError(OLDER_FORM, 409);
+    const sent = application.sent;
+    if (!sent || standingOf(application).kind !== "place") {
+      throw new ApplicantError("Only somebody holding a place on a fellowship can change when they’re free here.", 409);
+    }
+    const replaced = normaliseContent(sent, grid);
+    const changed = { ...replaced, availability: next };
+    if (sameContent(replaced, normaliseContent(changed, grid))) return { changed: false };
+    const history = keepVersion(
+      { versions: application.sentHistory, dropped: application.sentHistoryDropped },
+      { content: sent, sentAt: application.sentChangedAt ?? application.sentAt },
+    );
+    tx.update(appRef, {
+      "sent.availability": next,
+      "draft.availability": next,
+      // Each kept time is a value already on the document. No server
+      // timestamp goes inside a list: the database refuses one there.
+      sentHistory: history.versions.map((version) => ({ content: version.content, sentAt: version.sentAt })),
+      sentHistoryDropped: history.dropped,
+      sentChangedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return { changed: true };
   });
 }

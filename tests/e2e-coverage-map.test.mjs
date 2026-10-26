@@ -583,6 +583,12 @@ const NOT_COVERED = {
     coverWhen:
       "With the applicant spec for the new form: it types in the box on the last step, leaves, comes back and finds it there.",
   },
+  "/api/admissions/forms/[roundId]/application/availability": {
+    reason:
+      "Changing when you're free from the application page until groups go out (Q7). Executed by tests/course-hub-when-free.test.mjs as every kind of caller (who may, the week written, the version kept, the board and the times picture reading it, the page's card), with no browser spec yet.",
+    coverWhen:
+      "When a browser spec signs in as somebody holding a place before Publish, changes their week on the application page, and the allocation board's fit marks follow it.",
+  },
   "/api/admissions/forms/[roundId]/application/send": {
     reason:
       "The new application form's send. Executed by tests/applications-apply-routes.test.mjs (issues refused, the two copies, the counters, sending again, the version a send replaces), with no browser spec yet.",
@@ -702,6 +708,12 @@ const NOT_COVERED = {
       "Course hub: the rule for who finished, on a programme's Settings tab. tests/course-hub-finishing-routes.test.mjs executes it as every kind of caller, at its edges, and tests/course-hub-finishing-pages.test.mjs draws the card.",
     coverWhen:
       "With the spec for the switch above: setting the rule is that spec's first step.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups-go-out": {
+    reason:
+      "Course hub: the day groups go out, set on a programme's Groups tab above its sessions. tests/course-hub-groups-go-out-day.test.mjs executes it as every kind of caller and draws the card and the programme's head.",
+    coverWhen:
+      "When a browser spec signs in as a programme's lead, sets the day, and a member holding a place reads it on Home.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/roles": {
     reason:
@@ -1074,6 +1086,18 @@ const NOT_COVERED = {
       "Course authoring: /api/courses/runs/[runId]/weeks/[weekId]/blocks loads a week as blocks, an admin's job for now, and every answer it gives is driven as each kind of caller in tests/course-week-blocks-loader.test.mjs.",
     coverWhen:
       "When a lead's Weeks tab or a group's own copy of a week loads weeks through it, because a mistake then reaches a run's people before an admin sees it.",
+  },
+  "/api/courses/runs/[runId]/week-one/ticks/[itemId]": {
+    reason:
+      "Course hub: somebody holding a place ticks week 1 off before groups go out (Q35 B, st-week1-phone); every caller, every refusal and the row it writes are executed by tests/course-hub-week-one-before-groups.test.mjs.",
+    coverWhen:
+      "When a browser spec signs in as somebody holding a place before Publish, opens week 1 once it is marked ready, and ticks a source.",
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/ready": {
+    reason:
+      "Course hub: the programme's lead's and admins' Mark ready and Not ready for a week (pr-weeks, Q35), pressed on the programme's Overview and in the run's week editor; every caller and every refusal is executed by tests/course-hub-week-ready.test.mjs.",
+    coverWhen:
+      "When a browser spec signs in as a programme's lead, marks week 1 ready on the Overview, and a member holding a place opens week 1.",
   },
   "/api/courses/templates/[templateId]": {
     reason:
@@ -1799,6 +1823,12 @@ const NOT_COVERED = {
       "The About page is static: server-rendered from words in its own file, with no read and no form, and a break is visible to anybody who opens it.",
     coverWhen:
       "When the page gains anything read from the database or anything a visitor can submit, because from then on a break is no longer visible at a glance.",
+  },
+  "/(public)/applications/[roundId]/free": {
+    reason:
+      "Changing when you're free (Q7): the form's own week editor on a page of its own, for somebody holding a place on a fellowship until Publish has told them their group. Rendered by tests/course-hub-when-free.test.mjs for a holder before and after placement, for somebody told, for somebody with no place, signed out and in a view-as session, with no browser spec yet.",
+    coverWhen:
+      "When a browser spec signs in as somebody holding a place before Publish, changes their week on this page, and the allocation board's fit marks follow it.",
   },
   "/(public)/courses": {
     reason:

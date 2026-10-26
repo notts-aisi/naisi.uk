@@ -18,6 +18,9 @@ import { finishedForMember } from "@/lib/courses/finishing/record";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
 import { isOpenAt, weekOpening } from "@/lib/courses/weekOpening";
+import { weekOneDoorFor, type PlaceBeforeGroups } from "@/lib/courses/weekOne/door";
+import { groupsGoOutDay, weekOneOpenWords } from "@/lib/courses/groupsGoOut";
+import type { WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { dueMoment } from "@/lib/courses/weekBlocks/due";
 import type { When } from "@/lib/courses/weekBlocks/model";
 import { taskNeeds, taskSubject, thisWeekOf, type TaskNeeds } from "@/lib/courses/weekBlocks/progress";
@@ -48,9 +51,12 @@ import {
 import {
   normalizeCourse,
   normalizeCourseRun,
+  normalizeCourseWeek,
   weekDocId,
+  type CourseRunDoc,
   type CourseRunStatus,
 } from "@/lib/firestore/courses";
+import type { SessionUser } from "@/lib/firebase/session";
 
 /**
  * The learning space's one round trip: everything `/learn/[runId]` needs to
@@ -71,6 +77,12 @@ import {
  * (`placementIsShownTo`). Until then they are answered as before they were
  * placed. A facilitator reads their group's day, time and room from the
  * start, and no member's name is in this payload either way.
+ *
+ * WEEK 1 BEFORE GROUPS GO OUT (Q35 B) is the one change to that, on purpose:
+ * somebody holding a place whom Publish has not told is answered week 1 and
+ * nothing else once week 1's door is open to them (`weekOneDoorFor`, the one
+ * answer; `beforeGroupsPayload` below). Their group, its sessions and every
+ * other week still wait for Publish.
  *
  * `completed` enrolments read too: a finished cohort is the member's own
  * history, and nothing here is more sensitive to them than it was on their
@@ -554,6 +566,16 @@ export type OverviewPayload = {
     isReviewer: boolean;
     isTrackLead: boolean;
   };
+  /**
+   * WEEK 1 BEFORE GROUPS GO OUT (Q35 B): set only for somebody answered
+   * through week 1's door (`weekOneDoorFor`), who holds a place and has not
+   * been told a group. They are answered week 1 and nothing else: `weeks`
+   * holds week 1 alone, with no due day, and there is no group, no session,
+   * no schedule and no current week. `line` is st-week1-phone's sentence,
+   * worded here from the run's planned day groups go out. Null for everybody
+   * else.
+   */
+  beforeGroups: { line: string } | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -635,6 +657,150 @@ function currentWeekId(currentWeek: CurrentWeek | null): string {
   if (!currentWeek) return "";
   const n = currentWeek.weekNumber ?? currentWeek.anchorWeekNumber;
   return n >= 1 ? weekDocId(n) : "";
+}
+
+/** "weekId::promptId" of every reflection box `uid` has written in, out of their own rows. */
+function writtenBoxesOf(docs: ReadonlyArray<{ data: () => unknown }>, uid: string): Set<string> {
+  const written = new Set<string>();
+  for (const doc of docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    if (!isReflectionResponse(data) || data.uid !== uid) continue;
+    if (typeof data.text !== "string" || !data.text.trim()) continue;
+    if (typeof data.weekId === "string" && typeof data.exerciseId === "string") {
+      written.add(`${data.weekId}::${data.exerciseId}`);
+    }
+  }
+  return written;
+}
+
+/**
+ * This week of one week written as blocks, for the caller: each task with
+ * what it needs, which of its boxes the caller has written in, and the day it
+ * is due (`dueOf`, null while there is none to give). Null for a week with no
+ * This week.
+ */
+function thisWeekPayload(
+  blocks: WeekBlock[],
+  weekId: string,
+  dayBeforeTime: string | null,
+  writtenBoxes: ReadonlySet<string>,
+  dueOf: (when: When) => { dateKey: string; moved: boolean } | null,
+): OverviewThisWeek | null {
+  const block = thisWeekOf(blocks);
+  if (!block) return null;
+  return {
+    total: block.total,
+    dayBeforeTime,
+    rows: block.rows.map((row): OverviewThisWeekRow => {
+      if (row.type === "none") return { type: "none", what: row.what, time: row.time, note: row.note };
+      if (row.type === "optional") return { type: "optional", what: row.what, time: row.time, note: row.note };
+      const needs = taskNeeds(blocks, row);
+      const due = dueOf(row.when);
+      return {
+        type: "task",
+        what: row.what,
+        time: row.time,
+        when: row.when,
+        whenText: row.whenText,
+        label: taskLabelWords(taskSubject(blocks, row), row.what),
+        needs,
+        written: needs.promptIds.filter((id) => writtenBoxes.has(`${weekId}::${id}`)),
+        due: due ? { dateKey: due.dateKey, moved: due.moved } : null,
+      };
+    }),
+  };
+}
+
+/**
+ * WEEK 1, AND NOTHING ELSE, for somebody through week 1's door (Q35 B): the
+ * run's own facts a week page names (its course, label and how many weeks it
+ * has), week 1 as the run holds it, This week with what the caller has
+ * written and no due day (due dates wait for the group), the programme as
+ * the pages name it, and st-week1-phone's line. No group, no session, no
+ * schedule, no other week, no current week, no attendance: those wait for
+ * Publish. Built field by field.
+ */
+async function beforeGroupsPayload(
+  db: NonNullable<ReturnType<typeof getAdminDb>>,
+  run: CourseRunDoc,
+  actor: SessionUser,
+  place: PlaceBeforeGroups,
+  roles: { isReviewer: boolean; isTrackLead: boolean },
+): Promise<OverviewPayload> {
+  const weekId = weekDocId(1);
+  const [weekSnap, programme, ownAnswerSnap, courseSnap, shownCrests] = await Promise.all([
+    db.collection("courseRuns").doc(run.id).collection("weeks").doc(weekId).get(),
+    runProgrammeOf(db, run.id).catch(() => null),
+    // Their own rows on the run, for the boxes they have written in:
+    // equalities on (uid, runId), the existing composite.
+    db
+      .collection("courseExerciseResponses")
+      .where("uid", "==", actor.uid)
+      .where("runId", "==", run.id)
+      .limit(MAX_OWN_ANSWER_ROWS)
+      .get(),
+    run.courseId ? db.collection("courses").doc(run.courseId).get() : Promise.resolve(null),
+    // The crest beside the run's name, as the run's own page shows it. A read
+    // that fails shows the emblem.
+    runCrests(db, [{ id: run.id, courseId: run.courseId }]).catch(() => new Map<string, ShownCrest>()),
+  ]);
+  const dayBeforeTime =
+    courseSnap?.exists ? normalizeCourse(courseSnap.id, courseSnap.data() ?? {}).dayBeforeDueTime : null;
+  const week = weekSnap.exists ? normalizeCourseWeek(weekSnap.id, weekSnap.data() ?? {}) : null;
+  const written = writtenBoxesOf(ownAnswerSnap.docs, actor.uid);
+  const taught = run.weekPlan.filter((entry) => entry.kind === "week").length;
+  return {
+    run: {
+      id: run.id,
+      courseId: run.courseId,
+      courseTitle: run.courseTitle,
+      label: run.label,
+      academicYear: run.academicYear,
+      status: run.status,
+      startDate: "",
+      weekPlan: [],
+      totalWeeks: taught,
+    },
+    calendarSource: "run",
+    currentWeek: null,
+    weeks: week
+      ? [
+          {
+            id: week.id,
+            weekNumber: 1,
+            title: week.title,
+            published: week.published,
+            estimatedMinutes: week.estimatedMinutes,
+            forked: false,
+            countableIds: Array.isArray(week.blocks)
+              ? []
+              : [...week.materials.filter((m) => !m.optional).map((m) => m.id), ...week.checklist.map((c) => c.id)],
+            thisWeek: Array.isArray(week.blocks)
+              ? thisWeekPayload(week.blocks, week.id, dayBeforeTime, written, () => null)
+              : null,
+          },
+        ]
+      : [],
+    weekSchedule: [],
+    programme: programme ? { name: programme.shortName, kind: programme.kind, leadFirstName: programme.leadFirstName } : null,
+    shownCrest: shownCrests.get(run.id) ?? null,
+    forkedWeekIds: [],
+    enrolment: null,
+    group: null,
+    groups: [],
+    ownAttendance: null,
+    finished: false,
+    access: {
+      isAdmin: false,
+      isEnrolled: false,
+      isFacilitator: false,
+      isReviewer: roles.isReviewer,
+      isTrackLead: roles.isTrackLead,
+    },
+    beforeGroups: {
+      line: weekOneOpenWords(groupsGoOutDay(place.groupsGoOutOn, londonDateKey(new Date())), place.kind),
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -722,7 +888,12 @@ export async function GET(
 
   // Reviewer and track lead are deliberately NOT access grants here.
   if (!isAdmin && !liveEnrolment && !isFacilitator) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Week 1 before groups go out (Q35 B): somebody holding a place whom
+    // Publish has not told is answered week 1, once it is ready, and nothing
+    // else of the run. Everybody else is refused as before.
+    const door = await weekOneDoorFor(db, actor, run.id);
+    if (!door.open) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json(await beforeGroupsPayload(db, run, actor, door.place, { isReviewer, isTrackLead }));
   }
 
   // The caller's OWN group: their placement if they have one, otherwise the
@@ -906,15 +1077,7 @@ export async function GET(
   const dayBeforeTime =
     courseSnap?.exists ? normalizeCourse(courseSnap.id, courseSnap.data() ?? {}).dayBeforeDueTime : null;
   // "weekId::promptId" of every reflection box the caller has written in.
-  const writtenBoxes = new Set<string>();
-  for (const doc of ownAnswerSnap?.docs ?? []) {
-    const data = (doc.data() ?? {}) as Record<string, unknown>;
-    if (!isReflectionResponse(data) || data.uid !== actor.uid) continue;
-    if (typeof data.text !== "string" || !data.text.trim()) continue;
-    if (typeof data.weekId === "string" && typeof data.exerciseId === "string") {
-      writtenBoxes.add(`${data.weekId}::${data.exerciseId}`);
-    }
-  }
+  const writtenBoxes = writtenBoxesOf(ownAnswerSnap?.docs ?? [], actor.uid);
   const nameByUid = new Map<string, string>();
   for (const doc of userDocs) {
     if (doc.exists) nameByUid.set(doc.id, displayNameOf(doc.data() ?? {}));
@@ -1075,29 +1238,10 @@ export async function GET(
    */
   for (const entry of weeks) {
     const blocks = blocksByWeekId.get(entry.id);
-    const block = blocks ? thisWeekOf(blocks) : null;
-    if (!blocks || !block) continue;
-    entry.thisWeek = {
-      total: block.total,
-      dayBeforeTime,
-      rows: block.rows.map((row): OverviewThisWeekRow => {
-        if (row.type === "none") return { type: "none", what: row.what, time: row.time, note: row.note };
-        if (row.type === "optional") return { type: "optional", what: row.what, time: row.time, note: row.note };
-        const needs = taskNeeds(blocks, row);
-        const due = ownGroup ? dueMoment(ownSessionsAll, entry.weekNumber, row.when, dayBeforeTime) : null;
-        return {
-          type: "task",
-          what: row.what,
-          time: row.time,
-          when: row.when,
-          whenText: row.whenText,
-          label: taskLabelWords(taskSubject(blocks, row), row.what),
-          needs,
-          written: needs.promptIds.filter((id) => writtenBoxes.has(`${entry.id}::${id}`)),
-          due: due ? { dateKey: due.dateKey, moved: due.moved } : null,
-        };
-      }),
-    };
+    if (!blocks) continue;
+    entry.thisWeek = thisWeekPayload(blocks, entry.id, dayBeforeTime, writtenBoxes, (when) =>
+      ownGroup ? dueMoment(ownSessionsAll, entry.weekNumber, when, dayBeforeTime) : null,
+    );
   }
 
   /**
@@ -1193,6 +1337,7 @@ export async function GET(
       isReviewer,
       isTrackLead,
     },
+    beforeGroups: null,
   };
 
   return NextResponse.json(payload);

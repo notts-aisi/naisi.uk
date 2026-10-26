@@ -17,6 +17,7 @@ import {
   type WordRange,
 } from "./model";
 import { proseText, runsText } from "./prose";
+import { weekIsReady } from "../weekReady";
 
 /**
  * THE ONE READER OF A WEEK'S CONTENT, FOR BOTH SHAPES OF WEEK.
@@ -293,11 +294,11 @@ export function weekSummaryText(week: { summary?: string | null; blocks?: readon
 
 /**
  * Where a week stands on a lead's list of weeks (board pr-weeks): Ready once
- * the lead has marked it (`CourseWeekDoc.ready`), Empty while there is
- * nothing in it, Draft otherwise.
+ * the lead has marked it (`weekIsReady`, the one answer: marked, on a
+ * published week), Empty while there is nothing in it, Draft otherwise.
  */
 export function weekReadiness(week: ReadableWeek): "ready" | "draft" | "empty" {
-  if (week.ready === true) return "ready";
+  if (weekIsReady(week)) return "ready";
   const empty = isBlockWeek(week)
     ? week.blocks.length === 0
     : week.materials.length === 0 &&

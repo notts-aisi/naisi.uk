@@ -64,6 +64,7 @@ import TickRows, { tickItemsOf, type TickItem } from "./weekly/TickRows";
 import { useMaterialTicks } from "./weekly/useMaterialTicks";
 import weekly from "./weekly/weekly.module.css";
 import BlockWeek from "./weekBlocks/BlockWeek";
+import WeekOneLine from "./weekBlocks/WeekOneLine";
 import styles from "./WeekView.module.css";
 
 /**
@@ -150,10 +151,14 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
   // On a week written as blocks a group's facilitator takes part too, and reads
   // back their own reflections the same way.
   const isLearnerViewer = overview.data?.enrolment?.role === "learner";
+  // Somebody holding a place whom Publish has not told yet, through week 1's
+  // door (Q35 B): they take part in week 1, through doors of its own.
+  const beforeGroups = overview.data?.beforeGroups ?? null;
   const placementGroupId = isLearnerViewer ? (overview.data?.enrolment?.groupId ?? null) : null;
   const facilitatesGroup =
     overview.data?.access.isFacilitator === true && (overview.data?.groups ?? []).some((g) => g.id !== placementGroupId);
-  const ownRowsWanted = isLearnerViewer || (facilitatesGroup && week.week !== null && isBlockWeek(week.week));
+  const ownRowsWanted =
+    isLearnerViewer || beforeGroups !== null || (facilitatesGroup && week.week !== null && isBlockWeek(week.week));
   const myExercises = useMyExercises(ownRowsWanted ? runId : "", weekNumber);
   // P10 mirror trigger, keyed to the RUN: the route recomputes the anchor week.
   useSyncTasks(
@@ -161,8 +166,8 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
     overview.data?.enrolment?.status === "active",
     overview.data?.currentWeek?.anchorWeekNumber ?? null,
   );
-  const canWrite = overview.data?.enrolment?.status === "active";
-  const ticks = useMaterialTicks(runId, uid, weekNumber, canWrite);
+  const canWrite = overview.data?.enrolment?.status === "active" || beforeGroups !== null;
+  const ticks = useMaterialTicks(runId, uid, weekNumber, canWrite, beforeGroups ? "week-one-door" : "browser");
   const { toast, run: runToast, dismiss } = useActionToast();
 
   // Travel direction for the entrance, handed over by the previous page's nav.
@@ -195,7 +200,8 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
     (itemKind: ProgressItemKind, itemId: string, next: boolean) => {
       if (!canWrite) return;
       // A ticked reading opens its reflection; an unticked one closes it.
-      if (itemKind === "material") setPanel(itemId, next);
+      // Before groups go out there is no reflection to open (no group reads it).
+      if (itemKind === "material" && !beforeGroups) setPanel(itemId, next);
       void ticks.toggle(itemKind, itemId, next).then((ok) => {
         if (ok || !mounted.current) return;
         if (itemKind === "material") setPanel(itemId, false);
@@ -204,7 +210,7 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
         });
       });
     },
-    [canWrite, runToast, setPanel, ticks],
+    [beforeGroups, canWrite, runToast, setPanel, ticks],
   );
 
   // ---- Moderation (admins only; the UI never renders it for anyone else) --
@@ -308,6 +314,7 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
           }}
           sharedNotes={sharedNotes}
           leadFirstName={payload.programme?.leadFirstName ?? null}
+          leadCards={beforeGroups ? <WeekOneLine line={beforeGroups.line} /> : null}
         />
         <ActionToast toast={toast} onDismiss={dismiss} />
       </>
@@ -315,7 +322,9 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
   }
 
   // ---- Derived page facts -------------------------------------------------
-  const hasEnrolment = payload.enrolment !== null;
+  // Somebody holding a place before groups go out takes part as somebody
+  // placed does, without a group: their ticks, nothing the group shares.
+  const hasEnrolment = payload.enrolment !== null || beforeGroups !== null;
   const learnerEnrolment = payload.enrolment?.role === "learner" ? payload.enrolment : null;
   const canSubmitExercises = learnerEnrolment?.status === "active";
   const programmeName = payload.programme?.name || payload.run.courseTitle || "Your programme";
@@ -431,6 +440,8 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
           pacedByGroup={payload.calendarSource === "group"}
         />
 
+        {beforeGroups && <WeekOneLine line={beforeGroups.line} />}
+
         {weekDoc.guideBlocks.length > 0 && (
           <div className={weekly.guide}>
             <BlockView blocks={weekDoc.guideBlocks} />
@@ -475,16 +486,16 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
                     material={weekDoc.materials.find((m) => m.id === item.id) as Material}
                     row={ticks.byItemId.get(item.id) ?? null}
                     completed={ticks.isDone(item.id)}
-                    canReflect={canWrite}
+                    canReflect={canWrite && !beforeGroups}
                     open={openPanels.has(item.id)}
                     onOpen={() => setPanel(item.id, true)}
                     onClose={() => setPanel(item.id, false)}
                     comments={comments}
-                    cohortNotes={sharedNotes === null}
+                    cohortNotes={sharedNotes === null && !beforeGroups}
                     canModerate={isAdmin}
                     onModerate={moderate}
                   />
-                ) : hasEnrolment && mirrored(weekDoc, item) ? (
+                ) : payload.enrolment !== null && mirrored(weekDoc, item) ? (
                   <MirrorHint />
                 ) : null
               }

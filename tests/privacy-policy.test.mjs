@@ -3308,8 +3308,8 @@ describe("the course hub passage", () => {
       "v7 says facilitators will see who has said they are coming, as if it were not built yet",
     );
 
-    // The one place the course side reads an application at all, and it is
-    // the facilitators' list.
+    // The places the course side reads an application at all: the
+    // facilitators' list, and week 1's door reading the caller's own.
     const COURSE_SIDE = /^src\/(?:lib\/courses|app\/api\/courses|app\/\(app\)\/learn|app\/\(app\)\/dashboard|features\/courses)\//;
     assertExactlyTheseFiles(
       sourceFilesNaming(/from "@\/lib\/applications\/staffRepo"/).filter((file) => COURSE_SIDE.test(file)),
@@ -3317,6 +3317,10 @@ describe("the course hub passage", () => {
         [
           "src/lib/courses/whosComing.ts",
           "who's coming, for a group's facilitators before its first session: each person's reply, read through comingReplyOf and handed on as a yes or a no beside a first name",
+        ],
+        [
+          "src/lib/courses/weekOne/door.ts",
+          "week 1's door: the caller's own application and decision, read only to answer whether they hold a place, which opens week 1 to them before groups go out. Nothing of either is shown to anybody, a facilitator least of all",
         ],
       ]),
       "reading applications on the course side",
@@ -3649,7 +3653,10 @@ describe("the course hub passage", () => {
     assert.equal(sharedNotesRecord.runSharesGroupNotes({ enrolMode: "admissions" }), true, "a run that places people in groups no longer shares notes");
     // The week's page draws the run's comments only where it draws no group's notes.
     assert.match(read("src/app/(app)/learn/[runId]/weeks/[n]/page.tsx"), /if \(!runSharesGroupNotes\(access\.run\) \|\| access\.groups\.length === 0\) return null;/);
-    assert.match(read("src/features/courses/WeekView.tsx"), /cohortNotes=\{sharedNotes === null\}/);
+    // Nor to somebody holding a place before groups go out, who opens week 1
+    // (Q35 B) on a programme that places people in groups and is in no group
+    // yet: they are drawn neither.
+    assert.match(read("src/features/courses/WeekView.tsx"), /cohortNotes=\{sharedNotes === null && !beforeGroups\}/);
     // tests/course-hub-shared-notes.test.mjs §5 draws both kinds of week page.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "course-hub-shared-notes.test.mjs")));
   });

@@ -21,6 +21,7 @@ import { firstNameOfUser, readRunLead, type RunLead } from "@/lib/courses/progra
 import { emailsCountLine, readReminderState, remindLabel, type ReminderState } from "@/lib/courses/registerRemind";
 import { followUpDueAt } from "@/lib/courses/unmarkedRegisters";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
+import { weekIsReady } from "@/lib/courses/weekReady";
 import { courseNudgeSessionWhere } from "@/lib/email/courseNudgeEmail";
 import { readCoursesConfig, type CoursesConfig } from "@/lib/firestore/config";
 import { sessionModeForWeek } from "@/lib/firestore/courseGroups";
@@ -38,8 +39,13 @@ import { weekDocId } from "@/lib/firestore/courses";
  *    excuse (it goes when a later session marks them anything else, and
  *    once the run's last session is over: there is nothing left to miss);
  *  - a week not published that a group has reached, its previous session
- *    over (Published stands in for Ready, as the register's next-week email
- *    does; it goes when the week is published);
+ *    over (a group opens a week on Published, so that is what this asks; it
+ *    goes when the week is published);
+ *  - before any group has met, week 1 not READY (`weekIsReady`, the one
+ *    answer): week 1 opens to everybody holding a place once it is marked
+ *    ready (Q35 B), so the line carries the lead's "Mark ready" when the week
+ *    is published (it goes when the week is marked ready, and the week card
+ *    then says it is ready, with "Not ready" to take it back);
  *  - a register not finished once its session has ended, with the
  *    reminder's and the task's real times from the settings their jobs read
  *    (it goes when the register is finished, or marked as not held);
@@ -74,7 +80,23 @@ export type OverviewWeek = {
   theme: string | null;
   /** "Open week 3", for an admin, to the week's editor; null for anybody else. */
   open: { href: string; label: string } | null;
+  /**
+   * Week 1, before any group has met, once it is marked ready: what the card
+   * says of it, and "Not ready" to take it back. Null otherwise (a week 1 not
+   * ready is a line under Needs attention, with "Mark ready").
+   */
+  ready: OverviewReady | null;
   rail: OverviewRailWeek[];
+};
+
+/** A week's Ready, for the one control that stores it (`MarkReady`). */
+export type OverviewReady = {
+  runId: string;
+  weekId: string;
+  /** Whether it is ready now (`weekIsReady`). */
+  ready: boolean;
+  /** What the page says beside the control. */
+  line: string;
 };
 
 export type OverviewSession = {
@@ -112,6 +134,8 @@ export type OverviewAttention = {
   title: string;
   detail: string;
   link: { href: string; label: string } | null;
+  /** Week 1 not ready before any group has met: "Mark ready", when it is published. */
+  ready?: OverviewReady | null;
 };
 
 export type OverviewChart = {
@@ -248,9 +272,13 @@ function weekCard(
     span: weekSpanLabel(card.startKey),
     theme: card.weekNumber !== null ? theme : null,
     open,
+    ready: null,
     rail,
   };
 }
+
+/** What the week card says of week 1 once it is marked ready, before any group has met. */
+const WEEK_ONE_READY = "Ready: everyone holding a place can open week 1.";
 
 /** The people on a group's register for one week: everybody listed whose cell is not before or after them. */
 function onRegister(listed: ListedGroup, weekNumber: number): { came: number; marked: number; of: number } {
@@ -307,6 +335,16 @@ export async function buildProgrammeOverview(
   const attendanceHref = (groupId?: string) =>
     `${place.programmePath}/attendance${groupId ? `?group=${encodeURIComponent(groupId)}` : ""}`;
 
+  // ── Week 1 before any group has met (Q35 B) ──────────────────────────────
+  // Week 1 opens to everybody holding a place once it is marked ready, so
+  // until a group has met the page says whether it is, through the one answer.
+  const anyGroupMet = listed.some((entry) => [...entry.sessions.values()].some((facts) => facts.started));
+  const planHasWeekOne = records.run.weekPlan.some((entry) => entry.kind === "week" && entry.weekNumber === 1);
+  const weekOneId = weekDocId(1);
+  const weekOne =
+    !anyGroupMet && planHasWeekOne ? (await resolveWeekDoc(db, records.run.id, null, weekOneId)).week : null;
+  const weekOneReady = weekIsReady(weekOne);
+
   // ── The week ─────────────────────────────────────────────────────────────
   const card = cardWeek(records, now);
   let week: OverviewWeek | null = null;
@@ -316,6 +354,9 @@ export async function buildProgrammeOverview(
         ? ((await resolveWeekDoc(db, records.run.id, null, weekDocId(card.weekNumber))).week?.title.trim() || null)
         : null;
     week = weekCard(records, card, theme, viewer, place.courseId);
+    if (!anyGroupMet && card.weekNumber === 1 && weekOneReady) {
+      week.ready = { runId: records.run.id, weekId: weekOneId, ready: true, line: WEEK_ONE_READY };
+    }
   }
 
   // ── Reminders: every register not finished, read once ───────────────────
@@ -435,6 +476,29 @@ export async function buildProgrammeOverview(
         link: null,
       });
     }
+  }
+
+  // Week 1 not ready before any group has met: the lead's "Mark ready" once
+  // it is published; until then, what is in the way and the admin's way in.
+  if (!anyGroupMet && planHasWeekOne && !weekOneReady) {
+    const editor =
+      viewer.isAdmin && place.courseId && !weekOne?.published
+        ? {
+            href: `/admin/courses/${encodeURIComponent(place.courseId)}/runs/${encodeURIComponent(records.run.id)}/weeks/${weekOneId}`,
+            label: "Open week 1",
+          }
+        : null;
+    attention.push({
+      kind: "week",
+      title: "Week 1 isn’t ready",
+      detail: !weekOne
+        ? "Week 1 has no page yet. An admin loads it in the run’s week editor, then it can be marked ready."
+        : !weekOne.published
+          ? "Week 1 isn’t published yet. An admin publishes it in the run’s week editor, then it can be marked ready."
+          : "Everyone holding a place can open week 1 once it’s marked ready.",
+      link: editor,
+      ready: weekOne?.published ? { runId: records.run.id, weekId: weekOneId, ready: false, line: "" } : null,
+    });
   }
 
   // A week not published that a group has reached: its previous session is

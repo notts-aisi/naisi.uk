@@ -8,6 +8,7 @@ import {
   placementIsShownTo,
 } from "@/lib/firestore/courseEnrolments";
 import { normalizeExerciseResponse } from "@/lib/firestore/courseExercises";
+import { weekOneDoorFor } from "@/lib/courses/weekOne/door";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 
 /**
@@ -33,7 +34,9 @@ import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exerci
  * wire shape identical to the queue's.
  *
  * WHO MAY READ: the caller, about themselves — a live enrolment (active or
- * completed, matching the run overview's read boundary) or an admin. Note the
+ * completed, matching the run overview's read boundary) or an admin; and,
+ * for week 1 alone, somebody holding a place whom Publish has not told yet,
+ * once week 1's door is open to them (Q35 B: `weekOneDoorFor`). Note the
  * asymmetry with the submit route, which requires an ACTIVE learner enrolment:
  * a completed cohort is the member's own history to re-read but not to rewrite.
  *
@@ -170,7 +173,11 @@ export async function GET(
       (enrolment.status === "active" || enrolment.status === "completed") &&
       isNamedWithStanding(actor, "courseEnrolments.uid", enrolment.uid) &&
       placementIsShownTo(enrolment, { isAdmin });
-    if (!live) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Week 1 before groups go out (Q35 B): somebody holding a place whom
+    // Publish has not told reads back what they wrote in week 1's boxes, once
+    // week 1's door is open to them (`weekOneDoorFor`), and no other week.
+    const beforeGroups = !live && week === 1 && (await weekOneDoorFor(db, actor, runId)).open;
+    if (!live && !beforeGroups) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   // Three equality filters, served by the EXISTING

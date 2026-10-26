@@ -12,6 +12,7 @@ import {
 } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
+import { weekOneDoorFor, type PlaceBeforeGroups } from "@/lib/courses/weekOne/door";
 
 /**
  * The learning space's server-side gate: who is asking, which run, and what
@@ -87,6 +88,19 @@ export type RunAccess = {
    * opens reads their group's calendar from here rather than reading again.
    */
   groups: CourseGroupDoc[];
+  /**
+   * WEEK 1 BEFORE GROUPS GO OUT (Q35 B): the place this person holds on the
+   * programme that names the run, when week 1's door is open to them
+   * (`weekOneDoorFor`, the one answer) and they have no other way in. Null
+   * for everybody else, and never set beside `canLearn` or `hasLeft`.
+   *
+   * IT OPENS WEEK 1 OF THIS RUN AND NOTHING ELSE. The layout lets them in;
+   * the week page draws week 1 for them and redirects every other week; every
+   * other page under the run narrows to `canLearn` (or its own predicate) and
+   * sends them away, as before. A page that opens to exactly the people
+   * week 1 opens to asks `canLearn || beforeGroups !== null`.
+   */
+  beforeGroups: PlaceBeforeGroups | null;
 };
 
 /**
@@ -154,7 +168,8 @@ export const getRunAccess = cache(
       : null;
     // A placement nobody has told its owner about is not there for them: the
     // run stays shut and every page under it redirects, as it did before an
-    // admin placed them. Publish's email is what opens it.
+    // admin placed them. Publish's email is what opens it. The one change,
+    // on purpose (Q35 B): week 1 alone, through its door (`beforeGroups`).
     const enrolment =
       stored && placementIsShownTo(stored, { isAdmin }) ? stored : null;
     // Withdrawn / removed enrolments lose access the moment they are written,
@@ -211,6 +226,10 @@ export const getRunAccess = cache(
       run.trackLeadUids,
     );
 
+    const canLearn = isEnrolled || isFacilitator || isAdmin;
+    // Week 1's door, asked only of somebody with no other way in.
+    const door = canLearn || hasLeft ? null : await weekOneDoorFor(db, user, run.id);
+
     return {
       user,
       run,
@@ -220,9 +239,10 @@ export const getRunAccess = cache(
       isFacilitator,
       isReviewer,
       isTrackLead,
-      canLearn: isEnrolled || isFacilitator || isAdmin,
+      canLearn,
       hasLeft,
       groups,
+      beforeGroups: door?.open ? door.place : null,
     };
   },
 );

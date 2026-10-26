@@ -1,4 +1,5 @@
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
+import GroupsGoOut from "@/features/applications/groups/GroupsGoOut";
 import GroupsViews, { GroupsFrame, groupsViewPath } from "@/features/applications/groups/GroupsViews";
 import NotYours from "@/features/applications/groups/NotYours";
 import RunBlank from "@/features/applications/groups/RunBlank";
@@ -21,6 +22,10 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * the form before the run is read, as the tab's other views are. A reviewer is
  * told the tab is the lead's and an admin's. The change route behind the
  * dialog asks again who the caller is on the run (`runStaffingOf`).
+ *
+ * WHEN GROUPS GO OUT is the run's own setting, set here above the sessions
+ * by the same people (`GroupsGoOut`, saved through its own route, which asks
+ * the gate again).
  */
 export default async function ProgrammeSessionsPage({
   params,
@@ -60,6 +65,7 @@ export default async function ProgrammeSessionsPage({
 
   return (
     <GroupsFrame views={views}>
+      <GroupsGoOut roundId={view.roundId} programmeId={view.programmeId} initial={run.groupsGoOutOn} />
       <SessionsBoard
         heading={shown.heading}
         previous={link(shown.previous)}

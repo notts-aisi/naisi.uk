@@ -129,6 +129,18 @@
   box-shadow: var(--focus-ring);
 }
 
+/* The card that says a member's group is on its way, above the runs. */
+.above {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.above:empty {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* The token belt zeroes durations but NOT stagger steps, so a delay would
      survive as a stack of cards appearing one by one with no motion — worse

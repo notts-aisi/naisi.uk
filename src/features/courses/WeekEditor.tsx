@@ -13,6 +13,7 @@ import Switch from "@/components/ui/Switch";
 import { useAuth } from "@/auth/AuthProvider";
 import { getClientDb } from "@/lib/firebase/client";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
+import { READY_OPENS, weekIsReady } from "@/lib/courses/weekReady";
 import { AdminLoadingBar } from "@/features/admin/adminList";
 import BlockEditor from "@/components/blocks/BlockEditor";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
@@ -28,6 +29,7 @@ import {
 } from "@/lib/firestore/courses";
 import { ensureWeekDoc, saveWeek } from "./courseMutations";
 import ExerciseBuilder from "./ExerciseBuilder";
+import MarkReady from "./MarkReady";
 import MaterialListEditor from "./MaterialListEditor";
 import WeekBlocksLoader from "./WeekBlocksLoader";
 import WeekQuestionsEditor from "./WeekQuestionsEditor";
@@ -400,6 +402,7 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
           <Badge tone={saved.published ? "success" : "neutral"}>
             {saved.published ? "Published" : "Unpublished"}
           </Badge>
+          {weekIsReady(saved) && <Badge tone="success">Ready</Badge>}
           <Badge tone="neutral">{weekId}</Badge>
         </div>
         <span className={styles.muted}>
@@ -486,6 +489,31 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
                 size="lg"
               />
             </div>
+          </div>
+
+          {/* READY (board pr-weeks, Q35): the lead's mark, stored by its own
+              route, which only an admin and the programme's lead may press.
+              Here it is an admin's; anybody else editing the week reads it. */}
+          <div className={styles.readyCell}>
+            <p className={styles.readyTitle}>Ready</p>
+            <p className={styles.hint}>{READY_OPENS}</p>
+            {role === "admin" && saved.published ? (
+              <MarkReady
+                runId={runId}
+                weekId={weekId}
+                ready={weekIsReady(saved)}
+                onDone={reload}
+                classes={{ control: styles.readyControl, button: styles.readyButton, problem: styles.error }}
+              />
+            ) : (
+              <p className={styles.muted}>
+                {weekIsReady(saved)
+                  ? "Marked ready."
+                  : saved.published
+                    ? "Not marked ready."
+                    : "Publish the week first, then it can be marked ready."}
+              </p>
+            )}
           </div>
 
           <div className={styles.switchCell}>
