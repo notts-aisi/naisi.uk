@@ -159,6 +159,10 @@ const READERS = {
     gate: "facilitatorGuideReader(",
     why: "a facilitator's group page: which weeks have something, by title, for the ticket's link; the page itself is its live facilitators' and admins'",
   },
+  "lib/courses/allocationPublish.ts": {
+    gate: "facilitatorGuideReaderForGroup(",
+    why: "Publish's plan: which weeks of the course's guide have something, by title, asked through the facilitators' door for each group it tells, so their email says week 1's guide is on their group page only while that page shows it; nothing a document says leaves the plan",
+  },
   "lib/firestore/courseDeletion.ts": {
     gate: null,
     why: "the course's destroy, an admin's typed confirmation: it counts the course's documents and deletes them by address, reading nothing they say",
@@ -186,6 +190,34 @@ const THROUGH = {
   "app/api/courses/runs/[runId]/destroy-manifest/route.ts": {
     via: "lib/firestore/courseDeletion.ts",
     why: "counts what a run's destroy would take, through the same engine, and no course's guide is in it",
+  },
+  "app/api/courses/runs/[runId]/allocation/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "the allocation board's account of what Publish would send, read through Publish's own plan: counts and names of people, never a word of an email or of the guide",
+  },
+  "app/api/courses/runs/[runId]/allocation/publish/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "Publish itself, which sends each facilitator the email its plan wrote, promising week 1's guide only while their group page shows it",
+  },
+  "app/api/courses/runs/[runId]/allocation/publish/preview/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "Publish's own page showing the two emails as each person will get them: the plan's first facilitators' email, saying of week 1's guide what a press would",
+  },
+  "app/api/courses/runs/[runId]/allocation/publish/test/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "Send a test to me: the plan's first facilitators' email, to the presser's own address, saying of week 1's guide what the press would",
+  },
+  "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/times/page.tsx": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "the Groups tab's times, which take only the address of the facilitators' told markers from Publish's module (through groupTimes/told.ts) and never ask its plan",
+  },
+  "app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "a group's time, changed from the Groups tab, which takes only the address of the facilitators' told markers from Publish's module and never asks its plan",
+  },
+  "app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "the Groups tab's own route, which takes only the address of the facilitators' told markers from Publish's module and never asks its plan",
   },
 };
 
@@ -304,6 +336,8 @@ function writesWeeks(code) {
 const DELETES_BOTH = {
   "lib/firestore/courseDeletion.ts":
     "the destroy engine deletes a run's weeks and, with a course, the course's guide: it writes nothing of either into the other, and reads nothing a guide document says",
+  "app/api/courses/runs/[runId]/allocation/route.ts":
+    "the allocation board's read, which writes no week (the scan reads a map's set beside its read of each group's forked weeks as a write) and reaches the guide only through Publish's plan, which reads which weeks of the guide are loaded and nothing they say",
 };
 
 describe("3. no week ever carries facilitator material", () => {
