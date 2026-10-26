@@ -10,6 +10,7 @@ import {
 } from "@/lib/firestore/courseEnrolments";
 import {
   EXERCISE_LIMITS,
+  isReflectionResponse,
   normalizeExerciseResponse,
   REVIEW_STATUSES,
   type ExerciseReviewStatus,
@@ -163,7 +164,9 @@ export async function POST(
   const ref = db.collection("courseExerciseResponses").doc(responseId);
   const snap = await ref.get();
   const data = snap.data() ?? {};
-  const existing = snap.exists ? normalizeExerciseResponse(snap.id, data) : null;
+  // A reflection is never reviewed (courseExercises.ts): its row reads here as
+  // no row at all, so it is refused exactly as a missing one is, by everybody.
+  const existing = snap.exists && !isReflectionResponse(data) ? normalizeExerciseResponse(snap.id, data) : null;
 
   // ---- Access: facilitator of the OWNER's group, or admin ------------------
   // Two addressed reads, no queries and no caller-supplied ids: the owner's

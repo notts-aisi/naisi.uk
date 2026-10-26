@@ -15,6 +15,7 @@ import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/co
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { readCoursesConfig } from "@/lib/firestore/config";
 import type { AttendanceStatus } from "@/lib/firestore/courseAttendance";
+import { isReflectionResponse } from "@/lib/firestore/courseExercises";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 
@@ -218,6 +219,8 @@ async function readToReview(db: Firestore, runId: string, people: GroupPersonRow
     const data = (doc.data() ?? {}) as Record<string, unknown>;
     const uid = typeof data.uid === "string" ? data.uid : "";
     if (!names.has(uid) || data.runId !== runId) continue;
+    // A reflection is never sent and never reviewed (courseExercises.ts).
+    if (isReflectionResponse(data)) continue;
     const sentAt = instantOf(data.submittedAt);
     const status = typeof data.reviewStatus === "string" ? data.reviewStatus : "unreviewed";
     if (!sentAt || status !== "unreviewed") continue;

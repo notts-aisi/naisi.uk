@@ -6,6 +6,7 @@ import {
 } from "@/lib/courses/memberPageWords";
 import { dayWords } from "@/lib/courses/sessionChange/words";
 import { londonDateKey } from "@/lib/courses/weekPlan";
+import { handedTasksDone } from "@/lib/courses/weekBlocks/progress";
 
 /**
  * THE WEEKS OF A PROGRAMME, AS ITS HOME LISTS THEM (boards wk-programme,
@@ -37,7 +38,11 @@ export type WeekRow = {
   when: string;
   /** "Opens tonight, after your session", for a shut week that waits on a session. */
   opens: string | null;
-  /** What is done of the week's readings, for an open week that has any. */
+  /**
+   * What is done of the week, for an open week that has anything to do: its
+   * readings and checklist, or on a week written as blocks This week's tasks
+   * (`progress.ts`, "1 of 1").
+   */
   of: { done: number; of: number } | null;
   /** The schedule entry the row was made from. */
   schedule: OverviewWeekSchedule;
@@ -96,6 +101,11 @@ export function weekRowsOf(
     } else when = day;
 
     const countable = doc?.countableIds ?? [];
+    // A week written as blocks counts This week's tasks. A tick is done when
+    // `doneOf` counts it, so the one predicate both kinds of week read is it.
+    const tasks = (doc?.thisWeek?.rows ?? []).flatMap((row) => (row.type === "task" ? [row] : []));
+    const byTasks = doc?.thisWeek ? handedTasksDone(tasks, (id) => doneOf([id]) > 0) : null;
+    const of = byTasks ? (byTasks.of > 0 ? byTasks : null) : countable.length > 0 ? { done: doneOf(countable), of: countable.length } : null;
     return {
       weekNumber: schedule.weekNumber,
       title,
@@ -106,7 +116,7 @@ export function weekRowsOf(
         state === "shut" && saysWhen && schedule.weekNumber === nextToOpen && schedule.opensAfter
           ? opensWords(schedule.opensAfter, todayKey)
           : null,
-      of: state !== "shut" && countable.length > 0 ? { done: doneOf(countable), of: countable.length } : null,
+      of: state !== "shut" ? of : null,
       schedule,
     };
   });

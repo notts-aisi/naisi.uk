@@ -12,7 +12,11 @@ import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exerci
 
 /**
  * The member's OWN exercise responses for one week — what the week page hydrates
- * its answer boxes from, and how it knows which rows are still editable.
+ * its answer boxes from, and how it knows which rows are still editable. On a
+ * week written as blocks it also carries their own REFLECTIONS (rows of kind
+ * "reflection", see `courseExercises.ts`), each tagged `kind: "reflection"`,
+ * which is what the week page's reflection boxes are seeded from: the one
+ * person a reflection is read back to here is the person who wrote it.
  *
  * OWN ROWS ONLY, structurally: the query pins `uid` to the caller's own uid,
  * which comes from the session and never from a parameter. There is no code
@@ -57,12 +61,13 @@ export type MyExercisesPayload = {
 const MAX_WEEK_NUMBER = 60;
 
 /**
- * A week can hold at most `COURSE_FIELD_LIMITS.maxExercises` (15) exercises, so
- * 15 is the structural row count. The headroom covers rows orphaned by an
- * exercise being deleted after it was answered — the member should still see
- * what they wrote.
+ * A week can hold at most `COURSE_FIELD_LIMITS.maxExercises` (15) exercises,
+ * plus, on a week written as blocks, one row per reflection box the member
+ * has written in (a week's stops hold a handful: week 1 has six). The
+ * headroom covers rows orphaned by an exercise or a box being deleted after
+ * it was answered: the member should still see what they wrote.
  */
-const MAX_ROWS = 30;
+const MAX_ROWS = 120;
 
 /**
  * Dynamic segments arrive URL-DECODED, so a `%2F` reaches us as a real path
@@ -207,6 +212,8 @@ export async function GET(
       // equality on this field, so every row here holds exactly it.
       weekNumber: week,
       exerciseId: doc.exerciseId,
+      // Own rows only, so a reflection travels here to the one person it is for.
+      ...(doc.kind === "reflection" ? { kind: "reflection" as const } : {}),
       responseType: doc.responseType,
       text: doc.text ?? null,
       linkUrl: doc.linkUrl ?? null,

@@ -988,6 +988,18 @@ const NOT_COVERED = {
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
+  "/api/courses/runs/[runId]/reflections": {
+    reason:
+      "Course hub: one person's reflections, read by the programme's lead and admins (Q30; a facilitator's own reflections too); every caller is executed by tests/course-hub-week-blocks-page.test.mjs. No page reads it yet: the facilitator's and the lead's pages that will are later pieces.",
+    coverWhen:
+      "When the page that shows a lead somebody's reflections exists and a browser spec opens it.",
+  },
+  "/api/courses/runs/[runId]/reflections/[promptId]": {
+    reason:
+      "Course hub: a reflection box on a week written as blocks, saved as the person types (st-week1-phone, wk-week-phone); who writes, who is refused and what a box keeps are executed by tests/course-hub-week-blocks-page.test.mjs; typed in a browser on the preview kit at 390, saved, reloaded and read back.",
+    coverWhen:
+      "When a browser spec signs in a member of a group Publish has told, opens a week written as blocks, writes in a box, reloads and reads it back.",
+  },
   "/api/courses/runs/[runId]/retrospective": {
     reason:
       "Learn hub: /api/courses/runs/[runId]/retrospective belongs to the curriculum surface being rebuilt in October.",

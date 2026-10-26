@@ -12,6 +12,7 @@ import {
 import {
   EXERCISE_LIMITS,
   exerciseResponseId,
+  isReflectionResponse,
   normalizeExerciseResponse,
   type CourseExerciseResponseDoc,
   type ExerciseReviewStatus,
@@ -93,7 +94,15 @@ export type ExerciseResponseWire = {
    * (see the assignment in POST below).
    */
   weekNumber: number;
+  /** The exercise's id, or on a reflection the prompt's id. */
   exerciseId: string;
+  /**
+   * Present only on a reflection (`courseExercises.ts`, "Two kinds of row"),
+   * which only its writer's own reads carry: the my-exercises route and the
+   * reflection route. Absent on every exercise answer, so the review queue's
+   * rows read exactly as before.
+   */
+  kind?: "reflection";
   /** Server-asserted from the exercise definition — never the client's word. */
   responseType: "text" | "link";
   /** Non-null only on a `"text"` exercise. Plain text, rendered as text nodes. */
@@ -380,6 +389,12 @@ export async function POST(
   try {
     existing = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
+      // A reflection's row is never an answer's to write over (its id names a
+      // prompt, so the definition check above already refuses it; this says
+      // so where the write happens).
+      if (snap.exists && isReflectionResponse(snap.data() ?? {})) {
+        throw new SubmitError("That box is a reflection, not an answer.", 409);
+      }
       const prior = snap.exists
         ? normalizeExerciseResponse(id, snap.data() ?? {})
         : null;

@@ -293,3 +293,241 @@ export function readerLine(firstNames: readonly string[]): string {
 export function homeEyebrow(name: string, part: string): string {
   return [name.trim(), part.trim()].filter(Boolean).join(" · ");
 }
+
+// ---------------------------------------------------------------------------
+// A week written as blocks (boards st-week1-phone, wk-week-phone, wk-week)
+// ---------------------------------------------------------------------------
+
+/**
+ * Over the week's title: "Fellowship: AGI Strategy · Week 3 of 6 · Thu 12 to
+ * Wed 18 Nov", upper case by the stylesheet. The programme's kind and name
+ * come from the form that names the run; the dates are the week's seven days
+ * in the reader's own calendar, and are left out while it has none.
+ */
+export function blockWeekEyebrow(input: {
+  kind: "fellowship" | "incubator" | null;
+  name: string;
+  weekNumber: number;
+  totalWeeks: number;
+  range: string;
+}): string {
+  const kindWord = input.kind === "fellowship" ? "Fellowship" : input.kind === "incubator" ? "Incubator" : "";
+  const name = input.name.trim();
+  const programme = kindWord && name ? `${kindWord}: ${name}` : name;
+  return [programme, weekOfWords(input.weekNumber, input.totalWeeks), input.range.trim()].filter(Boolean).join(" · ");
+}
+
+/** The way on, beside the way back, while the next week is shut: the board's words. */
+export function weekOpensAfterWords(weekNumber: number): string {
+  return `Week ${weekNumber} opens after your session`;
+}
+
+/** "In all: About 80 minutes". */
+export function inAllWords(total: string): string {
+  return `In all: ${total.trim()}`;
+}
+
+/** A task that is done. */
+export const TASK_DONE = "Done";
+
+/**
+ * What the task mark says to a screen reader. `optional` is a row that is
+ * offered, not set (the hands-on route); the boards draw none, so it is
+ * listed for the boards' designers to confirm.
+ */
+export const TASK_MARK_WORDS = {
+  done: "Done",
+  notDone: "Not done yet",
+  none: "Nothing to do this week",
+  optional: "Optional, not counted",
+} as const;
+
+/**
+ * The guide's own words after its rule, kept as written: "Before session 1,
+ * if you can" says "if you can". The words after the first comma, or "" when
+ * there are none. The rule itself is the page's to say, in the reader's own
+ * dates.
+ */
+export function whenQualifierOf(whenText: string): string {
+  const at = whenText.indexOf(",");
+  return at < 0 ? "" : whenText.slice(at + 1).trim();
+}
+
+/** "noon", "5pm", "9:30am": the course's day-before time as the page says it. "" for anything else. */
+function dueClockWords(hhmm: string | null | undefined): string {
+  if (!hhmm) return "";
+  return hhmm === "12:00" ? "noon" : clockWords(hhmm);
+}
+
+/**
+ * When a This week task is due, for the reader's group (`due.ts` gives the
+ * day): "Before your session, Tue 17 Nov", "By the end of today, Mon 16 Nov",
+ * "At your session, Tue 17 Nov". Before a group has a day to give, the rule
+ * alone: "Before your first session" (the board's "Due dates wait for the
+ * group"). `first` is the reader's first session.
+ *
+ * "The day before" is read by the course's setting (`dayBeforeTime`,
+ * `CourseDoc.dayBeforeDueTime`): by the end of that day when it has none, or
+ * by its time ("By noon today, Mon 16 Nov", "By noon on Mon 9 Nov", "By noon
+ * the day before your session"). The guide's own words after its rule
+ * (`whenText`'s "if you can") follow the page's: "Before your first session,
+ * if you can". The words for a time and for the guide's own words are not
+ * drawn on the boards; they are listed for the boards' designers to confirm.
+ */
+export function taskWhenWords(
+  when: "before" | "dayBefore" | "atSession",
+  due: { dateKey: string } | null,
+  options: { first: boolean; todayKey: string; dayBeforeTime?: string | null; whenText?: string },
+): string {
+  const session = options.first ? "your first session" : "your session";
+  const day = due ? dayWords(due.dateKey) : "";
+  const qualifier = whenQualifierOf(options.whenText ?? "");
+  const withQualifier = (words: string) => (qualifier ? `${words}, ${qualifier}` : words);
+  if (when === "dayBefore") {
+    const clock = dueClockWords(options.dayBeforeTime);
+    const today = Boolean(due && due.dateKey === options.todayKey);
+    if (clock) {
+      if (!day) return withQualifier(`By ${clock} the day before ${session}`);
+      return withQualifier(today ? `By ${clock} today, ${day}` : `By ${clock} on ${day}`);
+    }
+    if (!day) return withQualifier(`By the end of the day before ${session}`);
+    return withQualifier(today ? `By the end of today, ${day}` : `By the end of ${day}`);
+  }
+  const lead = when === "atSession" ? `At ${session}` : `Before ${session}`;
+  return withQualifier(day ? `${lead}, ${day}` : lead);
+}
+
+/** "Part 1": a part's place among the week's parts, before its time. */
+export function partWords(n: number): string {
+  return `Part ${n}`;
+}
+
+/** The programme page's short line for a task (board wk-programme). */
+export function taskLabelWords(
+  subject: { kind: "writtenAnswer" } | { kind: "talk" } | { kind: "parts"; numbers: number[] } | { kind: "other" },
+  what: string,
+): string {
+  if (subject.kind === "writtenAnswer") return "Your written answer";
+  if (subject.kind === "talk") return "Your case talk";
+  if (subject.kind === "parts") return partsWords(subject.numbers);
+  return what.trim();
+}
+
+/** "Part 4", "Parts 1 to 3", "Parts 1 and 3", "Parts 1, 3 and 5". */
+export function partsWords(numbers: readonly number[]): string {
+  const sorted = [...new Set(numbers)].sort((a, b) => a - b);
+  if (sorted.length === 0) return "";
+  if (sorted.length === 1) return `Part ${sorted[0]}`;
+  const runs = sorted.every((n, index) => index === 0 || n === sorted[index - 1] + 1);
+  if (runs && sorted.length > 2) return `Parts ${sorted[0]} to ${sorted[sorted.length - 1]}`;
+  return `Parts ${namesWords(sorted.map(String))}`;
+}
+
+/** The label over a stop's boxes. */
+export const REFLECT = "Reflect";
+
+/** In an empty reflection box. */
+export const REFLECTION_PLACEHOLDER = "A sentence or two";
+
+/** Under a box whose words are stored. */
+export const SAVED = "Saved";
+
+/**
+ * Who reads a reflection (Q30), under the page's first stop, with names
+ * from records: "Rahul, Sofia, Claudia and admins can read your reflections.
+ * Other fellows can’t." Before the group is known, "Your facilitators, ...".
+ */
+export function reflectionsReadByWords(facilitatorFirstNames: readonly string[], leadFirstName: string | null): string {
+  return `${readersWords(facilitatorFirstNames, leadFirstName)} can read your reflections. Other fellows can’t.`;
+}
+
+/** That a line may be read out (Q37): "Rahul or Sofia may read a line out in the session, without your name." */
+export function readOutWords(facilitatorFirstNames: readonly string[]): string {
+  const who =
+    facilitatorFirstNames.length === 0
+      ? "Your facilitators"
+      : facilitatorFirstNames.length === 1
+        ? facilitatorFirstNames[0]
+        : `${facilitatorFirstNames.slice(0, -1).join(", ")} or ${facilitatorFirstNames[facilitatorFirstNames.length - 1]}`;
+  return `${who} may read a line out in the session, without your name.`;
+}
+
+/**
+ * Who sees the ticks (Q31), under the page's first sources: "Rahul, Sofia,
+ * Claudia and admins can see which sources you tick." The boards do not
+ * draw this line; it is listed for the boards' designers to confirm.
+ */
+export function ticksSeenByWords(facilitatorFirstNames: readonly string[], leadFirstName: string | null): string {
+  return `${readersWords(facilitatorFirstNames, leadFirstName)} can see which sources you tick.`;
+}
+
+/**
+ * A FACILITATOR TAKING PART (Zach, Mon 26 Oct: a group's facilitators are
+ * participants too): their own reflections are read by the programme's lead
+ * and admins, never by their co-facilitators or the group, so the line under
+ * their boxes names only those. No read-out line: nobody running the session
+ * reads them. The boards draw none of these; listed for the boards'
+ * designers to confirm.
+ */
+export function facilitatorReflectionsReadByWords(leadFirstName: string | null): string {
+  const lead = leadFirstName?.trim();
+  return lead ? `Only ${lead} and admins can read your reflections.` : "Only admins can read your reflections.";
+}
+
+/** Who sees a facilitator's own ticks: the lead and admins, as for their reflections. */
+export function facilitatorTicksSeenByWords(leadFirstName: string | null): string {
+  const lead = leadFirstName?.trim();
+  return lead ? `Only ${lead} and admins can see which sources you tick.` : "Only admins can see which sources you tick.";
+}
+
+/** A facilitator's own private note on a reading: nobody in the group reads it. */
+export const PRIVATE_NOTE_HINT_FACILITATOR = "Only admins see this. It’s never read out.";
+
+/** "Rahul, Sofia, Claudia and admins", or "Your facilitators, Claudia and admins". */
+function readersWords(facilitatorFirstNames: readonly string[], leadFirstName: string | null): string {
+  const people =
+    facilitatorFirstNames.length > 0 ? [...facilitatorFirstNames] : ["Your facilitators"];
+  if (leadFirstName && leadFirstName.trim() && !people.includes(leadFirstName.trim())) people.push(leadFirstName.trim());
+  return `${people.join(", ")} and admins`;
+}
+
+/** Under Before the session, where a week has boxes to write in: the site's own line. */
+export const BOXES_SAVE_LINE = "Write your answers in the boxes below. They save as you type.";
+
+/** When the reader's own answers could not be read, in place of the boxes. */
+export const REFLECTIONS_UNAVAILABLE = "We couldn’t load your reflections. Reload before writing, so you don’t write over them.";
+
+/** When a box's last change has not been stored. */
+export const REFLECTION_NOT_SAVED = "Your last change isn’t saved yet. Check your connection: it saves again as you type.";
+
+/** The reading's button (Q38): the rating and the private note, renamed so "reflection" means the set questions only. */
+export const RATE_OR_NOTE = "Rate it or leave a note";
+/** Over the stars. */
+export const HOW_USEFUL = "How useful was this?";
+/** The private note's label and who reads it (Q38: the group's facilitators and admins; Q37: never read out). */
+export const PRIVATE_NOTE = "Private note";
+export const PRIVATE_NOTE_HINT = "Only your facilitators and admins see this. It’s never read out.";
+
+/** Under Go further's heading. */
+export const NOT_COUNTED = "Not counted in your time or progress.";
+
+/** "8 items", beside Go further while it is closed. */
+export function itemsWords(n: number): string {
+  return n === 1 ? "1 item" : `${n} items`;
+}
+
+/** The laptop page's list of where things are (board wk-week). */
+export const ON_THIS_PAGE = "On this page";
+
+/** "Go further", as the list of where things are names it. */
+export const GO_FURTHER_SHORT = "Go further";
+
+/**
+ * The hands-on route (optional, for people who code), as the list of where
+ * things are names it. Its own heading is the guide's. The boards draw
+ * neither; listed for the boards' designers to confirm.
+ */
+export const HANDS_ON_SHORT = "Hands-on route";
+
+/** The notes the group shares, as the list of where things are names them. */
+export const SHARED_NOTES_SHORT = "Notes shared with your group";

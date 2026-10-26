@@ -1634,6 +1634,24 @@ export const ROUTES = {
         "is asked once a valid body arrives.",
     },
   },
+  "/api/courses/runs/[runId]/reflections": {
+    GET: {
+      expect: signedIn(400),
+      why:
+        "Session required, then the query is checked before anything is read (whose reflections, and " +
+        "which week), so every signed-in persona meets the same 400 on an empty one. Once a valid query " +
+        "arrives the programme's lead and admins read; everybody else is refused before a row is read.",
+    },
+  },
+  "/api/courses/runs/[runId]/reflections/[promptId]": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the body is checked before anything is " +
+        "read, so every signed-in persona meets the same 400 on an empty one. The caller's own seat, " +
+        "or a group they facilitate, is asked once a valid body arrives.",
+    },
+  },
   "/api/courses/runs/[runId]/retrospective": {
     GET: {
       expect: adminOnly(404, { draftCourse: 404, approveCourse: 404 }),
