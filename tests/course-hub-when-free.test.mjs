@@ -20,13 +20,16 @@
  *     writes nothing.
  *  3. WHO READS IT. The allocation board's fit marks and the times picture's
  *     one reading (`paintedWeekOf`) read the changed week.
- *  4. THE PAGE. The card says when it can be changed until (the run's
+ *  4. THE PAGES. The card says when it can be changed until (the run's
  *     planned day groups go out, or without a day), draws each day's times or
- *     "Not free", and offers "Change when you’re free"; it is not drawn once
- *     Publish has told them.
+ *     "Not free", and links "Change when you’re free" to the editor's own
+ *     page; it is not drawn once Publish has told them. That page draws the
+ *     form's own editor for somebody holding a place, sends anybody else
+ *     (told, no place, signed out) away, and in a view-as session says so and
+ *     reads nothing.
  *
  * Real: the route, the loader and the writer, the board's facts and the
- * painted week's reading, the page and its card, the store. Faked: the
+ * painted week's reading, the pages and the card, the store. Faked: the
  * session, the Admin SDK handle, the view-as guard, `next/navigation`,
  * `next/link`, the stylesheets and the clock.
  */
@@ -191,43 +194,108 @@ describe("4. the page", () => {
     for (const who of ["nina", "omar", "ines", "nobody"]) assert.equal(await loadWhenFree(world.db, ROUND, who, new Date()), null, who);
   });
 
-  test("the page draws the card for a place, with each day's times, and not once told", async () => {
-    const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(name) });";
-    const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
-    const STYLESHEETS = new Set();
-    for (const file of walkSource(SRC)) {
-      for (const [, specifier] of readFileSync(file, "utf8").matchAll(/from\s+"([^"]+\.module\.css)"/g)) STYLESHEETS.add(specifier);
+  /** The pages' own loader: every stylesheet in the tree stubbed, the session and view-as read off the world. */
+  let pageLoader = null;
+  const loadPage = (rel) => {
+    if (!pageLoader) {
+      const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(name) });";
+      const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
+      const STYLESHEETS = new Set();
+      for (const file of walkSource(SRC)) {
+        for (const [, specifier] of readFileSync(file, "utf8").matchAll(/from\s+"([^"]+\.module\.css)"/g)) STYLESHEETS.add(specifier);
+      }
+      pageLoader = createLoader({
+        stubs: new Map([
+          ...[...STYLESHEETS].map((path) => [path, CLASS_NAMES]),
+          ["server-only", "export {};"],
+          ["firebase-admin/firestore", FIELD_VALUE_STUB],
+          [
+            "next/server",
+            "export class NextResponse { constructor(body, init) { this.body = body; this.status = (init && init.status) || 200; }\n" +
+              "  static json(body, init) { return new NextResponse(body, init); } }",
+          ],
+          ["@/lib/firebase/admin", "export function getAdminDb() { return globalThis.__whenFree.db; }"],
+          ["@/lib/firebase/session", "export async function getCurrentUser() { return globalThis.__whenFree.user; }"],
+          [
+            "@/lib/firebase/impersonation",
+            "export async function getImpersonator() {\n" +
+              "  return globalThis.__whenFree.viewAs ? { actorUid: 'zach', actorName: 'Zach Levin' } : null;\n" +
+              "}\n" +
+              "export function markerIsLive(marker, currentUid) {\n" +
+              "  return marker !== null && marker.actorUid !== currentUid;\n" +
+              "}",
+          ],
+          [
+            "next/navigation",
+            "export function useRouter() { return { refresh() {}, push() {} }; }\n" +
+              "export function redirect(to) { throw Object.assign(new Error('redirect'), { redirectedTo: to }); }",
+          ],
+          ["next/link", `export default ({ href, className, children }) => globalThis.__whenFreeUi.h("a", { href, className }, children);`],
+        ]),
+      });
+      globalThis.__whenFreeUi = { h: createElement };
     }
-    const { loadTs: loadPage } = createLoader({
-      stubs: new Map([
-        ...[...STYLESHEETS].map((path) => [path, CLASS_NAMES]),
-        ["server-only", "export {};"],
-        ["firebase-admin/firestore", FIELD_VALUE_STUB],
-        [
-          "next/server",
-          "export class NextResponse { constructor(body, init) { this.body = body; this.status = (init && init.status) || 200; }\n" +
-            "  static json(body, init) { return new NextResponse(body, init); } }",
-        ],
-        ["@/lib/firebase/admin", "export function getAdminDb() { return globalThis.__whenFree.db; }"],
-        [
-          "@/lib/firebase/impersonation",
-          "export async function getImpersonator() { return null; }\nexport function markerIsLive() { return false; }",
-        ],
-        ["next/navigation", "export function useRouter() { return { refresh() {} }; }"],
-        ["next/link", `export default ({ href, className, children }) => globalThis.__whenFreeUi.h("a", { href, className }, children);`],
-      ]),
-    });
-    globalThis.__whenFreeUi = { h: createElement };
-    const { renderApplicationStatus } = await loadPage(join("features", "applications", "status", "renderApplicationStatus.tsx"));
-    const text = (html) => html.replace(/<[^>]+>/g, " ").replace(/&#x27;/g, "'").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
-    const draw = async (who) => text(renderToStaticMarkup(await renderApplicationStatus({ roundId: ROUND, user: made.sessionOf(who) })));
+    return pageLoader.loadTs(rel);
+  };
+  const text = (html) => html.replace(/<[^>]+>/g, " ").replace(/&#x27;/g, "'").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
 
-    const page = await draw("amara");
+  test("the page draws the card for a place, with each day's times, and not once told", async () => {
+    const { renderApplicationStatus } = await loadPage(join("features", "applications", "status", "renderApplicationStatus.tsx"));
+    const draw = async (who) => renderToStaticMarkup(await renderApplicationStatus({ roundId: ROUND, user: made.sessionOf(who) }));
+
+    const html = await draw("amara");
+    const page = text(html);
     assert.match(page, /When you’re free We use this to put you in a group\. You can change it until we email your group on Wed 28 Oct\./);
     assert.match(page, /Mon Monday: 5pm to 9pm/);
     assert.match(page, /Wed Wednesday: Not free/);
-    assert.match(page, /Change when you’re free/);
+    // Read only: the change is the editor's own page, and the card is where Home's link lands.
+    const card = /<section id="when-youre-free"[\s\S]*?<\/section>/.exec(html)?.[0] ?? "";
+    assert.match(card, new RegExp(`<a href="/applications/${ROUND}/free"[^>]*>Change when you’re free</a>`));
+    assert.doesNotMatch(card, /<button|<input/);
     await steps.published();
-    assert.doesNotMatch(await draw("amara"), /When you’re free/);
+    assert.doesNotMatch(text(await draw("amara")), /When you’re free/);
+  });
+
+  test("the editor's own page: the form's editor for a place; told, no place and signed out sent away; view-as told and nothing read", async () => {
+    const { default: WhenYoureFreePage } = await loadPage(join("app", "(public)", "applications", "[roundId]", "free", "page.tsx"));
+    const open = async (who, { viewAs = false } = {}) => {
+      world.user = made.sessionOf(who);
+      world.viewAs = viewAs;
+      try {
+        return { html: renderToStaticMarkup(await WhenYoureFreePage({ params: Promise.resolve({ roundId: ROUND }) })) };
+      } catch (err) {
+        if (err?.redirectedTo) return { redirectedTo: err.redirectedTo };
+        throw err;
+      } finally {
+        world.user = null;
+        world.viewAs = false;
+      }
+    };
+
+    // Holding a place: the form's own editor, on the week as stored, with the card's line.
+    const drawn = await open("amara");
+    const page = text(drawn.html);
+    assert.match(page, /When you’re free We use this to put you in a group\. You can change it until we email your group on Wed 28 Oct\./);
+    assert.match(page, /Save/);
+    assert.match(drawn.html, new RegExp(`<a href="/applications/${ROUND}#when-youre-free"[^>]*>Cancel</a>`));
+    assert.match(drawn.html, new RegExp(`<a href="/applications/${ROUND}#when-youre-free"[^>]*>.*Your application`));
+    // Placed and not told is still holding a place.
+    await steps.placed();
+    assert.match(text((await open("amara")).html ?? ""), /Save/, "placed and not told");
+
+    // Signed out: to sign in, and back here after.
+    assert.deepEqual(await open(null), { redirectedTo: `/login?next=${encodeURIComponent(`/applications/${ROUND}/free`)}` });
+    // No place: to their application page, which says where they stand.
+    for (const who of ["nina", "omar", "ines"]) assert.deepEqual(await open(who), { redirectedTo: `/applications/${ROUND}` }, who);
+
+    // A view-as session: told it may not, and nothing of the member's read.
+    const before = world.db.stats.reads;
+    const viewing = await open("amara", { viewAs: true });
+    assert.equal(world.db.stats.reads, before, "a view-as session read something");
+    assert.doesNotMatch(text(viewing.html), /Save|Cancel|We use this/);
+
+    // Told: sent back too.
+    await steps.publishes();
+    assert.deepEqual(await open("amara"), { redirectedTo: `/applications/${ROUND}` });
   });
 });

@@ -1,13 +1,9 @@
-"use client";
-
-import { useId, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useHydrated } from "@/hooks/useHydrated";
-import { slotCountFor, type AvailabilityGrid, type AvailabilityMask } from "@/lib/admissions/availability";
-import { columnsToMask, maskToColumns, type DayColumns } from "@/features/admissions/availabilityModel";
-import AvailabilityStep from "../apply/AvailabilityStep";
+import Link from "next/link";
+import type { AvailabilityGrid, AvailabilityMask } from "@/lib/admissions/availability";
+import { maskToColumns } from "@/features/admissions/availabilityModel";
 import { DAY_LONG, DAY_SHORT, DISPLAY_DAYS, clockLabel, runLabel, runsOf } from "../apply/availabilityText";
-import styles from "./WhenYoureFree.module.css";
+import { slotCountFor } from "@/lib/admissions/availability";
+import styles from "./status.module.css";
 
 /**
  * "WHEN YOU’RE FREE" ON THE APPLICATION PAGE (Q7: boards st-application-phone,
@@ -18,13 +14,11 @@ import styles from "./WhenYoureFree.module.css";
  *
  * The week is drawn as it reads on the board: each day, a bar across the
  * grid's hours, and its times or "Not free". "Change when you’re free" opens
- * the form's own editor (`AvailabilityStep`: painting, or typing times, the
- * route for a keyboard or a screen reader), and Save sends the week to its
- * route, which holds it to the same codec and limits as the form. The page is
- * then read again from the server, so what it shows is what is stored.
+ * the form's own editor on a page of its own (`/applications/<round>/free`),
+ * which holds the week to the same codec and limits as the form.
  *
- * Readable in full from the first HTML; the button works once the page is
- * live.
+ * Read only, with no script of its own, and in the status page's own
+ * stylesheet, so it reads in full from the first HTML.
  */
 
 /** The hour marks along the top, as the board draws them: every three hours on the grid. */
@@ -50,122 +44,53 @@ export default function WhenYoureFree({
   availability: AvailabilityMask;
   line: string;
 }) {
-  const ids = useId();
-  const router = useRouter();
-  const live = useHydrated();
-  const stored = useMemo(() => maskToColumns(availability, grid), [availability, grid]);
-  const [editing, setEditing] = useState(false);
-  const [columns, setColumns] = useState<DayColumns>(stored);
-  const [saving, setSaving] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
+  const columns = maskToColumns(availability, grid);
   const slots = slotCountFor(grid);
-
-  async function save() {
-    if (saving) return;
-    setSaving(true);
-    setProblem(null);
-    try {
-      const res = await fetch(`/api/admissions/forms/${encodeURIComponent(roundId)}/application/availability`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days: columnsToMask(columns, grid).days }),
-      });
-      const body = (await res.json().catch(() => null)) as { error?: string } | null;
-      if (!res.ok) throw new Error(body?.error ?? "That didn’t save. Try again.");
-      setEditing(false);
-      router.refresh();
-    } catch (err) {
-      setProblem(err instanceof Error ? err.message : "That didn’t save. Try again.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const shown = editing ? columns : stored;
   return (
     // The address Home's "Check when you’re free" lands on.
-    <section id="when-youre-free" className={styles.card} aria-labelledby={`${ids}-title`}>
-      <h2 id={`${ids}-title`} className={styles.title}>
+    <section id="when-youre-free" className={styles.freeCard} aria-labelledby="when-youre-free-title">
+      <h2 id="when-youre-free-title" className={styles.freeTitle}>
         When you’re free
       </h2>
-      <p className={styles.line}>{line}</p>
-
-      {editing ? (
-        <div className={styles.editor}>
-          <AvailabilityStep grid={grid} columns={columns} onChange={setColumns} />
-          {problem && (
-            <p className={styles.problem} role="alert">
-              {problem}
-            </p>
-          )}
-          <div className={styles.actions}>
-            <button type="button" className={styles.primary} onClick={() => void save()} disabled={saving}>
-              {saving ? "Saving…" : "Save"}
-            </button>
-            <button
-              type="button"
-              className={styles.secondary}
-              onClick={() => {
-                setEditing(false);
-                setColumns(stored);
-                setProblem(null);
-              }}
-              disabled={saving}
-            >
-              Cancel
-            </button>
-          </div>
+      <p className={styles.freeLine}>{line}</p>
+      <div className={styles.freeWeek}>
+        <div className={styles.freeMarks} aria-hidden="true">
+          {hourMarks(grid).map((mark) => (
+            <span key={mark.minute} className={styles.freeMark} style={{ left: `${percent(mark.minute, grid)}%` }}>
+              {mark.label}
+            </span>
+          ))}
         </div>
-      ) : (
-        <>
-          <div className={styles.week}>
-            <div className={styles.marks} aria-hidden="true">
-              {hourMarks(grid).map((mark) => (
-                <span key={mark.minute} className={styles.mark} style={{ left: `${percent(mark.minute, grid)}%` }}>
-                  {mark.label}
+        <ul className={styles.freeDays}>
+          {DISPLAY_DAYS.map((day) => {
+            const runs = runsOf(columns[day]);
+            const said = runs.length > 0 ? runs.map((run) => runLabel(run, grid)).join(", ") : "Not free";
+            return (
+              <li key={day} className={styles.freeDay} data-free={runs.length > 0 ? "yes" : "no"}>
+                <span className={styles.freeDayName} aria-hidden="true">
+                  {DAY_SHORT[day]}
                 </span>
-              ))}
-            </div>
-            <ul className={styles.days}>
-              {DISPLAY_DAYS.map((day) => {
-                const runs = runsOf(shown[day]);
-                const said = runs.length > 0 ? runs.map((run) => runLabel(run, grid)).join(", ") : "Not free";
-                return (
-                  <li key={day} className={styles.day} data-free={runs.length > 0 ? "yes" : "no"}>
-                    <span className={styles.dayName} aria-hidden="true">
-                      {DAY_SHORT[day]}
-                    </span>
-                    <span className={styles.track} aria-hidden="true">
-                      {runs.map((run) => (
-                        <span
-                          key={run.from}
-                          className={styles.run}
-                          style={{ left: `${(run.from / slots) * 100}%`, width: `${((run.to - run.from) / slots) * 100}%` }}
-                        />
-                      ))}
-                    </span>
-                    <span className={styles.times}>
-                      <span className={styles.visuallyHidden}>{DAY_LONG[day]}: </span>
-                      {said}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-          <button
-            type="button"
-            className={styles.secondary}
-            disabled={!live}
-            onClick={() => {
-              setColumns(stored);
-              setEditing(true);
-            }}
-          >
-            Change when you’re free
-          </button>
-        </>
-      )}
+                <span className={styles.freeTrack} aria-hidden="true">
+                  {runs.map((run) => (
+                    <span
+                      key={run.from}
+                      className={styles.freeRun}
+                      style={{ left: `${(run.from / slots) * 100}%`, width: `${((run.to - run.from) / slots) * 100}%` }}
+                    />
+                  ))}
+                </span>
+                <span className={styles.freeTimes}>
+                  <span className={styles.freeHidden}>{DAY_LONG[day]}: </span>
+                  {said}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      <Link href={`/applications/${encodeURIComponent(roundId)}/free`} className={styles.freeChange}>
+        Change when you’re free
+      </Link>
     </section>
   );
 }
