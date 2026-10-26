@@ -14,7 +14,36 @@
  * Member content is plain text (`text`) or a validated URL (`linkUrl`) —
  * typed `string`, never `Block[]`, rendered as text nodes only. No rich
  * text, no uploads (locked product decision 7).
+ *
+ * ── TWO KINDS OF ROW ────────────────────────────────────────────────────────
+ * The same store holds a week written as blocks' REFLECTIONS (boards
+ * st-week1-phone, wk-week-phone; Q30): one row per reflection box, its id
+ * `exerciseResponseId(runId, uid, weekId, promptId)`, `exerciseId` holding
+ * the prompt's id and `kind: "reflection"`. A row with no `kind` is an
+ * exercise answer, as every row stored before reflections is.
+ *
+ * A REFLECTION IS NEVER REVIEWED AND NEVER SENT: its writer is the only
+ * person it is for on any page so far (its route,
+ * `runs/[runId]/reflections/[promptId]`, writes it as they type), it never
+ * carries `submittedAt`, a verdict or feedback, and nothing that reviews,
+ * queues or counts answers may treat it as one. Every reader of this store
+ * says which kinds it reads: `isReflectionResponse` is how, and
+ * `tests/course-reflection-store-readers.test.mjs` walks the tree for a
+ * reader that does not. Deletion (an account's, and the run's destroy) and
+ * the guards that refuse to renumber a run with answers read every row of
+ * either kind, on purpose.
  */
+
+/** What a row holds: an answer to an exercise (or a written answer), or a reflection. */
+export type ResponseKind = "exercise" | "reflection";
+
+/** Whether a stored row is a reflection. Only a stored "reflection" is one. */
+export function isReflectionResponse(data: { kind?: unknown } | null | undefined): boolean {
+  return data?.kind === "reflection";
+}
+
+/** The most a reflection box holds, in characters. */
+export const REFLECTION_MAX_CHARS = 4000;
 
 export type ExerciseReviewStatus = "unreviewed" | "seen" | "needs-work" | "approved";
 
@@ -49,7 +78,10 @@ export type CourseExerciseResponseDoc = {
   uid: string;
   /** Week doc id ("w03"), not a week number — stable across copy-forward. */
   weekId: string;
+  /** The exercise's id, or a reflection's prompt id (see `kind`). */
   exerciseId: string;
+  /** "reflection" only where stored; every other row is an exercise answer. */
+  kind: ResponseKind;
   /**
    * Asserted by the submit route against the exercise definition — stored so
    * the review queue renders without re-reading the week doc.
@@ -111,6 +143,7 @@ export function normalizeExerciseResponse(
     uid: str(data.uid),
     weekId: str(data.weekId),
     exerciseId: str(data.exerciseId),
+    kind: isReflectionResponse(data) ? "reflection" : "exercise",
     responseType: data.responseType === "link" ? "link" : "text",
     submittedAt: tsToDate(data.submittedAt),
     reviewStatus: REVIEW_STATUSES.includes(reviewStatus) ? reviewStatus : "unreviewed",

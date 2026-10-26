@@ -7,7 +7,7 @@ import {
   normalizeCourseEnrolment,
   placementIsShownTo,
 } from "@/lib/firestore/courseEnrolments";
-import { normalizeExerciseResponse } from "@/lib/firestore/courseExercises";
+import { isReflectionResponse, normalizeExerciseResponse } from "@/lib/firestore/courseExercises";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { weekDocId } from "@/lib/firestore/courses";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
@@ -290,7 +290,10 @@ export async function GET(
     .map((d) => normalizeExerciseResponse(d.id, d.data() ?? {}))
     // The group filter. Everything outside it is dropped before a single field
     // is copied into the payload.
-    .filter((r) => memberSet.has(r.uid));
+    .filter((r) => memberSet.has(r.uid))
+    // A reflection is never reviewed, so it is never this queue's: its writer
+    // is the only person any page reads it back to (courseExercises.ts).
+    .filter((r) => !isReflectionResponse(r));
 
   // One `getAll` for every name the payload needs: the group's members, plus
   // whoever reviewed each response. Names only — see the PII line above.

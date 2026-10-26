@@ -221,9 +221,9 @@ const COUNT_META: Record<string, CountMeta> = {
     note: "Check-offs, ratings, private notes and the public comments the cohort wrote.",
   },
   exerciseResponses: {
-    label: "Exercise answers",
+    label: "Answers and reflections",
     fate: "destroyed",
-    note: "Member-authored text, with any facilitator review attached to it.",
+    note: "Member-authored text: answers, with any facilitator review attached to them, and the reflections people wrote on a week's page.",
   },
   attendanceRegisters: {
     label: "Attendance registers",
