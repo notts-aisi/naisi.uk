@@ -219,14 +219,30 @@
  *     (`src/lib/surveys/leadResults.ts` and its page); when few have left, the
  *     lead may still tell whose an answer is, which the policy says. The page
  *     that says somebody left now shows that survey's card too.
+ * 29. **Certificates, built.** The paragraph under "Certificates" (1) was
+ *     worded as what will happen before anything was built, and now
+ *     describes code; "we will send" still says what happens when each
+ *     programme ends. Who is sent one, and the email: the people the
+ *     programme's record says finished and its groups' facilitators, held to
+ *     their standing, one email a person, both certificates for a facilitator
+ *     who held a place and finished (`src/lib/courses/certificates/send.ts`).
+ *     Private until its owner turns the link on, a view-as session never the
+ *     owner, and the PDF its owner's alone (`record.ts`). The page shows the
+ *     words kept when it was issued and the course's credit line, and nothing
+ *     else (`face.ts`, `CertificateFace.tsx`). The code's 80 bits
+ *     (`model.ts`). Add to LinkedIn's title, date and link (`linkedin.ts`). A
+ *     certificate whose link is off deleted with the account and with a
+ *     destroyed run, one whose link is on kept without them
+ *     (`clearCourseCertificates`, `drainCertificates`). And nobody sent one
+ *     for finishing stops being finished while it stands (`finishingAct.ts`).
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
  *
- * TWO THINGS HERE ARE NOT BUILT YET, and are worded as what will happen,
- * the way v6 worded certificates: certificates (1) and a team's page (6).
- * Each is built to these words when it is built, or a new version says
- * otherwise first.
+ * ONE THING HERE IS NOT BUILT YET, and is worded as what will happen, the
+ * way v6 worded certificates: a team's page (6). It is built to these words
+ * when it is built, or a new version says otherwise first. Certificates (1)
+ * were worded that way too until they were built (29).
  *
  * v6 IS FROZEN AS ACCEPTED. It is the wording members agreed to at sign-in
  * while it was current, so it is a digest in `tests/privacy-policy.test.mjs`

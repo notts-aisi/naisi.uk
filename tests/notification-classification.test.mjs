@@ -562,6 +562,16 @@ const REGISTRY = {
   "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell/test/route.ts#sendTeamEmailTest": T(
     "\"Send a test to me\" beside that button: the first person's team email, marked as a test, to the address on the presser's own session and nobody else.",
   ),
+  "src/lib/courses/certificates/send.ts#sendEmail": T(
+    "Sending a programme's certificates: owed to each person its record says finished and to each of its facilitators by the lead's or an admin's press, one message a person carrying their own certificates, as a placement is owed by Publish's; and a rehearsal of the first such email, marked as a test, to the address on the presser's own session and nobody else. One call each.",
+    2,
+  ),
+  "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates/route.ts#sendCertificates": T(
+    "The call site of those emails: the lead's or an admin's press of \"Send N certificates\", which consults nobody's notification row, as the placement email does not.",
+  ),
+  "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates/test/route.ts#sendCertificateTest": T(
+    "\"Send a test to me\" beside that button: the first person's certificate email, marked as a test, to the address on the presser's own session and nobody else.",
+  ),
   "src/app/api/admissions/rounds/[roundId]/apply/route.ts#sendAdmissionEmail": T(
     "The receipt for starting an admissions application.",
   ),

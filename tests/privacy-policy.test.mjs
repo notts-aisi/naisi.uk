@@ -20,13 +20,14 @@
  * download; and, with the impact questionnaire, sharing with Kairos unless
  * somebody says no (the Kairos file a fifth logged download), the ratings at
  * a programme's end, and totals to funders and sponsors that name nobody.
- * §2g holds those passages against the code. Two of them are
+ * §2g holds those passages against the code. One of them is
  * worded as what will happen,
- * because they are not built yet (certificates, a team's page), and §2g
- * holds that nothing has been built that they would then have to describe.
- * A third was worded that way until it was built (facilitators seeing, before
- * the first session, who has said they are coming); it now says they see it,
- * and §2g holds it to the code.
+ * because it is not built yet (a team's page), and §2g holds that nothing
+ * has been built that it would then have to describe. Two were worded that
+ * way until they were built: certificates, whose paragraph still says what
+ * happens when a programme ends and is held to the code in §2, and
+ * facilitators seeing, before the first session, who has said they are
+ * coming, which now says they see it and is held to the code in §2g.
  *
  * v6 (7 October 2026) was v5's text, rewritten where the application form
  * (docs/applications.md) made it untrue. The people who read an application
@@ -905,7 +906,7 @@ describe("the courses section", () => {
     );
   });
 
-  test("certificates are described as the owner decided: sent, and private until their owner turns the link on", () => {
+  test("certificates are described as the owner decided: sent, and private until their owner turns the link on", async () => {
     // OWNER DECISION, 25 October 2026 (Q8 with Q26, as the boards draw them).
     // When a programme ends, its lead or an admin sends a certificate to
     // everybody its record says finished and to each of its facilitators.
@@ -916,10 +917,13 @@ describe("the courses section", () => {
     // nothing was issued unless they asked, so the retention carve-out below
     // now turns on the link rather than on who chose to make the page.
     //
-    // NOT BUILT YET, so the paragraph says what will happen ("we will send"),
-    // the way v6 worded certificates. Every clause below is load-bearing:
-    // certificates are built to these words, or a new version says otherwise
-    // first.
+    // BUILT (src/lib/courses/certificates/, the page at /c/<code>, its PDF,
+    // the send on a programme's Overview). The paragraph keeps its words: "we
+    // will send" says what happens when each programme ends. It was worded
+    // that way before anything was built, and this test used to fail the day
+    // the site kept a certificate; it now holds each of its sentences to the
+    // code that makes it true, as the rest of §2g does: a rule RUN, the tree
+    // WALKED against a named list, or one line of source matched.
     const page = CURRENT.slice(CURRENT.indexOf("export default function")).replace(/\s+/g, " ");
     assert.match(page, /When a programme ends, we will send a certificate to everybody/i);
     assert.match(page, /The programme&apos;s lead or an admin sends each one as an email with a link to its page on our site\./i);
@@ -945,32 +949,169 @@ describe("the courses section", () => {
     assert.match(page, /Email us and we will withdraw it, account or no account\. A certificate whose link is off is deleted with your account\./i);
     assert.match(page, /any decision a lead recorded about whether you finished, a certificate whose link is off, your admission applications/i);
 
-    // The cascade check stays, with the rule it now waits for. No sweep
-    // exists, because no certificate does: the day one appears, it deletes a
-    // certificate whose link is off and keeps one whose link is on, and this
-    // check is replaced by one that runs it.
-    const cascade = read("src/lib/firestore/accountDeletion.ts");
-    assert.ok(
-      !/collection\(\s*["'`][A-Za-z]*[cC]ertificate[A-Za-z]*["'`]\s*\)/.test(cascade),
-      "account deletion now sweeps certificates. v7 says a certificate whose " +
-        "link is off is deleted with the account and one whose link is on is " +
-        "kept until somebody asks us to withdraw it: pin that rule here, by " +
-        "running the sweep, in place of this check.",
+    const certificates = (file) => withoutComments(read(`src/lib/courses/certificates/${file}`));
+    const model = await loadTs("lib/courses/certificates/model.ts");
+    const face = await loadTs("lib/courses/certificates/face.ts");
+    const linkedin = await loadTs("lib/courses/certificates/linkedin.ts");
+    const send = certificates("send.ts");
+    const record = certificates("record.ts");
+
+    // "We will send a certificate to everybody the programme's record says
+    // finished it (see Who finished), and to each person who facilitated one
+    // of its groups." Two kinds and no other; the send's one reader of who
+    // asks the finished record for the first and the groups' facilitators,
+    // held to their standing, for the second. Nobody else is given one.
+    assert.deepEqual([...model.CERTIFICATE_KINDS], ["finished", "facilitated"]);
+    assert.deepEqual(model.DID_WORDS, { finished: "finished the", facilitated: "facilitated a group on the" });
+    assert.match(send, /if \(recordOf\(row, finishing, end\)\?\.finished !== true\) continue;/);
+    assert.match(send, /if \(member && holdsStanding\(member, "courseEnrolments\.uid"\)\) give\(row\.uid, "finished"\);/);
+    assert.match(
+      send,
+      /if \(facilitator && isNamedWithStanding\(facilitator, "courseGroups\.facilitatorUids", entry\.group\.facilitatorUids\)\) \{\s*give\(uid, "facilitated"\);/,
     );
-    // And nothing anywhere makes a certificate yet, which is what keeps the
-    // future tense honest. A collection of them appearing is the moment the
-    // paragraph stops being a promise and becomes a description.
+    assert.equal((send.match(/\bgive\(/g) ?? []).length, 2, "the send gives a certificate from somewhere new");
+    // "The programme's lead or an admin sends each one as an email with a
+    // link to its page": the press's gate, and the link in the email.
+    assert.match(send, /if \(!opensProgrammeGroups\(role\)\) return refuse\(403, LEADS_AND_ADMINS\);/);
+    assert.match(send, /claimed\.map\(\(entry\) => certificateUrl\(appUrl, entry\.code\)\)/);
+
+    // "It starts private: until you turn its link on, only you can open it."
+    // Made with its link off; read as off unless it is stored as exactly
+    // true; shown to anybody but its owner only while it is on; and its owner
+    // is the account it was made for, signed in as themselves, never a
+    // view-as session.
+    assert.match(send, /linkOn: false,/);
+    const stored = (over = {}) => ({
+      kind: "finished",
+      code: "K7Q2M9XH4PWR3TDB",
+      uid: "amara",
+      runId: "run1",
+      issuedAt: new Date("2026-12-14T10:00:00Z"),
+      snapshot: { name: "Amara Okafor", did: "finished the", programme: "AGI Strategy Fellowship", term: "Autumn 2026", weeks: "6 weeks", credit: null, issuedOn: "Mon 14 Dec 2026" },
+      email: { state: "sent" },
+      ...over,
+    });
+    for (const linkOn of [undefined, "true", 1, null]) {
+      assert.equal(model.normalizeCertificate("run1__amara__finished", stored({ linkOn })).linkOn, false, `${linkOn} read as on`);
+    }
+    assert.match(record, /return !viewAs && viewer !== null && cert\.uid !== null && cert\.uid === viewer\.uid;/);
+    assert.match(record, /if \(isOwner\(cert, viewer, viewAs\)\) \{[\s\S]*?\}\s*if \(!cert\.linkOn\) return \{ state: "none" \};/);
+
+    // "While the link is on, anyone holding it can open the page and check
+    // the certificate, and you can turn it off again at any time." The check
+    // line is drawn only while it is on; the switch takes on and off, and
+    // only from its owner.
+    const snapshot = model.normalizeCertificate("run1__amara__finished", stored()).snapshot;
+    assert.equal(face.faceOf("finished", snapshot, { host: "naisi.uk", code: "K7Q2M9XH4PWR3TDB" }).check, "Check it at naisi.uk/c/K7Q2M9XH4PWR3TDB");
+    assert.equal(face.faceOf("finished", snapshot, null).check, null);
+    assert.deepEqual(model.parseLinkSwitch({ linkOn: false }), { ok: true, value: { linkOn: false } });
+    assert.deepEqual(model.parseLinkSwitch({ linkOn: true }), { ok: true, value: { linkOn: true } });
+    assert.match(record, /if \(!cert \|\| !isOwner\(cert, viewer, false\)\) return refuse;/);
+
+    // "The link is not guessable and the page is not listed anywhere." Eighty
+    // bits from the operating system's random source, never the boards' six
+    // characters; the page tells search engines to leave it, and nothing that
+    // lists the site's pages names it.
+    assert.ok(model.CODE_LENGTH * Math.log2(model.CODE_ALPHABET.length) >= 80, "a certificate's code is guessable");
+    assert.equal(model.codeFrom("K7Q2M9"), null);
+    assert.match(certificates("code.ts"), /const bytes = randomBytes\(CODE_LENGTH\);/);
+    assert.match(read("src/app/(public)/c/[code]/page.tsx"), /robots: \{ index: false, follow: false \}/);
+    for (const file of ["src/app/sitemap.ts", "src/app/robots.ts", "src/layout/PublicHeader.tsx", "src/layout/PublicFooter.tsx", "src/content/links.ts"]) {
+      assert.doesNotMatch(read(file), /["'`]\/c\/|\/c\/\$\{/, `${file} names a certificate's page`);
+    }
+
+    // "The page shows your name, that you finished the programme or
+    // facilitated a group on it, the programme, the term, how many weeks it
+    // ran and the day it was issued. It shows no email address, no photo and
+    // nobody else's name." What a certificate keeps is exactly those words,
+    // with the course's credit line (the course's, not the person's), and
+    // anything else stored beside them is never read; every drawing of it
+    // draws that view and no other field.
+    const extra = stored({ snapshot: { ...stored().snapshot, email: "amara@example.com", photoURL: "https://example.com/a.png", lead: "Claudia" } });
+    assert.deepEqual(Object.keys(model.normalizeCertificate("run1__amara__finished", extra).snapshot).sort(), [
+      "credit",
+      "did",
+      "issuedOn",
+      "name",
+      "programme",
+      "term",
+      "weeks",
+    ]);
+    assert.deepEqual(Object.keys(face.faceOf("finished", snapshot, null)).sort(), [
+      "check",
+      "did",
+      "eyebrow",
+      "issued",
+      "kind",
+      "label",
+      "meta",
+      "name",
+      "programme",
+    ]);
+    const drawing = withoutComments(read("src/features/courses/certificates/CertificateFace.tsx"));
+    assert.doesNotMatch(drawing, /<img\b|photo|email|address/i, "the drawing shows a picture or an address");
+
+    // "Add to LinkedIn sends nothing until you press it; if you do, your
+    // browser takes the certificate's title, the date and its link to
+    // LinkedIn." A plain address, built for the person's own browser: the
+    // title, the year and month, the link, and the word that says which of
+    // LinkedIn's forms to open. Nothing else in the tree names that form.
+    const href = new URL(
+      linkedin.linkedInHref({ kind: "finished", programme: "AGI Strategy Fellowship", issuedAt: new Date("2026-12-14T10:00:00Z"), url: "https://naisi.uk/c/K7Q2M9XH4PWR3TDB" }),
+    );
+    assert.deepEqual([...href.searchParams.keys()], ["startTask", "name", "issueYear", "issueMonth", "certUrl"]);
+    assert.deepEqual([...linkedin.LINKEDIN_PARAMETERS], ["startTask", "name", "issueYear", "issueMonth", "certUrl"]);
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/linkedin\.com\/profile\/add/),
+      new Map([["src/lib/courses/certificates/linkedin.ts", "builds the one address Add to LinkedIn opens, with the title, the date and the link"]]),
+      "the places that send something to LinkedIn",
+      "v7 says Add to LinkedIn takes the title, the date and the link, and nothing else. Build any address for it in linkedin.ts.",
+    );
+
+    // "A copy you have downloaded or passed on is yours": only its owner
+    // downloads one, whether or not its link is on.
+    assert.match(record, /if \(!cert \|\| !isOwner\(cert, viewer, viewAs\)\) return null;/);
+
+    // "A certificate whose link is off is deleted with your account", and
+    // one whose link is on is kept without it; destroying a run does the
+    // same. The sweeps, a line each (both run in
+    // tests/course-hub-certificates-record.test.mjs).
+    const cascade = withoutComments(read("src/lib/firestore/accountDeletion.ts"));
+    assert.match(cascade, /db\.collection\(CERTIFICATES_COLLECTION\)\.where\("uid", "==", uid\)\.get\(\)/);
+    assert.match(cascade, /if \(\(doc\.data\(\) \?\? \{\}\)\.linkOn === true\) \{\s*kept \+= 1;\s*writes\.push\(\(batch\) => batch\.update\(doc\.ref, \{ uid: null, ownerGoneAt: FieldValue\.serverTimestamp\(\) \}\)\);\s*\} else \{\s*deleted \+= 1;\s*writes\.push\(\(batch\) => batch\.delete\(doc\.ref\)\);/);
+    assert.match(cascade, /const certificates = await clearCourseCertificates\(db, uid\);/);
+    const destroy = withoutComments(read("src/lib/firestore/courseDeletion.ts"));
+    assert.match(destroy, /if \(\(d\.data\(\) \?\? \{\}\)\.linkOn === true\) \{\s*kept \+= 1;\s*batch\.update\(d\.ref, \{ runId: null, runGoneAt: FieldValue\.serverTimestamp\(\) \}\);\s*\} else \{\s*batch\.delete\(d\.ref\);/);
+
+    // Every file that names the collection, held both ways, each with what
+    // it does with it. A new reader or writer brings the paragraph with it.
     assertExactlyTheseFiles(
       sourceFilesNaming(/collection\(\s*["'`][A-Za-z]*[cC]ertificate[A-Za-z]*["'`]\s*\)|\b[A-Z_]*CERTIFICATES?_COLLECTION\b/),
-      new Map(),
-      "keeping certificates",
-      "Certificates are being built. Build them to v7's words (sent by the " +
-        "programme's lead or an admin to who finished and to facilitators, " +
-        "private until the owner turns the link on, the page showing no " +
-        "email address, photo or other name, and a link that is off deleted " +
-        "with the account), and replace this check with pairings that hold " +
-        "each of those sentences to the code.",
+      new Map([
+        ["src/lib/courses/certificates/model.ts", "names the collection and reads a stored certificate whole, its link off unless it is exactly on"],
+        ["src/lib/courses/certificates/record.ts", "finds a certificate by its code for its page and its PDF, and its owner's switch: the one place that decides who sees what"],
+        ["src/lib/courses/certificates/send.ts", "the send: makes each certificate, private, for who finished and for facilitators, and settles its email"],
+        ["src/lib/courses/certificates/own.ts", "reads a person's own two by their addresses, for the card on their programme's page"],
+        ["src/lib/firestore/accountDeletion.ts", "deletes an account's certificates whose link is off and keeps those whose link is on without their owner"],
+        ["src/lib/firestore/courseDeletion.ts", "deletes a destroyed run's certificates whose link is off and keeps those whose link is on without their run"],
+        ["src/lib/applications/handover/finishingAct.ts", "reads whether somebody holds a certificate for finishing, so who finished never unticks them while it stands"],
+      ]),
+      "the places that keep certificates",
+      "Hold what it does to v7's words (sent by the programme's lead or an admin to who finished and to " +
+        "facilitators, private until the owner turns the link on, the page showing no email address, photo " +
+        "or other name, and a link that is off deleted with the account), and list it here with its reason.",
     );
+
+    // The suites that run each of these as every kind of caller.
+    for (const suite of [
+      "course-hub-certificates-record.test.mjs",
+      "course-hub-certificates-page.test.mjs",
+      "course-hub-certificates-pdf.test.mjs",
+      "course-hub-certificates-send.test.mjs",
+      "course-hub-certificates-card.test.mjs",
+    ]) {
+      assert.ok(existsSync(join(REPO_ROOT, "tests", suite)), `tests/${suite} is gone`);
+    }
   });
 
   test("the push record goes with the account", () => {
@@ -2607,10 +2748,10 @@ describe("the account record passage", () => {
  * page promises or the page stopped saying what the code does, and a change
  * to the words is a new version.
  *
- * Two passages say what will happen, because the thing is not built yet:
- * certificates and a team's page. They are built to these words.
- * Certificates carry a check of their own in §2, which fails the day the site
- * starts keeping them. A third, facilitators seeing who has said they are
+ * One passage says what will happen, because the thing is not built yet: a
+ * team's page. It is built to these words. Certificates were worded the same
+ * way and are now built to their words: their check in §2 holds each
+ * sentence to the code. A third, facilitators seeing who has said they are
  * coming before the first session, was worded the same way until it was
  * built; it now says they see it, and is held to the code below, as
  * strictly.
@@ -3438,12 +3579,23 @@ describe("the course hub passage", () => {
     const remove = withoutComments(read("src/app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts"));
     assert.match(remove, /if \(facilitated && existing\.status === "active"\) \{\s*throw new RemoveError\(facilitatesGroupLine\(/);
 
-    // "A facilitator who held a place and finished is sent both": worded as
-    // what will happen, as the rest of the passage is (§2 fails the day the
-    // site keeps certificates). The two lists they will go to can hold one
-    // person: who finished's (learner rows, above) and the groups'
-    // facilitators.
+    // "A facilitator who held a place and finished is sent both": the two
+    // lists the send reads can hold one person, who finished's (learner rows,
+    // above) and the groups' facilitators, and a certificate is one a
+    // person, run and kind, so both are made, and go in that person's one
+    // email (§2's certificate test holds the rest of the paragraph).
     assert.match(PAGE_FLAT, /and to each person who facilitated one of its groups\. A facilitator who held a place and finished is sent both\./);
+    const certificateModel = await loadTs("lib/courses/certificates/model.ts");
+    assert.notEqual(
+      certificateModel.certificateId("run1", "amara", "finished"),
+      certificateModel.certificateId("run1", "amara", "facilitated"),
+      "one person's two certificates would be one document",
+    );
+    const send = withoutComments(read("src/lib/courses/certificates/send.ts"));
+    assert.match(send, /give\(row\.uid, "finished"\)/);
+    assert.match(send, /give\(uid, "facilitated"\)/);
+    // Both kinds kept on the one person, who is sent one email with a button to each.
+    assert.match(send, /const kinds = kindsOf\.get\(uid\) \?\? new Set<CertificateKind>\(\);\s*kinds\.add\(kind\);/);
 
     // The suites that run each of these as every kind of caller.
     for (const suite of [

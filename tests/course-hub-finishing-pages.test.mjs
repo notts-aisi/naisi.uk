@@ -24,7 +24,7 @@
  *  3. THE RULE'S CARD on Settings, for the lead and admins, holding the
  *     number; nobody else is drawn it, and a lead's page reads nothing of the
  *     run beyond the rule's own document.
- *  4. THE HEAD: "Finished · Wed 9 Dec" and how many took part, from the
+ *  4. THE HEAD: "Finished · Wed 9 Dec" and how many stayed to the end, from the
  *     last session's end; before it, the running line.
  *  5. The switches are not pressable before the page is live, no address
  *     reaches any of it, and drawing a page writes nothing.
@@ -278,21 +278,23 @@ describe("3. the rule's card on Settings", () => {
 // ---------------------------------------------------------------------------
 
 describe("4. the line under the programme's name", () => {
-  test("once the last session is over: Finished with its day, and how many took part", async () => {
-    assert.match(await head("claudia"), /AGI Strategy Fellowship Finished · Wed 9 Dec C Lead: Claudia · 10 took part (Overview|Interest)/);
-    assert.match(await head("zach"), /Finished · Wed 9 Dec C Lead: Claudia · 11 took part/);
+  // en-finish v21 says "stayed to the end" where v19 said "took part": the
+  // same count, which leaves out everybody who left.
+  test("once the last session is over: Finished with its day, and how many stayed to the end", async () => {
+    assert.match(await head("claudia"), /AGI Strategy Fellowship Finished · Wed 9 Dec C Lead: Claudia · 10 stayed to the end (Overview|Interest)/);
+    assert.match(await head("zach"), /Finished · Wed 9 Dec C Lead: Claudia · 11 stayed to the end/);
   });
 
   test("from the moment that session ends, and not a minute before", async () => {
     mock.timers.setTime(new Date("2026-12-09T14:59:00Z").getTime());
     assert.match(await head("claudia"), /Running · week 6 of 6 C Lead: Claudia · 10 taking part in 4 groups · Last sessions Wed 9 Dec/);
     mock.timers.setTime(new Date("2026-12-09T15:00:00Z").getTime());
-    assert.match(await head("claudia"), /Finished · Wed 9 Dec C Lead: Claudia · 10 took part/);
+    assert.match(await head("claudia"), /Finished · Wed 9 Dec C Lead: Claudia · 10 stayed to the end/);
   });
 
   test("a reviewer keeps the form's own line", async () => {
     const said = await head("lloyd");
-    assert.doesNotMatch(said, /Finished|took part/);
+    assert.doesNotMatch(said, /Finished|stayed to the end|took part/);
   });
 });
 

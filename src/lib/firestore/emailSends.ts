@@ -52,6 +52,12 @@ export type EmailSendKind =
   // "was Amara told the feedback was waiting" is answerable without reading
   // subject lines, apart from the enrolment and admissions mail.
   | "course-feedback"
+  // A programme's certificates (board en-finish): one email a person, with a
+  // button to each certificate they are sent, from the lead's or an admin's
+  // press. Its own kind so "did everybody who finished get their
+  // certificate" is answerable without reading subject lines; its
+  // `referenceId` is the RUN id. Its test goes as `course-test`.
+  | "course-certificate"
   // The ADMISSIONS lifecycle (V3): everything NAISI sends somebody about their
   // application to a round. Kept apart from `course-application`, which means
   // the V2 per-run funnel this replaces, because the deliverability tab has to

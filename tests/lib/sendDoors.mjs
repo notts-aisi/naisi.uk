@@ -40,6 +40,8 @@ export const SEND_DOOR_NAMES = [
   "sendTeamEmails",
   "sendTeamEmailTest",
   "sendAskTest",
+  "sendCertificates",
+  "sendCertificateTest",
 ];
 
 /** Any of the doors, as a call. */

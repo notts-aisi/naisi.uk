@@ -2331,7 +2331,7 @@ ever shown it: no member's page and no member's payload carries it.
   groups' dated sessions, a cancelled one left out. Before then the Overview
   has no list (its People card says when it can be done), a switch is
   refused, and nobody is told they finished.
-- **Exercises** beside each person are the ones set on the weeks their group
+- **Written answers** beside each person are the ones set on the weeks their group
   was taught (its own copy of a week where it has one), published weeks only,
   and how many of those they sent.
 
@@ -2360,7 +2360,7 @@ record (`finishedForMember`): "You finished [course]." and "Finished" where it
 says so, "[course] has ended." and "Ended" for everybody else, staff
 included. Nobody is told they did not finish, and no page names the rule. The
 programme's head reads "Finished · [the last session's day]" and how many
-took part, from the moment that session ends.
+stayed to the end, from the moment that session ends.
 
 ### Deleting
 
@@ -2375,6 +2375,117 @@ took part, from the moment that session ends.
 One new rules block, `courseFinishing` shut to every browser (the two
 finishing routes are the only writers, and only the server reads it). No
 index: every query is one equality on one field.
+
+## Certificates
+
+When a programme ends, its lead (or an admin) sends a certificate to
+everybody its record says finished and to each of its facilitators, from the
+Overview. Each is a page at `naisi.uk/c/<code>`, private until its owner turns
+its link on, and a PDF its owner downloads. Privacy policy version 7
+("Certificates" and "Retention") is the contract. The code is
+`src/lib/courses/certificates/` (the record, the words, the page's reads, the
+send, the PDF), the page `src/app/(public)/c/[code]/`, the section
+`src/features/applications/overview/CertificatesSection.tsx` and the card
+`src/features/courses/CertificateCard.tsx`.
+
+### Before it goes out
+
+- **The credit line.** Every certificate of a course prints the course's
+  credit line after its weeks ("6 weeks · based on the BlueDot Impact
+  curriculum"). It is set on the course's own page in the course editor,
+  **Credit on certificates**, typed as it prints after the dot (so it starts
+  with a small letter), and empty for none. The programme's Settings show it
+  read-only, first letter in capitals, with a link to the course's page for
+  somebody that page opens for. A change reaches certificates sent after it:
+  each certificate keeps the words it was issued with.
+- **Who finished** is said on the Overview first (above). The send reads the
+  record as it is when the button is pressed.
+
+### Sending
+
+The **Certificates** card follows Who finished on the Overview once the last
+session is over: who they go to ("28 people who finished and 5
+facilitators."), a smaller copy of one person's certificate, the email's
+subject, and two buttons.
+
+1. **Send a test to me** emails the presser the first person's email, marked
+   `[TEST]`, at the address on their own session. Its button opens the lead's
+   preview (nothing is made by a test). Only a test that arrived unlocks the
+   send, and each presser needs their own.
+2. **Send 33 certificates** makes each certificate (private, with a code of
+   its own) and emails each person, one email a person: a facilitator who
+   held a place and finished gets both certificates in one email, a button
+   to each. The button counts certificates and the line under it counts
+   people; both numbers are checked again when it is pressed, and a press is
+   refused with the new numbers if either moved. One press at a time on a
+   run; two presses at once send one batch.
+3. **Send N more** reaches only people without theirs: somebody ticked later,
+   or an email that failed. A send held by a copy of the site that does not
+   email that address, or stopped by the do-not-email list, is not tried
+   again.
+
+Who is sent one: the people the record says finished, as the presser's own
+list shows them (a lead sees the people Publish told, an admin everybody
+placed), whose account still stands; and each facilitator of a group
+anybody was in, held to their standing, once however many groups they ran.
+Somebody who did not finish is sent nothing and is not told. Somebody with
+no email address on file is named under the buttons and not counted. A
+certificate whose name, term or weeks cannot be written stops the press,
+naming the person, and nothing is sent.
+
+The preview (the thumbnail, and **Preview** beside the subject) shows one
+person's certificate page as its owner will see it, link off, and the email
+laid out as it will arrive. Nothing is made or sent by opening it.
+
+### After it goes out
+
+- **The page.** Its owner, signed in as themselves, sees the certificate and
+  **Download PDF**, **Add to LinkedIn**, the switch **Anyone with the link
+  can see it**, and **Copy link**. Anybody else sees it, with "Check it at
+  naisi.uk/c/…", only while its link is on. A link that is off, a code that
+  opens nothing and one that cannot be a code all get one calm page, the
+  same in every case. An admin viewing as the owner is not the owner. The
+  page is never indexed and nothing public links to it.
+- **The PDF** is the page's certificate on an A4 page, landscape, saved as
+  `naisi-certificate-<code>.pdf`, for its owner alone, whether or not the
+  link is on; it carries the check line only while the link is on.
+- **Add to LinkedIn** opens LinkedIn's own "add a certification" form with
+  the certificate's title, its year and month, and its page's address,
+  nothing else. LinkedIn may not fill its form in from the address; people
+  then type the title and date themselves.
+- **The programme page** shows its owner "Your certificate" under the head:
+  the certificate made smaller, the day it was issued, who can see it, **See
+  your certificate** and **Add to LinkedIn**. Nothing for anybody sent none.
+- **Who finished keeps the certificate's word.** Once somebody has a
+  certificate for finishing, neither their switch nor a stricter rule can
+  mark them not finished; both are refused with a sentence. To change it the
+  certificate has to be withdrawn first, by hand (below).
+
+### Withdrawing one
+
+There is no button. An admin deletes the certificate's document in
+`courseCertificates` (its id is `<runId>__<uid>__<kind>`); its page then shows
+the calm page to everybody. Do this when its owner asks, or when a
+certificate was sent in error, and tell its owner.
+
+### Deleting
+
+- **Deleting an account** deletes its certificates whose link is off; one
+  whose link is on stays, without its owner, and goes on showing what it was
+  issued with (policy v7, Retention). The markers of tests the account sent
+  go too.
+- **Destroying the run** deletes its certificates whose link is off and keeps
+  those whose link is on, without the run; the destroy dialog counts both.
+
+### Deploy
+
+- One new rules block, `courseCertificates` shut to every browser (the send,
+  the owner's switch and the two deletions write it; only the server reads
+  it). No index: every query is one equality on one field.
+- PDFKit runs outside the server bundle (`serverExternalPackages` in
+  `next.config.ts`), and the PDF's fonts are traced into its route
+  (`outputFileTracingIncludes`). The fonts are in
+  `src/lib/courses/certificates/fonts/`, each beside its licence.
 
 ## Cutover: membership periods
 

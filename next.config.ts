@@ -41,6 +41,21 @@ const nextConfig: NextConfig = {
   // label a scanner sorts targets by on the day a framework bug is published.
   // The headers battery asserts the header is absent on a real build.
   poweredByHeader: false,
+  // PDFKit draws a certificate's PDF (src/lib/courses/certificates/pdf.ts)
+  // and is loaded by Node's own `require`, not bundled. It finds its own
+  // files by where it sits on disk (`createRequire(__filename)` for its
+  // built-in fonts, a path beside itself for its colour profile), which a
+  // bundle moves; the certificate code supplies its own fonts and makes no
+  // PDF/A, so neither is read today, and kept outside the bundle neither can
+  // break if that changes.
+  serverExternalPackages: ["pdfkit"],
+  // The certificate PDF's fonts are read from disk when the route runs, by a
+  // path the build cannot see, so they are traced into the one route that
+  // reads them, with their licences. The standalone build copies only traced
+  // files: without this the route works on a laptop and fails deployed.
+  outputFileTracingIncludes: {
+    "/api/courses/certificates/\\[code\\]/pdf": ["./src/lib/courses/certificates/fonts/*"],
+  },
   async headers() {
     return [
       {

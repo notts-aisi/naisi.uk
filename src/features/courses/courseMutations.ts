@@ -152,6 +152,8 @@ export type CoursePatch = Partial<{
   estimatedWeeklyHours: number | null;
   /** "HH:MM" London, or null for the end of the day (`CourseDoc.dayBeforeDueTime`). */
   dayBeforeDueTime: string | null;
+  /** The credit line every certificate of the course carries ("based on the BlueDot Impact curriculum"), or "" for none. */
+  credit: string;
   /** Requires `approveCourse` (rules gate every status move). */
   status: CourseStatus;
   showcaseRunId: string | null;
@@ -185,6 +187,9 @@ export async function updateCourse(courseId: string, patch: CoursePatch): Promis
   if (patch.dayBeforeDueTime !== undefined) {
     // Stored only in the one shape the readers accept: a real null otherwise.
     out.dayBeforeDueTime = isClockTime(patch.dayBeforeDueTime) ? patch.dayBeforeDueTime : null;
+  }
+  if (patch.credit !== undefined) {
+    out.credit = capped(patch.credit, COURSE_FIELD_LIMITS.credit);
   }
   if (patch.status !== undefined) out.status = patch.status;
   if (patch.showcaseRunId !== undefined) {

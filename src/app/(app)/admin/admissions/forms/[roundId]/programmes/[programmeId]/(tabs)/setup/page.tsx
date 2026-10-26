@@ -1,3 +1,4 @@
+import CertificateCredit from "@/features/applications/editor/CertificateCredit";
 import ProgrammeSetup from "@/features/applications/editor/ProgrammeSetup";
 import { NoProgrammeHere, SettingsAreTheLeads } from "@/features/applications/editor/Refusals";
 import RunHandOver from "@/features/applications/editor/RunHandOver";
@@ -5,10 +6,12 @@ import frame from "@/features/applications/editor/ProgrammeSetup.module.css";
 import { loadSetup } from "@/lib/applications/editor/load";
 import { projectProgrammeForSetup } from "@/lib/applications/editor/views";
 import { loadRunPanel } from "@/lib/applications/handover/load";
+import { readCreditFacts } from "@/lib/courses/certificates/credit";
 import { readTraining } from "@/lib/courses/facilitatorAsks/read";
 import { readFinishRule } from "@/lib/courses/finishing/record";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
+import { canApproveCourse, canDraftCourse } from "@/lib/firestore/users";
 
 /**
  * One programme's Settings tab.
@@ -35,6 +38,11 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * THE FACILITATORS' TRAINING is the run's too, set here by the same people
  * in the same way, and read by its address only after `loadSetup` has said
  * the caller is the lead or an admin.
+ *
+ * THE CERTIFICATES' CREDIT LINE is the course's, shown here read-only
+ * while the programme names a run (`readCreditFacts`: the course the
+ * programme is tied to, and nothing of the run), with a link to the course's
+ * page for someone whose permissions open it.
  */
 export default async function ProgrammeSetupPage({
   params,
@@ -49,13 +57,16 @@ export default async function ProgrammeSetupPage({
     return <SettingsAreTheLeads roundId={roundId} programmeId={programmeId} />;
   }
   const { form, sets, programme, context } = outcome.setup;
-  const [run, rule, training] = db
+  const [run, rule, training, credit] = db
     ? await Promise.all([
         loadRunPanel(db, user, roundId, programmeId),
         programme.runId ? readFinishRule(db, programme.runId) : Promise.resolve(null),
         programme.runId ? readTraining(db, programme.runId) : Promise.resolve(null),
+        programme.runId && programme.courseId ? readCreditFacts(db, programme.courseId) : Promise.resolve(null),
       ])
-    : [null, null, null];
+    : [null, null, null, null];
+  // The course's page opens for the predicate its own gate asks (`requireCourseAuthorPage`).
+  const opensCourses = user.role === "admin" || canDraftCourse(user) || canApproveCourse(user);
   return (
     <div className={frame.stack}>
       <ProgrammeSetup
@@ -69,6 +80,13 @@ export default async function ProgrammeSetupPage({
             : undefined
         }
       />
+      {credit && (
+        <CertificateCredit
+          credit={credit.credit}
+          courseTitle={credit.courseTitle}
+          changeHref={opensCourses ? `/admin/courses/${encodeURIComponent(credit.courseId)}` : null}
+        />
+      )}
       {run?.status === "ok" && (
         <RunHandOver roundId={form.round.id} programmeId={programme.id} initial={run.panel} />
       )}

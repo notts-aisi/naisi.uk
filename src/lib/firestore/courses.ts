@@ -88,6 +88,17 @@ export type CourseDoc = {
    * whose review page offers the comment alone. Read through `rubricOf`.
    */
   rubric: CourseRubric | null;
+  /**
+   * The credit line every certificate of this course carries after its weeks
+   * (boards en-cert and en-cert-phone: "6 weeks · based on the BlueDot Impact
+   * curriculum", on a finished certificate and a facilitator's alike), or ""
+   * for none. Stored as it prints after the dot, so it starts as typed; the
+   * programme's Settings shows it as a line of its own, first letter in
+   * capitals. Set on the course's own page in the course editor. A
+   * certificate copies it when it is issued, so a later change reaches only
+   * certificates issued after it.
+   */
+  credit: string;
   status: CourseStatus;
   /**
    * The run whose curriculum the PUBLIC course pages display. Set by admins
@@ -1058,6 +1069,8 @@ export const COURSE_FIELD_LIMITS = {
   title: 120,
   tagline: 200,
   level: 80,
+  /** A certificate's credit line ("based on the BlueDot Impact curriculum"). Keep in step with the certificate's own limit. */
+  credit: 80,
   runLabel: 80,
   academicYear: 10,
   weekTitle: 120,
@@ -1313,6 +1326,17 @@ function asApplicationCounts(v: unknown): ApplicationCounts {
   };
 }
 
+/**
+ * A course's credit line, trimmed, or "" for none. One longer than its limit
+ * reads as none: the editor never writes one, and a certificate must not
+ * carry a line nobody could see whole in the box that set it.
+ */
+function asCredit(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const credit = value.trim();
+  return credit.length <= COURSE_FIELD_LIMITS.credit ? credit : "";
+}
+
 export function normalizeCourse(id: string, data: Raw): CourseDoc {
   return {
     id,
@@ -1324,6 +1348,7 @@ export function normalizeCourse(id: string, data: Raw): CourseDoc {
     estimatedWeeklyHours: asPositiveIntOrNull(data.estimatedWeeklyHours),
     dayBeforeDueTime: isClockTime(data.dayBeforeDueTime) ? data.dayBeforeDueTime : null,
     rubric: normalizeRubric(data.rubric),
+    credit: asCredit(data.credit),
     status: asCourseStatus(data.status),
     showcaseRunId: (data.showcaseRunId as string | null | undefined) ?? null,
     authorUid: (data.authorUid as string) ?? "",

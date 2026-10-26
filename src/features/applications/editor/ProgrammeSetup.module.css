@@ -396,6 +396,43 @@
   min-width: 0;
 }
 
+/* The certificates' credit line: a card of its own, read-only, in the
+   look of the tab's other cards (editor.module.css's card, title and hint). */
+.creditCard {
+  min-width: 0;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.creditTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+.creditLabel {
+  margin: var(--space-4) 0 4px;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+.creditLine {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.creditHint {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
 @media (max-width: 48rem) { /* --bp-md */
   .stack {
     gap: var(--space-4);

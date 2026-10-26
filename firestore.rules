@@ -2965,6 +2965,16 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === courseCertificates ===
+    // Certificates (src/lib/courses/certificates/model.ts): written only on the
+    // server, by the certificate send, the owner's switch and the two deletion
+    // cascades, and read only on the server: the page at /c/<code> decides who
+    // sees what. So every browser is refused, admins and a certificate's own
+    // owner included.
+    match /courseCertificates/{certificateId} {
+      allow read, write: if false;
+    }
+
     // === courseFacilitating ===
     // Asking people to facilitate (src/lib/courses/facilitatorAsks/model.ts):
     // each ask, with the person's answer and the email as it went, the run's

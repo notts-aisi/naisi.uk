@@ -892,6 +892,13 @@ const BUILT = new Map([
     { built: ["termPath(roundId)", "termPath(roundId)"], from: "the term's own page, from the form's id" },
   ],
   [
+    "src/features/applications/editor/CertificateCredit.tsx",
+    {
+      built: ["changeHref"],
+      from: "the course's own page in the course editor, from the id of the course the programme is tied to, encoded, for somebody that page opens for",
+    },
+  ],
+  [
     "src/features/applications/editor/RunHandOver.tsx",
     {
       built: ["panel.boardPath", "panel.listPath", "person.applicationPath"],
@@ -918,6 +925,20 @@ const BUILT = new Map([
     {
       built: ["`${programmePath}/applications`"],
       from: "the programme's own Applications tab, for a reviewer told the Overview is not theirs: made from the form's and the programme's ids in the address, encoded",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/certificates/page.tsx",
+    {
+      built: ["`${programmePathOf(roundId, programmeId)}/applications`", "overview"],
+      from: "the programme's own Applications tab, for a reviewer told the certificates are not theirs, and its Overview to go back to: each made from the form's and the programme's ids in the address, encoded",
+    },
+  ],
+  [
+    "src/features/applications/overview/CertificatesSection.tsx",
+    {
+      built: ["model.preview.href", "model.email.href"],
+      from: "the preview of the programme's certificates and of its email, which `previewPathOf` builds on the server from the form's and the programme's ids, encoded",
     },
   ],
   [

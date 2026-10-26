@@ -1597,8 +1597,8 @@ const BOM = String.fromCharCode(0xfeff);
 const FOOTER = "Nottingham AI Safety Initiative · University of Nottingham · ai-safety@uonsu.com";
 const short = (response) => [response.status, response.body?.error ?? null];
 const HOME = `/learn/${RUN}`;
-/** The run's head, as the lead's tabs draw it once the last session is over. */
-const HEAD_AFTER = (n) => `Programmes AGI Strategy Fellowship Finished · Tue 8 Dec C Lead: Claudia · ${n} took part Overview`;
+/** The run's head, as the lead's tabs draw it once the last session is over (en-finish v21: "stayed to the end", was "took part"). */
+const HEAD_AFTER = (n) => `Programmes AGI Strategy Fellowship Finished · Tue 8 Dec C Lead: Claudia · ${n} stayed to the end Overview`;
 const RULE_SENTENCE = (n) =>
   `We’ve ticked everyone who came to at least ${n} of 6 sessions. Change any you disagree with. Only you and admins see this rule.`;
 const NO_RULE =
@@ -1950,7 +1950,7 @@ describe("stage three of the course hub, one term from week 3 to after its end",
   describe("4. after the last session: who finished", () => {
     const a = () => seen.afterTheEnd;
 
-    test("the head says Finished and how many took part; with no rule nobody is ticked, and both who left are listed as left", () => {
+    test("the head says Finished and how many stayed to the end; with no rule nobody is ticked, and both who left are listed as left", () => {
       for (const tabs of [a().lead, a().admin]) {
         assert.equal(tabs.head, HEAD_AFTER(7));
         assert.deepEqual(whoFinished(tabs), { sentence: NO_RULE, counts: "0 finished · 7 not", rows: listOf([]), left: LEFT, notes: [NOTE] });
@@ -2069,7 +2069,7 @@ describe("stage three of the course hub, one term from week 3 to after its end",
       });
     });
 
-    test("the head's count of who took part is the list's", () => {
+    test("the head's count of who stayed to the end is the list's", () => {
       const model = d().lead.overview.finishing;
       assert.equal(d().lead.head, HEAD_AFTER(model.finished + model.not));
     });

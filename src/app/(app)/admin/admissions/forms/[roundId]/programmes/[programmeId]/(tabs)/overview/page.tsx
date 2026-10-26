@@ -3,6 +3,7 @@ import RunBlank from "@/features/applications/groups/RunBlank";
 import ProgrammeOverview from "@/features/applications/overview/ProgrammeOverview";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { loadForm } from "@/lib/applications/repo";
+import { loadCertificatesSection } from "@/lib/courses/certificates/send";
 import { loadWhoFinished } from "@/lib/courses/finishing/whoFinished";
 import { readRunRecords } from "@/lib/courses/programmeAttendance";
 import { buildProgrammeOverview } from "@/lib/courses/programmeOverview";
@@ -27,7 +28,9 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  *
  * Once the run's last session is over, Who finished (board en-finish) leads
  * the page, and its switches save through their own route; before then the
- * People card says when it can be done (`loadWhoFinished`).
+ * People card says when it can be done (`loadWhoFinished`). Certificates
+ * follows it, read only then (`loadCertificatesSection`, which asks the
+ * same question of the form again), and sends through its own two routes.
  */
 export default async function ProgrammeOverviewPage({
   params,
@@ -71,6 +74,8 @@ export default async function ProgrammeOverviewPage({
     ),
     loadWhoFinished(db, records, viewer, now),
   ]);
+  const certificates =
+    finishing.state === "open" ? await loadCertificatesSection(db, user, roundId, programmeId, now) : null;
   return (
     <ProgrammeOverview
       model={model}
@@ -79,6 +84,7 @@ export default async function ProgrammeOverviewPage({
       programmeId={view.programmeId}
       programmePath={programmePath}
       finishing={finishing}
+      certificates={certificates}
     />
   );
 }

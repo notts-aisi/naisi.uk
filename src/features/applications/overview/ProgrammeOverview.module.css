@@ -1015,7 +1015,189 @@
   overflow-wrap: anywhere;
 }
 
+/* ── Certificates (board en-finish) ─────────────────────────────────────
+   The card is Who finished's own. The thumbnail is the certificate itself,
+   drawn at 760 pixels and made smaller, as the board draws it. */
+
+.ctBody {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px 28px;
+  margin-top: 20px;
+}
+
+.ctThumb {
+  display: block;
+  flex: none;
+  width: 232px;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  text-decoration: none;
+}
+
+.ctThumb:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.ctThumbZoom {
+  display: block;
+  width: 760px;
+  zoom: 0.3053;
+  pointer-events: none;
+}
+
+.ctSide {
+  flex: 1 1 300px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-top: 4px;
+}
+
+.ctEyebrow {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  line-height: 1.3;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.ctSubject {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 16px;
+  margin: 2px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.ctSubject .textLink {
+  min-height: 44px;
+  font-size: 15px;
+}
+
+.ctButtons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.ctButton {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--radius-md);
+  box-sizing: border-box;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.ctButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.ctButtonQuiet {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
+}
+
+.ctButtonQuiet:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.ctButtonMain {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  border: 1px solid var(--color-accent);
+}
+
+.ctButtonMain:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+/* Locked until a test reaches the presser: the board's dimmed accent. */
+.ctButtonMain:disabled {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-line);
+  color: var(--color-accent-text);
+  cursor: not-allowed;
+}
+
+.ctButtonQuiet:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.ctLock,
+.ctFoot {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.ctIcon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.ctLine {
+  margin: 2px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.ctWarn {
+  margin: 2px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-soft);
+}
+
+.ctSaid:empty {
+  display: none;
+}
+
+.ctSaid .ctLine {
+  color: var(--color-text-soft);
+}
+
+.ctFoot {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .ctButton,
   .wfSwitchTrack,
   .wfSwitchKnob,
   .wfChevron,
@@ -1230,5 +1412,20 @@
   .wfLeftName {
     white-space: normal;
     overflow-wrap: anywhere;
+  }
+
+  /* Certificates: the thumbnail over the email, and the two presses at the
+     card's width, as the phone draws a long button. */
+  .ctBody {
+    flex-direction: column;
+  }
+
+  .ctButtons {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ctButton {
+    white-space: normal;
   }
 }

@@ -667,9 +667,10 @@ describe("5. the line under the programme's name", () => {
     assert.ok(!before.includes("taking part") && !before.includes("Running"), before);
     mock.timers.setTime(new Date("2026-12-20T12:00:00Z").getTime());
     // Once the last session is over the head is board en-finish's (Q8): the
-    // chip carries that session's day, and the line says how many took part,
-    // the same people it counted as taking part while the run was going.
-    assert.match(await head("claudia"), /AGI Strategy Fellowship Finished · Wed 9 Dec C Lead: Claudia · 10 took part Overview/);
+    // chip carries that session's day, and the line says how many stayed to
+    // the end (en-finish v21, which reworded v19's "took part"), the same
+    // people it counted as taking part while the run was going.
+    assert.match(await head("claudia"), /AGI Strategy Fellowship Finished · Wed 9 Dec C Lead: Claudia · 10 stayed to the end Overview/);
   });
 
   test("the line is read from the run alone, and the header loader agrees with the grid on who takes part", async () => {

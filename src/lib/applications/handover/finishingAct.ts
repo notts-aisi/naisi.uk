@@ -1,12 +1,16 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { CERTIFICATES_COLLECTION, certificateId } from "@/lib/courses/certificates/model";
+import { certificateHolds, ruleWouldUntick } from "@/lib/courses/certificates/words";
 import {
   FINISHING_COLLECTION,
   finishDecisionId,
   finishRuleId,
+  normalizeFinishDecision,
   normalizeFinishRule,
+  type FinishDecision,
 } from "@/lib/courses/finishing/model";
-import { runEndOf, suggestedBy } from "@/lib/courses/finishing/record";
+import { recordOf, runEndOf, suggestedBy } from "@/lib/courses/finishing/record";
 import { loadWhoFinished, type WhoFinishedModel } from "@/lib/courses/finishing/whoFinished";
 import {
   LEADS_AND_ADMINS,
@@ -40,6 +44,12 @@ import { loadProgrammeRun, type ProgrammeRunView } from "./programmeRun";
  *    stored decision is removed and the suggestion decides again; otherwise
  *    the decision is stored with who pressed it and when. Somebody who left,
  *    or who is nobody on the viewer's list, is refused.
+ *
+ * NOBODY SENT A CERTIFICATE FOR FINISHING STOPS BEING FINISHED while it
+ * stands (`courseCertificates`, src/lib/courses/certificates/): neither their
+ * switch nor a stricter rule may untick them, so the record and the
+ * certificate never say different things. Each is checked inside the write,
+ * so a certificate made at the same moment is seen.
  *
  * Every refusal is a sentence the lead can act on, and writes nothing. Nobody
  * is emailed, and nothing here is shown to a member but their own record.
@@ -97,12 +107,45 @@ export async function setFinishRule(
   const sessions = runEndOf(records.run, records.groups, now).sessions;
   if (atLeast !== null && sessions > 0 && atLeast > sessions) return refuse(409, moreThanItHolds(sessions));
 
-  const ref = db.collection(FINISHING_COLLECTION).doc(finishRuleId(records.run.id));
-  if (atLeast === null) {
-    await ref.delete();
-  } else {
-    await ref.set({ kind: "rule", runId: records.run.id, atLeast, setAt: FieldValue.serverTimestamp() });
-  }
+  const runId = records.run.id;
+  const ref = db.collection(FINISHING_COLLECTION).doc(finishRuleId(runId));
+  const end = runEndOf(records.run, records.groups, now);
+  // Every row of the run, as an admin's list has them, for the check below.
+  const rows = listGroups(records, { isAdmin: true }, now, weeksOf(records)).flatMap((listed) =>
+    listed.people.map((person) => person.row),
+  );
+  const unticked = await db.runTransaction(async (tx) => {
+    // One equality on one field each, so no declared index.
+    const [finishingSnap, certificateSnap] = await Promise.all([
+      tx.get(db.collection(FINISHING_COLLECTION).where("runId", "==", runId)),
+      tx.get(db.collection(CERTIFICATES_COLLECTION).where("runId", "==", runId)),
+    ]);
+    const holders = new Set<string>();
+    for (const doc of certificateSnap.docs) {
+      const data = (doc.data() ?? {}) as Record<string, unknown>;
+      if (data.kind === "finished" && typeof data.uid === "string") holders.add(data.uid);
+    }
+    if (end.over && holders.size > 0) {
+      const decisions = new Map<string, FinishDecision>();
+      for (const doc of finishingSnap.docs) {
+        const decision = normalizeFinishDecision(doc.id, (doc.data() ?? {}) as Record<string, unknown>);
+        if (decision && decision.runId === runId) decisions.set(decision.uid, decision);
+      }
+      const rule = atLeast === null ? null : { runId, atLeast, setAt: now };
+      const lost = rows
+        .filter((row) => holders.has(row.uid) && recordOf(row, { rule, decisions }, end)?.finished !== true)
+        .map((row) => row.name)
+        .sort((a, b) => a.localeCompare(b, "en-GB"));
+      if (lost.length > 0) return lost;
+    }
+    if (atLeast === null) {
+      tx.delete(ref);
+    } else {
+      tx.set(ref, { kind: "rule", runId, atLeast, setAt: FieldValue.serverTimestamp() });
+    }
+    return [];
+  });
+  if (unticked.length > 0) return refuse(409, ruleWouldUntick(unticked));
   return { ok: true, rule: ruleView(atLeast, records, now) };
 }
 
@@ -135,7 +178,10 @@ export async function decideFinished(
   const runId = records.run.id;
   const ruleRef = db.collection(FINISHING_COLLECTION).doc(finishRuleId(runId));
   const decisionRef = db.collection(FINISHING_COLLECTION).doc(finishDecisionId(runId, change.uid));
-  await db.runTransaction(async (tx) => {
+  const certificateRef = db.collection(CERTIFICATES_COLLECTION).doc(certificateId(runId, change.uid, "finished"));
+  const held = await db.runTransaction(async (tx) => {
+    // A certificate for finishing keeps its owner finished while it stands.
+    if (!change.finished && (await tx.get(certificateRef)).exists) return true;
     // The rule as it is when the switch is written, so a decision is stored
     // exactly where it differs from what the rule says of this person.
     const ruleSnap = await tx.get(ruleRef);
@@ -143,7 +189,7 @@ export async function decideFinished(
     const suggested = suggestedBy(rule, row);
     if (change.finished === suggested) {
       tx.delete(decisionRef);
-      return;
+      return false;
     }
     tx.set(decisionRef, {
       kind: "person",
@@ -153,6 +199,8 @@ export async function decideFinished(
       byUid: actor.uid,
       at: FieldValue.serverTimestamp(),
     });
+    return false;
   });
+  if (held) return refuse(409, certificateHolds(row.name));
   return { ok: true, model: await loadWhoFinished(db, records, viewer, now) };
 }

@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
+import { readOwnCertificates } from "@/lib/courses/certificates/own";
 import { leavePathFor } from "@/lib/courses/leaving";
 import { leaveClosedLine } from "@/lib/courses/leavingWords";
 import { loadLeftView } from "@/lib/courses/leftView";
 import { pitchingCard } from "@/lib/courses/pitching/load";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
+import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import LeftProgramme from "@/features/courses/leaving/LeftProgramme";
 import { leftPageSurvey } from "@/features/courses/leaving/leftSurvey";
 import RunHome from "@/features/courses/RunHome";
@@ -119,6 +121,13 @@ export default async function RunHomePage({
   // Glossary, each linked when the run has it; nothing for a run with neither.
   const guide = db ? await guideLinksOf(db, access.run.id).catch(() => null) : null;
 
+  // "Your certificate" (en-after-phone): the caller's own, by their two
+  // addresses, and none during a view-as session, which is never the owner.
+  const viewAs = markerIsLive(await getImpersonator(), access.user.uid);
+  const certificates = db
+    ? await readOwnCertificates(db, access.run.id, access.user.uid, viewAs, process.env.NEXT_PUBLIC_APP_URL)
+    : [];
+
   return (
     <RunHome
       runId={runId}
@@ -129,6 +138,7 @@ export default async function RunHomePage({
       leaveNote={leaveNote}
       uid={access.user.uid}
       {...(guide ? { guide } : {})}
+      {...(certificates.length > 0 ? { certificates } : {})}
     />
   );
 }

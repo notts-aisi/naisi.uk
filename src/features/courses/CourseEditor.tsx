@@ -61,6 +61,8 @@ type MetaDraft = {
   weeklyHours: string;
   /** "" for by the end of the day before; "HH:MM" for a time on it. */
   dayBeforeDueTime: string;
+  /** The line every certificate of this course carries after its weeks. */
+  credit: string;
   summaryBlocks: Block[];
 };
 
@@ -73,6 +75,7 @@ function metaFromCourse(course: CourseDoc | null): MetaDraft {
     weeklyHours:
       course?.estimatedWeeklyHours != null ? String(course.estimatedWeeklyHours) : "",
     dayBeforeDueTime: course?.dayBeforeDueTime ?? "",
+    credit: course?.credit ?? "",
     summaryBlocks: course?.summaryBlocks ?? [],
   };
 }
@@ -85,6 +88,7 @@ function sameMeta(a: MetaDraft, b: MetaDraft): boolean {
     a.level === b.level &&
     a.weeklyHours === b.weeklyHours &&
     a.dayBeforeDueTime === b.dayBeforeDueTime &&
+    a.credit === b.credit &&
     JSON.stringify(a.summaryBlocks) === JSON.stringify(b.summaryBlocks)
   );
 }
@@ -229,6 +233,7 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
       setMetaError("Give the time written work is due as hours and minutes, like 12:00.");
       return;
     }
+    const credit = meta.credit.trim();
     setMetaError(null);
     await runAction(
       async () => {
@@ -239,6 +244,7 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
           level: meta.level,
           estimatedWeeklyHours: hours,
           dayBeforeDueTime,
+          credit,
           summaryBlocks: meta.summaryBlocks,
         });
         setSaved({
@@ -248,6 +254,7 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
           level: meta.level,
           weeklyHours: hours == null ? "" : String(hours),
           dayBeforeDueTime: dayBeforeDueTime ?? "",
+          credit,
           summaryBlocks: meta.summaryBlocks,
         });
         setDraft({});
@@ -492,6 +499,22 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
                     />
                   </Field>
                 )}
+
+                <div className={styles.formSpan}>
+                  <Field
+                    id="course-credit"
+                    label="Credit on certificates"
+                    hint="Follows the weeks on each certificate of this course, after a dot, as in “6 weeks · based on the BlueDot Impact curriculum”, so start it as it reads there. Leave it empty for none. A change reaches certificates sent after it."
+                  >
+                    <Input
+                      id="course-credit"
+                      value={meta.credit}
+                      onChange={(e) => patch({ credit: e.target.value })}
+                      maxLength={COURSE_FIELD_LIMITS.credit}
+                      disabled={saving}
+                    />
+                  </Field>
+                </div>
               </div>
 
               <div>

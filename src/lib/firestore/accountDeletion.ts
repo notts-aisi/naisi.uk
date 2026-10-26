@@ -13,6 +13,12 @@ import { deleteRatingsForAccount } from "@/lib/ratings/store";
 import { takeCheckInNamesOffForAccount } from "@/lib/events/checkIns";
 import { takeNamesOffForAccount } from "@/lib/surveys/namesOff";
 import { FACILITATING_COLLECTION } from "@/lib/courses/facilitatorAsks/model";
+import { CERTIFICATES_COLLECTION } from "@/lib/courses/certificates/model";
+import {
+  CERTIFICATE_MARKERS,
+  CERTIFICATES_PRESS_KIND,
+  CERTIFICATES_TEST_KIND,
+} from "@/lib/courses/certificates/markers";
 import { FINISHING_COLLECTION } from "@/lib/courses/finishing/model";
 import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
@@ -151,6 +157,18 @@ export type AccountDeletionSummary = {
    * this account alone.
    */
   coursePacksAndCasesDeleted: number;
+  /**
+   * Certificates this account owned whose link was off (`courseCertificates`):
+   * deleted, since only their owner could open them. With them go the
+   * markers of tests of the certificate email this account sent itself.
+   */
+  courseCertificatesDeleted: number;
+  /**
+   * Certificates this account owned whose link was on: KEPT, as the privacy
+   * policy says, for the people the owner gave the link to. Each loses its
+   * owner and shows what it was issued with.
+   */
+  courseCertificatesKept: number;
   /** Admission applications (drafts included) written by this account. */
   admissionApplicationsDeleted: number;
   /** Their access-requirements rows, deleted in the SAME batch. See below. */
@@ -661,6 +679,56 @@ export async function deleteCourseGroupSharedNotes(db: Firestore, uid: string): 
  */
 export async function deleteCoursePacksAndCases(db: Firestore, uid: string): Promise<number> {
   return deleteOwnedCourseRows(db, COURSE_PACKS_AND_CASES_COLLECTION, uid);
+}
+
+/**
+ * This account's certificates (`courseCertificates`, described in
+ * `src/lib/courses/certificates/model.ts`), found by the one equality on
+ * `uid`.
+ *
+ * A certificate whose link is off is deleted: only its owner could open it.
+ * One whose link is on stays, because it exists for the people its owner gave
+ * the link to: its owner is cleared and its page goes on showing what it was
+ * issued with, until somebody asks for it to be withdrawn. The privacy policy
+ * says both (Retention). The link decides, read as stored: anything but `true`
+ * is off.
+ *
+ * The markers this account left in `courseNudges` for the certificate send
+ * (a test it sent itself, a press it was making), found by the one equality
+ * on `byUid` and told apart by their kind, go too; the other markers there
+ * that carry a `byUid` are not this sweep's.
+ */
+export async function clearCourseCertificates(
+  db: Firestore,
+  uid: string,
+): Promise<{ deleted: number; kept: number }> {
+  const [owned, markers] = await Promise.all([
+    db.collection(CERTIFICATES_COLLECTION).where("uid", "==", uid).get(),
+    db.collection(CERTIFICATE_MARKERS).where("byUid", "==", uid).get(),
+  ]);
+  const writes: Array<(batch: ReturnType<Firestore["batch"]>) => void> = [];
+  let deleted = 0;
+  let kept = 0;
+  for (const doc of owned.docs) {
+    if ((doc.data() ?? {}).linkOn === true) {
+      kept += 1;
+      writes.push((batch) => batch.update(doc.ref, { uid: null, ownerGoneAt: FieldValue.serverTimestamp() }));
+    } else {
+      deleted += 1;
+      writes.push((batch) => batch.delete(doc.ref));
+    }
+  }
+  for (const doc of markers.docs) {
+    const kind = (doc.data() ?? {}).kind;
+    if (kind !== CERTIFICATES_TEST_KIND && kind !== CERTIFICATES_PRESS_KIND) continue;
+    writes.push((batch) => batch.delete(doc.ref));
+  }
+  for (let at = 0; at < writes.length; at += 400) {
+    const batch = db.batch();
+    for (const write of writes.slice(at, at + 400)) write(batch);
+    await batch.commit();
+  }
+  return { deleted, kept };
 }
 
 /**
@@ -1192,6 +1260,8 @@ export async function deleteAccountCascade(
     courseGroupNotesDeleted: 0,
     courseGroupSharedNotesDeleted: 0,
     coursePacksAndCasesDeleted: 0,
+    courseCertificatesDeleted: 0,
+    courseCertificatesKept: 0,
     admissionApplicationsDeleted: 0,
     admissionApplicationPrivateDeleted: 0,
     admissionDecisionsDeleted: 0,
@@ -1606,6 +1676,18 @@ export async function deleteAccountCascade(
     summary.coursePacksAndCasesDeleted = await deleteCoursePacksAndCases(db, uid);
   } catch (err) {
     console.error("[deleteAccount] coursePacksAndCases delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c''''''. CERTIFICATES. One whose link is off goes; one whose link is on
+  //      stays without its owner, for the people the owner gave the link to
+  //      (see clearCourseCertificates).
+  try {
+    const certificates = await clearCourseCertificates(db, uid);
+    summary.courseCertificatesDeleted = certificates.deleted;
+    summary.courseCertificatesKept = certificates.kept;
+  } catch (err) {
+    console.error("[deleteAccount] courseCertificates clear failed:", uid, err);
     partialFailure = true;
   }
 
