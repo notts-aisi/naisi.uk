@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { GuideHead, GuideRefused } from "@/features/courses/facilitatorGuide/GuideFrame";
 import styles from "@/features/courses/facilitatorGuide/guide.module.css";
 import { facilitatorGuideReader } from "@/lib/courses/facilitatorGuide/access";
-import { facilitatorGuidePath } from "@/lib/courses/facilitatorGuide/model";
-import { readGuideIndex } from "@/lib/courses/facilitatorGuide/store";
+import { facilitatorGuidePath, isWeeksAtAGlance } from "@/lib/courses/facilitatorGuide/model";
+import { readGuideIndex, type GuideIndexDocument } from "@/lib/courses/facilitatorGuide/store";
 import {
   EACH_WEEK,
   FACILITATOR_GUIDE,
@@ -22,7 +22,9 @@ import { WEEK_PART_LABEL } from "@/lib/courses/facilitatorGuide/model";
  * A COURSE'S FACILITATOR GUIDE: every week that has its session plan or its
  * notes loaded, and the course's own documents (How to use these plans, the
  * Handbook, Case studies and feedback, Printables), each a way to its page.
- * Titles only: the words are on the pages.
+ * The two documents about every week at once, Sessions and Week notes, head
+ * "Each week", above the weeks themselves (`WEEKS_AT_A_GLANCE`). Titles only:
+ * the words are on the pages.
  *
  * WHO: the guide's gate (`src/lib/courses/facilitatorGuide/access.ts`): a
  * facilitator of a live group on a run of the course, the lead of a
@@ -42,6 +44,21 @@ function ArrowIcon() {
   );
 }
 
+/** One of the course's own documents, as a row: its label, and its own title under it when that says more. */
+function DocumentRow({ courseId, doc }: { courseId: string; doc: GuideIndexDocument }) {
+  return (
+    <li>
+      <Link href={facilitatorGuidePath(courseId, { kind: "course", key: doc.key })} className={styles.row}>
+        <span className={styles.rowText}>
+          <span className={styles.rowTitle}>{doc.label}</span>
+          {doc.title && doc.title !== doc.label && <span className={styles.rowDetail}>{doc.title}</span>}
+        </span>
+        <ArrowIcon />
+      </Link>
+    </li>
+  );
+}
+
 export default async function FacilitatorGuideCoursePage({ params }: { params: Promise<{ courseId: string }> }) {
   const { courseId } = await params;
   const user = await getCurrentUser();
@@ -52,6 +69,8 @@ export default async function FacilitatorGuideCoursePage({ params }: { params: P
 
   const index = await readGuideIndex(db, reader);
   const empty = index.documents.length === 0 && index.weeks.length === 0;
+  const atAGlance = index.documents.filter((doc) => isWeeksAtAGlance(doc.key));
+  const wholeCourse = index.documents.filter((doc) => !isWeeksAtAGlance(doc.key));
 
   return (
     <div className={styles.page}>
@@ -63,12 +82,15 @@ export default async function FacilitatorGuideCoursePage({ params }: { params: P
         </section>
       ) : (
         <div className={styles.columns}>
-          {index.weeks.length > 0 && (
+          {(atAGlance.length > 0 || index.weeks.length > 0) && (
             <section className={`${styles.colMain} ${styles.card}`} aria-labelledby="guide-weeks">
               <h2 id="guide-weeks" className={styles.cardTitle}>
                 {EACH_WEEK}
               </h2>
               <ul className={styles.rows}>
+                {atAGlance.map((doc) => (
+                  <DocumentRow key={doc.key} courseId={courseId} doc={doc} />
+                ))}
                 {index.weeks.map((week) => {
                   const theme = themeOf(week.plan) || themeOf(week.notes);
                   const parts = [week.plan !== null ? WEEK_PART_LABEL.plan : null, week.notes !== null ? WEEK_PART_LABEL.notes : null]
@@ -89,22 +111,14 @@ export default async function FacilitatorGuideCoursePage({ params }: { params: P
               </ul>
             </section>
           )}
-          {index.documents.length > 0 && (
+          {wholeCourse.length > 0 && (
             <section className={`${styles.colSide} ${styles.card}`} aria-labelledby="guide-course">
               <h2 id="guide-course" className={styles.cardTitle}>
                 {FOR_THE_WHOLE_COURSE}
               </h2>
               <ul className={styles.rows}>
-                {index.documents.map((doc) => (
-                  <li key={doc.key}>
-                    <Link href={facilitatorGuidePath(courseId, { kind: "course", key: doc.key })} className={styles.row}>
-                      <span className={styles.rowText}>
-                        <span className={styles.rowTitle}>{doc.label}</span>
-                        {doc.title && doc.title !== doc.label && <span className={styles.rowDetail}>{doc.title}</span>}
-                      </span>
-                      <ArrowIcon />
-                    </Link>
-                  </li>
+                {wholeCourse.map((doc) => (
+                  <DocumentRow key={doc.key} courseId={courseId} doc={doc} />
                 ))}
               </ul>
             </section>

@@ -316,12 +316,17 @@ The same shape, older:
   body, and the word that matters is TOP LEVEL: a handler that refuses a
   missing session only inside a branch is still reached by an anonymous
   caller, so a check that asked whether the file
-  mentions a session at all would call it gated. `PUBLIC_HANDLERS` then
+  mentions a session at all would call it gated. Nor is a refusal that holds
+  only when something else is missing too (the self check-in's
+  `!parsed.token && !user`): a conjunction refuses everybody with no session
+  only when every part of it does, so that handler is read as reached
+  through what a stranger brings. `PUBLIC_HANDLERS` then
   answers for each one what it does and what gates it, both directions, and
   applies the rule: a handler that SENDS to a caller-chosen address carries a
   rate limit and either a captcha or a per-address cooldown; one that WRITES
-  carries a rate limit or a credential the caller presented. Every literal
-  named is checked against the file. The runtime
+  carries a rate limit or a credential the caller presented; one reached
+  through something brought in place of a session names the credential that
+  checks it. Every literal named is checked against the file. The runtime
   half, `scripts/e2e/tests/public-write-gating.test.mjs`, asks a deployed
   backend the question a source scan cannot: whether the secret behind the gate
   is actually provisioned there.

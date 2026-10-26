@@ -21,6 +21,10 @@
  *     and a room with a link typed into it is not printed.
  *  6. THE WORDS AROUND THE BUTTON: "6pm", "Tuesdays at 6pm", a group of one,
  *     the confirmation's number and the line about the last test.
+ *  7. WEEK 1'S GUIDE IS PROMISED ONLY WHEN THE GROUP PAGE SHOWS IT: the
+ *     board's "Their names and week 1’s guide are on your group page." when
+ *     Publish's plan says the page shows it, the names alone otherwise, and
+ *     never in a proof, whose samples are no course.
  *
  * The composer is the placement email's own (`composeWholeEmail`), so the
  * hostile-wording and long-input checks in tests/email-unfilled-tokens.test.mjs
@@ -75,10 +79,11 @@ function subsets(list) {
 }
 
 /**
- * The board's email (st-emails), word for word since October 2026, with one
- * difference written down in the notes and the pull request: "Their names
- * and week 1’s guide are on your group page." says the names only, because
- * the email does not ask whether the course's facilitator guide holds week 1.
+ * The board's email (st-emails), word for word since October 2026, for a
+ * group whose page does not show week 1's guide (`FACTS` leaves
+ * `weekOneGuide` unset): "Their names are on your group page." When the page
+ * shows it, the email says the board's whole sentence (`BOARD_FULL`, section
+ * 7).
  */
 const FULL =
   "You’re facilitating Group B: Tuesdays at 6pm | Hi Rahul, Group B meets on Tuesdays at 6pm in Hallward B12, from Tue 3 Nov to Tue 8 Dec. " +
@@ -396,5 +401,51 @@ describe("6. the words around the button", () => {
       words.PUBLISH_ADMIN_ONLY,
     ];
     for (const said of all) assert.doesNotMatch(said, /—|–|skipped/i, said);
+  });
+});
+
+describe("7. week 1's guide, promised only when the group page shows it", () => {
+  /** The board's email with its whole sentence, as Publish writes it when the group page shows week 1's guide. */
+  const BOARD_FULL = FULL.replace("Their names are on your group page.", "Their names and week 1’s guide are on your group page.");
+
+  test("the sentence, for a group of many and a group of one, with the guide and without", () => {
+    assert.equal(email.namesOnPageSentence(8, true), "Their names and week 1’s guide are on your group page.");
+    assert.equal(email.namesOnPageSentence(1, true), "Their name and week 1’s guide are on your group page.");
+    assert.equal(email.namesOnPageSentence(8, false), "Their names are on your group page.");
+    assert.equal(email.namesOnPageSentence(1, false), "Their name is on your group page.");
+    assert.equal(email.namesOnPageSentence(8), "Their names are on your group page.");
+  });
+
+  test("the seed says the board's whole sentence when the page shows it, and the names alone when it does not or nobody said", () => {
+    assert.equal(BOARD_FULL.includes("There are 8 people in the group. Their names and week 1’s guide are on your group page. Open your group"), true);
+    assert.equal(read(email.composeFacilitatingEmail(SEED, { ...FACTS, weekOneGuide: true })), BOARD_FULL);
+    assert.equal(read(email.composeFacilitatingEmail(SEED, { ...FACTS, weekOneGuide: false })), FULL);
+    assert.equal(read(email.composeFacilitatingEmail(SEED, FACTS)), FULL);
+    // Only `true` promises it: anything else that reached the facts is not a yes.
+    for (const notAYes of ["yes", 1, null, {}]) {
+      assert.equal(read(email.composeFacilitatingEmail(SEED, { ...FACTS, weekOneGuide: notAYes })), FULL, String(notAYes));
+    }
+    assert.equal(
+      read(email.composeFacilitatingEmail(SEED, { ...FACTS, weekOneGuide: true, groupSize: 1 })),
+      BOARD_FULL.replace("There are 8 people in the group. Their names and week 1’s guide are on your group page.", "There is 1 person in the group. Their name and week 1’s guide are on your group page."),
+    );
+    // With every combination of what can be missing, the guide changes that one sentence and nothing else.
+    for (const absent of subsets(OPTIONAL)) {
+      const without_ = read(email.composeFacilitatingEmail(SEED, without(FACTS, absent)));
+      const with_ = read(email.composeFacilitatingEmail(SEED, { ...without(FACTS, absent), weekOneGuide: true }));
+      assert.equal(with_, without_.replace("Their names are on your group page.", "Their names and week 1’s guide are on your group page."), absent.join(", "));
+    }
+  });
+
+  test("wording saved before the board's has no sentence about names, so the guide changes nothing in it", () => {
+    assert.equal(read(email.composeFacilitatingEmail(SAVED, { ...FACTS, weekOneGuide: true })), SAVED_FULL);
+  });
+
+  test("a proof never promises the guide: its samples are no course", () => {
+    const facts = email.facilitatingFactsFromSample({ firstName: "Alex", groupName: "Group B", weeklySlot: "Tuesdays at 6pm", firstSession: "Tue 7 Oct", lastSession: "Tue 11 Nov", groupSize: "8", groupUrl: "https://naisi.invalid/g" });
+    assert.equal(facts.weekOneGuide, false);
+    const proof = read(email.composeFacilitatingEmail(SEED, facts, { proof: true }));
+    assert.ok(proof.includes("There are 8 people in the group. Their names are on your group page."), proof);
+    assert.doesNotMatch(proof, /week 1’s guide/);
   });
 });

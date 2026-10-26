@@ -23,13 +23,16 @@
  *  4. THE PAGES draw what the documents say, as text, never markup.
  *  5. THE LINKS appear exactly when the week has something loaded.
  *  6. THE COURSE'S DESTROY takes the guide with it, in its final batch.
+ *  7. SESSIONS AND WEEK NOTES, the two tabs over every week, are course
+ *     documents like the others: the same route, gates, refusals and pages,
+ *     shown at the top of the course page's "Each week".
  *
  * Real: see `tests/lib/facilitatorGuideWorld.mjs`.
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { COURSE, NOW, RUN, TAIS_GROUP, find, loadCourseDestroy, makeFacilitatorGuideWorld } from "./lib/facilitatorGuideWorld.mjs";
-import { FELLOW_WEEK_3, HANDBOOK, NOTES_W3, PLAN_W1, PLAN_W3, PRINTABLES } from "./lib/facilitatorGuideFixture.mjs";
+import { FELLOW_WEEK_3, HANDBOOK, NOTES_W3, PLAN_W1, PLAN_W3, PRINTABLES, SESSIONS, WEEK_NOTES } from "./lib/facilitatorGuideFixture.mjs";
 import { B, C } from "./lib/facilitatorPagesWorld.mjs";
 import { formPath } from "./lib/leadWorld.mjs";
 
@@ -178,6 +181,30 @@ describe("1. who reads a course's facilitator guide", () => {
     for (const courseId of ["no-such-course__c0urse99", "a/b", "", ".."]) {
       assert.equal(await gate("zach", courseId), null, courseId);
     }
+  });
+
+  // Publish asks the facilitators' door for a whole group, to say in the
+  // email to its facilitators whether week 1's guide is on their group page.
+  // The same bars as the door each of them opens there, without the person.
+  test("the facilitators' door asked for a group: live, with a facilitator, on a live run of a live course, which is the run's and never the group's own", async () => {
+    const door = (over = {}) => {
+      const group = world.db.read(`courseGroups/${B}`);
+      return guide.access.facilitatorGuideReaderForGroup(world.courseDb, { runId: group.runId, archived: group.archived === true, facilitatorUids: group.facilitatorUids, ...over });
+    };
+    assert.deepEqual({ ...(await door()) }, { courseId: COURSE.agi, courseTitle: "AGI Strategy Fellowship", as: "facilitator" });
+    assert.equal(await door({ archived: true }), null);
+    assert.equal(await door({ facilitatorUids: [] }), null);
+    for (const runId of ["a/b", "", "..", "no-such-run__run00099"]) assert.equal(await door({ runId }), null, runId);
+    // Ola's group is on Technical AI Safety's run: that run's course, whatever a group says of itself.
+    assert.equal((await door({ runId: RUN.tais, facilitatorUids: ["ola"] })).courseId, COURSE.tais);
+    world.db.poke(`courseRuns/${RUN.agi}`, { destroying: true });
+    assert.equal(await door(), null);
+    reset();
+    world.db.poke(`courses/${COURSE.agi}`, { destroying: true });
+    assert.equal(await door(), null);
+    reset();
+    world.db.poke(`courseRuns/${RUN.agi}`, { courseId: "no-such-course__c0urse99" });
+    assert.equal(await door(), null);
   });
 });
 
@@ -504,6 +531,32 @@ describe("5. the links: the group page's ticket and Home", () => {
     }
   });
 
+  // What the facilitators' email at Publish promises ("Their names and week
+  // 1’s guide are on your group page.", tests/course-hub-publish-routes.test.mjs
+  // section 8) is what this page shows: before the group first meets its
+  // ticket is week 1's, and links week 1's guide when the guide has it.
+  test("before Group B first meets, its ticket is week 1's and links week 1's guide when the guide has it; once it has met, it does not", async (t) => {
+    t.after(() => w.at(NOW));
+    w.at("2026-10-28T12:00:00Z");
+    for (const who of ["rahul", "sofia"]) {
+      const ticket = find((await groupPage(who)).element, "FacilitatorTicket")[0]?.props;
+      assert.equal(ticket.facts.weekNumber, 1, who);
+      assert.deepEqual(ticket.guide, { href: `${AGI_GUIDE}/week-1`, label: "Facilitator guide for week 1" }, who);
+    }
+    // No week 1 in the guide: no link.
+    reset();
+    await seedGuide(COURSE.agi, [["w03-plan", PLAN_W3]]);
+    w.at("2026-10-28T12:00:00Z");
+    assert.equal(find((await groupPage("rahul")).element, "FacilitatorTicket")[0]?.props.guide, null);
+    // Group B met on Tue 3 Nov, 6pm to 8pm: the next morning its ticket is week 2's, and week 1's guide is linked no more.
+    reset();
+    await seedGuide();
+    w.at("2026-11-04T09:00:00Z");
+    const after = find((await groupPage("rahul")).element, "FacilitatorTicket")[0]?.props;
+    assert.equal(after.facts.weekNumber, 2);
+    assert.equal(after.guide, null);
+  });
+
   test("no link when the ticket's week has nothing in the guide", async () => {
     reset();
     await seedGuide(COURSE.agi, [["w01-plan", PLAN_W1]]);
@@ -538,6 +591,11 @@ describe("6. the admin's loader page", () => {
         ["handbook", "Handbook", "Weather Fellowship: facilitator guide"],
         ["case-studies", "Case studies and feedback", "Case studies and feedback"],
         ["printables", "Printables", "Printables"],
+        // The two tabs over every week, places of their own since October
+        // 2026, offered after the course's other documents and before the
+        // weeks; nothing is loaded in either in this world.
+        ["sessions", "Sessions", null],
+        ["week-notes", "Week notes", null],
         ["w01-plan", "Week 1 session plan", "Session 1: First look"],
         ["w01-notes", "Week 1 notes", null],
         ["w02-plan", "Week 2 session plan", null],
@@ -608,6 +666,153 @@ describe("8. destroying a course takes its facilitator guide, in its final batch
       [`courseFacilitatorGuide/${id}__handbook`, `courseFacilitatorGuide/${id}__w03-plan`, `coursePages/${id}`, `courses/${id}`],
     ]);
     assert.equal(db.has(`courseFacilitatorGuide/${COURSE.agi}__handbook`), true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. Sessions and Week notes: the two tabs over every week
+// ---------------------------------------------------------------------------
+
+describe("9. Sessions and Week notes: two more places, at the top of Each week", () => {
+  const AT_A_GLANCE = [
+    ["sessions", SESSIONS],
+    ["week-notes", WEEK_NOTES],
+  ];
+
+  test("loaded through the same route, by the same people, as the course's other documents, and stored as they are", async () => {
+    const said = {};
+    for (const who of EVERYBODY) {
+      said[who ?? "signed out"] = [
+        (await load(who, "POST", "sessions", { markdown: SESSIONS })).status,
+        (await load(who, "PUT", "week-notes", { markdown: WEEK_NOTES })).status,
+        (await load(who, "POST", "handbook", { markdown: HANDBOOK })).status,
+      ];
+    }
+    const refused = Object.fromEntries(EVERYBODY.map((who) => [who ?? "signed out", who === null ? [401, 401, 401] : [403, 403, 403]]));
+    assert.deepEqual(said, { ...refused, zach: [200, 200, 200], claudia: [200, 200, 200] });
+    assert.equal((await load("zach", "PUT", "sessions", { markdown: SESSIONS, viewAs: true })).status, 403);
+    assert.equal(world.db.read(`courseFacilitatorGuide/${COURSE.agi}__sessions`), undefined);
+
+    const saved = await load("zach", "PUT", "sessions", { markdown: SESSIONS });
+    assert.deepEqual(saved.body, { saved: true, place: "Sessions", title: "Sessions", blocks: 3 });
+    for (const slot of ["sessions", "week-notes"]) {
+      const doc = world.db.read(`courseFacilitatorGuide/${COURSE.agi}__${slot}`);
+      assert.deepEqual(Object.keys(doc).sort(), ["blocks", "courseId", "slot", "title", "updatedAt", "weekNumber"], slot);
+      assert.equal(doc.courseId, COURSE.agi, slot);
+      assert.equal(doc.slot, slot);
+      assert.equal(doc.weekNumber, null, slot);
+      assert.doesNotMatch(JSON.stringify(doc), /zach|claudia|@example\.com|Uid/, slot);
+      // Copy as Markdown gives back the same document.
+      const copied = await load("zach", "GET", slot);
+      assert.equal((await load("zach", "PUT", slot, { markdown: copied.body.markdown })).status, 200, slot);
+      assert.deepEqual(world.db.read(`courseFacilitatorGuide/${COURSE.agi}__${slot}`).blocks, doc.blocks, slot);
+    }
+  });
+
+  test("a document in the wrong place is refused, either way round, and no week ever takes either", async () => {
+    const said = async (slot, markdown) => {
+      const answer = await load("zach", "PUT", slot, { markdown });
+      return [answer.status, answer.body.error];
+    };
+    assert.deepEqual(await said("sessions", PLAN_W1), [400, "This is session 1’s plan, and you’re loading Sessions. Load it as Week 1 session plan, or change the title line."]);
+    assert.deepEqual(await said("week-notes", NOTES_W3), [400, "This is week 3’s notes, and you’re loading Week notes. Load it as Week 3 notes, or change the title line."]);
+    assert.deepEqual(await said("sessions", FELLOW_WEEK_3), [400, "This is week 3 of the fellow guide, which goes in the run’s week, not in the facilitator guide."]);
+    assert.deepEqual(await said("w01-plan", SESSIONS), [400, "“Sessions” is one of the course’s own documents, and you’re loading Week 1 session plan. Load it in its own place, or change the title line."]);
+    assert.deepEqual(await said("w03-notes", WEEK_NOTES), [400, "“Week notes” is one of the course’s own documents, and you’re loading Week 3 notes. Load it in its own place, or change the title line."]);
+    assert.deepEqual(stored().filter((path) => /__(?:sessions|week-notes)$/.test(path)), []);
+    // Between the course's own documents a title is a thing to check, as for the other four.
+    const swapped = await load("zach", "POST", "week-notes", { markdown: SESSIONS });
+    assert.deepEqual([swapped.status, swapped.body.problems, swapped.body.checks], [200, [], ["Check this is Week notes: its title doesn’t say so."]]);
+    // The week loader refuses both, as it refuses the rest of the guide.
+    const { readPastedWeek } = guide.paste;
+    const week = (markdown) => readPastedWeek({ markdown, weekNumber: 3, stored: null }).problems;
+    assert.match(week(SESSIONS)[0], /^“Sessions” is one of the facilitator guide’s own documents\. Facilitator material never goes in a week/);
+    assert.match(week(WEEK_NOTES)[0], /^“Week notes” is one of the facilitator guide’s own documents\. Facilitator material never goes in a week/);
+  });
+
+  test("the course page shows them at the top of Each week, above the weeks, and never under For the whole course", async () => {
+    await seedGuide(COURSE.agi, AT_A_GLANCE);
+    for (const who of ["rahul", "claudia", "zach"]) {
+      const drawn = await coursePage(who);
+      assert.match(
+        drawn.text,
+        /Each week Sessions Week notes Week 1: First look Session plan Week 3: Reading the sky Session plan · Week notes For the whole course How to use these plans Weather Fellowship: session plans Handbook Weather Fellowship: facilitator guide Case studies and feedback Printables/,
+        who,
+      );
+      for (const [href, label] of [[`${AGI_GUIDE}/sessions`, "Sessions"], [`${AGI_GUIDE}/week-notes`, "Week notes"]]) {
+        assert.match(drawn.html, new RegExp(`<a href="${href}" class="row"><span class="rowText"><span class="rowTitle">${label}</span></span>`), `${who} ${label}`);
+      }
+      const side = drawn.html.slice(drawn.html.indexOf('aria-labelledby="guide-course"'));
+      assert.doesNotMatch(side, /\/sessions"|\/week-notes"/, who);
+      // Titles only: not a word from under them.
+      assert.doesNotMatch(drawn.text, /To open|Barometer|The question to expect/, who);
+    }
+    // With only those two loaded, Each week holds them, and the page is not empty.
+    reset();
+    await seedGuide(COURSE.agi, AT_A_GLANCE);
+    const alone = await coursePage("sofia");
+    assert.match(alone.text, /Facilitator guide Only facilitators, the programme’s lead and admins see this\. Each week Sessions Week notes$/);
+    assert.doesNotMatch(alone.text, /For the whole course|There’s nothing in this course’s facilitator guide yet/);
+  });
+
+  test("their pages: the document for the gate's three, the one calm answer for everybody else, and plain words when nothing is loaded", async () => {
+    assert.match((await docPage("rahul", "sessions")).text, /“Sessions” isn’t in this facilitator guide yet\./);
+    assert.match((await docPage("rahul", "week-notes")).text, /“Week notes” isn’t in this facilitator guide yet\./);
+    await seedGuide(COURSE.agi, AT_A_GLANCE);
+    for (const who of ["rahul", "sofia", "tom", "grace", "claudia", "zach"]) {
+      const drawn = await docPage(who, "sessions");
+      assert.equal(drawn.wrote, false, who);
+      assert.match(drawn.html, /<h1 class="title">Sessions<\/h1>/, who);
+      assert.match(drawn.html, /<h2 class="h2">At a glance<\/h2>/, who);
+      assert.match(drawn.html, /<div class="table"><table><thead><tr><th scope="col">Evening<\/th><th scope="col">To open<\/th>/, who);
+      assert.match(drawn.text, /3\. Reading the sky The pressure line A: Looking out · B: Chart swap Cloud atlases/, who);
+    }
+    const notes = await docPage("sofia", "week-notes");
+    assert.match(notes.html, /<h1 class="title">Week notes<\/h1>/);
+    assert.match(notes.text, /1\. First look A forecast is a number with a reason "Isn't it just a guess\?"/);
+    assert.match(notes.html, new RegExp(`<a href="${AGI_GUIDE}" class="footLink">Back to the facilitator guide</a>`));
+    for (const who of ["tess", "ola", "lloyd", "yusuf", "amara", "chloe", "una", "nobody"]) {
+      for (const segment of ["sessions", "week-notes"]) {
+        const drawn = await docPage(who, segment);
+        assert.equal(drawn.to, null, `${who} ${segment}`);
+        assert.match(drawn.text, new RegExp(REFUSED), `${who} ${segment}`);
+        assert.doesNotMatch(drawn.text, /Reading the sky|To open|The idea|AGI Strategy Fellowship/, `${who} ${segment}`);
+      }
+    }
+    assert.equal((await docPage(null, "sessions")).to, `/login?next=${encodeURIComponent(`${AGI_GUIDE}/sessions`)}`);
+  });
+
+  test("the list of titles names them with the course's other documents, and the loader page offers them", async () => {
+    await seedGuide(COURSE.agi, AT_A_GLANCE);
+    assert.deepEqual((await index("rahul")).body.documents.slice(-2), [
+      { key: "sessions", label: "Sessions", title: "Sessions" },
+      { key: "week-notes", label: "Week notes", title: "Week notes" },
+    ]);
+    const slots = find((await adminPage("zach")).element, "FacilitatorGuideLoader")[0].props.slots;
+    assert.deepEqual(
+      slots.slice(3, 7).map((slot) => [slot.key, slot.label, slot.loaded]),
+      [
+        ["printables", "Printables", "Printables"],
+        ["sessions", "Sessions", "Sessions"],
+        ["week-notes", "Week notes", "Week notes"],
+        ["w01-plan", "Week 1 session plan", "Session 1: First look"],
+      ],
+    );
+  });
+
+  test("a course's destroy counts them and takes them with the rest", async () => {
+    const { engine, makeCascadeDb } = await loadCourseDestroy();
+    const id = "weather-fellowship__c0urse09";
+    const db = makeCascadeDb({
+      [`courses/${id}`]: { title: "Weather Fellowship", status: "archived" },
+      [`courseFacilitatorGuide/${id}__sessions`]: { courseId: id, slot: "sessions", title: "Sessions", blocks: [] },
+      [`courseFacilitatorGuide/${id}__week-notes`]: { courseId: id, slot: "week-notes", title: "Week notes", blocks: [] },
+    });
+    assert.equal((await engine.countCourseDestroyTargets(db, { id, title: "Weather Fellowship" })).facilitatorGuide, 2);
+    const result = await engine.destroyCourseCascade(db, id, { actorUid: "zach", actorName: "Zach Levin" });
+    assert.equal(result.complete, true);
+    assert.equal(db.has(`courseFacilitatorGuide/${id}__sessions`), false);
+    assert.equal(db.has(`courseFacilitatorGuide/${id}__week-notes`), false);
   });
 });
 

@@ -31,7 +31,8 @@ import {
  * the board's words (st-emails): the room and who else facilitates sit
  * inside the sentence that says when the group meets, through the inline
  * tokens `{place}`, `{placeNote}` and `{facilitatingWith}`, and
- * `{namesOnPage}` says where the people's names are.
+ * `{namesOnPage}` says where the people's names are, and week 1's guide with
+ * them while the group page shows it.
  *
  * ## Written whole or not at all
  *
@@ -139,6 +140,14 @@ export type FacilitatingFacts = {
   leadName: string | null;
   /** That programme's short name: "AGI Strategy". */
   programmeName: string | null;
+  /**
+   * Whether the facilitator's group page shows week 1's guide as the email
+   * goes: the group's next session is its week 1, and week 1 of the course's
+   * facilitator guide has its session plan or its notes (Publish's plan asks
+   * the guide, through the guide's own gate for the group's facilitators).
+   * Only then does `{namesOnPage}` say "and week 1’s guide".
+   */
+  weekOneGuide: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -179,12 +188,16 @@ export function groupSizeSentence(count: number): string {
 
 /**
  * The `{namesOnPage}` sentence, after the group's size: where its people's
- * names are. The board's "Their names and week 1’s guide are on your group
- * page." without the guide: whether the course's facilitator guide holds
- * week 1 is not asked here, so the email does not promise it. A group of one
- * reads right.
+ * names are, and week 1's guide with them when the group page shows it
+ * (`FacilitatingFacts.weekOneGuide`): the board's "Their names and week 1’s
+ * guide are on your group page.". Without the guide, the names alone, so the
+ * email never promises a link the page does not draw. A group of one reads
+ * right.
  */
-export function namesOnPageSentence(count: number): string {
+export function namesOnPageSentence(count: number, weekOneGuide = false): string {
+  if (weekOneGuide) {
+    return count === 1 ? "Their name and week 1’s guide are on your group page." : "Their names and week 1’s guide are on your group page.";
+  }
   return count === 1 ? "Their name is on your group page." : "Their names are on your group page.";
 }
 
@@ -251,7 +264,7 @@ function valuesOf(facts: FacilitatingFacts): Record<FacilitatingToken, EmailValu
     leadName: typed(facts.leadName),
     programmeName: typed(facts.programmeName),
     // The board's words for the same facts (see the header).
-    namesOnPage: always(counted ? namesOnPageSentence(size) : ""),
+    namesOnPage: always(counted ? namesOnPageSentence(size, facts.weekOneGuide === true) : ""),
     place: typed(placeInSentence(facts.where)),
     placeNote: placeNoteValue(facts.where),
     facilitatingWith: typed(facilitatingWithSentence(facts.coFacilitators)),
@@ -301,6 +314,9 @@ export function facilitatingFactsFromSample(sample: Readonly<Record<string, stri
     groupUrl: said("groupUrl"),
     leadName: said("leadName"),
     programmeName: said("programmeName"),
+    // A sample is no course, so there is no guide to point at: a proof says
+    // the names alone, as a send does for a course whose guide lacks week 1.
+    weekOneGuide: false,
   };
 }
 

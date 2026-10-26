@@ -31,7 +31,8 @@ import { getCurrentUser } from "@/lib/firebase/session";
  * its notes, as "Facilitator guide for week 3", the words of the ticket's
  * link on wk-fac-group), or one of the course's own documents (How to use
  * these plans, the Handbook, Case studies and feedback, Printables, its
- * templates drawn exactly as written).
+ * templates drawn exactly as written, and Sessions and Week notes, the two
+ * about every week at once).
  *
  * WHO: the guide's gate (`src/lib/courses/facilitatorGuide/access.ts`), asked
  * before the address is even read: everybody it does not admit is given the
