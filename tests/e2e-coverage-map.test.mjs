@@ -2012,6 +2012,12 @@ const NOT_COVERED = {
     coverWhen:
       "When a browser spec signs in a group's facilitator after a session, copies the slips in on the draw page and a member of the group reads their case on their week page.",
   },
+  "/api/courses/groups/[groupId]/pairs": {
+    reason:
+      "Course hub: pairs and laptops typed for a session in pairs (Technical AI Safety's hands-on night): who may type them, who can be in a pair, the sizes a save refuses, the laptop check that never refuses and what a save writes are executed by tests/course-hub-pairs.test.mjs as every kind of caller; typed in a browser on the preview kit at 390 and 1440.",
+    coverWhen:
+      "When a browser spec signs in a group's facilitator before a session in pairs, pairs the group on the pairs page and a member of the group reads their partner on their week page.",
+  },
   "/api/courses/groups/[groupId]/notes": {
     reason:
       "Course hub: the notes a group's facilitators share (C30); who writes, who is refused, what a note keeps and what takes it away are executed by tests/course-hub-group-notes.test.mjs, and the page that reads them by tests/course-hub-facilitator-pages.test.mjs; written in a browser on the preview kit at 1440.",
@@ -2122,6 +2128,12 @@ const NOT_COVERED = {
       "Course hub: the draw's page (wk-cases, option A), drawn as each kind of caller and with its lists held word for word by tests/course-hub-packs-and-cases.test.mjs; photographed on the preview kit at 390 and 1440.",
     coverWhen:
       "When the browser spec that copies the slips in drives the page.",
+  },
+  "/(app)/learn/pairs/[groupId]": {
+    reason:
+      "Course hub: the pairs page for a session in pairs, drawn as each kind of caller and with its pairs, checks and rows held word for word by tests/course-hub-pairs.test.mjs; photographed on the preview kit at 390 and 1440.",
+    coverWhen:
+      "When the browser spec that pairs a group drives the page.",
   },
   "/(app)/newsletter": {
     reason:

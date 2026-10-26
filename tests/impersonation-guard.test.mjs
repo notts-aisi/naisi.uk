@@ -113,6 +113,7 @@ const MUST_GUARD = [
   ["src/app/api/courses/groups/[groupId]/notice/route.ts", "publishes a notice to a whole group"],
   ["src/app/api/courses/groups/[groupId]/notes/route.ts", "writes a note a group's facilitators share, in the writer's name"],
   ["src/app/api/courses/groups/[groupId]/draw/route.ts", "gives a group's people their packs and cases from the draw, in the typist's name"],
+  ["src/app/api/courses/groups/[groupId]/pairs/route.ts", "puts a group's people in pairs for a session and says who brings a laptop, in the typist's name"],
   ["src/app/api/courses/groups/[groupId]/shared-notes/route.ts", "adds a note shared with a group, in the writer's name"],
   ["src/app/api/courses/groups/[groupId]/ratings/route.ts", "rates a fellow at a programme's end, in the rater's name"],
   ["src/app/api/courses/groups/[groupId]/shared-notes/[noteId]/route.ts", "deletes a note shared with a group, for the person who wrote it"],
