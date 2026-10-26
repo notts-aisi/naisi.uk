@@ -1182,6 +1182,11 @@ const USERS = new Map([
       "words tested are the ones that ship",
   ],
   [
+    "kairos-choice.test.mjs",
+    "it runs the account cascade over a stored Kairos choice, so its graph is the cascade, the member-record sweep " +
+      "and the choice's own module; the rest of the suite drives the survey routes and pages through the survey world",
+  ],
+  [
     "surveys-deletion.test.mjs",
     "it runs the account cascade and the form's destroy end to end over survey records, so its graph is both " +
       "cascades, the member-record sweep and the survey modules; what is under test is what each leaves behind",

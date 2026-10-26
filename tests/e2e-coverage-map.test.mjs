@@ -1244,6 +1244,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
   },
+  "/api/kairos/export": {
+    reason:
+      "Surveys: the Kairos file; tests/kairos-file.test.mjs reads the file as an admin, its every refusal, the dataExports row written before it on each press, and the refusal when the row cannot be written.",
+    coverWhen:
+      "When an end-to-end spec downloads a file anywhere on the site, so the download path is driven in a browser once for all of them.",
+  },
   "/api/members/roster": {
     reason:
       "The members roster feeds a directory that is feature-flagged off, so nothing renders from it today.",
@@ -1369,6 +1375,12 @@ const NOT_COVERED = {
       "Surveys: a follow-ups consent changed signed in; tests/surveys-routes.test.mjs changes it as the person the survey was sent to and is refused for everybody else, signed out and during view-as.",
     coverWhen:
       "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
+  "/api/account/kairos": {
+    reason:
+      "Surveys: the Kairos choice changed on the profile; tests/kairos-choice.test.mjs changes it both ways as the person signed in and is refused signed out, with a body that is not a yes or no, and during view-as.",
+    coverWhen:
+      "When the profile spec reaches the sections under the notification grid, so a browser presses the button and reads the line change.",
   },
   "/api/surveys/consent": {
     reason:
@@ -1550,6 +1562,18 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
   },
+  "/(app)/admin/(admin-only)/surveys/kairos": {
+    reason:
+      "Surveys: the Kairos page, each programme with its file and report; tests/kairos-file.test.mjs renders it before and after a run's last session.",
+    coverWhen:
+      "When the end-to-end fixtures seed a run whose last session is over, so a spec can open the file and the report.",
+  },
+  "/(app)/admin/(admin-only)/surveys/kairos/[roundId]/[programmeId]": {
+    reason:
+      "Surveys: the Kairos report, fourteen measures in totals; tests/kairos-report.test.mjs counts each on a made-up programme and renders the page over a programme's three surveys, its register and its ratings.",
+    coverWhen:
+      "When the end-to-end fixtures seed a run whose last session is over, so a spec can open the file and the report.",
+  },
   "/(app)/admin/(admin-only)/surveys/new": {
     reason:
       "Surveys: New survey; its route is executed by tests/surveys-routes.test.mjs, and the page is a form over it.",
@@ -1651,6 +1675,12 @@ const NOT_COVERED = {
       "Course hub: the lead's and admins' view of one group's week (This week's work, who ticked each source by name, its facilitators' own work); every caller is executed by tests/course-hub-facilitator-week.test.mjs, and it was checked in a browser on the preview kit at 1440 and 390.",
     coverWhen:
       "When the end-to-end fixtures can seed a run whose weeks are written as blocks, with ticks and reflections, and the programme's lead signed in.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/ratings": {
+    reason:
+      "Course hub: a programme's ratings for its lead and admins; tests/course-ratings.test.mjs renders it as the lead, an admin, a reviewer and another programme's lead, before and after the run's last session.",
+    coverWhen:
+      "When the end-to-end fixtures seed a run whose last session is over, with the programme's lead signed in.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": {
     reason:
@@ -1813,6 +1843,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed a run whose weeks are written as blocks, with reflections written, and a group's facilitator signed in.",
   },
+  "/(app)/learn/[runId]/group/[groupId]/ratings": {
+    reason:
+      "Course hub: a group's ratings for its facilitators once the run is over; tests/course-ratings.test.mjs renders it as a facilitator, a co-facilitator, an admin, a fellow and somebody signed out.",
+    coverWhen:
+      "When the end-to-end fixtures seed a run whose last session is over, with a group's facilitator signed in.",
+  },
   "/(app)/learn/[runId]/group/[groupId]/review": {
     reason:
       "Learn hub: /(app)/learn/[runId]/group/[groupId]/review is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
@@ -1836,6 +1872,12 @@ const NOT_COVERED = {
       "Course hub: the notes a group's facilitators share (C30); who writes, who is refused, what a note keeps and what takes it away are executed by tests/course-hub-group-notes.test.mjs, and the page that reads them by tests/course-hub-facilitator-pages.test.mjs; written in a browser on the preview kit at 1440.",
     coverWhen:
       "When the facilitator's week spec writes a note on the group page and reads it back.",
+  },
+  "/api/courses/groups/[groupId]/ratings": {
+    reason:
+      "Course hub: one rating of one fellow at a programme's end; who rates whom, every refusal and what a rating keeps are executed by tests/course-ratings.test.mjs as each kind of caller.",
+    coverWhen:
+      "When the end-to-end fixtures seed a run whose last session is over, with a group's facilitator signed in.",
   },
   "/api/courses/groups/[groupId]/shared-notes": {
     reason:

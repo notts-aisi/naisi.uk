@@ -96,6 +96,15 @@ export const ROUTES = {
         "meets the 409 that asks for it; an outsider has no account to delete.",
     },
   },
+  "/api/account/kairos": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Changing the caller's own Kairos choice from their profile: view-as first, then the session, then the " +
+        "body, so every signed-in persona meets the same 400 on an empty one. There is no uid in the request: the " +
+        "record changed is the caller's own, and anybody signed in may say no, before they take part included.",
+    },
+  },
   "/api/account/reconsent": {
     POST: {
       expect: signedIn(400),
@@ -396,7 +405,7 @@ export const ROUTES = {
   "/api/admin/registrations/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -485,7 +494,7 @@ export const ROUTES = {
   "/api/admin/users/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -1391,6 +1400,16 @@ export const ROUTES = {
         "is missing.",
     },
   },
+  "/api/courses/groups/[groupId]/ratings": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "One rating of one fellow at a programme's end: view-as first, then the session, then the body is checked " +
+        "before anything is read, so every signed-in persona meets the same 400 on an empty one. Who may rate in " +
+        "the group (its live facilitators, the programme's lead, admins) and whom (nobody themselves, never a " +
+        "co-facilitator) is asked once a valid body arrives.",
+    },
+  },
   "/api/courses/groups/[groupId]/roster": {
     GET: {
       expect: signedIn(404),
@@ -2132,6 +2151,14 @@ export const ROUTES = {
         "missing, everyone else is forbidden before the read.",
     },
   },
+  "/api/kairos/export": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "The Kairos file is an admin's alone, recorded before it is handed over: everybody else is refused before " +
+        "anything is read, and an admin is told the empty body names no programme. A file, not JSON, so no fields.",
+    },
+  },
   "/api/members/roster": {
     GET: {
       expect: everyone(200, { anonymous: 403, pending: 403, rejected: 403 }),
@@ -2781,6 +2808,18 @@ export const PAGES = {
       "nothing about the gate: an id that opens no survey is answered on the page in a sentence, never " +
       "notFound.",
   },
+  "/(app)/admin/(admin-only)/surveys/kairos": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard. The page lists each " +
+      "programme that names a run, with its Kairos file and report, all an admin's alone.",
+  },
+  "/(app)/admin/(admin-only)/surveys/kairos/[roundId]/[programmeId]": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard. The ids change nothing " +
+      "about the gate: an address that names no programme is answered on the page in a sentence, never notFound.",
+  },
   "/(app)/admin/(admin-only)/surveys/new": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
     why:
@@ -2973,6 +3012,14 @@ export const PAGES = {
       "admitted, a form that is missing and a programme the caller has no role on render 'there " +
       "is no programme here' in place of the page with a 200; a reviewer of the programme is told " +
       "the tab is the lead's and admins', and a fellowship's address that teams are an incubator's.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/ratings": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: the ratings given at the " +
+      "programme's end are the programme's lead's and an admin's to read, so a reviewer is told so before the run is " +
+      "read, and a programme the caller has no role on, or one that does not exist, renders 'there is no programme " +
+      "here' with a 200.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
@@ -3173,6 +3220,13 @@ export const PAGES = {
     why:
       "A run under /learn: the run layout sends every approved account back to /learn when " +
       "the run is missing, and the run's own roster decides the rest once it exists.",
+  },
+  "/(app)/learn/[runId]/group/[groupId]/ratings": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is missing, and " +
+      "the page's own gate (loadRatingsView: a live facilitator of the group, the programme's lead or an admin) " +
+      "sends everybody else to the run's home.",
   },
   "/(app)/learn/[runId]/group/[groupId]/register": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
