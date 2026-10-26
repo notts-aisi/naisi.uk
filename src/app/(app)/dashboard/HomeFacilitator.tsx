@@ -37,6 +37,7 @@ import {
 } from "@/lib/courses/facilitatorPageWords";
 import { facilitatorGuidePath } from "@/lib/courses/facilitatorGuide/model";
 import { FACILITATOR_GUIDE } from "@/lib/courses/facilitatorGuide/words";
+import { GIVE_FEEDBACK, NOTHING_TO_GIVE_FEEDBACK_ON, toGiveFeedbackOnWords } from "@/lib/courses/writtenAnswerWords";
 import { sessionEyebrow, weekTitleWords } from "@/lib/courses/memberPageWords";
 import { writeToGroupLine, writeToGroupWords } from "@/lib/courses/updates/words";
 import { addDaysToKey, londonDateKey } from "@/lib/courses/weekPlan";
@@ -346,7 +347,19 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
                   </Link>
                 </div>
               )}
-              {known && (
+              {known && known.writtenToGive !== undefined && (
+                // A run written as blocks: the written answers waiting for feedback (the review queue's half).
+                <div className={facilitator.weekRow}>
+                  <p className={facilitator.weekRowText}>
+                    {known.writtenToGive === 0 ? NOTHING_TO_GIVE_FEEDBACK_ON : toGiveFeedbackOnWords(known.writtenToGive)}
+                  </p>
+                  <Link href={`${groupHref}/written`} className={styles.textLink}>
+                    {GIVE_FEEDBACK}
+                    <ArrowRight />
+                  </Link>
+                </div>
+              )}
+              {known && (known.writtenToGive === undefined || known.toReview > 0) && (
                 <div className={facilitator.weekRow}>
                   <p className={facilitator.weekRowText}>{toReviewWords(known.toReview)}</p>
                   <Link href={`${groupHref}/review`} className={styles.textLink}>

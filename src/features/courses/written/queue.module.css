@@ -1,0 +1,63 @@
+/* The review queue's written answers half on a group's page (board
+   wk-fac-group), and the lead's line per group. The rows are the group
+   page's own (`facilitator.module.css`); this holds the half's head. */
+
+.half {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.halfTitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.halfCount {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.rowMeta {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+.groups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.groupRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 0;
+}
+
+.groupRow + .groupRow {
+  border-top: 1px solid var(--color-border);
+}
+
+.groupText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+@media (max-width: 48rem) {
+  .groupRow {
+    align-items: flex-start;
+  }
+}

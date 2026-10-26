@@ -5,6 +5,8 @@ import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import NotYours from "@/features/applications/groups/NotYours";
 import ProgrammeAttendance from "@/features/applications/groups/ProgrammeAttendance";
 import RunBlank from "@/features/applications/groups/RunBlank";
+import { LeadWrittenAnswersCard } from "@/features/courses/written/ReviewQueueCard";
+import { loadWrittenQueues } from "@/lib/courses/writtenAnswers/queue";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import { leadNotesHeading, notesWhoLine } from "@/lib/courses/facilitatorPageWords";
@@ -76,6 +78,12 @@ export default async function ProgrammeAttendancePage({
         : null;
   const noted = model.groups.filter((group) => (notes.get(group.id) ?? []).length > 0);
   const shared = await sharedNotesForAttendance(db, user, records.run, records.groups, programme?.leadFirstName ?? null);
+  // The written answers waiting for the lead's (or an admin's) feedback, a
+  // line per group, a facilitator's own answer among them: null on a run of
+  // the summer's weeks, which has none.
+  const liveGroups = records.groups.filter((group) => !group.archived);
+  const writtenQueues = await loadWrittenQueues(db, user, records.run, liveGroups);
+  const writtenPath = `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/written`;
   return (
     <>
       <ProgrammeAttendance
@@ -85,6 +93,20 @@ export default async function ProgrammeAttendancePage({
         programmeName={view.programmeName}
         initialGroup={model.groups.some((group) => group.id === asked) ? asked : "all"}
       />
+      {writtenQueues && liveGroups.length > 0 && (
+        <div className={facilitator.leadNotes}>
+          <LeadWrittenAnswersCard
+            groups={[...liveGroups]
+              .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+              .map((group) => ({
+                id: group.id,
+                name: group.name.trim() || "Untitled group",
+                waiting: writtenQueues.get(group.id)?.length ?? 0,
+                href: `${writtenPath}?group=${encodeURIComponent(group.id)}`,
+              }))}
+          />
+        </div>
+      )}
       {noted.length > 0 && (
         <div className={facilitator.leadNotes}>
           {noted.map((group) => (

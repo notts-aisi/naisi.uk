@@ -16,6 +16,7 @@ import {
   type ExerciseReviewStatus,
 } from "@/lib/firestore/courseExercises";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import { isWordCountedAnswer } from "@/lib/courses/writtenAnswers/model";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 
@@ -164,9 +165,12 @@ export async function POST(
   const ref = db.collection("courseExerciseResponses").doc(responseId);
   const snap = await ref.get();
   const data = snap.data() ?? {};
-  // A reflection is never reviewed (courseExercises.ts): its row reads here as
-  // no row at all, so it is refused exactly as a missing one is, by everybody.
-  const existing = snap.exists && !isReflectionResponse(data) ? normalizeExerciseResponse(snap.id, data) : null;
+  // A reflection is never reviewed (courseExercises.ts), and a block week's
+  // written answer gets its feedback on its own page, by the rubric, never a
+  // verdict here: either row reads here as no row at all, so it is refused
+  // exactly as a missing one is, by everybody.
+  const existing =
+    snap.exists && !isReflectionResponse(data) && !isWordCountedAnswer(data) ? normalizeExerciseResponse(snap.id, data) : null;
 
   // ---- Access: facilitator of the OWNER's group, or admin ------------------
   // Two addressed reads, no queries and no caller-supplied ids: the owner's

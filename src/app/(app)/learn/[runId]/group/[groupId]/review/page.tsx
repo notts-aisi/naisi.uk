@@ -3,7 +3,9 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { redirect } from "next/navigation";
 import ReviewQueue from "@/features/courses/ReviewQueue";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
-import { memberCurrentWeek, resolveCalendar } from "@/lib/courses/groupResolve";
+import { memberCurrentWeek, resolveCalendar, resolveWeekDoc } from "@/lib/courses/groupResolve";
+import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
+import { weekDocId } from "@/lib/firestore/courses";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 
@@ -132,6 +134,13 @@ export default async function GroupReviewPage({
   }
   const asked = typeof askedWeek === "string" && /^\d{1,3}$/.test(askedWeek) ? Number(askedWeek) : null;
   if (asked !== null && weeks.includes(asked)) initialWeek = asked;
+
+  // A week written as blocks has a written answer, not exercises: it gets
+  // feedback on the group's written answers page, by the rubric.
+  const { week: initial } = await resolveWeekDoc(db, runId, groupId, weekDocId(initialWeek));
+  if (initial && isBlockWeek(initial)) {
+    redirect(`${runHome}/group/${encodeURIComponent(groupId)}/written?week=${initialWeek}`);
+  }
 
   const eyebrow = [access.run.courseTitle, access.run.label].filter(Boolean).join(" · ");
 
