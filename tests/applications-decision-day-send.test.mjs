@@ -47,7 +47,7 @@
  * view-as guard, and `sendEmail`, which records what it was asked to send and
  * answers as the test tells it to. No message can leave this process.
  */
-import { beforeEach, describe, test } from "node:test";
+import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -57,6 +57,12 @@ import { createLoader } from "./lib/tsLoader.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const NOW = new Date("2026-10-23T11:00:00Z");
+// The world below is dated around NOW: decisions sent on Fri 23 Oct, invitations
+// to reply by Sun 25 Oct. The routes read the real clock (`new Date()`), so the
+// whole file runs at NOW, as `course-hub-teams-deletion.test.mjs` does; without
+// it, every test that reaches a route began to fail once the real date passed
+// the world's reply-by day.
+mock.timers.enable({ apis: ["Date"], now: NOW });
 const APP_URL = "https://staging.example.com";
 process.env.NEXT_PUBLIC_APP_URL = APP_URL;
 delete process.env.SMTP_FROM_NAME;
