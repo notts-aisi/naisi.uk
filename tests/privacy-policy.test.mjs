@@ -2541,6 +2541,7 @@ const calendarWords = await loadTs("lib/courses/calendarWords.ts");
  */
 const surveyWords = await loadTs("lib/surveys/words.ts");
 const surveyItems = await loadTs("lib/surveys/items.ts");
+const surveyTemplates = await loadTs("lib/surveys/templates.ts");
 const surveyExport = await loadTs("lib/surveys/exportTable.ts");
 const surveyRecords = await loadTs("lib/firestore/surveys.ts");
 /** Survey code imported from anywhere: the library, its components and its record. */
@@ -3428,21 +3429,20 @@ describe("the course hub passage", () => {
     // and how they sent their answers, whether their group had met by then,
     // and the answers themselves, and never an email address": the layout,
     // run on the before survey's own questions and one person's answers.
-    const lines = ["How fast AI is improving, and why", "How advanced AI could go wrong", "What is being done", "The race", "What you could do"];
-    const table = surveyExport.surveyExportTable(surveyItems.beforeSurveyItems(lines), [
+    const table = surveyExport.surveyExportTable(surveyTemplates.templateItems("before", "fellowship", null), [
       {
         name: "Amara Okafor",
         sentAt: new Date(Date.UTC(2026, 10, 2, 18, 5)),
         via: "link",
         afterFirstSession: false,
-        answers: { q_catastrophe: { type: "choice", optionId: "o_1to10" } },
+        answers: { q_p3_level: { type: "choice", optionId: "o_masters" } },
       },
     ]);
     assert.deepEqual(table.header.slice(0, 4), ["Name", "Sent", "How", "After their first session"], "the survey file's first columns changed, so the policy's list of what it holds may no longer be what it holds");
     const questionColumns = table.header.slice(4);
     assert.ok(questionColumns.length > 0 && questionColumns.every((column) => /^\d+\. /.test(column)), "a column of the survey file after the first four is not a question");
     assert.deepEqual(table.rows[0].slice(0, 4), ["Amara Okafor", "2026-11-02 18:05", "Personal link", "No"]);
-    assert.equal(table.rows[0][4], "1 to 10%", "the survey file no longer writes a choice as its words");
+    assert.equal(table.rows[0][4], "Master’s", "the survey file no longer writes a choice as its words");
     assert.ok(!table.header.some((column) => /e-?mail|address/i.test(column)), "the survey file has a column for an email address");
     // Its names come from the account's name and never its address.
     const names = withoutComments(read("src/lib/surveys/names.ts"));
@@ -3762,6 +3762,8 @@ describe("the course hub passage", () => {
         ["src/app/api/surveys/answer/route.ts", "the person's own answers, sent through the secret in their link"],
         ["src/app/(app)/learn/[runId]/survey/[surveyId]/page.tsx", "the person's own survey, signed in: shown only to somebody it was sent to, by their own row"],
         ["src/app/api/surveys/[surveyId]/answer/route.ts", "the person's own answers, signed in, to their own row: there is no uid in the request"],
+        ["src/app/api/surveys/consent/route.ts", "the person's own follow-ups consent, changed through the secret in their link, on their own row"],
+        ["src/app/api/surveys/[surveyId]/consent/route.ts", "the person's own follow-ups consent, changed signed in, on their own row: there is no uid in the request"],
         ["src/lib/firestore/accountDeletion.ts", "deleting an account takes its name off its survey answers and deletes its survey rows"],
         ["src/lib/scheduler/jobs/surveyNamesOff.ts", "the job that takes names off a year after the programme"],
       ]),
@@ -3776,7 +3778,8 @@ describe("the course hub passage", () => {
       sourceFilesNaming(/./).filter((file) => SURVEY_STORE.test(withoutComments(read(file)))),
       new Map([
         ["src/lib/firestore/surveys.ts", "the records' own names and shapes"],
-        ["src/lib/surveys/repo.ts", "the readers: a person's own row, the row a link opens, and the answers for the admins' pages and the spreadsheet"],
+        ["src/lib/surveys/repo.ts", "the readers: a person's own row, the row a link opens, the answers for the admins' pages and the spreadsheet, and a person's own earlier answer, shown back to them alone"],
+        ["src/lib/surveys/consent.ts", "a person changing their own consent later, on their own row"],
         ["src/lib/surveys/answer.ts", "the one writer of an answer: a person's own, once"],
         ["src/lib/surveys/sending.ts", "the send, which writes each person's row with their link before their email"],
         ["src/lib/surveys/namesOff.ts", "names off: a year after the programme, and at once with an account"],
@@ -3884,10 +3887,13 @@ describe("the course hub passage", () => {
     assert.match(PAGE_FLAT, /<li> Every question can be skipped\. Nothing you say in a survey affects your place on a programme or an application\. <\/li>/);
     // The rule, run: the before survey requires nothing, and a question stored
     // as required is refused.
-    const template = surveyItems.beforeSurveyItems(["One", "Two", "Three", "Four", "Five"]);
-    assert.deepEqual(surveyItems.validateSurveyItems(template), []);
-    assert.ok(surveyItems.surveyQuestionsOf(template).every((question) => question.required !== true), "the before survey requires an answer");
-    const required = template.map((item) => (item.id === "q_catastrophe" ? { ...item, required: true } : item));
+    for (const [stage, kind, strand] of [["before", "fellowship", null], ["after", "fellowship", null], ["followUp6", "fellowship", null], ["before", "incubator", "alignment"], ["after", "incubator", "governance"]]) {
+      const each = surveyTemplates.templateItems(stage, kind, strand);
+      assert.deepEqual(surveyItems.validateSurveyItems(each), [], `the ${stage} template of a ${kind} is not valid`);
+      assert.ok(surveyItems.surveyQuestionsOf(each).every((question) => question.required !== true), `the ${stage} template of a ${kind} requires an answer`);
+    }
+    const template = surveyTemplates.templateItems("before", "fellowship", null);
+    const required = template.map((item) => (item.id === "q_c1" ? { ...item, required: true } : item));
     assert.deepEqual(
       surveyItems.validateSurveyItems(required).map((problem) => problem.message),
       ["Every question in a survey can be skipped, so none is required."],

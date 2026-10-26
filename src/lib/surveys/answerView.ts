@@ -1,7 +1,10 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import { own } from "@/lib/applications/keys";
+import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { answerLimitOf, ratingScaleOf } from "@/lib/firestore/worksheets";
-import type { SurveyDoc } from "@/lib/firestore/surveys";
+import type { SurveyDoc, SurveyPersonDoc } from "@/lib/firestore/surveys";
+import { consentSurveyIdFor } from "./consent";
 import {
   isLinesQuestion,
   isNumberQuestion,
@@ -10,21 +13,26 @@ import {
   questionNumbers,
   scoreOf,
   surveyPagesOf,
+  surveyQuestionsOf,
   type SurveyChoiceQuestion,
   type SurveyConsentPurpose,
   type SurveyItem,
 } from "./items";
 import { confidentialFactsFor } from "./personFacts";
 import { offerFromProfile, profileFactsOf } from "./profileOffer";
-import { closedOn, isOpen } from "./repo";
+import { chainOf, closedOn, isOpen, ownAnswerOf, readPerson } from "./repo";
 import {
   BEFORE_WEEK,
   CONFIDENTIAL_HEADING,
+  CONSENT_WORDS,
   STATE_WORDS,
   closingWords,
   confidentialPoints,
   paragraphsOf,
+  pipeTestWords,
+  pipedWords,
   programmeLine,
+  weekWords,
 } from "./words";
 
 /**
@@ -95,9 +103,24 @@ export type AnswerSurvey = {
   submit: AnswerSubmit;
 };
 
+/**
+ * A consent the person can change on their own page: where it stands, the
+ * button that changes it to `sets`, and the words once it has. Never shown on
+ * a test link.
+ */
+export type ConsentPanel = {
+  purpose: SurveyConsentPurpose;
+  line: string;
+  button: string;
+  sets: boolean;
+  /** The line once it has changed, and the button that changes it back. */
+  after: { line: string; button: string; done: string };
+  submit: { kind: "link"; token: string } | { kind: "signed-in"; surveyId: string };
+};
+
 export type AnswerScreen =
-  | { state: "open"; survey: AnswerSurvey }
-  | { state: "message"; title: string; body: string };
+  | { state: "open"; survey: AnswerSurvey; consent: ConsentPanel | null }
+  | { state: "message"; title: string; body: string; consent: ConsentPanel | null };
 
 /** What the page shows that is the person's own: a menu's offer by question id, and earlier answers in words. */
 export type PersonalFacts = { offered: Record<string, string>; piped: Record<string, string> };
@@ -141,7 +164,7 @@ export function answerPagesOf(survey: Pick<SurveyDoc, "items">, personal: Person
         number: numbers.get(item.id) ?? 0,
         title: item.title,
         hint: item.hint ?? "",
-        piped: personal.piped[item.id] ?? "",
+        piped: own(personal.piped, item.id) ?? "",
       };
       if (isLinesQuestion(item)) {
         questions.push({
@@ -160,7 +183,7 @@ export function answerPagesOf(survey: Pick<SurveyDoc, "items">, personal: Person
       } else if (isNumberQuestion(item)) {
         questions.push({ ...base, kind: "number", max: item.max });
       } else if (item.type === "singleChoice" || item.type === "multipleChoice") {
-        questions.push(choiceQuestion(base, item, personal.offered[item.id] ?? ""));
+        questions.push(choiceQuestion(base, item, own(personal.offered, item.id) ?? ""));
       } else if (item.type === "rating") {
         questions.push({
           ...base,
@@ -205,37 +228,135 @@ export async function profileOffersFor(db: Firestore, survey: Pick<SurveyDoc, "i
 }
 
 /**
+ * Each question's earlier answer of the person's own, in words, for the
+ * questions that show one: their answer to the question it names, on the
+ * earliest survey of the programme that asks it. A test shows where it would
+ * go. Read for that person alone.
+ */
+export async function pipedAnswersFor(db: Firestore, survey: SurveyDoc, uid: string | null, test: boolean): Promise<Record<string, string>> {
+  const piping = surveyQuestionsOf(survey.items).filter((question) => question.pipe);
+  if (piping.length === 0) return {};
+  if (test) return Object.fromEntries(piping.map((question) => [question.id, pipeTestWords(question.pipe!.words)]));
+  if (!uid) return {};
+  const chain = await chainOf(db, survey);
+  const out: Record<string, string> = {};
+  for (const question of piping) {
+    const pipe = question.pipe!;
+    const source = chain.find((earlier) =>
+      surveyQuestionsOf(earlier.items).some((asked) => asked.id === pipe.from && (asked.type === "shortText" || asked.type === "longText")),
+    );
+    if (!source) continue;
+    const answers = (await ownAnswerOf(db, source, uid))?.answers;
+    const answer = answers ? own(answers, pipe.from) : undefined;
+    if (answer && answer.type === "text" && answer.text.trim()) out[question.id] = pipedWords(pipe.words, answer.text.trim());
+  }
+  return out;
+}
+
+/** The last teaching week of a run, from its week plan, or null. */
+async function lastWeekOf(db: Firestore, runId: string): Promise<number | null> {
+  if (!runId || runId.includes("/")) return null;
+  const snap = await db.collection("courseRuns").doc(runId).get();
+  if (!snap.exists) return null;
+  const weeks = normalizeCourseRun(snap.id, snap.data() ?? {}).weekPlan.flatMap((entry) => (entry.kind === "week" ? [entry.weekNumber] : []));
+  return weeks.length > 0 ? Math.max(...weeks) : null;
+}
+
+/** Beside the programme at the top: "Week 1" before it, its last week at its end, nothing on a follow-up. */
+async function eyebrowFor(db: Firestore, survey: SurveyDoc): Promise<string[]> {
+  const programme = programmeLine(survey.programmeKind, survey.programmeName);
+  if (survey.kind === "before") return [programme, BEFORE_WEEK];
+  if (survey.kind === "after") {
+    const last = await lastWeekOf(db, survey.runId);
+    return last ? [programme, weekWords(last)] : [programme];
+  }
+  return [programme];
+}
+
+/**
+ * The follow-ups consent the person can change from this page, or null: on
+ * the survey that asks it, once it can no longer be answered there; on a
+ * follow-up, always. Where it stands is read from the person's own row.
+ */
+async function consentPanelFor(
+  db: Firestore,
+  survey: SurveyDoc,
+  person: SurveyPersonDoc | null,
+  submit: AnswerSubmit,
+  formShown: boolean,
+): Promise<ConsentPanel | null> {
+  if (!person || submit.kind === "test") return null;
+  const holder = consentSurveyIdFor(survey, "followUps");
+  if (!holder) return null;
+  // The survey that asks it shows its own box while it can be answered.
+  if (holder === survey.id && formShown) return null;
+  const row = holder === survey.id ? person : await readPerson(db, holder, person.respondent);
+  if (!row) return null;
+  const given = row.consents.followUps === true;
+  const words = CONSENT_WORDS.followUps;
+  const yes = { line: words.yes, button: words.stop, done: words.started };
+  const no = { line: words.no, button: words.start, done: words.stopped };
+  const now = given ? yes : no;
+  const then = given ? no : yes;
+  return {
+    purpose: "followUps",
+    line: now.line,
+    button: now.button,
+    sets: !given,
+    after: { line: then.line, button: then.button, done: then.done },
+    submit,
+  };
+}
+
+/**
  * The page for one person, or a message instead of it. `uid` is the person
  * the box is about: theirs on a personal link or signed in, nobody's on a
- * test.
+ * test. `person` is their row on this survey, for what they can change here.
  */
 export async function answerScreenFor(
   db: Firestore,
   survey: SurveyDoc,
-  input: { uid: string | null; answered: boolean; answeredAt: Date | null; submit: AnswerSubmit; now: Date },
+  input: {
+    uid: string | null;
+    answered: boolean;
+    answeredAt: Date | null;
+    submit: AnswerSubmit;
+    now: Date;
+    person?: SurveyPersonDoc | null;
+  },
 ): Promise<AnswerScreen> {
-  if (input.answered) return { state: "message", ...STATE_WORDS.answered(input.answeredAt) };
+  const person = input.person ?? null;
+  const message = async (words: { title: string; body: string }): Promise<AnswerScreen> => ({
+    state: "message",
+    ...words,
+    consent: await consentPanelFor(db, survey, person, input.submit, false),
+  });
+  if (input.answered) return message(STATE_WORDS.answered(input.answeredAt));
   const test = input.submit.kind === "test";
   if (!test && !isOpen(survey, input.now)) {
     const on = closedOn(survey);
-    return on ? { state: "message", ...STATE_WORDS.closed(on) } : { state: "message", ...STATE_WORDS.noSurvey };
+    return on ? message(STATE_WORDS.closed(on)) : { state: "message", ...STATE_WORDS.noSurvey, consent: null };
   }
-  if (!survey.closesAt || !survey.namesOffOn) return { state: "message", ...STATE_WORDS.noSurvey };
-  const [facts, offered] = await Promise.all([
+  if (!survey.closesAt || !survey.namesOffOn) return { state: "message", ...STATE_WORDS.noSurvey, consent: null };
+  const [facts, offered, piped, eyebrow, consent] = await Promise.all([
     confidentialFactsFor(db, survey, input.uid),
     profileOffersFor(db, survey, input.uid),
+    pipedAnswersFor(db, survey, input.uid, test),
+    eyebrowFor(db, survey),
+    consentPanelFor(db, survey, person, input.submit, true),
   ]);
   const box = confidentialPoints(facts);
   return {
     state: "open",
     survey: {
-      eyebrow: [programmeLine(survey.programmeKind, survey.programmeName), BEFORE_WEEK],
+      eyebrow,
       title: survey.title,
       intro: paragraphsOf(survey.intro),
       box: { heading: CONFIDENTIAL_HEADING, points: box.points, note: box.note },
-      pages: answerPagesOf(survey, { offered, piped: {} }),
+      pages: answerPagesOf(survey, { offered, piped }),
       closing: closingWords(survey.closesAt),
       submit: input.submit,
     },
+    consent,
   };
 }

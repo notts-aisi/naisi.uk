@@ -117,6 +117,63 @@
   color: var(--color-text-body);
 }
 
+/* A consent the person can change here: where it stands and one button. */
+.consent {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.consentLine {
+  margin: 0;
+  font-size: var(--text-ui);
+  color: var(--color-text-body);
+  overflow-wrap: anywhere;
+}
+
+.consentDone {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.consentError {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger-text);
+}
+
+.consentButton {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 2.75rem;
+  padding: 0 var(--space-5);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.consentButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.consentButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 @media (max-width: 48rem) {
   .message {
     padding: var(--space-5) var(--space-4);

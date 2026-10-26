@@ -5,36 +5,43 @@ import { isId, type ApplicationForm } from "@/lib/applications/normalise";
 import { loadForm } from "@/lib/applications/repo";
 import { listForms } from "@/lib/applications/handover/run";
 import { isValidDateKey, londonDateKey, londonWallClockToInstant } from "@/lib/courses/weekPlan";
-import { SURVEYS_COLLECTION, SURVEY_LIMITS, normalizeSurvey, type SurveyDoc } from "@/lib/firestore/surveys";
-import {
-  SURVEY_ITEM_LIMITS,
-  TEMPLATE_LINE_COUNT,
-  beforeSurveyItems,
-  sameQuestions,
-  sanitizeSurveyItems,
-  surveyQuestionsOf,
-  validateSurveyItems,
-  type SurveyItem,
-} from "./items";
+import { SURVEYS_COLLECTION, SURVEY_LIMITS, normalizeSurvey, type SurveyAudience, type SurveyDoc } from "@/lib/firestore/surveys";
+import { sameQuestions, sanitizeSurveyItems, surveyQuestionsOf, validateSurveyItems, type SurveyItem } from "./items";
 import { namesOffDayFor } from "./namesOff";
-import { BEFORE_MINUTES, BEFORE_TITLE, REFUSAL, beforeIntro, beforeSurveyName } from "./words";
+import {
+  INCUBATOR_STRANDS,
+  SURVEY_STAGES,
+  TEMPLATE_MINUTES,
+  stageAsksStrand,
+  templateItems,
+  type IncubatorStrand,
+  type SurveyStage,
+} from "./templates";
+import { REFUSAL, STAGE_WORDS, introFor, surveyNameFor } from "./words";
 
 /**
- * MAKING A PROGRAMME'S BEFORE SURVEY, AND CHANGING IT UNTIL IT IS SENT.
+ * MAKING A PROGRAMME'S SURVEYS, AND CHANGING EACH UNTIL IT IS SENT.
  *
- * An admin picks a programme on an application form, types the lines of
- * question 4 (what people could explain, one line per week from 2 to 6) and
- * the day it closes. Everything else is the template's (`beforeSurveyItems`):
- * the six change questions as drawn, three pages, "about 3 minutes".
+ * An admin picks a programme on an application form, a stage (before it, at
+ * its end, 6 months on, 12 months on) and the day it closes; for an
+ * incubator, which research it does, for the first line of its skills
+ * question. Everything else is the stage's template (`templateItems`): the
+ * questionnaire's questions, in pages, "about 5 minutes" before.
+ *
+ * EACH STAGE PAIRS WITH THE ONE BEFORE IT, for the same programme: the after
+ * survey with the before, a follow-up with the after (or the before), the
+ * second follow-up with the first. The pair is found when a survey is made
+ * and fixed then (`pairOf`), so answers compare by person along the pairs. A
+ * follow-up goes only to people who said yes to follow-ups on the
+ * programme's before survey, so it cannot be made without one.
  *
  * Until its first send an admin may change its words, its options and lines
  * and their order, how long it takes and the day it closes. From the first
  * send all of that is fixed: the email people were sent names the day it
- * closes, and the after survey has to ask the same questions.
+ * closes, and the later stages have to ask the same questions.
  *
- * The day names come off is worked out from records (a year after the run's
- * last session) when the survey is made and each time it is saved, and fixed
- * by the first send.
+ * The day names come off is worked out from records when the survey is made
+ * and each time it is saved, and fixed by the first send.
  */
 
 /** The last minute of the closing day, in London. */
@@ -58,36 +65,35 @@ function closingDay(raw: unknown, now: Date): string | Refused {
   return raw;
 }
 
-function linesOf(raw: unknown): string[] | Refused {
-  if (!Array.isArray(raw)) return { ok: false, status: 400, error: REFUSAL.body };
-  const lines = raw.map((line) => (typeof line === "string" ? line.replace(/\s+/g, " ").trim() : ""));
-  if (lines.length < SURVEY_ITEM_LIMITS.minLines || lines.length > SURVEY_ITEM_LIMITS.maxLines) {
-    return { ok: false, status: 400, error: `Question 4 takes between ${SURVEY_ITEM_LIMITS.minLines} and ${SURVEY_ITEM_LIMITS.maxLines} lines.` };
-  }
-  if (lines.some((line) => line.length === 0)) {
-    return { ok: false, status: 400, error: "Type each line of question 4: what people could explain, one line a week." };
-  }
-  if (lines.some((line) => line.length > SURVEY_ITEM_LIMITS.lineLabel)) {
-    return { ok: false, status: 400, error: `Each line of question 4 can be up to ${SURVEY_ITEM_LIMITS.lineLabel} characters.` };
-  }
-  return lines;
-}
+export type CreateInput = {
+  roundId: string;
+  programmeId: string;
+  stage: SurveyStage;
+  closesOn: string;
+  /** An incubator's research, or null to take its pair's (or for a fellowship). */
+  strand: IncubatorStrand | null;
+};
 
-export type CreateInput = { roundId: string; programmeId: string; lines: string[]; closesOn: string };
-
-/** A request to make a before survey, checked before anything is read. */
+/** A request to make a survey, checked before anything is read. */
 export function parseCreate(raw: unknown, now: Date): { ok: true; input: CreateInput } | Refused {
   if (!isRaw(raw) || !isId(raw.roundId) || !isId(raw.programmeId)) {
     return { ok: false, status: 400, error: "Pick the programme the survey is for." };
   }
-  const lines = linesOf(raw.lines);
-  if (!Array.isArray(lines)) return lines;
+  const stage = raw.stage === undefined ? "before" : raw.stage;
+  if (!SURVEY_STAGES.includes(stage as SurveyStage)) return { ok: false, status: 400, error: "Pick which of the programme’s surveys to make." };
   const closesOn = closingDay(raw.closesOn, now);
   if (typeof closesOn !== "string") return closesOn;
-  return { ok: true, input: { roundId: raw.roundId, programmeId: raw.programmeId, lines, closesOn } };
+  const strand = raw.strand === undefined || raw.strand === null || raw.strand === "" ? null : raw.strand;
+  if (strand !== null && !INCUBATOR_STRANDS.includes(strand as IncubatorStrand)) {
+    return { ok: false, status: 400, error: REFUSAL.strand };
+  }
+  return {
+    ok: true,
+    input: { roundId: raw.roundId, programmeId: raw.programmeId, stage: stage as SurveyStage, closesOn, strand: strand as IncubatorStrand | null },
+  };
 }
 
-/** A programme a before survey can be made for, as the New survey page lists them. */
+/** A programme a survey of one stage can be made for, as the New survey page lists them. */
 export type ProgrammeChoice = {
   roundId: string;
   programmeId: string;
@@ -95,44 +101,82 @@ export type ProgrammeChoice = {
   name: string;
   /** "Autumn 2026" */
   formName: string;
+  kind: "fellowship" | "incubator";
   /** Why it cannot have one yet, or "" when it can. */
   blocked: string;
 };
 
 const NO_RUN = "Name the programme’s course run in its Settings first, so the survey knows when the programme ends.";
 const NOT_SENT = "Decisions haven’t been sent yet, so nobody holds a place.";
-const HAS_ONE = "It has its before survey already.";
+const HAS_ONE: Record<SurveyStage, string> = {
+  before: "It has its before survey already.",
+  after: "It has its survey at the end already.",
+  followUp6: "It has its six-month follow-up already.",
+  followUp12: "It has its follow-up a year on already.",
+};
+const NO_BEFORE = "Its before survey asks who may be contacted for follow-ups, and it hasn’t been sent.";
 
 function programmeNameOf(form: ApplicationForm, programmeId: string): string {
   const programme = own(form.programmes, programmeId);
   return programme ? programme.shortName.trim() || programme.name.trim() : "";
 }
 
-/** Every programme on a form, with whether a before survey can be made for it now. */
-export async function listProgrammeChoices(db: Firestore, surveys: readonly SurveyDoc[]): Promise<ProgrammeChoice[]> {
+/** The surveys already made for one programme, by stage. */
+function surveysOf(surveys: readonly SurveyDoc[], roundId: string, programmeId: string): Map<SurveyStage, SurveyDoc> {
+  const out = new Map<SurveyStage, SurveyDoc>();
+  for (const survey of surveys) {
+    if (survey.audience.roundId === roundId && survey.audience.programmeId === programmeId && !out.has(survey.kind)) out.set(survey.kind, survey);
+  }
+  return out;
+}
+
+/** The survey a new one of `stage` pairs with: the nearest earlier stage the programme has. */
+function pairFor(stage: SurveyStage, made: Map<SurveyStage, SurveyDoc>): SurveyDoc | null {
+  const earlier = SURVEY_STAGES.slice(0, SURVEY_STAGES.indexOf(stage)).reverse();
+  for (const each of earlier) {
+    const survey = made.get(each);
+    if (survey) return survey;
+  }
+  return null;
+}
+
+/** Why a programme cannot have a survey of `stage` yet, or "". */
+function blockedFor(stage: SurveyStage, form: ApplicationForm, runId: string | null, made: Map<SurveyStage, SurveyDoc>): string {
+  if (made.has(stage)) return HAS_ONE[stage];
+  if (stage === "before" || stage === "after") {
+    if (form.decisionsSentAt === null) return NOT_SENT;
+    if (runId === null) return NO_RUN;
+    return "";
+  }
+  const before = made.get("before");
+  if (!before || !before.firstSentAt) return NO_BEFORE;
+  return "";
+}
+
+/** Every programme on a form, with whether a survey of `stage` can be made for it now. */
+export async function listProgrammeChoices(db: Firestore, surveys: readonly SurveyDoc[], stage: SurveyStage = "before"): Promise<ProgrammeChoice[]> {
   const forms = await listForms(db);
   const out: ProgrammeChoice[] = [];
   for (const form of forms) {
     for (const programmeId of form.programmeIds) {
       const programme = own(form.programmes, programmeId);
       if (!programme) continue;
-      const hasOne = surveys.some(
-        (survey) => survey.kind === "before" && survey.audience.roundId === form.round.id && survey.audience.programmeId === programmeId,
-      );
+      const made = surveysOf(surveys, form.round.id, programmeId);
       out.push({
         roundId: form.round.id,
         programmeId,
         name: programmeNameOf(form, programmeId),
         formName: form.round.label.trim() || "An application form",
-        blocked: hasOne ? HAS_ONE : form.decisionsSentAt === null ? NOT_SENT : programme.runId === null ? NO_RUN : "",
+        kind: programme.kind,
+        blocked: blockedFor(stage, form, programme.runId, made),
       });
     }
   }
   return out.sort((a, b) => a.formName.localeCompare(b.formName, "en") || a.name.localeCompare(b.name, "en"));
 }
 
-/** Make the before survey for one programme. The route has held the caller to admin. */
-export async function createBeforeSurvey(
+/** Make one stage's survey for one programme. The route has held the caller to admin. */
+export async function createSurvey(
   db: Firestore,
   createdByUid: string,
   input: CreateInput,
@@ -141,35 +185,54 @@ export async function createBeforeSurvey(
   const form = await loadForm(db, input.roundId);
   const programme = form ? own(form.programmes, input.programmeId) : undefined;
   if (!form || !programme) return { ok: false, status: 404, error: "That programme isn’t on a form any more." };
-  if (form.decisionsSentAt === null) return { ok: false, status: 409, error: NOT_SENT };
-  if (programme.runId === null) return { ok: false, status: 409, error: NO_RUN };
 
   const existing = await db.collection(SURVEYS_COLLECTION).where("roundId", "==", input.roundId).get();
-  const hasOne = existing.docs.some((doc) => {
-    const survey = normalizeSurvey(doc.id, doc.data() ?? {});
-    return survey.kind === "before" && survey.audience.programmeId === input.programmeId;
-  });
-  if (hasOne) return { ok: false, status: 409, error: HAS_ONE };
+  const made = surveysOf(
+    existing.docs.map((doc) => normalizeSurvey(doc.id, doc.data() ?? {})),
+    input.roundId,
+    input.programmeId,
+  );
+  const blocked = blockedFor(input.stage, form, programme.runId, made);
+  if (blocked) return { ok: false, status: 409, error: blocked };
 
-  const namesOffOn = await namesOffDayFor(db, programme.runId, now);
+  const pair = pairFor(input.stage, made);
+  const before = made.get("before") ?? null;
+  const followUp = input.stage === "followUp6" || input.stage === "followUp12";
+  // A follow-up keeps its before survey's run, so its names come off the same day.
+  const runId = followUp ? (before?.runId ?? null) : programme.runId;
+  if (!runId) return { ok: false, status: 409, error: NO_RUN };
+
+  const strand = programme.kind === "incubator" && stageAsksStrand(input.stage) ? (input.strand ?? pair?.strand ?? null) : null;
+  if (programme.kind === "incubator" && stageAsksStrand(input.stage) && strand === null) {
+    return { ok: false, status: 400, error: REFUSAL.strand };
+  }
+
+  const namesOffOn = await namesOffDayFor(db, runId, now);
   if (!namesOffOn) return { ok: false, status: 409, error: REFUSAL.noNamesOff };
 
   const name = programmeNameOf(form, input.programmeId);
-  const items = beforeSurveyItems(input.lines);
+  const items = templateItems(input.stage, programme.kind, strand);
+  const minutes = TEMPLATE_MINUTES[input.stage];
+  const audience: SurveyAudience =
+    followUp && before
+      ? { kind: "followUps", roundId: input.roundId, programmeId: input.programmeId, consentFrom: before.id }
+      : { kind: "programme", roundId: input.roundId, programmeId: input.programmeId };
   const ref = db.collection(SURVEYS_COLLECTION).doc();
   await ref.set({
-    kind: "before",
+    kind: input.stage,
     privacy: "confidential",
-    name: beforeSurveyName(name),
-    title: BEFORE_TITLE,
-    intro: beforeIntro(surveyQuestionsOf(items).length, BEFORE_MINUTES),
+    name: surveyNameFor(name, input.stage),
+    title: STAGE_WORDS[input.stage].title,
+    intro: introFor(input.stage, surveyQuestionsOf(items).length, minutes),
     items,
-    minutes: BEFORE_MINUTES,
-    audience: { kind: "programme", roundId: input.roundId, programmeId: input.programmeId },
+    minutes,
+    audience,
     roundId: input.roundId,
     programmeName: name,
     programmeKind: programme.kind,
-    runId: programme.runId,
+    runId,
+    pairOf: pair?.id ?? null,
+    strand,
     closesAt: closesAtFor(input.closesOn),
     closedAt: null,
     namesOffOn,
@@ -183,6 +246,16 @@ export async function createBeforeSurvey(
     updatedAt: FieldValue.serverTimestamp(),
   });
   return { ok: true, id: ref.id };
+}
+
+/** Make a programme's before survey: the first stage. */
+export async function createBeforeSurvey(
+  db: Firestore,
+  createdByUid: string,
+  input: Omit<CreateInput, "stage" | "strand"> & { strand?: IncubatorStrand | null },
+  now: Date,
+): Promise<{ ok: true; id: string } | Refused> {
+  return createSurvey(db, createdByUid, { ...input, stage: "before", strand: input.strand ?? null }, now);
 }
 
 export type SaveInput = { title: string; intro: string; minutes: number; closesOn: string; items: SurveyItem[] };
@@ -234,6 +307,3 @@ export async function saveSurvey(db: Firestore, survey: SurveyDoc, input: SaveIn
     return { ok: true } as const;
   });
 }
-
-/** The template's line count, for the New survey form's boxes. */
-export { TEMPLATE_LINE_COUNT };

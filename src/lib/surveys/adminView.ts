@@ -12,6 +12,7 @@ import {
   SURVEY_FROM_NAME,
   SURVEY_REPLY_TO,
   answeredOf,
+  audienceKindOf,
   audienceWords,
   closesWords,
   dayAndClockWords,
@@ -28,6 +29,8 @@ import {
   remindedWords,
   sizeWords,
   testSentWords,
+  SEND_WORDS,
+  type AudienceKind,
   type SurveyEmailWords,
 } from "./words";
 
@@ -140,6 +143,8 @@ export type TestView = { fresh: boolean; line: string };
 
 export type SendView = {
   state: SurveyState;
+  /** Who it reaches: holding a place at the start, still holding one at the end, or said yes to follow-ups. */
+  audienceKind: AudienceKind;
   /** The form or its programme has gone: nothing can be sent. */
   gone: boolean;
   /** The site cannot write a link: nothing can be sent. */
@@ -151,9 +156,10 @@ export type SendView = {
   progress: string;
   share: number;
   /** `nobody` is the board's sentence for when nobody has joined since. */
-  joined: { emails: number; names: string[]; nobody: string } | null;
+  joined: { heading: string; emails: number; names: string[]; nobody: string } | null;
   remind: { lead: string; email: EmailPreview | null; test: TestView; emails: number } | null;
-  summary: { name: string; size: string; who: string; closes: string; namesOff: string };
+  /** `labelled`: whether answers are labelled by the person's first session, which only a before survey does. */
+  summary: { name: string; size: string; who: string; closes: string; namesOff: string; labelled: boolean };
 };
 
 function testView(fresh: "none" | "stale" | "fresh", at: Date | null, now: Date): TestView {
@@ -167,17 +173,20 @@ export async function sendView(db: Firestore, survey: SurveyDoc, presserUid: str
   const reminderWords = emailWordsFor(survey, "reminder", signer);
   const questions = surveyQuestionsOf(survey.items).length;
   const ends = closedOn(survey);
+  const audienceKind = audienceKindOf(survey.audience, survey.kind);
   const summary = {
     name: survey.name,
     size: sizeWords(questions, survey.minutes),
-    who: audienceWords(survey.programmeName, plan.holders.length),
+    who: audienceWords(survey.programmeName, plan.holders.length, audienceKind),
     closes: survey.closesAt ? deadlineWords(survey.closesAt) : "",
     namesOff: survey.namesOffOn ? namesOffWords(survey.namesOffOn) : "",
+    labelled: survey.kind === "before",
   };
 
   if (state === "draft") {
     return {
       state,
+      audienceKind,
       gone: plan.gone,
       noAddress: !siteAddress(),
       first: {
@@ -206,11 +215,11 @@ export async function sendView(db: Firestore, survey: SurveyDoc, presserUid: str
   const log = survey.presses.map((press) => {
     const at = press.at ? dayAndClockWords(press.at) : "";
     if (press.kind === "first") {
-      return { at, line: firstSentWords(press.count), email: surveyWords ? preview(surveyWords, press.count, press.at) : null };
+      return { at, line: firstSentWords(press.count, audienceKind), email: surveyWords ? preview(surveyWords, press.count, press.at) : null };
     }
     if (press.kind === "joined") {
       const pressNames = (joinedNames.get(press.id) ?? []).filter(Boolean).sort((a, b) => a.localeCompare(b, "en"));
-      return { at, line: joinedSentWords(pressNames, press.count), email: null };
+      return { at, line: joinedSentWords(pressNames, press.count, audienceKind), email: null };
     }
     return { at, line: remindedWords(press.count), email: null };
   });
@@ -220,6 +229,7 @@ export async function sendView(db: Firestore, survey: SurveyDoc, presserUid: str
   const open = state === "open";
   return {
     state,
+    audienceKind,
     gone: plan.gone,
     noAddress: !siteAddress(),
     first: null,
@@ -228,9 +238,10 @@ export async function sendView(db: Firestore, survey: SurveyDoc, presserUid: str
     share: plan.sent > 0 ? plan.answered / plan.sent : 0,
     joined: open
       ? {
+          heading: audienceKind === "followUps" ? SEND_WORDS.saidYesSince : SEND_WORDS.joinedSince,
           emails: plan.owed.length,
           names: plan.owed.map((holder) => ownedNames.get(holder.uid) ?? holder.name),
-          nobody: nobodyNewWords(lastSent),
+          nobody: nobodyNewWords(lastSent, audienceKind),
         }
       : null,
     remind: open

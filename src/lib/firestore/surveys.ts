@@ -1,4 +1,5 @@
 import { CONSENT_PURPOSES, sanitizeSurveyItems, type SurveyAnswer, type SurveyConsents, type SurveyItem } from "@/lib/surveys/items";
+import { INCUBATOR_STRANDS, SURVEY_STAGES, type IncubatorStrand, type SurveyStage } from "@/lib/surveys/templates";
 
 /**
  * SURVEYS: three server-only collections, the shapes their readers share.
@@ -35,18 +36,26 @@ export const SURVEYS_COLLECTION = "surveys";
 export const SURVEY_PEOPLE_COLLECTION = "surveyPeople";
 export const SURVEY_ANSWERS_COLLECTION = "surveyAnswers";
 
-/** The one kind built: the before survey of a pair. The after survey comes later. */
-export type SurveyKind = "before";
+/**
+ * Which of a programme's surveys this is: before it, at its end, or a
+ * follow-up 6 or 12 months on. Each pairs with the one before it.
+ */
+export type SurveyKind = SurveyStage;
 
 /** Confidential is the only setting: no survey on the site is anonymous. */
 export type SurveyPrivacy = "confidential";
 
 /**
- * Who a survey is for. Today: everybody holding a place on one programme of
- * an application form. Later kinds sit beside it (everybody still on the
- * programme at its end, people leaving, an event's sign-ups or who came).
+ * Who a survey is for. `programme`: everybody holding a place on one
+ * programme of an application form when it is sent, which before a programme
+ * is everybody starting and at its end everybody still on it. `followUps`:
+ * everybody whose row on the programme's before survey (`consentFrom`) says
+ * yes to being contacted at 6 and 12 months, now. Later kinds sit beside them
+ * (people leaving, an event's sign-ups or who came).
  */
-export type SurveyAudience = { kind: "programme"; roundId: string; programmeId: string };
+export type SurveyAudience =
+  | { kind: "programme"; roundId: string; programmeId: string }
+  | { kind: "followUps"; roundId: string; programmeId: string; consentFrom: string };
 
 /** A person a survey is for, or who answered it. An account today. */
 export type SurveyRespondent = { kind: "account"; uid: string };
@@ -94,11 +103,19 @@ export type SurveyDoc = {
   programmeKind: SurveyProgrammeKind;
   /** The course run the programme named when the survey was made. */
   runId: string;
+  /**
+   * The survey of the stage before this one, for the same programme, when
+   * this one was made: the after survey pairs with the before, a follow-up
+   * with the after (or the before). Answers compare by person along the pairs.
+   */
+  pairOf: string | null;
+  /** An incubator's research strand, for the first line of its skills question; null for a fellowship. */
+  strand: IncubatorStrand | null;
   /** It refuses answers from this moment: 23:59 in London on the day an admin picked. */
   closesAt: Date | null;
   /** Closed early, by hand. */
   closedAt: Date | null;
-  /** "YYYY-MM-DD", a year after the run's last session; null while that cannot be dated. */
+  /** "YYYY-MM-DD", when names come off; null while the run's last session cannot be dated. */
   namesOffOn: string | null;
   /** When names came off. */
   namesOffAt: Date | null;
@@ -206,6 +223,9 @@ function readRespondent(raw: unknown): SurveyRespondent | null {
 
 function readAudience(raw: unknown): SurveyAudience {
   const r = (raw ?? {}) as Raw;
+  if (r.kind === "followUps" && typeof r.consentFrom === "string" && r.consentFrom) {
+    return { kind: "followUps", roundId: str(r.roundId), programmeId: str(r.programmeId), consentFrom: r.consentFrom };
+  }
   return { kind: "programme", roundId: str(r.roundId), programmeId: str(r.programmeId) };
 }
 
@@ -243,7 +263,7 @@ export function normalizeSurvey(id: string, data: Raw): SurveyDoc {
   const minutes = count(data.minutes);
   return {
     id,
-    kind: "before",
+    kind: SURVEY_STAGES.includes(data.kind as SurveyKind) ? (data.kind as SurveyKind) : "before",
     privacy: "confidential",
     name: str(data.name),
     title: str(data.title),
@@ -254,6 +274,8 @@ export function normalizeSurvey(id: string, data: Raw): SurveyDoc {
     programmeName: str(data.programmeName),
     programmeKind: data.programmeKind === "incubator" ? "incubator" : "fellowship",
     runId: str(data.runId),
+    pairOf: typeof data.pairOf === "string" && data.pairOf ? data.pairOf : null,
+    strand: INCUBATOR_STRANDS.includes(data.strand as IncubatorStrand) ? (data.strand as IncubatorStrand) : null,
     closesAt: tsToDate(data.closesAt),
     closedAt: tsToDate(data.closedAt),
     namesOffOn: typeof data.namesOffOn === "string" && DATE_KEY.test(data.namesOffOn) ? data.namesOffOn : null,

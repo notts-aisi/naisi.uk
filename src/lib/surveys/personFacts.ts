@@ -78,7 +78,7 @@ async function firstNamesOf(db: Firestore, uids: readonly string[]): Promise<str
  */
 export async function confidentialFactsFor(
   db: Firestore,
-  survey: Pick<SurveyDoc, "runId" | "namesOffOn" | "programmeKind">,
+  survey: Pick<SurveyDoc, "runId" | "namesOffOn" | "programmeKind"> & Partial<Pick<SurveyDoc, "kind">>,
   uid: string | null,
 ): Promise<ConfidentialFacts> {
   const [lead, told] = await Promise.all([
@@ -91,6 +91,7 @@ export async function confidentialFactsFor(
     facilitatorNames = await firstNamesOf(db, others);
   }
   return {
+    stage: survey.kind ?? "before",
     leadName: lead?.firstName || null,
     facilitatorNames,
     namesOffOn: survey.namesOffOn ?? "",

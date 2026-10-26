@@ -1,7 +1,8 @@
 /**
- * The before survey's world: AGI Strategy on Thu 29 Oct 2026, week 1, the
- * morning the survey goes out, for the suites about a programme survey
- * (docs/surveys.md).
+ * The programme surveys' world: AGI Strategy on Thu 29 Oct 2026, week 1, the
+ * morning the before survey goes out, for the suites about a programme's
+ * surveys (docs/surveys.md). A suite moves the clock on for the survey at the
+ * end and the follow-ups.
  *
  * Built on `tests/lib/leadWorld.mjs`: the term's form after decision day,
  * AGI Strategy naming its run with Claudia as its lead, the run's six weeks
@@ -48,14 +49,6 @@ const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "src");
 export const NOW = new Date("2026-10-29T09:00:00Z");
 /** When Publish told people their groups. */
 export const TOLD = new Date("2026-10-28T18:00:00Z");
-/** The five lines of question 4, as AGI Strategy types them. */
-export const LINES = [
-  "How fast AI is improving, and why",
-  "How advanced AI could go wrong",
-  "What’s being done to make it go well",
-  "The race between labs and countries, and the plans to handle it",
-  "What you could do about it yourself",
-];
 /** The day the survey closes. */
 export const CLOSES_ON = "2026-11-04";
 
@@ -151,9 +144,12 @@ export async function makeSurveyWorld(key = "__surveys") {
     exportCsv: await route("[surveyId]", "export"),
     answerSignedIn: await route("[surveyId]", "answer"),
     answerByLink: await route("answer"),
+    consentSignedIn: await route("[surveyId]", "consent"),
+    consentByLink: await route("consent"),
   };
   const pages = {
     link: (await loadTs(join("app", "survey", "[token]", "page.tsx"))).default,
+    newSurvey: (await loadTs(join("app", "(app)", "admin", "(admin-only)", "surveys", "new", "page.tsx"))).default,
     signedIn: (await loadTs(join("app", "(app)", "learn", "[runId]", "survey", "[surveyId]", "page.tsx"))).default,
     list: (await loadTs(join("app", "(app)", "admin", "(admin-only)", "surveys", "page.tsx"))).default,
     send: (await loadTs(join("app", "(app)", "admin", "(admin-only)", "surveys", "[surveyId]", "send", "page.tsx"))).default,
@@ -163,6 +159,7 @@ export async function makeSurveyWorld(key = "__surveys") {
   };
   const lib = {
     items: await loadTs(join("lib", "surveys", "items.ts")),
+    templates: await loadTs(join("lib", "surveys", "templates.ts")),
     words: await loadTs(join("lib", "surveys", "words.ts")),
     namesOff: await loadTs(join("lib", "surveys", "namesOff.ts")),
     records: await loadTs(join("lib", "firestore", "surveys.ts")),
@@ -193,10 +190,10 @@ export async function makeSurveyWorld(key = "__surveys") {
       .filter((row) => row.surveyId === id);
   const tokenOf = (id, uid) => people(id).find((row) => row.respondent?.uid === uid)?.token ?? null;
 
-  /** An admin makes AGI Strategy's before survey; answers its id. */
+  /** An admin makes one of AGI Strategy's surveys, its before survey unless `body.stage` says; answers its id. */
   async function make(who = "zach", body = {}) {
     return call(who, routes.create.POST, {}, {
-      body: { roundId: ROUND, programmeId: AGI, lines: LINES, closesOn: CLOSES_ON, ...body },
+      body: { roundId: ROUND, programmeId: AGI, stage: "before", closesOn: CLOSES_ON, ...body },
     });
   }
 

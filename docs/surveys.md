@@ -1,12 +1,13 @@
 # Surveys
 
 A survey is questions an admin sends to find out how something went or what
-people think. This file is the contract for the first one built, **the before
-survey** of a programme: a confidential survey an admin sends to everybody
-holding a place, by hand, with a personal link each, a test first, reminders by
-hand, results made on the server and a logged export with names. Every later
-survey (the after survey, the leaving survey, surveys after events) is built on
-these records and these rules.
+people think. This file is the contract for **a programme's surveys**, which
+ask the programme impact questionnaire (Zach, 26 Oct 2026): one before the
+programme, one at its end, and follow-ups 6 and 12 months on. Each is
+confidential, sent by an admin by hand with a personal link each, a test
+first, reminders by hand, results made on the server and a logged export
+with names. Every later survey (the leaving survey, surveys after events) is
+built on these records and these rules.
 
 The code: `src/lib/surveys/` (the library), `src/lib/firestore/surveys.ts` (the
 records), `src/app/api/surveys/` (the routes), `src/app/survey/[token]/` and
@@ -44,8 +45,8 @@ is a server page or route. The rules blocks are deny-all.
 
 | Collection | One per | Holds |
 | --- | --- | --- |
-| `surveys/{autoId}` | survey | its kind (`before`), privacy (`confidential`), the admins' name, the title and intro people see, its items, about how many minutes, its audience (`{ kind: "programme", roundId, programmeId }`), the programme's short name and kind as they were when it was made, the run the programme named, when it closes, when it was closed by hand, the day names come off and when they did, when it was first sent, a record of each press of a send button (kind, time, how many), the last test of each email (who, when, the wording's fingerprint), the secret of its test link |
-| `surveyPeople/{surveyId}__{uid}` | person a survey is for | the survey and form, the person (`respondent: { kind: "account", uid }`), the secret in their personal link, the press that sent it, when it was sent and what became of it, when they were last reminded and how often, whether they have answered |
+| `surveys/{autoId}` | survey | its stage (`before`, `after`, `followUp6`, `followUp12`), privacy (`confidential`), the admins' name, the title and intro people see, its items, about how many minutes, its audience (`{ kind: "programme", roundId, programmeId }`, or for a follow-up `{ kind: "followUps", roundId, programmeId, consentFrom }`), the programme's short name and kind as they were when it was made, the run the programme named, the survey it pairs with (`pairOf`), an incubator's strand, when it closes, when it was closed by hand, the day names come off and when they did, when it was first sent, a record of each press of a send button (kind, time, how many), the last test of each email (who, when, the wording's fingerprint), the secret of its test link |
+| `surveyPeople/{surveyId}__{uid}` | person a survey is for | the survey and form, the person (`respondent: { kind: "account", uid }`), the secret in their personal link, the press that sent it, when it was sent and what became of it, when they were last reminded and how often, whether they have answered, and what their consent boxes say (`consents`, `consentsAt`) |
 | `surveyAnswers/{autoId}` | person who answered | the survey and form, the person (`respondent`, null once names come off), the answers, when "Send my answers" was pressed (day and time), how (`link` or `signed-in`), and whether their group had met for the first time by then |
 
 **The person is a map**, `respondent: { kind: "account", uid }`, found by one
@@ -55,22 +56,71 @@ names come off by setting the whole map to null.
 
 **Every query is one equality on one field** (`surveyId`, `token`, `testToken`,
 `roundId`, `respondent.uid`) or a read of the whole `surveys` collection, a
-handful a term, sorted in memory. Nothing needs a declared index.
+handful a term, sorted in memory. Nothing needs a declared index. A person's
+own earlier answer (Q3's) is one equality on `respondent.uid`, filtered to the
+survey in memory.
 
 **A link's secret** is 32 random bytes, base64url, minted the way
 `calendarLinks` mints one (`mintSurveyToken`). It is the person's own: the
 answer route takes it as its credential, it is never logged, and the answer page
 sends no referrer.
 
-## The before survey's questions
+## The questionnaire's templates
 
-`beforeSurveyItems` in `src/lib/surveys/items.ts` writes the six change questions
-as sv-before-phone draws them, word for word, on three pages: what you think
-about AI (three choices), what you could explain (one numbered question, "1 to 5
-for each line", its five lines typed per programme when the survey is made), and
-your plans (a choice and a pick-any). Their ids are fixed strings
-(`CHANGE_QUESTION_IDS`), the same in every programme's survey, so answers pair by
-person and compare across programmes; the after survey will copy them.
+`templateItems(stage, kind, strand)` in `src/lib/surveys/templates.ts` writes
+each stage's questions word for word from the questionnaire, a page per
+section:
+
+| Stage | Questions | About |
+| --- | --- | --- |
+| Before the programme (`before`) | P3 (level and subject, offered from the profile), P4, P5, C1 to C9, P6, and P7's consent | 5 minutes; 14 questions, 17 for an incubator |
+| At the end (`after`) | C1 to C9 again (C9 "since the programme started"), T1 to T3 looking back, A1 to A5, Q1 to Q3, N1 to N3 | 10 minutes; 23 questions, 32 for an incubator |
+| Six months on, a year on (`followUp6`, `followUp12`) | F1 to F4, F5 (C1 and C2 again), F6 (A2 and A4 again), F7; F2 scored as FTE | 3 minutes; 11 questions |
+
+An incubator adds I1 (before), I2 and I3 (before and at the end, with I2 looked
+back on at the end) and I4 to I7 (at the end). I2's first line is worded for
+the incubator's research (`strand`: alignment or governance), picked when its
+survey is made; its survey at the end takes its before survey's.
+
+P1 (the email registered with) and P2 (the programme) are not asked: the site
+knows both. The questionnaire's second opt-in, sharing with Kairos, is not
+built; its box goes in P7's consent block, after the follow-ups box.
+
+**The ids are the pairing.** A question asked at more than one stage has the
+same id, type and option ids at every stage and in every programme (C1 is
+`q_c1` before, at the end and in each follow-up), so answers pair by person
+and compare across programmes. Change a question's words freely, never its id.
+
+## Stages and pairs
+
+New survey offers a card per stage. Each programme has at most one survey of
+each stage, and each pairs with the nearest earlier one it has (`pairOf`,
+fixed when it is made): the end with the before, six months on with the end
+(or the before), a year on with six months on. Results compare a question
+with the earliest survey of the pair chain that asks it.
+
+| Stage | Who it goes to | Can be made |
+| --- | --- | --- |
+| Before, at the end | everybody holding a place when it is sent (`programme`): at the start everybody starting, at the end everybody still on it, finished or not | once decisions are sent and the programme names its run |
+| The follow-ups | everybody whose row on the programme's before survey says yes to follow-ups now (`followUps`, `consentFrom`) | once the before survey has been sent |
+
+The eyebrow beside the programme says "Week 1" before, the run's last week at
+the end, and nothing on a follow-up. Q3 at the end shows each person their own
+answer to P6, read for them alone ("At the start you said: ..."); a test link
+shows where it would go and nobody's words.
+
+## Follow-ups and changing a consent
+
+P7's box, "Contact me at 6 and 12 months", starts unticked. What the person
+says is kept on their row on the before survey (`consents.followUps`, with
+`consentsAt`), not in their answers, because it can change. They change it on
+their own survey's page, through their link (`POST /api/surveys/consent`) or
+signed in (`POST /api/surveys/[surveyId]/consent`): on the before survey once it
+can no longer be answered there (answered or closed), and on a follow-up at
+any time, where "Stop the follow-ups" changes the before survey's row. Each
+press of a follow-up's send or Remind reads the rows again, so the change
+holds from the next press. Nobody is emailed by a change, and nothing about it
+reaches the admins but the count on the send button.
 
 The items are **Worksheets' item model**, sanitised and validated by Worksheets'
 own functions, with the questions Worksheets lacks defined beside them in
@@ -111,10 +161,12 @@ The menu starts on that answer and says so; the person can change it. Nothing
 else of the profile is read.
 
 **Until the first send** an admin may change the words, the options, the lines,
-the order, the title, the intro, the minutes and the closing day. Questions are
-never added, taken out or retyped here (`sameQuestions`). **From the first send
-everything is fixed**: the email people got names the closing day, and the after
-survey has to ask the same questions.
+the scale's words, the line under a question, the consent's words, the order,
+the title, the intro, the minutes and the closing day. Questions are never
+added, taken out or retyped here (`sameQuestions`), and an answer that counts
+as a number is reworded, never added or taken out. **From the first send
+everything is fixed**: the email people got names the closing day, and the
+later stages have to ask the same questions.
 
 The day names come off is worked out from records, a year after the run's last
 session (`namesOffDayFor`, through `runEndOf`), each time the survey is saved or
@@ -225,10 +277,11 @@ it is refused when that record cannot be written.
 
 ## Not built yet
 
-The cards on Home, My programmes and week 1; the after survey and the change
-view; the leaving survey; event surveys, check-in, walk-ins and QR codes;
-results for a programme's lead; one person's answers page; reports; public
-numbers; this term in numbers. The model is built so none of them needs a
+The cards on Home, My programmes and week 1; the leaving survey; event
+surveys, check-in, walk-ins and QR codes; results for a programme's lead; one
+person's answers page; the questionnaire's facilitator and mentor ratings, its
+Kairos sharing and the Kairos report, and its separate anonymous keep, change
+and drop form; public numbers; this term in numbers. The model is built so none of them needs a
 rewrite: another `audience.kind`, another `respondent.kind`, the same records.
 
 ## The guards

@@ -4,41 +4,53 @@ import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
 import Button from "@/components/ui/Button";
 import Chip from "@/components/ui/Chip";
+import OptionRow from "@/components/ui/OptionRow";
 import Select from "@/components/ui/Select";
 import { Input } from "@/components/ui/Input";
 import { useHydrated } from "@/hooks/useHydrated";
 import styles from "./surveyAdmin.module.css";
 
-/** A programme the form can make a before survey for, as the page lists them. */
+/** A programme a survey of one stage can be made for, as the page lists them. */
 export type ProgrammeOption = {
   roundId: string;
   programmeId: string;
   name: string;
   formName: string;
+  kind: "fellowship" | "incubator";
   /** Why it cannot have one yet, or "" when it can. */
   blocked: string;
 };
 
+/** One way an incubator's skills question can start. */
+export type StrandOption = { value: string; words: string };
+
 /**
- * New survey (sv-new), from the one template built: the before survey of a
- * programme. An admin picks the programme, types the lines of question 4
- * (what people could explain, one line a week) and the day it closes; the
- * rest is the template's, and every word can be changed on the next page
- * until it is sent.
+ * New survey (sv-new), one card per template: a programme's survey before
+ * it, at its end, and the follow-ups 6 and 12 months on. An admin picks the
+ * programme and the day it closes, and for an incubator which research it
+ * does; the rest is the template's, and every word can be changed on the next
+ * page until it is sent.
  *
  * Uncontrolled boxes read when the form is sent, and the button is disabled
  * until the page's script has arrived, so nothing typed early is lost.
  */
 export default function NewSurveyForm({
-  programmes,
-  lineCount,
+  stage,
+  heading,
+  line,
   size,
+  programmes,
+  strands,
   today,
 }: {
-  programmes: ProgrammeOption[];
-  lineCount: number;
-  /** "6 questions · about 3 minutes", the template's. */
+  stage: string;
+  heading: string;
+  line: string;
+  /** "14 questions · about 5 minutes", the template's. */
   size: string;
+  programmes: ProgrammeOption[];
+  /** The incubator wordings, offered when an incubator is on the list; empty otherwise. */
+  strands: StrandOption[];
   /** "YYYY-MM-DD" in London: the earliest closing day. */
   today: string;
 }) {
@@ -49,20 +61,26 @@ export default function NewSurveyForm({
   const [error, setError] = useState("");
   const open = programmes.filter((programme) => !programme.blocked);
   const blocked = programmes.filter((programme) => programme.blocked);
+  const offersStrand = strands.length > 0 && open.some((programme) => programme.kind === "incubator");
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
     const data = new FormData(event.currentTarget);
     const [roundId = "", programmeId = ""] = String(data.get("programme") ?? "").split("|");
-    const lines = Array.from({ length: lineCount }, (_, i) => String(data.get(`line${i}`) ?? ""));
     setBusy(true);
     setError("");
     try {
       const response = await fetch("/api/surveys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roundId, programmeId, lines, closesOn: String(data.get("closesOn") ?? "") }),
+        body: JSON.stringify({
+          roundId,
+          programmeId,
+          stage,
+          closesOn: String(data.get("closesOn") ?? ""),
+          strand: String(data.get("strand") ?? "") || null,
+        }),
       });
       const result = (await response.json().catch(() => ({}))) as { error?: string; survey?: { id?: string } };
       if (!response.ok || !result.survey?.id) {
@@ -81,17 +99,17 @@ export default function NewSurveyForm({
     <section className={`${styles.card} ${styles.template}`} aria-labelledby={`${id}-title`}>
       <div className={styles.templateHead}>
         <h2 id={`${id}-title`} className={styles.templateTitle}>
-          The before survey
+          {heading}
         </h2>
         <Chip tone="accent" size="sm">
           Confidential
         </Chip>
       </div>
       <p className={styles.muted}>
-        {size}. Beliefs about AI, confidence and knowledge, career plans, asked in week 1 and again at the end.
+        {size}. {line}
       </p>
       {open.length === 0 ? (
-        <p className={styles.lead}>No programme can have a before survey yet.</p>
+        <p className={styles.lead}>No programme can have this survey yet.</p>
       ) : (
         <form className={styles.section} onSubmit={onSubmit} noValidate>
           <div className={styles.field}>
@@ -106,15 +124,19 @@ export default function NewSurveyForm({
               ))}
             </Select>
           </div>
-          <fieldset className={`${styles.field} ${styles.plainFieldset}`}>
-            <legend className={styles.label}>Question 4: How confident would you be explaining these to a friend?</legend>
-            <p className={styles.muted}>One line for each week from 2 to 6, in the programme’s own words.</p>
-            <div className={styles.editRows}>
-              {Array.from({ length: lineCount }, (_, i) => (
-                <Input key={i} name={`line${i}`} aria-label={`Line ${i + 1}`} maxLength={120} required />
-              ))}
-            </div>
-          </fieldset>
+          {offersStrand && (
+            <fieldset className={`${styles.field} ${styles.plainFieldset}`}>
+              <legend className={styles.label}>For an incubator: the first line of its skills question</legend>
+              <p className={styles.muted}>A fellowship doesn’t ask it. Left blank, an incubator’s survey at the end takes its before survey’s.</p>
+              <div className={styles.editRows}>
+                {strands.map((strand) => (
+                  <OptionRow key={strand.value} type="radio" name="strand" value={strand.value}>
+                    {strand.words}
+                  </OptionRow>
+                ))}
+              </div>
+            </fieldset>
+          )}
           <div className={styles.field}>
             <label className={styles.label} htmlFor={`${id}-closes`}>
               It closes on

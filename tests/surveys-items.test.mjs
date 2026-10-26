@@ -1,10 +1,11 @@
 /**
  * A SURVEY'S QUESTIONS, WORDS AND TOTALS, as pure functions (docs/surveys.md):
- * the before survey's template word for word as sv-before-phone draws it, the
- * item model on Worksheets' parts with the one question Worksheets lacks,
- * the answers a route accepts, the totals and the spreadsheet, the
- * confidential box for every kind of person, the two emails word for word,
- * and the day names come off.
+ * the programme impact questionnaire's templates word for word (before a
+ * programme, at its end, the follow-ups at 6 and 12 months, and an
+ * incubator's additions), the stages pairing by id, the item model on
+ * Worksheets' parts with the questions Worksheets lacks, the answers a route
+ * accepts, the totals and the spreadsheet, the confidential box for every
+ * kind of person, the two emails word for word, and the day names come off.
  *
  * Run with `npm test`. No database, no browser.
  */
@@ -21,90 +22,461 @@ const { loadTs } = createLoader({
 });
 
 const items = await loadTs(join("lib", "surveys", "items.ts"));
+const templates = await loadTs(join("lib", "surveys", "templates.ts"));
 const words = await loadTs(join("lib", "surveys", "words.ts"));
 const { surveyResults } = await loadTs(join("lib", "surveys", "results.ts"));
 const { surveyExportTable, exportFilename, NAME_TAKEN_OFF } = await loadTs(join("lib", "surveys", "exportTable.ts"));
 const { aYearAfter, namesDueOff } = await loadTs(join("lib", "surveys", "namesOff.ts"));
 const records = await loadTs(join("lib", "firestore", "surveys.ts"));
 
-const LINES = [
-  "How fast AI is improving, and why",
-  "How advanced AI could go wrong",
-  "What’s being done to make it go well",
-  "The race between labs and countries, and the plans to handle it",
-  "What you could do about it yourself",
-];
-const TEMPLATE = items.beforeSurveyItems(LINES);
-const questions = items.surveyQuestionsOf(TEMPLATE);
-const labels = (id) => questions.find((question) => question.id === id).options.map((option) => option.label);
+const TEMPLATE = templates.templateItems("before", "fellowship", null);
+const AFTER = templates.templateItems("after", "fellowship", null);
+const FOLLOW_UP = templates.templateItems("followUp6", "fellowship", null);
+const INCUBATOR_BEFORE = templates.templateItems("before", "incubator", "governance");
+const INCUBATOR_AFTER = templates.templateItems("after", "incubator", "alignment");
+const questionsOf = (list) => items.surveyQuestionsOf(list);
+const questions = questionsOf(TEMPLATE);
+const question = (list, id) => questionsOf(list).find((each) => each.id === id);
+const labels = (list, id) => question(list, id).options.map((option) => option.label);
+/** Each page's heading and what is on it, by id. */
+const pagesOf = (list) =>
+  items.surveyPagesOf(list).map((page) => ({
+    heading: page.find((item) => item.kind === "section").heading,
+    ids: page.filter((item) => item.kind !== "section").map((item) => item.id),
+  }));
 
-describe("the before survey's template, as sv-before-phone draws it", () => {
-  test("six questions on three pages, under the three headings", () => {
-    assert.equal(questions.length, 6);
-    const pages = items.surveyPagesOf(TEMPLATE);
-    assert.equal(pages.length, 3);
-    assert.deepEqual(
-      pages.map((page) => page.find((item) => item.kind === "section").heading),
-      ["What you think about AI", "What you could explain", "Your plans"],
-    );
-    assert.deepEqual(
-      pages.map((page) => page.filter((item) => item.kind === "question").map((question) => question.id)),
-      [["q_catastrophe", "q_when", "q_important"], ["q_explain"], ["q_where", "q_next12"]],
-    );
-    assert.deepEqual(questions.map((question) => question.id), [...items.CHANGE_QUESTION_IDS]);
+const STAGES = [
+  "Haven’t really thought about working on AI safety",
+  "Thought about it, not a serious option",
+  "One of several options I’m seriously considering",
+  "My leading plan, no concrete steps yet",
+  "Taking concrete steps (applying, upskilling, choosing modules or a dissertation)",
+  "Already doing AI safety work, paid or unpaid",
+];
+const AGREE = ["Strongly disagree", "Disagree", "Neither agree nor disagree", "Agree", "Strongly agree"];
+const C9_WORDS = [
+  "Applied to an AI safety programme or job",
+  "Attended an AI safety event outside NAISI",
+  "Had a 1:1 with someone in the field",
+  "Written something on AI safety",
+  "Chosen a module, project or dissertation on it",
+  "Started your own project",
+  "None of these",
+];
+
+describe("the before survey, word for word (the questionnaire's P3 to P7 and C1 to C9)", () => {
+  test("14 questions and the consent, on five pages under their headings", () => {
+    assert.deepEqual(pagesOf(TEMPLATE), [
+      { heading: "About you", ids: ["q_p3_level", "q_p3_subject", "q_p4", "q_p5"] },
+      { heading: "Where you are now", ids: ["q_c1", "q_c2", "q_c3"] },
+      { heading: "What you know, and who", ids: ["q_c4", "q_c5", "q_c6", "q_c7"] },
+      { heading: "What you’ve done", ids: ["q_c8", "q_c9"] },
+      { heading: "To finish", ids: ["q_p6", "c_p7"] },
+    ]);
+    assert.equal(questions.length, 14);
   });
 
-  test("each question's words and options, exactly", () => {
+  test("P3 to P6: each question's words and answers, exactly", () => {
     assert.deepEqual(
-      questions.map((question) => question.title),
+      ["q_p3_level", "q_p3_subject", "q_p4", "q_p5", "q_p6"].map((id) => question(TEMPLATE, id).title),
       [
-        "How likely is it that advanced AI causes a catastrophe for humanity this century?",
-        "When do you think AI will be able to do most work done at a computer as well as a skilled person?",
-        "Making AI go well is one of the most important problems of our time.",
-        "How confident would you be explaining these to a friend?",
-        "Which is closest to where you are with working on making AI go well?",
-        "In the next 12 months, which of these might you do?",
+        "Level of study",
+        "Subject of study",
+        "Before this programme, which of these had you done?",
+        "How did you first hear about NAISI?",
+        "What do you most want to get out of this programme?",
       ],
     );
-    assert.deepEqual(labels("q_catastrophe"), ["Under 1%", "1 to 10%", "10 to 25%", "25 to 50%", "Over 50%", "Not sure"]);
-    assert.deepEqual(labels("q_when"), ["Before 2030", "2030 to 2035", "2036 to 2045", "After 2045", "Never", "Not sure"]);
-    assert.deepEqual(labels("q_important"), ["Strongly disagree", "Disagree", "Neither", "Agree", "Strongly agree"]);
-    assert.deepEqual(labels("q_where"), [
-      "It’s not something I’m considering",
-      "Curious, not sure yet",
-      "Considering it seriously",
-      "Planning to: applying or preparing",
-      "Already doing it: a job, research or study",
+    assert.deepEqual(labels(TEMPLATE, "q_p3_level"), [
+      "Undergraduate, first year",
+      "Undergraduate, second year",
+      "Undergraduate, third year",
+      "Undergraduate, fourth year or later",
+      "Master’s",
+      "PhD",
+      "Staff",
+      "Other",
     ]);
-    assert.deepEqual(labels("q_next12"), [
-      "Apply to a research programme or incubator",
-      "Do a research project on AI safety",
-      "Apply for a job or internship in AI safety or policy",
-      "Choose modules or a dissertation on it",
-      "Take another AI safety course",
-      "None of these yet",
+    assert.deepEqual(labels(TEMPLATE, "q_p3_subject"), ["Computer science", "Maths", "Physics or engineering", "Law", "Politics", "Philosophy", "Economics", "Other"]);
+    for (const id of ["q_p3_level", "q_p3_subject"]) {
+      assert.equal(question(TEMPLATE, id).look, "menu", `${id} is a menu`);
+    }
+    assert.equal(question(TEMPLATE, "q_p3_level").profile, "level", "P3 is offered from the profile where it holds it");
+    assert.equal(question(TEMPLATE, "q_p3_subject").profile, "subject");
+    assert.deepEqual(labels(TEMPLATE, "q_p4"), [
+      "BlueDot or similar course",
+      "Another AI safety group",
+      "AI safety books, LessWrong or 80,000 Hours",
+      "An AI safety talk or event",
+      "ML research or coursework",
+      "None of these",
     ]);
-    const explain = questions.find((question) => question.id === "q_explain");
-    assert.equal(explain.type, "lines");
-    assert.deepEqual(explain.lines.map((line) => line.label), LINES);
-    assert.deepEqual(explain.scale, { max: 5, minLabel: "Not at all", maxLabel: "Very" });
-    assert.equal(questions.find((question) => question.id === "q_important").look, "agree");
-    assert.equal(questions.find((question) => question.id === "q_next12").type, "multipleChoice");
+    assert.deepEqual(labels(TEMPLATE, "q_p5"), ["Freshers’ fair", "Intro talk", "Lecturer or module", "Friend", "Social media", "Newsletter", "Other"]);
+    assert.equal(question(TEMPLATE, "q_p4").type, "multipleChoice");
+    assert.equal(question(TEMPLATE, "q_p5").type, "multipleChoice");
+    assert.equal(question(TEMPLATE, "q_p6").type, "shortText", "P6 is one line");
   });
 
-  test("nothing is required, and the template is valid", () => {
-    assert.ok(questions.every((question) => question.required !== true));
+  test("C1 to C9: each question's words, kind and answers, exactly", () => {
+    const c1 = question(TEMPLATE, "q_c1");
+    assert.equal(c1.title, "Which best describes you right now?");
+    assert.deepEqual(labels(TEMPLATE, "q_c1"), STAGES);
+    assert.equal(c1.look, "points", "every point of C1 is described, with its number");
+    assert.deepEqual(c1.options.map((option) => c1.scores[option.id]), [0, 1, 2, 3, 4, 5]);
+    const c2 = question(TEMPLATE, "q_c2");
+    assert.deepEqual([c2.type, c2.title, c2.hint], [
+      "percent",
+      "How likely is it that in 5 years most of your working time goes on reducing risks from advanced AI?",
+      "Research, policy, engineering, operations and fieldbuilding all count.",
+    ]);
+    const c3 = question(TEMPLATE, "q_c3");
+    assert.equal(c3.title, "Which kinds of work interest you most?");
+    assert.equal(c3.maxPicks, 3, "up to 3");
+    assert.deepEqual(labels(TEMPLATE, "q_c3"), [
+      "Technical research",
+      "Engineering",
+      "Governance or policy",
+      "Strategy",
+      "Operations or generalist",
+      "Fieldbuilding or comms",
+      "Founding something",
+      "Not sure",
+    ]);
+    assert.deepEqual(question(TEMPLATE, "q_c4"), {
+      kind: "question",
+      id: "q_c4",
+      type: "scale",
+      title: "How well could you explain why some researchers think advanced AI could be catastrophically dangerous, and the main objections?",
+      min: 1,
+      max: 7,
+      anchors: [
+        { at: 1, label: "Not at all" },
+        { at: 4, label: "The gist, to a friend" },
+        { at: 7, label: "Could hold my own with a researcher" },
+      ],
+    });
+    assert.deepEqual(question(TEMPLATE, "q_c5"), {
+      kind: "question",
+      id: "q_c5",
+      type: "scale",
+      title: "How familiar are you with the main organisations, research agendas and policy debates in AI safety?",
+      min: 1,
+      max: 7,
+      anchors: [
+        { at: 1, label: "Couldn’t name any" },
+        { at: 4, label: "Could name a few and roughly what they do" },
+        { at: 7, label: "Could describe most major orgs’ agendas well enough that their staff would agree" },
+      ],
+    });
+    assert.deepEqual(question(TEMPLATE, "q_c6"), {
+      kind: "question",
+      id: "q_c6",
+      type: "number",
+      title: "How many people working in AI safety would you feel comfortable messaging for 30 minutes of advice?",
+      max: 1000,
+    });
+    const c7 = question(TEMPLATE, "q_c7");
+    assert.equal(c7.title, "How much do you agree?");
+    assert.deepEqual(c7.lines.map((line) => line.label), [
+      "I know what my next concrete step towards AI safety work would be.",
+      "I could make a meaningful contribution to AI safety.",
+    ]);
+    assert.deepEqual(c7.scale, { max: 5, minLabel: "Strongly disagree", maxLabel: "Strongly agree", points: AGREE });
+    assert.equal(question(TEMPLATE, "q_c8").title, "What, if anything, stands between you and contributing to AI safety?");
+    assert.deepEqual(labels(TEMPLATE, "q_c8"), [
+      "Not sure the risk is real",
+      "Don’t know what roles exist",
+      "Technical skills",
+      "Research experience",
+      "Credentials or publications",
+      "Contacts",
+      "Money, visa or location",
+      "Other priorities",
+      "Not sure I’d fit",
+      "Nothing major",
+    ]);
+    assert.deepEqual(question(TEMPLATE, "q_c8").noneIds, ["o_nothing"]);
+    assert.equal(question(TEMPLATE, "q_c9").title, "In the last 3 months, have you…");
+    assert.deepEqual(labels(TEMPLATE, "q_c9"), C9_WORDS);
+    assert.deepEqual(question(TEMPLATE, "q_c9").noneIds, ["o_none"]);
+  });
+
+  test("P7: the statement shown as text, one box for the follow-ups, unticked, and a place for the next", () => {
+    const consent = TEMPLATE.find((item) => item.kind === "consent");
+    assert.deepEqual(consent, {
+      kind: "consent",
+      id: "c_p7",
+      statement: "Anonymised results go to our funders: totals, never your name.",
+      boxes: [{ purpose: "followUps", label: "Contact me at 6 and 12 months with a short follow-up survey" }],
+    });
+    // Nothing in the item says ticked: a box starts unticked on the page.
+    assert.doesNotMatch(JSON.stringify(consent), /checked|default|given/);
+    assert.equal(TEMPLATE.at(-1), consent, "the consent closes the survey, where a second box can go beside it");
+  });
+
+  test("nothing is required, and it is valid", () => {
+    assert.ok(questions.every((each) => each.required !== true));
     assert.deepEqual(items.validateSurveyItems(TEMPLATE), []);
   });
+});
 
-  test("its ids are fixed, so every programme's answers compare and the after survey can repeat them", () => {
-    assert.deepEqual(items.beforeSurveyItems(["a", "b", "c", "d", "e"]).map((item) => item.id), TEMPLATE.map((item) => item.id));
+describe("the survey at the end, word for word (C1 to C9 again, T1 to T3, A1 to A5, Q1 to Q3, N1 to N3)", () => {
+  test("23 questions on seven pages under their headings", () => {
+    assert.deepEqual(pagesOf(AFTER), [
+      { heading: "Where you are now", ids: ["q_c1", "q_c2", "q_c3"] },
+      { heading: "What you know, and who", ids: ["q_c4", "q_c5", "q_c6", "q_c7"] },
+      { heading: "What you’ve done", ids: ["q_c8", "q_c9"] },
+      { heading: "Looking back", ids: ["q_t1", "q_t2", "q_t3"] },
+      { heading: "What the programme did", ids: ["q_a1", "q_a2", "q_a3", "q_a4", "q_a5"] },
+      { heading: "How it went", ids: ["q_q1", "q_q2", "q_q3"] },
+      { heading: "What’s next", ids: ["q_n1", "q_n2", "q_n3"] },
+    ]);
+    assert.deepEqual(items.validateSurveyItems(AFTER), []);
+    assert.equal(AFTER.some((item) => item.kind === "consent"), false, "the end asks no consent");
+  });
+
+  test("C1 to C8 in the same words as before; C9 since the programme started", () => {
+    for (const id of ["q_c1", "q_c2", "q_c3", "q_c4", "q_c5", "q_c6", "q_c7", "q_c8"]) {
+      assert.deepEqual(question(AFTER, id), question(TEMPLATE, id), `${id} changed between the stages`);
+    }
+    assert.equal(question(AFTER, "q_c9").title, "Since the programme started, have you…");
+    assert.deepEqual(question(AFTER, "q_c9").options, question(TEMPLATE, "q_c9").options);
+  });
+
+  test("T1 to T3 look back on C1, C4 and C5, on their scales", () => {
+    const t1 = question(AFTER, "q_t1");
+    assert.deepEqual([t1.title, t1.lookBackOf, t1.look], ["Looking back, which best described you before the programme?", "q_c1", "points"]);
+    assert.deepEqual(t1.options, question(TEMPLATE, "q_c1").options);
+    assert.deepEqual(t1.scores, question(TEMPLATE, "q_c1").scores);
+    const t2 = question(AFTER, "q_t2");
+    assert.deepEqual([t2.title, t2.lookBackOf], ["Looking back, how well could you have explained the risk argument before?", "q_c4"]);
+    assert.deepEqual(t2.anchors, question(TEMPLATE, "q_c4").anchors);
+    const t3 = question(AFTER, "q_t3");
+    assert.deepEqual([t3.title, t3.lookBackOf], ["Looking back, how familiar were you with the field before?", "q_c5"]);
+    assert.deepEqual(t3.anchors, question(TEMPLATE, "q_c5").anchors);
+  });
+
+  test("A1 to A5", () => {
+    assert.equal(question(AFTER, "q_a1").title, "How has the programme affected your career plans?");
+    assert.deepEqual(labels(AFTER, "q_a1"), ["No change", "Clarified but didn’t change", "Sped up plans I already had", "Moved me towards AI safety", "Moved me away from it"]);
+    const a2 = question(AFTER, "q_a2");
+    assert.deepEqual([a2.type, a2.title, a2.ends], [
+      "percent",
+      "Without this programme, how likely is it you’d be where you are now on AI safety, with the same plans and next steps?",
+      { min: "Definitely not", max: "Definitely anyway" },
+    ]);
+    assert.equal(question(AFTER, "q_a3").title, "Did it speed up anything you’d have done anyway?");
+    assert.deepEqual(labels(AFTER, "q_a3"), ["No", "Under 1 month", "1 to 6 months", "Over 6 months"]);
+    const a4 = question(AFTER, "q_a4");
+    assert.deepEqual([a4.title, a4.most], ["What else has shaped your current plans?", "Which of those mattered most?"]);
+    assert.deepEqual(labels(AFTER, "q_a4"), ["BlueDot", "80,000 Hours", "Other courses or groups", "Friends", "Lecturers", "AI news", "Other"]);
+    assert.deepEqual([question(AFTER, "q_a5").type, question(AFTER, "q_a5").title], ["longText", "Did the programme have any negative effect on you or your plans?"]);
+  });
+
+  test("Q1 to Q3: 0 to 10, the parts, and their own answer at the start shown above Q3", () => {
+    assert.deepEqual(question(AFTER, "q_q1"), {
+      kind: "question",
+      id: "q_q1",
+      type: "scale",
+      title: "How likely are you to recommend this programme to a friend with similar interests?",
+      min: 0,
+      max: 10,
+      anchors: [
+        { at: 0, label: "Not at all likely" },
+        { at: 10, label: "Extremely likely" },
+      ],
+    });
+    const q2 = question(AFTER, "q_q2");
+    assert.deepEqual([q2.title, q2.hint], ["How valuable was each part?", "Leave a part blank if you didn’t have it."]);
+    assert.deepEqual(q2.lines.map((line) => line.label), ["Sessions", "Readings", "Facilitator", "Other participants", "Speakers", "Socials", "1:1s"]);
+    assert.deepEqual(q2.scale, { max: 5, minLabel: "Not valuable", maxLabel: "Very valuable" });
+    const q3 = question(AFTER, "q_q3");
+    assert.deepEqual([q3.title, q3.min, q3.max, q3.pipe], ["Did you get what you wanted from it?", 1, 5, { from: "q_p6", words: "At the start you said:" }]);
+  });
+
+  test("N1 to N3", () => {
+    assert.equal(question(AFTER, "q_n1").title, "What are you planning next?");
+    assert.deepEqual(labels(AFTER, "q_n1"), [
+      "NAISI spring incubator",
+      "SPAR",
+      "MATS",
+      "ARENA",
+      "BlueDot advanced course",
+      "GCP workshop",
+      "Other fellowship (ERA, LASR, Pivotal)",
+      "EAG or EAGx",
+      "Own project",
+      "Dissertation topic",
+      "Nothing yet",
+    ]);
+    assert.equal(question(AFTER, "q_n2").title, "Would you like to facilitate or help organise NAISI next term?");
+    assert.deepEqual(labels(AFTER, "q_n2"), ["Yes", "Maybe", "No"]);
+    assert.equal(question(AFTER, "q_n3").title, "Would you like a 1:1 about next steps?");
+    assert.deepEqual(labels(AFTER, "q_n3"), ["Yes", "No"]);
+  });
+});
+
+describe("the follow-ups at 6 and 12 months, word for word (F1 to F7)", () => {
+  test("the same 11 questions at both, on three pages", () => {
+    assert.deepEqual(pagesOf(FOLLOW_UP), [
+      { heading: "What you’re doing now", ids: ["q_f1", "q_f1_where", "q_f2", "q_f3"] },
+      { heading: "Since the programme", ids: ["q_f4_applied", "q_f4_accepted", "q_c1", "q_c2"] },
+      { heading: "Looking back", ids: ["q_a2", "q_a4", "q_f7"] },
+    ]);
+    assert.deepEqual(templates.templateItems("followUp12", "fellowship", null), FOLLOW_UP);
+    assert.deepEqual(templates.templateItems("followUp6", "incubator", "alignment"), FOLLOW_UP, "an incubator's follow-ups are the same");
+    assert.deepEqual(items.validateSurveyItems(FOLLOW_UP), []);
+  });
+
+  test("F1 to F4 and F7", () => {
+    assert.equal(question(FOLLOW_UP, "q_f1").title, "What’s your main activity now?");
+    assert.deepEqual(labels(FOLLOW_UP, "q_f1"), ["Studying", "Employed", "Fellowship or programme", "Independent work", "Other"]);
+    assert.deepEqual([question(FOLLOW_UP, "q_f1_where").type, question(FOLLOW_UP, "q_f1_where").title], ["shortText", "The organisation or course"]);
+    assert.deepEqual([question(FOLLOW_UP, "q_f3").title, question(FOLLOW_UP, "q_f3").hint], ["What is that work?", "Your role, and the organisation or programme."]);
+    assert.equal(question(FOLLOW_UP, "q_f4_applied").title, "Since the programme, which programmes or jobs have you applied to?");
+    assert.equal(question(FOLLOW_UP, "q_f4_accepted").title, "Which of those accepted you?");
+    assert.equal(question(FOLLOW_UP, "q_f7").title, "Anything else that happened partly because of NAISI?");
+  });
+
+  test("F2 is scored as FTE: 0, 0.05, 0.3, 0.7 and 1", () => {
+    const f2 = question(FOLLOW_UP, "q_f2");
+    assert.equal(f2.title, "Roughly what share of your working time goes on AI safety?");
+    assert.deepEqual(labels(FOLLOW_UP, "q_f2"), ["None", "Under 10%", "10 to 50%", "50 to 90%", "Over 90%"]);
+    assert.deepEqual(f2.options.map((option) => f2.scores[option.id]), [0, 0.05, 0.3, 0.7, 1]);
+    assert.equal(f2.scoreUnit, "FTE");
+  });
+
+  test("F5 is C1 and C2 again, F6 is A2 and A4 again: the same questions", () => {
+    for (const id of ["q_c1", "q_c2"]) assert.deepEqual(question(FOLLOW_UP, id), question(TEMPLATE, id), id);
+    for (const id of ["q_a2", "q_a4"]) assert.deepEqual(question(FOLLOW_UP, id), question(AFTER, id), id);
+  });
+});
+
+describe("an incubator's additions (I1 to I7), each where the questionnaire puts it", () => {
+  test("before: I1 with the rest about the person, I2 and I3 on their own page", () => {
+    assert.deepEqual(pagesOf(INCUBATOR_BEFORE), [
+      { heading: "About you", ids: ["q_p3_level", "q_p3_subject", "q_p4", "q_p5", "q_i1"] },
+      { heading: "Where you are now", ids: ["q_c1", "q_c2", "q_c3"] },
+      { heading: "What you know, and who", ids: ["q_c4", "q_c5", "q_c6", "q_c7"] },
+      { heading: "Your research skills", ids: ["q_i2", "q_i3"] },
+      { heading: "What you’ve done", ids: ["q_c8", "q_c9"] },
+      { heading: "To finish", ids: ["q_p6", "c_p7"] },
+    ]);
+    assert.equal(question(INCUBATOR_BEFORE, "q_i1").title, "Research experience so far");
+    assert.deepEqual(labels(INCUBATOR_BEFORE, "q_i1"), ["None", "Coursework project", "Independent project", "Paper or report submitted or published"]);
+    assert.equal(question(INCUBATOR_BEFORE, "q_i3").title, "How many people could you approach to collaborate on an AI safety project?");
+    assert.deepEqual(items.validateSurveyItems(INCUBATOR_BEFORE), []);
+  });
+
+  test("I2: its first line is worded for each incubator; the rest are the same", () => {
+    const lines = (list) => question(list, "q_i2").lines.map((line) => line.label);
+    const rest = [
+      "I can scope a question answerable in a few weeks",
+      "I can tell a promising direction from a dead end",
+      "I could write results up well enough to post publicly",
+      "I know how to get feedback from researchers outside NAISI",
+    ];
+    assert.deepEqual(lines(INCUBATOR_BEFORE), ["I could write a policy-relevant research memo", ...rest]);
+    assert.deepEqual(lines(INCUBATOR_AFTER), ["I could reproduce the main result of an AI safety paper", ...rest]);
+    assert.deepEqual(question(INCUBATOR_BEFORE, "q_i2").scale.points, AGREE);
+    assert.deepEqual(
+      question(INCUBATOR_BEFORE, "q_i2").lines.map((line) => line.id),
+      question(INCUBATOR_AFTER, "q_i2").lines.map((line) => line.id),
+      "the strand changes the words, never the line ids",
+    );
+  });
+
+  test("at the end: I2 again with its look-back, I3 again, then the project page (I4 to I7)", () => {
+    assert.deepEqual(pagesOf(INCUBATOR_AFTER), [
+      { heading: "Where you are now", ids: ["q_c1", "q_c2", "q_c3"] },
+      { heading: "What you know, and who", ids: ["q_c4", "q_c5", "q_c6", "q_c7"] },
+      { heading: "Your research skills", ids: ["q_i2", "q_i3"] },
+      { heading: "What you’ve done", ids: ["q_c8", "q_c9"] },
+      { heading: "Looking back", ids: ["q_t1", "q_t2", "q_t3", "q_i2_back"] },
+      { heading: "Your project", ids: ["q_i4", "q_i4_links", "q_i4_when", "q_i5", "q_i6", "q_i7"] },
+      { heading: "What the programme did", ids: ["q_a1", "q_a2", "q_a3", "q_a4", "q_a5"] },
+      { heading: "How it went", ids: ["q_q1", "q_q2", "q_q3"] },
+      { heading: "What’s next", ids: ["q_n1", "q_n2", "q_n3"] },
+    ]);
+    const back = question(INCUBATOR_AFTER, "q_i2_back");
+    assert.deepEqual([back.title, back.lookBackOf], ["Looking back, how much would you have agreed before the incubator?", "q_i2"]);
+    assert.deepEqual(back.lines, question(INCUBATOR_AFTER, "q_i2").lines);
+    assert.equal(question(INCUBATOR_AFTER, "q_i4").title, "What did your team produce?");
+    assert.deepEqual(labels(INCUBATOR_AFTER, "q_i4"), [
+      "Replication completed",
+      "Extension or twist with results",
+      "Public code repo",
+      "Blog, LessWrong or Alignment Forum post",
+      "Policy brief or report",
+      "Workshop or conference submission",
+      "Talk at an event",
+      "Nothing finished yet",
+    ]);
+    assert.deepEqual([question(INCUBATOR_AFTER, "q_i4_links").title, question(INCUBATOR_AFTER, "q_i4_links").hint], ["Links to what your team produced", "One on each line."]);
+    assert.equal(question(INCUBATOR_AFTER, "q_i4_when").title, "If nothing is finished yet, when do you expect it to be?");
+    assert.equal(question(INCUBATOR_AFTER, "q_i5").title, "Without the incubator, would this output exist?");
+    assert.deepEqual(labels(INCUBATOR_AFTER, "q_i5"), ["Definitely", "Probably", "Possibly not", "Probably not"]);
+    assert.equal(question(INCUBATOR_AFTER, "q_i6").title, "How much did the incubator speed it up?");
+    assert.deepEqual(labels(INCUBATOR_AFTER, "q_i6"), ["Not at all", "Under 1 month", "1 to 6 months", "Over 6 months"]);
+    assert.equal(question(INCUBATOR_AFTER, "q_i7").title, "What next, for the project and for you?");
+    assert.deepEqual(labels(INCUBATOR_AFTER, "q_i7"), [
+      "Continue the project",
+      "Write it up for a venue",
+      "Apply to SPAR, MATS, LASR, Pivotal or ERA",
+      "AI safety Master’s or PhD",
+      "AI safety dissertation",
+      "Stop here",
+    ]);
+    assert.deepEqual(items.validateSurveyItems(INCUBATOR_AFTER), []);
+  });
+
+  test("a fellowship asks none of them, and an incubator with no strand asks none either", () => {
+    for (const list of [TEMPLATE, AFTER, FOLLOW_UP]) {
+      assert.ok(!questionsOf(list).some((each) => each.id.startsWith("q_i")), "a fellowship asks an incubator's question");
+    }
+    assert.deepEqual(templates.templateItems("before", "incubator", null), TEMPLATE);
+    assert.deepEqual(templates.templateItems("before", "fellowship", "alignment"), TEMPLATE, "a fellowship's strand is ignored");
+  });
+});
+
+describe("the stages pair: a question asked at two stages has one id, one kind and the same answers", () => {
+  test("every id shared between stages is the same question but for its words", () => {
+    const all = [TEMPLATE, AFTER, FOLLOW_UP, INCUBATOR_BEFORE, INCUBATOR_AFTER];
+    const byId = new Map();
+    for (const list of all) {
+      for (const each of questionsOf(list)) {
+        const shape = JSON.stringify({
+          type: each.type,
+          options: each.options?.map((option) => option.id),
+          scores: each.scores,
+          lines: each.lines?.map((line) => line.id),
+          scale: each.scale ? { max: each.scale.max } : undefined,
+          min: each.min,
+          max: each.max,
+        });
+        if (byId.has(each.id)) assert.equal(shape, byId.get(each.id), `${each.id} is asked two ways`);
+        byId.set(each.id, shape);
+      }
+    }
+  });
+
+  test("the questionnaire's sizes: about 5, 10 and 3 minutes", () => {
+    assert.deepEqual(templates.TEMPLATE_MINUTES, { before: 5, after: 10, followUp6: 3, followUp12: 3 });
+    assert.deepEqual([TEMPLATE, AFTER, FOLLOW_UP, INCUBATOR_BEFORE, INCUBATOR_AFTER].map((list) => questionsOf(list).length), [14, 23, 11, 17, 32]);
+  });
+
+  test("a template is a fresh copy each time, so editing one survey's words never edits another's", () => {
+    const one = templates.templateItems("before", "fellowship", null);
+    question(one, "q_c1").title = "Changed";
+    assert.equal(question(templates.templateItems("before", "fellowship", null), "q_c1").title, "Which best describes you right now?");
   });
 });
 
 describe("the item model, on Worksheets' parts", () => {
-  test("a stored survey reads back as it was written, lines question and all", () => {
-    assert.deepEqual(items.sanitizeSurveyItems(structuredClone(TEMPLATE)), TEMPLATE);
+  test("a stored survey reads back as it was written, every template and all", () => {
+    for (const list of [TEMPLATE, AFTER, FOLLOW_UP, INCUBATOR_BEFORE, INCUBATOR_AFTER]) {
+      assert.deepEqual(items.sanitizeSurveyItems(structuredClone(list)), list);
+    }
   });
 
   test("the reader drops what it cannot read, and keeps `look` only on a single choice", () => {
@@ -119,18 +491,18 @@ describe("the item model, on Worksheets' parts", () => {
 
   test("the validator names what a survey cannot ask", () => {
     const required = structuredClone(TEMPLATE);
-    required.find((item) => item.id === "q_where").required = true;
+    required.find((item) => item.id === "q_a1" || item.id === "q_c3").required = true;
     assert.match(items.validateSurveyItems(required)[0].message, /can be skipped/);
     const poll = [{ kind: "question", id: "p", type: "poll", title: "Poll", body: [], required: false, options: [{ id: "a", label: "A" }, { id: "b", label: "B" }], poll: { resultsVisibility: "staff" } }];
     assert.ok(items.validateSurveyItems(poll).some((problem) => /can’t ask this kind/.test(problem.message)));
     const blankLine = structuredClone(TEMPLATE);
-    blankLine.find((item) => item.id === "q_explain").lines[2].label = "  ";
+    blankLine.find((item) => item.id === "q_c7").lines[1].label = "  ";
     assert.ok(items.validateSurveyItems(blankLine).some((problem) => problem.message === "Every line needs its words."));
     const tooMany = structuredClone(TEMPLATE);
-    tooMany.find((item) => item.id === "q_explain").lines = Array.from({ length: 11 }, (_, i) => ({ id: `l${i}`, label: "x" }));
+    tooMany.find((item) => item.id === "q_c7").lines = Array.from({ length: 11 }, (_, i) => ({ id: `l${i}`, label: "x" }));
     assert.ok(items.validateSurveyItems(tooMany).some((problem) => /11 lines/.test(problem.message)));
     const twice = structuredClone(TEMPLATE);
-    twice.find((item) => item.id === "q_explain").lines[1].id = "l1";
+    twice.find((item) => item.id === "q_c7").lines[1].id = "l_next";
     assert.ok(items.validateSurveyItems(twice).some((problem) => /share an id/.test(problem.message)));
     assert.match(items.validateSurveyItems([])[0].message, /at least one question/);
   });
@@ -138,65 +510,66 @@ describe("the item model, on Worksheets' parts", () => {
   test("the same questions: order may change, the set and the types may not", () => {
     const moved = structuredClone(TEMPLATE).reverse();
     assert.equal(items.sameQuestions(TEMPLATE, moved), true);
-    assert.equal(items.sameQuestions(TEMPLATE, TEMPLATE.filter((item) => item.id !== "q_when")), false);
+    assert.equal(items.sameQuestions(TEMPLATE, TEMPLATE.filter((item) => item.id !== "q_c2")), false);
     const retyped = structuredClone(TEMPLATE);
-    retyped.find((item) => item.id === "q_where").type = "multipleChoice";
-    assert.equal(items.sameQuestions(TEMPLATE, retyped), false);
+    retyped.find((item) => item.id === "q_c6").type = "percent";
+    assert.equal(items.sameQuestions(TEMPLATE, items.sanitizeSurveyItems(retyped)), false);
   });
 });
 
 describe("the answers a person sends", () => {
   test("blank questions are skipped, and only what each type carries is kept", () => {
     const read = items.readSurveyAnswers(TEMPLATE, {
-      q_catastrophe: { type: "choice", optionId: "o_notsure", extra: "dropped" },
-      q_when: null,
-      q_explain: { type: "lines", values: { l1: 2, l2: 0, l3: null } },
-      q_next12: { type: "choices", optionIds: [] },
+      q_c1: { type: "choice", optionId: "o_stage2", extra: "dropped" },
+      q_c2: null,
+      q_c7: { type: "lines", values: { l_next: 2, l_contribute: 0 } },
+      q_c9: { type: "choices", optionIds: [] },
     });
     assert.deepEqual(read.problems, []);
     assert.deepEqual(read.answers, {
-      q_catastrophe: { type: "choice", optionId: "o_notsure" },
-      q_explain: { type: "lines", values: { l1: 2 } },
+      q_c1: { type: "choice", optionId: "o_stage2" },
+      q_c7: { type: "lines", values: { l_next: 2 } },
     });
   });
 
   test("anything not of the survey is refused", () => {
     const refused = (raw) => items.readSurveyAnswers(TEMPLATE, raw).problems.length > 0;
     assert.ok(refused("not answers"));
-    assert.ok(refused({ q_other: { type: "choice", optionId: "o_notsure" } }));
-    assert.ok(refused({ q_catastrophe: { type: "choice", optionId: "o_made_up" } }));
-    assert.ok(refused({ q_catastrophe: { type: "text", text: "Not sure" } }));
-    assert.ok(refused({ q_explain: { type: "lines", values: { l9: 3 } } }));
-    assert.ok(refused({ q_explain: { type: "lines", values: { l1: 6 } } }));
-    assert.ok(refused({ q_explain: { type: "lines", values: { l1: 2.5 } } }));
-    assert.ok(refused({ q_next12: { type: "choices", optionIds: ["o_course", "o_course"] } }));
+    assert.ok(refused({ q_other: { type: "choice", optionId: "o_stage0" } }));
+    assert.ok(refused({ q_c1: { type: "choice", optionId: "o_made_up" } }));
+    assert.ok(refused({ q_c1: { type: "text", text: "Not sure" } }));
+    assert.ok(refused({ q_c7: { type: "lines", values: { l9: 3 } } }));
+    assert.ok(refused({ q_c7: { type: "lines", values: { l_next: 6 } } }));
+    assert.ok(refused({ q_c7: { type: "lines", values: { l_next: 2.5 } } }));
+    assert.ok(refused({ q_c9: { type: "choices", optionIds: ["o_event", "o_event"] } }));
+    assert.ok(refused({ c_p7: { type: "choice", optionId: "o_yes" } }), "the consent is never among the answers");
   });
 });
 
 describe("totals and comments, never a name", () => {
   const sets = [
-    { answers: { q_catastrophe: { type: "choice", optionId: "o_notsure" }, q_explain: { type: "lines", values: { l1: 2, l2: 4 } } } },
-    { answers: { q_catastrophe: { type: "choice", optionId: "o_1to10" }, q_explain: { type: "lines", values: { l1: 4 } }, q_next12: { type: "choices", optionIds: ["o_course", "o_project"] } } },
+    { answers: { q_c1: { type: "choice", optionId: "o_stage2" }, q_c7: { type: "lines", values: { l_next: 2, l_contribute: 4 } } } },
+    { answers: { q_c1: { type: "choice", optionId: "o_stage4" }, q_c7: { type: "lines", values: { l_next: 4 } }, q_c9: { type: "choices", optionIds: ["o_event", "o_oneone"] } } },
     { answers: {} },
   ];
   const results = surveyResults(TEMPLATE, sets);
 
   test("a choice counts each option over the people who answered it, from the first answer", () => {
-    const q1 = results.find((result) => result.id === "q_catastrophe");
-    assert.equal(q1.respondents, 2);
-    assert.deepEqual(q1.options.find((option) => option.label === "Not sure"), { label: "Not sure", count: 1, percent: 50 });
-    const q6 = results.find((result) => result.id === "q_next12");
-    assert.equal(q6.multiple, true);
-    assert.equal(q6.respondents, 1);
+    const c1 = results.find((result) => result.id === "q_c1");
+    assert.equal(c1.respondents, 2);
+    assert.deepEqual(c1.options.find((option) => option.label === STAGES[2]), { label: STAGES[2], count: 1, percent: 50 });
+    assert.deepEqual(c1.scored, { total: 6, mean: 3, unit: "" }, "a described stage is counted by its number too");
+    const c9 = results.find((result) => result.id === "q_c9");
+    assert.equal(c9.multiple, true);
+    assert.equal(c9.respondents, 1);
   });
 
-  test("each line of question 4 is counted on its own scale", () => {
-    const q4 = results.find((result) => result.id === "q_explain");
-    assert.equal(q4.kind, "scale");
-    // Each row also carries its middle value, which the change view reads.
-    assert.deepEqual(q4.rows[0], { label: LINES[0], respondents: 2, counts: [0, 1, 0, 1, 0], mean: 3, median: 3 });
-    assert.deepEqual(q4.rows[1], { label: LINES[1], respondents: 1, counts: [0, 0, 0, 1, 0], mean: 4, median: 4 });
-    assert.equal(q4.rows[2].mean, null);
+  test("each line of an agreement grid is counted on its own scale", () => {
+    const c7 = results.find((result) => result.id === "q_c7");
+    assert.equal(c7.kind, "scale");
+    assert.deepEqual(c7.rows[0], { label: "I know what my next concrete step towards AI safety work would be.", respondents: 2, counts: [0, 1, 0, 1, 0], mean: 3, median: 3 });
+    assert.deepEqual(c7.rows[1], { label: "I could make a meaningful contribution to AI safety.", respondents: 1, counts: [0, 0, 0, 1, 0], mean: 4, median: 4 });
+    assert.equal(c7.minLabel, "Strongly disagree");
   });
 
   test("the results carry no person", () => {
@@ -207,15 +580,17 @@ describe("totals and comments, never a name", () => {
 describe("the spreadsheet with names", () => {
   test("a column per question and per line, choices in words, a name taken off said so", () => {
     const table = surveyExportTable(TEMPLATE, [
-      { name: "Zoe Example", sentAt: new Date("2026-10-29T09:00:00Z"), via: "link", afterFirstSession: false, answers: { q_catastrophe: { type: "choice", optionId: "o_notsure" }, q_next12: { type: "choices", optionIds: ["o_course", "o_project"] } } },
-      { name: null, sentAt: new Date("2026-10-30T19:05:00Z"), via: "signed-in", afterFirstSession: true, answers: { q_explain: { type: "lines", values: { l3: 1 } } } },
+      { name: "Zoe Example", sentAt: new Date("2026-10-29T09:00:00Z"), via: "link", afterFirstSession: false, answers: { q_p3_level: { type: "choice", optionId: "o_masters" }, q_c9: { type: "choices", optionIds: ["o_written", "o_event"] } } },
+      { name: null, sentAt: new Date("2026-10-30T19:05:00Z"), via: "signed-in", afterFirstSession: true, answers: { q_c7: { type: "lines", values: { l_contribute: 1 } } } },
     ]);
-    assert.deepEqual(table.header.slice(0, 5), ["Name", "Sent", "How", "After their first session", "1. How likely is it that advanced AI causes a catastrophe for humanity this century?"]);
-    assert.equal(table.header.length, 4 + 3 + 5 + 2);
-    assert.ok(table.header.includes(`4. How confident would you be explaining these to a friend?: ${LINES[2]}`));
-    assert.deepEqual(table.rows[0].slice(0, 5), ["Zoe Example", "2026-10-29 09:00", "Personal link", "No", "Not sure"]);
+    assert.deepEqual(table.header.slice(0, 5), ["Name", "Sent", "How", "After their first session", "1. Level of study"]);
+    // 14 questions, C7 a column per line, and no column for the consent.
+    assert.equal(table.header.length, 4 + 13 + 2);
+    assert.ok(table.header.includes("11. How much do you agree?: I could make a meaningful contribution to AI safety."));
+    assert.deepEqual(table.rows[0].slice(0, 5), ["Zoe Example", "2026-10-29 09:00", "Personal link", "No", "Master’s"]);
+    const c9 = table.header.indexOf("13. In the last 3 months, have you…");
     // Several picks, in the order they were sent, joined by "; ".
-    assert.equal(table.rows[0].at(-1), "Take another AI safety course; Do a research project on AI safety");
+    assert.equal(table.rows[0][c9], "Written something on AI safety; Attended an AI safety event outside NAISI");
     assert.equal(table.rows[1][0], NAME_TAKEN_OFF);
     assert.equal(table.rows[1][2], "Signed in");
     assert.equal(table.rows[1][3], "Yes");
@@ -252,9 +627,9 @@ describe("the confidential box, for every kind of person (sv-privacy)", () => {
 describe("the two emails, word for word (HANDOFF, Emails)", () => {
   const facts = {
     title: "Before you start",
-    intro: words.beforeIntro(6, 3),
-    questions: 6,
-    minutes: 3,
+    intro: words.beforeIntro(14, 5),
+    questions: 14,
+    minutes: 5,
     programmeName: "AGI Strategy",
     closesAt: new Date("2026-11-04T23:59:00Z"),
     signer: "Zach",
@@ -262,29 +637,44 @@ describe("the two emails, word for word (HANDOFF, Emails)", () => {
 
   test("the before survey", () => {
     assert.deepEqual(words.surveyEmailWords(facts), {
-      subject: "Before you start: 6 questions for AGI Strategy",
+      subject: "Before you start: 14 questions for AGI Strategy",
       paragraphs: [
-        "Week 1 is open. Before you get going, tell us where you’re starting from. It’s 6 questions and takes about 3 minutes.",
+        "Week 1 is open. Before you get going, tell us where you’re starting from. It’s 14 questions and takes about 5 minutes.",
         "We’ll ask the same at the end.",
         "It’s confidential: only NAISI’s admins can see who said what, and your facilitators never see it.",
         "It closes on Wed 4 Nov.",
       ],
-      button: "Answer the 6 questions",
+      button: "Answer the 14 questions",
       signOff: ["Zach", "For NAISI"],
     });
   });
 
   test("the reminder", () => {
     assert.deepEqual(words.reminderEmailWords(facts), {
-      subject: "A reminder: 6 questions for AGI Strategy, by Wed 4 Nov",
+      subject: "A reminder: 14 questions for AGI Strategy, by Wed 4 Nov",
       paragraphs: [
-        "You haven’t answered yet. It’s 6 questions and takes about 3 minutes.",
+        "You haven’t answered yet. It’s 14 questions and takes about 5 minutes.",
         "It’s confidential: only NAISI’s admins can see who said what, and your facilitators never see it.",
         "It closes on Wed 4 Nov.",
       ],
-      button: "Answer the 6 questions",
+      button: "Answer the 14 questions",
       signOff: ["Zach", "For NAISI"],
     });
+  });
+
+  test("the intros the other stages are made with", () => {
+    assert.equal(words.introFor("after", 23, 10), "The same questions as week 1, then some about how it went and what’s next. It’s 23 questions and takes about 10 minutes.");
+    assert.equal(words.introFor("followUp6", 11, 3), "You said we could ask how things have gone since the programme. It’s 11 questions and takes about 3 minutes.");
+    assert.equal(words.introFor("followUp12", 11, 3), words.introFor("followUp6", 11, 3));
+    assert.deepEqual(
+      ["before", "after", "followUp6", "followUp12"].map((stage) => [words.STAGE_WORDS[stage].title, words.surveyNameFor("AGI Strategy", stage)]),
+      [
+        ["Before you start", "AGI Strategy: before"],
+        ["At the end", "AGI Strategy: after"],
+        ["Six months on", "AGI Strategy: six months on"],
+        ["A year on", "AGI Strategy: a year on"],
+      ],
+    );
   });
 
   test("a presser with no name signs for NAISI; one question and one minute read as such", () => {
@@ -531,7 +921,9 @@ describe("the survey's own questions: the answers a person sends", () => {
     assert.deepEqual(items.readSurveyConsents(OWN, {}), { consents: { followUps: false }, problem: null });
     assert.equal(items.readSurveyConsents(OWN, { kairos: true }).problem, "One of those boxes isn’t on this survey.");
     assert.equal(items.readSurveyConsents(OWN, { followUps: "yes" }).problem, "Your answers did not arrive in a shape the survey understands.");
-    assert.deepEqual(items.readSurveyConsents(TEMPLATE, undefined), { consents: {}, problem: null }, "a survey with no consent block takes none");
+    assert.deepEqual(items.readSurveyConsents(TEMPLATE, undefined), { consents: { followUps: false }, problem: null }, "the before survey asks about follow-ups");
+    assert.deepEqual(items.readSurveyConsents(AFTER, undefined), { consents: {}, problem: null }, "a survey with no consent block takes none");
+    assert.equal(items.readSurveyConsents(AFTER, { followUps: true }).problem, "One of those boxes isn’t on this survey.");
     assert.deepEqual(refused({ c_consent: { type: "choice", optionId: "x" } }), ["One of those answers is to a question this survey doesn’t ask."]);
   });
 });

@@ -8,7 +8,6 @@ import {
   WORKSHEET_LIMITS,
   type WorksheetAnswer,
   type WorksheetItem,
-  type WorksheetOption,
   type WorksheetQuestion,
   type WorksheetQuestionType,
 } from "@/lib/firestore/worksheets";
@@ -878,105 +877,6 @@ export function readSurveyConsents(
   }
   for (const purpose of asked) consents[purpose] = own(raw, purpose) === true;
   return { consents, problem: null };
-}
-
-// ---------------------------------------------------------------------------
-// The template: the before survey's six change questions, as drawn
-// ---------------------------------------------------------------------------
-
-/** The sections of the template, each the measure it asks about (sv-edit). */
-export const TEMPLATE_SECTIONS = {
-  beliefs: "s_beliefs",
-  explain: "s_explain",
-  plans: "s_plans",
-} as const;
-
-/** The six change questions' ids, the same in every programme's before and after survey. */
-export const CHANGE_QUESTION_IDS = [
-  "q_catastrophe",
-  "q_when",
-  "q_important",
-  "q_explain",
-  "q_where",
-  "q_next12",
-] as const;
-
-const option = (id: string, label: string): WorksheetOption => ({ id, label });
-
-function choice(id: string, title: string, options: WorksheetOption[], type: "singleChoice" | "multipleChoice" = "singleChoice"): SurveyChoiceQuestion {
-  return { kind: "question", id, type, title, body: [], required: false, options };
-}
-
-/** How many lines the template's question 4 has: one per week from 2 to 6. */
-export const TEMPLATE_LINE_COUNT = 5;
-
-/**
- * The before survey's items: six questions on three pages, worded as the
- * board draws them. `lines` are the five things question 4 asks about,
- * typed per programme when the survey is made.
- */
-export function beforeSurveyItems(lines: readonly string[]): SurveyItem[] {
-  return [
-    { kind: "section", id: TEMPLATE_SECTIONS.beliefs, heading: "What you think about AI", body: [] },
-    choice("q_catastrophe", "How likely is it that advanced AI causes a catastrophe for humanity this century?", [
-      option("o_under1", "Under 1%"),
-      option("o_1to10", "1 to 10%"),
-      option("o_10to25", "10 to 25%"),
-      option("o_25to50", "25 to 50%"),
-      option("o_over50", "Over 50%"),
-      option("o_notsure", "Not sure"),
-    ]),
-    choice("q_when", "When do you think AI will be able to do most work done at a computer as well as a skilled person?", [
-      option("o_before2030", "Before 2030"),
-      option("o_2030to2035", "2030 to 2035"),
-      option("o_2036to2045", "2036 to 2045"),
-      option("o_after2045", "After 2045"),
-      option("o_never", "Never"),
-      option("o_notsure", "Not sure"),
-    ]),
-    {
-      ...choice("q_important", "Making AI go well is one of the most important problems of our time.", [
-        option("o_sdisagree", "Strongly disagree"),
-        option("o_disagree", "Disagree"),
-        option("o_neither", "Neither"),
-        option("o_agree", "Agree"),
-        option("o_sagree", "Strongly agree"),
-      ]),
-      look: "agree",
-    },
-    { kind: "pageBreak", id: "pb_1" },
-    { kind: "section", id: TEMPLATE_SECTIONS.explain, heading: "What you could explain", body: [] },
-    {
-      kind: "question",
-      id: "q_explain",
-      type: "lines",
-      title: "How confident would you be explaining these to a friend?",
-      lines: lines.map((label, index) => ({ id: `l${index + 1}`, label })),
-      scale: { ...LINES_SCALE },
-    },
-    { kind: "pageBreak", id: "pb_2" },
-    { kind: "section", id: TEMPLATE_SECTIONS.plans, heading: "Your plans", body: [] },
-    choice("q_where", "Which is closest to where you are with working on making AI go well?", [
-      option("o_notconsidering", "It’s not something I’m considering"),
-      option("o_curious", "Curious, not sure yet"),
-      option("o_considering", "Considering it seriously"),
-      option("o_planning", "Planning to: applying or preparing"),
-      option("o_doing", "Already doing it: a job, research or study"),
-    ]),
-    choice(
-      "q_next12",
-      "In the next 12 months, which of these might you do?",
-      [
-        option("o_apply", "Apply to a research programme or incubator"),
-        option("o_project", "Do a research project on AI safety"),
-        option("o_job", "Apply for a job or internship in AI safety or policy"),
-        option("o_modules", "Choose modules or a dissertation on it"),
-        option("o_course", "Take another AI safety course"),
-        option("o_none", "None of these yet"),
-      ],
-      "multipleChoice",
-    ),
-  ];
 }
 
 /** A new option or line id, in the shape Worksheets mints one. */

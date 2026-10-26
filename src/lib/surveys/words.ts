@@ -1,5 +1,6 @@
-import type { SurveyProgrammeKind } from "@/lib/firestore/surveys";
+import type { SurveyAudience, SurveyProgrammeKind } from "@/lib/firestore/surveys";
 import type { SurveyChoiceQuestion, SurveyQuestion } from "./items";
+import type { IncubatorStrand, SurveyStage } from "./templates";
 
 /**
  * EVERY SENTENCE A SURVEY SAYS, in one place: the answer page, the
@@ -97,30 +98,84 @@ export function programmeLine(kind: SurveyProgrammeKind, name: string): string {
 /** The before survey is week 1's: "Week 1", beside the programme on the answer page. */
 export const BEFORE_WEEK = "Week 1";
 
+/** "Week 6", beside the programme on the survey at its end. */
+export function weekWords(n: number): string {
+  return `Week ${n}`;
+}
+
 // ---------------------------------------------------------------------------
 // Making a survey
 // ---------------------------------------------------------------------------
 
-/** "AGI Strategy: before", the admins' name for a programme's before survey. */
+/**
+ * Each stage's words: what the admins call its survey ("AGI Strategy: after"),
+ * the title people see (and the start of its email's subject), and the New
+ * survey page's card for its template.
+ */
+export const STAGE_WORDS: Record<SurveyStage, { name: string; title: string; card: string; cardLine: string }> = {
+  before: {
+    name: "before",
+    title: "Before you start",
+    card: "Before the programme",
+    cardLine: "Where people start: their study, how they found us, career stage and plans, what they know and who, what stands in the way, and what they want from it. Asked in week 1.",
+  },
+  after: {
+    name: "after",
+    title: "At the end",
+    card: "At the end of the programme",
+    cardLine: "The same core questions again, a look back at where they started, what the programme did, how it went and what’s next. It pairs with the survey before, person by person.",
+  },
+  followUp6: {
+    name: "six months on",
+    title: "Six months on",
+    card: "Six months on",
+    cardLine: "What people are doing now, their share of working time on AI safety, what they have applied to, and the core questions again. Only for people who said yes to follow-ups.",
+  },
+  followUp12: {
+    name: "a year on",
+    title: "A year on",
+    card: "A year on",
+    cardLine: "The same follow-up questions again, a year after the programme. Only for people who said yes to follow-ups.",
+  },
+};
+
+/** "AGI Strategy: before", the admins' name for a programme's survey at a stage. */
+export function surveyNameFor(programmeName: string, stage: SurveyStage): string {
+  return `${programmeName}: ${STAGE_WORDS[stage].name}`;
+}
+
+/** "AGI Strategy: before". */
 export function beforeSurveyName(programmeName: string): string {
-  return `${programmeName}: before`;
+  return surveyNameFor(programmeName, "before");
 }
 
 /** What people see at the top of the before survey, and the start of its email's subject. */
-export const BEFORE_TITLE = "Before you start";
-
-/** How long the before survey takes, as made: the board's "about 3 minutes". The editor changes it. */
-export const BEFORE_MINUTES = 3;
+export const BEFORE_TITLE = STAGE_WORDS.before.title;
 
 /**
- * The before survey's intro as made: the board's words, with the number of
- * questions and minutes from the survey. Its two paragraphs open the email.
+ * A survey's intro as made, from the number of questions and minutes in it.
+ * Its paragraphs open the email; the editor changes them.
  */
+export function introFor(stage: SurveyStage, questions: number, minutes: number): string {
+  const size = `It’s ${questionsWords(questions)} and takes ${minutesWords(minutes)}.`;
+  switch (stage) {
+    case "before":
+      return `Week 1 is open. Before you get going, tell us where you’re starting from. ${size}\n\nWe’ll ask the same at the end.`;
+    case "after":
+      return `The same questions as week 1, then some about how it went and what’s next. ${size}`;
+    default:
+      return `You said we could ask how things have gone since the programme. ${size}`;
+  }
+}
+
+/** The before survey's intro as made: the board's words, with its number of questions and minutes. */
 export function beforeIntro(questions: number, minutes: number): string {
-  return (
-    `Week 1 is open. Before you get going, tell us where you’re starting from. ` +
-    `It’s ${questionsWords(questions)} and takes ${minutesWords(minutes)}.\n\nWe’ll ask the same at the end.`
-  );
+  return introFor("before", questions, minutes);
+}
+
+/** An incubator's strand, as the New survey page offers it. */
+export function strandWords(strand: IncubatorStrand, line: string): string {
+  return `${strand === "alignment" ? "Alignment" : "Governance"}: “${line}”`;
 }
 
 /** An intro's paragraphs: split at blank lines, each with its spaces tidied. */
@@ -166,6 +221,32 @@ export function closingWords(closesAt: Date): string {
   return `It closes on ${dayWords(closesAt)}. Once sent, your answers can’t change.`;
 }
 
+/**
+ * Changing a consent later, on the person's own survey page: where it stands,
+ * the button that changes it, and what it says once changed.
+ */
+export const CONSENT_WORDS = {
+  followUps: {
+    yes: "You said we may contact you at 6 and 12 months with a short follow-up survey.",
+    no: "You haven’t said we may contact you at 6 and 12 months.",
+    stop: "Stop the follow-ups",
+    start: "Contact me at 6 and 12 months",
+    stopped: "Done. We won’t send you the follow-ups.",
+    started: "Done. We’ll send you a short survey at 6 and 12 months.",
+    failed: "That didn’t change. Check your connection and try again.",
+  },
+} as const;
+
+/** What a test link shows where a person would see an earlier answer of their own. */
+export function pipeTestWords(words: string): string {
+  return `${words} what each person wrote at the start shows here.`;
+}
+
+/** An earlier answer of the person's own, as shown above a question: "At the start you said: “…”". */
+export function pipedWords(words: string, text: string): string {
+  return `${words} “${text}”`;
+}
+
 /** The state a link or a signed-in page can find a survey in, in words. */
 export const STATE_WORDS = {
   noSurvey: {
@@ -192,6 +273,8 @@ export const STATE_WORDS = {
 // ---------------------------------------------------------------------------
 
 export type ConfidentialFacts = {
+  /** Which of the programme's surveys it is: a follow-up compares with what was said during it. */
+  stage?: SurveyStage;
   /** The programme lead's first name, or null when the programme has no lead who stands. */
   leadName: string | null;
   /**
@@ -230,7 +313,13 @@ export function confidentialPoints(facts: ConfidentialFacts): { points: string[]
     "Totals, and comments you tick to be quoted, may go in reports to the committee and our funder, Kairos, or on our site.",
     `Your name comes off on ${dateKeyWords(facts.namesOffOn)}, a year after the ${facts.programmeKind} ends. The totals stay.`,
   );
-  return { points, note: "We ask who you are so we can compare your answers at the start and the end." };
+  const followUp = facts.stage === "followUp6" || facts.stage === "followUp12";
+  return {
+    points,
+    note: followUp
+      ? "We ask who you are so we can compare your answers with what you said during the programme."
+      : "We ask who you are so we can compare your answers at the start and the end.",
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -352,12 +441,7 @@ export function questionTypeWords(question: SurveyQuestion): string {
   }
 }
 
-/** What each of the template's sections measures, as the editor names it (sv-edit). */
-export const MEASURE_WORDS: Record<string, string> = {
-  s_beliefs: "Beliefs about AI",
-  s_explain: "Confidence and knowledge",
-  s_plans: "Career plans",
-};
+
 
 export const LIST_WORDS = {
   title: "Surveys",
@@ -403,6 +487,7 @@ export const SEND_WORDS = {
   seeEmail: "See the email",
   hideEmail: "Hide the email",
   joinedSince: "Joined since",
+  saidYesSince: "Said yes since",
   remind: "Remind",
   test: "Send a test to me",
   testing: "Sending a test…",
@@ -423,14 +508,35 @@ export const SEND_WORDS = {
   closedNow: "Closed. It takes no more answers.",
 } as const;
 
+/** Who a survey reaches, in the Send tab's words, by who it is for and when. */
+export type AudienceKind = "start" | "end" | "followUps";
+
+/** Which of the three a survey's audience and stage make it. */
+export function audienceKindOf(audience: SurveyAudience, stage: SurveyStage): AudienceKind {
+  if (audience.kind === "followUps") return "followUps";
+  return stage === "after" ? "end" : "start";
+}
+
+const HOLDING: Record<AudienceKind, string> = {
+  start: "holding a place",
+  end: "still holding a place",
+  followUps: "who said yes to follow-ups",
+};
+
+const JOINED: Record<AudienceKind, string> = {
+  start: "who joined since",
+  end: "who joined since",
+  followUps: "who said yes since",
+};
+
 /** "Emailed the 30 people holding a place". */
-export function firstSentWords(n: number): string {
-  return `Emailed the ${peopleWords(n)} holding a place`;
+export function firstSentWords(n: number, kind: AudienceKind = "start"): string {
+  return `Emailed the ${peopleWords(n)} ${HOLDING[kind]}`;
 }
 
 /** "Emailed the 2 who joined since: Hannah Brooks and Nina Petrova". */
-export function joinedSentWords(names: readonly string[], n: number): string {
-  return names.length > 0 ? `Emailed the ${n} who joined since: ${namesInWords(names)}` : `Emailed the ${n} who joined since`;
+export function joinedSentWords(names: readonly string[], n: number, kind: AudienceKind = "start"): string {
+  return names.length > 0 ? `Emailed the ${n} ${JOINED[kind]}: ${namesInWords(names)}` : `Emailed the ${n} ${JOINED[kind]}`;
 }
 
 /** "Reminded the 12 who hadn’t answered". */
@@ -449,12 +555,18 @@ export function emailButtonWords(n: number): string {
 }
 
 /** "Send to the 2 who joined since". */
-export function joinedButtonWords(n: number): string {
-  return `Send to the ${n} who joined since`;
+export function joinedButtonWords(n: number, kind: AudienceKind = "start"): string {
+  return `Send to the ${n} ${JOINED[kind]}`;
 }
 
 /** "Nobody new since Fri 30 Oct. ...", the board's words when nobody has joined since. */
-export function nobodyNewWords(since: Date): string {
+export function nobodyNewWords(since: Date, kind: AudienceKind = "start"): string {
+  if (kind === "followUps") {
+    return (
+      `Nobody new since ${dayWords(since)}. When someone says yes to follow-ups after you’ve sent it, ` +
+      "a button here sends it to them, like “Send to the 1 who said yes since”."
+    );
+  }
   return (
     `Nobody new since ${dayWords(since)}. When someone takes a place after you’ve sent it, ` +
     "a button here sends it to them, like “Send to the 2 who joined since”."
@@ -472,8 +584,9 @@ export function testSentWords(at: Date, now: Date = new Date()): string {
 }
 
 /** "Everyone holding a place on AGI Strategy (32)". */
-export function audienceWords(programmeName: string, n: number): string {
-  return `Everyone holding a place on ${programmeName} (${n})`;
+export function audienceWords(programmeName: string, n: number, kind: AudienceKind = "start"): string {
+  if (kind === "followUps") return `Everyone on ${programmeName} who said yes to follow-ups (${n})`;
+  return `Everyone ${HOLDING[kind]} on ${programmeName} (${n})`;
 }
 
 /** "Thu 9 Dec 2027, a year after the programme ends." */
@@ -511,6 +624,9 @@ export const REFUSAL = {
   nobody: "There is nobody to send this to.",
   inFlight: "Another send of this survey is going out. Try again in a minute.",
   closesPast: "The closing day has to be today or later.",
+  strand: "Pick which research this incubator does: it words the first line of its skills question.",
+  consentNotAsked: "This survey doesn’t ask that.",
+  consentNoRow: "You weren’t sent the survey that asks this, so there’s nothing to change.",
 } as const;
 
 /** The count on the button no longer matches: nothing was sent, and the page is told the new number. */

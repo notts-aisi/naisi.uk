@@ -1,5 +1,6 @@
 import type { AnswerScreen as Screen } from "@/lib/surveys/answerView";
 import { ANSWER_WORDS, STATE_WORDS } from "@/lib/surveys/words";
+import ConsentPanel from "./ConsentPanel";
 import SurveyForm from "./SurveyForm";
 import styles from "./AnswerScreen.module.css";
 
@@ -7,7 +8,8 @@ import styles from "./AnswerScreen.module.css";
  * One person's survey, as the answer page draws it (sv-before-phone): the
  * programme and week, the title and intro, "Every question can be skipped.",
  * the confidential box, then the questions. Or, instead, one calm message:
- * answered, closed, or a link that opens nothing.
+ * answered, closed, or a link that opens nothing. Under either, when the
+ * person can change a consent here ("Stop the follow-ups"), its panel.
  *
  * A Server Component: everything it shows was built for this person on the
  * server (`answerScreenFor`), and the form below it takes only the values it
@@ -19,6 +21,7 @@ export default function AnswerScreen({ screen }: { screen: Screen }) {
       <div className={styles.message}>
         <h1 className={styles.messageTitle}>{screen.title}</h1>
         <p className={styles.messageBody}>{screen.body}</p>
+        {screen.consent && <ConsentPanel panel={screen.consent} />}
       </div>
     );
   }
@@ -69,6 +72,8 @@ export default function AnswerScreen({ screen }: { screen: Screen }) {
         </ul>
         <p className={styles.note}>{survey.box.note}</p>
       </section>
+
+      {screen.consent && <ConsentPanel panel={screen.consent} />}
 
       <SurveyForm pages={survey.pages} closing={survey.closing} submit={survey.submit} testWords={STATE_WORDS.test} />
     </div>
