@@ -215,6 +215,9 @@ describe("1. a week written as blocks, drawn", () => {
     // boxes and the cases draw nothing yet.
     for (const later of [
       "Forecasting packs",
+      "Elections",
+      "Technology",
+      "A timeline tool",
       "Polls and their errors",
       "Prices as forecasts",
       "Where to start",
@@ -239,7 +242,7 @@ describe("1. a week written as blocks, drawn", () => {
     assert.match(text, /Exercise/);
     assert.match(text, /What is week 4 about\?/);
     assert.match(text, /0 of 2 done/);
-    assert.match(html, /role="progressbar"|ProgressBar|progress/i);
+    assert.match(html, /role="progressbar" aria-label="Week progress"/);
     for (const blockOnly of ["In all:", "Reflect", "On this page", "Go further", "can read your reflections"]) {
       assert.ok(!text.includes(blockOnly), `a block week's words on a week written before blocks: ${blockOnly}`);
     }
@@ -443,8 +446,11 @@ describe("4. counts by This week's tasks", () => {
     assert.match(page.text, /0 of 1 done/, "one source still to tick");
     page = await w.weekPage("chloe", 1, sources("k1"));
     assert.match(page.text, /1 of 1 done/);
-    // Each part's Done chip and the task's Done.
-    assert.equal(page.text.split(" Done ").length - 1 >= 3, true);
+    // The task's Done, and each of the three parts' Done chips.
+    assert.match(page.text, /Before your first session, Tue 3 Nov Done/);
+    for (const head of ["Part 1 · About 5 minutes Done", "Part 2 · About 45 minutes Done", "Part 3 · About 10 minutes Done"]) {
+      assert.ok(page.text.includes(head), head);
+    }
   });
 
   test("a part's Done chip follows its own sources and boxes", async () => {
@@ -466,24 +472,27 @@ describe("4. counts by This week's tasks", () => {
 
   test("the programme page: This week's tasks, and each week's count by them", async () => {
     let home = await w.programmeHome("chloe");
-    assert.match(home.text, /This week 0 of 1 done/);
-    assert.match(home.text, /Parts 1 to 3/);
-    assert.doesNotMatch(home.html, /role="progressbar"[^>]*aria-label="0 of 1 done"/);
+    assert.match(home.text, /This week 0 of 1 done Week 3 · The lamp makers Thu 12 to Wed 18 Nov Not done yet: Parts 1 to 3 Open week 3/);
+    // No bar: the boards draw no percentages for a block week.
+    assert.doesNotMatch(home.html, /role="progressbar"/);
+    assert.match(home.text, /Week 1 Who keeps the lamps Tue 3 Nov · Done 0 of 1/);
+    assert.match(home.text, /Week 2 How sure are you\? Tue 10 Nov · Done 0 of 3/);
+    assert.match(home.text, /Week 3 The lamp makers Tonight 0 of 1/);
     await writeAll("chloe", "k3", "w03");
     await writeAll("chloe", "k1", "w01");
     home = await w.programmeHome("chloe", [...sources("k3"), ...sources("k1")]);
-    assert.match(home.text, /This week 1 of 1 done/);
-    assert.match(home.text, /Parts 1 to 3 Done/);
-    // Week 1 in the list of weeks, counted by its one task.
-    assert.match(home.text, /1 of 1/);
+    assert.match(home.text, /This week 1 of 1 done Week 3 · The lamp makers Thu 12 to Wed 18 Nov Done: Parts 1 to 3 Done Open week 3/);
+    assert.match(home.text, /Week 1 Who keeps the lamps Tue 3 Nov · Done 1 of 1/);
+    assert.match(home.text, /Week 3 The lamp makers Tonight 1 of 1/);
   });
 
   test("Home's card: week 3's sources to tick, counted by its one task", async () => {
     let card = await w.homeCard("chloe");
     assert.ok(card);
-    assert.match(card.text, /Before tonight 0 of 1 done/);
-    assert.match(card.text, /A keeper's diary/);
-    assert.match(card.text, /Lamps at night/);
+    assert.match(card.text, /Before tonight 0 of 1 done Week 3 · The lamp makers A keeper's diary Read 20 minutes Lamps at night Watch About 25 minutes Open week 3/);
+    assert.doesNotMatch(card.html, /role="progressbar"/);
+    // The boxes to tick are the sources on week 3's path, as the week page ticks them.
+    assert.equal((card.html.match(/type="checkbox"/g) ?? []).length, 2);
     await writeAll("chloe", "k3", "w03");
     card = await w.homeCard("chloe", sources("k3"));
     assert.match(card.text, /Before tonight 1 of 1 done/);
