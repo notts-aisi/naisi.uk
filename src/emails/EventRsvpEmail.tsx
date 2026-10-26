@@ -58,6 +58,12 @@ type Props = {
   cancelUrl?: string;
   /** Absolute URL letting the attendee request a dietary / answer change. */
   changeUrl?: string;
+  /**
+   * Absolute URL of the event's check-in page, carrying this sign-up and its
+   * token: somebody holding a place checks themselves in at the door with it,
+   * with no account. Only on the emails that hold a place.
+   */
+  checkInUrl?: string;
   /** Optional Instagram handle for the contact footer ("naisi.uon"). */
   instagramHandle?: string;
   /** Optional contact email for the footer (defaults to the from address). */
@@ -142,6 +148,7 @@ export default function EventRsvpEmail({
   icsUrl,
   cancelUrl,
   changeUrl,
+  checkInUrl,
   instagramHandle,
   contactEmail,
 }: Props) {
@@ -252,8 +259,17 @@ export default function EventRsvpEmail({
             </Section>
           )}
 
-          {showActions && (cancelUrl || changeUrl) && (
+          {showActions && (cancelUrl || changeUrl || checkInUrl) && (
             <Section style={{ margin: "20px 0 0" }}>
+              {checkInUrl && (
+                <Text style={actionLine}>
+                  On the day, you can{" "}
+                  <EmailLink href={checkInUrl} style={link}>
+                    check yourself in
+                  </EmailLink>{" "}
+                  at the door from this email, or give your name there.
+                </Text>
+              )}
               {changeUrl && (
                 <Text style={actionLine}>
                   Need to update your dietary requirements or other answers?{" "}

@@ -444,6 +444,11 @@ const MUST_GUARD = [
     "src/app/api/account/reconsent/route.ts",
     "stamps the session account's consent record (an audit fact whose whole value is that the member made it) or deletes the account",
   ],
+  // ── The events lane: check-in ────────────────────────────────────────────
+  ["src/app/api/events/[id]/check-in/route.ts", "checks a person in, in their name"],
+  ["src/app/api/events/[id]/check-ins/route.ts", "checks people in and adds walk-ins at the door"],
+  ["src/app/api/events/[id]/check-ins/[checkInId]/route.ts", "undoes a check-in at the door"],
+  ["src/app/api/events/[id]/door-code/route.ts", "makes an event's permanent door code"],
 ];
 
 /**

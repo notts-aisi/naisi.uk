@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import Button from "@/components/ui/Button";
 import PageHead from "@/components/ui/PageHead";
 import AttendeeDashboard from "@/features/events/AttendeeDashboard";
+import EventTabs from "@/features/events/checkIn/EventTabs";
 import { getEventForPreview } from "@/features/events/fetchEvents";
 import { whenWords } from "@/features/events/manageWords";
 import { getCurrentUser } from "@/lib/firebase/session";
@@ -54,6 +55,14 @@ export default async function AttendeesPage({
             </Button>
           </Link>
         }
+      />
+
+      <EventTabs
+        eventId={event.id}
+        current="signups"
+        showSignups
+        signups={event.rsvpCountConfirmed ?? undefined}
+        showCheckIn={event.status === "published"}
       />
 
       <AttendeeDashboard event={event} />

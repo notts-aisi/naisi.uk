@@ -5,6 +5,8 @@ import Button from "@/components/ui/Button";
 import { dayColumns, hourColumns, type LinkStats } from "@/lib/campaign/linkStats";
 import { scanBucket } from "@/lib/campaign/scanBuckets";
 import { parseDestination, type TrackedLinkDoc } from "@/lib/firestore/trackedLinks";
+import { QrFullScreen } from "@/features/qr/QrFullScreen";
+import codeActions from "@/features/qr/codeActions.module.css";
 import { ScanColumns } from "./ScanColumns";
 import { TrackedLinkForm } from "./TrackedLinkForm";
 import type { TrackedLinkInput } from "./trackedLinkMutations";
@@ -26,9 +28,14 @@ type Props = {
 
 /**
  * The selected link, in a card under its campaign's table: what it is, where
- * it goes, and the two things done to one link at a time. Changing it (what it
- * is called, its campaign, where it goes) opens the form here; the scans by
- * day and by hour open here too.
+ * it goes, and what is done to one link at a time. Changing it (what it is
+ * called, its campaign, where it goes) opens the form here; the scans by day
+ * and by hour open here too.
+ *
+ * Its code, for any link: a PNG to download, an A4 sign to print, and the
+ * code on the whole screen. All three are drawn by the server from the slug
+ * (`/api/links/<slug>/qr`, `/signs/<slug>`), and every one of them encodes
+ * this site's `/q/<slug>`, never where the link goes.
  */
 export function TrackedLinkPanel({
   id,
@@ -42,6 +49,7 @@ export function TrackedLinkPanel({
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [detailed, setDetailed] = useState(false);
+  const [fullScreen, setFullScreen] = useState(false);
 
   const host = new URL(origin).host;
   const address = `${host}/q/${link.slug}`;
@@ -95,6 +103,31 @@ export function TrackedLinkPanel({
           </Button>
         )}
       </div>
+
+      <div className={styles.panelActions} role="group" aria-label={`The code for ${address}`}>
+        <a
+          href={`/api/links/${encodeURIComponent(link.slug)}/qr?format=png&download=1`}
+          download={`naisi-q-${link.slug}.png`}
+          className={`${codeActions.action} ${codeActions.small}`}
+        >
+          Download PNG
+        </a>
+        <a
+          href={`/signs/${encodeURIComponent(link.slug)}`}
+          target="_blank"
+          rel="noopener"
+          className={`${codeActions.action} ${codeActions.small}`}
+        >
+          Print an A4 sign
+        </a>
+        <Button size="sm" variant="secondary" onClick={() => setFullScreen(true)}>
+          Show full screen
+        </Button>
+      </div>
+
+      {fullScreen && (
+        <QrFullScreen slug={link.slug} address={address} onClose={() => setFullScreen(false)} />
+      )}
 
       {detailed && stats.scans > 0 && (
         <div className={styles.panelSection}>

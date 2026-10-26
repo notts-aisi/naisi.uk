@@ -3137,6 +3137,17 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === eventCheckIns ===
+    // Check-in (src/lib/firestore/eventCheckIns.ts): who came to an event, how
+    // and when, and a walk-in's email for that event's survey. Written only by
+    // the check-in routes on the Admin SDK and read only on the server, where
+    // names go only to admins and SU-recognised committee. So every browser is
+    // refused, admins and the person themselves included: a readable record
+    // names who came to which event.
+    match /eventCheckIns/{checkInId} {
+      allow read, write: if false;
+    }
+
     // === anonymousFeedbackForms, anonymousFeedbackWaiting, anonymousFeedback ===
     // The anonymous keep, change and drop form (docs/surveys.md,
     // src/lib/anonymousFeedback/model.ts): each programme's form with the

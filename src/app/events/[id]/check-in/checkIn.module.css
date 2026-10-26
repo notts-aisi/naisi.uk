@@ -1,0 +1,141 @@
+/* The page a door code lands on: one column, read on a phone at the door. */
+.page {
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-text-body);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-height: 56px;
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.barTitle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.body {
+  max-width: 32rem;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-4) var(--space-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.body p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.eventLine {
+  color: var(--color-live);
+  line-height: 1.6;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  line-height: 1.15;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.lead {
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+}
+
+.primary {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 52px;
+  margin: var(--space-2) 0;
+  padding: 0 var(--space-6);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font: inherit;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+
+.primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.primary:focus-visible,
+.signOut:focus-visible,
+.textLink:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+.done {
+  padding: var(--space-4);
+  border: 1px solid var(--color-ok-line);
+  border-radius: var(--radius-lg);
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.problem {
+  color: var(--color-danger-text);
+}
+
+.signOut {
+  appearance: none;
+  -webkit-appearance: none;
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.textLink {
+  color: var(--color-accent-text);
+  font-weight: 600;
+}
+
+@media (max-width: 48rem) {
+  .body {
+    padding-top: var(--space-6);
+  }
+
+  .title {
+    font-size: var(--text-2xl);
+  }
+}

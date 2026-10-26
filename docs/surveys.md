@@ -488,6 +488,24 @@ surveys, check-in, walk-ins and QR codes; results for a programme's lead; one
 person's answers page; public numbers; this term in numbers. The model is built so none of them needs a
 rewrite: another `audience.kind`, another `respondent.kind`, the same records.
 
+## Check-in, for the surveys after events
+
+Check-in is built (`src/lib/events/checkIns.ts`, `eventCheckIns`), so an event
+survey has who came to send to. What it can rely on:
+
+- One record per person per event: a sign-up (`rsvpId`, and `uid` when the
+  sign-up has an account), an account with no sign-up (`uid`), or a walk-in
+  with no account (`name`, and `email` only if they want that event's
+  survey). A guest's sign-up is the `{ kind: "guest", signupId }` respondent
+  above.
+- A walk-in's email goes on `emailGoesAt`, today a week after the event. The
+  survey after an event closes no later than that, or the email is gone before
+  it closes; when event surveys are built, `walkInEmailGoesAt` takes the
+  survey's closing day when it is sooner, and the walk-in form's words move
+  with it.
+- Names come off a year after the event (`event-check-ins-tidy`), and at once
+  when an account is deleted.
+
 ## The guards
 
 `tests/surveys-items.test.mjs` (the template word for word, the model, the box,

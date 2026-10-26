@@ -405,7 +405,7 @@ export const ROUTES = {
   "/api/admin/registrations/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -494,7 +494,7 @@ export const ROUTES = {
   "/api/admin/users/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -2035,6 +2035,32 @@ export const ROUTES = {
         "everyone else is forbidden before the read.",
     },
   },
+  "/api/events/[id]/check-in": {
+    POST: {
+      expect: signedIn(404),
+      why:
+        "Checking yourself in with the door code: signed in, the empty body is the signed-in " +
+        "case, so every session meets the missing event's 404; signed out with no link from a " +
+        "confirmation email is refused for having no session.",
+    },
+  },
+  "/api/events/[id]/check-ins": {
+    POST: {
+      expect: adminOnly(400, { suCommittee: 400 }),
+      why:
+        "The door list's tick and a walk-in, for the people who run check-in (admins and " +
+        "SU-recognised committee, as sign-up names are): everybody else is refused before " +
+        "anything is read, and the two who run it meet the body's own validation.",
+    },
+  },
+  "/api/events/[id]/check-ins/[checkInId]": {
+    DELETE: {
+      expect: adminOnly(404, { suCommittee: 404 }),
+      why:
+        "Undoing a check-in, for the people who run check-in: everybody else is refused before " +
+        "the event is read, and the two who run it are told the event is missing.",
+    },
+  },
   "/api/events/[id]/collaborators": {
     GET: {
       expect: signedIn(404),
@@ -2058,6 +2084,14 @@ export const ROUTES = {
         "Session required, then the document is read and its own membership decides. The " +
         "battery's id addresses nothing, so every signed-in persona is told that the document " +
         "is missing. Authorship is per event.",
+    },
+  },
+  "/api/events/[id]/door-code": {
+    POST: {
+      expect: adminOnly(404, { suCommittee: 404 }),
+      why:
+        "Making an event's door code, a permanent short link, is for the people who run " +
+        "check-in; everybody else is refused before the event is read.",
     },
   },
   "/api/events/[id]/publish": {
@@ -2166,6 +2200,15 @@ export const ROUTES = {
         "An answer to a programme's anonymous keep, change and drop form, with no session and no cookie read: " +
         "the form's secret in the body is the credential, after an in-memory rate limit, so every caller " +
         "meets the same 400 for a body with no secret in it, signed in or not.",
+    },
+  },
+  "/api/links/[slug]/qr": {
+    GET: {
+      expect: adminOnly(404, { suCommittee: 404 }),
+      why:
+        "A short link's code: admins draw any link's, SU-recognised committee only an event's " +
+        "door code, so both read the link and are told a missing one is missing; everybody " +
+        "else is refused before it is read.",
     },
   },
   "/api/members/roster": {
@@ -3166,6 +3209,22 @@ export const PAGES = {
       "approveEvent) back to the event, while the layout sends a plain member or another " +
       "permission holder to the dashboard. Both redirects are in the stream for the latter, " +
       "so either is accepted.",
+  },
+  "/(app)/events/manage/[id]/check-in": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", committee: 200, suCommittee: 200, admin: 200, draftEvent: 200, approveEvent: 200 }),
+    why:
+      "An event's Check-in tab: open to the events area (the whole committee and draftEvent " +
+      "and approveEvent holders), with counts for everybody and names only for SU-recognised " +
+      "committee and admins; a plain member or another permission holder is sent to the " +
+      "dashboard by the events layout. A missing event renders the area's own not-found state.",
+  },
+  "/(app)/events/manage/[id]/door": {
+    expect: everyone(["dashboard", "event"], { anonymous: "login", pending: "pendingApproval", rejected: "home", committee: "event", suCommittee: 200, admin: 200, draftEvent: "event", approveEvent: "event" }),
+    why:
+      "The door list shows everybody who signed up, so it has the attendees page's gate: " +
+      "SU-recognised committee and admins; any other visitor the events layout admits goes " +
+      "back to the event, and a plain member or another permission holder to the dashboard " +
+      "(both redirects are in the stream for the latter, so either is accepted).",
   },
   "/(app)/events/manage/[id]/preview": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", committee: 200, suCommittee: 200, admin: 200, draftEvent: 200, approveEvent: 200 }),

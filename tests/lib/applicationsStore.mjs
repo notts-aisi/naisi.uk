@@ -35,9 +35,11 @@
  *
  * ## What it does not do
  *
- * No ordering, no range filters, no limits: the application system reads by
- * one or two equalities and sorts in memory, and a query here that asked for
- * more would be a query that needs an index.
+ * No ordering and no limits: the application system reads by one or two
+ * equalities and sorts in memory, and a query here that asked for more would
+ * be a query that needs an index. A range on one field is there, for the jobs
+ * that find what is due by one date (the check-in tidy job); a range beside
+ * another filter would need an index, so nothing should ask this for one.
  */
 
 /** The source of a `firebase-admin/firestore` stub whose sentinels this store resolves. */
@@ -117,6 +119,17 @@ export function makeDb(seed = {}, options = {}) {
     if (op === "==") return found === value;
     if (op === "in") return value.includes(found);
     if (op === "array-contains") return Array.isArray(found) && found.includes(value);
+    if (op === "<" || op === "<=" || op === ">" || op === ">=") {
+      // As Firestore does: a range matches values of the same type only, so a
+      // missing field or a null is never in it.
+      const a = found instanceof Date ? found.getTime() : found;
+      const b = value instanceof Date ? value.getTime() : value;
+      if (a === null || a === undefined || typeof a !== typeof b) return false;
+      if (op === "<") return a < b;
+      if (op === "<=") return a <= b;
+      if (op === ">") return a > b;
+      return a >= b;
+    }
     throw new Error(`the test database does not know the operator ${op}`);
   };
   const query = (collectionPath, filters) => ({

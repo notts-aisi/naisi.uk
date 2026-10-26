@@ -200,6 +200,13 @@
  *     while, who reads it and from when (`src/lib/anonymousFeedback/readers.ts`),
  *     that it goes with the run's destroy, and that an account's deletion has
  *     nothing of it to remove (`src/lib/anonymousFeedback/`).
+ * 27. **When you come to an event.** Check-in: who came, how and when, seen
+ *     with names only by admins and SU-recognised committee, and as numbers
+ *     by the event's other organisers; nothing recorded about not coming; a
+ *     walk-in's name, and an email only for that event's survey, deleted a
+ *     week after the event; the check-in link in the email that confirms a
+ *     place; names off a year after the event (the `event-check-ins-tidy`
+ *     job) and at once with the account (`src/lib/events/checkIns.ts`).
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -404,6 +411,39 @@ export default function PrivacyContentV7({
                 <li>
                   The status of your RSVP (pending, confirmed, waitlisted,
                   cancelled), and any later change requests you submit.
+                </li>
+              </ul>
+
+              <h3>When you come to an event</h3>
+              <ul>
+                <li>
+                  If you come to an event, we may record that you came, how
+                  and when: you check yourself in with the code at the door,
+                  or a committee member ticks your name on the door list. Only
+                  NAISI&apos;s admins and the committee members the
+                  Students&apos; Union recognises can see who came, as they can
+                  see who signed up. The event&apos;s other organisers see how
+                  many came, never who.
+                </li>
+                <li>
+                  Not coming is recorded nowhere. It is never held against you,
+                  and it never stops you signing up again.
+                </li>
+                <li>
+                  If you come without signing up, we take your name at the
+                  door, and an email address only if you want that
+                  event&apos;s survey. We use the address for nothing else, and
+                  delete it a week after the event.
+                </li>
+                <li>
+                  When your place at an event is confirmed, the email that
+                  tells you has a link that checks you in at the door, so you
+                  can check in without an account. Anyone holding it could
+                  check in in your name, so keep it to yourself.
+                </li>
+                <li>
+                  We use the record to count who comes. Nobody is shown one
+                  person&apos;s list of the events they came to.
                 </li>
               </ul>
 
@@ -1316,6 +1356,7 @@ export default function PrivacyContentV7({
                   you access to the relevant member or committee surfaces.
                 </li>
                 <li>Run events, including managing RSVPs and waitlists.</li>
+                <li>Check people in at an event, and count who comes.</li>
                 <li>
                   Run our courses: assess applications, place people into
                   groups that fit their availability, keep registers, give
@@ -1660,6 +1701,12 @@ export default function PrivacyContentV7({
                 deleting your account removes none of them.
               </p>
               <p>
+                <strong>Who came to an event.</strong> We keep the record of who
+                came with names for a year after the event, then take the names
+                off and keep the count. A walk-in&apos;s email address is
+                deleted a week after the event.
+              </p>
+              <p>
                 <strong>When a term&apos;s applications are destroyed.</strong>{" "}
                 This is the one exception to keeping them. An admin can destroy
                 a whole application form, for example one made as a test or by
@@ -1747,6 +1794,10 @@ export default function PrivacyContentV7({
                 <li>
                   Your answers to the anonymous form: nothing in them says they
                   were yours, so there is nothing of yours to remove.
+                </li>
+                <li>
+                  The record that you came to an event, no longer linked to
+                  you: it stays in the count.
                 </li>
                 <li>
                   A pitch you sent with a partner: it stays theirs, without
