@@ -20,7 +20,7 @@ import {
   type SurveyConsentPurpose,
   type SurveyItem,
 } from "./items";
-import { confidentialFactsFor } from "./personFacts";
+import { confidentialFactsFor, hiddenLinesFor } from "./personFacts";
 import { offerFromProfile, profileFactsOf } from "./profileOffer";
 import { chainOf, closedOn, isOpen, ownAnswerOf } from "./repo";
 import {
@@ -136,11 +136,19 @@ export type AnswerScreen =
 
 /**
  * What the page shows that is the person's own: a menu's offer by question
- * id, earlier answers in words, and the consent boxes they are asked (the
- * survey at the end asks the follow-ups box only of somebody the before
- * survey never asked). `asked` absent means every box the survey holds.
+ * id, earlier answers in words, the consent boxes they are asked (the survey
+ * at the end asks the follow-ups box only of somebody the before survey never
+ * asked), and the lines they are not shown (the Facilitator line, to somebody
+ * who facilitates a group of the run). `asked` absent means every box the
+ * survey holds.
  */
-export type PersonalFacts = { offered: Record<string, string>; piped: Record<string, string>; asked?: readonly SurveyConsentPurpose[] };
+export type PersonalFacts = {
+  offered: Record<string, string>;
+  piped: Record<string, string>;
+  asked?: readonly SurveyConsentPurpose[];
+  /** The lines of a lines question this person is not shown (`hiddenLinesFor`). Absent means none. */
+  hiddenLines?: readonly string[];
+};
 
 export const NO_PERSONAL_FACTS: PersonalFacts = { offered: {}, piped: {} };
 
@@ -192,7 +200,9 @@ export function answerPagesOf(survey: Pick<SurveyDoc, "items">, personal: Person
           minLabel: item.scale.points?.[0] ?? item.scale.minLabel,
           maxLabel: item.scale.points?.[item.scale.max - 1] ?? item.scale.maxLabel,
           points: item.scale.points ? [...item.scale.points] : [],
-          lines: item.lines.map((line) => ({ id: line.id, label: line.label })),
+          lines: item.lines
+            .filter((line) => !personal.hiddenLines?.includes(line.id))
+            .map((line) => ({ id: line.id, label: line.label })),
         });
       } else if (isScaleQuestion(item)) {
         questions.push({ ...base, kind: "scale", min: item.min, max: item.max, anchors: item.anchors.map((anchor) => ({ ...anchor })) });
@@ -371,13 +381,14 @@ export async function answerScreenFor(
     return on ? message(STATE_WORDS.closed(on)) : { state: "message", ...STATE_WORDS.noSurvey, consent: null };
   }
   if (!survey.closesAt || !survey.namesOffOn) return { state: "message", ...STATE_WORDS.noSurvey, consent: null };
-  const [facts, offered, piped, eyebrow, consent, kairos] = await Promise.all([
+  const [facts, offered, piped, eyebrow, consent, kairos, hiddenLines] = await Promise.all([
     confidentialFactsFor(db, survey, input.uid),
     profileOffersFor(db, survey, input.uid),
     pipedAnswersFor(db, survey, input.uid, test),
     eyebrowFor(db, survey),
     consentPanelFor(db, survey, person, input.submit, true, asked),
     kairosFor(db, survey, input.uid, input.submit),
+    hiddenLinesFor(db, survey, input.uid),
   ]);
   const box = confidentialPoints(facts);
   return {
@@ -387,7 +398,7 @@ export async function answerScreenFor(
       title: survey.title,
       intro: paragraphsOf(survey.intro),
       box: { heading: CONFIDENTIAL_HEADING, points: box.points, note: box.note },
-      pages: answerPagesOf(survey, { offered, piped, asked }),
+      pages: answerPagesOf(survey, { offered, piped, asked, hiddenLines }),
       closing: closingWords(survey.closesAt),
       submit: input.submit,
       kairos,

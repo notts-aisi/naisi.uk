@@ -359,6 +359,13 @@ const Q1 = scale("q_q1", "How likely are you to recommend this programme to a fr
   { at: 10, label: "Extremely likely" },
 ]);
 
+/**
+ * The line of "How valuable was each part?" that somebody who facilitates a
+ * group of the run is not shown: they would be rating their own facilitating
+ * (Zach, 26 October 2026; `hiddenLinesFor` in `personFacts.ts`).
+ */
+export const FACILITATOR_LINE_ID = "l_facilitator";
+
 const Q2: SurveyLinesQuestion = {
   kind: "question",
   id: "q_q2",
@@ -368,7 +375,7 @@ const Q2: SurveyLinesQuestion = {
   lines: [
     { id: "l_sessions", label: "Sessions" },
     { id: "l_readings", label: "Readings" },
-    { id: "l_facilitator", label: "Facilitator" },
+    { id: FACILITATOR_LINE_ID, label: "Facilitator" },
     { id: "l_participants", label: "Other participants" },
     { id: "l_speakers", label: "Speakers" },
     { id: "l_socials", label: "Socials" },

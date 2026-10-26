@@ -17,7 +17,8 @@
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { AGI, NOW, ROUND, RUN, formPath, makeSurveyWorld, surveySeed } from "./lib/surveyWorld.mjs";
+import { readFileSync } from "node:fs";
+import { AGI, B, NOW, ROUND, RUN, formPath, makeSurveyWorld, seat, surveySeed } from "./lib/surveyWorld.mjs";
 import { applicationPath } from "./lib/applicationsSmallTerm.mjs";
 
 const w = await makeSurveyWorld("__surveysRoutes");
@@ -569,6 +570,30 @@ describe("the answer page, by link and signed in, records nothing", () => {
       assert.ok(text.includes("Claudia sees totals and comments, never names. Your facilitators never see your answers."), uid);
       assert.ok(!/Sofia|Rahul|Tom/.test(text), `${uid}'s page names a group they have not been told`);
     }
+  });
+
+  test("a facilitator who holds a place in the group they run is left out of its facilitators in the box, and is not shown the Facilitator line", async (t) => {
+    // Zach, 26 October 2026: the box never tells a reader they cannot see their
+    // own answers, and nobody rates their own facilitating.
+    clock(t);
+    // Rahul runs group B with Sofia, and holds a place in it.
+    w.reset(seed({ [`courseEnrolments/${RUN.agi}__rahul`]: seat("rahul", B) }));
+    const facts = await w.loadTs("lib/surveys/personFacts.ts");
+    const after = { runId: RUN.agi, namesOffOn: "2028-12-09", programmeKind: "fellowship", items: w.lib.templates.templateItems("after", "fellowship", null) };
+    assert.deepEqual((await facts.confidentialFactsFor(w.world.db, after, "rahul")).facilitatorNames, ["Sofia"]);
+    assert.deepEqual((await facts.confidentialFactsFor(w.world.db, after, "amara")).facilitatorNames, ["Rahul", "Sofia"]);
+    assert.deepEqual(await facts.hiddenLinesFor(w.world.db, after, "rahul"), ["l_facilitator"]);
+    assert.deepEqual(await facts.hiddenLinesFor(w.world.db, after, "amara"), []);
+    // A facilitator with no place is not shown it either: Sofia facilitates group B.
+    assert.deepEqual(await facts.hiddenLinesFor(w.world.db, after, "sofia"), ["l_facilitator"]);
+    // A survey without the line hides nothing from anybody.
+    const before = { ...after, items: w.lib.templates.templateItems("before", "fellowship", null) };
+    assert.deepEqual(await facts.hiddenLinesFor(w.world.db, before, "rahul"), []);
+    // Sending keeps only the lines the person was shown: the answer route drops
+    // a value for a hidden line before anything is written.
+    const answerCode = readFileSync(new URL("../src/lib/surveys/answer.ts", import.meta.url), "utf8");
+    assert.match(answerCode, /const answers = withoutLines\(read\.answers, await hiddenLinesFor\(db, survey, person\.respondent\.uid\)\);/);
+    assert.doesNotMatch(answerCode, /answers: read\.answers,/, "the answer is written as it was sent, hidden lines and all");
   });
 
   test("a wrong link, an answered survey and a closed one each say so in a sentence", async (t) => {
