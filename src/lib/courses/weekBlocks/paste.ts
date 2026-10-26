@@ -1,3 +1,4 @@
+import { facilitatorMaterialIn } from "../facilitatorGuide/recognise";
 import { foundRows, thingsToCheck, type FoundRow } from "./found";
 import { readWeekMarkdown } from "./markdownRead";
 import { finishWeekBlocks, mergeWeekIds } from "./merge";
@@ -63,6 +64,11 @@ export function readPastedWeek(input: {
       `This is week ${parsed.weekNumber}’s Markdown, and you’re loading week ${input.weekNumber}. Check the week, or change the first line.`,
     );
   }
+  // Facilitator material (a session plan, a week's notes, an answer key) is
+  // never written into a week: anyone signed in can read a week's document.
+  // A session plan has no "Week 3:" title, so the check above cannot see it.
+  const material = facilitatorMaterialIn(input.markdown);
+  if (material) problems.unshift(material);
   // What is stored is what the read side gives back; for blocks with no
   // problem the two are the same list.
   const blocks = problems.length === 0 ? sanitizeWeekBlocks(finished) : finished;

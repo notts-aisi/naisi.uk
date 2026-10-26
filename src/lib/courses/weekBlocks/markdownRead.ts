@@ -1809,3 +1809,46 @@ function topSubsection(reader: Reader, sub: Section, blocks: TopBlock[], partNum
   blocks.push({ id, type: "text", role: "section", heading: text, time: "", body: proseOf(sub.tokens, reader.counts, reader.leftOut) });
   return partNumber;
 }
+
+// ---------------------------------------------------------------------------
+// The same reader of text, for a document that is not a week
+// ---------------------------------------------------------------------------
+
+/**
+ * What reading some text left out: links kept as words (not https or mailto),
+ * pictures, and pieces of HTML. A caller says each, so nothing goes missing
+ * without a word.
+ */
+export type TextLeftOut = { refused: string[]; images: number; leftOut: string[] };
+
+/** An empty record of what reading left out, to hand to the readers below. */
+export function noneLeftOut(): TextLeftOut {
+  return { refused: [], images: 0, leftOut: [] };
+}
+
+/**
+ * Some top-level Markdown tokens as prose, read exactly as a week's text is:
+ * paragraphs, lists, tables and code, a quote's words kept, a heading kept as
+ * a bold line. For a document that is not a week (a course's facilitator
+ * guide, `src/lib/courses/facilitatorGuide/`), so one reader decides what a
+ * line of text is, wherever it is written.
+ */
+export function readProseTokens(tokens: readonly Token[], seen: TextLeftOut): Prose {
+  const counts: InlineCounts = { images: 0, refused: [] };
+  const prose = proseOf(tokens, counts, seen.leftOut);
+  seen.images += counts.images;
+  seen.refused.push(...counts.refused);
+  return prose;
+}
+
+/**
+ * Inline tokens (a heading's, a list item's text) as one canonical line, its
+ * words exactly as a week's are read. Line breaks become spaces.
+ */
+export function readInlineRuns(tokens: readonly Token[] | undefined, seen: TextLeftOut): Run[] {
+  const counts: InlineCounts = { images: 0, refused: [] };
+  const runs = line(tokensLine(tokens, counts));
+  seen.images += counts.images;
+  seen.refused.push(...counts.refused);
+  return runs;
+}

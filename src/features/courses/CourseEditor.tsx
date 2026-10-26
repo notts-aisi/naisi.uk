@@ -20,6 +20,7 @@ import ResponsiveSelect, {
 import { AdminLoadingBar, AdminPage } from "@/features/admin/adminList";
 import BlockEditor from "@/components/blocks/BlockEditor";
 import { crestForCourse } from "@/lib/crests/resolve";
+import { facilitatorGuideAdminPath } from "@/lib/courses/facilitatorGuide/model";
 import { isValidDateKey } from "@/lib/courses/weekPlan";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
 import {
@@ -96,6 +97,8 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
   const router = useRouter();
   const { toast, run: runAction, dismiss } = useActionToast();
   const saving = toast?.phase === "saving";
+  // Loading the facilitator guide is an admin's job for now (Q39); its page and route refuse everyone else.
+  const { role } = useAuth();
 
   // The course list is a single one-shot read of a tens-of-docs collection, so
   // picking this course out of it costs nothing extra and keeps the hook
@@ -627,6 +630,22 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
             </div>
           </section>
         </Card>
+
+        {/* === Facilitator guide === */}
+        {role === "admin" && (
+          <Card padding="lg">
+            <section className={styles.section}>
+              <div className={styles.sectionHead}>
+                <h2 className={styles.sectionTitle}>Facilitator guide</h2>
+                <p className={styles.sectionHint}>
+                  Each week’s session plan and notes, and the course’s own documents, for its facilitators, its
+                  programme’s lead and admins only.{" "}
+                  <Link href={facilitatorGuideAdminPath(courseId)}>Load the facilitator guide</Link>
+                </p>
+              </div>
+            </section>
+          </Card>
+        )}
 
         {/* === Runs === */}
         <Card padding="lg">
