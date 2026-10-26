@@ -72,10 +72,22 @@ export async function POST(req: Request, ctx: Ctx) {
   const prepared = await prepareSurveyTest(db, survey, email, { uid: actor.uid, address: actor.email });
   if (!prepared.ok) return NextResponse.json({ error: prepared.error }, { status: prepared.status });
 
-  // To the presser's own address and nobody else's: a test is no notice.
+  // To the presser's own address and nobody else's: a test is no notice. The
+  // message is written out here, kind and all, so the senders guard can read
+  // which address it comes from.
+  const { message } = prepared;
   let delivery: "sent" | "held" | "suppressed";
   try {
-    const result = await sendEmail(prepared.message);
+    const result = await sendEmail({
+      to: message.to,
+      subject: message.subject,
+      react: message.react,
+      replyTo: message.replyTo,
+      fromName: message.fromName,
+      kind: "course-test",
+      actorUid: message.actorUid,
+      referenceId: message.referenceId,
+    });
     delivery = result.held.length > 0 ? "held" : result.suppressed.length > 0 ? "suppressed" : "sent";
   } catch (err) {
     console.error("[surveys test] send failed", surveyId, err);

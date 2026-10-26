@@ -144,7 +144,6 @@ export type PreparedTest =
         react: ReturnType<typeof SurveyEmail>;
         replyTo: string;
         fromName: string;
-        kind: "course-test";
         actorUid: string;
         referenceId: string;
       };
@@ -183,7 +182,6 @@ export async function prepareSurveyTest(
       react: SurveyEmail({ ...words, link, testLine: TEST_LINE }),
       replyTo: SURVEY_REPLY_TO,
       fromName: SURVEY_FROM_NAME,
-      kind: "course-test",
       actorUid: presser.uid,
       referenceId: survey.id,
     },
