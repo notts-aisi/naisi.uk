@@ -551,7 +551,8 @@ describe("5. the ways to the two pages, each only when its document exists", () 
   });
 
   test("each link row and card refuses to draw what the run has not, whatever it is handed", async () => {
-    const { AboutThisCourse, WeekGuideLinks } = await w.loadTs(join("features", "courses", "guide", "GuideLinks.tsx"));
+    const { WeekGuideLinks } = await w.loadTs(join("features", "courses", "guide", "GuideLinks.tsx"));
+    const { default: AboutThisCourse } = await w.loadTs(join("features", "courses", "AboutThisCourse.tsx"));
     const draw = (component, links) => textOf(renderToStaticMarkup(createElement(component, { runId: RUN.agi, links })));
     for (const component of [AboutThisCourse, WeekGuideLinks]) {
       assert.equal(draw(component, null), "");

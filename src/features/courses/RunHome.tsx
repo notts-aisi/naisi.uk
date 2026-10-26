@@ -19,7 +19,7 @@ import SessionTicket from "./weekly/SessionTicket";
 import ThisWeekCard from "./weekly/ThisWeekCard";
 import WeekList from "./weekly/WeekList";
 import YourGroup from "./weekly/YourGroup";
-import { AboutThisCourse } from "./guide/GuideLinks";
+import AboutThisCourse from "./AboutThisCourse";
 import type { GuideLinks } from "@/lib/courses/guide/model";
 import { useMaterialTicks } from "./weekly/useMaterialTicks";
 import { weekRowsOf } from "./weekly/weekRows";

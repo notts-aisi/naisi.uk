@@ -86,7 +86,6 @@
 
 .crumbLink:focus-visible,
 .railLink:focus-visible,
-.cardLink:focus-visible,
 .weekLink:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
@@ -604,7 +603,7 @@ ol.list > li::before {
   border: 0;
 }
 
-/* === The week page's row, and the programme page's card === */
+/* === The week page's row === */
 
 .weekLinks {
   display: flex;
@@ -628,52 +627,6 @@ ol.list > li::before {
 
 .weekLink:hover {
   color: var(--color-accent-text-hover);
-}
-
-.cardTitle {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.1875rem;
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--color-text);
-}
-
-.cardList {
-  margin: 12px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.cardList > li + li {
-  border-top: 1px solid var(--color-border);
-}
-
-.cardLink {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: 12px;
-  min-height: 44px;
-  padding: 12px 0;
-  text-decoration: none;
-}
-
-.cardName {
-  display: block;
-  font-weight: 600;
-  color: var(--color-accent-text);
-}
-
-.cardLine {
-  display: block;
-  margin-top: 2px;
-  font-size: var(--text-sm);
-  color: var(--color-text-soft);
-}
-
-.cardArrow {
-  color: var(--color-accent-text);
 }
 
 @media (max-width: 48rem) {
