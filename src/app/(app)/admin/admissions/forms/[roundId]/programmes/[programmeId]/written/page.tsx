@@ -53,9 +53,9 @@ export default async function LeadWrittenAnswersPage({
   if (!runSnap.exists || (runSnap.data() ?? {}).destroying === true) return <RunBlank view={{ ...view, blank: "run-gone" }} />;
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const [liveGroups, facts] = await Promise.all([liveGroupsOf(db, run.id), reviewerFactsOf(db, user, run.id)]);
-  const ordered = [...liveGroups].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  // The run's live groups, in the one order every tab lists them in.
   const askedGroup = typeof query.group === "string" && isAddressableId(query.group) ? query.group : null;
-  const group = ordered.find((candidate) => candidate.id === askedGroup) ?? ordered[0] ?? null;
+  const group = liveGroups.find((candidate) => candidate.id === askedGroup) ?? liveGroups[0] ?? null;
   if (!group) return <RunBlank view={view} />;
 
   const asked = typeof query.week === "string" && /^\d{1,2}$/.test(query.week) ? Number(query.week) : null;

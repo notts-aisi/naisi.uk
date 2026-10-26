@@ -7,6 +7,7 @@ import ProgrammeAttendance from "@/features/applications/groups/ProgrammeAttenda
 import RunBlank from "@/features/applications/groups/RunBlank";
 import { LeadWrittenAnswersCard } from "@/features/courses/written/ReviewQueueCard";
 import { loadWrittenQueues } from "@/lib/courses/writtenAnswers/queue";
+import { compareGroupsByMeeting } from "@/lib/firestore/courseGroups";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import { leadNotesHeading, notesWhoLine } from "@/lib/courses/facilitatorPageWords";
@@ -97,7 +98,7 @@ export default async function ProgrammeAttendancePage({
         <div className={facilitator.leadNotes}>
           <LeadWrittenAnswersCard
             groups={[...liveGroups]
-              .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+              .sort(compareGroupsByMeeting)
               .map((group) => ({
                 id: group.id,
                 name: group.name.trim() || "Untitled group",

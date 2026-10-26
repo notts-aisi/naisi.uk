@@ -3,7 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
-import { getCurrentUser } from "@/lib/firebase/session";
+import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
 import { rubricProblems, type CourseRubric } from "@/lib/courses/rubric";
 import { readRubricMarkdown } from "@/lib/courses/rubricMarkdown";
 
@@ -34,11 +34,10 @@ export type RubricReadAnswer = {
   problems: string[];
 };
 
-async function gate(ctx: { params: Promise<{ courseId: string }> }) {
+/** After the session: admins only, decided before anything is read. */
+async function gate(ctx: { params: Promise<{ courseId: string }> }, actor: SessionUser) {
   const { courseId } = await ctx.params;
   if (!isAddressableId(courseId)) return { response: NextResponse.json({ error: "Course not found" }, { status: 404 }) };
-  const actor = await getCurrentUser();
-  if (!actor) return { response: NextResponse.json({ error: "Not signed in" }, { status: 401 }) };
   if (actor.role !== "admin") {
     return { response: NextResponse.json({ error: "Only an admin can change a course’s rubric." }, { status: 403 }) };
   }
@@ -62,7 +61,9 @@ async function markdownOf(req: Request): Promise<{ markdown?: string; remove?: b
 export async function POST(req: Request, ctx: { params: Promise<{ courseId: string }> }) {
   const blocked = await assertNotImpersonating();
   if (blocked) return blocked;
-  const gated = await gate(ctx);
+  const actor = await getCurrentUser();
+  if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gated = await gate(ctx, actor);
   if ("response" in gated) return gated.response;
   const sent = await markdownOf(req);
   if (sent.error || sent.markdown === undefined) {
@@ -76,7 +77,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ courseId: stri
 export async function PUT(req: Request, ctx: { params: Promise<{ courseId: string }> }) {
   const blocked = await assertNotImpersonating();
   if (blocked) return blocked;
-  const gated = await gate(ctx);
+  const actor = await getCurrentUser();
+  if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gated = await gate(ctx, actor);
   if ("response" in gated) return gated.response;
   const { courseId, db } = gated;
   const sent = await markdownOf(req);

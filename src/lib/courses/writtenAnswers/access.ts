@@ -7,7 +7,7 @@ import {
   normalizeCourseEnrolment,
   placementIsShownTo,
 } from "@/lib/firestore/courseEnrolments";
-import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { programmeLedBy } from "../programmeLead";
 
 /**
@@ -41,10 +41,16 @@ import { programmeLedBy } from "../programmeLead";
  * took part has no answer here (`ownerFactsOf` answers null).
  */
 
-/** The run's groups that staff anybody: one equality on the run, archived ones left out. */
+/**
+ * The run's groups that staff anybody: one equality on the run, archived ones
+ * left out, in the one order every page lists a run's groups in.
+ */
 export async function liveGroupsOf(db: Firestore, runId: string): Promise<CourseGroupDoc[]> {
   const snap = await db.collection("courseGroups").where("runId", "==", runId).limit(50).get();
-  return snap.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})).filter((group) => !group.archived);
+  return snap.docs
+    .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
+    .filter((group) => !group.archived)
+    .sort(compareGroupsByMeeting);
 }
 
 /** What the gate needs to know of the person asking. */
