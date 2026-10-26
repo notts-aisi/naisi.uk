@@ -467,6 +467,14 @@
   overflow-wrap: anywhere;
 }
 
+/* Under the Kairos box: what saying no does and does not change. */
+.kairosAfter {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 48rem) {
   .title {
     font-size: var(--text-base);

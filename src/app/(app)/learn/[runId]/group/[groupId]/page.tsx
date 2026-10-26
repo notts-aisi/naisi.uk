@@ -53,6 +53,8 @@ import { resolveGroupCalendar } from "@/lib/courses/groupResolve";
 import { resolveSessions, sessionRange } from "@/lib/courses/sessions";
 import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
 import { londonDateKey, type CurrentWeek } from "@/lib/courses/weekPlan";
+import { runEndOf } from "@/lib/courses/finishing/runEnd";
+import { RATINGS_WORDS } from "@/lib/ratings/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import {
   normalizeCourseGroup,
@@ -476,6 +478,17 @@ export default async function GroupHomePage({
   // summer's weeks), and its reflections half, on a week written as blocks
   // with something to reflect on.
   const writtenCard = writtenQueue ? <ReviewQueueCard rows={writtenQueue} hrefFor={writtenHref} /> : null;
+  // Once the run's last session is over, the way to rate the group: its
+  // facilitators and admins, about two minutes a person. First in the side
+  // column, whichever shape the page takes.
+  const rateCard = runEndOf(access.run, access.groups, now).over ? (
+    <section className={weekly.card} aria-label={RATINGS_WORDS.link}>
+      <Link href={`${groupPath}/ratings`} className={facilitator.button}>
+        {RATINGS_WORDS.link}
+      </Link>
+      <p className={weekly.cardLine}>{RATINGS_WORDS.linkLine}</p>
+    </section>
+  ) : null;
   const queueCard =
     groupWeek && groupWeek.counts.length > 0 && groupWeek.counts[0].of > 0 ? (
       <ReflectionsQueueCard counts={groupWeek.counts} href={`${groupPath}/reflections?week=${groupWeek.weekNumber}`} />
@@ -554,8 +567,9 @@ export default async function GroupHomePage({
         <div className={facilitator.wkRows}>
           <div className={facilitator.columns}>
             <div className={facilitator.colMain}>{ticketCards}</div>
-            {(writtenCard || queueCard || summerWaiting) && (
+            {(rateCard || writtenCard || queueCard || summerWaiting) && (
               <div className={facilitator.colSide}>
+                {rateCard}
                 {writtenCard}
                 {queueCard}
                 {/* The summer's exercises keep their own card while any of them waits. */}
@@ -582,6 +596,7 @@ export default async function GroupHomePage({
           </div>
 
           <div className={facilitator.colSide}>
+            {rateCard}
             {writtenCard}
             {/* The summer's exercises keep their own card, on a run of the
                 summer's weeks or while any of them still waits. */}

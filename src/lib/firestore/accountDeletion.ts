@@ -8,6 +8,8 @@ import {
   type QuerySnapshot,
 } from "firebase-admin/firestore";
 import { deleteCalendarLink } from "@/lib/courses/calendarLink";
+import { deleteKairosChoice } from "@/lib/kairos/choice";
+import { deleteRatingsForAccount } from "@/lib/ratings/store";
 import { takeNamesOffForAccount } from "@/lib/surveys/namesOff";
 import { FACILITATING_COLLECTION } from "@/lib/courses/facilitatorAsks/model";
 import { FINISHING_COLLECTION } from "@/lib/courses/finishing/model";
@@ -64,6 +66,19 @@ export type AccountDeletionSummary = {
    * survey's own box tells them. Counted once per answer.
    */
   surveyAnswersNamesTakenOff: number;
+  /**
+   * The account's Kairos choice (`kairosChoices/{uid}`): whether its name and
+   * programme record may go to Kairos. Deleted, since with the account gone
+   * there is nothing of theirs left to share.
+   */
+  kairosChoiceDeleted: boolean;
+  /**
+   * Ratings given at a programme's end (`programmeRatings`) that the account
+   * gave or was given: what a facilitator, the lead or an admin said about a
+   * fellow. Deleted either way, since a rating is only ever about one named
+   * person, by one named person.
+   */
+  programmeRatingsDeleted: number;
   registrationDeleted: boolean;
   collaboratorDeleted: boolean;
   userDocDeleted: boolean;
@@ -1151,6 +1166,8 @@ export async function deleteAccountCascade(
     calendarLinkDeleted: false,
     surveyPeopleDeleted: 0,
     surveyAnswersNamesTakenOff: 0,
+    kairosChoiceDeleted: false,
+    programmeRatingsDeleted: 0,
     registrationDeleted: false,
     collaboratorDeleted: false,
     userDocDeleted: false,
@@ -1283,6 +1300,28 @@ export async function deleteAccountCascade(
     summary.surveyAnswersNamesTakenOff = off.answers;
   } catch (err) {
     console.error("[deleteAccount] survey names-off failed:", uid, (err as { code?: unknown } | null)?.code ?? "unknown");
+    partialFailure = true;
+  }
+
+  // 1f. THE KAIROS CHOICE. Whether the account's name and programme record
+  //     may go to Kairos (`kairosChoices/{uid}`, `src/lib/kairos/choice.ts`):
+  //     one document at the uid, deleted. BEST-EFFORT like 1e, with the 207
+  //     keeping the registration row so the sweep is retried.
+  try {
+    summary.kairosChoiceDeleted = await deleteKairosChoice(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] Kairos choice delete failed:", uid, (err as { code?: unknown } | null)?.code ?? "unknown");
+    partialFailure = true;
+  }
+
+  // 1g. RATINGS. Every rating given at a programme's end that the account gave
+  //     or was given (`programmeRatings`, `src/lib/ratings/store.ts`): one
+  //     equality on `raterUid` and one on `ratedUid`, deleted. BEST-EFFORT like
+  //     1e, with the 207 keeping the registration row so the sweep is retried.
+  try {
+    summary.programmeRatingsDeleted = await deleteRatingsForAccount(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] ratings delete failed:", uid, (err as { code?: unknown } | null)?.code ?? "unknown");
     partialFailure = true;
   }
 

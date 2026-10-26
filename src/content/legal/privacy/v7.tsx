@@ -72,9 +72,10 @@
  *     material is shown to the run only on a programme anyone can join; on a
  *     programme that places people in groups, the people in a group see the
  *     notes it shares instead (17).
- * 11. **Four downloads are logged, not two.** A programme's attendance and a
- *     survey's answers with names join the membership list and a worksheet's
- *     answers, with what each new file holds and never holds.
+ * 11. **Five downloads are logged, not two.** A programme's attendance, a
+ *     survey's answers with names and the Kairos file join the membership
+ *     list and a worksheet's answers, with what each new file holds and never
+ *     holds.
  * 12. **How we use it.** Making teams, recording who finished and sending
  *     certificates are named among running our courses.
  * 13. **No automated decisions.** Who finished starts from the lead's number
@@ -131,7 +132,8 @@
  *     comes off two years after the programme's last session (the
  *     `surveys-names-off` job), and at once with the account. The sentence
  *     about anonymous surveys moves here from Feedback on the material,
- *     unchanged (`src/lib/surveys/`).
+ *     unchanged (`src/lib/surveys/`). The survey at the end asks the
+ *     follow-ups box again of somebody the before survey never asked.
  * 20. **Written answers and their feedback.** Who reads a written answer (its
  *     writer, their group's facilitators, the programme's lead and admins; a
  *     facilitator's own, the lead and admins), the first-sent and edited
@@ -173,6 +175,20 @@
  *     admins' to read, never another facilitator's, and their own private
  *     notes admins' alone (`src/lib/courses/facilitatorWeek/`, the group
  *     page and its reflections page, and the lead's two pages).
+ * 24. **Sharing with Kairos.** Unless somebody says no, the name and
+ *     programme record of everybody on a programme at its end go to Kairos,
+ *     one of NAISI's funders, on legitimate interests: what goes, why, the
+ *     way to say no at the end of every programme survey and on the profile,
+ *     what saying no does and does not change, and how long the choice is
+ *     kept (`src/lib/kairos/`). Totals go to funders and sponsors with no
+ *     name (`src/lib/surveys/kairosReport.ts`), and so may the links to an
+ *     incubator's work that its people give, as that question tells them
+ *     (`src/lib/surveys/templates.ts`). The Kairos file is the fifth logged
+ *     download.
+ * 25. **Ratings at the end of a programme.** What a group's facilitators
+ *     rate, who rates whom, who reads them, never shown to the person rated
+ *     on any page or in any email, deleted two years after the programme and
+ *     with an account (`src/lib/ratings/`).
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -425,11 +441,12 @@ export default function PrivacyContentV7({
                   The survey before a programme asks whether we may contact
                   you at 6 and 12 months with a short follow-up survey, in a
                   box that starts unticked, and only people who tick it are sent
-                  the follow-ups. You can change your answer at any time until
-                  your name comes off, on your survey&apos;s page, through its
-                  link or signed in, and the next follow-up goes by it. We keep
-                  what you said, and when, with the record that the survey was
-                  sent to you.
+                  the follow-ups. If you did not answer it there, the survey at
+                  the end asks you the same. You can change your answer at any
+                  time until your name comes off, on your survey&apos;s page,
+                  through its link or signed in, and the next follow-up goes by
+                  it. We keep what you said, and when, with the record that the
+                  survey was sent to you.
                 </li>
                 <li>
                   Every question can be skipped. Nothing you say in a survey
@@ -451,6 +468,13 @@ export default function PrivacyContentV7({
                   email carries a link of your own, so you can answer without
                   signing in. Anyone holding it could answer in your name, so
                   keep it to yourself.
+                </li>
+                <li>
+                  Every programme survey ends with what we share with Kairos,
+                  one of our funders, and a box to say no to it, which starts
+                  as you last left it. Whatever you choose there, your answers
+                  are kept and counted the same. See Sharing with Kairos, under
+                  Sharing and processors.
                 </li>
                 <li>
                   We do not currently run anonymous surveys on this site. If
@@ -1107,26 +1131,56 @@ export default function PrivacyContentV7({
                 programme. Whether anybody else sees it is your choice.
               </p>
 
+              <h3>Ratings at the end of a programme</h3>
+              <p>
+                Once a programme&apos;s last session is over, each group&apos;s
+                facilitators rate the people taking part in it: how much they
+                joined in discussion, their grasp of the material, how much
+                improving AI outcomes seems to drive them, and whether they
+                would recommend them for a more demanding next step. On an
+                incubator they also rate how strongly they support the
+                person&apos;s research continuing, their research or technical
+                skill, and how independently they can steer it. Beside each
+                rating we show how many sessions the person came to, read from
+                the register, never typed in. Nobody rates themselves, and two
+                facilitators of one group never rate each other: a
+                facilitator, who takes part in the group they run, is rated by
+                the programme&apos;s lead or an admin, who can also rate
+                anybody else on the programme. Ratings are read only by the
+                programme&apos;s lead, NAISI&apos;s admins, and the person who
+                gave each one, who sees only their own. They are never shown
+                to the person rated, on any page or in any email. Unless you
+                have said no, the ratings you were given go to Kairos with your
+                name (see Sharing and processors). We delete them two years
+                after the programme&apos;s last session, and at once if the
+                account of whoever gave or was given one is deleted.
+              </p>
+
               <h3>Downloads</h3>
               <p>
                 Staff sometimes need a spreadsheet: a register to take to a
                 session, a roster, the applications for a round, a membership
-                list. Four of those downloads are recorded, with who asked for
+                list. Five of those downloads are recorded, with who asked for
                 it, what it covered, how many people were in it and when: the
                 membership list, the answers to a circulated worksheet, a
-                programme&apos;s attendance, and a survey&apos;s answers with
-                names, which only admins can download. The attendance file is
-                for the programme&apos;s lead and admins. It holds each
-                person&apos;s group, name and marks, how many sessions they
-                came to and the day they left, if they did, and never an email
-                address or a note. The survey file holds, for each person who
-                answered, their name, when and how they sent their answers,
-                whether their group had met by then, and the answers
-                themselves, and never an email address. All four refuse to
-                hand over the file if that record cannot be written. The event
+                programme&apos;s attendance, a survey&apos;s answers with
+                names, and the Kairos file; only admins can download the last
+                two. The attendance file is for the programme&apos;s lead and
+                admins. It holds each person&apos;s group, name and marks, how
+                many sessions they came to and the day they left, if they did,
+                and never an email address or a note. The survey file holds,
+                for each person who answered, their name, when and how they
+                sent their answers, whether their group had met by then, and
+                the answers themselves, and never an email address. The Kairos
+                file holds, for each person on a programme at its end who has
+                not said no to sharing with Kairos, their name, the programme,
+                how many sessions they came to, whether they finished and the
+                ratings they were given at the end, and never an email address,
+                who gave a rating or a survey answer. All five refuse to hand
+                over the file if that record cannot be written. The event
                 attendee list and the subscriber list are built in your
                 browser and are not recorded. We are being careful with that
-                sentence: it means we log four of the files the site
+                sentence: it means we log five of the files the site
                 produces. It does not mean we can track a file
                 once it has been downloaded, and it does not cover somebody
                 copying what is on their screen.
@@ -1167,6 +1221,8 @@ export default function PrivacyContentV7({
                   the reflections its groups&apos; people write and sees which
                   sources each of them has ticked, a facilitator&apos;s own
                   among them.
+                  When it ends, the lead also reads the ratings given to the
+                  people on it, and rates its facilitators.
                   Admins see every application but their own, with your email
                   addresses. On decision day they are the only ones who choose
                   what somebody no programme took will hear, and they send the
@@ -1190,7 +1246,9 @@ export default function PrivacyContentV7({
                   Before the first session, they also see whether each
                   person in their group has said they are coming. Apart from
                   that one reply, they see nothing from applications, and no
-                  review scores.
+                  review scores. When a programme ends they rate the people in
+                  their group, and see only the ratings they gave, never
+                  anybody&apos;s rating of them.
                 </li>
                 <li>
                   <strong>Other participants</strong> on your run see your
@@ -1230,6 +1288,12 @@ export default function PrivacyContentV7({
                   feedback on work, make teams on an incubator, record who
                   finished and send certificates, and ask how the sessions are
                   going.
+                </li>
+                <li>
+                  Show our funders and sponsors what our programmes achieve:
+                  totals that name nobody, the links to an incubator&apos;s work
+                  that its people give us, and, unless you say no, what we share
+                  with Kairos (see Sharing and processors).
                 </li>
                 <li>
                   Send you transactional emails you have asked for, such as
@@ -1292,7 +1356,11 @@ export default function PrivacyContentV7({
                   things they would reasonably expect, assessing course
                   applications fairly, and operating the committee tooling. We
                   have weighed our interests against yours and limited the data
-                  we hold to what is needed.
+                  we hold to what is needed. Sharing with Kairos rests on this
+                  basis too: it helps us make our case to our funders and
+                  sponsors, it shares only what Sharing with Kairos lists, and
+                  you can object to it at any time with the choice at the end of
+                  every programme survey or on your profile, which stops it.
                 </li>
                 <li>
                   <strong>Explicit consent</strong> for special category data.
@@ -1386,6 +1454,39 @@ export default function PrivacyContentV7({
                   that device before it leaves us.
                 </li>
               </ul>
+              <h3>Sharing with Kairos</h3>
+              <p>
+                Kairos supports AI safety groups at universities and is one of
+                our funders. Unless you say no, when a programme ends we send
+                Kairos a file with, for each person on it at the end: their
+                name, the programme, how many sessions they came to, whether
+                they finished, and the ratings they were given at the end
+                (described under Ratings at the end of a programme). Kairos
+                uses it to see what its support achieves and to point promising
+                people towards work in AI safety. We share it because it helps
+                us make our case to our funders and sponsors, so leaving it on
+                helps NAISI. It never holds your email address, your survey
+                answers, or who gave a rating.
+              </p>
+              <p>
+                Every programme survey ends with a box to say no, and the same
+                choice is on <a href="/profile">your profile</a>. You can
+                change it at any time, and the next file goes by it. Saying no
+                stops only what goes to Kairos with your name: NAISI&apos;s
+                admins still see your survey answers, and they still count in
+                our totals. We keep your choice, and when you made it, until
+                your account is deleted. A file already sent is held by
+                Kairos, and changing your choice later does not recall it.
+              </p>
+              <p>
+                We also report totals to our funders and sponsors, Kairos among
+                them: how many people applied to, started and finished a
+                programme, how answers to our surveys changed between the start
+                and the end, and figures like them, each with how many people
+                it counts. These never name anybody. For an incubator we may
+                also pass on the links its people give us, in the survey at its
+                end, to the work their team produced; that question says so.
+              </p>
               <p>
                 We may also share data with the University of Nottingham
                 Students&apos; Union where we are required to as an affiliated
@@ -1510,6 +1611,15 @@ export default function PrivacyContentV7({
                 longer linked to you.
               </p>
               <p>
+                <strong>Ratings at the end of a programme.</strong> We delete
+                them two years after the programme&apos;s last session, the day
+                names come off its surveys.
+              </p>
+              <p>
+                <strong>Your choice about Kairos.</strong> Kept for as long as
+                your account exists, so a later programme goes by it too.
+              </p>
+              <p>
                 <strong>When a term&apos;s applications are destroyed.</strong>{" "}
                 This is the one exception to keeping them. An admin can destroy
                 a whole application form, for example one made as a test or by
@@ -1552,7 +1662,9 @@ export default function PrivacyContentV7({
                 answer stored separately beside them, the decisions recorded
                 about those applications, the review scores and notes written
                 about those applications and any you wrote about somebody else,
-                a conduct flag if there is one, your membership
+                a conduct flag if there is one, every rating you gave or were
+                given at the end of a programme, your choice about sharing
+                with Kairos, your membership
                 records and the lines naming you on a Students&apos; Union
                 membership file, and your sign-in record. Your marks and the
                 notes about you are stripped out of attendance registers, which
@@ -1638,7 +1750,7 @@ export default function PrivacyContentV7({
                 log, the subscription event log, the impersonation log used for
                 committee oversight, the log of course actions including who
                 read an access-requirements answer and each decision made about
-                an application, and the record of the four downloads the site
+                an application, and the record of the five downloads the site
                 logs. They name the person who took the action and what it
                 concerned. A log line about a decision on an application, or
                 about an admin opening an access-requirements answer,
@@ -1690,9 +1802,9 @@ export default function PrivacyContentV7({
               </ul>
               <p>
                 Most of these are self-serve. You can edit your profile and
-                notification preferences from{" "}
-                <a href="/profile">your profile page</a>, and unsubscribe from
-                any marketing email through the link in that email. Important
+                notification preferences, and say no to sharing with Kairos,
+                from <a href="/profile">your profile page</a>, and unsubscribe
+                from any marketing email through the link in that email. Important
                 notices carry no unsubscribe link, because there is nothing
                 there to switch off. Deleting your account
                 is by request: email{" "}
@@ -1706,7 +1818,8 @@ export default function PrivacyContentV7({
                 written about you as well as what you wrote yourself. For
                 courses that means the scores and notes a reviewer recorded on
                 your application, what each programme decided about it and any
-                reason noted, the notes a facilitator wrote about you, and the
+                reason noted, the notes a facilitator wrote about you, the
+                ratings you were given at the end of a programme, and the
                 reason behind a conduct flag. Ask us and we will tell you.
                 Where a record names somebody else as well as you we may need
                 to redact their part of it.

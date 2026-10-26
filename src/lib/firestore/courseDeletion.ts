@@ -17,6 +17,7 @@ import {
 import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
 import { FACILITATING_COLLECTION } from "@/lib/courses/facilitatorAsks/model";
 import { FINISHING_COLLECTION } from "@/lib/courses/finishing/model";
+import { RATINGS_COLLECTION } from "@/lib/ratings/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
 import { COURSE_AUDIT_COLLECTION } from "./courseAudit";
 import { COURSE_PAGES_COLLECTION } from "./coursePages";
@@ -196,6 +197,14 @@ export type RunDestroyCounts = {
    * this cascade deletes.
    */
   facilitating: number;
+  /**
+   * `programmeRatings` rows: the ratings each group's facilitators, the
+   * programme's lead and admins gave the fellows at the run's end, and the
+   * run's sheet (`src/lib/ratings/`). Keyed by `runId` on the row like every
+   * other leaf here, and they die with the run: a rating names a place on a
+   * run this cascade deletes.
+   */
+  ratings: number;
   mirroredTasks: number;
   /**
    * `tasks` carrying `source: "course-register"` and pointing at this run: the
@@ -972,6 +981,7 @@ export async function countRunDestroyTargets(
     teams,
     finishing,
     facilitating,
+    ratings,
     mirroredTasks,
     registerTasks,
     subscriptionRows,
@@ -1006,6 +1016,8 @@ export async function countRunDestroyTargets(
     countAgg(db.collection(FINISHING_COLLECTION).where("runId", "==", runId)),
     // The same single equality the facilitating stage drains on.
     countAgg(db.collection(FACILITATING_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the ratings stage drains on.
+    countAgg(db.collection(RATINGS_COLLECTION).where("runId", "==", runId)),
     // Both halves of the mirror predicate, exactly as drainSourcedTasks
     // deletes them: a manifest that counted on the pointer alone would
     // promise to destroy rows the cascade (rightly) leaves alone.
@@ -1065,6 +1077,7 @@ export async function countRunDestroyTargets(
     teams,
     finishing,
     facilitating,
+    ratings,
     mirroredTasks,
     registerTasks,
     subscriptionRows,
@@ -1518,6 +1531,14 @@ export async function destroyRunCascade(
       // nothing once it is being destroyed). Drained before the groups and
       // enrolments an ask is about.
       drain: () => drainQuery(db, FACILITATING_COLLECTION, byRunId(FACILITATING_COLLECTION), budget),
+    },
+    {
+      key: "ratings",
+      // The ratings given at the run's end and the run's sheet: a leaf keyed
+      // by `runId`, written only by the ratings route, which reads the run's
+      // records (and so finds nothing once it is being destroyed). Drained
+      // before the enrolments the ratings are about.
+      drain: () => drainQuery(db, RATINGS_COLLECTION, byRunId(RATINGS_COLLECTION), budget),
     },
     {
       key: "enrolments",

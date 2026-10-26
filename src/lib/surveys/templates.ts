@@ -29,7 +29,9 @@ import { LEVEL_OPTION, SUBJECT_OPTION } from "./profileOffer";
  *  - SAME WORDING EVERY TIME, except where the questionnaire says otherwise:
  *    "In the last 3 months" before becomes "Since the programme started" at
  *    the end.
- *  - NOTHING IS REQUIRED, and the consent box starts unticked.
+ *  - NOTHING IS REQUIRED, and a consent box starts unticked. The survey at
+ *    the end asks the follow-ups box again, of people the before survey
+ *    never asked.
  *
  * Pure: words and shapes only.
  */
@@ -282,14 +284,28 @@ const P6 = text("q_p6", "What do you most want to get out of this programme?", f
 /**
  * P7: the consent. Its statement is shown as text; the box for the follow-ups
  * starts unticked, and the follow-ups go only to people who ticked it. The
- * questionnaire's second opt-in, sharing with Kairos, is not built yet: its
- * box goes in this block, after this one.
+ * questionnaire's second opt-in, sharing with Kairos, is shared by default
+ * instead: every programme survey's form ends with a way to say no, drawn by
+ * the form itself (`asksKairos`), never an item an edit could take out.
  */
 const P7: SurveyConsentItem = {
   kind: "consent",
   id: "c_p7",
   statement: "Anonymised results go to our funders: totals, never your name.",
   boxes: [{ purpose: "followUps", label: "Contact me at 6 and 12 months with a short follow-up survey" }],
+};
+
+/**
+ * P7 (a) again at the end, for somebody the before survey never asked: the
+ * same box, drawn only for a person whose row on the before survey says
+ * nothing about follow-ups yet (they missed it, or joined after it), and kept
+ * on their row here (`consentsAskedOf`, `followUpsHolderFor`).
+ */
+const END_CONSENT: SurveyConsentItem = {
+  kind: "consent",
+  id: "c_end",
+  statement: P7.statement,
+  boxes: [{ purpose: "followUps", label: P7.boxes[0].label }],
 };
 
 const T1 = single("q_t1", "Looking back, which best described you before the programme?", STAGE_OPTIONS, {
@@ -446,7 +462,9 @@ const I4 = many(
   { noneIds: ["o_unfinished"] },
 );
 
-const I4_LINKS = text("q_i4_links", "Links to what your team produced", true, { hint: "One on each line." });
+// The Kairos report lists these lines (src/lib/surveys/kairosReport.ts), and
+// privacy v7 says they may go to funders, so the question says so too.
+const I4_LINKS = text("q_i4_links", "Links to what your team produced", true, { hint: "One on each line. We may pass these on to our funders." });
 
 const I4_WHEN = text("q_i4_when", "If nothing is finished yet, when do you expect it to be?", false);
 
@@ -549,7 +567,7 @@ export function templateItems(stage: SurveyStage, programmeKind: "fellowship" | 
       ...(incubator ? [{ id: "s_project", heading: "Your project", items: copy<SurveyItem[]>([I4, I4_LINKS, I4_WHEN, I5, I6, I7]) }] : []),
       { id: "s_effect", heading: "What the programme did", items: copy<SurveyItem[]>([A1, A2, A3, A4, A5]) },
       { id: "s_quality", heading: "How it went", items: copy<SurveyItem[]>([Q1, Q2, Q3]) },
-      { id: "s_next", heading: "What’s next", items: copy<SurveyItem[]>([N1, N2, N3]) },
+      { id: "s_next", heading: "What’s next", items: copy<SurveyItem[]>([N1, N2, N3, END_CONSENT]) },
     ]);
   }
   // The follow-ups at 6 and 12 months ask the same.

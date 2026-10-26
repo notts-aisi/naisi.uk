@@ -117,7 +117,11 @@ export default async function ReConsentPage() {
           admins see who said what, and your name comes off two years after
           the programme. It also says that facilitators see names only, never
           email addresses, and that downloads of a programme&apos;s
-          attendance are recorded.
+          attendance are recorded. And it says that, unless you say no, we
+          share your name and your record on a programme with Kairos, one of
+          our funders, including the ratings you were given at its end, which
+          nobody is shown about themselves; you can say no at the end of any
+          programme survey or on your profile, at any time.
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}

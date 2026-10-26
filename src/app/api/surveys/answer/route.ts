@@ -12,10 +12,11 @@ import { REFUSAL } from "@/lib/surveys/words";
  * secret in the person's link IS the credential: it opens their own row and
  * nobody else's, and the answers are kept against them, once.
  *
- * Body `{ token, answers, consents? }`, `consents` being what the survey's
- * consent boxes say, kept on the person's row. A link that opens nothing is
- * answered with one sentence whatever the reason; a survey's test link keeps
- * nothing.
+ * Body `{ token, answers, consents?, kairos? }`, `consents` being what the
+ * survey's consent boxes say, kept on the person's row, and `kairos` the
+ * Kairos choice when the person changed it on the form, kept on their own
+ * record. A link that opens nothing is answered with one sentence whatever
+ * the reason; a survey's test link keeps nothing.
  *
  * NO IP ADDRESS IS KEPT. The address is read for one thing only, a count in
  * this server's memory that slows down somebody trying secrets, and it is
@@ -40,7 +41,8 @@ export async function POST(req: Request) {
   } catch {
     raw = null;
   }
-  const body = raw && typeof raw === "object" ? (raw as { token?: unknown; answers?: unknown; consents?: unknown }) : {};
+  const body =
+    raw && typeof raw === "object" ? (raw as { token?: unknown; answers?: unknown; consents?: unknown; kairos?: unknown }) : {};
   if (!isSurveyToken(body.token) || body.answers === null || typeof body.answers !== "object") {
     return NextResponse.json({ error: REFUSAL.noLink }, { status: 400 });
   }
@@ -57,6 +59,7 @@ export async function POST(req: Request) {
     person: target.person,
     raw: body.answers,
     consents: body.consents,
+    kairos: body.kairos,
     via: "link",
     now: new Date(),
   });

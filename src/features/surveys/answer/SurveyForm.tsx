@@ -5,7 +5,8 @@ import OptionRow from "@/components/ui/OptionRow";
 import Select from "@/components/ui/Select";
 import { Input, Textarea } from "@/components/ui/Input";
 import { useHydrated } from "@/hooks/useHydrated";
-import type { AnswerConsent, AnswerPage, AnswerQuestion, AnswerSubmit } from "@/lib/surveys/answerView";
+import { KAIROS_FORM_WORDS } from "@/lib/kairos/words";
+import type { AnswerConsent, AnswerKairos, AnswerPage, AnswerQuestion, AnswerSubmit } from "@/lib/surveys/answerView";
 import { ANSWER_WORDS, pageWords, pickUpToWords } from "@/lib/surveys/words";
 import styles from "./SurveyForm.module.css";
 
@@ -26,6 +27,12 @@ import styles from "./SurveyForm.module.css";
  * Nothing is sent or kept before "Send my answers": no draft, no record of a
  * page being opened. Every question can be skipped; a consent box starts
  * unticked.
+ *
+ * THE KAIROS CHOICE ends the last page of every programme survey: what goes
+ * to Kairos, why sharing helps, and "Don't share my details with Kairos",
+ * ticked before the person touches it only when their own record already says
+ * no. It is sent only when the person changes it here, so a form left open
+ * cannot put back a choice they changed elsewhere since it was drawn.
  */
 
 type Props = {
@@ -34,6 +41,8 @@ type Props = {
   submit: AnswerSubmit;
   /** Sentence shown in place of Send on a test link. */
   testWords: string;
+  /** The Kairos choice the last page ends with, or null for a survey that does not ask it. */
+  kairos: AnswerKairos | null;
 };
 
 /** The field name a line of a scale question is answered under. */
@@ -42,6 +51,21 @@ const lineField = (questionId: string, lineId: string) => `${questionId}.${lineI
 const mostField = (questionId: string) => `${questionId}.most`;
 /** The field name of a consent box. */
 const consentField = (purpose: string) => `consent.${purpose}`;
+/** The Kairos box, ticked to say no, and where it started. */
+const KAIROS_NO = "kairos.no";
+const KAIROS_WAS = "kairos.was";
+
+/**
+ * The Kairos choice in the form, as the route reads it: `true` (shared) or
+ * `false` (not shared) when the person changed the box from where it
+ * started, and undefined when they left it as it was.
+ */
+export function kairosIn(data: FormData): boolean | undefined {
+  const was = data.get(KAIROS_WAS);
+  if (was !== "shared" && was !== "no") return undefined;
+  const now = data.get(KAIROS_NO) === "yes" ? "no" : "shared";
+  return now === was ? undefined : now === "shared";
+}
 
 /** A whole number typed in a box, or null when the box is empty or not a number. */
 function typedNumber(value: string | null): number | null {
@@ -53,7 +77,10 @@ function typedNumber(value: string | null): number | null {
 }
 
 /** The answers in the form, in the shapes the route reads. A question left blank sends nothing. */
-export function answersIn(form: HTMLFormElement, pages: readonly AnswerPage[]): { answers: Record<string, unknown>; consents: Record<string, boolean> | null } {
+export function answersIn(
+  form: HTMLFormElement,
+  pages: readonly AnswerPage[],
+): { answers: Record<string, unknown>; consents: Record<string, boolean> | null; kairos: boolean | undefined } {
   const data = new FormData(form);
   const out: Record<string, unknown> = {};
   const one = (name: string) => {
@@ -114,7 +141,7 @@ export function answersIn(form: HTMLFormElement, pages: readonly AnswerPage[]): 
       for (const box of consent.boxes) consents[box.purpose] = data.get(consentField(box.purpose)) === "yes";
     }
   }
-  return { answers: out, consents };
+  return { answers: out, consents, kairos: kairosIn(data) };
 }
 
 /** One point's words, as a screen reader says it: "4 out of 7: The gist, to a friend". */
@@ -411,7 +438,29 @@ function Consent({ consent }: { consent: AnswerConsent }) {
   );
 }
 
-export default function SurveyForm({ pages, closing, submit, testWords }: Props) {
+/**
+ * The Kairos choice: what is shared and why, then the one box that says no.
+ * The hidden field carries where the box started, so only a change the
+ * person made here is sent.
+ */
+function KairosChoice({ kairos }: { kairos: AnswerKairos }) {
+  return (
+    <fieldset className={styles.consent}>
+      <legend className={styles.consentLegend}>{KAIROS_FORM_WORDS.heading}</legend>
+      <p className={styles.consentStatement}>{KAIROS_FORM_WORDS.what}</p>
+      <p className={styles.consentStatement}>{KAIROS_FORM_WORDS.why}</p>
+      <input type="hidden" name={KAIROS_WAS} value={kairos.said} />
+      <div className={styles.options}>
+        <OptionRow type="checkbox" name={KAIROS_NO} value="yes" defaultChecked={kairos.said === "no"}>
+          {KAIROS_FORM_WORDS.box}
+        </OptionRow>
+      </div>
+      <p className={styles.kairosAfter}>{KAIROS_FORM_WORDS.after}</p>
+    </fieldset>
+  );
+}
+
+export default function SurveyForm({ pages, closing, submit, testWords, kairos }: Props) {
   const hydrated = useHydrated();
   const [page, setPage] = useState(0);
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
@@ -432,8 +481,8 @@ export default function SurveyForm({ pages, closing, submit, testWords }: Props)
     if (state !== "idle" || submit.kind === "test" || !formRef.current) return;
     setState("sending");
     setError("");
-    const { answers, consents } = answersIn(formRef.current, pages);
-    const extra = consents ? { consents } : {};
+    const { answers, consents, kairos: shared } = answersIn(formRef.current, pages);
+    const extra = { ...(consents ? { consents } : {}), ...(shared === undefined ? {} : { kairos: shared }) };
     const request =
       submit.kind === "link"
         ? { url: "/api/surveys/answer", body: { token: submit.token, answers, ...extra } }
@@ -494,6 +543,7 @@ export default function SurveyForm({ pages, closing, submit, testWords }: Props)
           {each.consents.map((consent) => (
             <Consent key={consent.id} consent={consent} />
           ))}
+          {index === last && kairos && <KairosChoice kairos={kairos} />}
           {hydrated && index < last && (
             <div className={styles.nav}>
               {index > 0 && (

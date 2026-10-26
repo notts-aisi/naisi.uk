@@ -75,7 +75,7 @@ export default function AnswerScreen({ screen }: { screen: Screen }) {
 
       {screen.consent && <ConsentPanel panel={screen.consent} />}
 
-      <SurveyForm pages={survey.pages} closing={survey.closing} submit={survey.submit} testWords={STATE_WORDS.test} />
+      <SurveyForm pages={survey.pages} closing={survey.closing} submit={survey.submit} testWords={STATE_WORDS.test} kairos={survey.kairos} />
     </div>
   );
 }
