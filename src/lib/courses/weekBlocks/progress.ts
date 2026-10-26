@@ -37,11 +37,16 @@ import {
  *  - a TALK (the case study, or a talk inside a part): the person marked
  *    themselves ready for it, their own mark and nobody else's (`talkIds`,
  *    `DoneState.isReady`);
- *  - anything a later page decides how to finish (fill-in boxes): UNSEEN. A
- *    task holding something unseen is counted and is never done, because no
- *    page can see it done yet. Each later page brings its own way of seeing
- *    it and is added here, to `taskNeeds` and `taskDone`, so the count stays
- *    in one place and never claims a task is done that is not.
+ *  - every box of a FILL-IN block (week 6's action plan), with something
+ *    written in it: "A part is done when you’ve ticked what’s in it and
+ *    written in its boxes" (wk-week6-phone), so a plan with some boxes
+ *    still empty is a draft and not done;
+ *  - anything a later block brings before a page can see it finished (none
+ *    today): UNSEEN. A task holding something unseen is counted and is never
+ *    done, because no page can see it done yet. Each later page brings its
+ *    own way of seeing it and is added here, to `taskNeeds` and `taskDone`,
+ *    so the count stays in one place and never claims a task is done that is
+ *    not.
  * Text, tables and In the session (its "Before you come" is words to read,
  * with nothing to tick or write) need nothing. Go further and the hands-on
  * route are never covered and never count, and nor does This week's row
@@ -67,6 +72,8 @@ export type TaskNeeds = {
   chooseOneIds: string[];
   /** Talks the person marks themselves ready for, by the Cases block's id. */
   talkIds: string[];
+  /** Fill-in boxes to write in, by box id: every box of each Fill-in block covered. */
+  fillInIds: string[];
   /** What a later page decides how to finish, by block id: never done while any is here. */
   unseenIds: string[];
 };
@@ -75,8 +82,12 @@ export type TaskNeeds = {
 export type DoneState = {
   /** The reader's own tick on a source or a checklist item. */
   isTicked: (itemId: string) => boolean;
-  /** The reader has written something in this reflection box. */
-  isWritten: (promptId: string) => boolean;
+  /**
+   * The reader has written something in this box: a reflection box (by its
+   * prompt's id) or a fill-in box (by its own id). Both are rows of the
+   * reader's own, keyed by the item's id.
+   */
+  isWritten: (boxId: string) => boolean;
   /** The reader has sent this written answer. */
   isSent: (answerId: string) => boolean;
   /**
@@ -90,7 +101,7 @@ export type DoneState = {
 };
 
 /** The blocks no page can see finished yet. Each later page moves its kind out of here. */
-const UNSEEN_TYPES: ReadonlySet<WeekBlock["type"]> = new Set(["fillIn"]);
+const UNSEEN_TYPES: ReadonlySet<WeekBlock["type"]> = new Set<WeekBlock["type"]>([]);
 
 function addOnce(list: string[], seen: Set<string>, id: string): void {
   if (seen.has(id)) return;
@@ -106,7 +117,9 @@ function addBlockNeeds(block: WeekBlock, needs: TaskNeeds, seen: Set<string>): v
   else if (block.type === "writtenAnswer") addOnce(needs.answerIds, seen, block.id);
   else if (block.type === "chooseOne") addOnce(needs.chooseOneIds, seen, block.id);
   else if (block.type === "cases") addOnce(needs.talkIds, seen, block.id);
-  else if (UNSEEN_TYPES.has(block.type)) addOnce(needs.unseenIds, seen, block.id);
+  else if (block.type === "fillIn") {
+    for (const group of block.groups) for (const box of group.boxes) addOnce(needs.fillInIds, seen, box.id);
+  } else if (UNSEEN_TYPES.has(block.type)) addOnce(needs.unseenIds, seen, block.id);
 }
 
 /** Every block of a week by id, a part's own blocks included. */
@@ -122,7 +135,7 @@ function blocksById(blocks: readonly WeekBlock[]): Map<string, WeekBlock> {
 /** What one This week task needs, from the week's blocks. */
 export function taskNeeds(blocks: readonly WeekBlock[], row: Extract<ThisWeekRow, { type: "task" }>): TaskNeeds {
   const byId = blocksById(blocks);
-  const needs: TaskNeeds = { tickIds: [], promptIds: [], answerIds: [], chooseOneIds: [], talkIds: [], unseenIds: [] };
+  const needs: TaskNeeds = { tickIds: [], promptIds: [], answerIds: [], chooseOneIds: [], talkIds: [], fillInIds: [], unseenIds: [] };
   const seen = new Set<string>();
   for (const id of row.covers) {
     const block = byId.get(id);
@@ -141,6 +154,7 @@ export function isCounted(needs: TaskNeeds): boolean {
       needs.answerIds.length +
       needs.chooseOneIds.length +
       needs.talkIds.length +
+      needs.fillInIds.length +
       needs.unseenIds.length >
     0
   );
@@ -154,6 +168,7 @@ export function taskDone(needs: TaskNeeds, state: DoneState): boolean {
   return (
     needs.tickIds.every((id) => state.isTicked(id)) &&
     needs.promptIds.every((id) => state.isWritten(id)) &&
+    needs.fillInIds.every((id) => state.isWritten(id)) &&
     needs.answerIds.every((id) => state.isSent(id)) &&
     needs.chooseOneIds.every((id) => {
       const pack = packOf(id);
@@ -171,11 +186,12 @@ export function tasksDone(all: readonly TaskNeeds[], state: DoneState): { done: 
 
 /**
  * A task as the overview payload hands it (`OverviewThisWeekRow`): its needs,
- * the reflection boxes the reader had written in and the written answers
- * they had sent when the page loaded, the pack the reader has in each
- * Choose one it covers and the talks they marked themselves ready for. The
- * pages that count a week without drawing it (the programme home, Home) ask
- * these two with the reader's own live ticks.
+ * the boxes the reader had written in (reflection prompts and fill-in boxes,
+ * each by its own id) and the written answers they had sent when the page
+ * loaded, the pack the reader has in each Choose one it covers and the talks
+ * they marked themselves ready for. The pages that count a week without
+ * drawing it (the programme home, Home) ask these two with the reader's own
+ * live ticks.
  */
 export type HandedTask = {
   needs: TaskNeeds;
@@ -191,7 +207,7 @@ export type HandedTask = {
 export function handedTaskDone(task: HandedTask, isTicked: (itemId: string) => boolean): boolean {
   return taskDone(task.needs, {
     isTicked,
-    isWritten: (promptId) => task.written.includes(promptId),
+    isWritten: (boxId) => task.written.includes(boxId),
     isSent: (answerId) => task.sent.includes(answerId),
     packOf: (chooseOneId) => task.packs?.[chooseOneId] ?? null,
     isReady: (talkId) => task.ready?.includes(talkId) ?? false,
@@ -209,10 +225,18 @@ export function handedTasksDone(
 
 /** A part's own needs: what its Done chip and its place in "On this page" ask. */
 export function partNeeds(part: PartBlock): TaskNeeds {
-  const needs: TaskNeeds = { tickIds: [], promptIds: [], answerIds: [], chooseOneIds: [], talkIds: [], unseenIds: [] };
+  const needs: TaskNeeds = { tickIds: [], promptIds: [], answerIds: [], chooseOneIds: [], talkIds: [], fillInIds: [], unseenIds: [] };
   const seen = new Set<string>();
   for (const child of part.blocks) addBlockNeeds(child, needs, seen);
   return needs;
+}
+
+/**
+ * How many of a task's or a part's fill-in boxes hold something, of how many:
+ * a draft's "6 of 12 filled" (wk-week6-phone). Zero of zero for one with none.
+ */
+export function boxesFilled(needs: TaskNeeds, isWritten: (boxId: string) => boolean): { filled: number; of: number } {
+  return { filled: needs.fillInIds.filter((id) => isWritten(id)).length, of: needs.fillInIds.length };
 }
 
 /** A week's This week block, or null. */

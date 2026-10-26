@@ -188,6 +188,16 @@ const READERS = {
     asks: 1,
     why: "a member writes in their own reflection box on the run: an untold seat does not open the run (a group's facilitator writes as its facilitator, which is no seat)",
   },
+  "app/api/courses/runs/[runId]/fill-in-boxes/[boxId]/route.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "a member writes in their own fill-in box on the run: an untold seat does not open the run (a group's facilitator writes as its facilitator, which is no seat)",
+  },
+  "lib/courses/fillInBoxes/access.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "who reads a fellow's fill-in boxes: the group's facilitators read them only once Publish has told the fellow their seat, so an untold seat's boxes are the lead's and admins' alone",
+  },
   "app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts": {
     kind: "shown",
     asks: 1,

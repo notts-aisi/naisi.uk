@@ -393,7 +393,11 @@ export function taskWhenWords(
     if (!day) return withQualifier(`By the end of the day before ${session}`);
     return withQualifier(today ? `By the end of today, ${day}` : `By the end of ${day}`);
   }
-  const lead = when === "atSession" ? `At ${session}` : `Before ${session}`;
+  // A task the guide says to bring along ("Bring it to session 6", week 6's
+  // action plan) keeps its own verb: "Bring it to your session, Tue 8 Dec"
+  // (wk-week6-phone). It is due before the session all the same.
+  const bring = when === "before" && /^bring it to\b/i.test((options.whenText ?? "").trim());
+  const lead = when === "atSession" ? `At ${session}` : bring ? `Bring it to ${session}` : `Before ${session}`;
   return withQualifier(day ? `${lead}, ${day}` : lead);
 }
 

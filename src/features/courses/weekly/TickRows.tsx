@@ -118,15 +118,21 @@ type Props = {
   withSource?: boolean;
   /** Drawn under one row: the week page's reflections on a reading. */
   extra?: (item: TickItem) => ReactNode;
+  /**
+   * Steps to tick (a block week's checklist, board wk-week6-phone): each step's
+   * words in the body's weight, the same ticked or not, the box beside the
+   * first line of a step that runs to several.
+   */
+  steps?: boolean;
 };
 
-export default function TickRows({ items, isDone, canTick, showTicks, onTick, open, withSource = false, extra }: Props) {
+export default function TickRows({ items, isDone, canTick, showTicks, onTick, open, withSource = false, extra, steps = false }: Props) {
   return (
     <ul className={styles.ticks} role="list">
       {items.map((item) => {
         const done = isDone(item.id);
         return (
-          <li key={item.id} className={styles.tickRow}>
+          <li key={item.id} className={steps ? `${styles.tickRow} ${styles.stepRow}` : styles.tickRow}>
             {showTicks && (
               <label className={styles.tickBox}>
                 <input
@@ -143,7 +149,7 @@ export default function TickRows({ items, isDone, canTick, showTicks, onTick, op
               </label>
             )}
             <div className={styles.tickBody}>
-              <p className={done ? styles.tickTitleDone : styles.tickTitle}>{item.title}</p>
+              <p className={steps ? styles.stepTitle : done ? styles.tickTitleDone : styles.tickTitle}>{item.title}</p>
               {(item.chip || item.optional || item.minutes || item.time || (withSource && item.source)) && (
                 <p className={styles.tickMeta}>
                   {item.chip && <span className={styles.kindChip}>{item.chip}</span>}

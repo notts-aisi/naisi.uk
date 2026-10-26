@@ -17,10 +17,10 @@ import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exerci
 /**
  * The member's OWN exercise responses for one week — what the week page hydrates
  * its answer boxes from, and how it knows which rows are still editable. On a
- * week written as blocks it also carries their own REFLECTIONS (rows of kind
- * "reflection", see `courseExercises.ts`), each tagged `kind: "reflection"`,
- * which is what the week page's reflection boxes are seeded from: the one
- * person a reflection is read back to here is the person who wrote it.
+ * week written as blocks it also carries their own REFLECTIONS and FILL-IN
+ * BOXES (rows of kind "reflection" and "fillIn", see `courseExercises.ts`),
+ * each tagged with its kind, which is what the week page's boxes are seeded
+ * from: the one person a box is read back to here is the person who wrote it.
  *
  * OWN ROWS ONLY, structurally: the query pins `uid` to the caller's own uid,
  * which comes from the session and never from a parameter. There is no code
@@ -238,8 +238,9 @@ export async function GET(
       // equality on this field, so every row here holds exactly it.
       weekNumber: week,
       exerciseId: doc.exerciseId,
-      // Own rows only, so a reflection travels here to the one person it is for.
-      ...(doc.kind === "reflection" ? { kind: "reflection" as const } : {}),
+      // Own rows only, so a reflection or a fill-in box travels here to the
+      // one person it is for, marked as what it is.
+      ...(doc.kind === "reflection" ? { kind: "reflection" as const } : doc.kind === "fillIn" ? { kind: "fillIn" as const } : {}),
       responseType: doc.responseType,
       text: doc.text ?? null,
       linkUrl: doc.linkUrl ?? null,

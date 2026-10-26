@@ -732,6 +732,12 @@ const MUST_NAME = [
   ["the notes shared with a group", /On a programme that places you in a group, each week&apos;s page has notes the people in your group and its facilitators share with each other\./i],
   ["who sees a note shared with a group, and with what", /A note you add is shown with your name, the day you wrote it and the week it was written on, to everyone in your group, its facilitators, the programme&apos;s lead and admins, and to nobody else; the page says so under the notes\./i],
   ["a note shared with a group stays when its writer leaves", /If you leave the programme, the notes you shared stay with your group, as your marks stay on its register\./i],
+  // A week's fill-in boxes (week 6's action plan, board wk-week6-phone): who
+  // reads them, a facilitator's own, and a leaver's. §2g holds each to its code.
+  ["fill-in boxes", /Some weeks have boxes for you to fill in, such as an action plan\. What you write saves as you type\./i],
+  ["who reads what somebody fills in", /It is read by you, your group&apos;s facilitators, the programme&apos;s lead and admins, and by nobody else taking part; the page says so under the boxes\./i],
+  ["a facilitator's own boxes", /If you facilitate a group, what you write is read by the programme&apos;s lead and admins, and not by the group&apos;s other facilitators\./i],
+  ["a leaver's boxes", /If you leave the programme, the programme&apos;s lead and admins can still read it, and your group&apos;s facilitators and you no longer can\./i],
   ["the calendar link", /&quot;Add to calendar&quot; on your programme page gives you a private link to your sessions/i],
   ["what the calendar shows", /It shows the day, time and room of each session of your group \(and of any group you facilitate\), with the programme&apos;s and the group&apos;s name, and marks a session that is cancelled\./i],
   ["the calendar's provider fetches it and keeps what it shows", /your calendar&apos;s provider \(Apple, Google or Microsoft, for example\) fetches it from us every so often and keeps what it shows, under its own privacy policy/i],
@@ -2548,6 +2554,8 @@ const sharedNotesRecord = await loadTs("lib/firestore/courseGroupSharedNotes.ts"
 const sharedNotesWords = await loadTs("lib/courses/sharedNotes/words.ts");
 /** What each session in a calendar link says. Pure. */
 const calendarWords = await loadTs("lib/courses/calendarWords.ts");
+/** Who reads a week's fill-in boxes, as the page says it under them. Pure. */
+const fillInWords = await loadTs("lib/courses/fillInWords.ts");
 /**
  * A survey's words (the confidential box, the answer page), its questions
  * (Worksheets' item model), its spreadsheet's layout and its record's own
@@ -2602,6 +2610,8 @@ describe("the course hub passage", () => {
       /On a programme anyone can join you can also leave a comment on it/i,
       /Your calendar link\./i,
       /the old link then shows nothing/i,
+      /Boxes you fill in\./i,
+      /Some weeks have boxes for you to fill in/i,
       /your calendar link, the notes you shared with a group, notes you wrote for the other facilitators of a group/i,
       /When you answer a survey/i,
       /Every survey is confidential/i,
@@ -3727,6 +3737,63 @@ describe("the course hub passage", () => {
     // tests/course-hub-packs-and-cases.test.mjs runs the draw, the picks, the
     // ready box and the deletions as every kind of caller.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "course-hub-packs-and-cases.test.mjs")));
+  });
+
+  test("what somebody fills in on a week is read by them, their group's facilitators, the lead and admins; a facilitator's own by the lead and admins; a leaver's by the lead and admins; and goes with the account", () => {
+    // OWNER DECISIONS, 25 and 26 October 2026: Q30 C (the writer, their
+    // group's facilitators, the programme's lead and admins; never other
+    // fellows), and a facilitator's own work read by the lead and admins.
+    assert.match(
+      PAGE_FLAT,
+      /<strong>Boxes you fill in\.<\/strong> Some weeks have boxes for you to fill in, such as an action plan\. What you write saves as you type\. It is read by you, your group&apos;s facilitators, the programme&apos;s lead and admins, and by nobody else taking part; the page says so under the boxes\. If you facilitate a group, what you write is read by the programme&apos;s lead and admins, and not by the group&apos;s other facilitators\. If you leave the programme, the programme&apos;s lead and admins can still read it, and your group&apos;s facilitators and you no longer can\. It is deleted with your account\./,
+    );
+    // Somebody else's boxes are read in one place, after one gate.
+    const gateFile = "src/lib/courses/fillInBoxes/access.ts";
+    const readerFile = "src/app/api/courses/runs/[runId]/fill-in-boxes/route.ts";
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bboxesReaderFor\(/),
+      new Map([
+        [gateFile, "the gate itself: admins and the programme's lead for anybody's, a live facilitator of a fellow's own group for theirs, and nobody else for a facilitator's own"],
+        [readerFile, "the one reader of somebody else's boxes, which asks the gate before a box is read"],
+      ]),
+      "deciding who reads somebody's fill-in boxes",
+      "The policy says a person's boxes are read by them, their group's " +
+        "facilitators, the programme's lead and admins, and a facilitator's own " +
+        "by the lead and admins. A second gate is a second answer to that question.",
+    );
+    const reader = withoutComments(read(readerFile));
+    const gated = reader.indexOf("const reader = await boxesReaderFor(db, actor, runId, uid);");
+    const refused = reader.indexOf('if (!reader) return NextResponse.json({ error: "Forbidden" }, { status: 403 });');
+    const readRows = reader.indexOf('.collection("courseExerciseResponses")');
+    assert.ok(gated !== -1 && refused > gated && readRows > refused, "the reader reads a box before it asks who is reading");
+    assert.match(reader, /if \(!isFillInResponse\(data\) \|\| data\.uid !== uid \|\| data\.runId !== runId\) continue;/);
+    const gate = withoutComments(read(gateFile));
+    // Admins and the programme's lead, for anybody's boxes on the run, a leaver's included.
+    assert.match(gate, /if \(actor\.role === "admin"\) return "admin";\s*if \(await programmeLedBy\(db, actor, runId\)\) return "lead";/);
+    // A facilitator's own boxes are nobody else's to read.
+    assert.match(gate, /if \(liveGroups\.some\(\(group\) => group\.facilitatorUids\.includes\(ownerUid\)\)\) return null;/);
+    // A fellow's: their group's live facilitators, and only while the fellow
+    // is placed there (active or finished, and told), so not after leaving.
+    assert.match(gate, /\(enrolment\.status === "active" \|\| enrolment\.status === "completed"\) &&/);
+    assert.match(gate, /if \(group && isNamedWithStanding\(actor, "courseGroups\.facilitatorUids", group\.facilitatorUids\)\) return "facilitator";/);
+    // The page says so under the boxes, in the same people's names.
+    assert.equal(
+      fillInWords.fillInReadersWords(["Rahul", "Sofia"], "Claudia", "My action plan"),
+      "Rahul, Sofia, Claudia and admins can read your action plan. Other fellows can’t.",
+    );
+    assert.equal(fillInWords.facilitatorFillInReadersWords("Claudia", "My action plan"), "Only Claudia and admins can read your action plan.");
+    // The person reads their own back only while their place is live: after
+    // leaving, my-exercises refuses them.
+    assert.match(
+      withoutComments(read("src/app/api/courses/runs/[runId]/my-exercises/route.ts")),
+      /\(enrolment\.status === "active" \|\| enrolment\.status === "completed"\) &&/,
+    );
+    // Stored in the store an account's deletion drains row by row, every kind of row.
+    assert.match(read("src/app/api/courses/runs/[runId]/fill-in-boxes/[boxId]/route.ts"), /db\.collection\("courseExerciseResponses"\)\.doc\(id\)/);
+    assert.match(read("src/lib/firestore/accountDeletion.ts"), /courseExerciseResponses/);
+    // tests/course-hub-week-six.test.mjs runs who writes and who reads as
+    // every caller, a leaver and a facilitator who holds a place included.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-hub-week-six.test.mjs")));
   });
 
   test("a comment on the material is shown to the run only on a programme anyone can join, and the group's notes take its place on one that places people in groups", () => {

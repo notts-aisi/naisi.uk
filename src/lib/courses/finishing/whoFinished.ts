@@ -10,7 +10,7 @@ import {
 } from "@/lib/courses/programmeAttendance";
 import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
 import { attendanceDocId } from "@/lib/firestore/courseAttendance";
-import { isReflectionResponse, normalizeExerciseResponse } from "@/lib/firestore/courseExercises";
+import { isOwnBoxResponse, normalizeExerciseResponse } from "@/lib/firestore/courseExercises";
 import { normalizeGroupWeek } from "@/lib/firestore/courseGroups";
 import { normalizeCourseWeek, type CourseWeekDoc } from "@/lib/firestore/courses";
 import { weekWrittenAnswers } from "@/lib/courses/weekBlocks/reader";
@@ -147,8 +147,8 @@ export async function readExerciseTallies(
   const answered = new Map<string, Set<string>>();
   for (const doc of responseSnap.docs) {
     const response = normalizeExerciseResponse(doc.id, (doc.data() ?? {}) as Record<string, unknown>);
-    // A reflection is never sent and is not a written answer (courseExercises.ts).
-    if (response.runId !== runId || !response.submittedAt || isReflectionResponse(response)) continue;
+    // A reflection or a fill-in box is never sent and is not a written answer (courseExercises.ts).
+    if (response.runId !== runId || !response.submittedAt || isOwnBoxResponse(response)) continue;
     const groupId = groupOf.get(response.uid);
     const key = `${response.weekId}::${response.exerciseId}`;
     if (!groupId || !setByGroup.get(groupId)?.has(key)) continue;

@@ -6,16 +6,19 @@
  *
  * ## The rule this guards
  *
- * `courseExerciseResponses` holds two kinds of row (`src/lib/firestore/
- * courseExercises.ts`, "Two kinds of row"): an answer to an exercise or a
- * written answer, and since the coursework of v20 a REFLECTION, one box on a
- * week written as blocks, marked `kind: "reflection"`. A reflection is never
+ * `courseExerciseResponses` holds three kinds of row (`src/lib/firestore/
+ * courseExercises.ts`, "Three kinds of row"): an answer to an exercise or a
+ * written answer, and since the coursework of v20 two kinds of BOX a person
+ * fills in on a week written as blocks: a REFLECTION (`kind: "reflection"`)
+ * and a FILL-IN BOX (`kind: "fillIn"`, week 6's action plan). A box is never
  * reviewed, never sent and never counted as an answer, and only its writer
- * reads it back on a page (the programme's lead and admins through the one
- * reader route). The class of failure is a reader that takes every row for
- * an answer: a review queue that hands a facilitator somebody's reflection
- * to give a verdict on, a finishing tally that counts reflections as answers
- * sent, a "to review" card that counts them.
+ * reads it back on a page (anybody else through each kind's one reader
+ * route). The class of failure is a reader that takes every row for an
+ * answer: a review queue that hands a facilitator somebody's reflection or
+ * plan to give a verdict on, a finishing tally that counts boxes as answers
+ * sent, a "to review" card that counts them. A reader of answers leaves
+ * every kind of box out with one question, `isOwnBoxResponse`, so a kind of
+ * box added later is left out everywhere at once.
  *
  * ## How it is held
  *
@@ -23,8 +26,11 @@
  * a database call or a deletion sweep is listed below with what it does with
  * a reflection, and each claim is checked where it can be:
  *
- *  - `tells`: it tells the two kinds apart. Its code asks
- *    `isReflectionResponse(` or reads a normalised row's `kind`.
+ *  - `tells`: it tells the kinds apart. Its code asks for a kind by name
+ *    (`isReflectionResponse(`, `isFillInResponse(`), for every box at once
+ *    (`isOwnBoxResponse(`), or reads a normalised row's `kind`. A reader of
+ *    ANSWERS (it reviews, queues, counts or writes them) says `answers:
+ *    true`, and its code asks `isOwnBoxResponse(`.
  *  - `every-row`: it reads every row of either kind on purpose (deleting an
  *    account's or a run's, or refusing to renumber a run that has any), and
  *    says why in its entry.
@@ -60,7 +66,7 @@ const ADDRESSES =
   /\.collection\(\s*["'`]courseExerciseResponses["'`]\s*\)|\bbyRunId\(\s*["'`]courseExerciseResponses["'`]\s*\)|\[\s*["'`]courseExerciseResponses["'`]\s*,|\bdrainQuery\([^,]+,\s*["'`]courseExerciseResponses["'`]/;
 
 /** How a `tells` file shows it tells the kinds apart. */
-const TELLS = /\bisReflectionResponse\(|\.kind\s*===\s*["'`]reflection["'`]/;
+const TELLS = /\bisReflectionResponse\(|\bisFillInResponse\(|\bisOwnBoxResponse\(|\.kind\s*===\s*["'`](?:reflection|fillIn)["'`]/;
 
 const READERS = {
   "app/(app)/learn/[runId]/weeks/[n]/feedback/page.tsx": {
@@ -69,11 +75,13 @@ const READERS = {
   },
   "app/api/courses/exercise-responses/[responseId]/review/route.ts": {
     treats: "tells",
-    why: "a verdict on one answer: a reflection's row reads as no row, refused as a missing one is",
+    answers: true,
+    why: "a verdict on one answer: a reflection's or a fill-in box's row reads as no row, refused as a missing one is",
   },
   "app/api/courses/groups/[groupId]/exercises/route.ts": {
     treats: "tells",
-    why: "the facilitator's review queue: reflections are left out before a field is copied",
+    answers: true,
+    why: "the facilitator's review queue: reflections and fill-in boxes are left out before a field is copied",
   },
   "app/api/courses/groups/[groupId]/weeks/[weekId]/route.ts": {
     treats: "by-id",
@@ -85,11 +93,12 @@ const READERS = {
   },
   "app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route.ts": {
     treats: "tells",
-    why: "the answer's writer: it refuses to write over a reflection's row",
+    answers: true,
+    why: "the answer's writer: it refuses to write over a reflection's or a fill-in box's row",
   },
   "app/api/courses/runs/[runId]/my-exercises/route.ts": {
     treats: "tells",
-    why: "the person's own rows: each reflection travels marked as one, to the one person it is for",
+    why: "the person's own rows: each reflection and fill-in box travels marked as what it is, to the one person it is for",
   },
   "app/api/courses/runs/[runId]/normalise-weeks/route.ts": {
     treats: "every-row",
@@ -97,7 +106,7 @@ const READERS = {
   },
   "app/api/courses/runs/[runId]/overview/route.ts": {
     treats: "tells",
-    why: "the caller's own rows: which reflection boxes they have written in, for This week's count",
+    why: "the caller's own rows: which boxes (reflection prompts and fill-in boxes) they have written in, for This week's count",
   },
   "app/api/courses/runs/[runId]/reflections/route.ts": {
     treats: "tells",
@@ -106,6 +115,14 @@ const READERS = {
   "app/api/courses/runs/[runId]/reflections/[promptId]/route.ts": {
     treats: "tells",
     why: "the reflection's writer: it refuses to write over an answer's row",
+  },
+  "app/api/courses/runs/[runId]/fill-in-boxes/[boxId]/route.ts": {
+    treats: "tells",
+    why: "the fill-in box's writer: it refuses to write over a row of any other kind",
+  },
+  "app/api/courses/runs/[runId]/fill-in-boxes/route.ts": {
+    treats: "tells",
+    why: "the one reader of somebody else's fill-in boxes (their group's facilitators, the lead and admins): fill-in boxes only",
   },
   "app/api/courses/runs/[runId]/weeks/[weekId]/blocks/route.ts": {
     treats: "every-row",
@@ -123,11 +140,13 @@ const READERS = {
   },
   "lib/courses/facilitatorGroup.ts": {
     treats: "tells",
-    why: "a facilitator's To review card counts answers sent; reflections are left out",
+    answers: true,
+    why: "a facilitator's To review card counts answers sent; reflections and fill-in boxes are left out",
   },
   "lib/courses/finishing/whoFinished.ts": {
     treats: "tells",
-    why: "who finished counts written answers sent; reflections are left out",
+    answers: true,
+    why: "who finished counts written answers sent; reflections and fill-in boxes are left out",
   },
   "lib/courses/writtenAnswers/queue.ts": {
     treats: "tells",
@@ -183,8 +202,39 @@ for (const [file, entry] of Object.entries(READERS)) {
   });
 }
 
+/**
+ * A reader of ANSWERS leaves out every box its writer fills in, by the one
+ * question that covers them all. Asking for reflections alone would hand a
+ * facilitator somebody's plan to give a verdict on, or count it as sent.
+ */
+for (const [file, entry] of Object.entries(READERS)) {
+  if (!entry.answers) continue;
+  test(`${file} leaves every box its writer fills in out of the answers`, () => {
+    assert.equal(entry.treats, "tells", `${file}: a reader of answers tells the kinds apart`);
+    assert.match(codeOf(join(SRC, file)), /\bisOwnBoxResponse\(/, `${file} reads answers and does not leave every kind of box out`);
+  });
+}
+
+test("the readers of answers are the five that review, queue, count or write them", () => {
+  assert.deepEqual(
+    Object.entries(READERS)
+      .filter(([, entry]) => entry.answers)
+      .map(([file]) => file)
+      .sort(),
+    [
+      "app/api/courses/exercise-responses/[responseId]/review/route.ts",
+      "app/api/courses/groups/[groupId]/exercises/route.ts",
+      "app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route.ts",
+      "lib/courses/facilitatorGroup.ts",
+      "lib/courses/finishing/whoFinished.ts",
+    ],
+  );
+});
+
 test("the store's own module says how to tell, and normalises the kind", () => {
   const code = readFileSync(join(SRC, "lib", "firestore", "courseExercises.ts"), "utf8");
   assert.match(code, /export function isReflectionResponse\(/);
-  assert.match(code, /kind: isReflectionResponse\(data\) \? "reflection" : "exercise"/);
+  assert.match(code, /export function isFillInResponse\(/);
+  assert.match(code, /export function isOwnBoxResponse\([^)]*\)[^{]*\{\s*return isReflectionResponse\(data\) \|\| isFillInResponse\(data\);\s*\}/);
+  assert.match(code, /kind: isReflectionResponse\(data\) \? "reflection" : isFillInResponse\(data\) \? "fillIn" : "exercise"/);
 });

@@ -2157,6 +2157,61 @@ are the only writers and readers). No index: every query is one equality or
 one `array-contains`. The run's `teamsFrom` rides the run editor's existing
 write, and the run's rules cap no key set, so it needs nothing.
 
+## Routes and deadlines
+
+Technical AI Safety's week 6 ends with "Where to go next": routes a fellow
+could take next (a sprint, a fellowship, a grant), in two tables, under a
+line saying when somebody last checked them. Deadlines pass, so the list is a
+record on the course (`CourseDoc.routes`, `src/lib/courses/routes/`), kept in
+one place and read wherever it is needed.
+
+### Where it is set
+
+The course's page in the admin area (`/admin/courses/<course>`), the card
+"Routes and deadlines". Admins only: anybody else who can open the course sees
+the list and that an admin changes it. The card's box holds the list as text
+in the guide's own shape; change it there, or paste the guide's section in,
+then Read it, check what it found, and Save. "Take them off" puts the guide's
+own tables back on the week.
+
+The shape (`docs/course-weeks.md`, "A section of routes"):
+
+- the first line is the day they were checked: "Checked on 25 October 2026.";
+- each group is its heading in bold, then its table;
+- a table's first column is Route (the route's name as its link), then What
+  it is, and, where you want them, Who it suits, Deadline (a day such as
+  1 November 2026, or Rolling) and Next round;
+- anything after the last table (the guide's line on funding) is kept.
+
+The guide's own tables have no Deadline column, so pasted as they are no
+route has a deadline. Add the column for the routes whose round closes on a
+known day.
+
+### Where it shows
+
+- **The week that asks for it.** A week whose section has a table with Route
+  as its first column (week 6's "Where to go next") shows the course's list
+  there in place of what the guide wrote, on every run of the course, for
+  everybody who opens the week. Until the course has a list, the guide's
+  tables show as written.
+- **A route past its deadline says so**: "Closed on Fri 20 Nov", worked out
+  from the day it is in London. A route still to close says "Apply by ...",
+  a rolling one "Rolling".
+- **The facilitators' notes.** "Opportunities to mention this week" is to read
+  the same list, leaving out what has closed (`openRoutes`), once the
+  facilitator guide is on the site.
+
+### Keeping it true
+
+Around the start of week 6, check each route's own page, change what has
+moved, and change the "Checked on" day: it is what a fellow reads first.
+
+### Rules
+
+The field is written only by its route (`/api/courses/[courseId]/routes`,
+admins, view-as refused); the rules keep every browser write off it, admins'
+included.
+
 ## Who finished
 
 Once a programme's last session is over, its lead (or an admin) says who

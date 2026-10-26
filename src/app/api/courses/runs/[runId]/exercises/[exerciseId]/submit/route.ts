@@ -12,6 +12,7 @@ import {
 import {
   EXERCISE_LIMITS,
   exerciseResponseId,
+  isOwnBoxResponse,
   isReflectionResponse,
   normalizeExerciseResponse,
   type CourseExerciseResponseDoc,
@@ -95,15 +96,15 @@ export type ExerciseResponseWire = {
    * (see the assignment in POST below).
    */
   weekNumber: number;
-  /** The exercise's id, or on a reflection the prompt's id. */
+  /** The exercise's id, or on a reflection the prompt's id, or on a fill-in box the box's id. */
   exerciseId: string;
   /**
-   * Present only on a reflection (`courseExercises.ts`, "Two kinds of row"),
-   * which only its writer's own reads carry: the my-exercises route and the
-   * reflection route. Absent on every exercise answer, so the review queue's
-   * rows read exactly as before.
+   * Present only on a reflection or a fill-in box (`courseExercises.ts`,
+   * "Three kinds of row"), which only its writer's own reads carry: the
+   * my-exercises route and the box's own route. Absent on every exercise
+   * answer, so the review queue's rows read exactly as before.
    */
-  kind?: "reflection";
+  kind?: "reflection" | "fillIn";
   /** Server-asserted from the exercise definition — never the client's word. */
   responseType: "text" | "link";
   /** Non-null only on a `"text"` exercise. Plain text, rendered as text nodes. */
@@ -402,6 +403,11 @@ export async function POST(
       // so where the write happens).
       if (snap.exists && isReflectionResponse(snap.data() ?? {})) {
         throw new SubmitError("That box is a reflection, not an answer.", 409);
+      }
+      // Nor is a fill-in box's row (its id names a box, which the definition
+      // check refuses as well): every box its writer fills in is left alone.
+      if (snap.exists && isOwnBoxResponse(snap.data() ?? {})) {
+        throw new SubmitError("That box is one you fill in, not an answer.", 409);
       }
       const prior = snap.exists
         ? normalizeExerciseResponse(id, snap.data() ?? {})

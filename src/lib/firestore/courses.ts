@@ -11,6 +11,7 @@ import { WEEK_BLOCK_LIMITS } from "../courses/weekBlocks/limits";
 import { isClockTime, sanitizeWeekBlocks, type WeekBlock } from "../courses/weekBlocks/model";
 import { isCrestKey, type CrestKey } from "../crests/keys";
 import { normalizeRubric, type CourseRubric } from "../courses/rubric";
+import { normalizeCourseRoutes, type CourseRoutes } from "../courses/routes/model";
 
 /**
  * Courses data model — `courses/{id}` → `courseRuns/{id}` (top-level) →
@@ -110,6 +111,15 @@ export type CourseDoc = {
    * wins over its course's.
    */
   crest: CrestKey | null;
+  /**
+   * The course's routes and deadlines (`src/lib/courses/routes/model.ts`):
+   * where a fellow could go next, each route with what it is and when its
+   * round closes, under the day they were all checked. Shown in place of the
+   * guide's own tables on a week that lists routes, and read by the
+   * facilitators' notes. Set by an admin in the course's details through its
+   * route; null for a course with none.
+   */
+  routes: CourseRoutes | null;
   createdAt?: Date | null;
   updatedAt?: Date | null;
 };
@@ -1286,6 +1296,7 @@ export function normalizeCourse(id: string, data: Raw): CourseDoc {
     collaboratorUids: asUidList(data.collaboratorUids),
     // Only one of the four keys is a crest; anything else stored reads as none.
     crest: isCrestKey(data.crest) ? data.crest : null,
+    routes: normalizeCourseRoutes(data.routes),
     createdAt: tsToDate(data.createdAt),
     updatedAt: tsToDate(data.updatedAt),
   };

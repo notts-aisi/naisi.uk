@@ -15,7 +15,7 @@ import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/co
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { readCoursesConfig } from "@/lib/firestore/config";
 import type { AttendanceStatus } from "@/lib/firestore/courseAttendance";
-import { isReflectionResponse } from "@/lib/firestore/courseExercises";
+import { isOwnBoxResponse } from "@/lib/firestore/courseExercises";
 import { isWordCountedAnswer } from "@/lib/courses/writtenAnswers/model";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
@@ -222,9 +222,10 @@ async function readToReview(db: Firestore, runId: string, people: GroupPersonRow
     const data = (doc.data() ?? {}) as Record<string, unknown>;
     const uid = typeof data.uid === "string" ? data.uid : "";
     if (!names.has(uid) || data.runId !== runId) continue;
-    // A reflection is never sent and never reviewed (courseExercises.ts), and
-    // a block week's written answer waits in the review queue, not here.
-    if (isReflectionResponse(data) || isWordCountedAnswer(data)) continue;
+    // A reflection or a fill-in box is never sent and never reviewed
+    // (courseExercises.ts), and a block week's written answer waits in the
+    // review queue, not here.
+    if (isOwnBoxResponse(data) || isWordCountedAnswer(data)) continue;
     const sentAt = instantOf(data.submittedAt);
     const status = typeof data.reviewStatus === "string" ? data.reviewStatus : "unreviewed";
     if (!sentAt || status !== "unreviewed") continue;

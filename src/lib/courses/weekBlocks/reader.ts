@@ -253,6 +253,29 @@ export function weekReflectionPrompts(week: ReadableWeek): WeekReflectionPrompt[
   );
 }
 
+/** One fill-in box: a box a person writes in, under a numbered heading of a Fill-in block. */
+export type WeekFillInBox = {
+  id: string;
+  /** The Fill-in block it is in ("My action plan"). */
+  blockId: string;
+  partId: string | null;
+  /** Its numbered heading's words, and its own label ("" for a heading's one box). */
+  heading: string;
+  label: string;
+};
+
+/** The week's fill-in boxes, in page order. A week written before blocks has none. */
+export function weekFillInBoxes(week: ReadableWeek): WeekFillInBox[] {
+  if (!isBlockWeek(week)) return [];
+  return placed(week.blocks).flatMap(({ block, part }) =>
+    block.type === "fillIn"
+      ? block.groups.flatMap((group) =>
+          group.boxes.map((box) => ({ id: box.id, blockId: block.id, partId: part?.id ?? null, heading: group.heading, label: box.label })),
+        )
+      : [],
+  );
+}
+
 /** The week's checklist items: a block week's Checklist blocks' items; otherwise its checklist, as stored. */
 export function weekChecklistItems(week: ReadableWeek): ChecklistItem[] {
   if (!isBlockWeek(week)) return week.checklist;

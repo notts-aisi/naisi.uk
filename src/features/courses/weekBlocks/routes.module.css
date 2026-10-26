@@ -1,0 +1,153 @@
+/*
+ * A course's routes and deadlines on the week that asks for them: the day
+ * they were checked, each group under its heading, each route a row with its
+ * name as a link, what it is, who it suits, and where its round stands.
+ */
+
+.routes {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.checked {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.group {
+  min-width: 0;
+}
+
+.heading {
+  margin: 0 0 8px;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0 clamp(1rem, 2.6cqi, 1.375rem);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.route {
+  padding: 14px 0;
+  min-width: 0;
+}
+
+.route + .route {
+  border-top: 1px solid var(--color-border);
+}
+
+.closed .name,
+.closed .what,
+.closed .suits {
+  color: var(--color-text-muted);
+}
+
+.name {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.nameLink {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-underline-offset: 3px;
+}
+
+.nameLink:hover {
+  text-decoration-color: currentColor;
+}
+
+.nameLink:focus-visible {
+  outline: none;
+  border-radius: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+.nameLink svg {
+  flex: none;
+  align-self: center;
+}
+
+.what,
+.suits {
+  margin: 6px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-soft);
+  overflow-wrap: anywhere;
+}
+
+.label {
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.round {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin: 8px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-soft);
+}
+
+.chip,
+.chipClosed {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: var(--radius-pill);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.chip {
+  border: 1px solid var(--color-live-line);
+  background: var(--color-live-soft);
+  color: var(--color-live);
+}
+
+.chipClosed {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface-hover);
+  color: var(--color-text-soft);
+}
+
+.next {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 48rem) {
+  .list {
+    padding-inline: 1rem;
+  }
+}

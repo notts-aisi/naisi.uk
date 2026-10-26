@@ -1,0 +1,132 @@
+/*
+ * The course's routes and deadlines, in its details: the list as it stands
+ * (the day it was checked, each group's heading, each route with where it
+ * stands today) and, for an admin, the box to paste or edit it in.
+ */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.line {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-soft);
+}
+
+.group {
+  min-width: 0;
+}
+
+.heading {
+  margin: 0 0 6px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.routes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.route {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+.name {
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.standing {
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+  min-width: 0;
+}
+
+.label {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.box {
+  display: block;
+  width: 100%;
+  min-height: 200px;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-meta);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.box:focus-visible {
+  outline: none;
+  border-color: var(--color-live);
+  box-shadow: var(--focus-ring);
+}
+
+.problems {
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+}
+
+.problems ul {
+  margin: 6px 0 0;
+  padding-left: 1.1rem;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-warning);
+}
+
+@media (max-width: 48rem) {
+  .route {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .standing {
+    white-space: normal;
+  }
+}

@@ -58,14 +58,23 @@ import {
 } from "@/lib/courses/weekBlocks/model";
 import { safeSourceUrl } from "@/lib/courses/weekBlocks/prose";
 import {
+  boxesFilled,
   isCounted,
   partNeeds,
   taskDone,
   taskNeeds,
   tasksDone,
   type DoneState,
+  type TaskNeeds,
 } from "@/lib/courses/weekBlocks/progress";
+import {
+  FILL_IN_DRAFT,
+  draftFilledWords,
+  facilitatorFillInReadersWords,
+  fillInReadersWords,
+} from "@/lib/courses/fillInWords";
 import type { CourseWeekDoc } from "@/lib/firestore/courses";
+import { isRoutesSection, type CourseRoutes } from "@/lib/courses/routes/model";
 import type { ProgressItemKind } from "@/lib/firestore/courseProgress";
 import { findCase, keyingChooseOne } from "@/lib/courses/packsAndCases/model";
 import { NOT_GIVEN_YET, NOT_READY_YET, NOT_SAVED, YOUR_CASE_LABEL } from "@/lib/courses/packsAndCases/words";
@@ -93,8 +102,11 @@ import {
   feedbackFromWords,
   sentOnWords,
 } from "@/lib/courses/writtenAnswerWords";
+import FillInCard from "./FillInCard";
+import RoutesList from "./RoutesList";
 import styles from "./blockWeek.module.css";
 import answerStyles from "./writtenAnswer.module.css";
+import fillIn from "./fillIn.module.css";
 
 /**
  * A WEEK WRITTEN AS BLOCKS, AS THE PERSON TAKING PART READS IT (boards
@@ -127,9 +139,21 @@ import answerStyles from "./writtenAnswer.module.css";
  * week) or a pitch inside its part (`../packsAndCases/TalkView.tsx`); This
  * week says "Your case: ..." and "Not ready yet" under its task.
  *
- * DRAWN BY A LATER PAGE, AND NOTHING HERE YET: a table and fill-in boxes. A
- * task that covers one of them is counted and is never done until that page
- * can see it done (`progress.ts`). Under the title, "Start here ·
+ * FILL-IN BOXES (`FillInCard`, week 6's action plan): each numbered heading
+ * with its boxes, saving as the person types, "Saved", and who reads them.
+ * Their part carries "Draft" where another part carries Done once some boxes
+ * hold something and not all, and This week's task for it says "Draft · 6 of
+ * 12 filled". A facilitator's own are read by the lead and admins alone, and
+ * the line under them says so.
+ *
+ * ROUTES AND DEADLINES (`RoutesList`): a section that lists routes in tables
+ * whose first column is Route (the guide's "Where to go next" in Technical
+ * AI Safety's week 6) shows the course's own record of them in its place,
+ * once the course has one, each route past its deadline saying so; until
+ * then, the guide's tables as written.
+ *
+ * DRAWN BY A LATER PAGE, AND NOTHING HERE YET: a table, which asks nothing
+ * of anybody, so no task waits on it. Under the title, "Start here ·
  * Glossary": each linked when the run has its document (`guide`).
  *
  * "DONE" IS WORKED OUT IN ONE PLACE, `src/lib/courses/weekBlocks/progress.ts`,
@@ -181,6 +205,12 @@ type Props = {
   leadCards?: ReactNode;
   /** The programme's Start here and Glossary, linked under the title when the run has them. */
   guide?: GuideLinks | null;
+  /**
+   * The run's course's routes and deadlines, read on the server, or null for
+   * a course with none: a section that lists routes shows them in place of
+   * the guide's tables.
+   */
+  routes?: CourseRoutes | null;
 };
 
 const FORKED_HINT =
@@ -200,6 +230,7 @@ export default function BlockWeek({
   leadFirstName,
   leadCards = null,
   guide = null,
+  routes = null,
 }: Props) {
   const runHomeHref = `/learn/${encodeURIComponent(runId)}`;
   const todayKey = londonDateKey(new Date());
@@ -224,7 +255,8 @@ export default function BlockWeek({
 
   const state: DoneState = {
     isTicked: ticks.isDone,
-    isWritten: (promptId) => Boolean(ownRows.byId.get(promptId)?.text?.trim()),
+    // A reflection box by its prompt's id, a fill-in box by its own: both are the reader's own rows.
+    isWritten: (boxId) => Boolean(ownRows.byId.get(boxId)?.text?.trim()),
     // Sent once its first-sent time is stored: editing it after, or a reviewer opening it, changes nothing.
     isSent: (answerId) => Boolean(ownRows.byId.get(answerId)?.written?.firstSentAt),
     packOf: (chooseOneId) => (participant ? picks.packOf(chooseOneId) : null),
@@ -296,6 +328,19 @@ export default function BlockWeek({
     if (own?.firstSentAt) return SENT;
     return own && own.words > 0 ? DRAFT : null;
   };
+  // Who reads the reader's own fill-in boxes (Q30 C): the group's
+  // facilitators with the lead and admins, or for somebody who facilitates a
+  // group of the run, a facilitator holding a place included, the lead and
+  // admins alone. The server's one reader keeps the same rule.
+  const fillInReaders = (title: string) =>
+    overviewWeek?.thisWeek?.answersReadBy === "lead"
+      ? facilitatorFillInReadersWords(leadFirstName, title)
+      : fillInReadersWords(facilitatorNames, leadFirstName, title);
+  /** "Draft" for a part or a task whose fill-in boxes are started and not done; null otherwise. */
+  const draftOf = (needs: TaskNeeds, done: boolean): string | null => {
+    if (!participant || done || needs.fillInIds.length === 0) return null;
+    return boxesFilled(needs, state.isWritten).filled > 0 ? FILL_IN_DRAFT : null;
+  };
   const taskNeedsList = (thisWeekBlock?.rows ?? [])
     .filter((row): row is Extract<ThisWeekRow, { type: "task" }> => row.type === "task")
     .map((row) => taskNeeds(blocks, row));
@@ -357,6 +402,7 @@ export default function BlockWeek({
             blocks={blocks}
             learner={participant}
             state={state}
+            draftOf={draftOf}
             counts={counts}
             first={first}
             todayKey={todayKey}
@@ -380,6 +426,7 @@ export default function BlockWeek({
           <TextSection
             key={block.id}
             block={block}
+            replaced={routes && isRoutesSection(block) ? <RoutesList routes={routes} todayKey={todayKey} /> : null}
             extra={
               block.role === "before" ? (
                 <>
@@ -407,10 +454,11 @@ export default function BlockWeek({
         const needs = partNeeds(block);
         const done = participant && isCounted(needs) && taskDone(needs, state);
         const chip = answerChipOf(block);
+        const draft = draftOf(needs, done);
         rail.push({
           id: anchor(block.id),
           label: block.title,
-          count: chip,
+          count: chip ?? draft,
           mark: participant && isCounted(needs) ? (done ? "done" : "open") : null,
           indent: true,
         });
@@ -421,6 +469,7 @@ export default function BlockWeek({
             number={partNumber.get(block.id) ?? 1}
             done={done}
             chip={chip}
+            draft={draft}
             renderChild={(child, rest) =>
               renderPartChild(child, rest, {
                 runId,
@@ -457,6 +506,7 @@ export default function BlockWeek({
                 picks,
                 askToSwap: payload.askToSwap ?? [],
                 blocks,
+                fillInReaders,
               })
             }
           />,
@@ -645,6 +695,7 @@ function ThisWeekBox({
   blocks,
   learner,
   state,
+  draftOf,
   counts,
   first,
   todayKey,
@@ -660,6 +711,8 @@ function ThisWeekBox({
   blocks: WeekBlock[];
   learner: boolean;
   state: DoneState;
+  /** "Draft" for a task whose fill-in boxes are started and not done, else null. */
+  draftOf: (needs: TaskNeeds, done: boolean) => string | null;
   counts: { done: number; of: number };
   first: boolean;
   todayKey: string;
@@ -725,9 +778,15 @@ function ThisWeekBox({
                   </p>
                 )}
                 {talk && !talk.ready && <p className={styles.taskWhen}>{NOT_READY_YET}</p>}
-                {needs.answerIds.length > 0
-                  ? answerLine(needs.answerIds, due?.dateKey ?? null)
-                  : done && <p className={styles.taskDone}>{TASK_DONE}</p>}
+                {needs.answerIds.length > 0 ? (
+                  answerLine(needs.answerIds, due?.dateKey ?? null)
+                ) : done ? (
+                  <p className={styles.taskDone}>{TASK_DONE}</p>
+                ) : (
+                  draftOf(needs, done) && (
+                    <p className={fillIn.taskDraft}>{draftFilledWords(boxesFilled(needs, state.isWritten).filled, needs.fillInIds.length)}</p>
+                  )
+                )}
               </div>
             </li>
           );
@@ -745,7 +804,7 @@ function ThisWeekBox({
 // Text, outcomes, the content note
 // ---------------------------------------------------------------------------
 
-function TextSection({ block, extra }: { block: TextBlock; extra: ReactNode }) {
+function TextSection({ block, extra, replaced = null }: { block: TextBlock; extra: ReactNode; replaced?: ReactNode }) {
   const id = anchor(block.id);
   if (block.role === "plain") {
     return (
@@ -762,14 +821,17 @@ function TextSection({ block, extra }: { block: TextBlock; extra: ReactNode }) {
         </h2>
         {block.time && <span className={styles.mono}>{block.time}</span>}
       </div>
-      <Prose
-        prose={block.body}
-        className={block.role === "why" ? styles.lede : styles.body}
-        listClassName={styles.list}
-        linkClassName={styles.inlineLink}
-        tableClassName={styles.table}
-        codeClassName={styles.code}
-      />
+      {/* A section the course's own record speaks for (its routes) draws that in place of what the guide wrote. */}
+      {replaced ?? (
+        <Prose
+          prose={block.body}
+          className={block.role === "why" ? styles.lede : styles.body}
+          listClassName={styles.list}
+          linkClassName={styles.inlineLink}
+          tableClassName={styles.table}
+          codeClassName={styles.code}
+        />
+      )}
       {extra}
     </section>
   );
@@ -827,6 +889,7 @@ function PartView({
   number,
   done,
   chip = null,
+  draft = null,
   renderChild,
 }: {
   part: PartBlock;
@@ -834,6 +897,8 @@ function PartView({
   done: boolean;
   /** A written answer's part: "Draft" or "Sent" in place of Done. */
   chip?: string | null;
+  /** A part whose fill-in boxes are started and not done: "Draft" where Done goes. */
+  draft?: string | null;
   renderChild: (child: PartChild, rest: PartChild[]) => { node: ReactNode; used: number };
 }) {
   const id = anchor(part.id);
@@ -857,6 +922,7 @@ function PartView({
             </>
           )}
         </p>
+        {draft && <span className={fillIn.draftChip}>{draft}</span>}
         {chip ? (
           <span className={answerStyles.stateChip}>{chip}</span>
         ) : done && (
@@ -910,6 +976,8 @@ type ChildContext = {
   askToSwap: readonly string[];
   /** The week's blocks, for the Choose one a talk's cases are grouped by. */
   blocks: WeekBlock[];
+  /** Who reads the reader's own boxes on a fill-in card titled so. */
+  fillInReaders: (title: string) => string;
 };
 
 type AnswerReaders = { kind: "facilitators"; names: string[] } | { kind: "lead"; leadName: string | null };
@@ -1043,7 +1111,26 @@ function renderPartChild(child: PartChild, rest: PartChild[], ctx: ChildContext)
         ),
       };
     }
-    // Drawn by a later page: a table, fill-in boxes.
+    case "fillIn":
+      return {
+        used: 1,
+        node: (
+          <FillInCard
+            block={child}
+            runId={ctx.runId}
+            weekId={ctx.weekId}
+            rows={ctx.ownRows.byId}
+            loaded={ctx.ownRows.loaded}
+            loading={ctx.ownRows.loading}
+            onRetry={ctx.ownRows.reload}
+            ownBoxes={ctx.learner}
+            canWrite={ctx.canWrite}
+            readers={ctx.fillInReaders(child.title)}
+            onSaved={ctx.ownRows.apply}
+          />
+        ),
+      };
+    // Drawn by a later page: a table.
     default:
       return { used: 1, node: null };
   }
@@ -1069,6 +1156,7 @@ function Checklist({ block, ctx }: { block: ChecklistBlock; ctx: ChildContext })
         showTicks={ctx.learner}
         onTick={ctx.onTick}
         open="icon"
+        steps
       />
     </div>
   );

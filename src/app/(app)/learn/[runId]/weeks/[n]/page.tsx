@@ -9,8 +9,9 @@ import { resolveSessions } from "@/lib/courses/sessions";
 import { isOpenAt, weekOpening } from "@/lib/courses/weekOpening";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { runSharesGroupNotes } from "@/lib/firestore/courseGroupSharedNotes";
-import { weekDocId } from "@/lib/firestore/courses";
+import { normalizeCourse, weekDocId } from "@/lib/firestore/courses";
 import { guideLinksOf } from "@/lib/courses/guide/load";
+import type { CourseRoutes } from "@/lib/courses/routes/model";
 
 /**
  * Server shell for the member week page. It decides whether this viewer
@@ -126,12 +127,14 @@ export default async function WeekPage({
 
   // The programme's Start here and Glossary, linked under a block week's
   // title when the run has either; nothing is handed for a run with neither.
+  // The course's routes travel only when it has some: a course with none
+  // hands the page nothing new, and the week shows the guide's own tables.
   const guideDb = getAdminDb();
-  const [sharedNotes, guide] = await Promise.all([
+  const [sharedNotes, guide, routes] = await Promise.all([
     sharedNotesFor(access),
     guideDb ? guideLinksOf(guideDb, access.run.id).catch(() => null) : Promise.resolve(null),
+    routesFor(access),
   ]);
-
   return (
     <WeekView
       runId={runId}
@@ -140,8 +143,29 @@ export default async function WeekPage({
       viewerRole={viewerRole}
       sharedNotes={sharedNotes}
       {...(guide ? { guide } : {})}
+      {...(routes ? { routes } : {})}
     />
   );
+}
+
+/**
+ * THE RUN'S COURSE'S ROUTES AND DEADLINES (`CourseDoc.routes`), read here on
+ * the server and handed to the page as the list alone: a week that lists
+ * routes shows them in place of the guide's tables. Null for a course with
+ * none, a run with no course, or a read that fails, so the week shows the
+ * guide's own tables rather than nothing.
+ */
+async function routesFor(access: RunAccess): Promise<CourseRoutes | null> {
+  if (!access.run.courseId) return null;
+  const db = getAdminDb();
+  if (!db) return null;
+  try {
+    const snap = await db.collection("courses").doc(access.run.courseId).get();
+    return snap.exists ? normalizeCourse(snap.id, snap.data() ?? {}).routes : null;
+  } catch (err) {
+    console.error("[week page] routes read failed", access.run.id, err);
+    return null;
+  }
 }
 
 /**

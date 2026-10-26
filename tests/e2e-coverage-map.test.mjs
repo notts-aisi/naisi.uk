@@ -841,6 +841,12 @@ const NOT_COVERED = {
     coverWhen:
       "When a browser spec pastes a rubric into a course's details and gives feedback by it on the review page.",
   },
+  "/api/courses/[courseId]/routes": {
+    reason:
+      "Course authoring: /api/courses/[courseId]/routes sets a course's routes and deadlines, an admin's job, answered on the course page's card that called it; reading, saving, taking off and every refusal are driven as each kind of caller in tests/course-routes-and-deadlines.test.mjs.",
+    coverWhen:
+      "When a lead or a facilitator can change a course's routes, or a browser spec loads week 6 of a run whose course has them, because a mistake then reaches a run's people before an admin sees it.",
+  },
   "/api/courses/[courseId]/templates": {
     reason:
       "Courses: /api/courses/[courseId]/templates is staff-facing, taken deliberately, and answered on the screen that called it.",
@@ -1038,6 +1044,18 @@ const NOT_COVERED = {
       "Course authoring: /api/courses/runs/[runId]/guide/[doc] loads a programme's Start here or Glossary, an admin's job for now, and every answer it gives is driven as each kind of caller in tests/course-guide-pages.test.mjs.",
     coverWhen:
       "When a lead loads their own programme's Start here or Glossary through it, because a mistake then reaches a run's people before an admin sees it.",
+  },
+  "/api/courses/runs/[runId]/fill-in-boxes": {
+    reason:
+      "Course hub: one person's fill-in boxes, read by their group's facilitators, the programme's lead and admins (Q30 C; a facilitator's own by the lead and admins); every caller is executed by tests/course-hub-week-six.test.mjs. No page reads it yet: the facilitator's and the lead's pages that will are later pieces.",
+    coverWhen:
+      "When the page that shows a facilitator or a lead somebody's action plan exists and a browser spec opens it.",
+  },
+  "/api/courses/runs/[runId]/fill-in-boxes/[boxId]": {
+    reason:
+      "Course hub: a fill-in box on a week written as blocks (week 6's action plan, wk-week6-phone), saved as the person types; who writes, who is refused and what a box keeps are executed by tests/course-hub-week-six.test.mjs; typed in a browser on the preview kit at 390, saved, reloaded and read back.",
+    coverWhen:
+      "When a browser spec signs in a member of a group Publish has told, opens week 6 written as blocks, writes in a box of the plan, reloads and reads it back.",
   },
   "/api/courses/runs/[runId]/material-notes": {
     reason:
