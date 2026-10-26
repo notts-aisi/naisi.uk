@@ -20,6 +20,7 @@ import { FINISHING_COLLECTION } from "@/lib/courses/finishing/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
 import { COURSE_AUDIT_COLLECTION } from "./courseAudit";
 import { COURSE_PAGES_COLLECTION } from "./coursePages";
+import { countCourseGuide, courseGuideRefs } from "@/lib/courses/facilitatorGuide/store";
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
 import { COURSE_UPDATES_COLLECTION } from "./courseUpdates";
@@ -342,6 +343,16 @@ export type CourseDestroyCounts = {
    * because a committee member closed their account.
    */
   coursePages: number;
+  /**
+   * `courseFacilitatorGuide`, the course's facilitator guide: each week's
+   * session plan and notes, and the course's own documents
+   * (`src/lib/firestore/courseFacilitatorGuide.ts`). DESTROYED with the
+   * course, in the same final batch as its page: course material for a course
+   * that is about to stop existing, keyed by its id, so a document left behind
+   * would be read by nobody and inherited by the next course at that id. It
+   * holds nothing personal, so it is not part of the per-account sweep.
+   */
+  facilitatorGuide: number;
   /**
    * `courseTemplates` snapshots whose provenance names this course. NOT
    * deleted: templates are frozen snapshots (v2 decision 2) and orphaned
@@ -1718,7 +1729,7 @@ export async function countCourseDestroyTargets(
   db: Firestore,
   course: CourseDoc,
 ): Promise<CourseDestroyCounts> {
-  const [runs, templates, pageSnap] = await Promise.all([
+  const [runs, templates, pageSnap, facilitatorGuide] = await Promise.all([
     countAgg(db.collection("courseRuns").where("courseId", "==", course.id)),
     // Ships in V2-2; counting the empty collection reads 0 until then.
     countAgg(db.collection("courseTemplates").where("courseId", "==", course.id)),
@@ -1726,8 +1737,9 @@ export async function countCourseDestroyTargets(
     // there is exactly one candidate and a query would cost more to learn
     // less.
     db.collection(COURSE_PAGES_COLLECTION).doc(course.id).get(),
+    countCourseGuide(db, course.id),
   ]);
-  return { runs, templates, coursePages: pageSnap.exists ? 1 : 0 };
+  return { runs, templates, coursePages: pageSnap.exists ? 1 : 0, facilitatorGuide };
 }
 
 /**
@@ -1873,15 +1885,22 @@ export async function destroyCourseCascade(
     // count and not the delete is what branches on it.
     const pageRef = db.collection(COURSE_PAGES_COLLECTION).doc(courseId);
     const pageSnap = await pageRef.get();
+    // The facilitator guide rides in the same final batch, for the page's
+    // reason: a handful of documents keyed by this course (the course's four
+    // and two a week, far under a batch's 500), each gone with it or not at
+    // all. Its addresses only are read.
+    const guideRefs = await courseGuideRefs(db, courseId);
 
     const totals: Record<string, number> = { courses: 1 };
     if (pageSnap.exists) totals.coursePages = 1;
+    if (guideRefs.length > 0) totals.facilitatorGuide = guideRefs.length;
     const finalBatch = db.batch();
     finalBatch.update(auditRef, {
       ...auditIncrements(totals),
       ...PASS_LEASE_RELEASED,
       completedAt: FieldValue.serverTimestamp(),
     });
+    for (const ref of guideRefs) finalBatch.delete(ref);
     finalBatch.delete(pageRef);
     finalBatch.delete(courseRef);
     await finalBatch.commit();

@@ -138,9 +138,12 @@ export function find(element, name, out = []) {
 
 /**
  * The world, its routes, its pages and short ways to ask them. `key` names
- * the handle on `globalThis` the stubs read.
+ * the handle on `globalThis` the stubs read. `extraStubs` are
+ * `[specifier, source]` pairs added after the world's own, for a suite that
+ * draws something this world does not fake (an extra wins over a default of
+ * the same name).
  */
-export async function makeFacilitatorPagesWorld(key = "__facilitatorPages") {
+export async function makeFacilitatorPagesWorld(key = "__facilitatorPages", extraStubs = []) {
   const ui = { h: createElement, overview: null, summary: null };
   const handle = `globalThis[${JSON.stringify(key)}].ui`;
   const quiet = (name) => `export default function ${name}() { return ${handle}.h('span', { 'data-stub': '${name}' }, '[${name}]'); }`;
@@ -178,6 +181,7 @@ export async function makeFacilitatorPagesWorld(key = "__facilitatorPages") {
         .join("\n"),
     ],
     ...stylesheets().map((specifier) => [specifier, CLASS_NAMES]),
+    ...extraStubs,
   ]);
   made.world.ui = ui;
   const { world, call, courseRoute, loadTs } = made;

@@ -380,5 +380,7 @@ After "Read it" the loader shows:
 
 Anyone who can open a week can read every block in it. Facilitator material
 (session plans, facilitator guides, answer keys, printables) is never
-written into a week's blocks or its Markdown. Start here and the Glossary are
-pages of their own, not blocks.
+written into a week's blocks or its Markdown: it is the course's facilitator
+guide (`docs/course-facilitator-guide.md`), and the loader refuses a paste
+whose title or headings say it is facilitator material. Start here and the
+Glossary are pages of their own, not blocks.

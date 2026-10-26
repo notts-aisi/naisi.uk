@@ -18,6 +18,10 @@ import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
 import { StaffUpdatesSection } from "@/features/courses/updates/UpdatesList";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
+import { facilitatorGuideReader } from "@/lib/courses/facilitatorGuide/access";
+import { facilitatorGuidePath } from "@/lib/courses/facilitatorGuide/model";
+import { readGuideIndex } from "@/lib/courses/facilitatorGuide/store";
+import { guideForWeekWords } from "@/lib/courses/facilitatorGuide/words";
 import { loadFacilitatorGroup } from "@/lib/courses/facilitatorGroup";
 import {
   MY_PROGRAMMES,
@@ -64,8 +68,14 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * wk-register draws it: "Take the register" and each register's "See it" lead
  * there.
  *
- * NOT DRAWN, though the board draws them: who can't make it tonight (that
- * feature does not exist yet) and the facilitator guide (no record holds one).
+ * NOT DRAWN, though the board draws it: who can't make it tonight (that
+ * feature does not exist yet).
+ *
+ * THE FACILITATOR GUIDE FOR THE WEEK ("Facilitator guide for week 3" on the
+ * ticket) is drawn when that week of the course's facilitator guide has its
+ * session plan or its notes loaded, and is asked of the guide's own gate
+ * (`src/lib/courses/facilitatorGuide/access.ts`), which admits this page's
+ * readers: the group's live facilitators and admins.
  *
  * ── THE GATE IS TWO CHECKS, NOT ONE ─────────────────────────────────────────
  * `[runId]/layout.tsx` has already established that the caller holds SOME role
@@ -333,6 +343,18 @@ export default async function GroupHomePage({
   const facts = ticketFacts(sessionGroup);
   const todayKey = londonDateKey(now);
 
+  // "Facilitator guide for week 3" on the ticket, when the course's guide has
+  // that week, through the guide's own gate and its list of titles.
+  const guideReader = facts && facts.weekNumber >= 1 ? await facilitatorGuideReader(db, access.user, access.run.courseId) : null;
+  const guideWeeks = guideReader ? (await readGuideIndex(db, guideReader)).weeks.map((week) => week.weekNumber) : [];
+  const guide =
+    facts && guideWeeks.includes(facts.weekNumber)
+      ? {
+          href: facilitatorGuidePath(access.run.courseId, { kind: "week", weekNumber: facts.weekNumber }),
+          label: guideForWeekWords(facts.weekNumber),
+        }
+      : null;
+
   return (
     <div className={facilitator.page}>
       <div className={`${weekly.bar} ${facilitator.phoneBar}`}>
@@ -416,6 +438,7 @@ export default async function GroupHomePage({
               roomChanged={Boolean(facts.room) && facts.room !== group.session.location.trim()}
               expected={model.expected > 0 ? model.expected : null}
               registerHref={registerHref}
+              guide={guide}
             />
           )}
           {/* Every session the group holds is over: Home's sentence where the
