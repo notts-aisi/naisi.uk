@@ -3308,8 +3308,8 @@ describe("the course hub passage", () => {
       "v7 says facilitators will see who has said they are coming, as if it were not built yet",
     );
 
-    // The one place the course side reads an application at all, and it is
-    // the facilitators' list.
+    // The places the course side reads an application at all: the
+    // facilitators' list, and week 1's door reading the caller's own.
     const COURSE_SIDE = /^src\/(?:lib\/courses|app\/api\/courses|app\/\(app\)\/learn|app\/\(app\)\/dashboard|features\/courses)\//;
     assertExactlyTheseFiles(
       sourceFilesNaming(/from "@\/lib\/applications\/staffRepo"/).filter((file) => COURSE_SIDE.test(file)),
@@ -3317,6 +3317,10 @@ describe("the course hub passage", () => {
         [
           "src/lib/courses/whosComing.ts",
           "who's coming, for a group's facilitators before its first session: each person's reply, read through comingReplyOf and handed on as a yes or a no beside a first name",
+        ],
+        [
+          "src/lib/courses/weekOne/door.ts",
+          "week 1's door: the caller's own application and decision, read only to answer whether they hold a place, which opens week 1 to them before groups go out. Nothing of either is shown to anybody, a facilitator least of all",
         ],
       ]),
       "reading applications on the course side",
