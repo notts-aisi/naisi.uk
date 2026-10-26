@@ -522,7 +522,7 @@ describe("4. the pages, as the boards draw them", () => {
     assert.match(home.text, /1 of 2 done/, "the programme page counts a sent answer done, from the overview's own rows");
     await w.review("sofia", "chloe", 3, { action: "feedback", levels: w.levels(), comment: "" });
     home = await w.programmeHome("chloe");
-    assert.match(home.html, /Sent Tue 17 Nov <a href="\/learn\/[^"]+\/weeks\/3\/feedback" class="cardLink">Feedback from Sofia<\/a>/);
+    assert.match(home.html, /Sent Tue 17 Nov <a href="\/learn\/[^"]+\/weeks\/3\/feedback" class="cardLink">Feedback from Sofia<span aria-hidden="true">→<\/span><\/a>/);
   });
 
   test("the review page: a facilitator sees their group's fellows, never a facilitator's own; grouped as the board groups them", async () => {

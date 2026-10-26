@@ -162,17 +162,23 @@ export default function ThisWeekCard({
                       {task.answer ? (
                         // The written answer's own line (wk-programme): "Sent Mon 16 Nov",
                         // then "Feedback from Rahul"; "Draft · 241 words" before it is sent.
-                        <p className={styles.taskRowDone}>
-                          {task.answer.sentOn ? sentOnWords(new Date(`${task.answer.sentOn}T12:00:00Z`)) : draftStateWords(task.answer.words)}
-                          {task.answer.feedbackFrom && (
-                            <>
-                              {" "}
-                              <Link href={`${weekHref(runId, weekNumber)}/feedback`} className={styles.cardLink}>
-                                {feedbackFromWords(task.answer.feedbackFrom)}
-                              </Link>
-                            </>
-                          )}
-                        </p>
+                        task.answer.sentOn ? (
+                          <p className={styles.taskRowDone}>
+                            {sentOnWords(new Date(`${task.answer.sentOn}T12:00:00Z`))}
+                            {task.answer.feedbackFrom && (
+                              <>
+                                {" "}
+                                <Link href={`${weekHref(runId, weekNumber)}/feedback`} className={styles.cardLink}>
+                                  {feedbackFromWords(task.answer.feedbackFrom)}
+                                  <span aria-hidden="true">→</span>
+                                </Link>
+                              </>
+                            )}
+                          </p>
+                        ) : (
+                          // A draft is not done: said plainly, not in the done colour.
+                          <p className={styles.cardMeta}>{draftStateWords(task.answer.words)}</p>
+                        )
                       ) : (
                         taskIsDone && <p className={styles.taskRowDone}>{TASK_DONE}</p>
                       )}
