@@ -10,6 +10,7 @@ import { isOpenAt, weekOpening } from "@/lib/courses/weekOpening";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { runSharesGroupNotes } from "@/lib/firestore/courseGroupSharedNotes";
 import { weekDocId } from "@/lib/firestore/courses";
+import { guideLinksOf } from "@/lib/courses/guide/load";
 
 /**
  * Server shell for the member week page. It decides whether this viewer
@@ -120,13 +121,22 @@ export default async function WeekPage({
     }
   }
 
+  // The programme's Start here and Glossary, linked under a block week's
+  // title when the run has either; nothing is handed for a run with neither.
+  const guideDb = getAdminDb();
+  const [sharedNotes, guide] = await Promise.all([
+    sharedNotesFor(access),
+    guideDb ? guideLinksOf(guideDb, access.run.id).catch(() => null) : Promise.resolve(null),
+  ]);
+
   return (
     <WeekView
       runId={runId}
       weekNumber={weekNumber}
       uid={access.user.uid}
       viewerRole={viewerRole}
-      sharedNotes={await sharedNotesFor(access)}
+      sharedNotes={sharedNotes}
+      {...(guide ? { guide } : {})}
     />
   );
 }

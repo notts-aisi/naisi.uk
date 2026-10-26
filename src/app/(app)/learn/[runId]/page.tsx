@@ -7,6 +7,7 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import LeftProgramme from "@/features/courses/leaving/LeftProgramme";
 import RunHome from "@/features/courses/RunHome";
 import { getRunAccess } from "@/features/courses/runAccess";
+import { guideLinksOf } from "@/lib/courses/guide/load";
 
 /**
  * The run home — the page a learner opens daily, and the stage for the
@@ -109,6 +110,10 @@ export default async function RunHomePage({
     db !== undefined &&
     "path" in (await leavePathFor(db, access.run, access.user.uid, new Date()));
 
+  // "About this course" (wk-programme): the programme's Start here and
+  // Glossary, each linked when the run has it; nothing for a run with neither.
+  const guide = db ? await guideLinksOf(db, access.run.id).catch(() => null) : null;
+
   return (
     <RunHome
       runId={runId}
@@ -117,6 +122,7 @@ export default async function RunHomePage({
       pitching={pitching}
       canLeave={canLeave}
       uid={access.user.uid}
+      {...(guide ? { guide } : {})}
     />
   );
 }

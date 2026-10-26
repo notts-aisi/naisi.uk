@@ -35,6 +35,7 @@ import {
 } from "@/lib/courses/memberPageWords";
 import { CANCELLED_CARD, ONLINE_NOTICE_LINK_LINE, dayRangeWords } from "@/lib/courses/sessionChange/words";
 import type { WeekSharedNotes } from "@/lib/courses/sharedNotes/views";
+import type { GuideLinks } from "@/lib/courses/guide/model";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
 import {
   SOURCE_KIND_LABEL,
@@ -75,6 +76,7 @@ import weekly from "../weekly/weekly.module.css";
 import Prose, { Runs } from "./Prose";
 import ReflectStop from "./ReflectStop";
 import SourceCard, { SourceTitle } from "./SourceCard";
+import { WeekGuideLinks } from "../guide/GuideLinks";
 import styles from "./blockWeek.module.css";
 
 /**
@@ -98,8 +100,8 @@ import styles from "./blockWeek.module.css";
  * DRAWN BY A LATER PAGE, AND NOTHING HERE YET: a Choose one's packs, a
  * table, the written answer, the cases and fill-in boxes. A task that covers
  * one of them is counted and is never done until that page can see it done
- * (`progress.ts`). No link to Start here or the Glossary until those pages
- * exist.
+ * (`progress.ts`). Under the title, "Start here · Glossary": each linked
+ * when the run has its document (`guide`).
  *
  * "DONE" IS WORKED OUT IN ONE PLACE, `src/lib/courses/weekBlocks/progress.ts`,
  * from the reader's own live ticks and their own reflection boxes as they
@@ -148,6 +150,8 @@ type Props = {
   leadFirstName: string | null;
   /** Cards drawn above This week by later pieces (Q35's line, Q50's survey). */
   leadCards?: ReactNode;
+  /** The programme's Start here and Glossary, linked under the title when the run has them. */
+  guide?: GuideLinks | null;
 };
 
 const FORKED_HINT =
@@ -166,6 +170,7 @@ export default function BlockWeek({
   sharedNotes,
   leadFirstName,
   leadCards = null,
+  guide = null,
 }: Props) {
   const runHomeHref = `/learn/${encodeURIComponent(runId)}`;
   const todayKey = londonDateKey(new Date());
@@ -235,6 +240,7 @@ export default function BlockWeek({
         })}
       </p>
       <h1 className={styles.title}>{week.title || `Week ${weekNumber}`}</h1>
+      <WeekGuideLinks runId={runId} links={guide} />
       {(forked || !week.published) && (
         <p className={styles.chips}>
           {forked && (

@@ -45,6 +45,7 @@ import {
 import type { WeekSharedNotes } from "@/lib/courses/sharedNotes/views";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
+import type { GuideLinks } from "@/lib/courses/guide/model";
 import ExerciseSubmit from "./ExerciseSubmit";
 import PacingBanner from "./PacingBanner";
 import { cancelledIn } from "./sessionChange/cardFacts";
@@ -119,6 +120,8 @@ type Props = {
   viewerRole: ViewerRole;
   /** The notes this reader's groups share, read on the server; null on a run that keeps the run's comments. */
   sharedNotes?: WeekSharedNotes;
+  /** The programme's Start here and Glossary, linked under a block week's title when the run has them. */
+  guide?: GuideLinks | null;
 };
 
 /**
@@ -133,7 +136,7 @@ const TICK_REFUSED = "That tick didn’t save, so it has been undone. Check your
 
 const EMPTY_ROWS: ReadonlyArray<never> = [];
 
-export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNotes = null }: Props) {
+export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNotes = null, guide = null }: Props) {
   const overview = useRunOverview(runId);
   // WHERE THIS READER'S COPY OF THE WEEK LIVES (V2-3 copy-on-write): their
   // group's forked document when their facilitator has personalised this
@@ -315,6 +318,7 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
           sharedNotes={sharedNotes}
           leadFirstName={payload.programme?.leadFirstName ?? null}
           leadCards={beforeGroups ? <WeekOneLine line={beforeGroups.line} /> : null}
+          guide={guide}
         />
         <ActionToast toast={toast} onDismiss={dismiss} />
       </>
