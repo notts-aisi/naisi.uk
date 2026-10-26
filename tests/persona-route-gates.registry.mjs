@@ -2639,6 +2639,14 @@ export const PAGES = {
       "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme the caller " +
       "has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/people": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: everyone who holds a place on " +
+      "the programme or gave it back, by name, with their replies, is the programme's lead's and an admin's to read, " +
+      "so a reviewer is told so before anybody is read, and a programme the caller has no role on, or one that does " +
+      "not exist, renders 'there is no programme here' with a 200.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
     why:

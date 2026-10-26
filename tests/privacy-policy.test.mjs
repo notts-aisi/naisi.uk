@@ -21,9 +21,9 @@
  * worded as what will happen,
  * because they are not built yet (certificates, a team's page), and §2g
  * holds that nothing has been built that they would then have to describe.
- * A third was worded that way and is now built (facilitators seeing, before
- * the first session, who has said they are coming), and §2g holds it to the
- * code.
+ * A third was worded that way until it was built (facilitators seeing, before
+ * the first session, who has said they are coming); it now says they see it,
+ * and §2g holds it to the code.
  *
  * v6 (7 October 2026) was v5's text, rewritten where the application form
  * (docs/applications.md) made it untrue. The people who read an application
@@ -2497,7 +2497,8 @@ describe("the account record passage", () => {
  * Certificates carry a check of their own in §2, which fails the day the site
  * starts keeping them. A third, facilitators seeing who has said they are
  * coming before the first session, was worded the same way until it was
- * built; it is now held to the code below, as strictly.
+ * built; it now says they see it, and is held to the code below, as
+ * strictly.
  *
  * Four more were added to v7 while it was on dev, before any member had been
  * asked to accept it, so it kept its number: the notes a group's facilitators
@@ -2941,15 +2942,22 @@ describe("the course hub passage", () => {
 
   test("before the first session, facilitators see whether each person in their group has said they are coming, and nothing else from an application", () => {
     // BUILT, 26 October 2026 (Q14, board st-fac-before-phone). This sentence
-    // said what would happen while nothing showed a facilitator a reply, and
-    // the code now does it: the summary behind a facilitator's Home hands the
-    // group's facilitators, on the days before its first session, each
-    // person's first name and whether they have said they are coming. So the
-    // sentence is held to the code here, as strictly as its future tense was
-    // held to nothing being built. Its tense is the owner's to change.
+    // said what would happen ("they will also see") while nothing showed a
+    // facilitator a reply, and the code now does it: the summary behind a
+    // facilitator's Home hands the group's facilitators, on the days before
+    // its first session, each person's first name and whether they have said
+    // they are coming. v7 had not been put to any member yet, so its tense
+    // moved in place ("they also see"), the way the three passages added
+    // while it was on dev were added in place. The whole sentence is pinned in
+    // its new words, as strictly as the old words were, the old words must be
+    // gone, and the sentence is held to the code below.
     assert.match(
       PAGE_FLAT,
-      /Before the first session, they will also see whether each person in their group has said they are coming\. Apart from that one reply, they see nothing from applications, and no review scores\./,
+      /Before the first session, they also see whether each person in their group has said they are coming\. Apart from that one reply, they see nothing from applications, and no review scores\./,
+    );
+    assert.ok(
+      !/they will also see whether each person in their group/i.test(PAGE_FLAT),
+      "v7 says facilitators will see who has said they are coming, as if it were not built yet",
     );
 
     // The one place the course side reads an application at all, and it is

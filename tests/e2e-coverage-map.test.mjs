@@ -1504,6 +1504,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed a programme that names a run with groups, with its lead signed in.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/people": {
+    reason:
+      "Course hub: the People tab lists everyone who holds a place on a programme or gave it back, for its lead and admins; its every caller, its counts, its rows and what it never sends are executed by tests/course-hub-people-tab.test.mjs, and it was checked by hand at 1440 and 390.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a term whose decisions have been sent, with a programme naming a run and its lead signed in.",
+  },
   "/(app)/admin/courses": {
     reason:
       "Course authoring: /(app)/admin/courses is admin-only, and a mistake there is visible to its author before a member reaches it.",

@@ -237,6 +237,14 @@ const READERS = {
       "met dates their answers: a seat Publish has not told them about is no group of theirs, so the box names " +
       "nobody's facilitators and the answers count as before their first session",
   },
+  "lib/applications/people/load.ts": {
+    kind: "staff",
+    proof: ['if (!opensProgrammeGroups(role)) return { status: "not-yours" };'],
+    why:
+      "a programme's People tab, for its lead and admins, who place people: each person's group and whether they " +
+      "left come from every seat on the run the programme names, as the allocation board shows them, and it shows " +
+      "no member a placement and names nobody to a facilitator",
+  },
   "app/api/courses/runs/[runId]/allocation/route.ts": {
     kind: "board",
     proof: ["if (!doesTrackLeadWork(staffing)) {"],

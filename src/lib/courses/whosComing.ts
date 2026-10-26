@@ -14,8 +14,8 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
  * st-fac-before-phone, Q14).
  *
  * The privacy policy's own words are the contract: before the first session,
- * facilitators "will also see whether each person in their group has said
- * they are coming", and apart from that one reply nothing from applications.
+ * facilitators "also see whether each person in their group has said they
+ * are coming", and apart from that one reply nothing from applications.
  * So this is the one place a facilitator is handed anything an application
  * holds, and what it hands back is exactly that: each person's first name,
  * and whether they have said they are coming. Never "I can't make it", never

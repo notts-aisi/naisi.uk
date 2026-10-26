@@ -182,6 +182,16 @@ const READS_THE_LISTS = {
     why: "the panel names who a press would hand over, and that is everybody who holds a place. It names and counts nobody until the term is marked as sent",
     holds: "after-the-send",
   },
+  "lib/applications/people/load.ts#loadProgrammePeople": {
+    kind: "everybody",
+    why: "a programme's People tab lists everybody who holds a place on it or gave it back, an admin who applied included, as the hand-over and the times picture count them. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",
+    holds: "after-the-send",
+  },
+  "lib/applications/people/load.ts#countPlaceHolders": {
+    kind: "everybody",
+    why: "the number beside a programme's People tab: everybody who holds a place on it, an admin who applied included, by the hand-over's own test. It counts nobody until the term is marked as sent",
+    holds: "after-the-send",
+  },
   "lib/applications/handover/timesLoad.ts#loadTimesPicture": {
     kind: "everybody",
     why: "the times picture counts everybody who holds a place by when they said they are free, and names who no group suits, an admin who applied included. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",
