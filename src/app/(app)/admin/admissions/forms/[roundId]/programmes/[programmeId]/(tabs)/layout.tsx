@@ -13,7 +13,10 @@ import { readTeamsTab } from "@/lib/applications/handover/teamsLoad";
 import { countPlaceHolders } from "@/lib/applications/people/load";
 import { stageSummaryFor } from "@/lib/applications/lifecycle/view";
 import { readRunEndById } from "@/lib/courses/finishing/record";
+import { groupsGoOutDay } from "@/lib/courses/groupsGoOut";
+import { readGroupsGoOut } from "@/lib/courses/groupsGoOutRead";
 import { readRunHeader } from "@/lib/courses/programmeAttendance";
+import { londonDateKey } from "@/lib/courses/weekPlan";
 import { formatRunStartShort } from "@/lib/courses/window";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -53,6 +56,10 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * finished), and the line says how many "took part": the same people the
  * running line counted as taking part.
  *
+ * Before the run is under way, the head says "Groups go out Wed 28 Oct" for
+ * the lead and admins, from the run's own setting (`groupsGoOutOn`, set on
+ * the Groups tab), while that day is today or later.
+ *
  * An incubator's head also says "Teams by", the day its run's teams are made
  * (the run's own setting, `readTeamsTab`), as its last fact.
  *
@@ -84,6 +91,11 @@ export default async function ProgrammeLayout({
   const teamsTab = db ? await readTeamsTab(db, programme) : null;
   // How many hold a place, beside People: for the two who open it.
   const people = db && opensProgrammeGroups(role) ? await countPlaceHolders(db, form, programme.id) : null;
+  // Before the run is under way, the day groups go out, for the lead and admins.
+  const groupsGoOut =
+    db && programme.runId && opensProgrammeGroups(role) && !runHeader
+      ? groupsGoOutDay(await readGroupsGoOut(db, programme.runId), londonDateKey(context.now))
+      : null;
   const state = finishedOn
     ? { label: `Finished · ${finishedOn}`, live: false, tone: "neutral" as const }
     : runHeader
@@ -158,6 +170,13 @@ export default async function ProgrammeLayout({
     facts.push(
       <span className={styles.metaItem} key="hears">
         Everyone hears <strong>{hears}</strong>
+      </span>,
+    );
+  }
+  if (groupsGoOut) {
+    facts.push(
+      <span className={styles.metaItem} key="groups-go-out">
+        Groups go out <strong>{groupsGoOut}</strong>
       </span>,
     );
   }

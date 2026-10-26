@@ -367,6 +367,21 @@ export type CourseRunDoc = {
    * default, and the Teams tab makes no team until it is set.
    */
   teamsFrom: TeamsFrom | null;
+  /**
+   * THE DAY GROUPS GO OUT, as planned: the day the people holding a place
+   * are emailed their group, day and room, a civil "YYYY-MM-DD" in London.
+   * Null until somebody sets it. It is the plan, never the record of the
+   * press: when Publish actually told somebody is on their own seat
+   * (`allocatedEmailAt`).
+   *
+   * Set by the programme's lead and admins on the programme's Groups tab,
+   * above its sessions, through its route
+   * (`.../programmes/[programmeId]/groups-go-out`), and
+   * read by every sentence that names the day: Home's "Your group’s on its
+   * way", week 1's line before groups go out, the application page's "When
+   * you’re free", the programme's head. Read here only as a valid date.
+   */
+  groupsGoOutOn: string | null;
   createdAt?: Date | null;
   updatedAt?: Date | null;
 };
@@ -1313,6 +1328,8 @@ export function normalizeCourseRun(id: string, data: Raw): CourseRunDoc {
         : null,
     pitchSettings: normalizePitchSettings(data.pitchSettings),
     teamsFrom: normalizeTeamsFrom(data.teamsFrom),
+    groupsGoOutOn:
+      typeof data.groupsGoOutOn === "string" && isValidDateKey(data.groupsGoOutOn) ? data.groupsGoOutOn : null,
     createdAt: tsToDate(data.createdAt),
     updatedAt: tsToDate(data.updatedAt),
   };
