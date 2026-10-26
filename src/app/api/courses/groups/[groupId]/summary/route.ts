@@ -73,7 +73,9 @@ export type FacilitatorSummary = {
   whosComing: WhosComingPerson[] | null;
   /**
    * "Write to Group B (8)": who an update to the group is to and how many it
-   * emails, counted as the group page's button counts. Null for an archived group.
+   * emails, counted as the group page's button counts, for Home's Say hello
+   * before the group's first session's day. Null from that day, and for an
+   * archived group: the group page has the button every week.
    */
   write: { people: number; emails: number; notYetTold: number } | null;
 };
@@ -115,10 +117,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ groupId: strin
           model.people.map((person) => ({ uid: person.uid, firstName: person.firstName })),
         )
       : null;
-  // The way to write to the group, counted as the group page counts it.
-  const [count] = group.archived
-    ? []
-    : await updateAudienceCounts(db, run, await loadRunGroups(db, run.id), { groupIds: [group.id] }, actor.uid);
+  // The way to write to the group, for Home's Say hello, counted as the group
+  // page counts it: only while Home draws it, before the first session's day.
+  const [count] =
+    !group.archived && isBeforeFirstSessionDay(firstSessionDayOf(run, group, now), now)
+      ? await updateAudienceCounts(db, run, await loadRunGroups(db, run.id), { groupIds: [group.id] }, actor.uid)
+      : [];
 
   const answer: FacilitatorSummary = {
     groupId: group.id,

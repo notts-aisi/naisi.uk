@@ -256,7 +256,9 @@ describe("4. before the first session's day, and then the weekly Home", () => {
     await told();
     for (const when of [FIRST_DAY, new Date("2026-11-04T12:00:00Z")]) {
       at(when);
-      assert.equal((await summary("rahul")).body.whosComing, null, `a list on ${when.toISOString()}`);
+      const body = (await summary("rahul")).body;
+      assert.equal(body.whosComing, null, `a list on ${when.toISOString()}`);
+      assert.equal(body.write, null, `Say hello's count on ${when.toISOString()}`);
       const drawn = await home("rahul");
       assert.ok(!drawn.text.includes(words.WHOS_COMING), drawn.text);
       assert.ok(!drawn.text.includes(words.SAY_HELLO), drawn.text);

@@ -175,10 +175,9 @@ describe("1. who opens a group's page, its register and its summary", () => {
 
   test("the summary route answers names and counts, field by field, never an address", async () => {
     const answer = await summary("rahul");
-    // Two fields since board st-fac-before-phone: who's coming, which is
-    // handed only before the group's first session's day (week 3 is long
-    // after it), and how many an update to the group reaches, counted as the
-    // group page counts it (this world keeps nobody on the run's mailing list).
+    // Two fields since board st-fac-before-phone, both for Home before the
+    // group's first session's day and null after it (week 3 is long after
+    // it): who's coming, and how many an update to the group reaches.
     assert.deepEqual(answer.body, {
       groupId: B,
       expected: 3,
@@ -188,7 +187,7 @@ describe("1. who opens a group's page, its register and its summary", () => {
       leftRecently: [],
       coFacilitators: ["Sofia"],
       whosComing: null,
-      write: { people: 3, emails: 0, notYetTold: 0 },
+      write: null,
     });
     assert.deepEqual((await summary("sofia")).body.coFacilitators, ["Rahul"]);
     assert.deepEqual((await summary("zach")).body.coFacilitators, ["Rahul", "Sofia"]);
