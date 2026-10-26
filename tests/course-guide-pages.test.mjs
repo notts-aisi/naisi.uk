@@ -9,9 +9,9 @@
  * Sofia; Amara in Group A, with Sofia; Una placed and not told; Sam, who
  * left; Omar, taken off; Claudia leads the programme; Tess leads Technical
  * AI Safety; Yusuf is the run's track lead; Lloyd its admissions reviewer;
- * Zach an admin). From the hand-over world beneath it: Nina gave her place
+ * Zach an admin). From the hand-over world beneath it: Nina gave the place
  * back; Wen holds a place on Technical AI Safety. Bea, accepted on AGI
- * Strategy, is made somebody holding a place before groups go out (her
+ * Strategy, is made somebody holding a place before groups go out (the
  * seat not told), with week 1 Ready and not.
  *
  *  1. Loading, admins only: Read it, Save, Copy as Markdown; refused for
@@ -61,7 +61,14 @@ const run = (text, marks = {}) => ({ text, ...marks });
 
 beforeEach(() => {
   mock.timers.setTime(NOW.getTime());
+  fresh();
+});
+
+/** The world every test starts from: the page world's, with Wen on the other programme and Sam a leaver as leaving now writes one. */
+function fresh() {
   w.reset();
+  // Sam left the run, and leaving keeps Publish's stamp: the run's gate counts Sam as having left.
+  w.world.db.poke(`courseEnrolments/${RUN.agi}__sam`, { allocatedEmailAt: new Date("2026-10-28T18:00:00Z") });
   // Wen takes part in Technical AI Safety's run: told, no group yet.
   w.world.db.seed(`courseEnrolments/${RUN.tais}__wen`, {
     runId: RUN.tais,
@@ -76,7 +83,7 @@ beforeEach(() => {
     allocatedEmailAt: new Date("2026-10-28T18:00:00Z"),
     attendance: {},
   });
-});
+}
 
 /** One request to the loader, as `who`. */
 const load = (who, doc, method, body, options = {}) =>
@@ -253,7 +260,7 @@ describe("2. the two pages open to exactly the people week 1 opens to", () => {
 
   test("persona by persona, each page answers as week 1's page does", async () => {
     for (const [who, what] of PERSONAS) {
-      w.reset();
+      fresh();
       if (what.includes("Ready")) beaBeforeGroups({ ready: !what.includes("not Ready") });
       await loadBoth();
       const week = await weekOne(who);
@@ -261,6 +268,23 @@ describe("2. the two pages open to exactly the people week 1 opens to", () => {
         const answer = await open(page, who);
         assert.equal(answer.open, week.open, `${who ?? "signed out"} (${what}): ${page} ${answer.open ? "opens" : `sends to ${answer.to}`}, week 1 ${week.open ? "opens" : `sends to ${week.to}`}`);
       }
+    }
+  });
+
+  test("somebody who left keeps nothing of the guide: the run's gate counts Sam as having left, and both pages send Sam away", async () => {
+    await loadBoth();
+    w.world.user = w.sessionOf("sam");
+    w.world.course = true;
+    let home;
+    try {
+      home = await pages.programme({ params: Promise.resolve({ runId: RUN.agi }) });
+    } finally {
+      w.world.course = false;
+    }
+    assert.equal(home.type.name, "LeftProgramme", "Sam reads the page that says they left");
+    for (const page of ["start-here", "glossary"]) {
+      const answer = await open(page, "sam");
+      assert.deepEqual([answer.open, answer.to], [false, "/learn"], page);
     }
   });
 
