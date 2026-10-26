@@ -275,6 +275,12 @@ Send it to your facilitator by the end of the day before your session.
 - Copied out, it opens with its own line:
   `**Written answer** · 200 to 300 words · due by the end of the day before the session`.
 
+What each person writes in it, who reads it, the lock when it is opened, "Late"
+and the feedback on the course's rubric are `src/lib/courses/writtenAnswers/`:
+`access.ts` is the one gate, `model.ts` the stored fields, and
+`src/lib/courses/rubric.ts` the rubric. The answer keeps the block's id, so a
+paste that keeps the id keeps everybody's answers to it.
+
 ### Fill-in boxes, a checklist and a talk
 
 - Fill-in boxes: the guide's code block template, numbered headings and

@@ -1220,6 +1220,22 @@ export const ROUTES = {
         "them, everyone else is forbidden before the read.",
     },
   },
+  "/api/courses/[courseId]/rubric": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: reading a pasted rubric is an " +
+        "admin's, decided before the body or any document is read, and the admin meets the body " +
+        "check, since an empty body sends no table.",
+    },
+    PUT: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: saving a course's rubric is an " +
+        "admin's, decided before the body or any document is read, and the admin meets the body " +
+        "check, since an empty body sends no table.",
+    },
+  },
   "/api/courses/[courseId]/templates": {
     POST: {
       expect: adminOnly(400),
@@ -1883,6 +1899,25 @@ export const ROUTES = {
         "is for the lead of the programme that names the run and admins, decided before anything of the run " +
         "is read (only the forms, for whether the caller leads it). Every other session is forbidden, and " +
         "the admin is told an id that is not w01 to w60 is no week.",
+    },
+  },
+  "/api/courses/runs/[runId]/written-answers/[answerId]": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the body is checked before anything is " +
+        "read (which week, and the answer as text or as boxes), so every signed-in persona meets the " +
+        "same 400 on an empty one. The caller's own seat, or a group they facilitate, is asked once a " +
+        "valid body arrives.",
+    },
+  },
+  "/api/courses/runs/[runId]/written-answers/[answerId]/review": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the body is checked before anything is " +
+        "read (which week, whose answer, what to do), so every signed-in persona meets the same 400 " +
+        "on an empty one. The one gate is asked once a valid body arrives, before any answer is read.",
     },
   },
   "/api/courses/templates/[templateId]": {
@@ -2776,6 +2811,14 @@ export const PAGES = {
       "the programme layout's calm not-here state with a 200; a lead or a reviewer on the " +
       "programme is shown that the page is an admin's.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the page's own: the review page for the programme's lead and " +
+      "admins, so a reviewer on the form is told it is the lead's and an admin's before the run is read, " +
+      "and a programme the caller has no role on, or one that does not exist, renders 'there is no " +
+      "programme here' with a 200.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
     why:
@@ -3146,6 +3189,13 @@ export const PAGES = {
       "missing, and the page opens to exactly the people the run's week 1 opens to and sends anybody else " +
       "where the week page sends them.",
   },
+  "/(app)/learn/[runId]/group/[groupId]/written": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page sends anybody who is not the group's live facilitator, the programme's " +
+      "lead or an admin to the run's home.",
+  },
   "/(app)/learn/[runId]/weeks/[n]": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
     why:
@@ -3165,6 +3215,13 @@ export const PAGES = {
       "One page of a course's facilitator guide: every approved account is drawn the page, and the " +
       "guide's own gate decides what is on it, before the address is read. A course that is not " +
       "there, or a caller the gate does not admit, is given the same one calm sentence.",
+  },
+  "/(app)/learn/[runId]/weeks/[n]/feedback": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page shows the caller their own answer alone, sending anybody with no place " +
+      "and no group to the run's home.",
   },
   "/(app)/newsletter": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, draftNewsletter: 200, approveNewsletter: 200 }),

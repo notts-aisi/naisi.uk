@@ -14,6 +14,7 @@ import {
   readWhosComing,
   type WhosComingPerson,
 } from "@/lib/courses/whosComing";
+import { loadWrittenQueue } from "@/lib/courses/writtenAnswers/queue";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
@@ -59,6 +60,14 @@ export type FacilitatorSummary = {
   notYetTold: boolean;
   /** Rows of exercises waiting for a review, as the group page lists them. */
   toReview: number;
+  /**
+   * Written answers waiting for the caller's feedback, as the group page's
+   * review queue lists them. Present only on a run whose weeks are written
+   * as blocks; a run of the summer's weeks answers without it.
+   */
+  writtenToGive?: number;
+  /** The oldest of them, for Home's Give feedback: its week and whose it is. Present only when one waits. */
+  writtenNext?: { weekNumber: number; uid: string };
   /** Null while next week's email is not on its schedule, or no email is left to go. */
   nextEmail: HomeNextEmail | null;
   /** Who left recently, by name, and the register they are off from. */
@@ -106,7 +115,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ groupId: strin
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const now = new Date();
   const model = await loadFacilitatorGroup(db, run, group, { isAdmin }, now);
-  const line = await readNextEmailForHome(db, run, group, model.scheduled, now);
+  const [line, writtenQueue] = await Promise.all([
+    readNextEmailForHome(db, run, group, model.scheduled, now),
+    loadWrittenQueue(db, actor, run, group),
+  ]);
   // Who's coming: a facilitator's, before the first session's day, about the
   // people the facilitator's own view of the group lists (told, taking part).
   const whosComing =
@@ -129,6 +141,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ groupId: strin
     expected: model.expected,
     notYetTold: model.notYetTold,
     toReview: model.toReview.length,
+    ...(writtenQueue !== null ? { writtenToGive: writtenQueue.length } : {}),
+    ...(writtenQueue && writtenQueue[0] ? { writtenNext: { weekNumber: writtenQueue[0].weekNumber, uid: writtenQueue[0].uid } } : {}),
     nextEmail: line && line.state !== "missed" ? line : null,
     leftRecently: model.leftRecently.map((person) => ({
       uid: person.uid,

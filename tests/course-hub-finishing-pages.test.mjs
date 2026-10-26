@@ -111,7 +111,7 @@ describe("1. the section, once the last session is over", () => {
   test("leads the Overview in the board's words, for the lead", async () => {
     const drawn = await renderPage(pages.overview, "claudia");
     const text = drawn.text;
-    assert.ok(text.startsWith("Who finished We’ve ticked everyone who came to at least 4 of 6 sessions. Change any you disagree with. Only you and admins see this rule. 6 finished · 4 not Saved Fewest sessions first Name Group Came to Exercises Finished"), text.slice(0, 400));
+    assert.ok(text.startsWith("Who finished We’ve ticked everyone who came to at least 4 of 6 sessions. Change any you disagree with. Only you and admins see this rule. 6 finished · 4 not Saved Fewest sessions first Name Group Came to Written answers Finished"), text.slice(0, 400));
     // The rest of the Overview stays below it.
     assert.ok(text.indexOf("Who finished") < text.indexOf("Sessions this week"));
     assert.match(text, /Needs attention/);
@@ -445,7 +445,8 @@ describe("7. on a phone, a card a row, each switch beside its person's name", ()
     // Each cell says its column's word, and the headings are hidden from
     // sight only, never from assistive technology.
     assert.equal(phone[".wfCellCame::before"].content, '"Came to"');
-    assert.equal(phone[".wfCellExercises::before"].content, '"Exercises"');
+    // The column is the written answers (en-finish v21), never "exercises" (K6).
+    assert.equal(phone[".wfCellExercises::before"].content, '"Written answers"');
     assert.equal(phone[".wfThead"].position, "absolute");
     assert.notEqual(phone[".wfThead"].display, "none");
   });

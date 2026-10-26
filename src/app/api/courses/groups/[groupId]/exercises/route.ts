@@ -9,6 +9,7 @@ import {
 } from "@/lib/firestore/courseEnrolments";
 import { isReflectionResponse, normalizeExerciseResponse } from "@/lib/firestore/courseExercises";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import { isWordCountedAnswer } from "@/lib/courses/writtenAnswers/model";
 import { weekDocId } from "@/lib/firestore/courses";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 
@@ -286,6 +287,9 @@ export async function GET(
   const memberUids = shown.map((e) => e.uid);
   const memberSet = new Set(memberUids);
 
+  const writtenIds = new Set(
+    responseSnap.docs.filter((d) => isWordCountedAnswer(d.data() ?? {})).map((d) => d.id),
+  );
   const responses = responseSnap.docs
     .map((d) => normalizeExerciseResponse(d.id, d.data() ?? {}))
     // The group filter. Everything outside it is dropped before a single field
@@ -293,7 +297,10 @@ export async function GET(
     .filter((r) => memberSet.has(r.uid))
     // A reflection is never reviewed, so it is never this queue's: its writer
     // is the only person any page reads it back to (courseExercises.ts).
-    .filter((r) => !isReflectionResponse(r));
+    .filter((r) => !isReflectionResponse(r))
+    // Nor is a block week's written answer: it gets its feedback on the
+    // group's written answers page, by the rubric.
+    .filter((r) => !writtenIds.has(r.id));
 
   // One `getAll` for every name the payload needs: the group's members, plus
   // whoever reviewed each response. Names only — see the PII line above.

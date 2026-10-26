@@ -1200,7 +1200,7 @@
   }
 
   .wfCellExercises::before {
-    content: "Exercises";
+    content: "Written answers";
   }
 
   /* Beside the name, at the top of the card. */

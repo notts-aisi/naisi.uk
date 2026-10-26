@@ -10,6 +10,7 @@ import { normalizeTeamsFrom, type TeamsFrom } from "../courses/teams/model";
 import { WEEK_BLOCK_LIMITS } from "../courses/weekBlocks/limits";
 import { isClockTime, sanitizeWeekBlocks, type WeekBlock } from "../courses/weekBlocks/model";
 import { isCrestKey, type CrestKey } from "../crests/keys";
+import { normalizeRubric, type CourseRubric } from "../courses/rubric";
 
 /**
  * Courses data model — `courses/{id}` → `courseRuns/{id}` (top-level) →
@@ -79,6 +80,13 @@ export type CourseDoc = {
    * details; null on every course written before it.
    */
   dayBeforeDueTime: string | null;
+  /**
+   * The rubric a written answer is given feedback on (`src/lib/courses/rubric.ts`):
+   * rows by levels, one descriptor in each cell, never a mark. Set by an admin
+   * in the course's details through its route; null for a course with none,
+   * whose review page offers the comment alone. Read through `rubricOf`.
+   */
+  rubric: CourseRubric | null;
   status: CourseStatus;
   /**
    * The run whose curriculum the PUBLIC course pages display. Set by admins
@@ -1271,6 +1279,7 @@ export function normalizeCourse(id: string, data: Raw): CourseDoc {
     level: (data.level as string) ?? "",
     estimatedWeeklyHours: asPositiveIntOrNull(data.estimatedWeeklyHours),
     dayBeforeDueTime: isClockTime(data.dayBeforeDueTime) ? data.dayBeforeDueTime : null,
+    rubric: normalizeRubric(data.rubric),
     status: asCourseStatus(data.status),
     showcaseRunId: (data.showcaseRunId as string | null | undefined) ?? null,
     authorUid: (data.authorUid as string) ?? "",

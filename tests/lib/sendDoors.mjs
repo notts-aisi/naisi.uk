@@ -36,6 +36,7 @@ export const SEND_DOOR_NAMES = [
   "sendPushToRowAudience",
   "sendDecisionEmail",
   "sendRegisterReminderEmail",
+  "sendWrittenFeedbackEmail",
   "sendTeamEmails",
   "sendTeamEmailTest",
   "sendAskTest",

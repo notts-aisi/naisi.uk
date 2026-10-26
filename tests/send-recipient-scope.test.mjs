@@ -293,6 +293,30 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts#body.uid",
+    {
+      reads: 2,
+      origin: "caller",
+      filteredBy: "if (!runData || !owner || !role?.mayReview) return NextResponse.json({ error: \"Forbidden\" }, { status: 403 });",
+      why:
+        "The PERSON whose written answer the caller opens, reopens or gives feedback on, named by uid. " +
+        "The one gate (writtenReviewRole) refuses, before anything is read, everybody whose answer the " +
+        "caller may not review, and the one email goes to that person's own account address, never " +
+        "to an address in the body.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts#group.facilitatorUids",
+    {
+      reads: 1,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "Whether the answer's owner facilitates a group of the run, only to read the week as they " +
+        "read it. It names no recipient: the one message goes to the owner the gate names.",
+    },
+  ],
+  [
     "src/lib/courses/registerRemind.ts#group.facilitatorUids",
     {
       reads: 2,

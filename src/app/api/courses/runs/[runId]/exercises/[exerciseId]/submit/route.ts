@@ -19,6 +19,7 @@ import {
 } from "@/lib/firestore/courseExercises";
 import { validateSubmissionUrl } from "@/lib/firestore/courses";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import type { WrittenAnswerWire } from "@/lib/courses/writtenAnswers/wire";
 
 /**
  * A member saving or submitting ONE weekly exercise. This route is the only
@@ -117,6 +118,13 @@ export type ExerciseResponseWire = {
   reviewerComment: string | null;
   /** ISO 8601, or null on a row nobody has acted on. */
   reviewedAt: string | null;
+  /**
+   * Present only on a block week's written answer, which only its writer's
+   * own reads carry (`src/lib/courses/writtenAnswers/wire.ts`): its boxes,
+   * its count of words, when it was first sent, whether one of its reviewers
+   * has opened it, and the feedback on it. Never whether it was late.
+   */
+  written?: WrittenAnswerWire;
 };
 
 // ---------------------------------------------------------------------------

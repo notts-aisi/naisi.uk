@@ -15,6 +15,8 @@ import facilitator from "@/features/courses/facilitator/facilitator.module.css";
 import { ticketFacts } from "@/features/courses/sessionChange/cardFacts";
 import SessionNotice from "@/features/courses/sessionChange/SessionNotice";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
+import ReviewQueueCard from "@/features/courses/written/ReviewQueueCard";
+import { loadWrittenQueue } from "@/lib/courses/writtenAnswers/queue";
 import { StaffUpdatesSection } from "@/features/courses/updates/UpdatesList";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
@@ -315,13 +317,17 @@ export default async function GroupHomePage({
   // counts, and the updates this group's page shows, through the one reader.
   // An archived group has no count, so no way to write to it.
   const runGroups = await loadRunGroups(db, runId);
-  const [[groupCount], reading, model, programme, notes] = await Promise.all([
+  const [[groupCount], reading, model, programme, notes, writtenQueue] = await Promise.all([
     updateAudienceCounts(db, access.run, runGroups, { groupIds: [groupId] }, access.user.uid),
     updateReadingOf(db, access.user, access.run, runGroups),
     loadFacilitatorGroup(db, access.run, group, { isAdmin: access.isAdmin }, now),
     runProgrammeOf(db, runId),
     readGroupNotes(db, group),
+    // The review queue's written answers half: null on a run of the summer's weeks.
+    loadWrittenQueue(db, access.user, access.run, group),
   ]);
+  const writtenHref = (row: { uid: string; weekNumber: number }) =>
+    `${groupPath}/written?week=${row.weekNumber}&person=${encodeURIComponent(row.uid)}`;
   const { updates } = await loadUpdatesFor(db, access.run, narrowToGroup(reading, groupId), runGroups);
 
   // The head: the group, its week, its programme, its usual day, time and
@@ -459,7 +465,14 @@ export default async function GroupHomePage({
         </div>
 
         <div className={facilitator.colSide}>
-          <ToReviewCard rows={model.toReview} reviewHref={reviewHref} />
+          {/* The review queue (wk-fac-group), first beside the ticket: its
+              written answers half, on a run whose weeks are written as blocks. */}
+          {writtenQueue && <ReviewQueueCard rows={writtenQueue} hrefFor={writtenHref} />}
+          {/* The summer's exercises keep their own card, on a run of the
+              summer's weeks or while any of them still waits. */}
+          {(writtenQueue === null || model.toReview.length > 0) && (
+            <ToReviewCard rows={model.toReview} reviewHref={reviewHref} />
+          )}
           <StaffUpdatesSection updates={staffUpdateRows(updates)} headingId="group-updates" />
           {model.weeksBehind !== null && (
             <PaceCard weeksBehind={model.weeksBehind} editHref={group.archived ? null : `${groupPath}/edit`} />

@@ -43,6 +43,7 @@ import {
 } from "./AdminCourseList";
 import { createRun, publishCourse, saveCourseCrest, updateCourse } from "./courseMutations";
 import CourseDangerZone from "./CourseDangerZone";
+import CourseRubricCard from "./CourseRubricCard";
 import { useCourseRuns, useCourses } from "./useAdminCourses";
 import styles from "./adminCourses.module.css";
 
@@ -578,6 +579,9 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
             </div>
           </section>
         </Card>
+
+        {/* === The rubric for written answers === */}
+        <CourseRubricCard key={course.id} courseId={course.id} stored={course.rubric} isAdmin={isAdmin} />
 
         {/* === Publish === */}
         <Card padding="lg">

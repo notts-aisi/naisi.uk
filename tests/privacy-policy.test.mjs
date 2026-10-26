@@ -613,8 +613,12 @@ const MUST_NAME = [
   ["scores and comments are within the right to a copy of your data", /Your right to a copy of the data we hold about you, which includes these scores and comments, is under(?:\{" "\})? <a href="#your-rights">Your rights<\/a>\./i],
   ["attendance registers", /present, arrived late, left early, absent, or\s*\{?"?\s*excused/i],
   ["participant notes", /private note about a named\s+participant/i],
-  ["exercise responses", /Answers to exercises/i],
-  ["facilitator feedback", /feedback a facilitator writes on your work/i],
+  // A week's written answer replaced the exercise (the coursework of v20),
+  // and feedback is a level per row of the rubric and a comment: the two
+  // entries this replaces were "Answers to exercises" and "feedback a
+  // facilitator writes on your work", each the same claim in its old words.
+  ["written answers", /Your written answers, the feedback on them, and your progress through each week&apos;s materials\./i],
+  ["feedback on written answers", /Feedback is a level for each row of the course&apos;s rubric and a short comment, with the name of whoever gave it, and never a mark\./i],
   // A rating on every programme; the comment shown to the run only on a
   // programme anyone can join, and the group's notes in its place on one that
   // places people in groups (`runSharesGroupNotes`, which §2g runs). The entry
@@ -708,7 +712,10 @@ const MUST_NAME = [
   ["the notes a leaver shared stay with the group", /The notes you shared with your group stay with it/i],
   ["who finished", /we mark as finished everybody who came to at least the number of sessions its lead has set/i],
   ["the lead's changes to who finished are recorded", /The lead can then change anybody&apos;s, and we record who changed it and when\./i],
-  ["only the lead and admins see the number and the list", /Only the lead and admins see that number, and the list with how many sessions each person came to and how many exercises they answered\./i],
+  // Finishing's column counts written answers sent (en-finish v21), as the
+  // tally always has; the entry this replaces said "how many exercises they
+  // answered", the same claim in the old word.
+  ["only the lead and admins see the number and the list", /Only the lead and admins see that number, and the list with how many sessions each person came to and how many written answers they sent\./i],
   ["somebody who did not finish is not told so", /Somebody who did not finish is not told so\./i],
   // The two kinds of notes the lead reads, and no register note: §2g holds
   // the sentence to the register's GET and to each kind's one reader. The
@@ -2562,6 +2569,8 @@ const insideSurveyCode = (file) =>
 const SURVEY_STORE = /\bSURVEY_(?:ANSWERS|PEOPLE)_COLLECTION\b|["'`](?:surveyAnswers|surveyPeople)["'`]/;
 /** Whether somebody has said they are coming: the one reading, pure. */
 const comingReplies = await loadTs("lib/applications/status/coming.ts");
+/** What the written answer's pages say: who reads it, beside the box. Pure. */
+const writtenWords = await loadTs("lib/courses/writtenAnswerWords.ts");
 
 describe("the course hub passage", () => {
   test("the frozen v6 carries none of these sentences, so the move was a version and not an edit", () => {
@@ -2606,6 +2615,10 @@ describe("the course hub passage", () => {
       /A programme&apos;s surveys ask about/i,
       /starts its questions about your level and subject of study/i,
       /what you said about follow-ups/i,
+      /A written answer is read by you, your group&apos;s facilitators/i,
+      /that feedback on your written answer is waiting/i,
+      /how many written answers they sent/i,
+      /your written answers with the feedback on them/i,
     ]) {
       assert.ok(
         !pattern.test(V6_FLAT),
@@ -3722,16 +3735,87 @@ describe("the course hub passage", () => {
     }
   });
 
+  test("a written answer is read by its writer, their group's facilitators, the lead and admins; it locks when opened; Late is its readers' alone; one email says feedback is waiting", () => {
+    // OWNER DECISIONS, 25 and 26 October 2026: Q30 C (the writer, their
+    // group's facilitators, the programme's lead and admins; never other
+    // fellows), Q33 (changeable after sending until a facilitator opens it,
+    // the first-sent time kept, "Late" for staff only), Q34 B (one email,
+    // the feedback on the site), and a facilitator's own answer read and
+    // given feedback by the lead or an admin. Each sentence is held to its
+    // code below; tests/course-hub-written-answers.test.mjs runs the routes
+    // and pages as every kind of caller.
+    const passage = PAGE_FLAT.slice(PAGE_FLAT.indexOf("<strong>Your written work.</strong>"));
+    const work = passage.slice(0, passage.indexOf("</li>"));
+    for (const sentence of [
+      /A written answer is read by you, your group&apos;s facilitators, the programme&apos;s lead and admins, and by nobody else taking part; the week&apos;s page says so beside it\./,
+      /If you facilitate a group, your own answer is read by the programme&apos;s lead and admins, and not by the group&apos;s other facilitators\./,
+      /We record when you first send it, and when you change it after that\./,
+      /You can change it until one of your group&apos;s facilitators opens it \(for a facilitator&apos;s own answer, the programme&apos;s lead or an admin\), or feedback is sent on it; we record when it was opened, and any of its readers can reopen it for you to change\./,
+      /Its readers can see when you sent it, and whether that was after it was due\. Your own pages show when you sent it, but never mark it late\./,
+      /One short email tells you that feedback is waiting; the feedback itself stays on the site\./,
+    ]) {
+      assert.match(work, sentence, `v7's "Your written work" no longer says ${sentence}`);
+    }
+    assert.match(PAGE_FLAT, /that feedback on your written answer is waiting, and account-related messages\./);
+
+    // Who reads it: the one gate, its three lines that decide.
+    const gate = withoutComments(read("src/lib/courses/writtenAnswers/access.ts"));
+    assert.ok(gate.includes('if (!actor.uid || actor.uid === owner.uid) return { mayReview: false, locksOnOpen: false, ownerFacilitates };'), "the gate no longer refuses everybody their own answer");
+    assert.ok(gate.includes("return { mayReview: staff, locksOnOpen: staff, ownerFacilitates };"), "the gate no longer keeps a facilitator's own answer for the lead and admins");
+    assert.ok(gate.includes("return { mayReview: staff || facilitatesTheirGroup, locksOnOpen: facilitatesTheirGroup, ownerFacilitates };"), "the gate no longer admits a fellow's group's facilitators, the lead and admins, and nobody else");
+    // The page beside the box says so: the words are run.
+    const words = writtenWords;
+    assert.equal(
+      words.alsoReadByWords({ kind: "facilitators", names: ["Rahul", "Sofia"] }, "Claudia"),
+      "Claudia and admins can read it too. Other fellows can’t.",
+    );
+    assert.equal(words.seenWhereWords({ kind: "facilitators", names: ["Rahul", "Sofia"] }), "Rahul and Sofia see it on their group page. No email.");
+
+    // The first-sent time is stored once; a later change has its own stamp.
+    const writer = withoutComments(read("src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts"));
+    assert.ok(writer.includes("const sending = send && !alreadySent;"), "the first send is no longer the only one that stamps the first-sent time");
+    assert.ok(writer.includes("write.firstSentAt = FieldValue.serverTimestamp();"));
+    assert.equal((writer.match(/write\.firstSentAt = /g) ?? []).length, 1, "the first-sent time is written in more than one place");
+    assert.ok(writer.includes("if (changed) write.editedAt = FieldValue.serverTimestamp();"), "a change after sending no longer stores its own time");
+    // Locked once opened, or once feedback is sent.
+    assert.ok(writer.includes("if (record && (record.openedAt || record.feedback)) throw new AnswerError(ANSWER_LOCKED, 409);"), "the writer's route no longer refuses an opened answer");
+
+    // Opened by a POST, never a GET; reopened by any of its readers.
+    const review = withoutComments(read("src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts"));
+    assert.match(review, /export async function POST\(/);
+    assert.doesNotMatch(review, /export (?:async )?function GET\b|export const GET\b/, "the review route answers a GET, which must never write");
+    assert.ok(review.includes("if (role.locksOnOpen && !record.openedAt && !record.feedback) {"), "opening no longer locks the answer only for those whose opening the gate says locks it");
+    assert.ok(review.includes("write.reopenedByUid = actor.uid;"), "Reopen for edits no longer records who reopened it");
+
+    // "Late" travels to its readers only: the writer's wire has no such field.
+    const wire = withoutComments(read("src/lib/courses/writtenAnswers/wire.ts"));
+    assert.doesNotMatch(wire, /\blate\b/i, "the wire a writer reads carries whether their answer was late");
+    assert.match(withoutComments(read("src/lib/courses/writtenAnswers/reviewPage.ts")), /late: record\?\.firstSentAt \? isLate\(record\.firstSentAt, due\) : false,/);
+
+    // Feedback is levels and a comment, never a number.
+    const rubric = withoutComments(read("src/lib/courses/rubric.ts"));
+    assert.ok(rubric.includes("out.push({ row: row.name, level: rubric.levels[index], descriptor: row.descriptors[index] ?? \"\" });"));
+    assert.doesNotMatch(review, /\b(?:score|mark|total|points)\s*:/i, "feedback stores a score, a mark or a total");
+
+    // The one email: sent after the feedback is saved, never carrying it.
+    assert.ok(review.includes("await sendWrittenFeedbackEmail({"), "the review route no longer sends the email that feedback is waiting");
+    const template = withoutComments(read("src/emails/WrittenFeedbackEmail.tsx"));
+    assert.doesNotMatch(template, /comment|levels|descriptor/i, "the email carries the feedback itself, which stays on the site");
+  });
+
   // The span this pins grew by the two survey items, written where the page
   // lists them; the span it replaces ran from the facilitators' notes
   // straight to the pitch.
   test("a deletion removes the calendar link, the notes shared with a group and the notes written for a group's other facilitators", () => {
     assert.match(
       PAGE_FLAT,
-      /your progress and your answers to exercises, your calendar link, the notes you shared with a group, notes you wrote for the other facilitators of a group, your name on your survey answers, the record of each survey sent to you with your link to answer it, a pitch you sent alone,/,
+      // The written answers and their feedback by name, where "your answers
+      // to exercises" stood: the same rows, deleted by the same step below.
+      /your progress, your written answers with the feedback on them, your calendar link, the notes you shared with a group, notes you wrote for the other facilitators of a group, your name on your survey answers, the record of each survey sent to you with your link to answer it, a pitch you sent alone,/,
     );
     const cascade = withoutComments(read("src/lib/firestore/accountDeletion.ts"));
     for (const step of [
+      '["courseExerciseResponses", "courseExerciseResponsesDeleted"],',
       "summary.calendarLinkDeleted = await deleteCalendarLink(db, uid);",
       "summary.courseGroupSharedNotesDeleted = await deleteCourseGroupSharedNotes(db, uid);",
       "summary.courseGroupNotesDeleted = await deleteCourseGroupNotes(db, uid);",

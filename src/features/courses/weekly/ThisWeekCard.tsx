@@ -19,6 +19,7 @@ import { addDaysToKey, isValidDateKey } from "@/lib/courses/weekPlan";
 import { weekDocId } from "@/lib/firestore/courses";
 import type { OverviewThisWeek, OverviewThisWeekRow } from "@/app/api/courses/runs/[runId]/overview/route";
 import { TASK_DONE, TASK_MARK_WORDS } from "@/lib/courses/memberPageWords";
+import { draftStateWords, feedbackFromWords, sentOnWords } from "@/lib/courses/writtenAnswerWords";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { handedTaskDone, handedTasksDone, isCounted } from "@/lib/courses/weekBlocks/progress";
 import { blockTickItemsOf } from "../weekBlocks/tickItems";
@@ -158,7 +159,29 @@ export default function ThisWeekCard({
                         )}
                         {task.label}
                       </p>
-                      {taskIsDone && <p className={styles.taskRowDone}>{TASK_DONE}</p>}
+                      {task.answer ? (
+                        // The written answer's own line (wk-programme): "Sent Mon 16 Nov",
+                        // then "Feedback from Rahul"; "Draft · 241 words" before it is sent.
+                        task.answer.sentOn ? (
+                          <p className={styles.taskRowDone}>
+                            {sentOnWords(new Date(`${task.answer.sentOn}T12:00:00Z`))}
+                            {task.answer.feedbackFrom && (
+                              <>
+                                {" "}
+                                <Link href={`${weekHref(runId, weekNumber)}/feedback`} className={styles.cardLink}>
+                                  {feedbackFromWords(task.answer.feedbackFrom)}
+                                  <span aria-hidden="true">→</span>
+                                </Link>
+                              </>
+                            )}
+                          </p>
+                        ) : (
+                          // A draft is not done: said plainly, not in the done colour.
+                          <p className={styles.cardMeta}>{draftStateWords(task.answer.words)}</p>
+                        )
+                      ) : (
+                        taskIsDone && <p className={styles.taskRowDone}>{TASK_DONE}</p>
+                      )}
                     </div>
                   </li>
                 );

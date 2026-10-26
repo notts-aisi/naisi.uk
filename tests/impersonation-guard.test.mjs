@@ -99,6 +99,7 @@ const MUST_GUARD = [
   ["src/app/api/courses/[courseId]/page/route.ts", "rewrites the public marketing page a logged-out visitor reads"],
   ["src/app/api/courses/[courseId]/page/generate-themes/route.ts", "regenerates the public weekly themes and their provenance"],
   ["src/app/api/courses/[courseId]/publish/route.ts", "publishes a course to the public catalogue"],
+  ["src/app/api/courses/[courseId]/rubric/route.ts", "reads and saves a course's rubric, which every run of the course gives feedback on"],
   ["src/app/api/courses/[courseId]/templates/route.ts", "writes a reusable curriculum template"],
   ["src/app/api/courses/calendar/route.ts", "makes or replaces the caller's own calendar link, a secret kept in their name"],
   ["src/app/api/courses/exercise-responses/[responseId]/review/route.ts", "reviews a learner's submitted work and releases the comment"],
@@ -146,6 +147,8 @@ const MUST_GUARD = [
   ["src/app/api/courses/runs/[runId]/weeks/[weekId]/blocks/route.ts", "replaces a week's blocks, and can take out items people have answered"],
   ["src/app/api/courses/runs/[runId]/weeks/[weekId]/ready/route.ts", "stores a week's Ready, which opens week 1 to everybody holding a place"],
   ["src/app/api/courses/runs/[runId]/week-one/ticks/[itemId]/route.ts", "ticks week 1 off in its caller's own name, for somebody holding a place before groups go out"],
+  ["src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts", "saves and sends a written answer in its writer's own name: a member's own, or a group facilitator's own"],
+  ["src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts", "opens, reopens and gives feedback on somebody's written answer, and emails them that it is waiting"],
   ["src/app/api/courses/runs/[runId]/sync-tasks/route.ts", "creates committee tasks on the board"],
   ["src/app/api/courses/templates/[templateId]/route.ts", "deletes a curriculum template"],
   // Admissions: the round authoring console. A round is the object an intake
