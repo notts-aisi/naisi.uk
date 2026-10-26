@@ -6,6 +6,14 @@ import {
   type GroupLeftRecently,
 } from "@/lib/courses/facilitatorGroup";
 import type { NextEmailLine } from "@/lib/courses/registerEnding";
+import { updateAudienceCounts } from "@/lib/courses/updates/audience";
+import { loadRunGroups } from "@/lib/courses/updates/readers";
+import {
+  firstSessionDayOf,
+  isBeforeFirstSessionDay,
+  readWhosComing,
+  type WhosComingPerson,
+} from "@/lib/courses/whosComing";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
@@ -13,11 +21,20 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 
 /**
- * WHAT A FACILITATOR'S HOME SAYS ABOUT THEIR GROUP (board wk-fac-home-phone),
- * beside what the run's overview already says: how many are expected at the
- * next session, how many exercises wait for a review, when next week's email
- * goes while it is on its schedule, who left the group recently, and the
- * group's other facilitators by first name.
+ * WHAT A FACILITATOR'S HOME SAYS ABOUT THEIR GROUP (boards wk-fac-home-phone
+ * and, before the group's first session, st-fac-before-phone), beside what
+ * the run's overview already says: how many are expected at the next session,
+ * how many exercises wait for a review, when next week's email goes while it
+ * is on its schedule, who left the group recently, the group's other
+ * facilitators by first name, who has said they are coming, and how many an
+ * update to the group reaches.
+ *
+ * WHO'S COMING (Q14) is handed only to a facilitator of the group, only on a
+ * day before the group's first session, and only about the people Publish has
+ * told their group: each one's first name, and whether they have said they
+ * are coming (`readWhosComing`). Never a reason, never anything else from an
+ * application. An admin reads the group everywhere else, and is handed none
+ * of it here: no admin's Home draws it.
  *
  *   GET  ->  FacilitatorSummary
  *
@@ -48,6 +65,17 @@ export type FacilitatorSummary = {
   leftRecently: GroupLeftRecently[];
   /** The group's other facilitators who stand behind the role, by first name, in the group's order. */
   coFacilitators: string[];
+  /**
+   * Before the group's first session's day, for a facilitator of the group:
+   * each person Publish has told, by first name, and whether they have said
+   * they are coming. Null after that day, and for an admin.
+   */
+  whosComing: WhosComingPerson[] | null;
+  /**
+   * "Write to Group B (8)": who an update to the group is to and how many it
+   * emails, counted as the group page's button counts. Null for an archived group.
+   */
+  write: { people: number; emails: number; notYetTold: number } | null;
 };
 
 export async function GET(_req: Request, ctx: { params: Promise<{ groupId: string }> }) {
@@ -77,6 +105,20 @@ export async function GET(_req: Request, ctx: { params: Promise<{ groupId: strin
   const now = new Date();
   const model = await loadFacilitatorGroup(db, run, group, { isAdmin }, now);
   const line = await readNextEmailForHome(db, run, group, model.scheduled, now);
+  // Who's coming: a facilitator's, before the first session's day, about the
+  // people the facilitator's own view of the group lists (told, taking part).
+  const whosComing =
+    !isAdmin && isBeforeFirstSessionDay(firstSessionDayOf(run, group, now), now)
+      ? await readWhosComing(
+          db,
+          run.id,
+          model.people.map((person) => ({ uid: person.uid, firstName: person.firstName })),
+        )
+      : null;
+  // The way to write to the group, counted as the group page counts it.
+  const [count] = group.archived
+    ? []
+    : await updateAudienceCounts(db, run, await loadRunGroups(db, run.id), { groupIds: [group.id] }, actor.uid);
 
   const answer: FacilitatorSummary = {
     groupId: group.id,
@@ -92,6 +134,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ groupId: strin
       from: person.from,
     })),
     coFacilitators: model.facilitators.filter((person) => person.uid !== actor.uid).map((person) => person.firstName),
+    whosComing: whosComing
+      ? whosComing.map((person) => ({ firstName: person.firstName, coming: person.coming }))
+      : null,
+    write: count ? { people: count.people, emails: count.emails, notYetTold: count.notYetTold } : null,
   };
   return NextResponse.json(answer);
 }

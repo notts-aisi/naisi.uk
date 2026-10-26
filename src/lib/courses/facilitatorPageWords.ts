@@ -259,6 +259,67 @@ export function leftLine(args: {
 }
 
 // ---------------------------------------------------------------------------
+// Home before the group's first session (board st-fac-before-phone)
+// ---------------------------------------------------------------------------
+
+/**
+ * Over the first session's date on Home before it: "Tomorrow · week 1" the
+ * day before, the board's; "Your first session · week 1" on the days before
+ * that, the programme home's own.
+ */
+export function firstSessionEyebrow(tomorrow: boolean, weekNumbers: readonly number[]): string {
+  return `${tomorrow ? "Tomorrow" : "Your first session"} · ${weeksWords(weekNumbers)}`;
+}
+
+/** The ticket's way to the group's page, before the first session. */
+export const OPEN_YOUR_GROUP = "Open your group";
+
+export const WHOS_COMING = "Who’s coming";
+
+/**
+ * "6 of 8 said they’re coming. Kofi and Zara haven’t said." From each
+ * person's first name and whether they have said so, in the group's order.
+ * Up to three who have not said are named; more are counted. Never says
+ * anybody is not coming: no reply is not a no.
+ */
+export function whosComingSentence(people: readonly { firstName: string; coming: boolean }[]): string {
+  const all = people.length;
+  const coming = people.filter((person) => person.coming).length;
+  const notSaid = people.filter((person) => !person.coming).map((person) => person.firstName);
+  if (all === 0) return "";
+  if (coming === all) return all === 1 ? "1 of 1 said they’re coming." : `All ${all} said they’re coming.`;
+  const first = `${coming} of ${all} said they’re coming.`;
+  const rest =
+    notSaid.length === 1
+      ? `${notSaid[0]} hasn’t said.`
+      : notSaid.length <= 3
+        ? `${namesWords(notSaid)} haven’t said.`
+        : `${notSaid.length} haven’t said.`;
+  return `${first} ${rest}`;
+}
+
+/** What a chip says to assistive technology after the name: ", coming" or ", hasn’t said". */
+export function comingChipWords(coming: boolean): string {
+  return coming ? ", coming" : ", hasn’t said";
+}
+
+export const SAY_HELLO = "Say hello";
+
+const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/**
+ * "Send your group a hello before Tuesday.", the first session's weekday,
+ * while it is within the week; "before Tue 3 Nov." further off, so the day
+ * cannot be read as this week's.
+ */
+export function sayHelloLine(firstSessionDateKey: string, withinAWeek: boolean): string {
+  const at = /^\d{4}-\d{2}-\d{2}$/.test(firstSessionDateKey) ? new Date(`${firstSessionDateKey}T12:00:00Z`) : null;
+  const weekday = at ? WEEKDAY_NAMES[at.getUTCDay()] : "";
+  const day = withinAWeek && weekday ? weekday : dayWords(firstSessionDateKey);
+  return day ? `Send your group a hello before ${day}.` : "Send your group a hello before your first session.";
+}
+
+// ---------------------------------------------------------------------------
 // The notes a group's facilitators share (C30)
 // ---------------------------------------------------------------------------
 
