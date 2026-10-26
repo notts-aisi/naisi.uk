@@ -986,6 +986,27 @@
   margin-top: 2px;
 }
 
+/* Week 1's "Mark ready", under its line in Needs attention. */
+.itemAction {
+  margin-top: var(--space-3);
+}
+
+/* Week 1 marked ready, before any group has met: the line and "Not ready". */
+.readyRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.readyLine {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wfSwitchTrack,
   .wfSwitchKnob,

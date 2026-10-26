@@ -550,11 +550,13 @@ export type CourseWeekDoc = {
    *    previous session, `weekOpening`), and on the public course pages when
    *    its run is the course's showcase run. Every reader that decides
    *    whether a week shows asks it.
-   *  - READY is the lead's word that the week is finished. The Weeks tab's
-   *    "Mark ready" stores `ready: true` and publishes the week in the same
-   *    write, and taking a week back to a draft takes both back, so a ready
-   *    week is always a published one: read here, a stored `ready` counts
-   *    only on a published week, whoever wrote what.
+   *  - READY is the lead's word that the week is finished. One route stores
+   *    it, "Mark ready" and "Not ready" for the programme's lead and admins
+   *    (`.../runs/[runId]/weeks/[weekId]/ready`), and it marks only a
+   *    published week, so a ready week is always a published one: read here,
+   *    a stored `ready` counts only on a published week, whoever wrote what.
+   *    Whether a week is ready is asked of `weekIsReady`
+   *    (`src/lib/courses/weekReady.ts`) and nothing else.
    *  - Week 1 opening BEFORE groups go out, to everybody holding a place
    *    (Q35 B), asks READY, not Published: that is the lead deciding the
    *    week is fit to open early. After groups go out a week opens on
