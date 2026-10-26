@@ -2916,6 +2916,20 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === courseFacilitating ===
+    // Asking people to facilitate (src/lib/courses/facilitatorAsks/model.ts):
+    // each ask, with the person's answer and the email as it went, the run's
+    // facilitators' training and the last test of the ask's email. Written
+    // only by the routes under
+    // /api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators
+    // and /api/courses/facilitator-asks/[askId]/answer, and read only on the
+    // server: the lead and admins are shown the view, and the person asked is
+    // shown their own ask on its page. So every browser is refused, admins and
+    // the person an ask is about included.
+    match /courseFacilitating/{docId} {
+      allow read, write: if false;
+    }
+
     // ==================== V3 W1 PR5: courses open mode ====================
     //
     // === courseAudit ===
