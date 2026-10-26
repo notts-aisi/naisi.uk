@@ -5,12 +5,8 @@ import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { asUidList } from "@/lib/firestore/events";
 import { GROUP_FIELD_LIMITS } from "@/lib/firestore/courseGroups";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
-import {
-  enrolmentRefsFor,
-  facilitatorChange,
-  loadEligibleUids,
-  writeFacilitatorChange,
-} from "@/lib/courses/groupFacilitators";
+import { enrolmentRefsFor, facilitatorChange, writeFacilitatorChange } from "@/lib/courses/groupFacilitators";
+import type { Firestore } from "firebase-admin/firestore";
 
 /**
  * Staff a group by hand: the route the run editor's group card and a
@@ -27,6 +23,22 @@ import {
  * this run is refused as one of its facilitators, with a sentence. Somebody
  * who has left the run, or takes part in another, can facilitate it.
  */
+
+const ELIGIBLE_ROLES = ["member", "committee", "admin"] as const;
+
+/**
+ * Approved members, committee and admins: the eligible facilitator pool.
+ * Requested uids are intersected with this set so a forged or since-refused
+ * uid can never be written. (Same shape as the run roles route's candidate
+ * load; kept local because route handlers don't import from one another.)
+ */
+async function loadEligibleUids(db: Firestore): Promise<Set<string>> {
+  const snap = await db
+    .collection("users")
+    .where("role", "in", [...ELIGIBLE_ROLES])
+    .get();
+  return new Set(snap.docs.map((d) => d.id));
+}
 
 /** Q21, in the words the Facilitators view uses for the same rule. */
 const TAKING_PART = "can’t facilitate a programme they’re taking part in";

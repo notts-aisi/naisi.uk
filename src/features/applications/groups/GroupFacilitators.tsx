@@ -6,9 +6,9 @@ import Button from "@/components/ui/Button";
 import Chip from "@/components/ui/Chip";
 import InitialsChip from "@/components/ui/InitialsChip";
 import PersonSelector from "@/components/ui/PersonSelector";
-import Select from "@/components/ui/Select";
 import { setGroupFacilitators } from "@/features/courses/courseMutations";
 import { useHydrated } from "@/hooks/useHydrated";
+import { own } from "@/lib/applications/keys";
 import type { FacilitatorsModel, ViewChip, ViewGroup, ViewPerson } from "@/lib/courses/facilitatorAsks/load";
 import {
   ASKED,
@@ -25,6 +25,7 @@ import {
   EMAIL_FROM,
   FORM_NEVER_ASKED,
   NOBODY_ASKED_YET,
+  NOT_ANSWERED,
   NO_TRAINING_SET,
   SEND_TEST,
   TABLE_COLUMNS,
@@ -376,35 +377,47 @@ export default function GroupFacilitators({ runId }: Props) {
       </h3>
       <div className={styles.askFields}>
         {asking.mode === "seat" ? (
-          <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor={`${ids}-who`}>
-              {ASK_PERSON_LABEL}
-            </label>
-            <Select id={`${ids}-who`} value={askWho} disabled={off} onChange={(event) => setAskWho(event.target.value)}>
-              <option value="">Choose somebody</option>
-              {askable.map((each) => (
-                <option key={each.uid} value={each.uid}>
-                  {each.name}
-                </option>
-              ))}
-            </Select>
-          </div>
+          <fieldset className={styles.choices}>
+            <legend className={styles.fieldLabel}>{ASK_PERSON_LABEL}</legend>
+            {askable.map((each) => (
+              <label key={each.uid} className={styles.choice}>
+                <input
+                  type="radio"
+                  name={`${ids}-who`}
+                  value={each.uid}
+                  checked={askWho === each.uid}
+                  disabled={off}
+                  onChange={() => {
+                    setSaid(null);
+                    setAskWho(each.uid);
+                  }}
+                />
+                <span>{each.name}</span>
+              </label>
+            ))}
+          </fieldset>
         ) : (
-          <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor={`${ids}-group`}>
-              {ASK_GROUP_LABEL}
-            </label>
-            <Select id={`${ids}-group`} value={askGroup} disabled={off} onChange={(event) => setAskGroup(event.target.value)}>
-              <option value="">Choose a group</option>
-              {model.groups
-                .filter((each) => each.askable)
-                .map((each) => (
-                  <option key={each.id} value={each.id}>
-                    {each.short ? `${each.name}, ${each.short}` : each.name}
-                  </option>
-                ))}
-            </Select>
-          </div>
+          <fieldset className={styles.choices}>
+            <legend className={styles.fieldLabel}>{ASK_GROUP_LABEL}</legend>
+            {model.groups
+              .filter((each) => each.askable)
+              .map((each) => (
+                <label key={each.id} className={styles.choice}>
+                  <input
+                    type="radio"
+                    name={`${ids}-group`}
+                    value={each.id}
+                    checked={askGroup === each.id}
+                    disabled={off}
+                    onChange={() => {
+                      setSaid(null);
+                      setAskGroup(each.id);
+                    }}
+                  />
+                  <span>{each.short ? `${each.name}, ${each.short}` : each.name}</span>
+                </label>
+              ))}
+          </fieldset>
         )}
         <div className={styles.field}>
           <label className={styles.fieldLabel} htmlFor={`${ids}-date`}>
@@ -609,7 +622,7 @@ export default function GroupFacilitators({ runId }: Props) {
 
   const personRow = (each: ViewPerson) => {
     const answersOpen = openAnswers.has(each.uid);
-    const long = written.some((column) => (each.answers[column.key] ?? "").length > 140);
+    const long = written.some((column) => (own(each.answers, column.key) ?? "").length > 140);
     return (
       <Fragment key={each.uid}>
         <tr className={styles.row}>
@@ -624,7 +637,7 @@ export default function GroupFacilitators({ runId }: Props) {
           </th>
           {closed.map((column) => (
             <td key={column.key} className={styles.answerCell}>
-              {each.answers[column.key] || <span className={styles.muted}>Not answered</span>}
+              {own(each.answers, column.key) || <span className={styles.muted}>{NOT_ANSWERED}</span>}
             </td>
           ))}
           <td className={styles.statusCell}>
@@ -650,14 +663,17 @@ export default function GroupFacilitators({ runId }: Props) {
           <tr className={styles.writtenRow}>
             <td colSpan={span}>
               <dl className={answersOpen ? `${styles.written} ${styles.writtenOpen}` : styles.written}>
-                {written.map((column) => (
-                  <div key={column.key} className={styles.writtenItem}>
-                    <dt className={styles.writtenQuestion}>{column.header}</dt>
-                    <dd className={styles.writtenAnswer}>
-                      {each.answers[column.key] ? `“${each.answers[column.key]}”` : <span className={styles.muted}>Not answered</span>}
-                    </dd>
-                  </div>
-                ))}
+                {written.map((column) => {
+                  const answer = own(each.answers, column.key);
+                  return (
+                    <div key={column.key} className={styles.writtenItem}>
+                      <dt className={styles.writtenQuestion}>{column.header}</dt>
+                      <dd className={styles.writtenAnswer}>
+                        {answer ? `“${answer}”` : <span className={styles.muted}>{NOT_ANSWERED}</span>}
+                      </dd>
+                    </div>
+                  );
+                })}
               </dl>
               {long ? (
                 <button

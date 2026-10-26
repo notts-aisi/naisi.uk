@@ -8,7 +8,8 @@ import { courseEnrolmentId } from "@/lib/firestore/courseEnrolments";
  *
  *  - by hand, through `POST /api/courses/groups/[groupId]/facilitators`, the
  *    route the run editor's group card and a programme's Facilitators view
- *    "Change" use;
+ *    "Change" use, which intersects what it is sent with the approved
+ *    accounts before it gets here;
  *  - by an answer, when somebody asked to facilitate says yes
  *    (`src/lib/courses/facilitatorAsks/answer.ts`).
  *
@@ -29,22 +30,6 @@ import { courseEnrolmentId } from "@/lib/firestore/courseEnrolments";
  * The writes go into a batch or a transaction the caller owns, so an answer
  * and the appointment it makes commit together.
  */
-
-/** The accounts that may facilitate: approved members, committee and admins. */
-export const ELIGIBLE_FACILITATOR_ROLES = ["member", "committee", "admin"] as const;
-
-/**
- * Approved members, committee and admins: the eligible facilitator pool.
- * Requested uids are intersected with this set so a forged or since-refused
- * uid can never be written.
- */
-export async function loadEligibleUids(db: Firestore): Promise<Set<string>> {
-  const snap = await db
-    .collection("users")
-    .where("role", "in", [...ELIGIBLE_FACILITATOR_ROLES])
-    .get();
-  return new Set(snap.docs.map((d) => d.id));
-}
 
 /** Who goes on and who comes off, from the group's facilitators now and those wanted. */
 export function facilitatorChange(current: readonly string[], next: readonly string[]): { added: string[]; removed: string[] } {

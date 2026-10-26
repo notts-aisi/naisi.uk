@@ -217,6 +217,9 @@ export const GAVE_PLACE_BACK = "Gave their place back";
 export const ACCOUNT_WAITING = "Account waiting for approval";
 export const CANT_UNTIL_APPROVED = "Can’t be asked until an admin approves their account";
 
+/** NOT DRAWN. In a cell for a question somebody left out. */
+export const NOT_ANSWERED = "Not answered";
+
 /** In the Ask column for somebody asked already. */
 export const ASKED = "Asked";
 
