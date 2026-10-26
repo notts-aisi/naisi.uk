@@ -355,6 +355,13 @@ const ROUND_SURFACES = {
       "one programme's Attendance tab, every register of the run it names. It reaches the round only through " +
       "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/people": {
+    kind: "form",
+    why:
+      "one programme's People tab, everyone who holds a place on it or gave it back. It reaches the round only " +
+      "through loadProgrammePeople, which starts from the form's own loader and answers 'none' for a round that " +
+      "is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview": {
     kind: "form",
     why:

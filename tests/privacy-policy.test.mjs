@@ -17,11 +17,13 @@
  * to it; and so is the survey at a programme's start: confidential, nothing
  * kept about how it is filled in, the name off a year after the programme or
  * at once with the account, and its answers with names a fourth logged
- * download. §2g holds those passages against the code. Three of them are
+ * download. §2g holds those passages against the code. Two of them are
  * worded as what will happen,
- * because they are not built yet (certificates, facilitators seeing who has
- * said they are coming, a team's page), and §2g holds that nothing has been
- * built that they would then have to describe.
+ * because they are not built yet (certificates, a team's page), and §2g
+ * holds that nothing has been built that they would then have to describe.
+ * A third was worded that way until it was built (facilitators seeing, before
+ * the first session, who has said they are coming); it now says they see it,
+ * and §2g holds it to the code.
  *
  * v6 (7 October 2026) was v5's text, rewritten where the application form
  * (docs/applications.md) made it untrue. The people who read an application
@@ -2490,10 +2492,13 @@ describe("the account record passage", () => {
  * page promises or the page stopped saying what the code does, and a change
  * to the words is a new version.
  *
- * Three passages say what will happen, because the thing is not built yet:
- * certificates, facilitators seeing who has said they are coming, and a
- * team's page. They are built to these words. Certificates carry a check of
- * their own in §2, which fails the day the site starts keeping them.
+ * Two passages say what will happen, because the thing is not built yet:
+ * certificates and a team's page. They are built to these words.
+ * Certificates carry a check of their own in §2, which fails the day the site
+ * starts keeping them. A third, facilitators seeing who has said they are
+ * coming before the first session, was worded the same way until it was
+ * built; it now says they see it, and is held to the code below, as
+ * strictly.
  *
  * Four more were added to v7 while it was on dev, before any member had been
  * asked to accept it, so it kept its number: the notes a group's facilitators
@@ -2532,6 +2537,8 @@ const insideSurveyCode = (file) =>
   file.startsWith("src/lib/surveys/") || file.startsWith("src/features/surveys/") || file === "src/lib/firestore/surveys.ts";
 /** The two survey collections that name a person: who it was sent to, and what they answered. */
 const SURVEY_STORE = /\bSURVEY_(?:ANSWERS|PEOPLE)_COLLECTION\b|["'`](?:surveyAnswers|surveyPeople)["'`]/;
+/** Whether somebody has said they are coming: the one reading, pure. */
+const comingReplies = await loadTs("lib/applications/status/coming.ts");
 
 describe("the course hub passage", () => {
   test("the frozen v6 carries none of these sentences, so the move was a version and not an edit", () => {
@@ -2931,6 +2938,103 @@ describe("the course hub passage", () => {
     assert.match(groupEmail, /return NextResponse\.json\(\{ ok: true, sent, skipped, pushed \}\);/);
     assert.match(groupEmail, /let skipped = 0;/);
     assert.match(groupEmail, /let pushed = 0;/);
+  });
+
+  test("before the first session, facilitators see whether each person in their group has said they are coming, and nothing else from an application", () => {
+    // BUILT, 26 October 2026 (Q14, board st-fac-before-phone). This sentence
+    // said what would happen ("they will also see") while nothing showed a
+    // facilitator a reply, and the code now does it: the summary behind a
+    // facilitator's Home hands the group's facilitators, on the days before
+    // its first session, each person's first name and whether they have said
+    // they are coming. v7 had not been put to any member yet, so its tense
+    // moved in place ("they also see"), the way the three passages added
+    // while it was on dev were added in place. The whole sentence is pinned in
+    // its new words, as strictly as the old words were, the old words must be
+    // gone, and the sentence is held to the code below.
+    assert.match(
+      PAGE_FLAT,
+      /Before the first session, they also see whether each person in their group has said they are coming\. Apart from that one reply, they see nothing from applications, and no review scores\./,
+    );
+    assert.ok(
+      !/they will also see whether each person in their group/i.test(PAGE_FLAT),
+      "v7 says facilitators will see who has said they are coming, as if it were not built yet",
+    );
+
+    // The one place the course side reads an application at all, and it is
+    // the facilitators' list.
+    const COURSE_SIDE = /^src\/(?:lib\/courses|app\/api\/courses|app\/\(app\)\/learn|app\/\(app\)\/dashboard|features\/courses)\//;
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/from "@\/lib\/applications\/staffRepo"/).filter((file) => COURSE_SIDE.test(file)),
+      new Map([
+        [
+          "src/lib/courses/whosComing.ts",
+          "who's coming, for a group's facilitators before its first session: each person's reply, read through comingReplyOf and handed on as a yes or a no beside a first name",
+        ],
+      ]),
+      "reading applications on the course side",
+      "A facilitator is shown nothing from applications but whether each person in their group has said " +
+        "they are coming. Read that through src/lib/courses/whosComing.ts, or change the policy first.",
+    );
+    // The one reading of the reply, asked by the lead's People tab and the facilitators' list alone.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bcomingReplyOf\(/),
+      new Map([
+        ["src/lib/applications/status/coming.ts", "the one reading of whether somebody has said they are coming, and when"],
+        ["src/lib/applications/people/model.ts", "the People tab's Coming? column, for the programme's lead and admins"],
+        ["src/lib/courses/whosComing.ts", "a facilitator's who's coming: a yes or a no beside a first name"],
+      ]),
+      "reading whether somebody has said they are coming",
+      "Say who is shown the reply and why, and check v7 names them.",
+    );
+
+    // What leaves for a facilitator: a first name and a yes or a no, and the
+    // module reads nothing else of the application.
+    const whosComing = withoutComments(read("src/lib/courses/whosComing.ts"));
+    assert.match(whosComing, /export type WhosComingPerson = \{ firstName: string; coming: boolean \};/);
+    assert.match(whosComing, /return people\.map\(\(person, at\) => \(\{ firstName: person\.firstName, coming: replies\[at\] === true \}\)\);/);
+    for (const field of ["releaseReason", "answers", "aboutYou", "email", "availability", "attendance", "sent"]) {
+      assert.ok(!new RegExp(`\\.${field}\\b`).test(whosComing), `the facilitators' list reads ${field} off an application`);
+    }
+    // Who is handed it, and when: a live facilitator of the group (an admin
+    // is handed none), on a day before its first session, about the people
+    // the facilitator's own view of the group lists, field by field.
+    const route = withoutComments(read("src/app/api/courses/groups/[groupId]/summary/route.ts"));
+    assert.match(route, /group && !group\.archived && isNamedWithStanding\(actor, "courseGroups\.facilitatorUids", group\.facilitatorUids\)/);
+    assert.match(route, /!isAdmin && isBeforeFirstSessionDay\(firstSessionDayOf\(run, group, now\), now\)/);
+    assert.match(route, /model\.people\.map\(\(person\) => \(\{ uid: person\.uid, firstName: person\.firstName \}\)\)/);
+    assert.match(route, /whosComing\.map\(\(person\) => \(\{ firstName: person\.firstName, coming: person\.coming \}\)\)/);
+
+    // The reply, run: "I can't make it", with its reason, is not a yes, and
+    // the answer is a yes or a no and a day, never the reason.
+    const gaveBack = comingReplies.comingReplyOf(
+      {
+        status: "withdrawn",
+        result: { kind: "accepted", programmeId: "agi" },
+        invitation: null,
+        attendance: { answer: "cant-make-it", answeredAt: new Date("2026-10-26T10:00:00Z") },
+        releaseReason: { kind: "other", other: "A reason nobody else reads." },
+      },
+      "agi",
+    );
+    assert.deepEqual(gaveBack, { said: false });
+    const coming = comingReplies.comingReplyOf(
+      {
+        status: "accepted",
+        result: { kind: "accepted", programmeId: "agi" },
+        invitation: null,
+        attendance: { answer: "coming", answeredAt: new Date("2026-10-26T10:00:00Z") },
+      },
+      "agi",
+    );
+    assert.deepEqual(Object.keys(coming).sort(), ["on", "said"]);
+    assert.equal(coming.said, true);
+
+    // tests/course-hub-facilitator-before.test.mjs runs the list through the
+    // real routes as every caller, before and after Publish and the first
+    // session; tests/course-hub-people-tab.test.mjs the lead's column.
+    for (const suite of ["course-hub-facilitator-before.test.mjs", "course-hub-people-tab.test.mjs"]) {
+      assert.ok(existsSync(join(REPO_ROOT, "tests", suite)), `tests/${suite} is gone`);
+    }
   });
 
   // Four since the survey's export joined the log: the walk, the refusal loop

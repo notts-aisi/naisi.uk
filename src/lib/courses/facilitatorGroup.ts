@@ -65,6 +65,8 @@ export type GroupPersonRow = {
   uid: string;
   /** Their whole name, as the lead's tabs and the board name people. */
   name: string;
+  /** The name they go by, as Home's who's coming calls them ("Amara"). */
+  firstName: string;
   /** "Left Fri 13 Nov", "Left", or null for somebody taking part. */
   left: string | null;
   /** One box per finished register, in week order. */
@@ -278,6 +280,7 @@ export async function loadFacilitatorGroup(
   const toRow = (row: (typeof rows)[number]): GroupPersonRow => ({
     uid: row.uid,
     name: row.name,
+    firstName: firstNameOfUser(records.accounts.get(row.uid) ?? {}) || row.name,
     left: row.left,
     marks: marksOf(row.cells, finishedWeeks),
   });

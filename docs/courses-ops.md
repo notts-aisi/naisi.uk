@@ -1386,6 +1386,20 @@ already open; nothing under `/admin/courses` is needed.
   register's own notes, on a person or on a session, are not sent to the
   lead: the register's GET leaves them out for a caller it admits only as
   the lead, and keeps the marks.
+- **People tab**: everyone who holds a place on the programme or gave it
+  back, with filters and their counts (Everyone, Coming, Haven't said, Not
+  said when they're free, Gave their place back, Invited), a search over
+  names and degrees, and per person their group, whether they have said they
+  are coming and on which day, when they are free as fit marks against the
+  run's groups, and where the place stands (with the reason and the day for
+  a place given back, and "Left the programme" with the day for somebody who
+  left the run). Read only, from `src/lib/applications/people/`. Who holds a
+  place is the hand-over's own test, so the tab's number is the times
+  picture's and Publish's people; "said they are coming" is one reading
+  (`comingReplyOf`) that a facilitator's Home asks too. A row is somebody
+  whose application the viewer may open, so the lead meets an invitation to
+  somebody who did not rank the programme only once they accept. No email
+  address, access requirement, answer or leaver's reason is on it.
 - **Applications tab, Offer freed places** (see the next section).
 - Everything else a run's track lead may do on the run, through the same
   routes: the run's own applications queue, putting somebody back on the
@@ -1563,6 +1577,18 @@ still sends it), and a line for somebody who left recently, said by name,
 until the first session after they left is over. What only the group's
 facilitators are told comes from `GET /api/courses/groups/[groupId]/summary`,
 behind the group page's gate.
+
+On every day before the day of the group's first session, Home is the board
+st-fac-before-phone's instead: the first session as a ticket with "Open your
+group", Who's coming, and Say hello (the way to write an update to the group,
+with how many it emails, while anybody in it has been told). Who's coming is
+the one thing a facilitator sees from applications (privacy policy version
+7): each person in the group by first name, and whether they have said they
+are coming, read by `src/lib/courses/whosComing.ts` and handed by the summary
+only to a live facilitator of the group, only before the first session's
+day, and only about the people Publish has told. Never a reason; somebody who
+gave their place back is not in it. From the first session's day, Home is the
+weekly Home above.
 
 ## Changing a session
 

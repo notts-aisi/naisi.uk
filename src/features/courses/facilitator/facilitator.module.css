@@ -905,6 +905,108 @@
   color: var(--color-text);
 }
 
+/* === Home before the group's first session (st-fac-before-phone) ===
+   The ticket with "Open your group" inside it, who's coming as a row of
+   chips, and Say hello with the way to write to the group. */
+
+.beforeOpen {
+  width: 100%;
+  margin-top: 7px;
+}
+
+.beforeCard {
+  min-width: 0;
+  padding: 12px 16px 13px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.beforeTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+.beforeLine {
+  margin: 2px 0 0;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--color-text-soft);
+}
+
+.comingList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.comingChip,
+.notSaidChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 9px 0 7px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.comingChip {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.notSaidChip {
+  border: 1px dashed var(--color-border-strong);
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+.comingMark {
+  display: inline-flex;
+  justify-content: center;
+  width: 14px;
+  flex: none;
+}
+
+.comingTick {
+  display: block;
+  color: var(--color-ok);
+}
+
+.notSaidDot {
+  width: 8px;
+  height: 8px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--color-text-muted);
+  border-radius: 50%;
+}
+
+.sayHelloButton {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.sayHelloLine {
+  margin: 7px 0 0;
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
 /* === The group page in one column, as the phone board draws it ===
    The two columns stack, the main one first: the ticket, the group and the
    registers, then the work to review, the updates, the pace and the notes. */

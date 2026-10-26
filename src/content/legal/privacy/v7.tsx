@@ -19,7 +19,7 @@
  *  3. **What facilitators see.** Names only and never an email address, and
  *     the group email that hands out none (the group roster route, and
  *     `displayNameOf` in `src/lib/courses/registerAccess.ts`). v6 said
- *     "contact details". Before the first session they will also see who has
+ *     "contact details". Before the first session they also see who has
  *     said they are coming, the one thing from an application they see. They
  *     also read the notes their group's facilitators keep for each other (16).
  *  4. **Pitching week.** A pitch is seen by the person's group with their
@@ -110,9 +110,8 @@
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
  *
- * THREE THINGS HERE ARE NOT BUILT YET, and are worded as what will happen,
- * the way v6 worded certificates: certificates (1), facilitators seeing who
- * has said they are coming (the second half of 3), and a team's page (6).
+ * TWO THINGS HERE ARE NOT BUILT YET, and are worded as what will happen,
+ * the way v6 worded certificates: certificates (1) and a team's page (6).
  * Each is built to these words when it is built, or a new version says
  * otherwise first.
  *
@@ -944,7 +943,7 @@ export default function PrivacyContentV7({
                   the notes the group&apos;s facilitators share with each
                   other. They never see your email address: they can email
                   their group through the site without seeing anybody&apos;s.
-                  Before the first session, they will also see whether each
+                  Before the first session, they also see whether each
                   person in their group has said they are coming. Apart from
                   that one reply, they see nothing from applications, and no
                   review scores.
