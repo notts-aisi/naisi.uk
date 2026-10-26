@@ -675,9 +675,10 @@ describe("the admins' pages", () => {
     assert.ok(answered.text.includes("Amara Okafor"));
     assert.ok(answered.text.includes("Personal link"));
     const results = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
-    assert.ok(results.text.includes("2 answers."), "results show from the first answers: there is no floor");
+    // Every number has its n and the response rate beside it.
+    assert.ok(results.text.includes("2 answers from the 4 people it was sent to (50%)."), "results show from the first answers: there is no floor");
     assert.ok(results.text.includes("5. Which best describes you right now?"));
-    assert.ok(results.text.includes("2 answered"));
+    assert.ok(results.text.includes("2 answered, 50% of the 4 it was sent to"));
     assert.ok(results.text.includes("My leading plan, no concrete steps yet"));
     assert.doesNotMatch(results.text, /Amara|Okafor|Dev Patel/, "results never name anybody");
   });
@@ -743,7 +744,7 @@ describe("names come off a year after the programme, and the totals stay", () =>
     const again = await w.lib.job.surveyNamesOffJob.handler(ctx(new Date("2027-12-10T00:30:00Z")));
     assert.equal(again.processed, 0, "a survey is visited once");
     const results = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
-    assert.ok(results.text.includes("1 answer."), "the totals stay");
+    assert.ok(results.text.includes("1 answer from the 4 people it was sent to (25%)."), "the totals stay");
     const file = await w.exportAs("zach", id);
     assert.match(file.text, /\(name taken off\)/);
   });
@@ -921,10 +922,10 @@ describe("every kind of question, on the page and through the routes", () => {
     await w.answerByLink(w.tokenOf(id, "bea"), { q_likely: { type: "percent", value: 50 }, q_recommend: { type: "scale", value: 4 } });
     const results = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
     for (const words of [
-      "2 answered. Average 40%, middle value 40%, from 30% to 50%.",
-      "Net promoter score 0: the share at 9 or 10 less the share at 0 to 6.",
+      "2 answered, 50% of the 4 it was sent to. Average 40%, middle value 40%, from 30% to 50%.",
+      "Net promoter score 0, from 2 answers: the share at 9 or 10 less the share at 0 to 6.",
       "0 is Not at all likely, 10 is Extremely likely.",
-      "1 answered. Average 3, middle value 3, from 3 to 3.",
+      "1 answered, 25% of the 4 it was sent to. Average 3, middle value 3, from 3 to 3.",
     ]) {
       assert.ok(results.text.includes(words), `results: missing "${words}"`);
     }
@@ -1163,5 +1164,68 @@ describe("the New survey page offers every stage's template", () => {
     await sentSurvey();
     const later = await w.page(w.pages.newSurvey, {}, "zach");
     assert.ok(later.text.includes("AGI Strategy (Autumn 2026): It has its before survey already."));
+  });
+});
+
+describe("results for admins: n and the response rate beside every number, the change and the look-back", () => {
+  test("the survey at the end compares each shared question with the before survey, for people who answered both, never naming them", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const before = await sentSurvey();
+    await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(before, "amara"), answers: CHOICES, consents: { followUps: true } } });
+    await w.answerByLink(w.tokenOf(before, "bea"), { q_c1: { type: "choice", optionId: "o_stage3" }, q_c2: { type: "percent", value: 50 } });
+    await w.answerByLink(w.tokenOf(before, "dev"), { q_c1: { type: "choice", optionId: "o_stage0" } });
+    const after = (await w.make("zach", { stage: "after", closesOn: "2026-12-20" })).body.survey.id;
+    await w.sendFirst(after, "zach", { emails: 4 });
+    await w.answerByLink(w.tokenOf(after, "amara"), {
+      q_c1: { type: "choice", optionId: "o_stage3" },
+      q_t1: { type: "choice", optionId: "o_stage0" },
+      q_c2: { type: "percent", value: 45 },
+      q_c7: { type: "lines", values: { l_next: 4 } },
+    });
+    await w.answerByLink(w.tokenOf(after, "bea"), { q_c1: { type: "choice", optionId: "o_stage3" }, q_t1: { type: "choice", optionId: "o_stage3" }, q_c2: { type: "percent", value: 40 } });
+    const page = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: after }), searchParams: Promise.resolve({}) }, "zach");
+    for (const words of [
+      "2 answers from the 4 people it was sent to (50%).",
+      "Compared, person by person, with AGI Strategy: before (3 answers).",
+      "1. Which best describes you right now?",
+      "2 answered, 50% of the 4 it was sent to",
+      "Before and now Of the 2 who answered it both times (AGI Strategy: before): 1 moved up, 1 stayed, 0 moved down. Average 2 then, 3 now (up 1). Middle value 2 then, 3 now.",
+      "Looking back Of the 2 who answered it both times (Looking back, which best described you before the programme?): 1 moved up, 1 stayed, 0 moved down. Average 1.5 then, 3 now (up 1.5).",
+      "Average 35% then, 42.5% now (up 7.5 points).",
+      "I know what my next concrete step towards AI safety work would be. 2 → 4, 1 of 1 moved up",
+      "Leave out before-survey answers sent after someone’s first session",
+    ]) {
+      assert.ok(page.text.includes(words), `missing "${words}"`);
+    }
+    assert.doesNotMatch(page.text, /Amara|Okafor|Bea |Dev Patel|To explain the risk clearly/, "results name nobody and quote no one's earlier answer");
+  });
+
+  test("the before survey's results say how many said yes to follow-ups, of the people it was sent to", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await sentSurvey();
+    await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), answers: {}, consents: { followUps: true } } });
+    await w.answerByLink(w.tokenOf(id, "bea"), {});
+    const page = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
+    assert.ok(page.text.includes("Consent 1 said yes, 25% of the 4 it was sent to: Contact me at 6 and 12 months with a short follow-up survey."), page.text.slice(0, 600));
+    assert.ok(!page.text.includes("Compared, person by person"), "the before survey pairs with nothing");
+  });
+
+  test("leaving out answers sent after the first session counts them out of the before side too", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const before = await sentSurvey();
+    // Bea answers after her group first met at 6pm: left out of a before.
+    t.mock.timers.setTime(new Date("2026-10-29T20:30:00Z").getTime());
+    await w.answerByLink(w.tokenOf(before, "bea"), { q_c1: { type: "choice", optionId: "o_stage1" } });
+    const after = (await w.make("zach", { stage: "after", closesOn: "2026-12-20" })).body.survey.id;
+    await w.sendFirst(after, "zach", { emails: 4 });
+    await w.answerByLink(w.tokenOf(after, "bea"), { q_c1: { type: "choice", optionId: "o_stage4" } });
+    const all = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: after }), searchParams: Promise.resolve({}) }, "zach");
+    assert.ok(all.text.includes("Of the 1 who answered it both times (AGI Strategy: before): 1 moved up"));
+    const strict = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: after }), searchParams: Promise.resolve({ "before-first-session": "1" }) }, "zach");
+    assert.ok(strict.text.includes("1 sent after the person’s first session is left out."));
+    assert.ok(strict.text.includes("Nobody has answered it both times yet (AGI Strategy: before)."));
   });
 });

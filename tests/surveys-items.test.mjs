@@ -1063,3 +1063,94 @@ describe("the answer page's model of each kind", () => {
     assert.equal(stale.flatMap((page) => page.questions).find((each) => each.id === "q_level").offered, "");
   });
 });
+
+// ---------------------------------------------------------------------------
+// How answers changed, person by person (results for admins)
+// ---------------------------------------------------------------------------
+
+const change = await loadTs(join("lib", "surveys", "change.ts"));
+
+describe("how answers changed, for people who answered both times", () => {
+  const q = (list, id) => question(list, id);
+  const before = [
+    { uid: "amara", answers: { q_c1: { type: "choice", optionId: "o_stage1" }, q_c2: { type: "percent", value: 20 }, q_c4: { type: "scale", value: 2 }, q_c6: { type: "number", value: 0 }, q_c7: { type: "lines", values: { l_next: 2, l_contribute: 3 } }, q_c3: { type: "choices", optionIds: ["o_policy"] } } },
+    { uid: "bea", answers: { q_c1: { type: "choice", optionId: "o_stage3" }, q_c2: { type: "percent", value: 50 }, q_c4: { type: "scale", value: 4 }, q_c6: { type: "number", value: 2 }, q_c3: { type: "choices", optionIds: ["o_research", "o_policy"] } } },
+    // Dev answered only the before survey: he is in no comparison.
+    { uid: "dev", answers: { q_c1: { type: "choice", optionId: "o_stage0" }, q_c2: { type: "percent", value: 90 } } },
+  ];
+  const after = [
+    { uid: "amara", answers: { q_c1: { type: "choice", optionId: "o_stage3" }, q_t1: { type: "choice", optionId: "o_stage0" }, q_c2: { type: "percent", value: 45 }, q_c4: { type: "scale", value: 5 }, q_t2: { type: "scale", value: 1 }, q_c6: { type: "number", value: 4 }, q_c7: { type: "lines", values: { l_next: 4, l_contribute: 3 } }, q_c3: { type: "choices", optionIds: ["o_policy", "o_strategy"] } } },
+    { uid: "bea", answers: { q_c1: { type: "choice", optionId: "o_stage3" }, q_t1: { type: "choice", optionId: "o_stage3" }, q_c2: { type: "percent", value: 40 }, q_c4: { type: "scale", value: 4 }, q_c6: { type: "number", value: 2 }, q_c3: { type: "choices", optionIds: ["o_research"] } } },
+    // Tariq answered only the survey at the end.
+    { uid: "tariq", answers: { q_c1: { type: "choice", optionId: "o_stage5" } } },
+  ];
+  const between = (id) => change.changeBetween("AGI Strategy: before", q(TEMPLATE, id), q(AFTER, id), before, after);
+
+  test("a stage: who moved up, stayed and moved down, and the averages, of the two who answered both", () => {
+    assert.deepEqual(between("q_c1"), {
+      kind: "values",
+      against: "AGI Strategy: before",
+      both: 2,
+      before: { mean: 2, median: 2 },
+      after: { mean: 3, median: 3 },
+      up: 1,
+      same: 1,
+      down: 0,
+      unit: "",
+    });
+  });
+
+  test("a percentage changes in points; a scale and a number by their averages and middle values", () => {
+    const c2 = between("q_c2");
+    assert.deepEqual([c2.both, c2.before.mean, c2.after.mean, c2.up, c2.down, c2.unit], [2, 35, 42.5, 1, 1, "%"]);
+    assert.equal(words.averagesWords(c2.before, c2.after, c2.unit), "Average 35% then, 42.5% now (up 7.5 points). Middle value 35% then, 42.5% now.");
+    const c4 = between("q_c4");
+    assert.deepEqual([c4.both, c4.before.median, c4.after.median, c4.up, c4.same], [2, 3, 4.5, 1, 1]);
+    const c6 = between("q_c6");
+    assert.deepEqual([c6.both, c6.before.median, c6.after.median], [2, 1, 3]);
+  });
+
+  test("an agreement grid line by line, counting only people who answered that line both times", () => {
+    assert.deepEqual(between("q_c7"), {
+      kind: "lines",
+      against: "AGI Strategy: before",
+      rows: [
+        { label: "I know what my next concrete step towards AI safety work would be.", both: 1, before: 2, after: 4, up: 1 },
+        { label: "I could make a meaningful contribution to AI safety.", both: 1, before: 3, after: 3, up: 0 },
+      ],
+    });
+    assert.equal(words.lineMovedWords(2, 4, 1, 1), "2 → 4, 1 of 1 moved up");
+  });
+
+  test("pick any: how many picked each answer then and now", () => {
+    const c3 = between("q_c3");
+    assert.equal(c3.kind, "options");
+    assert.equal(c3.both, 2);
+    assert.equal(c3.multiple, true);
+    const of = (label) => c3.options.find((option) => option.label === label);
+    assert.deepEqual(of("Governance or policy"), { label: "Governance or policy", before: 2, after: 1 });
+    assert.deepEqual(of("Technical research"), { label: "Technical research", before: 1, after: 1 });
+    assert.deepEqual(of("Strategy"), { label: "Strategy", before: 0, after: 1 });
+  });
+
+  test("a look-back is the before, the question itself the now, in the same survey", () => {
+    const t1 = change.lookBackBetween(q(AFTER, "q_c1"), q(AFTER, "q_t1"), after, "Looking back, which best described you before the programme?");
+    assert.deepEqual([t1.kind, t1.both, t1.before.mean, t1.after.mean, t1.up, t1.same], ["values", 2, 1.5, 3, 1, 1]);
+    const t2 = change.lookBackBetween(q(AFTER, "q_c4"), q(AFTER, "q_t2"), after, "Looking back");
+    assert.deepEqual([t2.both, t2.before.mean, t2.after.mean], [1, 1, 5], "only Amara answered both T2 and C4");
+  });
+
+  test("a text answer, or two questions of different kinds, are not compared", () => {
+    assert.equal(change.changeBetween("x", q(TEMPLATE, "q_p6"), q(TEMPLATE, "q_p6"), before, after), null);
+    assert.equal(change.changeBetween("x", q(TEMPLATE, "q_c2"), q(TEMPLATE, "q_c6"), before, after), null);
+  });
+
+  test("the words carry the count, and nothing about anybody", () => {
+    assert.equal(words.movedWords(2, "AGI Strategy: before", 1, 1, 0), "Of the 2 who answered it both times (AGI Strategy: before): 1 moved up, 1 stayed, 0 moved down.");
+    assert.equal(words.movedWords(0, "AGI Strategy: before", 0, 0, 0), "Nobody has answered it both times yet (AGI Strategy: before).");
+    assert.equal(words.answersRateWords(12, 20), "12 answers from the 20 people it was sent to (60%).");
+    assert.equal(words.answeredRateWords(12, 20), "12 answered, 60% of the 20 it was sent to");
+    assert.equal(words.pairedWithWords([{ name: "AGI Strategy: before", answers: 24 }]), "Compared, person by person, with AGI Strategy: before (24 answers).");
+    assert.doesNotMatch(JSON.stringify([between("q_c1"), between("q_c3"), between("q_c7")]), /amara|bea|dev|tariq/);
+  });
+});

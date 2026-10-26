@@ -249,9 +249,24 @@ route is rate limited by a count in memory that keeps no address.
 Run NAISI › Surveys (`/admin/surveys`): open, drafts and closed, each with its
 answers, closing day and the way to its tabs; New survey. Each survey has four
 tabs: **Questions** (the editor until it is sent), **Send** (above), **Who
-answered** (names, for admins only, and the spreadsheet), **Results** (totals
-per question and any comments, made on the server and never with a name, with a
-switch that leaves out answers sent after someone's first session).
+answered** (names, for admins only, and the spreadsheet), **Results**.
+
+**Results** are made on the server and never carry a name. Every number has its
+n beside it and the share of the people the survey was sent to (taken from the
+survey's own record of each send, so it outlives names coming off). For each
+kind: a choice's count per answer, and a scored one's average or total ("6.4
+FTE in all"); pick any then which mattered most counted on its own; a scale,
+a percentage or a number by its counts or bands, average, middle value and
+spread, and 0 to 10 with its net promoter score; a grid line by line; comments
+in full. A survey that pairs with an earlier one shows, under each question
+the earlier one asked the same way, **Before and now** for the people who
+answered both times, paired by person on the server (`src/lib/surveys/change.ts`):
+who moved up, stayed and moved down with the averages and middle values, a
+grid's lines, or a choice's counts then and now. A question with a look-back
+in the same survey shows **Looking back** beside it the same way. The before
+survey also shows how many said yes to follow-ups. A switch leaves out
+before-survey answers sent after someone's first session, on its own Results
+and on the before side of every later stage's comparison.
 
 **The spreadsheet with names** (`POST /api/surveys/[id]/export`) is one row per
 person who answered and one column per question (and per line), choices in their

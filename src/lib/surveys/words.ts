@@ -599,6 +599,87 @@ export function sizeWords(questions: number, minutes: number): string {
   return `${questionsWords(questions)} · ${minutesWords(minutes)}`;
 }
 
+// ---------------------------------------------------------------------------
+// Results: n and the response rate beside every number, and the change
+// ---------------------------------------------------------------------------
+
+/** A number as results print it: whole when it is, else to one place. */
+export function numberWords(value: number | null, unit = ""): string {
+  if (value === null) return "";
+  const shown = Number.isInteger(value) ? String(value) : value.toFixed(1);
+  return unit === "%" ? `${shown}%` : unit ? `${shown} ${unit}` : shown;
+}
+
+/** "60%" of `of`, or "" when it was sent to nobody. */
+function rateOf(n: number, of: number): string {
+  return of > 0 ? `${Math.round((n / of) * 100)}%` : "";
+}
+
+/** "12 answers from the 20 people it was sent to (60%)." */
+export function answersRateWords(answers: number, sent: number): string {
+  if (answers === 0) return sent > 0 ? `No answers yet from the ${peopleWords(sent)} it was sent to.` : "No answers yet.";
+  const counted = `${answers} ${answers === 1 ? "answer" : "answers"}`;
+  return sent > 0 ? `${counted} from the ${peopleWords(sent)} it was sent to (${rateOf(answers, sent)}).` : `${counted}.`;
+}
+
+/** "12 answered, 60% of the 20 it was sent to", beside each question. */
+export function answeredRateWords(n: number, sent: number, verb = "answered"): string {
+  return sent > 0 ? `${n} ${verb}, ${rateOf(n, sent)} of the ${sent} it was sent to` : `${n} ${verb}`;
+}
+
+/** "Compared, person by person, with AGI Strategy: before (24 answers)." */
+export function pairedWithWords(pairs: readonly { name: string; answers: number }[]): string {
+  if (pairs.length === 0) return "";
+  const each = pairs.map((pair) => `${pair.name} (${pair.answers} ${pair.answers === 1 ? "answer" : "answers"})`);
+  return `Compared, person by person, with ${namesInWords(each)}.`;
+}
+
+export const RESULT_WORDS = {
+  namesOff: "Names have come off, so answers no longer pair person by person. The totals stay.",
+  beforeAndAfter: "Before and now",
+  lookingBack: "Looking back",
+  then: "Then",
+  now: "Now",
+  consents: "Consent",
+  toggleLeaveOut: "Leave out before-survey answers sent after someone’s first session",
+  toggleCountAll: "Count every answer",
+} as const;
+
+/** "Of the 20 who answered it both times, against AGI Strategy: before: 12 moved up, 6 stayed, 2 moved down." */
+export function movedWords(both: number, against: string, up: number, same: number, down: number): string {
+  if (both === 0) return `Nobody has answered it both times yet (${against}).`;
+  return `Of the ${both} who answered it both times (${against}): ${up} moved up, ${same} stayed, ${down} moved down.`;
+}
+
+/** "Average 1.8 then, 2.9 now (up 1.1). Middle value 2 then, 3 now." */
+export function averagesWords(
+  before: { mean: number | null; median: number | null },
+  after: { mean: number | null; median: number | null },
+  unit: string,
+): string {
+  if (before.mean === null || after.mean === null) return "";
+  const shift = after.mean - before.mean;
+  const moved = shift === 0 ? "no change" : `${shift > 0 ? "up" : "down"} ${numberWords(Math.abs(shift), unit === "%" ? "points" : unit)}`;
+  const middle = before.median !== null && after.median !== null ? ` Middle value ${numberWords(before.median, unit)} then, ${numberWords(after.median, unit)} now.` : "";
+  return `Average ${numberWords(before.mean, unit)} then, ${numberWords(after.mean, unit)} now (${moved}).${middle}`;
+}
+
+/** "2.3 → 3.9, 20 of 25 moved up", a line of a grid. */
+export function lineMovedWords(before: number | null, after: number | null, up: number, both: number): string {
+  if (both === 0 || before === null || after === null) return "Nobody answered it both times yet.";
+  return `${numberWords(before)} → ${numberWords(after)}, ${up} of ${both} moved up`;
+}
+
+/** "Counts of the 25 people who answered it both times (AGI Strategy: before)." */
+export function countsOfWords(both: number, against: string, multiple: boolean): string {
+  return `Counts of the ${peopleWords(both)} who answered it both times (${against}).${multiple ? " People could pick any, so the counts can add up to more." : ""}`;
+}
+
+/** "12 of the 20 it was sent to said yes: Contact me at 6 and 12 months ...". */
+export function consentCountWords(yes: number, of: number, label: string): string {
+  return `${answeredRateWords(yes, of, "said yes")}: ${label}.`;
+}
+
 /** The refusals a person can act on, word for word. */
 export const REFUSAL = {
   notSignedIn: "Sign in to do this.",
