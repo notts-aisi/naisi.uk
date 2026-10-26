@@ -338,8 +338,14 @@ const ROUND_SURFACES = {
     kind: "form",
     why:
       "one programme's Groups tab, People in groups: the run's allocation board, the programme's lead's and an " +
-      "admin's. It reaches the round only through loadProgrammeRun, which starts from the form's own loader and " +
+      "admin's. It reaches the round only through loadPeopleInGroups, which starts from the form's own loader and " +
       "answers 'none' for a round that is not a form, and the page then says there is no programme here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
+    kind: "form",
+    why:
+      "one programme's Groups tab, Publish's own page for the run it names. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": {
     kind: "form",
@@ -706,6 +712,19 @@ const ROUND_SURFACES = {
     why:
       "sets the day groups go out on the run a programme names, reaching the round only through " +
       "loadProgrammeRun, which answers a round that is not a form as a programme that is not here",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups": {
+    kind: "form",
+    why:
+      "adds a group to the run a programme names, from the Groups tab's Times view, reaching the round " +
+      "only through loadProgrammeRun, which answers a round that is not a form as a programme that is not here",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time": {
+    kind: "form",
+    why:
+      "changes one group's day and start on the run a programme names, from the Groups tab's Times view, " +
+      "reaching the round only through loadProgrammeRun, which answers a round that is not a form as a " +
+      "programme that is not here",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams": {
     kind: "form",

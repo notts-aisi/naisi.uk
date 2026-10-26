@@ -740,6 +740,18 @@ const NOT_COVERED = {
     coverWhen:
       "With the spec for the switch above: setting the rule is that spec's first step.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups": {
+    reason:
+      "Course hub: Add a group, on a programme's Groups tab's Times view. tests/course-hub-times-actions.test.mjs executes it as every kind of caller, before Publish and after, and draws its dialog from the setup the page hands it.",
+    coverWhen:
+      "When a browser spec signs in as a programme's lead and adds a group from the Times view.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time": {
+    reason:
+      "Course hub: a group's day and start, from Change and Use for a group on a programme's Times view. tests/course-hub-times-actions.test.mjs executes it as every kind of caller, before Publish has told anybody and after, with a press of Publish landing between its read and its write.",
+    coverWhen:
+      "When the groups-go-out spec changes a group's time on the Times view before it presses Publish.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups-go-out": {
     reason:
       "Course hub: the day groups go out, set on a programme's Groups tab above its sessions. tests/course-hub-groups-go-out-day.test.mjs executes it as every kind of caller and draws the card and the programme's head.",
@@ -1787,7 +1799,7 @@ const NOT_COVERED = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": {
     reason:
-      "Course hub: the Groups tab's People in groups view is the run's own allocation board, mounted for the programme's lead and admins; its every caller is executed by tests/course-hub-lead-pages.test.mjs, the board's routes by tests/course-hub-lead-routes.test.mjs and tests/applications-handover-board.test.mjs, and it was checked by hand at 1440 and 390.",
+      "Course hub: the Groups tab's People in groups view is the run's own allocation board, drawn as st-groups draws it for the programme's lead and admins; its every caller, its words in every state and its one count are executed by tests/course-hub-people-in-groups.test.mjs and tests/course-hub-lead-pages.test.mjs, the board's routes by tests/course-hub-lead-routes.test.mjs and tests/applications-handover-board.test.mjs, and it was checked by hand at 1440 and 390.",
     coverWhen:
       "When the end-to-end fixtures can seed a programme that names a run with groups, with its lead signed in.",
   },
@@ -1814,6 +1826,12 @@ const NOT_COVERED = {
       "Course hub: Preview as a fellow, the member's own week page drawn with nothing that can be pressed; its every caller, a group's copy and that it reads nobody's answers are executed by tests/course-hub-weeks-tab-week.test.mjs, and it was checked by hand at 1440 and 390.",
     coverWhen:
       "When a browser spec signs in as a programme's lead and previews a week it has pasted.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
+    reason:
+      "Course hub: Publish's own page under a programme's Groups tab, reached from People in groups. The Publish area on it is the allocation board's, which the groups-go-out spec presses on the run editor's board; the page's every caller is executed by tests/course-hub-people-in-groups.test.mjs.",
+    coverWhen:
+      "When the groups-go-out spec presses Publish from a programme's Groups tab rather than from the run editor's board.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/people": {
     reason:
