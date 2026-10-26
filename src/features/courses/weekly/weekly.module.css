@@ -1949,6 +1949,19 @@ a.weekItem:focus-visible {
   border: 1.5px solid var(--color-control-border);
 }
 
+/* A task nothing on the site can see finished: a short line, no ring. */
+.taskMarkNone {
+  position: relative;
+}
+
+.taskMarkNone::after {
+  content: "";
+  width: 8px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: var(--color-text-faint);
+}
+
 .taskRowBody {
   min-width: 0;
 }

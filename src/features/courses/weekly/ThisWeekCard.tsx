@@ -137,10 +137,14 @@ export default function ThisWeekCard({
           {known && open && thisWeek && variant === "this-week" && tasks.length > 0 && (
             <ul className={styles.taskRows} role="list">
               {tasks.map((task, index) => {
-                const taskIsDone = isCounted(task.needs) && handedTaskDone(task, ticks.isDone);
+                const counted = isCounted(task.needs);
+                const taskIsDone = counted && handedTaskDone(task, ticks.isDone);
                 return (
                   <li key={index} className={styles.taskRow}>
-                    <span className={taskIsDone ? styles.taskMarkDone : styles.taskMarkOpen} aria-hidden="true">
+                    <span
+                      className={!counted ? styles.taskMarkNone : taskIsDone ? styles.taskMarkDone : styles.taskMarkOpen}
+                      aria-hidden="true"
+                    >
                       {taskIsDone && (
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M5 12.5l4.5 4.5L19 7.5" />
@@ -149,7 +153,9 @@ export default function ThisWeekCard({
                     </span>
                     <div className={styles.taskRowBody}>
                       <p className={styles.taskRowLabel}>
-                        <span className={styles.srOnly}>{taskIsDone ? TASK_MARK_WORDS.done : TASK_MARK_WORDS.notDone}: </span>
+                        {counted && (
+                          <span className={styles.srOnly}>{taskIsDone ? TASK_MARK_WORDS.done : TASK_MARK_WORDS.notDone}: </span>
+                        )}
                         {task.label}
                       </p>
                       {taskIsDone && <p className={styles.taskRowDone}>{TASK_DONE}</p>}

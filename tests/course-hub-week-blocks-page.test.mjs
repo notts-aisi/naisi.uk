@@ -470,6 +470,21 @@ describe("4. counts by This week's tasks", () => {
     assert.match(page.text, /0 of 3 done/);
   });
 
+  test("a task nothing on the site can see finished is not counted, and carries no mark", async () => {
+    // Week 3's one task covers nothing (a parser that could not tell which parts it meant).
+    const stored = w.world.db.read(`courseRuns/${RUN.agi}/weeks/w03`);
+    const blocks = structuredClone(stored.blocks);
+    blocks[0].rows[0].covers = [];
+    w.world.db.seed(`courseRuns/${RUN.agi}/weeks/w03`, { ...stored, blocks });
+    const page = await w.weekPage("chloe", 3, sources("k3"));
+    assert.doesNotMatch(page.text, /\d of \d done/);
+    assert.doesNotMatch(page.text, /Not done yet: Work through/);
+    const home = await w.programmeHome("chloe", sources("k3"));
+    assert.doesNotMatch(home.text, /This week \d of \d done/);
+    assert.match(home.text, /Week 3 · The lamp makers Thu 12 to Wed 18 Nov Work through the three parts below/);
+    assert.doesNotMatch(home.text, /Not done yet: Work through/);
+  });
+
   test("the programme page: This week's tasks, and each week's count by them", async () => {
     let home = await w.programmeHome("chloe");
     assert.match(home.text, /This week 0 of 1 done Week 3 · The lamp makers Thu 12 to Wed 18 Nov Not done yet: Parts 1 to 3 Open week 3/);

@@ -337,9 +337,11 @@ export default function BlockWeek({
         rail.push({ id: anchor(block.id), label: "In the session", count: null, mark: null, indent: false });
         body.push(
           <section key={block.id} id={anchor(block.id)} className={styles.section} aria-labelledby={`${anchor(block.id)}-title`}>
-            <h2 id={`${anchor(block.id)}-title`} className={styles.h2}>
-              In the session
-            </h2>
+            <div className={styles.sectionHead}>
+              <h2 id={`${anchor(block.id)}-title`} className={styles.h2}>
+                In the session
+              </h2>
+            </div>
             <Prose prose={block.body} className={styles.body} listClassName={styles.list} linkClassName={styles.inlineLink} />
           </section>,
         );
@@ -485,6 +487,14 @@ function OpenMark() {
   );
 }
 
+function NoneMark() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true" className={styles.markNone}>
+      <path d="M9 13h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function ThisWeekBox({
   block,
   rows,
@@ -519,9 +529,7 @@ function ThisWeekBox({
           if (row.type === "none") {
             return (
               <li key={index} className={styles.task}>
-                <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true" className={styles.markNone}>
-                  <path d="M9 13h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
+                <NoneMark />
                 <div className={styles.taskBody}>
                   <p className={styles.taskWhat}>
                     <span className={styles.srOnly}>{TASK_MARK_WORDS.none}: </span>
@@ -536,15 +544,18 @@ function ThisWeekBox({
             );
           }
           const needs = taskNeeds(blocks, row);
-          const done = learner && taskDone(needs, state);
+          // A task with nothing anybody could finish is left out of the count,
+          // so it carries no mark that says done or not done.
+          const counted = isCounted(needs);
+          const done = learner && counted && taskDone(needs, state);
           const fromOverview = rows[index];
           const due = fromOverview && fromOverview.type === "task" && fromOverview.what === row.what ? fromOverview.due : null;
           return (
             <li key={index} className={styles.task}>
-              {learner ? done ? <DoneMark /> : <OpenMark /> : <OpenMark />}
+              {!counted ? <NoneMark /> : learner && done ? <DoneMark /> : <OpenMark />}
               <div className={styles.taskBody}>
                 <p className={styles.taskWhat}>
-                  {learner && <span className={styles.srOnly}>{done ? TASK_MARK_WORDS.done : TASK_MARK_WORDS.notDone}: </span>}
+                  {learner && counted && <span className={styles.srOnly}>{done ? TASK_MARK_WORDS.done : TASK_MARK_WORDS.notDone}: </span>}
                   {row.what}
                 </p>
                 <p className={styles.taskMeta}>
