@@ -129,9 +129,26 @@ describe("holding a place is one test", () => {
   });
 });
 
+// Every file that reads a stored `ready` as true, and which `ready` it reads.
+// A week's is read by its normaliser and weekIsReady alone. A talk's (packs
+// and cases: the person's own "Ready for my talk") is another field of
+// another record, read by that record's normaliser and the route that sets
+// it, and neither of those reads a week's.
+const READS_READY = {
+  "lib/courses/weekReady.ts": "weekIsReady, the one answer to whether a week is ready, which every page that says so asks",
+  "lib/firestore/courses.ts": "the week's normaliser: a stored ready counts only on a published week",
+  "lib/firestore/coursePacksAndCases.ts": "a talk's ready on a person's packs and cases record, their own mark, never a week's",
+  "app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts":
+    "the body of a person marking themselves ready for a talk, never a week's ready",
+};
+
 describe("whether a week is ready is one answer", () => {
   test("a stored week's ready is read by its normaliser and weekIsReady alone", () => {
-    assert.deepEqual(filesWhere(/\.ready\s*===\s*true/), ["lib/courses/weekReady.ts", "lib/firestore/courses.ts"]);
+    assert.deepEqual(filesWhere(/\.ready\s*===\s*true/), Object.keys(READS_READY).sort());
+    for (const [file, why] of Object.entries(READS_READY)) assert.ok(why.length > 40, `${file} needs its reason`);
+    for (const file of ["lib/firestore/coursePacksAndCases.ts", "app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts"]) {
+      assert.doesNotMatch(read(file), /\bweek\w*\.ready\b/, `${file} reads a week's ready`);
+    }
     assert.match(read("lib/firestore/courses.ts"), /ready: data\.ready === true && data\.published === true,/);
     assert.match(read("lib/courses/weekReady.ts"), /week\.published === true && week\.ready === true/);
   });
