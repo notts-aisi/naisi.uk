@@ -22,10 +22,14 @@ import { weekOneDoorFor, type PlaceBeforeGroups } from "@/lib/courses/weekOne/do
 import { groupsGoOutDay, weekOneOpenWords } from "@/lib/courses/groupsGoOut";
 import type { WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { dueMoment } from "@/lib/courses/weekBlocks/due";
+import { weekWrittenAnswers } from "@/lib/courses/weekBlocks/reader";
+import { rubricOf } from "@/lib/courses/rubric";
 import type { When } from "@/lib/courses/weekBlocks/model";
 import { taskNeeds, taskSubject, thisWeekOf, type TaskNeeds } from "@/lib/courses/weekBlocks/progress";
 import { taskLabelWords } from "@/lib/courses/memberPageWords";
 import { isReflectionResponse } from "@/lib/firestore/courseExercises";
+import { firstNameOfUser } from "@/lib/courses/programmeLead";
+import { isWordCountedAnswer, readWrittenAnswer, type WrittenAnswerRecord } from "@/lib/courses/writtenAnswers/model";
 import {
   ownAttendanceSessions,
   sessionsFromJoinWeek,
@@ -53,6 +57,7 @@ import {
   normalizeCourseRun,
   normalizeCourseWeek,
   weekDocId,
+  type CourseDoc,
   type CourseRunDoc,
   type CourseRunStatus,
 } from "@/lib/firestore/courses";
@@ -373,6 +378,24 @@ export type OverviewThisWeek = {
    * day: what a page says for a task due the day before.
    */
   dayBeforeTime: string | null;
+  /**
+   * The week's written answers, each with the day it is due for the caller's
+   * own group by its own rule (`dueMoment`), or null while there is none to
+   * give. What the week page's due line says.
+   */
+  answers: Array<{ id: string; due: { dateKey: string; moved: boolean } | null }>;
+  /**
+   * The rows of the course's rubric ("A clear position", ...), what a
+   * written answer gets feedback on; empty for a course with no rubric.
+   * Names only: the levels and descriptors are the review page's.
+   */
+  feedbackOn: string[];
+  /**
+   * Who reads the caller's own written answer and gives feedback on it
+   * (`writtenReviewRole`): their group's facilitators, or, for somebody who
+   * facilitates a group of the run, the programme's lead and admins.
+   */
+  answersReadBy: "facilitators" | "lead";
 };
 
 export type OverviewThisWeekRow =
@@ -389,6 +412,16 @@ export type OverviewThisWeekRow =
       needs: TaskNeeds;
       /** Which of `needs.promptIds` the caller has written in. Empty for anybody not taking part. */
       written: string[];
+      /** Which of `needs.answerIds` the caller has sent. Empty for anybody not taking part. */
+      sent: string[];
+      /**
+       * The caller's own written answer this task covers, for the programme
+       * page's task row ("Draft · 241 words", "Sent Mon 16 Nov", "Feedback
+       * from Rahul"): its count of words, the London day it was first sent,
+       * and who sent the feedback on it. Null when the task covers none, or
+       * the caller has written nothing in it. Never whether it was late.
+       */
+      answer: { words: number; sentOn: string | null; feedbackFrom: string | null } | null;
       /**
        * The day it is due for the caller's own group (`dueMoment`), or null
        * while there is none to give ("Due dates wait for the group").
@@ -674,23 +707,115 @@ function writtenBoxesOf(docs: ReadonlyArray<{ data: () => unknown }>, uid: strin
 }
 
 /**
+ * "weekId::answerId" of every written answer of `uid`'s, as stored, out of
+ * their own rows: a row counted in words (`isWordCountedAnswer`) that is not
+ * a reflection. A summer answer carries no count of words and is left out.
+ */
+function writtenAnswersOf(
+  docs: ReadonlyArray<{ data: () => unknown }>,
+  uid: string,
+): Map<string, WrittenAnswerRecord> {
+  const answers = new Map<string, WrittenAnswerRecord>();
+  for (const doc of docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    if (data.uid !== uid || isReflectionResponse(data) || !isWordCountedAnswer(data)) continue;
+    if (typeof data.weekId === "string" && typeof data.exerciseId === "string") {
+      answers.set(`${data.weekId}::${data.exerciseId}`, readWrittenAnswer(data));
+    }
+  }
+  return answers;
+}
+
+/**
+ * What the caller has done on the run, as This week reads it: the reflection
+ * boxes they have written in, their written answers as stored, and the first
+ * name of whoever sent feedback on each of those answers, by uid. Names only.
+ */
+type OwnWork = {
+  boxes: ReadonlySet<string>;
+  answers: ReadonlyMap<string, WrittenAnswerRecord>;
+  feedbackNames: ReadonlyMap<string, string>;
+};
+
+/**
+ * The caller's own work, out of their own rows on the run (`docs`, already
+ * read), and one read of the accounts that sent feedback on their written
+ * answers. Both payloads draw This week from it, so a holder before groups
+ * and somebody placed are answered by the same construction.
+ */
+async function ownWorkOf(
+  db: NonNullable<ReturnType<typeof getAdminDb>>,
+  docs: ReadonlyArray<{ data: () => unknown }>,
+  uid: string,
+): Promise<OwnWork> {
+  const answers = writtenAnswersOf(docs, uid);
+  const feedbackUids = [...new Set([...answers.values()].map((record) => record.feedback?.byUid ?? "").filter(Boolean))];
+  const feedbackNames = new Map<string, string>();
+  for (const doc of feedbackUids.length ? await db.getAll(...feedbackUids.map((byUid) => db.collection("users").doc(byUid))) : []) {
+    if (doc.exists) feedbackNames.set(doc.id, firstNameOfUser(doc.data() ?? {}) || "Your facilitator");
+  }
+  return { boxes: writtenBoxesOf(docs, uid), answers, feedbackNames };
+}
+
+/**
+ * What This week reads of the run's course: its time for work due the day
+ * before a session (`dayBeforeDueTime`), and the names of its rubric's rows,
+ * what a written answer gets feedback on (none for a course with no rubric).
+ * Nothing else of the course travels.
+ */
+type ThisWeekCourse = { dayBeforeTime: string | null; feedbackOn: string[] };
+
+function thisWeekCourseOf(course: CourseDoc | null): ThisWeekCourse {
+  return {
+    dayBeforeTime: course?.dayBeforeDueTime ?? null,
+    feedbackOn: (rubricOf(course)?.rows ?? []).map((row) => row.name),
+  };
+}
+
+/** The caller's own written answer, as a task row carries it. Null for nothing written. */
+function ownAnswerOf(
+  record: WrittenAnswerRecord | null,
+  feedbackNames: ReadonlyMap<string, string>,
+): { words: number; sentOn: string | null; feedbackFrom: string | null } | null {
+  if (!record || (record.words === 0 && !record.firstSentAt)) return null;
+  return {
+    words: record.words,
+    sentOn: record.firstSentAt ? londonDateKey(record.firstSentAt) : null,
+    feedbackFrom: record.feedback ? (feedbackNames.get(record.feedback.byUid) ?? "Your facilitator") : null,
+  };
+}
+
+/**
  * This week of one week written as blocks, for the caller: each task with
- * what it needs, which of its boxes the caller has written in, and the day it
- * is due (`dueOf`, null while there is none to give). Null for a week with no
- * This week.
+ * what it needs, which of its boxes the caller has written in, which of its
+ * written answers they have sent and where their own answer stands, and the
+ * day it is due (`dueOf`, null while there is none to give); the week's
+ * written answers, each due by the same `dueOf`; the rubric's rows; and who
+ * reads the caller's own answer. Null for a week with no This week. Both
+ * payloads build This week here and nowhere else.
  */
 function thisWeekPayload(
   blocks: WeekBlock[],
   weekId: string,
-  dayBeforeTime: string | null,
-  writtenBoxes: ReadonlySet<string>,
+  course: ThisWeekCourse,
+  work: OwnWork,
+  answersReadBy: OverviewThisWeek["answersReadBy"],
   dueOf: (when: When) => { dateKey: string; moved: boolean } | null,
 ): OverviewThisWeek | null {
   const block = thisWeekOf(blocks);
   if (!block) return null;
+  const answerOf = (id: string): WrittenAnswerRecord | null => work.answers.get(`${weekId}::${id}`) ?? null;
   return {
     total: block.total,
-    dayBeforeTime,
+    dayBeforeTime: course.dayBeforeTime,
+    feedbackOn: course.feedbackOn,
+    answersReadBy,
+    // Through the one reader of a week's written answers, which reads a week
+    // written as blocks by its blocks alone.
+    answers: weekWrittenAnswers({ summary: "", materials: [], exercises: [], checklist: [], blocks }).map((answer) => {
+      const due = answer.due ? dueOf(answer.due) : null;
+      return { id: answer.id, due: due ? { dateKey: due.dateKey, moved: due.moved } : null };
+    }),
     rows: block.rows.map((row): OverviewThisWeekRow => {
       if (row.type === "none") return { type: "none", what: row.what, time: row.time, note: row.note };
       if (row.type === "optional") return { type: "optional", what: row.what, time: row.time, note: row.note };
@@ -704,7 +829,9 @@ function thisWeekPayload(
         whenText: row.whenText,
         label: taskLabelWords(taskSubject(blocks, row), row.what),
         needs,
-        written: needs.promptIds.filter((id) => writtenBoxes.has(`${weekId}::${id}`)),
+        written: needs.promptIds.filter((id) => work.boxes.has(`${weekId}::${id}`)),
+        sent: needs.answerIds.filter((id) => answerOf(id)?.firstSentAt != null),
+        answer: ownAnswerOf(needs.answerIds.map((id) => answerOf(id))[0] ?? null, work.feedbackNames),
         due: due ? { dateKey: due.dateKey, moved: due.moved } : null,
       };
     }),
@@ -744,10 +871,9 @@ async function beforeGroupsPayload(
     // that fails shows the emblem.
     runCrests(db, [{ id: run.id, courseId: run.courseId }]).catch(() => new Map<string, ShownCrest>()),
   ]);
-  const dayBeforeTime =
-    courseSnap?.exists ? normalizeCourse(courseSnap.id, courseSnap.data() ?? {}).dayBeforeDueTime : null;
+  const course = thisWeekCourseOf(courseSnap?.exists ? normalizeCourse(courseSnap.id, courseSnap.data() ?? {}) : null);
   const week = weekSnap.exists ? normalizeCourseWeek(weekSnap.id, weekSnap.data() ?? {}) : null;
-  const written = writtenBoxesOf(ownAnswerSnap.docs, actor.uid);
+  const work = await ownWorkOf(db, ownAnswerSnap.docs, actor.uid);
   const taught = run.weekPlan.filter((entry) => entry.kind === "week").length;
   return {
     run: {
@@ -775,8 +901,12 @@ async function beforeGroupsPayload(
             countableIds: Array.isArray(week.blocks)
               ? []
               : [...week.materials.filter((m) => !m.optional).map((m) => m.id), ...week.checklist.map((c) => c.id)],
+            // Nobody through week 1's door facilitates a group of the run
+            // (that would have let them in as its facilitator), so by GET's
+            // own rule below, feedback on their written answer is their
+            // group's facilitators' to give.
             thisWeek: Array.isArray(week.blocks)
-              ? thisWeekPayload(week.blocks, week.id, dayBeforeTime, written, () => null)
+              ? thisWeekPayload(week.blocks, week.id, course, work, "facilitators", () => null)
               : null,
           },
         ]
@@ -1032,8 +1162,9 @@ export async function GET(
     : [];
 
   // The caller's own rows of the run's answers, for which reflection boxes
-  // they have written in (a block week's This week counts them). Only for
-  // somebody taking part, and only their own: `uid` is the session's.
+  // they have written in and where their written answers stand (a block
+  // week's This week counts and draws them). Only for somebody taking part,
+  // and only their own: `uid` is the session's.
   // Equalities on (uid, runId), the existing composite.
   const readsOwnAnswers = liveEnrolment?.role === "learner";
   const [userDocs, weekEntries, ownRegisterDocs, programme, ownAnswerSnap, courseSnap, shownCrests] = await Promise.all([
@@ -1068,16 +1199,17 @@ export async function GET(
           .limit(MAX_OWN_ANSWER_ROWS)
           .get()
       : Promise.resolve(null),
-    // The run's course, for one setting only: when work set for the day
-    // before a session is due (`dayBeforeDueTime`). Nothing else of it travels.
+    // The run's course, for what This week reads of it (`thisWeekCourseOf`):
+    // when work set for the day before a session is due, and its rubric's
+    // rows by name. Nothing else of it travels.
     run.courseId ? db.collection("courses").doc(run.courseId).get() : Promise.resolve(null),
     // The crest beside the run's name. A read that fails shows the emblem.
     runCrests(db, [{ id: run.id, courseId: run.courseId }]).catch(() => new Map<string, ShownCrest>()),
   ]);
-  const dayBeforeTime =
-    courseSnap?.exists ? normalizeCourse(courseSnap.id, courseSnap.data() ?? {}).dayBeforeDueTime : null;
-  // "weekId::promptId" of every reflection box the caller has written in.
-  const writtenBoxes = writtenBoxesOf(ownAnswerSnap?.docs ?? [], actor.uid);
+  const course = thisWeekCourseOf(courseSnap?.exists ? normalizeCourse(courseSnap.id, courseSnap.data() ?? {}) : null);
+  // The reflection boxes the caller has written in, their written answers,
+  // and who sent feedback on those.
+  const work = await ownWorkOf(db, ownAnswerSnap?.docs ?? [], actor.uid);
   const nameByUid = new Map<string, string>();
   for (const doc of userDocs) {
     if (doc.exists) nameByUid.set(doc.id, displayNameOf(doc.data() ?? {}));
@@ -1229,18 +1361,28 @@ export async function GET(
 
   /*
    * THIS WEEK OF EACH WEEK WRITTEN AS BLOCKS (`OverviewThisWeek`): what each
-   * task needs, the boxes the caller has written in, and the day it is due on
-   * the caller's own calendar, a session moved or cancelled through "Change
-   * a session" included (`dueMoment`), "the day before" read by the course's
-   * own setting. Nothing is dated for somebody with no group: their week has
-   * no session to be due by. A row with nothing to do and a row that is only
-   * offered (the hands-on route) travel as they are, and count for nothing.
+   * task needs, the boxes the caller has written in, where their written
+   * answers stand, and the day each is due on the caller's own calendar, a
+   * session moved or cancelled through "Change a session" included
+   * (`dueMoment`), "the day before" read by the course's own setting.
+   * Nothing is dated for somebody with no group: their week has no session
+   * to be due by. A row with nothing to do and a row that is only offered
+   * (the hands-on route) travel as they are, and count for nothing. Who
+   * gives feedback on the caller's own written answer (`answersReadBy`, the
+   * rule `writtenReviewRole` holds): their group's facilitators, or, for
+   * somebody who facilitates a group of the run, the programme's lead and
+   * admins.
    */
   for (const entry of weeks) {
     const blocks = blocksByWeekId.get(entry.id);
     if (!blocks) continue;
-    entry.thisWeek = thisWeekPayload(blocks, entry.id, dayBeforeTime, writtenBoxes, (when) =>
-      ownGroup ? dueMoment(ownSessionsAll, entry.weekNumber, when, dayBeforeTime) : null,
+    entry.thisWeek = thisWeekPayload(
+      blocks,
+      entry.id,
+      course,
+      work,
+      facilitates.length > 0 ? "lead" : "facilitators",
+      (when) => (ownGroup ? dueMoment(ownSessionsAll, entry.weekNumber, when, course.dayBeforeTime) : null),
     );
   }
 

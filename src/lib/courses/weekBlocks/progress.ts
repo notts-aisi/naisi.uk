@@ -28,8 +28,10 @@ import {
  *    row for the source's id);
  *  - a CHECKLIST item in a part, ticked the same way;
  *  - a REFLECTION box, with something written in it;
+ *  - the WRITTEN ANSWER, sent (its first-sent time stored, Q33): editing it
+ *    after sending, or a reviewer opening it, changes nothing here;
  *  - anything a later page decides how to finish (the chosen pack, the
- *    written answer, the case talk, fill-in boxes): UNSEEN. A task holding
+ *    case talk, fill-in boxes): UNSEEN. A task holding
  *    something unseen is counted and is never done, because no page can see
  *    it done yet. Each later page brings its own way of seeing it and is
  *    added here, to `taskNeeds` and `taskDone`, so the count stays in one
@@ -53,6 +55,8 @@ export type TaskNeeds = {
   tickIds: string[];
   /** Reflection boxes to write in, by prompt id. */
   promptIds: string[];
+  /** Written answers to send, by block id. */
+  answerIds: string[];
   /** What a later page decides how to finish, by block id: never done while any is here. */
   unseenIds: string[];
 };
@@ -63,10 +67,12 @@ export type DoneState = {
   isTicked: (itemId: string) => boolean;
   /** The reader has written something in this reflection box. */
   isWritten: (promptId: string) => boolean;
+  /** The reader has sent this written answer. */
+  isSent: (answerId: string) => boolean;
 };
 
 /** The blocks no page can see finished yet. Each later page moves its kind out of here. */
-const UNSEEN_TYPES: ReadonlySet<WeekBlock["type"]> = new Set(["chooseOne", "writtenAnswer", "cases", "fillIn"]);
+const UNSEEN_TYPES: ReadonlySet<WeekBlock["type"]> = new Set(["chooseOne", "cases", "fillIn"]);
 
 function addOnce(list: string[], seen: Set<string>, id: string): void {
   if (seen.has(id)) return;
@@ -79,6 +85,7 @@ function addBlockNeeds(block: WeekBlock, needs: TaskNeeds, seen: Set<string>): v
   if (block.type === "source") addOnce(needs.tickIds, seen, block.id);
   else if (block.type === "checklist") for (const item of block.items) addOnce(needs.tickIds, seen, item.id);
   else if (block.type === "reflection") for (const prompt of block.prompts) addOnce(needs.promptIds, seen, prompt.id);
+  else if (block.type === "writtenAnswer") addOnce(needs.answerIds, seen, block.id);
   else if (UNSEEN_TYPES.has(block.type)) addOnce(needs.unseenIds, seen, block.id);
 }
 
@@ -95,7 +102,7 @@ function blocksById(blocks: readonly WeekBlock[]): Map<string, WeekBlock> {
 /** What one This week task needs, from the week's blocks. */
 export function taskNeeds(blocks: readonly WeekBlock[], row: Extract<ThisWeekRow, { type: "task" }>): TaskNeeds {
   const byId = blocksById(blocks);
-  const needs: TaskNeeds = { tickIds: [], promptIds: [], unseenIds: [] };
+  const needs: TaskNeeds = { tickIds: [], promptIds: [], answerIds: [], unseenIds: [] };
   const seen = new Set<string>();
   for (const id of row.covers) {
     const block = byId.get(id);
@@ -108,13 +115,17 @@ export function taskNeeds(blocks: readonly WeekBlock[], row: Extract<ThisWeekRow
 
 /** Whether a task with these needs is counted at all: it has something somebody could finish. */
 export function isCounted(needs: TaskNeeds): boolean {
-  return needs.tickIds.length + needs.promptIds.length + needs.unseenIds.length > 0;
+  return needs.tickIds.length + needs.promptIds.length + needs.answerIds.length + needs.unseenIds.length > 0;
 }
 
 /** Is a task with these needs done, for this reader? */
 export function taskDone(needs: TaskNeeds, state: DoneState): boolean {
   if (!isCounted(needs) || needs.unseenIds.length > 0) return false;
-  return needs.tickIds.every((id) => state.isTicked(id)) && needs.promptIds.every((id) => state.isWritten(id));
+  return (
+    needs.tickIds.every((id) => state.isTicked(id)) &&
+    needs.promptIds.every((id) => state.isWritten(id)) &&
+    needs.answerIds.every((id) => state.isSent(id))
+  );
 }
 
 /** "N of M done" for a week's tasks: M counts only the tasks somebody could finish. */
@@ -125,15 +136,20 @@ export function tasksDone(all: readonly TaskNeeds[], state: DoneState): { done: 
 
 /**
  * A task as the overview payload hands it (`OverviewThisWeekRow`): its needs,
- * and the reflection boxes the reader had written in when the page loaded.
- * The pages that count a week without drawing it (the programme home, Home)
- * ask these two with the reader's own live ticks.
+ * the reflection boxes the reader had written in and the written answers
+ * they had sent when the page loaded. The pages that count a week without
+ * drawing it (the programme home, Home) ask these two with the reader's own
+ * live ticks.
  */
-export type HandedTask = { needs: TaskNeeds; written: readonly string[] };
+export type HandedTask = { needs: TaskNeeds; written: readonly string[]; sent: readonly string[] };
 
 /** Is a task, as the overview hands it, done for this reader? */
 export function handedTaskDone(task: HandedTask, isTicked: (itemId: string) => boolean): boolean {
-  return taskDone(task.needs, { isTicked, isWritten: (promptId) => task.written.includes(promptId) });
+  return taskDone(task.needs, {
+    isTicked,
+    isWritten: (promptId) => task.written.includes(promptId),
+    isSent: (answerId) => task.sent.includes(answerId),
+  });
 }
 
 /** "N of M done" for tasks as the overview hands them. */
@@ -147,7 +163,7 @@ export function handedTasksDone(
 
 /** A part's own needs: what its Done chip and its place in "On this page" ask. */
 export function partNeeds(part: PartBlock): TaskNeeds {
-  const needs: TaskNeeds = { tickIds: [], promptIds: [], unseenIds: [] };
+  const needs: TaskNeeds = { tickIds: [], promptIds: [], answerIds: [], unseenIds: [] };
   const seen = new Set<string>();
   for (const child of part.blocks) addBlockNeeds(child, needs, seen);
   return needs;

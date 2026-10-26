@@ -247,8 +247,23 @@ describe("1. a week written as blocks, drawn", () => {
     inOrder(textOf(html), ["On this page", "In the session", "Go further", "Where to go next", "Hands-on route"]);
     // The row that is only offered carries the drawn line, never a mark that says done or not done.
     assert.doesNotMatch(textOf(html), /Not done yet: Hands-on route/);
-    // A later page's: the packs, the table, the written answer, the fill-in
-    // boxes and the cases draw nothing yet.
+    // The written answer is drawn now (its own page, the written answers
+    // piece): its label, its question and what a strong answer does, in
+    // that order, inside its part. Its two lines used to stand in the list
+    // below as drawing nothing; they are held here as drawn, as strictly.
+    inOrder(text, [
+      "Part 4",
+      "Your forecast, the week’s written answer",
+      "Written answer",
+      "Will your pack’s question come true by next year?",
+      "Give a number.",
+      "Give three reasons, from your pack.",
+      "A strong answer names its base rate and says what would change it.",
+      "Keep it: you will check it in the last week.",
+      "Part 5",
+    ]);
+    // A later page's: the packs, the table, the fill-in boxes and the cases
+    // draw nothing yet.
     for (const later of [
       "Forecasting packs",
       "Elections",
@@ -258,7 +273,6 @@ describe("1. a week written as blocks, drawn", () => {
       "Prices as forecasts",
       "Where to start",
       "Make one forecast about your pack’s question",
-      "A strong answer names its base rate",
       "My plan",
       "What I’ll forecast next",
       "The decision it helps with",
@@ -268,7 +282,6 @@ describe("1. a week written as blocks, drawn", () => {
       "The crash nobody priced, 2008",
       "The close call, 2019",
       "If a case weighs on you, swap it.",
-      "Will your pack’s question come true by next year?",
       "Base rate:",
       "Forecasting at work",
       "A podcast on swing",
@@ -645,7 +658,9 @@ describe("4. counts by This week's tasks", () => {
     const [task, none] = week1.thisWeek.rows;
     assert.equal(task.type, "task");
     assert.equal(task.label, "Parts 1 to 3");
-    assert.deepEqual(task.needs, { tickIds: sources("k1"), promptIds: boxes("k1"), unseenIds: [] });
+    // `answerIds` joined the needs with the written answer (its own page):
+    // week 1 has none, so it is empty, held as strictly as the rest.
+    assert.deepEqual(task.needs, { tickIds: sources("k1"), promptIds: boxes("k1"), answerIds: [], unseenIds: [] });
     assert.deepEqual(task.written, ["k1-rp1"]);
     assert.deepEqual(task.due, { dateKey: "2026-11-03", moved: false });
     assert.equal(none.type, "none");

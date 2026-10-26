@@ -77,7 +77,18 @@ import Prose, { Runs } from "./Prose";
 import ReflectStop from "./ReflectStop";
 import SourceCard, { SourceTitle } from "./SourceCard";
 import { WeekGuideLinks } from "../guide/GuideLinks";
+import WrittenAnswerCard from "./WrittenAnswerCard";
+import {
+  DRAFT,
+  DUE_TODAY,
+  DUE_TONIGHT,
+  SENT,
+  draftStateWords,
+  feedbackFromWords,
+  sentOnWords,
+} from "@/lib/courses/writtenAnswerWords";
 import styles from "./blockWeek.module.css";
+import answerStyles from "./writtenAnswer.module.css";
 
 /**
  * A WEEK WRITTEN AS BLOCKS, AS THE PERSON TAKING PART READS IT (boards
@@ -97,8 +108,14 @@ import styles from "./blockWeek.module.css";
  * either side. Tables and code in a week's text are drawn inside the
  * column, each scrolling sideways on its own when it is wider than the page.
  *
+ * THE WRITTEN ANSWER (`WrittenAnswerCard`): the question, the box, the count
+ * against its range, Send, the day it is due and who reads it. Its part
+ * carries "Draft" or "Sent" where another part carries Done, and This week's
+ * task for it says where it stands ("Draft · 241 words", "Sent Mon 16 Nov",
+ * "Feedback from Rahul"). Never "Late": that is staff's alone.
+ *
  * DRAWN BY A LATER PAGE, AND NOTHING HERE YET: a Choose one's packs, a
- * table, the written answer, the cases and fill-in boxes. A task that covers
+ * table, the cases and fill-in boxes. A task that covers
  * one of them is counted and is never done until that page can see it done
  * (`progress.ts`). Under the title, "Start here · Glossary": each linked
  * when the run has its document (`guide`).
@@ -193,6 +210,8 @@ export default function BlockWeek({
   const state: DoneState = {
     isTicked: ticks.isDone,
     isWritten: (promptId) => Boolean(ownRows.byId.get(promptId)?.text?.trim()),
+    // Sent once its first-sent time is stored: editing it after, or a reviewer opening it, changes nothing.
+    isSent: (answerId) => Boolean(ownRows.byId.get(answerId)?.written?.firstSentAt),
   };
 
   // The week's seven days and its session, in the reader's own calendar.
@@ -216,6 +235,51 @@ export default function BlockWeek({
   // This week, and its count.
   const thisWeekBlock = blocks.find((block): block is ThisWeekBlock => block.type === "thisWeek") ?? null;
   const overviewWeek = payload.weeks.find((entry) => entry.weekNumber === weekNumber) ?? null;
+  // Who reads the written answer and gives feedback on it (Q30 C): the
+  // group's facilitators, or the lead and admins for a facilitator's own.
+  const answerReaders: AnswerReaders =
+    overviewWeek?.thisWeek?.answersReadBy === "lead"
+      ? { kind: "lead", leadName: leadFirstName }
+      : { kind: "facilitators", names: facilitatorNames };
+  const answerDue = new Map((overviewWeek?.thisWeek?.answers ?? []).map((answer) => [answer.id, answer.due]));
+  /**
+   * This week's line for a task that covers a written answer: "Draft · 241
+   * words" with "Due tonight" on its last day, "Sent Mon 16 Nov", then
+   * "Feedback from Rahul". Nothing before anything is written.
+   */
+  const answerTaskLine = (answerIds: readonly string[], dueKey: string | null): ReactNode => {
+    if (!participant || answerIds.length === 0) return null;
+    const own = ownRows.byId.get(answerIds[0])?.written ?? null;
+    if (!own) return null;
+    if (own.feedback) {
+      return (
+        <p className={styles.taskWhen}>
+          <Link href={`${runHomeHref}/weeks/${weekNumber}/feedback`} className={styles.inlineLink}>
+            {feedbackFromWords(own.feedback.byName)}
+          </Link>
+        </p>
+      );
+    }
+    if (own.firstSentAt) return <p className={styles.taskWhen}>{sentOnWords(new Date(own.firstSentAt))}</p>;
+    if (own.words === 0) return null;
+    const dueToday = dueKey !== null && dueKey === todayKey;
+    return (
+      <p className={answerStyles.taskState}>
+        <span>{draftStateWords(own.words)}</span>
+        {dueToday && (
+          <span className={answerStyles.dueChip}>{overviewWeek?.thisWeek?.dayBeforeTime ? DUE_TODAY : DUE_TONIGHT}</span>
+        )}
+      </p>
+    );
+  };
+  /** Where the reader's own written answer in a part stands, for its chip: "Draft", "Sent", or nothing yet. */
+  const answerChipOf = (part: PartBlock): string | null => {
+    const answer = part.blocks.find((child) => child.type === "writtenAnswer");
+    if (!answer || !participant) return null;
+    const own = ownRows.byId.get(answer.id)?.written ?? null;
+    if (own?.firstSentAt) return SENT;
+    return own && own.words > 0 ? DRAFT : null;
+  };
   const taskNeedsList = (thisWeekBlock?.rows ?? [])
     .filter((row): row is Extract<ThisWeekRow, { type: "task" }> => row.type === "task")
     .map((row) => taskNeeds(blocks, row));
@@ -271,6 +335,7 @@ export default function BlockWeek({
           <ThisWeekBox
             key={block.id}
             block={block}
+            answerLine={(answerIds, dueKey) => answerTaskLine(answerIds, dueKey)}
             rows={overviewWeek?.thisWeek?.rows ?? []}
             dayBeforeTime={overviewWeek?.thisWeek?.dayBeforeTime ?? null}
             blocks={blocks}
@@ -314,10 +379,11 @@ export default function BlockWeek({
       case "part": {
         const needs = partNeeds(block);
         const done = participant && isCounted(needs) && taskDone(needs, state);
+        const chip = answerChipOf(block);
         rail.push({
           id: anchor(block.id),
           label: block.title,
-          count: null,
+          count: chip,
           mark: participant && isCounted(needs) ? (done ? "done" : "open") : null,
           indent: true,
         });
@@ -327,6 +393,7 @@ export default function BlockWeek({
             part={block}
             number={partNumber.get(block.id) ?? 1}
             done={done}
+            chip={chip}
             renderChild={(child, rest) =>
               renderPartChild(child, rest, {
                 runId,
@@ -351,6 +418,15 @@ export default function BlockWeek({
                   : ticksSeenByWords(facilitatorNames, leadFirstName),
                 privateNoteHint: asFacilitator ? PRIVATE_NOTE_HINT_FACILITATOR : PRIVATE_NOTE_HINT,
                 canRate: !beforeGroups,
+                answer: {
+                  readers: answerReaders,
+                  leadName: leadFirstName,
+                  feedbackOn: overviewWeek?.thisWeek?.feedbackOn ?? [],
+                  dueOf: (id) => answerDue.get(id) ?? null,
+                  dayBeforeTime: overviewWeek?.thisWeek?.dayBeforeTime ?? null,
+                  first,
+                  todayKey,
+                },
               })
             }
           />,
@@ -517,6 +593,7 @@ function NoneMark() {
 
 function ThisWeekBox({
   block,
+  answerLine,
   rows,
   dayBeforeTime,
   blocks,
@@ -527,6 +604,8 @@ function ThisWeekBox({
   todayKey,
 }: {
   block: ThisWeekBlock;
+  /** A task's line about the reader's own written answer, when it covers one. */
+  answerLine: (answerIds: readonly string[], dueKey: string | null) => ReactNode;
   /** The overview's rows for this week, for when each task is due. */
   rows: OverviewThisWeekRow[];
   /** The course's time for work due the day before a session, or null for by the end of that day. */
@@ -590,7 +669,9 @@ function ThisWeekBox({
                     {taskWhenWords(row.when, due, { first, todayKey, dayBeforeTime, whenText: row.whenText })}
                   </span>
                 </p>
-                {done && <p className={styles.taskDone}>{TASK_DONE}</p>}
+                {needs.answerIds.length > 0
+                  ? answerLine(needs.answerIds, due?.dateKey ?? null)
+                  : done && <p className={styles.taskDone}>{TASK_DONE}</p>}
               </div>
             </li>
           );
@@ -689,11 +770,14 @@ function PartView({
   part,
   number,
   done,
+  chip = null,
   renderChild,
 }: {
   part: PartBlock;
   number: number;
   done: boolean;
+  /** A written answer's part: "Draft" or "Sent" in place of Done. */
+  chip?: string | null;
   renderChild: (child: PartChild, rest: PartChild[]) => { node: ReactNode; used: number };
 }) {
   const id = anchor(part.id);
@@ -717,7 +801,9 @@ function PartView({
             </>
           )}
         </p>
-        {done && (
+        {chip ? (
+          <span className={answerStyles.stateChip}>{chip}</span>
+        ) : done && (
           <span className={styles.doneChip}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M5 12.5l4.5 4.5L19 7.5" />
@@ -752,7 +838,19 @@ type ChildContext = {
   privateNoteHint: string;
   /** A ticked reading opens "Rate it or leave a note": not before groups go out, when nobody it names reads it yet. */
   canRate: boolean;
+  /** What the written answer's card needs beside its block. */
+  answer: {
+    readers: AnswerReaders;
+    leadName: string | null;
+    feedbackOn: string[];
+    dueOf: (answerId: string) => { dateKey: string } | null;
+    dayBeforeTime: string | null;
+    first: boolean;
+    todayKey: string;
+  };
 };
+
+type AnswerReaders = { kind: "facilitators"; names: string[] } | { kind: "lead"; leadName: string | null };
 
 /**
  * One block of a part, drawn; sources that follow one another share one card,
@@ -817,8 +915,34 @@ function renderPartChild(child: PartChild, rest: PartChild[], ctx: ChildContext)
       };
     case "checklist":
       return { used: 1, node: <Checklist block={child} ctx={ctx} /> };
-    // Drawn by a later page: a Choose one's packs, a table, the written
-    // answer, a talk or the cases, fill-in boxes.
+    case "writtenAnswer":
+      return {
+        used: 1,
+        node: (
+          <WrittenAnswerCard
+            block={child}
+            runId={ctx.runId}
+            weekId={ctx.weekId}
+            weekNumber={ctx.weekNumber}
+            row={ctx.ownRows.byId.get(child.id) ?? null}
+            loaded={ctx.ownRows.loaded}
+            loading={ctx.ownRows.loading}
+            onRetry={ctx.ownRows.reload}
+            ownBox={ctx.learner}
+            canWrite={ctx.canWrite}
+            readers={ctx.answer.readers}
+            leadName={ctx.answer.leadName}
+            feedbackOn={ctx.answer.feedbackOn}
+            due={ctx.answer.dueOf(child.id)}
+            dayBeforeTime={ctx.answer.dayBeforeTime}
+            first={ctx.answer.first}
+            todayKey={ctx.answer.todayKey}
+            onSaved={ctx.ownRows.apply}
+          />
+        ),
+      };
+    // Drawn by a later page: a Choose one's packs, a table, a talk or the
+    // cases, fill-in boxes.
     default:
       return { used: 1, node: null };
   }

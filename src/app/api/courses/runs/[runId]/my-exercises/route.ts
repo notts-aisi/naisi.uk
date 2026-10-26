@@ -9,6 +9,9 @@ import {
 } from "@/lib/firestore/courseEnrolments";
 import { normalizeExerciseResponse } from "@/lib/firestore/courseExercises";
 import { weekOneDoorFor } from "@/lib/courses/weekOne/door";
+import { firstNameOfUser } from "@/lib/courses/programmeLead";
+import { isWordCountedAnswer, readWrittenAnswer } from "@/lib/courses/writtenAnswers/model";
+import { namedIn, writtenAnswerWire } from "@/lib/courses/writtenAnswers/wire";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 
 /**
@@ -197,18 +200,34 @@ export async function GET(
     .get();
 
   const rows = snap.docs.map((d) => normalizeExerciseResponse(d.id, d.data() ?? {}));
+  // A block week's written answer (counted in words) travels with its own
+  // fields: boxes, its count, when it was first sent, who opened it, the
+  // feedback. Never whether it was late.
+  const writtenById = new Map(
+    snap.docs.flatMap((d) => {
+      const data = (d.data() ?? {}) as Record<string, unknown>;
+      return isWordCountedAnswer(data) ? [[d.id, readWrittenAnswer(data)] as const] : [];
+    }),
+  );
 
   // One `getAll` for the reviewer names — usually zero or one distinct
-  // facilitator across a week's rows. Names only.
+  // facilitator across a week's rows — and whoever opened, reopened or sent
+  // feedback on a written answer. Names only.
   const reviewerUids = [
-    ...new Set(rows.map((r) => r.reviewerUid).filter((u): u is string => Boolean(u))),
+    ...new Set([
+      ...rows.map((r) => r.reviewerUid).filter((u): u is string => Boolean(u)),
+      ...[...writtenById.values()].flatMap(namedIn),
+    ]),
   ];
   const userDocs = reviewerUids.length
     ? await db.getAll(...reviewerUids.map((uid) => db.collection("users").doc(uid)))
     : [];
   const nameByUid = new Map<string, string>();
+  const firstNameByUid = new Map<string, string>();
   for (const doc of userDocs) {
-    if (doc.exists) nameByUid.set(doc.id, displayNameOf(doc.data() ?? {}));
+    if (!doc.exists) continue;
+    nameByUid.set(doc.id, displayNameOf(doc.data() ?? {}));
+    firstNameByUid.set(doc.id, firstNameOfUser(doc.data() ?? {}) || displayNameOf(doc.data() ?? {}));
   }
 
   const responses: ExerciseResponseWire[] = rows
@@ -231,6 +250,9 @@ export async function GET(
         : null,
       reviewerComment: doc.reviewerComment ?? null,
       reviewedAt: iso(doc.reviewedAt),
+      ...(writtenById.has(doc.id)
+        ? { written: writtenAnswerWire(writtenById.get(doc.id)!, firstNameByUid) }
+        : {}),
     }))
     .sort((a, b) => a.exerciseId.localeCompare(b.exerciseId));
 
