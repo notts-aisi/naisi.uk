@@ -1627,8 +1627,8 @@ const LEFT_ATTENTION = [
   ["left", "Joel Adeyemi left on Wed 4 Nov", "Joel’s off Group A’s register from week 2."],
 ];
 /**
- * The page Sam reads once he has left, at the run's address and at its notes
- * and reading list addresses alike: that he left and when, and nothing else.
+ * The page Sam reads once Sam has left, at the run's address and at its notes
+ * and reading list addresses alike: that Sam left and when, and nothing else.
  */
 const SAM_LEFT_PAGE =
   "My programmes AGI Strategy You left AGI Strategy That was on Fri 13 Nov. Thanks for coming along. " +
@@ -1719,8 +1719,8 @@ describe("stage three of the course hub, one term from week 3 to after its end",
         l().confirmation,
         "AGI Strategy Leave the programme Leave AGI Strategy? You’ll leave Group B straight away and give your place back. " +
           // CHANGED ON PURPOSE (somebody who leaves keeps nothing, and the
-          // group keeps their notes): this line said he keeps his notes and the
-          // reading list, which the page that says he left no longer shows.
+          // group keeps their notes): this line said Sam keeps the notes and the
+          // reading list, which the page that says Sam left no longer shows.
           "Your marks so far stay on your group’s register, and the notes you shared stay with the group. After you leave, " +
           "your programme’s page shows only that you left. The weekly emails stop. You can’t undo this " +
           "yourself. If you change your mind, email ai-safety@uonsu.com and we’ll see what we can do. Why are you leaving? " +
@@ -1799,11 +1799,11 @@ describe("stage three of the course hub, one term from week 3 to after its end",
     });
 
     // CHANGED ON PURPOSE (somebody who leaves keeps nothing): the page that
-    // says he left listed what stayed his (his notes and reflections, the
-    // reading list for weeks 1 to 4, his marks) and the site's events, and
-    // the notes and reading list pages showed them to him. Now all three
-    // addresses show him one page, which says he left and when, word for word.
-    test("he reads the page that says he left, at each of its three addresses, and nothing else of the run", () => {
+    // says Sam left listed what stayed Sam's (notes and reflections, the
+    // reading list for weeks 1 to 4, the marks) and the site's events, and
+    // the notes and reading list pages showed them to Sam. Now all three
+    // addresses show Sam one page, which says Sam left and when, word for word.
+    test("Sam reads the page that says Sam left, at each of its three addresses, and nothing else of the run", () => {
       const pages = l().pages;
       assert.equal(pages.runPage, SAM_LEFT_PAGE);
       assert.equal(pages.notes, SAM_LEFT_PAGE);
@@ -2116,9 +2116,9 @@ describe("stage three of the course hub, one term from week 3 to after its end",
     }
 
     // CHANGED ON PURPOSE, as in section 1: after the end the page listed the
-    // reading list for all 6 weeks and his marks, and the reading list's page
+    // reading list for all 6 weeks and Sam's marks, and the reading list's page
     // showed every week. Every week published and the run over change nothing
-    // on the page he is shown, at either address.
+    // on the page Sam is shown, at either address.
     test("Sam, who left, reads the same page after the end, and every week published changes nothing on it", () => {
       assert.equal(seen.samAfter.runPage, SAM_LEFT_PAGE);
       assert.equal(seen.samAfter.reading, SAM_LEFT_PAGE);

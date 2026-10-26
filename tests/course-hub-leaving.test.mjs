@@ -606,7 +606,7 @@ describe("4. what somebody who left reads", () => {
     "You left AGI Strategy That was on Tue 17 Nov. Thanks for coming along. " +
     "Changed your mind? Email ai-safety@uonsu.com and we’ll see what we can do.";
 
-  /** Everything of hers, her group's or the site's that the page showed her before, and may not now. */
+  /** Everything of Amara's, of Group A's or of the site's that the page showed before, and may not now. */
   const NOT_SHOWN = [
     "What stays here",
     "Your notes and reflections",
@@ -631,23 +631,23 @@ describe("4. what somebody who left reads", () => {
   /** Where the page's links go, in order. */
   const linksOf = (drawn) => [...drawn.html.matchAll(/<a href="([^"]+)"/g)].map((match) => match[1]);
 
-  test("her programme page says she left and when, and nothing else", async () => {
+  test("Amara's programme page says Amara left and when, and nothing else", async () => {
     await leave("amara");
     const drawn = await home("amara");
     assert.equal(drawn.to, null);
     assert.equal(drawn.text, LEFT_PAGE);
-    showsNothingElse(drawn, "her programme page");
+    showsNothingElse(drawn, "Amara's programme page");
     assert.equal(ui.runHome, null, "the cohort's page is not drawn for her");
     assert.match(drawn.html, /<a href="\/learn" class="back">/);
     assert.match(drawn.html, /<a href="mailto:ai-safety@uonsu.com" class="mail">ai-safety@uonsu.com<\/a>/);
-    // Back to My programmes and the society's address: no way to her notes,
+    // Back to My programmes and the society's address: no way to Amara's notes,
     // the reading list or an event.
     assert.deepEqual(linksOf(drawn), ["/learn", "mailto:ai-safety@uonsu.com"]);
     assert.equal(drawn.wrote, false);
   });
 
-  test("it is the same page whatever her records hold: another day, every week published, a register changed, no events", async () => {
-    // She left on Fri 6 Nov: the day is the one thing on the page that moves.
+  test("it is the same page whatever Amara's records hold: another day, every week published, a register changed, no events", async () => {
+    // Amara left on Fri 6 Nov: the day is the one thing on the page that moves.
     mock.timers.setTime(new Date("2026-11-06T10:00:00Z").getTime());
     await leave("amara");
     mock.timers.setTime(NOW.getTime());
@@ -658,18 +658,18 @@ describe("4. what somebody who left reads", () => {
     for (const id of ["pizza", "movie"]) world.db.poke(`events/${id}`, { status: "draft" });
     const drawn = await home("amara");
     assert.equal(drawn.text, leftOnFriday);
-    showsNothingElse(drawn, "her programme page");
+    showsNothingElse(drawn, "Amara's programme page");
   });
 
-  test("her notes' address shows the page that says she left, and none of what she wrote, which stays in the records", async () => {
+  test("the notes' address shows the page that says Amara left, and none of what Amara wrote, which stays in the records", async () => {
     await leave("amara");
     const drawn = await draw(pages.notes, "amara", { runId: RUN.agi });
-    assert.equal(drawn.to, null, "she is sent somewhere else instead of being told she left");
+    assert.equal(drawn.to, null, "Amara is sent somewhere else instead of being told of leaving");
     assert.equal(drawn.text, LEFT_PAGE);
-    showsNothingElse(drawn, "her notes' address");
+    showsNothingElse(drawn, "the notes' address");
     assert.deepEqual(linksOf(drawn), ["/learn", "mailto:ai-safety@uonsu.com"]);
     assert.equal(drawn.wrote, false);
-    // What she wrote is where it was, for the programme's lead and admins.
+    // What Amara wrote is where it was, for the programme's lead and admins.
     const note = read(`courseProgress/${RUN.agi}__amara__m_w1_reading`);
     assert.deepEqual([note.rating, note.publicComment, note.privateNote], [4, "Clearer than I expected.", "Reread section 3 before the session."]);
   });
@@ -677,7 +677,7 @@ describe("4. what somebody who left reads", () => {
   test("the reading list's address shows the same page, and no reading", async () => {
     await leave("amara");
     const drawn = await draw(pages.reading, "amara", { runId: RUN.agi });
-    assert.equal(drawn.to, null, "she is sent somewhere else instead of being told she left");
+    assert.equal(drawn.to, null, "Amara is sent somewhere else instead of being told of leaving");
     assert.equal(drawn.text, LEFT_PAGE);
     showsNothingElse(drawn, "the reading list's address");
     assert.deepEqual(linksOf(drawn), ["/learn", "mailto:ai-safety@uonsu.com"]);
@@ -696,11 +696,11 @@ describe("4. what somebody who left reads", () => {
       asked[name] = (await call("amara", handler, params, { course: true })).status;
     }
     assert.deepEqual(asked, { roster: 403, updates: 403, "sessions and the week": 403, register: 403 });
-    // And no page of the run's but the one that says she left.
+    // And no page of the run's but the one that says Amara left.
     assert.equal((await draw(pages.progress, "amara", { runId: RUN.agi })).to, "/learn");
   });
 
-  test("the run's gate lets her through to the page that says she left, and nobody without a seat", async () => {
+  test("the run's gate lets Amara through to the page that says Amara left, and nobody without a seat", async () => {
     await leave("amara");
     const through = {};
     for (const who of ["amara", "omar", "una", null]) {
@@ -725,7 +725,7 @@ describe("4. what somebody who left reads", () => {
 
   // MOVED, not dropped: these two pages are still what somebody taking part
   // reads, so what the leaver's pins held of them is held for Dev, in Group A
-  // beside her: his notes and nobody else's, word for word, and every
+  // beside Amara: Dev's notes and nobody else's, word for word, and every
   // published week's readings as the group reads them, its own copy of a week
   // over the run's, and no week that is not published.
   test("somebody taking part reads their own notes, and the reading list as their group reads it", async () => {
@@ -751,7 +751,7 @@ describe("4. what somebody who left reads", () => {
     assert.match(reading.html, /<a href="https:\/\/example.com\/readings\/week-1" class="readingLink" target="_blank" rel="noopener noreferrer">Racing to the precipice<\/a>/);
     assert.ok(!reading.text.includes("Week 4"), "a week not published is not listed");
     assert.equal(reading.wrote, false);
-    // His group's own copy of a week is the one he reads.
+    // The group's own copy of a week is the one Dev reads.
     world.db.seed(`courseGroups/${A}/weeks/w02`, {
       ...read(`courseRuns/${RUN.agi}/weeks/w02`),
       title: "Group A's week 2",
@@ -773,26 +773,26 @@ describe("4. what somebody who left reads", () => {
       };
     };
     // A card is drawn exactly where the run's own page says somebody left.
-    // Sam's row is the older kind, whose stamp his leaving cleared: the run's
-    // page does not open to him, and My programmes draws him no card either.
+    // Sam's row is the older kind, whose stamp leaving cleared: the run's
+    // page does not open to Sam, and My programmes draws Sam no card either.
     assert.equal((await home("sam")).to, "/learn");
     assert.deepEqual((await cardsOf("sam")).cards, []);
-    // Before Amara leaves she has none; after, hers says only that she left.
+    // Before Amara leaves there is none; after, the card says only that Amara left.
     assert.deepEqual((await cardsOf("amara")).cards, []);
     await leave("amara");
     const amara = await cardsOf("amara");
     assert.deepEqual(amara.cards, [[HOME, "You left AGI Strategy"]]);
-    // The list of runs leaves the run out, and she is not told she is on no
-    // course: she was, and the card says what became of it.
+    // The list of runs leaves the run out, and Amara is not told of being on no
+    // course: Amara was on one, and the card says what became of it.
     assert.ok(amara.text.endsWith("You left AGI Strategy"), amara.text);
     assert.ok(!amara.text.includes("not on a course yet"), amara.text);
     for (const words of ["Group A", "Present", "Clearer than I expected.", AMARA_SAID]) {
-      assert.ok(!amara.text.includes(words), `My programmes shows her “${words}”`);
+      assert.ok(!amara.text.includes(words), `My programmes shows Amara “${words}”`);
     }
-    // An account that no longer stands is shown neither: her seat is still
-    // shown to her by Publish's stamp, so only the gate's own question can
+    // An account that no longer stands is shown neither: Amara's seat is still
+    // shown by Publish's stamp, so only the gate's own question can
     // tell, and the run's page and the list answer it the same way.
-    world.db.poke("users/amara", { role: "rejected" });
+    world.db.poke("users/amara", { role: "pending" });
     assert.equal((await home("amara")).to, "/learn");
     assert.deepEqual((await cardsOf("amara")).cards, [], "an account that no longer stands is drawn a card");
     world.db.poke("users/amara", { role: "member" });
@@ -811,7 +811,7 @@ describe("4. what somebody who left reads", () => {
     assert.deepEqual((await cardsOf(null)).cards, []);
   });
 
-  test("the group keeps the notes she shared: its people, its facilitator, the lead and an admin read them, and she does not", async () => {
+  test("the group keeps the notes Amara shared: its people, its facilitator, the lead and an admin read them, and Amara does not", async () => {
     const SHARED = "Section 3 answers the question the first two raise.";
     world.db.seed("courseGroupSharedNotes/note-amara", {
       runId: RUN.agi,
@@ -826,21 +826,21 @@ describe("4. what somebody who left reads", () => {
     const groups = [A, B, C, D].map((id) => groupDocs.normalizeCourseGroup(id, read(`courseGroups/${id}`)));
     const groupA = (sections) =>
       (sections ?? []).filter((section) => section.groupId === A).flatMap((section) => section.notes.map((note) => [note.writerName, note.body]));
-    const hers = [["Amara Okafor", SHARED]];
-    // A week's page, as its readers read it: somebody still in her group, and
+    const amaras = [["Amara Okafor", SHARED]];
+    // A week's page, as its readers read it: somebody still in Group A, and
     // the group's facilitator.
     for (const who of ["dev", "sofia"]) {
       const page = await sharedNotes.sharedNotesForWeekPage(world.courseDb, w.sessionOf(who), run, groups, "Claudia");
-      assert.deepEqual(groupA(page?.sections), hers, `${who} no longer reads what she shared`);
+      assert.deepEqual(groupA(page?.sections), amaras, `${who} no longer reads what Amara shared`);
     }
     // The programme's Attendance tab: its lead and an admin.
     for (const who of ["claudia", "zach"]) {
       const sections = await sharedNotes.sharedNotesForAttendance(world.courseDb, w.sessionOf(who), run, groups, "Claudia");
-      assert.deepEqual(groupA(sections), hers, `${who} no longer reads what she shared`);
+      assert.deepEqual(groupA(sections), amaras, `${who} no longer reads what Amara shared`);
     }
-    // She reads none of her group's notes now, her own among them.
-    const hersNow = await sharedNotes.sharedNotesForWeekPage(world.courseDb, w.sessionOf("amara"), run, groups, "Claudia");
-    assert.deepEqual(groupA(hersNow?.sections), [], "somebody who left still reads her group's notes");
+    // Amara reads none of the group's notes now, Amara's own among them.
+    const nowLeft = await sharedNotes.sharedNotesForWeekPage(world.courseDb, w.sessionOf("amara"), run, groups, "Claudia");
+    assert.deepEqual(groupA(nowLeft?.sections), [], "somebody who left still reads the group's notes");
     // And leaving deleted nothing of it.
     assert.deepEqual(read("courseGroupSharedNotes/note-amara"), {
       runId: RUN.agi,
