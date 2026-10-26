@@ -128,6 +128,20 @@ export function guideSlots(weeks: number): GuideSlot[] {
   return out;
 }
 
+/**
+ * HOW MANY WEEKS A COURSE'S GUIDE HAS: the longest week plan of the course's
+ * runs (`runWeeks`, each run's count of weeks), and never fewer than a week
+ * already loaded (`loadedWeeks`), capped at the last week a guide can have.
+ * The one count: the admin's place picker offers this many weeks, and the
+ * printables are split into this many sessions (`printables.ts`), so a
+ * shorter course or an incubator gets its own number and nothing about a
+ * term is written here.
+ */
+export function guideWeekCount(runWeeks: readonly number[], loadedWeeks: readonly number[]): number {
+  const longest = Math.max(0, ...runWeeks.filter(Number.isFinite), ...loadedWeeks.filter(Number.isFinite));
+  return Math.min(Math.floor(longest), MAX_GUIDE_WEEK);
+}
+
 // ---------------------------------------------------------------------------
 // The pages people open
 // ---------------------------------------------------------------------------

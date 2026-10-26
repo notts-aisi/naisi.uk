@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import GuideDocumentView from "@/features/courses/facilitatorGuide/GuideDocumentView";
 import { GuideHead, GuideRefused } from "@/features/courses/facilitatorGuide/GuideFrame";
+import { PrintablesCard, PrintablesLink } from "@/features/courses/facilitatorGuide/PrintablesDownloads";
 import styles from "@/features/courses/facilitatorGuide/guide.module.css";
 import { facilitatorGuideReader } from "@/lib/courses/facilitatorGuide/access";
 import {
@@ -11,7 +12,9 @@ import {
   parseGuidePage,
   slotKey,
 } from "@/lib/courses/facilitatorGuide/model";
-import { readGuidePage } from "@/lib/courses/facilitatorGuide/store";
+import { printablesBySession, sectionsOfSession } from "@/lib/courses/facilitatorGuide/printables";
+import { readSessionCount } from "@/lib/courses/facilitatorGuide/sessionCount";
+import { readGuideIndex, readGuidePage } from "@/lib/courses/facilitatorGuide/store";
 import {
   BACK_TO_GUIDE,
   BACK_TO_THE_GUIDE,
@@ -33,6 +36,13 @@ import { getCurrentUser } from "@/lib/firebase/session";
  * these plans, the Handbook, Case studies and feedback, Printables, its
  * templates drawn exactly as written, and Sessions and Week notes, the two
  * about every week at once).
+ *
+ * THE PRINTABLES AS PDFs: the Printables page carries a download for each
+ * session that has something to print and one for the whole document (as
+ * many sessions as the guide has weeks, `readSessionCount`); a week's page
+ * carries its session's download beside its plan, when the printables have
+ * something for that session. Both lead to the PDF route, behind this same
+ * gate.
  *
  * WHO: the guide's gate (`src/lib/courses/facilitatorGuide/access.ts`), asked
  * before the address is even read: everybody it does not admit is given the
@@ -78,9 +88,20 @@ export default async function FacilitatorGuidePage({ params }: { params: Promise
   if (page.kind === "course") {
     const label = COURSE_DOCUMENT_LABEL[page.key];
     const doc = documents[0]?.doc ?? null;
+    let downloads: { session: number; sections: number }[] | null = null;
+    if (doc && page.key === "printables") {
+      const index = await readGuideIndex(db, reader);
+      const sessions = await readSessionCount(
+        db,
+        reader,
+        index.weeks.map((week) => week.weekNumber),
+      );
+      downloads = printablesBySession(doc, sessions);
+    }
     return (
       <div className={styles.page}>
         <GuideHead back={back} eyebrow={reader.courseTitle} heading={doc?.title || label} barTitle={label} />
+        {downloads && <PrintablesCard courseId={courseId} sessions={downloads} />}
         {doc ? (
           <article className={styles.alone} aria-label={label}>
             <GuideDocumentView doc={doc} level={2} />
@@ -96,6 +117,15 @@ export default async function FacilitatorGuidePage({ params }: { params: Promise
   }
 
   const heading = guideForWeekWords(page.weekNumber);
+  // This session's printables, beside the first document the page shows (its
+  // plan, or its notes when only those are loaded), when there is anything
+  // to print for it. A week with something loaded is a week the guide has,
+  // so the route takes its number.
+  let printFor: number | null = null;
+  if (documents.length > 0) {
+    const [printables] = await readGuidePage(db, reader, { kind: "course", key: "printables" });
+    if (printables && sectionsOfSession(printables.doc, page.weekNumber).length > 0) printFor = page.weekNumber;
+  }
   return (
     <div className={styles.page}>
       <GuideHead back={back} eyebrow={reader.courseTitle} heading={heading} barTitle={weekWords(page.weekNumber)} />
@@ -115,12 +145,13 @@ export default async function FacilitatorGuidePage({ params }: { params: Promise
               ))}
             </nav>
           )}
-          {documents.map(({ slot, doc }) => (
+          {documents.map(({ slot, doc }, index) => (
             <section key={slotKey(slot)} id={slotKey(slot)} className={styles.part} aria-labelledby={`${slotKey(slot)}-title`}>
               <p className={styles.partEyebrow}>{slot.kind === "week" ? WEEK_PART_LABEL[slot.part] : ""}</p>
               <h2 id={`${slotKey(slot)}-title`} className={styles.partTitle}>
                 {doc.title}
               </h2>
+              {index === 0 && printFor !== null && <PrintablesLink courseId={courseId} session={printFor} />}
               <GuideDocumentView doc={doc} level={3} />
             </section>
           ))}

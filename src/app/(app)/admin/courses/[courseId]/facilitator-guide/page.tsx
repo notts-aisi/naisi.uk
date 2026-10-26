@@ -2,7 +2,7 @@ import Link from "next/link";
 import FacilitatorGuideLoader, { type LoaderSlot } from "@/features/courses/facilitatorGuide/FacilitatorGuideLoader";
 import styles from "@/features/courses/facilitatorGuide/FacilitatorGuideLoader.module.css";
 import { facilitatorGuideReader } from "@/lib/courses/facilitatorGuide/access";
-import { guideSlots, slotKey, slotLabel } from "@/lib/courses/facilitatorGuide/model";
+import { guideSlots, guideWeekCount, slotKey, slotLabel } from "@/lib/courses/facilitatorGuide/model";
 import { readGuideIndex } from "@/lib/courses/facilitatorGuide/store";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdminPage } from "@/lib/firebase/pageGates";
@@ -58,7 +58,7 @@ export default async function FacilitatorGuideAdminPage({ params }: { params: Pr
   const runWeeks = runs.docs.map(
     (doc) => normalizeCourseRun(doc.id, doc.data() ?? {}).weekPlan.filter((entry) => entry.kind === "week").length,
   );
-  const weeks = Math.max(0, ...runWeeks, ...index.weeks.map((week) => week.weekNumber));
+  const weeks = guideWeekCount(runWeeks, index.weeks.map((week) => week.weekNumber));
   const loaded = new Map<string, string>();
   for (const doc of index.documents) loaded.set(doc.key, doc.title);
   for (const week of index.weeks) {

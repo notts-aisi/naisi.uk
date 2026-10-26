@@ -15,6 +15,7 @@ import {
   type GuideDocument,
   type GuideSlot,
 } from "./model";
+import { headingsNamingNoSession, noSessionCheck, undrawableCheck } from "./printables";
 import { facilitatorOnlyHeading, readDocumentTitle } from "./recognise";
 
 /**
@@ -298,6 +299,16 @@ export function readGuideMarkdown(markdown: string, slot: GuideSlot): ReadGuide 
   const marker = slot.kind === "course" ? facilitatorOnlyHeading(blocks.filter((b) => b.type === "heading").map((b) => runsText(b.runs))) : null;
   if (marker && slot.kind === "course" && slot.key !== "printables") {
     checks.push(`“${marker}” is a heading a session plan or a week’s notes has: check this is ${COURSE_DOCUMENT_LABEL[slot.key]}.`);
+  }
+  // The printables are split into one PDF a session by their "##" headings
+  // (`printables.ts`): a heading that names no session prints only in the
+  // whole document's PDF, and a character the PDF's fonts cannot draw prints
+  // as an empty box. Both are worth knowing before it is saved.
+  if (slot.kind === "course" && slot.key === "printables") {
+    const unnamed = noSessionCheck(headingsNamingNoSession(blocks));
+    if (unnamed) checks.push(unnamed);
+    const boxes = undrawableCheck({ title, blocks });
+    if (boxes) checks.push(boxes);
   }
   // Nothing under the title is said only when nothing was there to read:
   // a part that could not be read has said why already.

@@ -191,6 +191,42 @@ function drawGround(doc: Doc) {
     .stroke(INK.frame);
 }
 
+/** A PDF as PDFKit makes it, for a drawing opened by `openHousePdf`. */
+export type HousePdf = Doc;
+
+/**
+ * A NEW A4 PDF IN THE HOUSE'S FONTS, for a drawing other than a
+ * certificate's (a course's printables, `src/lib/courses/facilitatorGuide/
+ * printablesPdf.ts`). PDFKit is imported in this file and no other, so every
+ * PDF the site makes is opened through here, as a certificate is: no margins
+ * (the drawing places everything itself), the three fonts registered under
+ * their own names (`PDF_FONTS`), Space Grotesk as its first font so PDFKit
+ * never reaches for one of its own, its language said for screen readers,
+ * and NAISI as its author, creator and producer. `bytes` settles once the
+ * drawing calls `doc.end()`.
+ */
+export function openHousePdf(options: { layout: "portrait" | "landscape"; title: string }): { doc: HousePdf; bytes: Promise<Buffer> } {
+  const files = fonts();
+  const doc = new PDFDocument({
+    size: "A4",
+    layout: options.layout,
+    margin: 0,
+    // PDFKit takes a font's bytes here as it takes a path; its types name only the path.
+    font: files.get("SpaceGrotesk-Regular") as unknown as string,
+    lang: "en-GB",
+    displayTitle: true,
+    info: { Title: options.title, Author: "NAISI", Creator: "NAISI", Producer: "NAISI" },
+  });
+  for (const name of PDF_FONTS) doc.registerFont(name, files.get(name) as Buffer);
+  const chunks: Buffer[] = [];
+  const bytes = new Promise<Buffer>((resolve, reject) => {
+    doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+  });
+  return { doc, bytes };
+}
+
 export type CertificatePdf = {
   bytes: Buffer;
   /** Every string handed to PDFKit as text, in the order it was drawn. */

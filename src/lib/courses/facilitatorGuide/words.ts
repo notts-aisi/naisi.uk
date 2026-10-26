@@ -69,3 +69,47 @@ export function themeOf(title: string | null): string {
   const found = /^(?:session\s+\d+|week\s+\d+\s+notes)\s*[:.·-]\s*(.+)$/i.exec(title.trim());
   return found ? found[1].trim() : "";
 }
+
+// ---------------------------------------------------------------------------
+// The printables as PDFs (no board draws these: listed in the build notes
+// for the boards' designers to confirm)
+// ---------------------------------------------------------------------------
+
+/** The printables page's card of downloads. */
+export const PRINT_CARD_TITLE = "Download to print";
+export const PRINT_CARD_LINE = "Each session’s printables as one A4 PDF, ready to send to a printer.";
+
+/** A session's row on that card: "Session 3". */
+export function sessionWords(session: number): string {
+  return `Session ${session}`;
+}
+
+/** Under a session's row: how many sections of the printables its PDF carries. */
+export function thingsToPrintWords(count: number): string {
+  return count === 1 ? "1 thing to print · PDF" : `${count} things to print · PDF`;
+}
+
+/** Under a session's row that has nothing: no link. */
+export const NOTHING_TO_PRINT = "Nothing to print";
+
+/** The card's last row: the whole document. */
+export const ALL_THE_PRINTABLES = "All the printables";
+export const WHOLE_DOCUMENT_PDF = "The whole document · PDF";
+
+/** A week's page, beside its session plan. */
+export function downloadSessionPrintablesWords(session: number): string {
+  return `Download session ${session}’s printables (PDF)`;
+}
+
+/** The PDF route's sentences, for somebody the guide is for. */
+export const PRINTABLES_NOT_LOADED = "There are no printables in this course’s facilitator guide yet.";
+export const ASK_FOR_A_SESSION = "Ask for a session by its number, or leave the session out for all the printables.";
+
+export function noSuchSessionWords(asked: number, sessions: number): string {
+  if (sessions === 0) return `This course has no sessions yet, so there’s no session ${asked}.`;
+  return `This course has ${sessions} ${sessions === 1 ? "session" : "sessions"}, so there’s no session ${asked}.`;
+}
+
+export function nothingForSessionWords(session: number): string {
+  return `Nothing in the printables is for session ${session}.`;
+}
