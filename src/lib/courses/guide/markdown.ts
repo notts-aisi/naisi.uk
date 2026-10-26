@@ -99,9 +99,13 @@ function leftOutChecks(reader: GuideTextReader, links: readonly string[], pageWo
   return out;
 }
 
-/** A heading's words as the line after "## ": escaped, and a closing run of #s kept as words. */
+/**
+ * A heading's words as the line after "## ": escaped, and a closing run of #s
+ * kept as words, each written as an escaped #. The run is only #s, so it is
+ * rewritten whole rather than character by character.
+ */
 function headingLine(level: number, text: string): string {
-  return `${"#".repeat(level)} ${escapeMarkdownText(text).replace(/(\s)(#+)$/, (_, space: string, hashes: string) => `${space}${hashes.replace(/#/g, "\\#")}`)}`;
+  return `${"#".repeat(level)} ${escapeMarkdownText(text).replace(/(\s)(#+)$/, (_, space: string, hashes: string) => `${space}${"\\#".repeat(hashes.length)}`)}`;
 }
 
 // ---------------------------------------------------------------------------
