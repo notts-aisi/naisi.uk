@@ -180,26 +180,28 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
           {data && group && facts && beforeFirst && (
             <div className={facilitator.homeStack}>
               <section className={`${weekly.ticket} ${weekly.ticketHome}`} aria-label="Your first session">
-                {tile && (
-                  <time className={weekly.stub} dateTime={facts.dateKey}>
-                    <span className={weekly.stubWeekday}>{tile.weekday}</span>
-                    <span className={weekly.stubDay}>{tile.day}</span>
-                    <span className={weekly.stubMonth}>{tile.month}</span>
-                  </time>
-                )}
-                <div className={weekly.ticketMain}>
-                  <div className={weekly.ticketBody}>
-                    <p className={weekly.ticketEyebrow}>
-                      {firstSessionEyebrow(facts.dateKey === addDaysToKey(todayKey, 1), facts.weekNumbers)}
-                    </p>
-                    <h2 className={`${weekly.ticketWhen} ${facilitator.homeTicketWhen}`}>
-                      {homeTicketHeading(group.name, facts.startTimeLocal)}
-                    </h2>
-                    {roomLine && <p className={facilitator.ticketRoomMuted}>{roomLine}</p>}
-                    {facts.mode === "virtual" && <span className={weekly.liveChip}>Online this week</span>}
-                    <Link href={groupHref} className={`${styles.primary} ${facilitator.beforeOpen}`}>
-                      {OPEN_YOUR_GROUP}
-                    </Link>
+                <div className={weekly.ticketRow}>
+                  {tile && (
+                    <time className={weekly.stub} dateTime={facts.dateKey}>
+                      <span className={weekly.stubWeekday}>{tile.weekday}</span>
+                      <span className={weekly.stubDay}>{tile.day}</span>
+                      <span className={weekly.stubMonth}>{tile.month}</span>
+                    </time>
+                  )}
+                  <div className={weekly.ticketMain}>
+                    <div className={weekly.ticketBody}>
+                      <p className={weekly.ticketEyebrow}>
+                        {firstSessionEyebrow(facts.dateKey === addDaysToKey(todayKey, 1), facts.weekNumbers)}
+                      </p>
+                      <h2 className={`${weekly.ticketWhen} ${facilitator.homeTicketWhen}`}>
+                        {homeTicketHeading(group.name, facts.startTimeLocal)}
+                      </h2>
+                      {roomLine && <p className={facilitator.ticketRoomMuted}>{roomLine}</p>}
+                      {facts.mode === "virtual" && <span className={weekly.liveChip}>Online this week</span>}
+                      <Link href={groupHref} className={`${styles.primary} ${facilitator.beforeOpen}`}>
+                        {OPEN_YOUR_GROUP}
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </section>
@@ -257,46 +259,50 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
 
           {data && group && facts && !beforeFirst && (
             <div className={facilitator.homeStack}>
+              {/* The stub and the body side by side, in the ticket's row: the
+                  ticket itself is a column since Add to calendar (#116). */}
               <section className={`${weekly.ticket} ${weekly.ticketHome}`} aria-label="Your next session">
-                {tile && (
-                  <time className={weekly.stub} dateTime={facts.dateKey}>
-                    <span className={weekly.stubWeekday}>{tile.weekday}</span>
-                    <span className={weekly.stubDay}>{tile.day}</span>
-                    <span className={weekly.stubMonth}>{tile.month}</span>
-                  </time>
-                )}
-                <div className={weekly.ticketMain}>
-                  <div className={weekly.ticketBody}>
-                    <p className={weekly.ticketEyebrow}>
-                      {sessionEyebrow({
-                        isToday,
-                        isFirst: facts.dateKey === group.calendar.firstSessionDate,
-                        startTimeLocal: facts.startTimeLocal,
-                        weekNumbers: facts.weekNumbers,
-                        home: true,
-                      })}
-                    </p>
-                    <h2 className={`${weekly.ticketWhen} ${facilitator.homeTicketWhen}`}>
-                      {homeTicketHeading(group.name, facts.startTimeLocal)}
-                    </h2>
-                    {roomLine && <p className={facilitator.ticketRoomMuted}>{roomLine}</p>}
-                    {facts.mode === "virtual" && <span className={weekly.liveChip}>Online this week</span>}
-                    {known && (
-                      <div className={facilitator.homeTicketFoot}>
-                        <p className={facilitator.homeTicketRow}>
-                          <PeopleIcon />
-                          {/* Before Publish has told anybody their group, when
-                              their names come; a group nobody is in, says so. */}
-                          <span>
-                            {known.expected > 0
-                              ? expectedWords(known.expected)
-                              : known.notYetTold
-                                ? NAMES_WHEN_GROUPS_GO_OUT
-                                : NOBODY_IN_GROUP}
-                          </span>
-                        </p>
-                      </div>
-                    )}
+                <div className={weekly.ticketRow}>
+                  {tile && (
+                    <time className={weekly.stub} dateTime={facts.dateKey}>
+                      <span className={weekly.stubWeekday}>{tile.weekday}</span>
+                      <span className={weekly.stubDay}>{tile.day}</span>
+                      <span className={weekly.stubMonth}>{tile.month}</span>
+                    </time>
+                  )}
+                  <div className={weekly.ticketMain}>
+                    <div className={weekly.ticketBody}>
+                      <p className={weekly.ticketEyebrow}>
+                        {sessionEyebrow({
+                          isToday,
+                          isFirst: facts.dateKey === group.calendar.firstSessionDate,
+                          startTimeLocal: facts.startTimeLocal,
+                          weekNumbers: facts.weekNumbers,
+                          home: true,
+                        })}
+                      </p>
+                      <h2 className={`${weekly.ticketWhen} ${facilitator.homeTicketWhen}`}>
+                        {homeTicketHeading(group.name, facts.startTimeLocal)}
+                      </h2>
+                      {roomLine && <p className={facilitator.ticketRoomMuted}>{roomLine}</p>}
+                      {facts.mode === "virtual" && <span className={weekly.liveChip}>Online this week</span>}
+                      {known && (
+                        <div className={facilitator.homeTicketFoot}>
+                          <p className={facilitator.homeTicketRow}>
+                            <PeopleIcon />
+                            {/* Before Publish has told anybody their group, when
+                                their names come; a group nobody is in, says so. */}
+                            <span>
+                              {known.expected > 0
+                                ? expectedWords(known.expected)
+                                : known.notYetTold
+                                  ? NAMES_WHEN_GROUPS_GO_OUT
+                                  : NOBODY_IN_GROUP}
+                            </span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </section>

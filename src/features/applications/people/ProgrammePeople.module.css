@@ -203,24 +203,26 @@
   padding-left: 16px;
 }
 
+/* The board's column widths, padding included (this site sizes boxes
+   border-box; the board's widths are its cells' content). */
 .colGroup {
-  width: 100px;
+  width: 124px;
 }
 
 .colComing {
-  width: 134px;
+  width: 158px;
 }
 
 .colFree {
-  width: 170px;
+  width: 194px;
 }
 
 .colStatus {
-  width: 180px;
+  width: 204px;
 }
 
 .colMore {
-  width: 44px;
+  width: 64px;
 }
 
 .td {
@@ -402,6 +404,11 @@
   cursor: default;
 }
 
+/* The open row and its menu read as one block, as the board draws them. */
+.rowOpen {
+  background: var(--color-surface-hover);
+}
+
 .rowOpen > .td {
   border-bottom: 0;
 }
@@ -574,56 +581,61 @@
     grid-row: 1;
   }
 
-  .cellMore {
+  /* More, beside the name; the values under the name take the card's width. */
+  .table .cellMore {
     grid-column: 2;
-    grid-row: 1 / span 5;
+    grid-row: 1;
     align-self: start;
     padding: 0 8px 0 0;
   }
 
-  .cellGroup,
-  .cellComing,
-  .cellFree,
-  .cellStatus {
-    grid-column: 1;
+  /* Each value under the name, its column's word to its left. Two classes
+     deep, so the rule that makes every cell a block does not win. */
+  .table .cellGroup,
+  .table .cellComing,
+  .table .cellFree,
+  .table .cellStatus {
+    grid-column: 1 / -1;
     display: flex;
-    flex-wrap: wrap;
     align-items: baseline;
-    gap: 2px 8px;
+    gap: 10px;
+    min-width: 0;
     margin-top: 6px;
     padding-left: calc(16px + 2rem + 12px);
     font-size: 14px;
   }
 
-  .cellGroup {
+  .table .cellGroup {
     grid-row: 2;
   }
 
-  .cellComing {
+  .table .cellComing {
     grid-row: 3;
   }
 
-  .cellFree {
+  .table .cellFree {
     grid-row: 4;
   }
 
-  .cellStatus {
+  .table .cellStatus {
     grid-row: 5;
   }
 
   .cellWord {
-    display: inline;
+    display: block;
     flex: none;
-    min-width: 9.5rem;
+    width: 7.5rem;
     font-family: var(--font-meta);
     font-size: 11px;
+    line-height: 1.6;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--color-text-muted);
   }
 
   .statusStack {
-    flex: 1 1 10rem;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .yes {
