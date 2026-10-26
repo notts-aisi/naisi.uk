@@ -5,9 +5,9 @@ import { ProgrammeBar } from "./Parts";
 
 /**
  * THE READING LIST: every published week's readings, as the person's group
- * reads them, read only. Somebody who has left keeps it (Q12); a reading is a
- * link to where it lives, and a note is its words. Drawn on the server from
- * `loadReadingList`.
+ * reads them, read only, for somebody taking part (somebody who has left is
+ * shown the page that says so instead); a reading is a link to where it
+ * lives, and a note is its words. Drawn on the server from `loadReadingList`.
  */
 export default function ReadingListView({ list }: { list: ReadingList }) {
   return (

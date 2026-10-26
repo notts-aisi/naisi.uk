@@ -48,6 +48,3 @@ export function leavingNowLine(groupName: string | null): string {
  * "Changed your mind? Email", the society's address as a link, then this.
  */
 export const ASK_THE_TEAM_AFTER = "and we’ll sort it out with you.";
-
-/** Once they have left: what is still theirs, on the page the link opens. */
-export const STILL_YOURS = "Your notes and the reading list are still on your programme’s page.";

@@ -161,7 +161,7 @@ export type StatusView =
       label: string;
       decidedLabel: string | null;
       programme: ViewProgramme | null;
-      /** Their programme's page, which says they left and keeps their notes and reading list. */
+      /** Their programme's page, which says they left, and when, and nothing more. */
       runId: string;
       /** "Tue 17 Nov", or null when no day is on record. */
       leftOnLabel: string | null;

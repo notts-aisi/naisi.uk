@@ -6,7 +6,6 @@ import { standardSubject } from "@/lib/applications/decisionDay/emailCopy";
 import {
   ASK_THE_TEAM_AFTER,
   GO_TO_YOUR_PROGRAMME,
-  STILL_YOURS,
   inGroupLine,
   leavingNowLine,
 } from "@/lib/applications/status/runWords";
@@ -548,7 +547,7 @@ export default function StatusPage({
   }
 
   // Left the programme, by either door. Their programme's page says the same,
-  // and keeps their notes and the reading list.
+  // and shows them nothing more: not their notes, nor the reading list.
   if (view.kind === "left") {
     return (
       <Frame eyebrow={eyebrow} pad="outcome" gap="outcome">
@@ -561,7 +560,6 @@ export default function StatusPage({
           </ReplyTitle>
           <div className={styles.body}>
             <p>{leftOnLine(view.leftOnLabel)}</p>
-            <p>{STILL_YOURS}</p>
             <p>
               {CHANGED_YOUR_MIND} {CHANGED_BEFORE} <Contact /> {CHANGED_AFTER}
             </p>

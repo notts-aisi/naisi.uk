@@ -21,10 +21,10 @@ import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
  * a reviewer to the run home would be the only thing standing between the
  * admissions lane and the cohort).
  *
- * Somebody who LEFT the run themselves passes too (`hasLeft`), for the three
- * pages that are still theirs: the run home (which tells them they left), their
- * notes and reflections, and the reading list. Every cohort surface still
- * narrows to `canLearn`, which leaving takes away.
+ * Somebody who LEFT the run themselves passes too (`hasLeft`), for the one
+ * thing still theirs: the page that tells them they left, which the run home
+ * draws, and the notes and reading list pages draw in their own stead. Every
+ * cohort surface still narrows to `canLearn`, which leaving takes away.
  *
  * Redirects, never 403s: a member who guesses a run id learns nothing about
  * whether that run exists.

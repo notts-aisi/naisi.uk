@@ -1,22 +1,11 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { homeEvents } from "@/app/(app)/dashboard/homeData";
-import type { TileParts } from "@/app/(app)/dashboard/homeWords";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import { resolveCalendar, resolveWeekDocs } from "@/lib/courses/groupResolve";
-import {
-  DID_NOT_HAPPEN,
-  NOT_MARKED,
-  markRowLabel,
-  readingListLink,
-} from "@/lib/courses/leavingWords";
-import { ownAttendanceSessions, sessionsFromJoinWeek } from "@/lib/courses/ownAttendance";
-import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { weekChecklistItems, weekSources, type WeekSource } from "@/lib/courses/weekBlocks/reader";
 import { formatRunStartShort } from "@/lib/courses/window";
-import { ATTENDANCE_STATUS_LABEL, attendanceDocId } from "@/lib/firestore/courseAttendance";
 import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseProgress } from "@/lib/firestore/courseProgress";
@@ -28,27 +17,22 @@ import {
 } from "@/lib/firestore/courses";
 
 /**
- * WHAT SOMEBODY WHO LEFT A PROGRAMME STILL READS OF IT (board wk-left-phone),
- * worked out on the server for the one person it is about.
+ * WHAT SOMEBODY WHO LEFT A PROGRAMME IS SHOWN OF IT (board wk-left-phone):
+ * that they left, and when, and nothing else. Their marks, notes and
+ * reflections stay where they are, for the programme's lead and admins, and
+ * the notes they shared stay with their group; none of that is shown to them,
+ * and neither is the reading list or anything of the group's.
  *
- * Three pages: the programme page that says they left, their notes and
- * reflections, and the reading list. Each is built here from records and
- * handed to its page as plain fields, so nothing stored travels further than
- * the words it becomes.
+ * The run's own page draws it (`LeftProgramme`), and so do the two pages that
+ * show somebody taking part their notes and the reading list (below), when the
+ * person asking has left.
  *
- * WHAT THEY READ. The day they left (`droppedOutAt`); their own marks, from
- * their group's FINISHED registers, the way their programme page always
- * showed them (`ownAttendanceSessions`: one person's mark projected out of
- * each register, never the register), for the sessions before they left; the
- * readings of every published week, as their group reads them (a group's own
- * copy of a week over the run's); their own ratings, comments and notes; and
- * the site's upcoming events, as Home lists them.
- *
- * WHAT THEY DO NOT. Nobody else's name, mark or note, the group's sessions,
- * its room or its updates: nothing here reads another person's record.
+ * WHAT A MAINTAINER KEEPS: `LeftView` is the programme's name and the day, and
+ * nothing read from any other record of the person's. A field added to it is
+ * a field shown to somebody who left.
  */
 
-/** The group a leaver's row still names, when it is a group of this run. */
+/** The group a learner's row names, when it is a group of this run. */
 async function ownGroupOf(
   db: Firestore,
   run: CourseRunDoc,
@@ -86,21 +70,8 @@ async function publishedWeeksOf(
 }
 
 // ---------------------------------------------------------------------------
-// The programme page, once they have left
+// The page somebody who left reads
 // ---------------------------------------------------------------------------
-
-export type LeftMark = { key: string; label: string; mark: string };
-
-export type LeftEvent = {
-  id: string;
-  href: string;
-  tile: TileParts;
-  /** The start, as an ISO instant, for the tile's `<time>`. */
-  startsAt: string;
-  title: string;
-  /** "7pm · Hallward B12": the time, and where it is as anybody may be told. */
-  line: string;
-};
 
 export type LeftView = {
   runId: string;
@@ -108,12 +79,6 @@ export type LeftView = {
   name: string;
   /** "Fri 13 Nov", or null when the day is not on record. */
   leftOn: string | null;
-  /** The reading list's link words, or null when no week is published. */
-  readingLink: string | null;
-  /** Their marks before they left, from finished registers, in session order. */
-  marks: LeftMark[];
-  /** The site's upcoming events. Empty when there are none. */
-  events: LeftEvent[];
 };
 
 /** The day somebody left, as the pages say it: "Fri 13 Nov". Null when none is on record. */
@@ -122,75 +87,24 @@ export function leftOnDay(at: Date | null): string | null {
   return formatRunStartShort(londonDateKey(at)) ?? null;
 }
 
+/**
+ * The programme's name and the day they left (`droppedOutAt`). Nothing else of
+ * the run or of the person's records is read.
+ */
 export async function loadLeftView(
   db: Firestore,
-  input: { run: CourseRunDoc; enrolment: CourseEnrolmentDoc },
-  now: Date,
+  input: { run: CourseRunDoc; enrolment: Pick<CourseEnrolmentDoc, "droppedOutAt"> },
 ): Promise<LeftView> {
   const { run, enrolment } = input;
-  const group = await ownGroupOf(db, run, enrolment);
-
-  // Their own sessions, from the week they joined, and the registers of them.
-  const sessions = group ? sessionsFromJoinWeek(resolveSessions(run, group), enrolment.joinedWeekNumber) : [];
-  const [name, published, upcoming, registerSnaps] = await Promise.all([
-    programmeNameOf(db, run),
-    publishedWeeksOf(db, run, group),
-    homeEvents(now)
-      .then((events) => events.upcoming)
-      .catch(() => []),
-    group && sessions.length
-      ? db.getAll(
-          ...sessions.map((session) =>
-            db
-              .collection("courseAttendance")
-              .doc(attendanceDocId(run.id, group.id, session.weekNumber, session.occurrence)),
-          ),
-        )
-      : Promise.resolve([]),
-  ]);
-
-  const registers = new Map<string, Record<string, unknown>>();
-  registerSnaps.forEach((snap, at) => {
-    if (snap.exists) registers.set(sessions[at].sessionKey, (snap.data() ?? {}) as Record<string, unknown>);
-  });
-  const leftAt = enrolment.droppedOutAt;
-  const startOf = new Map(sessions.map((session) => [session.sessionKey, sessionInstants(session).startsAt]));
-  const marks: LeftMark[] = [];
-  for (const row of ownAttendanceSessions(enrolment.uid, sessions, registers)) {
-    // Before they left, as the lead's grid draws it: a session that started
-    // once they had gone, with no mark of theirs on it, is not theirs.
-    const startsAt = startOf.get(row.sessionKey) ?? null;
-    const after = leftAt !== null && row.status === null && (startsAt === null || startsAt >= leftAt);
-    if (after) continue;
-    marks.push({
-      key: row.sessionKey,
-      label: markRowLabel(row.weekNumber, formatRunStartShort(row.dateKey) ?? null),
-      mark: !row.held ? DID_NOT_HAPPEN : row.status ? ATTENDANCE_STATUS_LABEL[row.status] : NOT_MARKED,
-    });
-  }
-
   return {
     runId: run.id,
-    name,
-    leftOn: leftOnDay(leftAt),
-    readingLink: readingListLink(
-      published.weeks.map((week) => week.weekNumber),
-      published.taught,
-    ),
-    marks,
-    events: upcoming.map((event) => ({
-      id: event.eventId,
-      href: `/events/${encodeURIComponent(event.eventId)}`,
-      tile: event.tile,
-      startsAt: event.startsAt,
-      title: event.title,
-      line: [event.clock, event.place].filter(Boolean).join(" · "),
-    })),
+    name: await programmeNameOf(db, run),
+    leftOn: leftOnDay(enrolment.droppedOutAt),
   };
 }
 
 // ---------------------------------------------------------------------------
-// The reading list
+// The reading list, for somebody taking part
 // ---------------------------------------------------------------------------
 
 export type ReadingItem = {
@@ -273,7 +187,7 @@ export async function loadReadingList(
 }
 
 // ---------------------------------------------------------------------------
-// Their notes and reflections
+// Their notes and reflections, for somebody taking part
 // ---------------------------------------------------------------------------
 
 export type NoteItem = {

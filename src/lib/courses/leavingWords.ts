@@ -29,15 +29,22 @@ export function leaveHeading(name: string): string {
 }
 
 /**
- * What leaving does, in three sentences. `groupName` is their own group's,
- * or null when the record names none.
+ * What leaving does, in three lines. `groupName` is their own group's, or
+ * null when the record names none; `sharesNotes` is whether the run's groups
+ * share notes (`runSharesGroupNotes`: a run that places people does, an open
+ * run does not). The second line says what stays and with whom, and that the
+ * programme's page shows them nothing more once they have left: it has to
+ * stay as true as the page it describes.
  */
-export function leaveLines(groupName: string | null): string[] {
+export function leaveLines(groupName: string | null, sharesNotes: boolean): string[] {
+  const stays = sharesNotes
+    ? "Your marks so far stay on your group’s register, and the notes you shared stay with the group."
+    : "Your marks so far stay on your group’s register.";
   return [
     groupName
       ? `You’ll leave ${groupName} straight away and give your place back.`
       : "You’ll leave straight away and give your place back.",
-    "Your marks so far stay, and you keep your notes and the reading list. The weekly emails stop.",
+    `${stays} After you leave, your programme’s page shows only that you left. The weekly emails stop.`,
     `You can’t undo this yourself. If you change your mind, email ${SOCIETY_ADDRESS} and we’ll see what we can do.`,
   ];
 }
@@ -125,46 +132,13 @@ export function leftOnLine(day: string | null): string {
   return day ? `That was on ${day}. Thanks for coming along.` : "Thanks for coming along.";
 }
 
-export const WHAT_STAYS = "What stays here";
-export const NOTES_LINK = "Your notes and reflections";
-
-/**
- * The reading list's link, from the weeks that are published and the weeks
- * the programme teaches: "The reading list for all 6 weeks" once every week
- * is out, "…for weeks 1 to 3" or "…for week 1" while the first few are, and
- * "…for the 2 weeks published so far" otherwise. Null when no week is
- * published: there is nothing to read yet.
- */
-export function readingListLink(published: readonly number[], taught: number): string | null {
-  const weeks = [...new Set(published)].sort((a, b) => a - b);
-  if (weeks.length === 0) return null;
-  if (taught > 1 && weeks.length >= taught) return `The reading list for all ${taught} weeks`;
-  if (weeks.length === 1) return `The reading list for week ${weeks[0]}`;
-  const fromOne = weeks.every((week, at) => week === at + 1);
-  if (fromOne) return `The reading list for weeks 1 to ${weeks[weeks.length - 1]}`;
-  return `The reading list for the ${weeks.length} weeks published so far`;
-}
-
-export const YOUR_MARKS = "Your marks";
-/** "Week 1, Tue 3 Nov", or "Week 1" when the session has no date. */
-export function markRowLabel(weekNumber: number, day: string | null): string {
-  return day ? `Week ${weekNumber}, ${day}` : `Week ${weekNumber}`;
-}
-/** A finished register that did not mark them. */
-export const NOT_MARKED = "Not marked";
-/** A session its register says did not happen. */
-export const DID_NOT_HAPPEN = "Didn’t happen";
-
 export const CHANGED_YOUR_MIND = "Changed your mind?";
 /** "Email", the address as a link, then "and we’ll see what we can do." */
 export const CHANGED_BEFORE = "Email";
 export const CHANGED_AFTER = "and we’ll see what we can do.";
 
-export const STILL_AROUND = "Still around";
-export const EVENTS_OPEN = "Events are open to everyone.";
-
 // ---------------------------------------------------------------------------
-// Their notes and reflections, and the reading list
+// Their notes and reflections, and the reading list, for somebody taking part
 // ---------------------------------------------------------------------------
 
 export const NOTES_HEADING = "Your notes and reflections";
