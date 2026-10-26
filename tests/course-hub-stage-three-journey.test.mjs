@@ -1641,49 +1641,52 @@ const THE_LEAVING_EMAIL = (first) =>
 
 /**
  * Every member's own pages after the end, word for word: the run home (since
- * the restyle to boards wk-programme and st-programme: the head with their
- * group's usual slot, the heading their finished record gives them, the
- * weeks, every one done, their own marks from the finished registers with no
- * count (C26), and no way out at its foot: leaving closed at the run's last
- * session, H1), the hub's card, and Home's line, which is drawn with no
- * session to come. Group B's week 4 reads as cancelled on the run home, in its
- * weeks and its marks, from the run's own record of the cancellation (until
- * the walk of stage three Home's strip read it as "not marked yet", from the
- * register alone: H2); Home draws no marks since the restyle (wk-home-phone).
+ * boards en-after-phone and en-after-nofinish-phone: the programme's name in
+ * the heading their finished record gives them, the term and their group,
+ * with its facilitators for somebody who finished and after the thanks for
+ * everybody else, what they keep, then the weeks, every one done, and no way
+ * out: leaving closed at the run's last session, H1; the boards draw no marks
+ * once it is over, and the marks are held on the last day of the last week in
+ * tests/course-hub-member-pages.test.mjs), the hub's card, and Home's line,
+ * which is drawn with no session to come. Group B's week 4 reads as cancelled
+ * in the run home's weeks, from the run's own record of the cancellation
+ * (until the walk of stage three Home's strip read it as "not marked yet",
+ * from the register alone: H2); Home draws no marks since the restyle
+ * (wk-home-phone).
  */
 const MEMBER_PAGES = {
   amara: {
-    home: "My programmes AGI Strategy Fellowship · Autumn 2026 AGI Strategy Fellowship Group B · Tuesdays 6pm · Room C20 · with Rahul and Sofia You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. The 6 weeks Week 1 What could go wrong, and how fast Tue 3 Nov · Done 0 of 2 Week 2 Who is building it, and why Tue 10 Nov · Done 0 of 2 Week 3 Who decides what AGI means Tue 17 Nov · Done 0 of 2 Week 4 Evaluations and standards Tue 24 Nov · Cancelled 0 of 2 Week 5 International coordination Tue 1 Dec · Done 0 of 2 Week 6 What you would do next Tue 8 Dec · Done 0 of 2 See your progress week by week → Your marks P 3 Nov P 10 Nov P 17 Nov 24 Nov P 1 Dec P 8 Dec P Present Cancelled Your facilitators fill these in after each session. Your group Group B",
+    home: "My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group B · with Rahul and Sofia What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Tue 3 Nov · Done 0 of 2 Week 2 Who is building it, and why Tue 10 Nov · Done 0 of 2 Week 3 Who decides what AGI means Tue 17 Nov · Done 0 of 2 Week 4 Evaluations and standards Tue 24 Nov · Cancelled 0 of 2 Week 5 International coordination Tue 1 Dec · Done 0 of 2 Week 6 What you would do next Tue 8 Dec · Done 0 of 2 See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Finished Group B",
     homeLine: "AGI Strategy · finished Hi You. AGI Strategy Fellowship · Group B · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your group Group B",
   },
   dev: {
-    home: "My programmes AGI Strategy Fellowship · Autumn 2026 AGI Strategy Fellowship Group A · Thursdays 6pm · Room A13 · with Amelia You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. The 6 weeks Week 1 What could go wrong, and how fast Thu 29 Oct · Done 0 of 2 Week 2 Who is building it, and why Thu 5 Nov · Done 0 of 2 Week 3 Who decides what AGI means Thu 12 Nov · Done 0 of 2 Week 4 Evaluations and standards Thu 19 Nov · Done 0 of 2 Week 5 International coordination Thu 26 Nov · Done 0 of 2 Week 6 What you would do next Thu 3 Dec · Done 0 of 2 See your progress week by week → Your marks L 29 Oct P 5 Nov P 12 Nov P 19 Nov P 26 Nov P 3 Dec P Present L Late Your facilitators fill these in after each session. Your group Group A",
+    home: "My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group A · with Amelia What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Thu 29 Oct · Done 0 of 2 Week 2 Who is building it, and why Thu 5 Nov · Done 0 of 2 Week 3 Who decides what AGI means Thu 12 Nov · Done 0 of 2 Week 4 Evaluations and standards Thu 19 Nov · Done 0 of 2 Week 5 International coordination Thu 26 Nov · Done 0 of 2 Week 6 What you would do next Thu 3 Dec · Done 0 of 2 See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Finished Group A",
     homeLine: "AGI Strategy · finished Hi You. AGI Strategy Fellowship · Group A · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your group Group A",
   },
   farah: {
-    home: "My programmes AGI Strategy Fellowship · Autumn 2026 AGI Strategy Fellowship Group B · Tuesdays 6pm · Room C20 · with Rahul and Sofia AGI Strategy Fellowship has ended. Thanks for being part of it. Every week stays open, so you can go back to any of them. The 6 weeks Week 1 What could go wrong, and how fast Tue 3 Nov · Done 0 of 2 Week 2 Who is building it, and why Tue 10 Nov · Done 0 of 2 Week 3 Who decides what AGI means Tue 17 Nov · Done 0 of 2 Week 4 Evaluations and standards Tue 24 Nov · Cancelled 0 of 2 Week 5 International coordination Tue 1 Dec · Done 0 of 2 Week 6 What you would do next Tue 8 Dec · Done 0 of 2 See your progress week by week → Your marks P 3 Nov L 10 Nov P 17 Nov 24 Nov A 1 Dec A 8 Dec P Present L Late A Absent Cancelled Your facilitators fill these in after each session. Your group Group B",
+    home: "My programmes AGI Strategy AGI Strategy has ended. Thanks for being part of it. Autumn 2026 · Group B. What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Tue 3 Nov · Done 0 of 2 Week 2 Who is building it, and why Tue 10 Nov · Done 0 of 2 Week 3 Who decides what AGI means Tue 17 Nov · Done 0 of 2 Week 4 Evaluations and standards Tue 24 Nov · Cancelled 0 of 2 Week 5 International coordination Tue 1 Dec · Done 0 of 2 Week 6 What you would do next Tue 8 Dec · Done 0 of 2 See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Ended Group B",
     homeLine: "AGI Strategy · ended Hi You. AGI Strategy Fellowship · Group B · ended No more sessions are planned for your group. Open AGI Strategy Fellowship Your group Group B",
   },
   isaac: {
-    home: "My programmes AGI Strategy Fellowship · Autumn 2026 AGI Strategy Fellowship Group B · Tuesdays 6pm · Room C20 · with Rahul and Sofia You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. The 6 weeks Week 1 What could go wrong, and how fast Tue 3 Nov · Done 0 of 2 Week 2 Who is building it, and why Tue 10 Nov · Done 0 of 2 Week 3 Who decides what AGI means Tue 17 Nov · Done 0 of 2 Week 4 Evaluations and standards Tue 24 Nov · Cancelled 0 of 2 Week 5 International coordination Tue 1 Dec · Done 0 of 2 Week 6 What you would do next Tue 8 Dec · Done 0 of 2 See your progress week by week → Your marks P 3 Nov P 10 Nov A 17 Nov 24 Nov P 1 Dec P 8 Dec P Present A Absent Cancelled Your facilitators fill these in after each session. Your group Group B",
+    home: "My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group B · with Rahul and Sofia What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Tue 3 Nov · Done 0 of 2 Week 2 Who is building it, and why Tue 10 Nov · Done 0 of 2 Week 3 Who decides what AGI means Tue 17 Nov · Done 0 of 2 Week 4 Evaluations and standards Tue 24 Nov · Cancelled 0 of 2 Week 5 International coordination Tue 1 Dec · Done 0 of 2 Week 6 What you would do next Tue 8 Dec · Done 0 of 2 See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Finished Group B",
     homeLine: "AGI Strategy · finished Hi You. AGI Strategy Fellowship · Group B · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your group Group B",
   },
   kofi: {
-    home: "My programmes AGI Strategy Fellowship · Autumn 2026 AGI Strategy Fellowship Group B · Tuesdays 6pm · Room C20 · with Rahul and Sofia You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. The 6 weeks Week 1 What could go wrong, and how fast Tue 3 Nov · Done 0 of 2 Week 2 Who is building it, and why Tue 10 Nov · Done 0 of 2 Week 3 Who decides what AGI means Tue 17 Nov · Done 0 of 2 Week 4 Evaluations and standards Tue 24 Nov · Cancelled 0 of 2 Week 5 International coordination Tue 1 Dec · Done 0 of 2 Week 6 What you would do next Tue 8 Dec · Done 0 of 2 See your progress week by week → Your marks E 3 Nov P 10 Nov E 17 Nov 24 Nov P 1 Dec P 8 Dec P Present E Excused Cancelled Your facilitators fill these in after each session. Your group Group B",
+    home: "My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group B · with Rahul and Sofia What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Tue 3 Nov · Done 0 of 2 Week 2 Who is building it, and why Tue 10 Nov · Done 0 of 2 Week 3 Who decides what AGI means Tue 17 Nov · Done 0 of 2 Week 4 Evaluations and standards Tue 24 Nov · Cancelled 0 of 2 Week 5 International coordination Tue 1 Dec · Done 0 of 2 Week 6 What you would do next Tue 8 Dec · Done 0 of 2 See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Finished Group B",
     homeLine: "AGI Strategy · finished Hi You. AGI Strategy Fellowship · Group B · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your group Group B",
   },
   mei: {
-    home: "My programmes AGI Strategy Fellowship · Autumn 2026 AGI Strategy Fellowship Group A · Thursdays 6pm · Room A13 · with Amelia AGI Strategy Fellowship has ended. Thanks for being part of it. Every week stays open, so you can go back to any of them. The 6 weeks Week 1 What could go wrong, and how fast Thu 29 Oct · Done 0 of 2 Week 2 Who is building it, and why Thu 5 Nov · Done 0 of 2 Week 3 Who decides what AGI means Thu 12 Nov · Done 0 of 2 Week 4 Evaluations and standards Thu 19 Nov · Done 0 of 2 Week 5 International coordination Thu 26 Nov · Done 0 of 2 Week 6 What you would do next Thu 3 Dec · Done 0 of 2 See your progress week by week → Your marks P 29 Oct E 5 Nov P 12 Nov A 19 Nov A 26 Nov P 3 Dec P Present E Excused A Absent Your facilitators fill these in after each session. Your group Group A",
+    home: "My programmes AGI Strategy AGI Strategy has ended. Thanks for being part of it. Autumn 2026 · Group A. What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Thu 29 Oct · Done 0 of 2 Week 2 Who is building it, and why Thu 5 Nov · Done 0 of 2 Week 3 Who decides what AGI means Thu 12 Nov · Done 0 of 2 Week 4 Evaluations and standards Thu 19 Nov · Done 0 of 2 Week 5 International coordination Thu 26 Nov · Done 0 of 2 Week 6 What you would do next Thu 3 Dec · Done 0 of 2 See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Ended Group A",
     homeLine: "AGI Strategy · ended Hi You. AGI Strategy Fellowship · Group A · ended No more sessions are planned for your group. Open AGI Strategy Fellowship Your group Group A",
   },
   noah: {
-    home: "My programmes AGI Strategy Fellowship · Autumn 2026 AGI Strategy Fellowship Group A · Thursdays 6pm · Room A13 · with Amelia You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. The 6 weeks Week 1 What could go wrong, and how fast Thu 29 Oct · Done 0 of 2 Week 2 Who is building it, and why Thu 5 Nov · Done 0 of 2 Week 3 Who decides what AGI means Thu 12 Nov · Done 0 of 2 Week 4 Evaluations and standards Thu 19 Nov · Done 0 of 2 Week 5 International coordination Thu 26 Nov · Done 0 of 2 Week 6 What you would do next Thu 3 Dec · Done 0 of 2 See your progress week by week → Your marks P 29 Oct P 5 Nov A 12 Nov P 19 Nov A 26 Nov P 3 Dec P Present A Absent Your facilitators fill these in after each session. Your group Group A",
+    home: "My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group A · with Amelia What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Thu 29 Oct · Done 0 of 2 Week 2 Who is building it, and why Thu 5 Nov · Done 0 of 2 Week 3 Who decides what AGI means Thu 12 Nov · Done 0 of 2 Week 4 Evaluations and standards Thu 19 Nov · Done 0 of 2 Week 5 International coordination Thu 26 Nov · Done 0 of 2 Week 6 What you would do next Thu 3 Dec · Done 0 of 2 See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Finished Group A",
     homeLine: "AGI Strategy · finished Hi You. AGI Strategy Fellowship · Group A · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your group Group A",
   },
@@ -2091,9 +2094,10 @@ describe("stage three of the course hub, one term from week 3 to after its end",
         const pages = pagesOf(uid);
         assert.deepEqual([pages.overview, pages.entry], [{ finished: true }, { finished: true, membership: "enrolled" }]);
         assert.equal(pages.home, MEMBER_PAGES[uid].home);
-        // The heading follows the head since the restyle (board wk-programme).
-        assert.ok(pages.home.includes(" with Rahul and Sofia You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. The 6 weeks ") ||
-          pages.home.includes(" with Amelia You finished AGI Strategy Fellowship. Every week stays open, so you can go back to any of them. The 6 weeks "));
+        // The head is the programme's, as board en-after-phone draws it: the
+        // heading, then the term, the group and its facilitators.
+        assert.ok(pages.home.startsWith("My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group B · with Rahul and Sofia What you keep ") ||
+          pages.home.startsWith("My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group A · with Amelia What you keep "));
         assert.equal(pages.card, MEMBER_PAGES[uid].card);
         assert.equal(pages.list, "Your programmes My programmes AGI Strategy Fellowship Finished");
         assert.equal(pages.homeLine, MEMBER_PAGES[uid].homeLine);
@@ -2105,8 +2109,10 @@ describe("stage three of the course hub, one term from week 3 to after its end",
         const pages = pagesOf(uid);
         assert.deepEqual([pages.overview, pages.entry], [{ finished: false }, { finished: false, membership: "enrolled" }]);
         assert.equal(pages.home, MEMBER_PAGES[uid].home);
-        // The heading follows the head since the restyle (board wk-programme).
-        assert.match(pages.home, / with (Rahul and Sofia|Amelia) AGI Strategy Fellowship has ended\. Thanks for being part of it\. Every week stays open, so you can go back to any of them\. The 6 weeks /);
+        // The head is the programme's, as board en-after-nofinish-phone draws
+        // it: the heading, the thanks, the term and the group, and nothing
+        // about finishing.
+        assert.match(pages.home, /^My programmes AGI Strategy AGI Strategy has ended\. Thanks for being part of it\. Autumn 2026 · Group [AB]\. What you keep /);
         assert.equal(pages.card, MEMBER_PAGES[uid].card);
         assert.equal(pages.list, "Your programmes My programmes AGI Strategy Fellowship Ended");
         assert.equal(pages.homeLine, MEMBER_PAGES[uid].homeLine);
@@ -2153,9 +2159,10 @@ describe("stage three of the course hub, one term from week 3 to after its end",
     test("no run home after the end offers Leave the programme", () => {
       for (const uid of ["amara", "dev", "farah", "isaac", "kofi", "mei", "noah"]) {
         assert.deepEqual(pagesOf(uid).runPage, { runHome: { canLeave: false } }, uid);
-        assert.match(pagesOf(uid).home, / Your group Group [AB]$/, uid);
+        // The page once it is over (en-after-phone) ends with the weeks and
+        // their way to the progress page, and has no way out.
+        assert.match(pagesOf(uid).home, / The 6 weeks .* See your progress week by week →$/, uid);
         assert.ok(!pagesOf(uid).home.includes("Leave the programme"), uid);
-        assert.match(pagesOf(uid).home, / Your facilitators fill these in after each session\. /, uid);
         assert.doesNotMatch(pagesOf(uid).home, /in full|so far|\d+ of \d+ sessions/, uid);
       }
     });

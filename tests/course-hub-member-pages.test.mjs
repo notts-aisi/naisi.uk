@@ -142,7 +142,11 @@ describe("1. the programme home", () => {
     await w.asBrowser("chloe");
     const { text } = w.programmeHome("chloe");
     assert.match(text, /No session tonight Tue 17 Nov is cancelled\. Rahul and Sofia are both away\. Do week 3’s reading anyway\. On Tue 24 Nov you’ll talk about weeks 3 and 4 together\./);
-    assert.match(text, /Tue 24 Nov Your next session · weeks 3 and 4 Tue 24 Nov, 6pm to 8pm/);
+    // Board wk-changes: the ticket of the session covering both weeks names its
+    // day and both weeks over the hours ("Tue 1 Dec · weeks 4 and 5", "6pm to
+    // 8pm"), so the day is said once under the stub's.
+    assert.match(text, /Tue 24 Nov Tue 24 Nov · weeks 3 and 4 6pm to 8pm Hallward B12/);
+    assert.doesNotMatch(text, /Your next session/);
     assert.match(text, /Week 3 Who decides what AGI means Tue 17 Nov · Cancelled/);
   });
 
@@ -151,8 +155,12 @@ describe("1. the programme home", () => {
     for (const n of [5, 6]) w.world.db.poke(`courseRuns/${RUN.agi}/weeks/w0${n}`, { published: true });
     await w.asBrowser("chloe");
     const { text } = w.programmeHome("chloe");
-    assert.match(text, /^My programmes AGI Strategy Fellowship · Autumn 2026 AGI Strategy Fellowship Group B · Tuesdays 6pm · Hallward B12 · with Rahul and Sofia AGI Strategy Fellowship has ended\. Thanks for being part of it\. Every week stays open, so you can go back to any of them\. The 6 weeks /);
-    assert.doesNotMatch(text, /Tonight|This week|Your next session|You finished/);
+    // Boards en-after-phone and en-after-nofinish-phone: the programme's name
+    // in a card of its own with the thanks, the term and the group (Chloe's
+    // record does not say Chloe finished, so nothing says so), what Chloe
+    // keeps, and then the weeks, each still open.
+    assert.match(text, /^My programmes AGI Strategy AGI Strategy has ended\. Thanks for being part of it\. Autumn 2026 · Group B\. What you keep The reading list for all 6 weeks The 6 weeks /);
+    assert.doesNotMatch(text, /Tonight|This week|Your next session|You finished|Your marks/);
     for (const day of ["Tue 3 Nov", "Tue 10 Nov", "Tue 17 Nov", "Tue 24 Nov", "Tue 1 Dec", "Tue 8 Dec"]) assert.match(text, new RegExp(`${day} · Done`));
   });
 
@@ -204,7 +212,10 @@ describe("2. your marks: one per session, a legend, and no count", () => {
   }
 
   test("every mark there is, each said whole, with the legend of those used and the board's line", async () => {
-    at("2026-12-10T12:00:00Z");
+    // The last day of the last week: every session is over and every mark
+    // final. (Once the week is over the page is en-after-phone's, which
+    // draws no marks.)
+    at("2026-12-09T12:00:00Z");
     kofiMarks(["present", "late", "left-early", "excused", "absent", null], { notHeld: [] });
     await w.asBrowser("kofi");
     const { text, html } = w.programmeHome("kofi");
@@ -229,7 +240,8 @@ describe("2. your marks: one per session, a legend, and no count", () => {
   });
 
   test("a session cancelled through Change a session, and a register that says it did not happen", async () => {
-    at("2026-12-10T12:00:00Z");
+    // The last day of the last week, as above.
+    at("2026-12-09T12:00:00Z");
     kofiMarks(["present", "present", null, "present", "present", "present"], { notHeld: [5] });
     changeGroupB(w, {
       sessionChanges: { w03: { kind: "cancelled", reason: "Away.", dateKey: "2026-11-17", byUid: "rahul", at: new Date("2026-11-13T09:00:00Z") } },

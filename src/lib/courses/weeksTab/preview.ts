@@ -113,6 +113,8 @@ export async function loadWeekPreview(
     finished: false,
     access: { isAdmin: false, isEnrolled: true, isFacilitator: false, isReviewer: false, isTrackLead: false },
     beforeGroups: null,
+    // A preview is of a week, never of the end of a programme.
+    whatsNext: null,
   };
   return { runId: run.id, weekNumber, week, payload };
 }

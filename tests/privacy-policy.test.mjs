@@ -4725,6 +4725,17 @@ describe("the course hub passage", () => {
         // never how many others have answered.
         [`src/app/(app)/dashboard/page.tsx`, "Home asks surveysWaitingFor for the session's own person, and hands on the cards of surveys sent to them"],
         [`src/app/(app)/dashboard/HomeMember.tsx`, "Home draws the survey cards it is handed: the card's type and its component"],
+        // CHANGED ON PURPOSE (Q48 B, wk-lastweek-phone): in its programme's
+        // last week, the survey at the end is drawn among the programme's
+        // cards, the one card HomeMember was handed and moved there, so it is
+        // drawn once. No answer, no name, never how many others answered.
+        [`src/app/(app)/dashboard/HomeProgramme.tsx`, "Home's programme card draws the survey at the end it is handed in the last week: the card's type and its component"],
+        // CHANGED ON PURPOSE (Q48 B, en-after-phone): the programme page once
+        // it is over draws the survey at the end as it stands for its reader,
+        // theirs to answer or sent, by endSurveyFor, which asks
+        // surveysWaitingFor and reads only the reader's own row and answer.
+        ["src/app/(app)/learn/[runId]/page.tsx", "the programme page once it is over asks endSurveyFor for the session's own person: the survey at the end waiting for them, or the day they sent theirs"],
+        ["src/features/courses/weekly/AfterTheEnd.tsx", "the programme page once it is over draws the survey at the end it is handed: the card's type and its component"],
         [`src/app/(app)/learn/page.tsx`, "My programmes asks surveysWaitingFor for the session's own person, as Home does"],
         [`src/app/(app)/learn/LearnHub.tsx`, "My programmes draws the survey cards it is handed: the card's type and its component"],
         ["src/app/(app)/learn/[runId]/weeks/[n]/page.tsx", "week 1's first card: the run's before survey while it waits for the reader, by beforeSurveyCardFor"],
@@ -4906,6 +4917,12 @@ describe("the course hub passage", () => {
       ["src/features/courses/WeekView.tsx", ["draws the card it is handed, by the card's own component", ["@/lib/surveys/waiting", "@/features/surveys/cards/SurveyCards"]]],
       ["src/features/courses/leaving/leftSurvey.ts", ["asks leavingSurveyCardFor whether the leaving survey of the run they left waits for them", ["@/lib/surveys/waiting"]]],
       ["src/features/courses/leaving/LeftProgramme.tsx", ["draws the leaving survey's card it is handed, by the card's own component", ["@/lib/surveys/waiting", "@/features/surveys/cards/LeavingSurveyCard"]]],
+      // CHANGED ON PURPOSE (Q48 B): the programme page once it is over draws
+      // the survey at the end as it stands for its reader, which reads
+      // whether it waits and the day they sent theirs, never an answer's
+      // words, and decides nothing by it.
+      ["src/app/(app)/learn/[runId]/page.tsx", ["the programme page once it is over: asks endSurveyFor for the survey at the end as it stands for the reader", ["@/lib/surveys/waiting"]]],
+      ["src/features/courses/weekly/AfterTheEnd.tsx", ["draws the survey at the end it is handed, by the card's own component", ["@/lib/surveys/waiting", "@/features/surveys/cards/EndSurveyCard"]]],
       ["src/lib/courses/leaveRun.ts", ["leaving makes the leaver's own row on the programme's open leaving survey (reachLeaver), after the leave has committed", ["@/lib/surveys/leaving"]]],
       [
         "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]/page.tsx",

@@ -26,9 +26,11 @@ import type { GuideLinks } from "@/lib/courses/guide/model";
 import type { TeamCardView } from "@/lib/courses/teamPage/views";
 import { YOUR_TEAM, YOUR_TEAMS_PAGE } from "@/lib/courses/teamPage/words";
 import { useMaterialTicks } from "./weekly/useMaterialTicks";
+import AfterTheEnd, { type AfterEvent, type AfterSurvey, type KeepItem } from "./weekly/AfterTheEnd";
+import { weekHref } from "./links";
 import { weekRowsOf } from "./weekly/weekRows";
 import { LEAVE_LINK } from "@/lib/courses/leavingWords";
-import { ENDED_SUB, FINISHED_SUB, hasEnded, youFinished } from "@/lib/courses/finishing/words";
+import { ENDED_SUB, ENDED_THANKS, FINISHED_SUB, hasEnded, youFinished } from "@/lib/courses/finishing/words";
 import {
   MARKS_LEGEND_LABEL,
   MARKS_LINE,
@@ -36,7 +38,12 @@ import {
   MARK_STATE_WORDS,
   NOT_YET_MARK,
   YOUR_MARKS,
+  KEEP_ACTION_PLAN,
+  afterLineParts,
+  eyebrowNamesTheDay,
   groupLineWords,
+  keepWeeksWords,
+  readingListKeepWords,
   hoursWords,
   kindAndTermWords,
   markWords,
@@ -79,6 +86,12 @@ import styles from "./RunHome.module.css";
  *
  * STAFF (a facilitator, an admin) read the same head, ticket and weeks, every
  * published week open, with their own panels below; no marks, no ticks.
+ *
+ * ONCE THE PROGRAMME IS OVER, somebody who took part reads the page boards
+ * en-after-phone and en-after-nofinish-phone draw (`AfterTheEnd`): told they
+ * finished only where their own finished record says so, their certificate,
+ * the survey at the end, what they keep, what's next, and then the weeks.
+ * Staff read the head's sentence over the page as before.
  */
 
 type Props = {
@@ -132,6 +145,15 @@ type Props = {
    * head. Empty for anybody sent none, and drawn nothing.
    */
   certificates?: CertificateCardView[];
+  /**
+   * The survey at the end as it stands for the caller (`endSurveyFor`), from
+   * the server page once their group's last session is over: theirs to
+   * answer, or sent. Null otherwise, and drawn only on the page once the
+   * programme is over.
+   */
+  endSurvey?: AfterSurvey | null;
+  /** Home's next event, as Home picks it, for What's next once the programme is over. */
+  nextEvent?: AfterEvent | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -158,6 +180,46 @@ function stateCopy(overview: OverviewPayload): { heading: string; line: string }
       : { heading: hasEnded(name), line: ENDED_SUB };
   }
   return null;
+}
+
+/**
+ * The head once the programme is over, for somebody who took part
+ * (en-after-phone, en-after-nofinish-phone): "You finished AGI Strategy."
+ * only where their own finished record says so (`overview.finished`), with
+ * the term, the group and its facilitators; otherwise "AGI Strategy has
+ * ended." with the board's thanks and the term and group. Never that they
+ * did not finish.
+ */
+function afterHeadOf(
+  overview: OverviewPayload,
+  name: string,
+  parts: { term: string; group: string; with: string },
+): { heading: string; finished: boolean; thanks: string | null; lineParts: string[] } {
+  return overview.finished
+    ? { heading: youFinished(name), finished: true, thanks: null, lineParts: afterLineParts(parts) }
+    : { heading: hasEnded(name), finished: false, thanks: ENDED_THANKS, lineParts: afterLineParts({ ...parts, with: "" }) };
+}
+
+/**
+ * What they keep (en-after-phone), each thing linked to the page that holds
+ * it, and only once such a page exists: the action plan (the one week whose
+ * fill-in boxes hold it), and the reading list. The board's reflections,
+ * written answers with feedback, notes shared with the group and every
+ * week's Go further list have no page that holds them all yet: each is on
+ * its own week's page, under the weeks below.
+ */
+function keepOf(overview: OverviewPayload, runId: string): KeepItem[] {
+  const items: KeepItem[] = [];
+  const planWeeks = overview.weeks
+    .filter((week) => week.published && (week.thisWeek?.rows ?? []).some((row) => row.type === "task" && row.needs.fillInIds.length > 0))
+    .map((week) => week.weekNumber);
+  if (planWeeks.length === 1) {
+    items.push({ title: KEEP_ACTION_PLAN, weeks: keepWeeksWords(planWeeks), href: weekHref(runId, planWeeks[0]) });
+  }
+  if (overview.run.totalWeeks > 0) {
+    items.push({ title: readingListKeepWords(overview.run.totalWeeks), weeks: null, href: `/learn/${encodeURIComponent(runId)}/reading` });
+  }
+  return items;
 }
 
 // ---------------------------------------------------------------------------
@@ -338,6 +400,8 @@ export default function RunHome({
   guide = null,
   uid = null,
   certificates = [],
+  endSurvey = null,
+  nextEvent = null,
 }: Props) {
   const { data, error, reload } = useRunOverview(runId);
   const [tickFailed, setTickFailed] = useState(false);
@@ -462,24 +526,39 @@ export default function RunHome({
     ? { ticket: weekly.order1, week: weekly.order2, group: weekly.order3, updates: weekly.order4, weeks: weekly.order5 }
     : { ticket: weekly.order1, week: weekly.order2, updates: weekly.order3, marks: weekly.order4, weeks: weekly.order5, group: weekly.order6 };
 
+  // The ticket's words (wk-changes): a session covering a cancelled week
+  // names its day in the eyebrow, "Tue 1 Dec · weeks 4 and 5", and its
+  // heading then says only the hours; an online week ends "· online". The
+  // group's last session is "Your last session" before its day.
+  const lastSessionDate = group?.calendar.lastSessionDate ?? "";
+  const eyebrowInput = facts
+    ? {
+        isToday: ticketIsToday,
+        isFirst: facts.dateKey === firstSessionDate,
+        isLast: lastSessionDate !== "" && facts.dateKey === lastSessionDate,
+        startTimeLocal: facts.startTimeLocal,
+        weekNumbers: facts.weekNumbers,
+        dateKey: facts.dateKey,
+        online: facts.mode === "virtual",
+      }
+    : null;
   const ticket =
     group?.sessionNotice || facts ? (
       <div className={order.ticket}>
         <div className={styles.stack}>
           {group?.sessionNotice && <SessionNotice notice={group.sessionNotice} />}
-          {facts && (
+          {facts && eyebrowInput && (
             <SessionTicket
               facts={facts}
-              eyebrow={sessionEyebrow({
-                isToday: ticketIsToday,
-                isFirst: facts.dateKey === firstSessionDate,
-                startTimeLocal: facts.startTimeLocal,
-                weekNumbers: facts.weekNumbers,
-              })}
-              heading={sessionWhenLabel(
-                { weekday: -1, startTimeLocal: facts.startTimeLocal, durationMinutes: facts.durationMinutes },
-                facts.dateKey,
-              ) || hoursWords(facts.startTimeLocal, facts.durationMinutes)}
+              eyebrow={sessionEyebrow(eyebrowInput)}
+              heading={
+                (eyebrowNamesTheDay(eyebrowInput)
+                  ? ""
+                  : sessionWhenLabel(
+                      { weekday: -1, startTimeLocal: facts.startTimeLocal, durationMinutes: facts.durationMinutes },
+                      facts.dateKey,
+                    )) || hoursWords(facts.startTimeLocal, facts.durationMinutes)
+              }
               roomChanged={factsSchedule?.roomChanged === true}
               facilitators={facilitatorPeople}
               calendar={learnerGroup !== null || access.isFacilitator}
@@ -532,20 +611,56 @@ export default function RunHome({
       />
     ) : null;
 
+  const bar = (
+    <div className={`${weekly.bar} ${weekly.phoneBar}`}>
+      <div className={weekly.barStart}>
+        <Link href="/learn" className={weekly.back}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={weekly.icon}>
+            <path d="M15 6l-6 6 6 6" />
+          </svg>
+          <span>My programmes</span>
+        </Link>
+      </div>
+      <div className={weekly.barTitle}>{programmeName}</div>
+      <div className={weekly.barEnd} />
+    </div>
+  );
+
+  // THE PROGRAMME PAGE ONCE IT IS OVER, for somebody who took part in it
+  // (en-after-phone, en-after-nofinish-phone). Somebody who left never
+  // reaches this page: theirs says they left.
+  if (currentWeek?.phase === "after" && access.isEnrolled && data.enrolment?.role === "learner") {
+    const head = afterHeadOf(data, programmeName, {
+      term: run.label,
+      group: learnerGroup?.name ?? "",
+      with: withWords(facilitatorPeople.map((person) => person.firstName)),
+    });
+    return (
+      <PageEnter className={weekly.programme}>
+        {bar}
+        <AfterTheEnd
+          {...head}
+          certificates={certificates}
+          endSurvey={endSurvey}
+          keep={keepOf(data, runId)}
+          whatsNext={data.whatsNext}
+          nextEvent={nextEvent}
+        >
+          {weekList}
+          <FacilitatedPanels
+            runId={runId}
+            groups={facilitatedGroups}
+            publishedWeekNumbers={publishedWeekNumbers}
+            canEmailCohort={canEmailCohort}
+          />
+        </AfterTheEnd>
+      </PageEnter>
+    );
+  }
+
   return (
     <PageEnter className={weekly.programme}>
-      <div className={`${weekly.bar} ${weekly.phoneBar}`}>
-        <div className={weekly.barStart}>
-          <Link href="/learn" className={weekly.back}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={weekly.icon}>
-              <path d="M15 6l-6 6 6 6" />
-            </svg>
-            <span>My programmes</span>
-          </Link>
-        </div>
-        <div className={weekly.barTitle}>{programmeName}</div>
-        <div className={weekly.barEnd} />
-      </div>
+      {bar}
 
       <header className={`${weekly.head} ${styles.headWithCrest}`}>
         {/* The programme's crest (or the emblem in its place), decorative
@@ -721,5 +836,36 @@ export default function RunHome({
         </div>
       )}
     </PageEnter>
+  );
+}
+
+/**
+ * Once the programme is over, a facilitator who took part keeps a card for
+ * each group they facilitate after the weeks, as on every week; the
+ * cohort-wide links ride on the first card only.
+ */
+function FacilitatedPanels({
+  runId,
+  groups,
+  publishedWeekNumbers,
+  canEmailCohort,
+}: {
+  runId: string;
+  groups: OverviewPayload["groups"];
+  publishedWeekNumbers: number[];
+  canEmailCohort: boolean;
+}) {
+  return (
+    <>
+      {groups.map((facilitated, index) => (
+        <FacilitatorGroupPanel
+          key={facilitated.id}
+          runId={runId}
+          group={facilitated}
+          publishedWeekNumbers={publishedWeekNumbers}
+          showCohortLinks={canEmailCohort && index === 0}
+        />
+      ))}
+    </>
   );
 }

@@ -786,6 +786,117 @@ export function cardSizeWords(questions: number, minutes: number): string {
 }
 
 // ---------------------------------------------------------------------------
+// The survey at the end, on its programme's own pages (Q48 B): Home in the
+// last week (wk-lastweek-phone) and the programme page once the programme is
+// over (en-after-phone, en-after-nofinish-phone). The boards' words, every
+// number, day and name in them from the survey's own record and the group's;
+// the words for a day the boards do not draw are in their voice and listed in
+// the build notes for the boards' designers to confirm.
+// ---------------------------------------------------------------------------
+
+export const END_CARD_WORDS = {
+  /** While it is theirs to answer ("cards call the after survey 'The survey at the end'"). */
+  heading: "The survey at the end",
+  /** Once they have sent it (en-after-phone). */
+  sentHeading: "Your survey at the end",
+  /** Its button in the last week (wk-lastweek-phone). */
+  open: "Open the survey",
+  /** Its button once the programme is over (en-after-nofinish-phone). */
+  answer: "Answer it",
+} as const;
+
+/** "About 5 minutes", "About a minute": a sentence of its own. */
+function aboutWords(minutes: number): string {
+  return minutes === 1 ? "About a minute" : `About ${minutes} minutes`;
+}
+
+/** "5 minutes", "a minute": the time the facilitators leave for it. */
+function forWords(minutes: number): string {
+  return minutes === 1 ? "a minute" : `${minutes} minutes`;
+}
+
+/**
+ * What it asks: "the same 6 questions as week 1, then how it went", the
+ * questions it shares with the programme's survey before it; with none
+ * shared, "23 questions on how it went".
+ */
+export function endCardAsksWords(facts: { questions: number; sameAsStart: number }): string {
+  return facts.sameAsStart > 0
+    ? `the same ${questionsWords(facts.sameAsStart)} as week 1, then how it went`
+    : `${questionsWords(facts.questions)} on how it went`;
+}
+
+/**
+ * "Rahul and Sofia leave you 5 minutes for it and step out of the room", with
+ * one facilitator "Tom leaves ... and steps out", and "Your facilitators" while
+ * the group names none.
+ */
+function leaveYouWords(firstNames: readonly string[], minutes: number, online: boolean): string {
+  const one = firstNames.length === 1;
+  const who =
+    firstNames.length === 0
+      ? "Your facilitators"
+      : one
+        ? firstNames[0]
+        : `${firstNames.slice(0, -1).join(", ")} and ${firstNames[firstNames.length - 1]}`;
+  const away = online ? `${one ? "steps" : "step"} away from the call` : `${one ? "steps" : "step"} out of the room`;
+  return `${who} ${one ? "leaves" : "leave"} you ${forWords(minutes)} for it and ${away}`;
+}
+
+/**
+ * The card in the last week, over its button: "At the end of tonight’s
+ * session: the same 6 questions as week 1, then how it went. About 5
+ * minutes. Rahul and Sofia leave you 5 minutes for it and step out of the
+ * room." `when` is "tonight" or "today" on the last session's own day (the
+ * notice's rule: "tonight" from 5pm), or the day before it comes ("At the
+ * end of your last session, on Tue 8 Dec: ..."). An online session's
+ * facilitators "step away from the call".
+ */
+export function endCardLastWeekWords(input: {
+  when: "tonight" | "today" | { day: string };
+  questions: number;
+  sameAsStart: number;
+  minutes: number;
+  facilitators: readonly string[];
+  online: boolean;
+}): string {
+  const at =
+    input.when === "tonight"
+      ? "At the end of tonight’s session"
+      : input.when === "today"
+        ? "At the end of today’s session"
+        : `At the end of your last session, on ${input.when.day}`;
+  return `${at}: ${endCardAsksWords(input)}. ${aboutWords(input.minutes)}. ${leaveYouWords(input.facilitators, input.minutes, input.online)}.`;
+}
+
+/** Under the button in the last week: "It closes on Fri 18 Dec." */
+export function endCardClosesWords(closesOn: string): string {
+  return `It closes on ${closesOn}.`;
+}
+
+/**
+ * Once the programme is over (en-after-nofinish-phone): "The same 6
+ * questions as week 1, then how it went. About 5 minutes. It closes on Fri
+ * 18 Dec."
+ */
+export function endCardAfterWords(input: { questions: number; sameAsStart: number; minutes: number; closesOn: string | null }): string {
+  const asks = endCardAsksWords(input);
+  const parts = [`${asks.charAt(0).toUpperCase()}${asks.slice(1)}.`, `${aboutWords(input.minutes)}.`];
+  if (input.closesOn) parts.push(endCardClosesWords(input.closesOn));
+  return parts.join(" ");
+}
+
+/** Once they have sent it: "Sent Tue 8 Dec. Thank you." ("Sent. Thank you." when the day is not on record.) */
+export function endCardSentWords(sentOn: string | null): string {
+  return sentOn ? `Sent ${sentOn}. Thank you.` : "Sent. Thank you.";
+}
+
+/** Under it: "It’s here until Sat 9 Dec 2028, when your name comes off your answers." */
+export function endCardKeptWords(keptUntil: string): string {
+  return `It’s here until ${keptUntil}, when your name comes off your answers.`;
+}
+
+// ---------------------------------------------------------------------------
 // The leaving survey's tab, for admins (Q46): opened, never sent
 // ---------------------------------------------------------------------------
 

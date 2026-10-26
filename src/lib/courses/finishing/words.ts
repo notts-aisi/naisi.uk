@@ -184,8 +184,11 @@ export function hasEnded(name: string): string {
 /** Under the heading for somebody who finished. */
 export const FINISHED_SUB = "Every week stays open, so you can go back to any of them.";
 
+/** The board's thanks under "has ended" (en-after-nofinish-phone). Never a word about finishing. */
+export const ENDED_THANKS = "Thanks for being part of it.";
+
 /** Under the heading for everybody else. The board's words, then the weeks. */
-export const ENDED_SUB = "Thanks for being part of it. Every week stays open, so you can go back to any of them.";
+export const ENDED_SUB = `${ENDED_THANKS} Every week stays open, so you can go back to any of them.`;
 
 /** A run's one-word state on a card or a list, once it is over. */
 export function endedWord(finished: boolean): "Finished" | "Ended" {

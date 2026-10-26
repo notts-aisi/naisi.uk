@@ -242,6 +242,10 @@ const STYLESHEETS = [
   "./RunCard.module.css",
   "./MyCoursesSummary.module.css",
   "./home.module.css",
+  // Home's last week and the programme page once it is over draw the survey
+  // at the end with the survey cards' own stylesheet (wk-lastweek-phone,
+  // en-after-phone).
+  "./SurveyCards.module.css",
 ];
 
 /** A component stood in by its name and nothing else: the words around it are what a suite reads. */

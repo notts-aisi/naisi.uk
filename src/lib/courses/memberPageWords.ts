@@ -1,4 +1,4 @@
-import { clockWords, dayWords, namesWords, weeksWords } from "./sessionChange/words";
+import { clockWords, coversWords, dayWords, namesWords, weeksWords } from "./sessionChange/words";
 
 /**
  * THE WORDS OF THE PAGES A MEMBER USES EVERY WEEK, in one place: their
@@ -58,24 +58,55 @@ export function groupLineWords(parts: { groupName: string; slot: string; room: s
 
 /**
  * Over the session's date and time: "Tonight · week 3", "Your first session ·
- * week 1", and on Home on the day "Tonight · your first session". A session
- * that is neither the first nor today is "Your next session · week 4".
+ * week 1", and on Home on the day "Tonight · your first session" or, the
+ * group's last session, "Tonight · your last session" (wk-lastweek-phone). A
+ * session that is neither the first, the last nor today is "Your next session
+ * · week 4"; the last before its day is "Your last session · week 6".
+ *
+ * A SESSION THAT COVERS AN EARLIER, CANCELLED WEEK TOO names its own day and
+ * both weeks, "Tue 1 Dec · weeks 4 and 5" (wk-changes), once the caller hands
+ * its `dateKey`: the heading under it then says only the hours
+ * (`eyebrowNamesTheDay`). On its own day it is "Tonight · weeks 4 and 5".
+ *
+ * AN ONLINE WEEK ends "· online": "Tonight · week 6 · online" (wk-changes).
  */
 export function sessionEyebrow(input: {
   isToday: boolean;
   isFirst: boolean;
+  /** The group's last session, by its own calendar (the last week, wk-lastweek-phone). */
+  isLast?: boolean;
   startTimeLocal: string;
   /** The weeks the session covers: its own, and a cancelled one before it ("weeks 4 and 5"). */
   weekNumbers: readonly number[];
-  /** Home's card says "your first session" on the day; the programme home says the week. */
+  /** The session's day, "YYYY-MM-DD": named in the eyebrow of a session covering two weeks. */
+  dateKey?: string;
+  /** The session is held online that week. */
+  online?: boolean;
+  /** Home's card says "your first session" and "your last session" on the day; the programme home says the week. */
   home?: boolean;
 }): string {
   const weeks = weeksWords(input.weekNumbers);
+  const online = input.online ? " · online" : "";
   if (input.isToday) {
     const when = tonightWord(input.startTimeLocal);
-    return input.isFirst && input.home ? `${when} · your first session` : `${when} · ${weeks}`;
+    if (input.isFirst && input.home) return `${when} · your first session${online}`;
+    if (input.isLast && input.home) return `${when} · your last session${online}`;
+    return `${when} · ${weeks}${online}`;
   }
-  return input.isFirst ? `Your first session · ${weeks}` : `Your next session · ${weeks}`;
+  if (eyebrowNamesTheDay(input)) return `${coversWords(input.dateKey ?? "", input.weekNumbers)}${online}`;
+  if (input.isFirst) return `Your first session · ${weeks}${online}`;
+  if (input.isLast) return `Your last session · ${weeks}${online}`;
+  return `Your next session · ${weeks}${online}`;
+}
+
+/**
+ * Whether the ticket's eyebrow names the session's own day: a session that
+ * covers a cancelled week too, on any day but its own ("Tue 1 Dec · weeks 4
+ * and 5", wk-changes). The heading under such an eyebrow says only the hours,
+ * "6pm to 8pm", so the day is never said twice.
+ */
+export function eyebrowNamesTheDay(input: { isToday: boolean; weekNumbers: readonly number[]; dateKey?: string }): boolean {
+  return !input.isToday && input.weekNumbers.length > 1 && dayWords(input.dateKey ?? "") !== "";
 }
 
 /** Beside a room that differs from the group's own this week. */
@@ -535,3 +566,93 @@ export const HANDS_ON_SHORT = "Hands-on route";
 
 /** The notes the group shares, as the list of where things are names them. */
 export const SHARED_NOTES_SHORT = "Notes shared with your group";
+
+// ---------------------------------------------------------------------------
+// The last week (wk-lastweek-phone), and what's next (with en-after-phone
+// and en-after-nofinish-phone)
+// ---------------------------------------------------------------------------
+
+/**
+ * Over the certificate line in the last week: "After tonight" on the last
+ * session's own day ("After today" before 5pm, the notice's rule), and
+ * "After your last session" on the days around it.
+ */
+export function afterLastSessionHeading(when: "tonight" | "today" | "around"): string {
+  if (when === "tonight") return "After tonight";
+  if (when === "today") return "After today";
+  return "After your last session";
+}
+
+/**
+ * What happens after the last session (wk-lastweek-phone). The board's line
+ * ends "by Mon 14 Dec": no record holds the day certificates go out, so the
+ * day is left out until one does.
+ */
+export const CERTIFICATE_LINE = "Everyone who finishes gets a certificate.";
+
+export const WHATS_NEXT = "What’s next";
+export const FIND_OUT_MORE = "Find out more";
+
+/** Said only while the form taking applications asks people whether they would facilitate. */
+export const FACILITATE_NEXT_TERM = "Facilitate a group next term: say so when you apply.";
+
+/** "January": the month a date key falls in, in London. "" for anything that is not a date key. */
+function monthWords(dateKey: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return "";
+  // Noon UTC is the same calendar day in London whatever the season.
+  const at = new Date(`${dateKey}T12:00:00Z`);
+  if (Number.isNaN(at.getTime())) return "";
+  return new Intl.DateTimeFormat("en-GB", { month: "long", timeZone: "Europe/London" }).format(at);
+}
+
+/**
+ * A form taking applications: "Applications for Spring 2027 close on Sun 13
+ * Dec.", its term's name as the form says it; "... are open." for a form with
+ * no closing time.
+ */
+export function applicationsCloseWords(label: string, closesOn: string | null): string {
+  const term = label.trim() || "next term";
+  const day = closesOn ? dayWords(closesOn) : "";
+  return day ? `Applications for ${term} close on ${day}.` : `Applications for ${term} are open.`;
+}
+
+/** A form that opens later: "Applications for next term open in January." */
+export function applicationsOpenWords(opensOn: string): string {
+  const month = monthWords(opensOn);
+  return month ? `Applications for next term open in ${month}.` : "";
+}
+
+// ---------------------------------------------------------------------------
+// After the end (en-after-phone, en-after-nofinish-phone)
+// ---------------------------------------------------------------------------
+
+/**
+ * The parts of the line under the head once the programme is over, each kept
+ * whole on a line: "Autumn 2026 · Group B · with Rahul and Sofia" for
+ * somebody who finished; for everybody else the term and the group, after
+ * the thanks, with a full stop ("Autumn 2026 · Group D."), as the boards
+ * write them. What is not known is left out.
+ */
+export function afterLineParts(parts: { term: string; group: string; with: string }): string[] {
+  return [parts.term, parts.group, parts.with].map((part) => part.trim()).filter(Boolean);
+}
+
+export const WHAT_YOU_KEEP = "What you keep";
+
+/** "Your action plan": week 6's fill-in boxes, on the week page that holds them. */
+export const KEEP_ACTION_PLAN = "Your action plan";
+
+/** "The reading list for all 6 weeks". */
+export function readingListKeepWords(totalWeeks: number): string {
+  return totalWeeks === 1 ? "The reading list for the week" : `The reading list for all ${totalWeeks} weeks`;
+}
+
+/** Under a kept thing: "Week 6", "Weeks 2 to 5", "Weeks 1, 3, 4, 5 and 6". */
+export function keepWeeksWords(weekNumbers: readonly number[]): string {
+  const sorted = [...new Set(weekNumbers)].sort((a, b) => a - b);
+  if (sorted.length === 0) return "";
+  if (sorted.length === 1) return `Week ${sorted[0]}`;
+  const runs = sorted.every((n, index) => index === 0 || n === sorted[index - 1] + 1);
+  if (runs && sorted.length > 2) return `Weeks ${sorted[0]} to ${sorted[sorted.length - 1]}`;
+  return `Weeks ${namesWords(sorted.map(String))}`;
+}

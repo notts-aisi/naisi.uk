@@ -15,15 +15,17 @@ import styles from "./weekly.module.css";
  *
  * Everything it shows is the session's own, resolved for its own week
  * (`ticketFacts`): a session moved for one week shows its new day, time and
- * room, an online week shows "Online this week" and the link to join, and a
- * room that is not the group's usual one says so beside it.
+ * room, an online week says so in its eyebrow ("Tonight · week 6 · online",
+ * which the caller words) and offers the link to join, and a room that is
+ * not the group's usual one says so beside it.
  *
  * "Add to calendar" (`calendar`) is the person's own calendar link
  * (st-calendar-phone): under the room on the programme page, and in a row of
  * its own under the card on Home. An online week's ticket carries Join online
- * in its place, as board wk-changes draws it. "Can’t make it", which the
- * boards draw beside it, is not here: it does not exist yet, and the page
- * draws no control for a feature that does not.
+ * in its place, in the row under the card with the line that the link is
+ * only here, as board wk-changes draws it. "Can’t make it", which the boards
+ * draw beside it, is not here: it does not exist yet, and the page draws no
+ * control for a feature that does not.
  */
 
 export type TicketPerson = { uid: string; name: string; firstName: string };
@@ -55,12 +57,9 @@ export default function SessionTicket({ facts, eyebrow, heading, roomChanged, fa
       ))}
     </span>
   );
-  const modeChip =
-    facts.mode === "virtual" ? (
-      <span className={styles.liveChip}>Online this week</span>
-    ) : facts.mode === "in-person" ? (
-      <span className={styles.plainChip}>In person this week</span>
-    ) : null;
+  // An online week is said in the eyebrow (wk-changes); a week set in person
+  // keeps its chip.
+  const modeChip = facts.mode === "in-person" ? <span className={styles.plainChip}>In person this week</span> : null;
 
   return (
     <section className={home ? `${styles.ticket} ${styles.ticketHome}` : styles.ticket} aria-label="Your next session">
@@ -111,16 +110,6 @@ export default function SessionTicket({ facts, eyebrow, heading, roomChanged, fa
               )
             )}
             {facts.missing && <p className={styles.ticketNote}>{facts.missing}</p>}
-            {facts.joinUrl && (
-              <>
-                <div className={styles.ticketActions}>
-                  <a className={styles.joinButton} href={facts.joinUrl} target="_blank" rel="noopener noreferrer">
-                    {JOIN_ONLINE}
-                  </a>
-                </div>
-                <p className={styles.ticketNote}>{LINK_IS_HERE}</p>
-              </>
-            )}
             {offerCalendar && !home && (
               <div className={styles.ticketActions}>
                 <AddToCalendar />
@@ -129,6 +118,16 @@ export default function SessionTicket({ facts, eyebrow, heading, roomChanged, fa
           </div>
         </div>
       </div>
+      {facts.joinUrl && (
+        /* The row under the card (wk-changes): the link to join, and under
+           it that the link is only here. */
+        <div className={`${styles.ticketFoot} ${styles.joinFoot}`}>
+          <a className={styles.joinButton} href={facts.joinUrl} target="_blank" rel="noopener noreferrer">
+            {JOIN_ONLINE}
+          </a>
+          <p className={styles.joinNote}>{LINK_IS_HERE}</p>
+        </div>
+      )}
       {offerCalendar && home && (
         <div className={styles.ticketFoot}>
           <AddToCalendar home />

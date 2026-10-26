@@ -9,6 +9,7 @@ import MyWorkSummary from "@/features/tasks/components/MyWorkSummary";
 import OnItsWay from "@/features/courses/weekOne/OnItsWay";
 import SurveyCards from "@/features/surveys/cards/SurveyCards";
 import type { BeforeGroupsCard } from "@/lib/courses/weekOne/cards";
+import { endSurveyOnHome } from "@/lib/courses/programmeEnd";
 import type { SurveyCard } from "@/lib/surveys/waiting";
 import HomeFacilitator from "./HomeFacilitator";
 import HomeProgramme from "./HomeProgramme";
@@ -53,6 +54,11 @@ import styles from "./home.module.css";
  * A SURVEY WAITING FOR THEM is Home's first card (`surveys`, Q50 B): "A
  * survey for you", above the cards for a place, in every form. Worded on the
  * server by `surveysWaitingFor`; never how many others have answered.
+ *
+ * IN THE LAST WEEK of the programme Home is about (`inLastWeek`, its own
+ * calendar), its survey at the end leaves the top and is handed to the
+ * programme's cards, which draw it as "The survey at the end" where
+ * wk-lastweek-phone does: one survey, one card.
  */
 
 type Slots = {
@@ -138,11 +144,15 @@ export default function HomeMember({
     </>
   );
 
+  // In the last week of the programme Home is about, its survey at the end
+  // is drawn among that programme's cards (wk-lastweek-phone), not here.
+  const { top: topSurveys, programme: endSurvey } = endSurveyOnHome(surveys, facilitated ? null : learning);
+
   // The cards sit straight under the greeting, with the install invitation:
   // a survey waiting for them first (Q50 B), then the cards for a place.
   const cards = (
     <>
-      <SurveyCards cards={surveys} />
+      <SurveyCards cards={topSurveys} />
       <OnItsWay cards={beforeGroups} />
     </>
   );
@@ -179,6 +189,7 @@ export default function HomeMember({
         comingUp={comingUpCards}
         applications={applications}
         more={more}
+        endSurvey={endSurvey}
       />
     );
   }
