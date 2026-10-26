@@ -484,7 +484,9 @@ describe("5. counts by This week's tasks", () => {
     const week6 = answer.body.weeks.find((week) => week.weekNumber === 6);
     const task3 = week6.thisWeek.rows[2];
     assert.equal(task3.label, "Part 3");
-    assert.deepEqual(task3.needs, { tickIds: [], promptIds: [], fillInIds: FB, unseenIds: [] });
+    // The needs also name the written answers, Choose ones and talks a task
+    // covers; part 3 covers none of them, so each is empty.
+    assert.deepEqual(task3.needs, { tickIds: [], promptIds: [], answerIds: [], chooseOneIds: [], talkIds: [], fillInIds: FB, unseenIds: [] });
     assert.deepEqual(task3.written, [FB[0], FB[5]]);
     assert.equal(week6.thisWeek.answersReadBy, "facilitators");
     // A facilitator's own work is the lead's and admins': the page's line follows this.
@@ -541,7 +543,7 @@ describe("6. the checklist in blocks (part 2)", () => {
     assert.match(page.text, /This week 1 of 4 done/);
     // The overview names the three steps as what the task needs ticked.
     const task2 = (await w.overview("chloe")).body.weeks.find((week) => week.weekNumber === 6).thisWeek.rows[1];
-    assert.deepEqual(task2.needs, { tickIds: CI, promptIds: [], fillInIds: [], unseenIds: [] });
+    assert.deepEqual(task2.needs, { tickIds: CI, promptIds: [], answerIds: [], chooseOneIds: [], talkIds: [], fillInIds: [], unseenIds: [] });
     // And the programme page counts it from the same ticks.
     const home = await w.programmeHome("chloe", CI);
     assert.match(home.text, /This week 1 of 4 done Week 6 · Your next lamp Thu 3 to Wed 9 Dec Not done yet: Part 1 Done: Part 2 Done Not done yet: Part 3 /);
