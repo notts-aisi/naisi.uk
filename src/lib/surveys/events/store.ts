@@ -16,7 +16,7 @@ import {
 } from "@/lib/firestore/surveys";
 import { readSurveyAnswers, storedSurveyAnswers } from "../items";
 import { isOpen } from "../repo";
-import { mintSurveyToken } from "../sending";
+import { mintSurveyToken } from "../token";
 import { REFUSAL } from "../words";
 import { EVENT_REFUSAL } from "./words";
 

@@ -5,6 +5,7 @@ import {
   SURVEYS_COLLECTION,
   normalizeSurvey,
   normalizeSurveyPerson,
+  programmeOf,
   surveyPersonId,
   type SurveyDoc,
 } from "@/lib/firestore/surveys";
@@ -119,7 +120,7 @@ export async function reachLeaver(
     const minted = mintSurveyToken();
     tx.set(rowRef, {
       surveyId: survey.id,
-      roundId: survey.audience.roundId,
+      roundId: programmeOf(survey.audience).roundId,
       respondent,
       token: minted,
       pressId: "",

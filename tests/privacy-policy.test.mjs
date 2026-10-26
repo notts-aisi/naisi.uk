@@ -4798,6 +4798,8 @@ describe("the course hub passage", () => {
       new Map([
         ["src/lib/surveys/token.ts", "the one place a survey link's secret is made"],
         ["src/lib/surveys/sending.ts", "a press's own id, which is no secret of anybody's"],
+        ["src/lib/surveys/events/sending.ts", "a press's own id for a survey after an event, which is no secret of anybody's"],
+        ["src/lib/surveys/events/code.ts", "the last-resort slug of an event survey's QR code, which is printed for everybody to read"],
       ]),
       "making random bytes in survey code",
       "A survey link's secret is made by mintSurveyToken in src/lib/surveys/token.ts alone.",

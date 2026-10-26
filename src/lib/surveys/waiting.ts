@@ -10,7 +10,9 @@ import type { SessionUser } from "@/lib/firebase/session";
 import { courseEnrolmentId, enrolmentHasLeft, normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
 import {
   SURVEY_PEOPLE_COLLECTION,
+  isEventAudience,
   normalizeSurveyPerson,
+  programmeOf,
   type SurveyDoc,
   type SurveyKind,
   type SurveyPersonDoc,
@@ -85,7 +87,7 @@ async function holdsPlaceNow(
   uid: string,
   forms: Map<string, ApplicationForm | null>,
 ): Promise<boolean> {
-  const { roundId, programmeId } = survey.audience;
+  const { roundId, programmeId } = programmeOf(survey.audience);
   if (!forms.has(roundId)) forms.set(roundId, await loadForm(db, roundId));
   const form = forms.get(roundId) ?? null;
   if (!form) return false;
@@ -118,6 +120,8 @@ async function stillTheirs(
   uid: string,
   forms: Map<string, ApplicationForm | null>,
 ): Promise<boolean> {
+  // A survey after an event reaches people by its email and its QR code, and has no card here.
+  if (isEventAudience(survey.audience)) return false;
   if (survey.audience.kind === "followUps") return true;
   if (survey.audience.kind === "leaving") return leftTheRun(db, survey.runId, uid);
   return holdsPlaceNow(db, survey, uid, forms);

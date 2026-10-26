@@ -396,6 +396,9 @@ place, by `holdsPlaceOn`, the test the reminder asks through
   What Home and My programmes may show for a place is held by `MAY_SHOW` in
   `tests/applications-place-in-the-member-area.test.mjs`; the card is its third
   entry.
+- **A survey after an event has no card.** It reaches people by its email and
+  its QR code, and a card's lines are a programme's; a row of one is never
+  "theirs" here (`stillTheirs`).
 
 ## The leaving survey (Q46)
 
