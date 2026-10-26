@@ -175,6 +175,10 @@ describe("1. who opens a group's page, its register and its summary", () => {
 
   test("the summary route answers names and counts, field by field, never an address", async () => {
     const answer = await summary("rahul");
+    // Two fields since board st-fac-before-phone: who's coming, which is
+    // handed only before the group's first session's day (week 3 is long
+    // after it), and how many an update to the group reaches, counted as the
+    // group page counts it (this world keeps nobody on the run's mailing list).
     assert.deepEqual(answer.body, {
       groupId: B,
       expected: 3,
@@ -183,6 +187,8 @@ describe("1. who opens a group's page, its register and its summary", () => {
       nextEmail: null,
       leftRecently: [],
       coFacilitators: ["Sofia"],
+      whosComing: null,
+      write: { people: 3, emails: 0, notYetTold: 0 },
     });
     assert.deepEqual((await summary("sofia")).body.coFacilitators, ["Rahul"]);
     assert.deepEqual((await summary("zach")).body.coFacilitators, ["Rahul", "Sofia"]);
@@ -515,8 +521,16 @@ describe("5. the words in week 1, before the first session and after the end", (
     assert.match(drawn.text, /Your group CN Chloe Nguyen FH Farah Hussain KA Kofi Asante Names only\./);
     assert.match(drawn.text, /Registers The first register is on Tue 3 Nov\./);
     assert.match(drawn.text, /To review Nothing to review\./);
+    // Before the day of the first session, Home is board st-fac-before-phone's
+    // (tests/course-hub-facilitator-before.test.mjs): the ticket with "Open
+    // your group", who's coming by first name (nobody here has an application
+    // to say so on), and Say hello. Take the register comes on the day.
     const onHome = await home("rahul");
-    assert.match(onHome.text, /Your first session · week 1 Group B, 6pm .* Opens your group’s register\. This week Week 1 · Week 1 readings Nothing to review\. Review/);
+    assert.match(
+      onHome.text,
+      /Your first session · week 1 Group B, 6pm Hallward B12 · with Sofia Open your group Who’s coming 0 of 3 said they’re coming\. Chloe, Farah and Kofi haven’t said\. .*Say hello Send your group a hello before Tuesday\. Write to Group B \(3\) Posts an update to the group\. Nobody in it can be emailed yet\./,
+    );
+    assert.doesNotMatch(onHome.text, /Take the register|This week/);
   });
 
   test("week 1, the day of the first session: tonight's register, and no marks yet", async () => {
