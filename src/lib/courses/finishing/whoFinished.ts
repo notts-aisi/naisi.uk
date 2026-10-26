@@ -13,6 +13,7 @@ import { attendanceDocId } from "@/lib/firestore/courseAttendance";
 import { normalizeExerciseResponse } from "@/lib/firestore/courseExercises";
 import { normalizeGroupWeek } from "@/lib/firestore/courseGroups";
 import { normalizeCourseWeek, type CourseWeekDoc } from "@/lib/firestore/courses";
+import { weekWrittenAnswers } from "@/lib/courses/weekBlocks/reader";
 import { readFinishing, recordOf, runEndOf, type Finishing, type RunEnd } from "./record";
 import {
   NO_RULE_SENTENCE,
@@ -132,7 +133,9 @@ export async function readExerciseTallies(
     for (const weekId of taught) {
       const week = forks.get(weekId) ?? canonical.get(weekId);
       if (!week || !week.published) continue;
-      for (const exercise of week.exercises) set.add(`${weekId}::${exercise.id}`);
+      // The week's written answers through the one reader: a block week's
+      // Written answer blocks, or a week written before blocks' exercises.
+      for (const answer of weekWrittenAnswers(week)) set.add(`${weekId}::${answer.id}`);
     }
     setByGroup.set(group.id, set);
   });

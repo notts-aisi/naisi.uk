@@ -44,7 +44,10 @@ import CourseFaq from "@/features/courses/CourseFaq";
 import JourneyStrip from "@/features/courses/JourneyStrip";
 import { applicationStateTone, applicationStateWords } from "@/features/courses/stateWords";
 import WeeklyThemes from "@/features/courses/WeeklyThemes";
+import PublicBlockWeek from "@/features/courses/PublicBlockWeek";
 import WeekCurriculum from "@/features/courses/WeekCurriculum";
+import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
+import { publicBlockWeek } from "@/lib/courses/weekBlocks/publicWeek";
 import {
   fetchGroupPicker,
   type GroupPickerOption,
@@ -351,14 +354,24 @@ export default async function PublicCoursePage({
                 ? `About ${course.estimatedWeeklyHours} ${course.estimatedWeeklyHours === 1 ? "hour" : "hours"}.`
                 : "A sample week"
             }
-            lede={`Week ${sampleWeek.weekNumber} in full, exactly as the cohort reads it. Every other week is published too.`}
+            lede={
+              // A block week's public page holds back what is behind sign-in (Q40), so it
+              // is not the week in full, and the line says what it is instead.
+              isBlockWeek(sampleWeek)
+                ? `Week ${sampleWeek.weekNumber}: why it matters, what you’ll be able to do after it, and what you’ll read and watch. Every other week is published too.`
+                : `Week ${sampleWeek.weekNumber} in full, exactly as the cohort reads it. Every other week is published too.`
+            }
             space="tight"
           />
           <div className={styles.sample}>
             {/* NO optional props. `WeekCurriculum` renders its public output
                 only when every render prop is absent, and that output is the
                 diff-frozen contract the week page also depends on. */}
-            <WeekCurriculum week={sampleWeek} />
+            {isBlockWeek(sampleWeek) ? (
+              <PublicBlockWeek week={publicBlockWeek(sampleWeek.blocks)} />
+            ) : (
+              <WeekCurriculum week={sampleWeek} />
+            )}
           </div>
           <p className={styles.sampleMore}>
             <Link

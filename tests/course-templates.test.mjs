@@ -803,7 +803,10 @@ test("MODEL §5.4 the note route derives weekNumber and byName server-side", () 
   // The client's weekNumber is validated for shape and then DISCARDED: a note
   // filed against a week the material is not in would never render.
   assert.match(NOTES_CODE, /const claimedWeek = body\.weekNumber;/);
-  assert.match(NOTES_CODE, /week\.materials\.some\(\(m\) => m\.id === itemId\)/);
+  // The week is found through the one reader of a week's sources, so a
+  // source in a block week's parts or packs is found the way a material is
+  // (the coursework's blocks): the same derivation, for both shapes of week.
+  assert.match(NOTES_CODE, /weekSources\(week\)\.some\(\(source\) => source\.id === itemId\)/);
   assert.match(NOTES_CODE, /weekNumber = week\.weekNumber;/);
   // The refusal for an id that is in NO week the caller can note on. Widened
   // in V2-3 when the scan gained the group forks (see the group-first scan

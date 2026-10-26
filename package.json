@@ -29,6 +29,7 @@
     "firebase": "^12.19.0",
     "firebase-admin": "^13.8.0",
     "google-auth-library": "^10.9.1",
+    "marked": "^15.0.12",
     "motion": "^13.4.6",
     "next": "^16.3.8",
     "nodemailer": "^10.0.14",

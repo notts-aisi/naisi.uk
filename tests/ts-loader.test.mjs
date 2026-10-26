@@ -985,6 +985,27 @@ const USERS = new Map([
       "that is decided, and what is counted are decided by the page as it runs",
   ],
   [
+    "course-week-blocks-markdown.test.mjs",
+    "executes the week Markdown reader and writer, the id merge and the paste (src/lib/courses/weekBlocks/) " +
+      "on a synthetic week in the fellow guide's own shape and on its copy, because a week copied out and " +
+      "pasted back is the same week with the same ids only if running the two says so. Only `server-only` " +
+      "is stubbed",
+  ],
+  [
+    "course-week-blocks-model.test.mjs",
+    "executes the week-blocks model (model.ts, prose.ts and due.ts in src/lib/courses/weekBlocks/), the " +
+      "course and week normalisers and templateWeekFields on a synthetic week holding every kind of block, " +
+      "breaking every cap once, because what a stored week reads back as and what stops one being stored " +
+      "are decided by the code that runs. Only `server-only` is stubbed",
+  ],
+  [
+    "course-week-blocks-public.test.mjs",
+    "renders the public week page (a .tsx server component), its block view and the week curriculum to " +
+      "HTML for a week written as blocks and for one written before them, because what a stranger is shown " +
+      "of a week, and that nothing behind sign-in reaches the page, is decided by the page as it runs. The " +
+      "fetcher, Next's link and navigation and the stylesheets are stubbed",
+  ],
+  [
     "registration-status.test.mjs",
     "it executes the signup tracker end to end: the status rule, the three write helpers, and the " +
       "list, summary and profile-complete routes against one small fake database, because the claim " +

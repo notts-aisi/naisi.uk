@@ -1,6 +1,8 @@
 import { slugId } from "./slugId";
 import type { CourseWeekDoc } from "./courses";
 import type { CourseMaterialNoteDoc } from "./courseMaterialNotes";
+import { weekBlocksField } from "../courses/weekBlocks/model";
+import { weekSources } from "../courses/weekBlocks/reader";
 
 /**
  * `courseTemplates/{templateId}` + `courseTemplates/{templateId}/weeks/{wNN}`
@@ -235,6 +237,10 @@ export function templateWeekFields(week: CourseWeekDoc): Record<string, unknown>
     checklist: week.checklist,
     // "Questions to think about" travel with the week, as its materials do.
     questions: week.questions,
+    // A block week's blocks travel with it, ids and all; a week written
+    // before blocks gets no `blocks` key. Its Ready does not travel: like
+    // `pitching`, it is the run's own week's.
+    ...weekBlocksField(week),
     estimatedMinutes: week.estimatedMinutes,
     // Carried verbatim, the clone-weeks convention: a snapshot is a faithful
     // copy of authored state, and publication is scoped to whatever run the
@@ -362,10 +368,13 @@ export function aggregateRetrospective(input: {
   for (const week of [...weeks].sort(
     (a, b) => a.weekNumber - b.weekNumber || a.id.localeCompare(b.id),
   )) {
-    for (const material of week.materials) {
-      if (meta.has(material.id)) continue;
-      meta.set(material.id, { weekNumber: week.weekNumber, title: material.title });
-      order.push(material.id);
+    // The week's sources, whichever shape it is: a block week's are in its
+    // parts and packs (`weekSources`, the one reader); a week written before
+    // blocks gives its materials, as it always did.
+    for (const source of weekSources(week)) {
+      if (meta.has(source.id)) continue;
+      meta.set(source.id, { weekNumber: week.weekNumber, title: source.title });
+      order.push(source.id);
     }
   }
 

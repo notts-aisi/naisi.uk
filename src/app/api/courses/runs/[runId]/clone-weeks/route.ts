@@ -12,6 +12,7 @@ import {
   sanitizeWeekPlan,
 } from "@/lib/firestore/courses";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { weekBlocksField } from "@/lib/courses/weekBlocks/model";
 
 /**
  * Copy-forward: clone one run's `weeks` subcollection into another run of the
@@ -197,6 +198,9 @@ export async function POST(
         exercises: week.exercises,
         checklist: week.checklist,
         questions: week.questions,
+        // A block week's blocks, ids and all (`weekBlocksField`); a week
+        // written before blocks gets no `blocks` key.
+        ...weekBlocksField(week),
         estimatedMinutes: week.estimatedMinutes,
         // Carried verbatim: the copy is a faithful clone of authored state, and
         // publication is scoped to this run anyway (the public catalogue reads

@@ -10,7 +10,9 @@ import Card from "@/components/ui/Card";
 import CountedTextarea from "@/components/ui/CountedTextarea";
 import { Field, Input } from "@/components/ui/Input";
 import Switch from "@/components/ui/Switch";
+import { useAuth } from "@/auth/AuthProvider";
 import { getClientDb } from "@/lib/firebase/client";
+import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { AdminLoadingBar } from "@/features/admin/adminList";
 import BlockEditor from "@/components/blocks/BlockEditor";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
@@ -27,6 +29,7 @@ import {
 import { ensureWeekDoc, saveWeek } from "./courseMutations";
 import ExerciseBuilder from "./ExerciseBuilder";
 import MaterialListEditor from "./MaterialListEditor";
+import WeekBlocksLoader from "./WeekBlocksLoader";
 import WeekQuestionsEditor from "./WeekQuestionsEditor";
 import styles from "./WeekEditor.module.css";
 
@@ -168,6 +171,8 @@ function buildChecklistItem(row: ChecklistRow): ChecklistItem {
 
 export default function WeekEditor({ courseId, runId, weekId }: Props) {
   const { toast, run: runAction, dismiss } = useActionToast();
+  // Loading a week as blocks is an admin's job for now (Q39); its route refuses everyone else.
+  const { role } = useAuth();
   const { data, loading, missing, error, reload } = useWeekEditorData(runId, weekId);
 
   // ---- Header ----
@@ -266,6 +271,9 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
   const checklistDirty =
     JSON.stringify(checklist) !== JSON.stringify(toChecklistRows(saved.checklist));
   const checklistFull = checklist.length >= COURSE_FIELD_LIMITS.maxChecklistItems;
+  // A block week's people read, tick and answer its blocks; the guide, materials,
+  // exercises and checklist below are not drawn for it, so they are not offered.
+  const blockWeek = isBlockWeek(saved);
 
   async function saveHeader() {
     const trimmedTitle = title.trim();
@@ -500,6 +508,19 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
         </div>
       </Card>
 
+      {role === "admin" && (
+        <WeekBlocksLoader runId={runId} weekId={weekId} weekNumber={weekNumber} blockWeek={blockWeek} onSaved={reload} />
+      )}
+
+      {blockWeek && role !== "admin" && (
+        <p className={styles.warn}>
+          This week is written as blocks, loaded by an admin. Its details and questions are edited here; what its
+          people read, tick and answer is in its blocks.
+        </p>
+      )}
+
+      {!blockWeek && (
+      <>
       {/* ---- Guide ---- */}
       <Card padding="lg">
         <h3 className={styles.sectionTitle}>Guide</h3>
@@ -547,9 +568,14 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
         />
       </Card>
 
+      </>
+      )}
+
       {/* ---- Questions to think about (C29) ---- */}
       <WeekQuestionsEditor questions={saved.questions} onSave={saveQuestions} />
 
+      {!blockWeek && (
+      <>
       {/* ---- Exercises ---- */}
       <Card padding="lg">
         <h3 className={styles.sectionTitle}>Exercises</h3>
@@ -673,6 +699,8 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
           </Button>
         </div>
       </Card>
+      </>
+      )}
 
       <ActionToast toast={toast} onDismiss={dismiss} />
     </div>
