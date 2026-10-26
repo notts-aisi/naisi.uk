@@ -29,9 +29,10 @@ import { proseText, runsText } from "./prose";
  * every answer below is exactly what the old arrays held, in their order.
  *
  * WHAT COUNTS AS THE PATH. A block week's sources are the ones in its parts
- * (and any outside a part), every pack's sources included, each tagged with
- * its pack, because which pack is a person's is a per-person record and not
- * the week's. Go further is never on the path and never counted
+ * (and any outside a part), and every pack, each pack one source ticked as
+ * one (its reading is one line with as many links as it has) and tagged
+ * with its own id, because which pack is a person's is a per-person record
+ * and not the week's. Go further is never on the path and never counted
  * (`weekGoFurther` lists it apart).
  *
  * Structural parameter types throughout, so a normalised `CourseWeekDoc` or a
@@ -84,6 +85,8 @@ export type WeekWrittenAnswer = {
   id: string;
   /** The question, in plain text. */
   prompt: string;
+  /** A block week's labelled boxes (week 6's one-page plan), or none: an answer of one box. */
+  boxes: Array<{ id: string; label: string }>;
   /** A block week's word range, or null. */
   words: WordRange | null;
   /** An exercise's cap in characters, or null on a block week (which counts words). */
@@ -128,7 +131,7 @@ function fromSource(
   return {
     id,
     title: source.title,
-    url: source.url,
+    url: source.url || (source.note.find((run) => run.href)?.href ?? null),
     kindLabel: SOURCE_KIND_LABEL[source.kind],
     kind: source.kind,
     legacyType: null,
@@ -152,8 +155,9 @@ const LEGACY_KIND_LABEL: Record<MaterialType, string> = {
 
 /**
  * The sources on a week's path, in page order: a block week's Source blocks
- * and every pack's sources (never Go further); a week written before blocks'
- * materials, every one, as stored.
+ * and every pack, each pack one source ticked as one (its reading is one
+ * line, with as many links as it has), never Go further; a week written
+ * before blocks' materials, every one, as stored.
  */
 export function weekSources(week: ReadableWeek): WeekSource[] {
   if (isBlockWeek(week)) {
@@ -161,7 +165,24 @@ export function weekSources(week: ReadableWeek): WeekSource[] {
     for (const { block, part } of placed(week.blocks)) {
       if (block.type === "source") out.push(fromSource(block.id, block, part, null));
       if (block.type === "chooseOne") {
-        for (const pack of block.packs) for (const source of pack.sources) out.push(fromSource(source.id, source, part, pack.id));
+        for (const pack of block.packs) {
+          out.push({
+            id: pack.id,
+            title: pack.name,
+            url: pack.read.find((run) => run.href)?.href ?? null,
+            kindLabel: SOURCE_KIND_LABEL[block.kind],
+            kind: block.kind,
+            legacyType: null,
+            by: "",
+            date: "",
+            time: pack.time || block.time,
+            minutes: null,
+            optional: false,
+            packId: pack.id,
+            partId: part?.id ?? null,
+            note: runsText(pack.read),
+          });
+        }
       }
     }
     return out;
@@ -197,7 +218,8 @@ export function weekWrittenAnswers(week: ReadableWeek): WeekWrittenAnswer[] {
         ? [
             {
               id: block.id,
-              prompt: runsText(block.prompt),
+              prompt: proseText(block.prompt),
+              boxes: block.boxes.map((box) => ({ id: box.id, label: box.label })),
               words: block.words,
               maxLength: null,
               required: true,
@@ -211,6 +233,7 @@ export function weekWrittenAnswers(week: ReadableWeek): WeekWrittenAnswer[] {
   return week.exercises.map((exercise) => ({
     id: exercise.id,
     prompt: exercise.prompt,
+    boxes: [],
     words: null,
     maxLength: exercise.maxLength,
     required: exercise.required,

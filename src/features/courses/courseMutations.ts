@@ -14,6 +14,7 @@ import { slugId } from "@/lib/firestore/slugId";
 import { isValidDateKey, type WeekPlanEntry } from "@/lib/courses/weekPlan";
 import { cohortError, type RunCohort } from "@/lib/courses/cohortLabel";
 import { normalizeTeamsFrom, type TeamsFrom } from "@/lib/courses/teams/model";
+import { isClockTime } from "@/lib/courses/weekBlocks/model";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
 import type { FormQuestion } from "@/lib/firestore/events";
 import {
@@ -150,6 +151,8 @@ export type CoursePatch = Partial<{
   track: CourseTrack;
   level: CourseLevel;
   estimatedWeeklyHours: number | null;
+  /** "HH:MM" London, or null for the end of the day (`CourseDoc.dayBeforeDueTime`). */
+  dayBeforeDueTime: string | null;
   /** Requires `approveCourse` (rules gate every status move). */
   status: CourseStatus;
   showcaseRunId: string | null;
@@ -179,6 +182,10 @@ export async function updateCourse(courseId: string, patch: CoursePatch): Promis
   }
   if (patch.estimatedWeeklyHours !== undefined) {
     out.estimatedWeeklyHours = positiveIntOrNull(patch.estimatedWeeklyHours);
+  }
+  if (patch.dayBeforeDueTime !== undefined) {
+    // Stored only in the one shape the readers accept: a real null otherwise.
+    out.dayBeforeDueTime = isClockTime(patch.dayBeforeDueTime) ? patch.dayBeforeDueTime : null;
   }
   if (patch.status !== undefined) out.status = patch.status;
   if (patch.showcaseRunId !== undefined) {

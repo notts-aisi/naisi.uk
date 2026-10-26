@@ -34,10 +34,20 @@ export type Run = {
 
 export type ProseItem = { runs: Run[] };
 
+/** One cell of a table: a line of runs. */
+export type TableCell = { runs: Run[] };
+
+/**
+ * A paragraph, a list, a table (week 6's routes and deadlines), or a block
+ * of code shown exactly as written (the hands-on routes' commands and
+ * scripts: text, never run, never markup).
+ */
 export type ProseParagraph =
   | { type: "p"; runs: Run[] }
   | { type: "ul"; items: ProseItem[] }
-  | { type: "ol"; items: ProseItem[] };
+  | { type: "ol"; items: ProseItem[] }
+  | { type: "table"; header: TableCell[]; rows: { cells: TableCell[] }[] }
+  | { type: "code"; lang: string; text: string };
 
 export type Prose = ProseParagraph[];
 
@@ -214,9 +224,36 @@ export function sanitizeProse(raw: unknown, maxChars: number = WEEK_BLOCK_LIMITS
         items.push({ runs });
       }
       if (items.length > 0) out.push({ type: p.type, items });
+    } else if (p.type === "table") {
+      const header = sanitizeCells(p.header, WEEK_BLOCK_LIMITS.maxProseTableColumns);
+      if (header.length === 0) continue;
+      const rows = (Array.isArray(p.rows) ? p.rows : [])
+        .slice(0, WEEK_BLOCK_LIMITS.maxProseTableRows)
+        .map((row) => sanitizeCells((row as Record<string, unknown> | null)?.cells, header.length))
+        .map((cells) => {
+          while (cells.length < header.length) cells.push({ runs: [] });
+          return { cells };
+        });
+      left -= [...header, ...rows.flatMap((row) => row.cells)].reduce((n, cell) => n + runsText(cell.runs).length, 0);
+      out.push({ type: "table", header, rows });
+    } else if (p.type === "code") {
+      if (typeof p.text !== "string" || !p.text.trim()) continue;
+      // Code keeps every space and line break: it is shown as written.
+      const text = p.text.replace(/\r\n?/g, "\n").replace(/\n+$/, "").slice(0, WEEK_BLOCK_LIMITS.codeChars);
+      const lang = typeof p.lang === "string" && /^[A-Za-z0-9+#.-]*$/.test(p.lang) ? p.lang.slice(0, WEEK_BLOCK_LIMITS.codeLang) : "";
+      left -= text.length;
+      out.push({ type: "code", lang, text });
     }
   }
   return out;
+}
+
+/** Stored table cells, read: each a canonical line, at most `max` of them. */
+export function sanitizeCells(raw: unknown, max: number): TableCell[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(0, max).map((cell) => ({
+    runs: sanitizeRuns((cell as Record<string, unknown> | null)?.runs, WEEK_BLOCK_LIMITS.inlineChars),
+  }));
 }
 
 /** A line's plain text. */
@@ -224,29 +261,37 @@ export function runsText(runs: readonly Run[]): string {
   return runs.map((run) => run.text).join("");
 }
 
-/** Prose's plain text: paragraphs apart by a blank line, list items one to a line. */
+/** Prose's plain text: paragraphs apart by a blank line; list items, table rows and code one to a line. */
 export function proseText(prose: Prose): string {
   return prose
-    .map((p) => (p.type === "p" ? runsText(p.runs) : p.items.map((item) => runsText(item.runs)).join("\n")))
+    .map((p) => {
+      if (p.type === "p") return runsText(p.runs);
+      if (p.type === "ul" || p.type === "ol") return p.items.map((item) => runsText(item.runs)).join("\n");
+      if (p.type === "table") return [p.header, ...p.rows.map((row) => row.cells)].map((cells) => cells.map((cell) => runsText(cell.runs)).join(" | ")).join("\n");
+      return p.text;
+    })
     .join("\n\n");
 }
 
 /** How many characters of text prose holds. */
 export function proseChars(prose: Prose): number {
   let n = 0;
-  for (const p of prose) {
-    if (p.type === "p") n += runsText(p.runs).length;
-    else for (const item of p.items) n += runsText(item.runs).length;
-  }
+  for (const line of proseLines(prose)) n += runsText(line).length;
+  for (const p of prose) if (p.type === "code") n += p.text.length;
   return n;
 }
 
-/** Every line of prose, paragraphs and list items alike, in order. */
+/**
+ * Every line of prose in order: paragraphs, list items and table cells (a
+ * row's cells one after another). Code is not a line of runs: it is
+ * counted by `proseChars` and read as text where it is drawn.
+ */
 export function proseLines(prose: Prose): Run[][] {
   const lines: Run[][] = [];
   for (const p of prose) {
     if (p.type === "p") lines.push(p.runs);
-    else for (const item of p.items) lines.push(item.runs);
+    else if (p.type === "ul" || p.type === "ol") for (const item of p.items) lines.push(item.runs);
+    else if (p.type === "table") for (const cell of [...p.header, ...p.rows.flatMap((row) => row.cells)]) lines.push(cell.runs);
   }
   return lines;
 }

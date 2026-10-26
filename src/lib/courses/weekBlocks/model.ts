@@ -5,10 +5,12 @@ import {
   runsText,
   safeSourceUrl,
   safeLinkUrl,
+  sanitizeCells,
   sanitizeProse,
   sanitizeRuns,
   type Prose,
   type Run,
+  type TableCell,
 } from "./prose";
 
 /**
@@ -62,8 +64,12 @@ import {
 // The vocabulary
 // ---------------------------------------------------------------------------
 
-/** How a source is taken in. The words the boards use, in this order. */
-export const SOURCE_KINDS = ["read", "watch", "listen", "watchOrListen", "watchOrRead", "explore"] as const;
+/**
+ * How a source is taken in. The boards' six, in their order, then a
+ * notebook (code that runs, with what it needs to run: the Technical AI
+ * Safety hands-on routes).
+ */
+export const SOURCE_KINDS = ["read", "watch", "listen", "watchOrListen", "watchOrRead", "explore", "notebook"] as const;
 export type SourceKind = (typeof SOURCE_KINDS)[number];
 
 export const SOURCE_KIND_LABEL: Record<SourceKind, string> = {
@@ -73,6 +79,7 @@ export const SOURCE_KIND_LABEL: Record<SourceKind, string> = {
   watchOrListen: "Watch or listen",
   watchOrRead: "Watch or read",
   explore: "Explore",
+  notebook: "Notebook",
 };
 
 /**
@@ -80,11 +87,17 @@ export const SOURCE_KIND_LABEL: Record<SourceKind, string> = {
  * board's three. The DATE is never stored: it is worked out for each group
  * from its own calendar (`due.ts`).
  *  - `before`: before the session;
- *  - `dayBefore`: by the end of the day before the session;
+ *  - `dayBefore`: on the day before the session, by the time the COURSE
+ *    sets (`CourseDoc.dayBeforeDueTime`), or by the end of that day;
  *  - `atSession`: at the session.
  */
 export const WHENS = ["before", "dayBefore", "atSession"] as const;
 export type When = (typeof WHENS)[number];
+
+/** "HH:MM", 00:00 to 23:59: the shape of a course's day-before time. */
+export function isClockTime(value: unknown): value is string {
+  return typeof value === "string" && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
 
 /** The words for each `When`, as a This week table writes them. */
 export const WHEN_WORDS: Record<When, string> = {
@@ -117,7 +130,8 @@ export type BlockType =
   | "fillIn"
   | "checklist"
   | "inTheSession"
-  | "goFurther";
+  | "goFurther"
+  | "handsOn";
 
 /** The blocks a week's top level may hold. */
 export const TOP_LEVEL_TYPES: readonly BlockType[] = [
@@ -129,6 +143,7 @@ export const TOP_LEVEL_TYPES: readonly BlockType[] = [
   "cases",
   "inTheSession",
   "goFurther",
+  "handsOn",
 ];
 
 /** The blocks a Part may hold. */
@@ -155,6 +170,8 @@ export type ThisWeekTask = {
   /** "About 65 to 80 minutes". */
   time: string;
   when: When;
+  /** The when as the guide writes it ("Before session 1, if you can"), or "". */
+  whenText: string;
   /**
    * The ids of the parts, written answers and Cases blocks this task stands
    * for, worked out from its words when a week is read in ("Parts 1 to 3",
@@ -176,7 +193,20 @@ export type ThisWeekNone = {
   note: string;
 };
 
-export type ThisWeekRow = ThisWeekTask | ThisWeekNone;
+/**
+ * A row that is offered, not set: "Hands-on route (optional, for coders) ·
+ * An hour or more · Any time; not counted in the total". It is outside
+ * "In all" and never counted.
+ */
+export type ThisWeekOptional = {
+  type: "optional";
+  what: string;
+  time: string;
+  /** "Any time; not counted in the total". */
+  note: string;
+};
+
+export type ThisWeekRow = ThisWeekTask | ThisWeekNone | ThisWeekOptional;
 
 export type ThisWeekBlock = {
   id: string;
@@ -227,11 +257,21 @@ export type ContentNoteBlock = {
   links: SupportLink[];
 };
 
-/** What a source is, wherever it sits: in a part, in a pack, or (with `why` for `note`) in Go further. */
+/** What a source is, wherever it sits: on the path, or (with `why` for `note`) in Go further. */
 export type SourceFields = {
   kind: SourceKind;
+  /**
+   * Words before the linked title, as written: a section or page note
+   * ("section 3.5, ... (pages 157 to 159), of the"), or "".
+   */
+  lead: string;
   title: string;
-  /** An https address (Q36: every source is a link; no players). */
+  /**
+   * An https address (Q36: every source is a link; no players), or "" for
+   * a source with no single link of its own, whose note carries its links
+   * ("METR's time horizons. Start with AI Digest's two-minute explainer,
+   * then METR's latest update").
+   */
   url: string;
   /** Author or source: "Ajeya Cotra", "Rose Hadshar, 80,000 Hours". */
   by: string;
@@ -239,15 +279,14 @@ export type SourceFields = {
   date: string;
   /** "22 minutes", "About 35 minutes", "15 to 35 minutes", or "" (optional inside a pack). */
   time: string;
+  /** What a notebook needs to run ("free Colab", "a paid API key, about US$5"), or "". */
+  compute: string;
   /** "The introduction and section B." One line, or none. */
   note: Run[];
 };
 
 /** One source on the path. Its id is what a tick and a rating key on. */
 export type SourceBlock = { id: string; type: "source" } & SourceFields;
-
-/** One source inside a pack. */
-export type PackSource = { id: string } & SourceFields;
 
 export type ReflectionPrompt = { id: string; text: string };
 
@@ -258,34 +297,56 @@ export type ReflectionBlock = {
   prompts: ReflectionPrompt[];
 };
 
-/** One option in a Choose one. */
+/**
+ * One option in a Choose one: a name, what to read (one line with as many
+ * linked sources as it has, as the guide writes it), a time and a note.
+ * It is ticked as one: the pack's id is what a tick, and which pack a
+ * person has, key on.
+ */
 export type Pack = {
   id: string;
+  /** "Loss of control", "AI policy and strategy research". */
   name: string;
   /** "32 minutes", "About 25 minutes", or "" when the Choose one gives one time for all. */
   time: string;
-  /** "if you like law, politics, economics or history", or none. */
+  /** "Win the race with locked-down labs ...", "if you like law, ...", or none. */
   note: Run[];
-  sources: PackSource[];
+  /** What to read, as written: its links and the words around them. */
+  read: Run[];
 };
 
 /**
- * Packs, each with a name, a time, its sources and a note. Only the chosen
- * pack counts towards a person's week. `givenBy` says who settles which one
- * a person has (Q32).
+ * Packs to choose from. Only the chosen pack counts towards a person's
+ * week. `givenBy` says who settles which one a person has (Q32): a
+ * facilitator, typing in the paper draw, or the person, on the site.
+ *
+ * Two ways of writing one, kept so a week copies out as it was written:
+ *  - `table`: a table of packs (Pathway, Read, Time; maybe an "In one
+ *    line" column), as weeks 3 to 5 write them;
+ *  - `list`: a source line ("Read: one 80,000 Hours career review that
+ *    fits you, 15 to 35 minutes:") with one linked option per line under
+ *    it, as week 6 writes its career reviews.
  */
 export type ChooseOneBlock = {
   id: string;
   type: "chooseOne";
-  /** "Pathway packs", "One 80,000 Hours career review that fits you". */
+  form: "table" | "list";
+  /**
+   * The table's first header ("Pathway", "Pack", "If you want..."), or the
+   * list's line ("one 80,000 Hours career review that fits you").
+   */
   title: string;
   givenBy: GivenBy;
+  /** The list's kind ("Read"); "read" for a table. */
+  kind: SourceKind;
   /** One time for every pack ("15 to 35 minutes"), or "" when each pack has its own. */
   time: string;
+  /** The header of a table's note column ("In one line"), or "". */
+  noteHeading: string;
+  /** Questions to read every pack against (Technical AI Safety week 3), or none. */
+  questions: Prose;
   packs: Pack[];
 };
-
-export type TableCell = { runs: Run[] };
 
 /** Simple rows and columns of text and links. */
 export type TableBlock = {
@@ -298,25 +359,43 @@ export type TableBlock = {
 export type WordRange = { min: number; max: number };
 
 /**
+ * One labelled box of a written answer made of several (Technical AI Safety
+ * week 6's one-page plan: seven headings, sent together as the week's
+ * written piece, with feedback on the rubric like any written answer).
+ */
+export type AnswerBox = {
+  id: string;
+  /** "What I want to work on, and why it matters". */
+  label: string;
+  /** "two or three sentences.", or "". */
+  hint: string;
+};
+
+/**
  * The week's one written answer: its prompt, guidance, a word range and when
  * it is due. Its id is the answer's address (the response store keys on it,
  * as it does on an exercise's id today). The due MOMENT is each group's
- * (`due.ts`): by the end of the day before the group's session, or before
- * its next one when that session is cancelled. Feedback on the rubric and
- * the review are later pages'.
+ * (`due.ts`): on the day before the group's session by the course's time
+ * (`CourseDoc.dayBeforeDueTime`), moved to the group's next session when
+ * that one is cancelled. Feedback on the rubric and the review are later
+ * pages'.
  */
 export type WrittenAnswerBlock = {
   id: string;
   type: "writtenAnswer";
-  /** One paragraph. */
-  prompt: Run[];
+  /** The question: its paragraphs, a numbered list of steps, a milestone in bold. */
+  prompt: Prose;
+  /**
+   * Labelled boxes, sent together, or none: an answer of one box. A part
+   * with a word range has one box (the range is counted over it); a part
+   * with none that lists headings to write under has a box per heading.
+   */
+  boxes: AnswerBox[];
+  /** What a strong answer does ("A strong answer ..."), or none. */
   guidance: Prose;
   words: WordRange | null;
   due: When;
 };
-
-/** A link a case starts from. */
-export type CaseLink = { label: string; url: string };
 
 export type Case = {
   id: string;
@@ -324,7 +403,14 @@ export type Case = {
   title: string;
   /** What happened, in one line. */
   what: Run[];
-  links: CaseLink[];
+  /** Where to start, as written: its links, with the words and times around them. */
+  start: Run[];
+  /**
+   * A content note on this case alone ("The sources quote offensive posts:
+   * talk to your facilitator before you take this one."), or "". A case with
+   * a content note stays out of the draw and is offered instead.
+   */
+  contentNote: string;
 };
 
 /** Cases under one heading. `packId` is the pack of the same name in the week, when there is one. */
@@ -353,7 +439,13 @@ export type CasesBlock = {
   /** How to prepare ("the five questions"), or none. */
   prepare: Prose;
   givenBy: GivenBy;
+  /** The cases table's group column ("Pathway"), or "" when its cases are in one group. */
+  groupLabel: string;
+  /** The heading of its links column: "Start here", or "Where to start". */
+  startLabel: string;
   groups: CaseGroup[];
+  /** The lines under the cases ("If a case weighs on you, swap it."), or none. */
+  note: Prose;
 };
 
 export type FillInBox = { id: string; label: string };
@@ -390,6 +482,12 @@ export type InTheSessionBlock = {
   id: string;
   type: "inTheSession";
   body: Prose;
+  /**
+   * "Before you come (about 5 minutes). ..." (Technical AI Safety week 5):
+   * what to do before the session, as written, or none. A This week task
+   * that says "Get ready" covers it.
+   */
+  beforeYouCome: Prose;
 };
 
 /**
@@ -406,6 +504,20 @@ export type GoFurtherBlock = {
   heading: string;
   intro: Prose;
   items: GoFurtherItem[];
+};
+
+/**
+ * The hands-on route (Technical AI Safety, every week): an optional list
+ * for people who code, outside This week's total and never counted. Its
+ * notebooks, exercises and code are prose, as written: code blocks shown
+ * exactly, and links.
+ */
+export type HandsOnBlock = {
+  id: string;
+  type: "handsOn";
+  /** "Hands-on route (optional, for coders)". */
+  heading: string;
+  body: Prose;
 };
 
 export type PartChild =
@@ -425,6 +537,11 @@ export type PartBlock = {
   type: "part";
   /** "Why alignment might be hard" (the "Part 1:" is its place among the parts). */
   title: string;
+  /**
+   * What the heading's brackets say, as the boards draw it beside the part:
+   * a time ("About 25 minutes"), or, for the written answer's part, its
+   * word range ("250 to 350 words"). "" when there are none.
+   */
   time: string;
   framing: Prose;
   blocks: PartChild[];
@@ -438,7 +555,8 @@ export type TopBlock =
   | PartBlock
   | CasesBlock
   | InTheSessionBlock
-  | GoFurtherBlock;
+  | GoFurtherBlock
+  | HandsOnBlock;
 
 /** Any block, at the top of a week or inside a part. */
 export type WeekBlock = TopBlock | PartChild;
@@ -481,6 +599,8 @@ export const ID_PREFIX = {
   checkItem: "ci",
   inTheSession: "is",
   goFurther: "gf",
+  handsOn: "ho",
+  answerBox: "wb",
 } as const;
 
 export type IdPrefix = (typeof ID_PREFIX)[keyof typeof ID_PREFIX];
@@ -558,19 +678,27 @@ function asSourceKind(value: unknown): SourceKind | null {
   return SOURCE_KINDS.includes(value as SourceKind) ? (value as SourceKind) : null;
 }
 
+/**
+ * A source's fields, read: a kind and a title always; an https link, or no
+ * link at all when its note carries the links instead.
+ */
 function sourceFields(raw: Raw): SourceFields | null {
   const kind = asSourceKind(raw.kind);
-  const url = safeSourceUrl(raw.url);
   const title = oneLine(raw.title, L.sourceTitle);
-  if (!kind || !url || !title) return null;
+  const note = sanitizeRuns(raw.note, L.inlineChars);
+  const url = safeSourceUrl(raw.url);
+  if (!kind || !title) return null;
+  if (!url && !note.some((run) => run.href)) return null;
   return {
     kind,
+    lead: oneLine(raw.lead, L.sourceLead),
     title,
-    url,
+    url: url ?? "",
     by: oneLine(raw.by, L.sourceBy),
     date: oneLine(raw.date, L.sourceDate),
     time: oneLine(raw.time, L.sourceTime),
-    note: sanitizeRuns(raw.note, L.inlineChars),
+    compute: oneLine(raw.compute, L.sourceCompute),
+    note,
   };
 }
 
@@ -582,11 +710,18 @@ function readThisWeek(raw: Raw, id: string): ThisWeekBlock | null {
     const what = oneLine(row.what, L.thisWeekWhat);
     if (!what) continue;
     const time = oneLine(row.time, L.thisWeekTime);
-    if (row.type === "none") {
-      rows.push({ type: "none", what, time, note: oneLine(row.note, L.thisWeekRowNote) });
+    if (row.type === "none" || row.type === "optional") {
+      rows.push({ type: row.type, what, time, note: oneLine(row.note, L.thisWeekRowNote) });
     } else if (row.type === "task") {
       const covers = list(row.covers, L.maxWeekBlocks).filter(isWeekItemId);
-      rows.push({ type: "task", what, time, when: asWhen(row.when, "before"), covers: [...new Set(covers)] });
+      rows.push({
+        type: "task",
+        what,
+        time,
+        when: asWhen(row.when, "before"),
+        whenText: oneLine(row.whenText, L.thisWeekRowNote),
+        covers: [...new Set(covers)],
+      });
     }
   }
   if (rows.length === 0) return null;
@@ -668,43 +803,35 @@ function readChooseOne(raw: Raw, id: string, seen: Seen): ChooseOneBlock | null 
     const pack = asRaw(value);
     if (!pack) continue;
     const name = oneLine(pack.name, L.packName);
-    if (!name || !isWeekItemId(pack.id) || seen.has(pack.id)) continue;
-    const sources: PackSource[] = [];
-    // The pack's id is claimed first, so a source cannot take it.
-    const packId = claimId(pack.id, seen) as string;
-    for (const sourceValue of list(pack.sources, L.maxPackSources)) {
-      const sourceRaw = asRaw(sourceValue);
-      if (!sourceRaw) continue;
-      const fields = sourceFields(sourceRaw);
-      if (!fields) continue;
-      const sourceId = claimId(sourceRaw.id, seen);
-      if (!sourceId) continue;
-      sources.push({ id: sourceId, ...fields });
-    }
-    if (sources.length === 0) continue;
+    const read = sanitizeRuns(pack.read, L.packRead);
+    if (!name || read.length === 0) continue;
+    const packId = claimId(pack.id, seen);
+    if (!packId) continue;
     packs.push({
       id: packId,
       name,
       time: oneLine(pack.time, L.sourceTime),
       note: sanitizeRuns(pack.note, L.inlineChars),
-      sources,
+      read,
     });
   }
   if (packs.length < L.minPacks) return null;
   return {
     id,
     type: "chooseOne",
+    form: raw.form === "list" ? "list" : "table",
     title: oneLine(raw.title, L.chooseOneTitle),
     givenBy: asGivenBy(raw.givenBy, "fellow"),
+    kind: asSourceKind(raw.kind) ?? "read",
     time: oneLine(raw.time, L.sourceTime),
+    noteHeading: oneLine(raw.noteHeading, L.chooseOneHeading),
+    questions: sanitizeProse(raw.questions),
     packs,
   };
 }
 
 function readCells(value: unknown): TableCell[] {
-  return list(value, L.maxTableColumns).map((cell) => ({
-    runs: sanitizeRuns(asRaw(cell)?.runs, L.inlineChars),
-  }));
+  return sanitizeCells(value, L.maxTableColumns);
 }
 
 function readTable(raw: Raw, id: string): TableBlock | null {
@@ -732,13 +859,24 @@ function readWords(value: unknown): WordRange | null {
   return min !== null && max !== null && min <= max ? { min, max } : null;
 }
 
-function readWrittenAnswer(raw: Raw, id: string): WrittenAnswerBlock | null {
-  const prompt = sanitizeRuns(raw.prompt, L.proseChars);
+function readWrittenAnswer(raw: Raw, id: string, seen: Seen): WrittenAnswerBlock | null {
+  const prompt = sanitizeProse(raw.prompt);
   if (prompt.length === 0) return null;
+  const boxes: AnswerBox[] = [];
+  for (const value of list(raw.boxes, L.maxAnswerBoxes)) {
+    const box = asRaw(value);
+    if (!box) continue;
+    const label = oneLine(box.label, L.answerBoxLabel);
+    if (!label) continue;
+    const boxId = claimId(box.id, seen);
+    if (!boxId) continue;
+    boxes.push({ id: boxId, label, hint: oneLine(box.hint, L.answerBoxHint) });
+  }
   return {
     id,
     type: "writtenAnswer",
     prompt,
+    boxes,
     guidance: sanitizeProse(raw.guidance),
     words: readWords(raw.words),
     due: asWhen(raw.due, "dayBefore"),
@@ -767,14 +905,13 @@ function readCases(raw: Raw, id: string, seen: Seen, inPart: boolean): CasesBloc
       if (!caseRaw) continue;
       const title = oneLine(caseRaw.title, L.caseTitle);
       if (!title || !isWeekItemId(caseRaw.id) || seen.has(caseRaw.id)) continue;
-      const links: CaseLink[] = [];
-      for (const linkValue of list(caseRaw.links, L.maxCaseLinks)) {
-        const link = asRaw(linkValue);
-        const url = link ? safeLinkUrl(link.url) : null;
-        const label = link ? oneLine(link.label, L.caseLinkLabel) : "";
-        if (url && label) links.push({ label, url });
-      }
-      cases.push({ id: claimId(caseRaw.id, seen) as string, title, what: sanitizeRuns(caseRaw.what, L.inlineChars), links });
+      cases.push({
+        id: claimId(caseRaw.id, seen) as string,
+        title,
+        what: sanitizeRuns(caseRaw.what, L.inlineChars),
+        start: sanitizeRuns(caseRaw.start, L.caseStart),
+        contentNote: oneLine(caseRaw.contentNote, L.caseContentNote),
+      });
       caseCount += 1;
     }
     if (cases.length === 0) continue;
@@ -785,18 +922,19 @@ function readCases(raw: Raw, id: string, seen: Seen, inPart: boolean): CasesBloc
     });
   }
   const talk = readTalk(raw.talk);
-  const intro = sanitizeProse(raw.intro);
-  const prepare = sanitizeProse(raw.prepare);
   if (groups.length === 0 && !talk) return null;
   return {
     id,
     type: "cases",
     heading: inPart ? "" : oneLine(raw.heading, L.casesHeading),
-    intro,
+    intro: sanitizeProse(raw.intro),
     talk,
-    prepare,
+    prepare: sanitizeProse(raw.prepare),
     givenBy: asGivenBy(raw.givenBy, "facilitator"),
+    groupLabel: oneLine(raw.groupLabel, L.casesColumn),
+    startLabel: oneLine(raw.startLabel, L.casesColumn) || "Start here",
     groups,
+    note: sanitizeProse(raw.note),
   };
 }
 
@@ -843,7 +981,8 @@ function readChecklist(raw: Raw, id: string, seen: Seen): ChecklistBlock | null 
 
 function readInTheSession(raw: Raw, id: string): InTheSessionBlock | null {
   const body = sanitizeProse(raw.body);
-  return body.length > 0 ? { id, type: "inTheSession", body } : null;
+  const beforeYouCome = sanitizeProse(raw.beforeYouCome);
+  return body.length > 0 || beforeYouCome.length > 0 ? { id, type: "inTheSession", body, beforeYouCome } : null;
 }
 
 function readGoFurther(raw: Raw, id: string): GoFurtherBlock | null {
@@ -851,26 +990,26 @@ function readGoFurther(raw: Raw, id: string): GoFurtherBlock | null {
   for (const value of list(raw.items, L.maxGoFurther)) {
     const item = asRaw(value);
     if (!item) continue;
+    const fields = sourceFields({ ...item, note: item.why });
+    if (fields) {
+      const { note, ...rest } = fields;
+      items.push({ ...rest, why: note });
+      continue;
+    }
+    // An item with no title of its own: its kind, then its line, links and all.
     const kind = asSourceKind(item.kind);
-    if (!kind) continue;
     const why = sanitizeRuns(item.why, L.inlineChars);
-    const url = safeSourceUrl(item.url);
-    const title = oneLine(item.title, L.sourceTitle);
-    // A titled item has its own link; an untitled one carries its links in its line.
-    if (title ? !url : why.length === 0) continue;
-    items.push({
-      kind,
-      title,
-      url: title && url ? url : "",
-      by: oneLine(item.by, L.sourceBy),
-      date: oneLine(item.date, L.sourceDate),
-      time: oneLine(item.time, L.sourceTime),
-      why,
-    });
+    if (!kind || why.length === 0 || oneLine(item.title, L.sourceTitle)) continue;
+    items.push({ kind, lead: "", title: "", url: "", by: "", date: "", time: "", compute: "", why });
   }
-  const intro = sanitizeProse(raw.intro);
   if (items.length === 0) return null;
-  return { id, type: "goFurther", heading: oneLine(raw.heading, L.goFurtherHeading), intro, items };
+  return { id, type: "goFurther", heading: oneLine(raw.heading, L.goFurtherHeading), intro: sanitizeProse(raw.intro), items };
+}
+
+function readHandsOn(raw: Raw, id: string): HandsOnBlock | null {
+  const body = sanitizeProse(raw.body, L.proseChars * 2);
+  if (body.length === 0) return null;
+  return { id, type: "handsOn", heading: oneLine(raw.heading, L.handsOnHeading), body };
 }
 
 function readBlock(value: unknown, seen: Seen, inPart: boolean): WeekBlock | null {
@@ -901,7 +1040,7 @@ function readBlock(value: unknown, seen: Seen, inPart: boolean): WeekBlock | nul
     case "table":
       return readTable(raw, id);
     case "writtenAnswer":
-      return readWrittenAnswer(raw, id);
+      return readWrittenAnswer(raw, id, seen);
     case "cases":
       return readCases(raw, id, seen, inPart);
     case "fillIn":
@@ -912,6 +1051,8 @@ function readBlock(value: unknown, seen: Seen, inPart: boolean): WeekBlock | nul
       return readInTheSession(raw, id);
     case "goFurther":
       return readGoFurther(raw, id);
+    case "handsOn":
+      return readHandsOn(raw, id);
   }
   return null;
 }
@@ -934,6 +1075,9 @@ function readPart(raw: Raw, id: string, seen: Seen): PartBlock | null {
   };
 }
 
+/** The kinds of block a This week task may cover. */
+export const COVERABLE_TYPES: readonly BlockType[] = ["part", "writtenAnswer", "cases", "inTheSession"];
+
 /**
  * A stored `blocks` list, read: each block rebuilt key by key (never a
  * spread of what was stored), unknown kinds and malformed items dropped, a
@@ -955,7 +1099,7 @@ export function sanitizeWeekBlocks(raw: unknown): WeekBlock[] {
   const covered = new Set<string>();
   for (const block of allBlocks(blocks)) {
     if (block.type === "chooseOne") for (const pack of block.packs) packs.add(pack.id);
-    if (block.type === "part" || block.type === "writtenAnswer" || block.type === "cases") covered.add(block.id);
+    if (COVERABLE_TYPES.includes(block.type)) covered.add(block.id);
   }
   return blocks.map((block) => {
     if (block.type === "thisWeek") {
@@ -1007,14 +1151,7 @@ export function partsOf(blocks: readonly WeekBlock[]): PartBlock[] {
 }
 
 /** What kind of thing an id names, for the paste's matching and its checks. */
-export type ItemKind =
-  | `block:${BlockType}`
-  | "pack"
-  | "packSource"
-  | "prompt"
-  | "case"
-  | "box"
-  | "checkItem";
+export type ItemKind = `block:${BlockType}` | "pack" | "prompt" | "case" | "box" | "answerBox" | "checkItem";
 
 export type WeekItem = {
   id: string;
@@ -1025,8 +1162,8 @@ export type WeekItem = {
 
 /**
  * Every id in a week, in page order, with what it names. A Source block's id
- * is its block's; each pack, pack source, prompt, case, box and checklist
- * item has its own.
+ * is its block's; each pack, prompt, case, box and checklist item has its
+ * own.
  */
 export function weekItems(blocks: readonly WeekBlock[]): WeekItem[] {
   const out: WeekItem[] = [];
@@ -1037,10 +1174,7 @@ export function weekItems(blocks: readonly WeekBlock[]): WeekItem[] {
         for (const prompt of block.prompts) out.push({ id: prompt.id, kind: "prompt", label: prompt.text });
         break;
       case "chooseOne":
-        for (const pack of block.packs) {
-          out.push({ id: pack.id, kind: "pack", label: pack.name });
-          for (const source of pack.sources) out.push({ id: source.id, kind: "packSource", label: source.title });
-        }
+        for (const pack of block.packs) out.push({ id: pack.id, kind: "pack", label: pack.name });
         break;
       case "cases":
         for (const group of block.groups) for (const item of group.cases) out.push({ id: item.id, kind: "case", label: item.title });
@@ -1049,6 +1183,9 @@ export function weekItems(blocks: readonly WeekBlock[]): WeekItem[] {
         for (const group of block.groups) {
           for (const box of group.boxes) out.push({ id: box.id, kind: "box", label: box.label || group.heading });
         }
+        break;
+      case "writtenAnswer":
+        for (const box of block.boxes) out.push({ id: box.id, kind: "answerBox", label: box.label });
         break;
       case "checklist":
         for (const item of block.items) out.push({ id: item.id, kind: "checkItem", label: item.title });
@@ -1060,13 +1197,18 @@ export function weekItems(blocks: readonly WeekBlock[]): WeekItem[] {
   return out;
 }
 
+function firstLine(prose: Prose): string {
+  const first = prose.find((p) => p.type === "p");
+  return first && first.type === "p" ? runsText(first.runs) : "";
+}
+
 /** Words that name a block, for a list of what is in a week. */
 export function blockLabel(block: WeekBlock): string {
   switch (block.type) {
     case "thisWeek":
       return "This week";
     case "text":
-      return block.heading || runsText(block.body[0]?.type === "p" ? block.body[0].runs : []) || "Text";
+      return block.heading || firstLine(block.body) || "Text";
     case "outcomes":
       return block.heading || "After this week you can";
     case "contentNote":
@@ -1082,7 +1224,7 @@ export function blockLabel(block: WeekBlock): string {
     case "table":
       return runsText(block.header[0]?.runs ?? []) || "Table";
     case "writtenAnswer":
-      return runsText(block.prompt) || "Written answer";
+      return firstLine(block.prompt) || "Written answer";
     case "cases":
       return block.heading || (block.talk ? `A ${block.talk.minutes}-minute ${block.talk.name}` : "Cases");
     case "fillIn":
@@ -1093,6 +1235,8 @@ export function blockLabel(block: WeekBlock): string {
       return "In the session";
     case "goFurther":
       return block.heading || "Go further";
+    case "handsOn":
+      return block.heading || "Hands-on route";
   }
 }
 
@@ -1116,6 +1260,8 @@ function placeOf(block: WeekBlock, partNumber: number | null): string {
       return "In the session";
     case "goFurther":
       return "Go further";
+    case "handsOn":
+      return "The hands-on route";
     case "text":
       return block.heading ? `“${block.heading}”` : inPart ? `Text in ${inPart}` : "Text";
     case "source":
@@ -1146,9 +1292,19 @@ function tooMany(where: string, what: string, count: number, max: number, out: s
 }
 
 function proseProblems(where: string, prose: Prose, out: string[], max: number = L.proseChars): void {
-  tooMany(where, "paragraphs and lists", prose.length, L.maxProseParagraphs, out);
+  tooMany(where, "paragraphs, lists, tables and code blocks", prose.length, L.maxProseParagraphs, out);
   for (const p of prose) {
-    if (p.type !== "p") tooMany(where, "items in a list", p.items.length, L.maxProseListItems, out);
+    if (p.type === "ul" || p.type === "ol") tooMany(where, "items in a list", p.items.length, L.maxProseListItems, out);
+    if (p.type === "table") {
+      tooMany(where, "columns in a table", p.header.length, L.maxProseTableColumns, out);
+      tooMany(where, "rows in a table", p.rows.length, L.maxProseTableRows, out);
+    }
+    if (p.type === "code") {
+      tooLong(where, "a block of code", p.text, L.codeChars, out);
+      if (!/^[A-Za-z0-9+#.-]*$/.test(p.lang) || p.lang.length > L.codeLang) {
+        out.push(`${where}: the word after a block of code’s opening backticks names its language, in at most ${L.codeLang} letters and digits.`);
+      }
+    }
   }
   const chars = proseChars(prose);
   if (chars > max) out.push(`${where}: the text is ${chars} characters; the most is ${max}.`);
@@ -1162,11 +1318,13 @@ function runsProblems(where: string, what: string, runs: readonly Run[], max: nu
 
 function sourceProblems(where: string, source: SourceFields, out: string[]): void {
   if (!source.title) out.push(`${where} has no title.`);
-  if (!safeSourceUrl(source.url)) out.push(`${where} needs an https link.`);
+  if (source.url ? !safeSourceUrl(source.url) : !source.note.some((run) => run.href)) out.push(`${where} needs an https link.`);
+  tooLong(where, "the words before its title", source.lead, L.sourceLead, out);
   tooLong(where, "the title", source.title, L.sourceTitle, out);
   tooLong(where, "the author or source", source.by, L.sourceBy, out);
   tooLong(where, "the date", source.date, L.sourceDate, out);
   tooLong(where, "the time", source.time, L.sourceTime, out);
+  tooLong(where, "what it needs to run", source.compute, L.sourceCompute, out);
   runsProblems(where, "the note", source.note, L.inlineChars, out);
 }
 
@@ -1179,7 +1337,7 @@ function blockProblems(block: WeekBlock, partNumber: number | null, out: string[
       for (const row of block.rows) {
         tooLong(where, `“${row.what.slice(0, 40)}”`, row.what, L.thisWeekWhat, out);
         tooLong(where, "a time", row.time, L.thisWeekTime, out);
-        if (row.type === "none") tooLong(where, "a row’s note", row.note, L.thisWeekRowNote, out);
+        tooLong(where, "a row’s when", row.type === "task" ? row.whenText : row.note, L.thisWeekRowNote, out);
       }
       tooLong(where, "In all", block.total, L.thisWeekTime, out);
       proseProblems(where, block.note, out);
@@ -1193,6 +1351,7 @@ function blockProblems(block: WeekBlock, partNumber: number | null, out: string[
       break;
     case "outcomes":
       if (block.items.length === 0) out.push(`${where} has no outcomes.`);
+      tooLong(where, "the heading", block.heading, L.textHeading, out);
       tooMany(where, "outcomes", block.items.length, L.maxOutcomes, out);
       for (const item of block.items) tooLong(where, "an outcome", item, L.outcome, out);
       break;
@@ -1232,15 +1391,18 @@ function blockProblems(block: WeekBlock, partNumber: number | null, out: string[
       if (block.packs.length < L.minPacks) out.push(`${where}: a Choose one needs at least ${L.minPacks} packs to choose from.`);
       tooMany(where, "packs", block.packs.length, L.maxPacks, out);
       tooLong(where, "the title", block.title, L.chooseOneTitle, out);
+      tooLong(where, "the time", block.time, L.sourceTime, out);
+      tooLong(where, "a heading", block.noteHeading, L.chooseOneHeading, out);
+      proseProblems(where, block.questions, out);
       for (const pack of block.packs) {
         const at = `${where}, “${pack.name}”`;
         if (!pack.name) out.push(`${where}: a pack has no name.`);
-        if (pack.sources.length === 0) out.push(`${at} has no sources.`);
-        tooMany(at, "sources", pack.sources.length, L.maxPackSources, out);
+        if (pack.read.length === 0) out.push(`${at} has nothing to read.`);
+        if (!pack.read.some((run) => run.href)) out.push(`${at} needs a link to what to read.`);
         tooLong(at, "the name", pack.name, L.packName, out);
         tooLong(at, "the time", pack.time, L.sourceTime, out);
         runsProblems(at, "the note", pack.note, L.inlineChars, out);
-        for (const source of pack.sources) sourceProblems(`${at}, “${source.title}”`, source, out);
+        runsProblems(at, "what to read", pack.read, L.packRead, out);
       }
       break;
     case "table":
@@ -1254,7 +1416,13 @@ function blockProblems(block: WeekBlock, partNumber: number | null, out: string[
       break;
     case "writtenAnswer":
       if (block.prompt.length === 0) out.push(`${where} has no question.`);
-      runsProblems(where, "the question", block.prompt, L.proseChars, out);
+      proseProblems(where, block.prompt, out);
+      tooMany(where, "boxes", block.boxes.length, L.maxAnswerBoxes, out);
+      for (const box of block.boxes) {
+        tooLong(where, "a box’s heading", box.label, L.answerBoxLabel, out);
+        tooLong(where, "a box’s hint", box.hint, L.answerBoxHint, out);
+      }
+      if (block.boxes.length > 0 && block.words) out.push(`${where}: a word range is counted over one box, so an answer in boxes has none.`);
       proseProblems(where, block.guidance, out);
       if (block.words && (block.words.min < 1 || block.words.min > block.words.max || block.words.max > L.maxAnswerWords)) {
         out.push(`${where}: the word range has to run from a smaller number to a larger one, at most ${L.maxAnswerWords}.`);
@@ -1262,26 +1430,32 @@ function blockProblems(block: WeekBlock, partNumber: number | null, out: string[
       break;
     case "cases": {
       if (block.groups.length === 0 && !block.talk) out.push(`${where} has no cases and no talk.`);
+      if (partNumber !== null && block.groups.length > 0) out.push(`${where}: cases go in their own section, “Your case study”.`);
       tooMany(where, "groups", block.groups.length, L.maxCaseGroups, out);
       const count = block.groups.reduce((n, group) => n + group.cases.length, 0);
       tooMany(where, "cases", count, L.maxCases, out);
       tooLong(where, "the heading", block.heading, L.casesHeading, out);
+      tooLong(where, "a column’s heading", block.groupLabel, L.casesColumn, out);
+      tooLong(where, "a column’s heading", block.startLabel, L.casesColumn, out);
       if (block.talk && (block.talk.minutes < 1 || block.talk.minutes > L.maxTalkMinutes)) {
         out.push(`${where}: a talk is 1 to ${L.maxTalkMinutes} minutes.`);
       }
+      if (block.talk) tooLong(where, "the talk’s name", block.talk.name, L.talkName, out);
       proseProblems(where, block.intro, out);
       proseProblems(where, block.prepare, out);
+      proseProblems(where, block.note, out);
+      // The Markdown tells how to prepare from the introduction by its first words ("Prepare a 3-minute talk").
+      if (block.prepare.length > 0 && !/^prepare\b/i.test(firstLine(block.prepare))) {
+        out.push(`${where}: how to prepare starts with a line that begins “Prepare”.`);
+      }
       for (const group of block.groups) {
         tooLong(where, "a group’s name", group.name, L.caseGroupName, out);
         for (const item of group.cases) {
           const at = `${where}, “${item.title}”`;
           tooLong(at, "the title", item.title, L.caseTitle, out);
           runsProblems(at, "what happened", item.what, L.inlineChars, out);
-          tooMany(at, "links", item.links.length, L.maxCaseLinks, out);
-          for (const link of item.links) {
-            if (!safeLinkUrl(link.url)) out.push(`${at}: “${link.label}” needs an https link.`);
-            tooLong(at, "a link’s words", link.label, L.caseLinkLabel, out);
-          }
+          runsProblems(at, "where to start", item.start, L.caseStart, out);
+          tooLong(at, "the content note", item.contentNote, L.caseContentNote, out);
         }
       }
       break;
@@ -1308,22 +1482,29 @@ function blockProblems(block: WeekBlock, partNumber: number | null, out: string[
       }
       break;
     case "inTheSession":
-      if (block.body.length === 0) out.push(`${where} is empty.`);
+      if (block.body.length === 0 && block.beforeYouCome.length === 0) out.push(`${where} is empty.`);
       proseProblems(where, block.body, out);
+      proseProblems(where, block.beforeYouCome, out);
+      // The Markdown tells it from the session's own paragraphs by its first words.
+      if (block.beforeYouCome.length > 0 && !/^before you come\b/i.test(firstLine(block.beforeYouCome))) {
+        out.push(`${where}: what to do before you come starts with a line that begins “Before you come”.`);
+      }
       break;
     case "goFurther":
+      tooLong(where, "the heading", block.heading, L.goFurtherHeading, out);
       tooMany(where, "items", block.items.length, L.maxGoFurther, out);
       proseProblems(where, block.intro, out);
       for (const item of block.items) {
         const at = item.title ? `${where}, “${item.title}”` : where;
-        if (item.title && !safeSourceUrl(item.url)) out.push(`${at} needs an https link.`);
-        if (!item.title && item.why.length === 0) out.push(`${where}: an item has no title and no words.`);
-        tooLong(at, "the title", item.title, L.sourceTitle, out);
-        tooLong(at, "the author or source", item.by, L.sourceBy, out);
-        tooLong(at, "the date", item.date, L.sourceDate, out);
-        tooLong(at, "the time", item.time, L.sourceTime, out);
-        runsProblems(at, "the line on why", item.why, L.inlineChars, out);
+        if (item.title) sourceProblems(at, { ...item, note: item.why }, out);
+        else if (item.why.length === 0) out.push(`${where}: an item has no title and no words.`);
+        else runsProblems(at, "the line on why", item.why, L.inlineChars, out);
       }
+      break;
+    case "handsOn":
+      tooLong(where, "the heading", block.heading, L.handsOnHeading, out);
+      if (block.body.length === 0) out.push(`${where} is empty.`);
+      proseProblems(where, block.body, out, L.proseChars * 2);
       break;
   }
 }
@@ -1343,6 +1524,9 @@ export function weekBlocksProblems(blocks: readonly WeekBlock[]): string[] {
       continue;
     }
     if (block.type === "part") partNumber += 1;
+    else if (block.type === "text" && block.role === "plain" && partNumber > 0) {
+      out.push("Text with no heading of its own after a part belongs inside that part.");
+    }
     blockProblems(block, block.type === "part" ? partNumber : null, out);
   }
   const seen = new Set<string>();
@@ -1351,11 +1535,7 @@ export function weekBlocksProblems(blocks: readonly WeekBlock[]): string[] {
     else if (seen.has(item.id)) out.push(`The id ${item.id} is used twice.`);
     seen.add(item.id);
   }
-  const covered = new Set(
-    allBlocks(blocks)
-      .filter((block) => block.type === "part" || block.type === "writtenAnswer" || block.type === "cases")
-      .map((block) => block.id),
-  );
+  const covered = new Set(allBlocks(blocks).filter((block) => COVERABLE_TYPES.includes(block.type)).map((block) => block.id));
   for (const block of blocks) {
     if (block.type !== "thisWeek") continue;
     for (const row of block.rows) {

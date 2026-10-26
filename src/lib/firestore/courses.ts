@@ -8,7 +8,7 @@ import { isValidDateKey, type WeekPlanEntry } from "../courses/weekPlan";
 import { normalizeCohort, type RunCohort } from "../courses/cohortLabel";
 import { normalizeTeamsFrom, type TeamsFrom } from "../courses/teams/model";
 import { WEEK_BLOCK_LIMITS } from "../courses/weekBlocks/limits";
-import { sanitizeWeekBlocks, type WeekBlock } from "../courses/weekBlocks/model";
+import { isClockTime, sanitizeWeekBlocks, type WeekBlock } from "../courses/weekBlocks/model";
 
 /**
  * Courses data model — `courses/{id}` → `courseRuns/{id}` (top-level) →
@@ -69,6 +69,15 @@ export type CourseDoc = {
   level: string;
   /** Rough weekly commitment shown on the catalogue, e.g. 5. */
   estimatedWeeklyHours: number | null;
+  /**
+   * When written work due "the day before" a session is due, on this course:
+   * a London time that day ("12:00": by noon the day before), or null for by
+   * the end of the day. A block week names only the rule (`When`); the time
+   * is this setting, so two courses differ without a line of code
+   * (`dueMoment` in `src/lib/courses/weekBlocks/due.ts`). Set in the course's
+   * details; null on every course written before it.
+   */
+  dayBeforeDueTime: string | null;
   status: CourseStatus;
   /**
    * The run whose curriculum the PUBLIC course pages display. Set by admins
@@ -1234,6 +1243,7 @@ export function normalizeCourse(id: string, data: Raw): CourseDoc {
     track: asCourseTrack(data.track),
     level: (data.level as string) ?? "",
     estimatedWeeklyHours: asPositiveIntOrNull(data.estimatedWeeklyHours),
+    dayBeforeDueTime: isClockTime(data.dayBeforeDueTime) ? data.dayBeforeDueTime : null,
     status: asCourseStatus(data.status),
     showcaseRunId: (data.showcaseRunId as string | null | undefined) ?? null,
     authorUid: (data.authorUid as string) ?? "",

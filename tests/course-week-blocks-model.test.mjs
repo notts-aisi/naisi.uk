@@ -60,12 +60,12 @@ function findBlock(blocks, id) {
 // ---------------------------------------------------------------------------
 
 describe("1. every kind of block", () => {
-  test("the synthetic week holds all fifteen kinds, and every Text role", () => {
+  test("the synthetic week holds the boards' fifteen kinds and the hands-on route, and every Text role", () => {
     const kinds = new Set(model.allBlocks(syntheticWeekBlocks()).map((block) => block.type));
     assert.deepEqual(
       [...kinds].sort(),
       [
-        "cases", "checklist", "chooseOne", "contentNote", "fillIn", "goFurther", "inTheSession", "outcomes",
+        "cases", "checklist", "chooseOne", "contentNote", "fillIn", "goFurther", "handsOn", "inTheSession", "outcomes",
         "part", "reflection", "source", "table", "text", "thisWeek", "writtenAnswer",
       ].sort(),
     );
@@ -92,14 +92,14 @@ describe("1. every kind of block", () => {
   });
 
   test("a part may not hold a part, This week or Go further: the read side drops them", () => {
-    const blocks = withBlock("pt-1", (part) => ({ ...part, blocks: [...part.blocks, { id: "tw-9", type: "thisWeek", rows: [{ type: "task", what: "x", time: "", when: "before", covers: [] }], total: "", note: [] }] }));
-    assert.deepEqual(findBlock(model.sanitizeWeekBlocks(blocks), "pt-1").blocks.map((b) => b.id), ["src-1", "rs-1"]);
+    const blocks = withBlock("pt-1", (part) => ({ ...part, blocks: [...part.blocks, { id: "tw-9", type: "thisWeek", rows: [{ type: "task", what: "x", time: "", when: "before", whenText: "", covers: [] }], total: "", note: [] }] }));
+    assert.deepEqual(findBlock(model.sanitizeWeekBlocks(blocks), "pt-1").blocks.map((b) => b.id), ["src-1", "src-7", "rs-1"]);
   });
 
   test("each block is rebuilt key by key: a stray key never survives a read", () => {
     const blocks = withBlock("src-1", (source) => ({ ...source, html: "<script>x</script>", __proto__x: 1 }));
     const read = findBlock(model.sanitizeWeekBlocks(blocks), "src-1");
-    assert.deepEqual(Object.keys(read).sort(), ["by", "date", "id", "kind", "note", "time", "title", "type", "url"]);
+    assert.deepEqual(Object.keys(read).sort(), ["by", "compute", "date", "id", "kind", "lead", "note", "time", "title", "type", "url"]);
   });
 
   test("Choose one and Cases say who settles which a person has; a stored nonsense value reads as the default", () => {
@@ -130,8 +130,70 @@ describe("1. every kind of block", () => {
     for (const group of findBlock(model.sanitizeWeekBlocks(blocks), "cs-1").groups) assert.equal(group.packId, null);
   });
 
-  test("the source kinds and their words are the boards’ six", () => {
-    assert.deepEqual(Object.values(model.SOURCE_KIND_LABEL), ["Read", "Watch", "Listen", "Watch or listen", "Watch or read", "Explore"]);
+  test("the source kinds and their words are the boards’ six, then a notebook", () => {
+    assert.deepEqual(Object.values(model.SOURCE_KIND_LABEL), ["Read", "Watch", "Listen", "Watch or listen", "Watch or read", "Explore", "Notebook"]);
+    const notebook = findBlock(syntheticWeekBlocks(), "src-8");
+    assert.equal(notebook.kind, "notebook");
+    assert.equal(notebook.compute, "Runs on a free notebook service", "a notebook says what it needs to run");
+  });
+
+  test("This week: a row offered and not counted is its own kind, outside In all", () => {
+    const rows = findBlock(syntheticWeekBlocks(), "tw-1").rows;
+    assert.deepEqual(rows.map((row) => row.type), ["task", "task", "task", "none", "optional"]);
+    assert.equal(rows[4].note, "Any time; not counted in the total");
+    assert.equal(rows[1].whenText, "To your facilitator by the end of the day before session 3", "the guide's own words for when, kept");
+    const odd = withBlock("tw-1", (block) => ({ ...block, rows: [{ type: "optional", what: "Extra", time: "Any", note: "Not counted", covers: ["pt-1"] }] }));
+    assert.deepEqual(findBlock(model.sanitizeWeekBlocks(odd), "tw-1").rows, [{ type: "optional", what: "Extra", time: "Any", note: "Not counted" }], "an optional row covers nothing");
+  });
+
+  test("how to prepare for a talk starts with a line that begins Prepare, so the Markdown can tell it from the introduction", () => {
+    const bad = withBlock("cs-1", (block) => ({ ...block, prepare: [p(run("Think about these:"))] }));
+    assert.deepEqual(model.weekBlocksProblems(bad), ["“Your case study”: how to prepare starts with a line that begins “Prepare”."]);
+  });
+
+  test("what to do before you come starts with a line that begins Before you come, for the same reason", () => {
+    const bad = withBlock("is-1", (block) => ({ ...block, beforeYouCome: [p(run("Charge your laptop."))] }));
+    assert.deepEqual(model.weekBlocksProblems(bad), ["In the session: what to do before you come starts with a line that begins “Before you come”."]);
+  });
+
+  test("a case can carry a content note of its own; the note is kept apart from what happened", () => {
+    const cases = findBlock(syntheticWeekBlocks(), "cs-1");
+    const noted = cases.groups.flatMap((group) => group.cases).filter((item) => item.contentNote);
+    assert.deepEqual(noted.map((item) => item.id), ["ca-2"]);
+    assert.doesNotMatch(prose.runsText(noted[0].what), /talk to your facilitator/);
+  });
+
+  test("a pack is its words and links as written, one time for all of it", () => {
+    const pack = findBlock(syntheticWeekBlocks(), "co-1").packs[0];
+    assert.deepEqual(prose.runsLinks(pack.read), ["https://example.com/polls", "https://example.org/swing"]);
+    assert.equal(pack.time, "25 minutes");
+    assert.ok(findBlock(syntheticWeekBlocks(), "co-1").questions.length > 0, "questions to read every pack against");
+    const noLink = withBlock("co-1", (block) => ({ ...block, packs: [{ ...block.packs[0], read: [run("No link here")] }, block.packs[1], block.packs[2]] }));
+    assert.ok(model.weekBlocksProblems(noLink).includes("Part 3’s packs, “Elections” needs a link to what to read."));
+  });
+
+  test("a written answer is one box with a word range, or labelled boxes sent together with none", () => {
+    const boxed = withBlock("wa-1", (block) => ({
+      ...block,
+      words: null,
+      boxes: [
+        { id: "wb-1", label: "What I want to forecast", hint: "one sentence." },
+        { id: "wb-2", label: "Why it matters", hint: "" },
+      ],
+    }));
+    assert.deepEqual(model.weekBlocksProblems(boxed), []);
+    assert.deepEqual(model.sanitizeWeekBlocks(boxed), boxed);
+    assert.deepEqual(model.weekItems(boxed).filter((item) => item.kind === "answerBox").map((item) => item.id), ["wb-1", "wb-2"]);
+    const both = withBlock("wa-1", (block) => ({ ...block, boxes: [{ id: "wb-1", label: "One", hint: "" }] }));
+    assert.ok(model.weekBlocksProblems(both).includes("Part 4’s written answer: a word range is counted over one box, so an answer in boxes has none."));
+  });
+
+  test("code is kept exactly, every space and blank line; In the session keeps Before you come", () => {
+    const code = findBlock(syntheticWeekBlocks(), "ho-1").body.find((paragraph) => paragraph.type === "code");
+    assert.equal(code.text, "def brier(p, outcome):\n    return (p - outcome) ** 2\n\nprint(brier(0.7, 1))");
+    const spaced = prose.sanitizeProse([{ type: "code", lang: "", text: "  two leading\n\n\ttab and  gaps  " }]);
+    assert.deepEqual(spaced, [{ type: "code", lang: "", text: "  two leading\n\n\ttab and  gaps  " }]);
+    assert.ok(findBlock(syntheticWeekBlocks(), "is-1").beforeYouCome.length > 0);
   });
 });
 
@@ -148,34 +210,98 @@ describe("2. the caps", () => {
   });
 
   /** One change per cap: each must be named by the check and cut by the read. */
+  const many = (n, make) => Array.from({ length: n }, (_, i) => make(i));
+  const long = (n) => "x".repeat(n + 1);
   const OVER = [
-    ["maxWeekBlocks", (b) => [...b, ...Array.from({ length: L.maxWeekBlocks }, (_, i) => ({ id: `tx-x${i}`, type: "text", role: "plain", heading: "", time: "", body: [p(run("x"))] }))]],
-    ["maxPartBlocks", (b) => withBlockIn(b, "pt-2", (part) => ({ ...part, blocks: [...part.blocks, ...Array.from({ length: L.maxPartBlocks }, (_, i) => ({ id: `tx-y${i}`, type: "text", role: "plain", heading: "", time: "", body: [p(run("y"))] }))] }))],
-    ["maxThisWeekRows", (b) => withBlockIn(b, "tw-1", (block) => ({ ...block, rows: Array.from({ length: L.maxThisWeekRows + 1 }, () => block.rows[3]) }))],
-    ["thisWeekWhat", (b) => withBlockIn(b, "tw-1", (block) => ({ ...block, rows: [{ ...block.rows[0], what: "w".repeat(L.thisWeekWhat + 1) }] }))],
-    ["thisWeekTime", (b) => withBlockIn(b, "tw-1", (block) => ({ ...block, total: "t".repeat(L.thisWeekTime + 1) }))],
-    ["maxOutcomes", (b) => withBlockIn(b, "oc-1", (block) => ({ ...block, items: Array.from({ length: L.maxOutcomes + 1 }, (_, i) => `Outcome ${i}`) }))],
-    ["outcome", (b) => withBlockIn(b, "oc-1", (block) => ({ ...block, items: ["o".repeat(L.outcome + 1)] }))],
-    ["maxSupportLinks", (b) => withBlockIn(b, "cn-1", (block) => ({ ...block, links: Array.from({ length: L.maxSupportLinks + 1 }, () => block.links[0]) }))],
-    ["partTitle", (b) => withBlockIn(b, "pt-1", (block) => ({ ...block, title: "t".repeat(L.partTitle + 1) }))],
-    ["sourceTitle", (b) => withBlockIn(b, "src-1", (block) => ({ ...block, title: "s".repeat(L.sourceTitle + 1) }))],
-    ["sourceBy", (b) => withBlockIn(b, "src-1", (block) => ({ ...block, by: "b".repeat(L.sourceBy + 1) }))],
+    ["maxWeekBlocks", (b) => [...b, ...many(L.maxWeekBlocks, (i) => ({ id: `tx-x${i}`, type: "text", role: "section", heading: `More ${i}`, time: "", body: [p(run("x"))] }))]],
+    ["maxPartBlocks", (b) => withBlockIn(b, "pt-2", (part) => ({ ...part, blocks: [...part.blocks, ...many(L.maxPartBlocks, (i) => ({ id: `tx-y${i}`, type: "text", role: "plain", heading: "", time: "", body: [p(run("y"))] }))] }))],
+    ["maxWeekBlocksChars", (b) => [...b, ...many(36, (i) => ({ id: `tx-h${i}`, type: "text", role: "section", heading: `Long ${i}`, time: "", body: many(40, () => p(run("h".repeat(190)))) }))]],
+    ["blockId", (b) => withBlockIn(b, "src-1", (block) => ({ ...block, id: `src-${long(L.blockId)}` }))],
+    ["maxProseParagraphs", (b) => withBlockIn(b, "tx-why", (block) => ({ ...block, body: many(L.maxProseParagraphs + 1, () => p(run("x"))) }))],
+    ["maxProseListItems", (b) => withBlockIn(b, "tx-why", (block) => ({ ...block, body: [{ type: "ul", items: many(L.maxProseListItems + 1, () => ({ runs: [run("i")] })) }] }))],
+    ["maxRuns", (b) => withBlockIn(b, "src-2", (block) => ({ ...block, note: many(L.maxRuns + 1, (i) => run(`n${i} `, { bold: i % 2 === 0 })) }))],
+    ["proseChars", (b) => withBlockIn(b, "tx-why", (block) => ({ ...block, body: [p(run(long(L.proseChars)))] }))],
+    ["inlineChars", (b) => withBlockIn(b, "src-2", (block) => ({ ...block, note: [run(long(L.inlineChars))] }))],
+    ["linkUrl", (b) => withBlockIn(b, "src-1", (block) => ({ ...block, url: `https://example.com/${long(L.linkUrl)}` }))],
+    ["codeChars", (b) => withBlockIn(b, "ho-1", (block) => ({ ...block, body: [{ type: "code", lang: "", text: long(L.codeChars) }] }))],
+    ["codeLang", (b) => withBlockIn(b, "ho-1", (block) => ({ ...block, body: [{ type: "code", lang: long(L.codeLang), text: "x = 1" }] }))],
+    ["maxProseTableColumns", (b) => withBlockIn(b, "tx-next", (block) => ({ ...block, body: [{ type: "table", header: many(L.maxProseTableColumns + 1, () => ({ runs: [run("h")] })), rows: [] }] }))],
+    ["maxProseTableRows", (b) => withBlockIn(b, "tx-next", (block) => ({ ...block, body: [{ type: "table", header: [{ runs: [run("h")] }], rows: many(L.maxProseTableRows + 1, () => ({ cells: [{ runs: [run("c")] }] })) }] }))],
+    ["maxThisWeekRows", (b) => withBlockIn(b, "tw-1", (block) => ({ ...block, rows: many(L.maxThisWeekRows + 1, () => block.rows[3]) }))],
+    ["thisWeekWhat", (b) => withBlockIn(b, "tw-1", (block) => ({ ...block, rows: [{ ...block.rows[0], what: long(L.thisWeekWhat) }] }))],
+    ["thisWeekTime", (b) => withBlockIn(b, "tw-1", (block) => ({ ...block, total: long(L.thisWeekTime) }))],
+    ["thisWeekRowNote", (b) => withBlockIn(b, "tw-1", (block) => ({ ...block, rows: [block.rows[0], { ...block.rows[4], note: long(L.thisWeekRowNote) }] }))],
+    ["textHeading", (b) => withBlockIn(b, "tx-next", (block) => ({ ...block, heading: long(L.textHeading) }))],
+    ["textTime", (b) => withBlockIn(b, "tx-before", (block) => ({ ...block, time: long(L.textTime) }))],
+    ["maxOutcomes", (b) => withBlockIn(b, "oc-1", (block) => ({ ...block, items: many(L.maxOutcomes + 1, (i) => `Outcome ${i}`) }))],
+    ["outcome", (b) => withBlockIn(b, "oc-1", (block) => ({ ...block, items: [long(L.outcome)] }))],
+    ["maxSupportLinks", (b) => withBlockIn(b, "cn-1", (block) => ({ ...block, links: many(L.maxSupportLinks + 1, () => block.links[0]) }))],
+    ["supportLabel", (b) => withBlockIn(b, "cn-1", (block) => ({ ...block, links: [{ ...block.links[0], label: long(L.supportLabel) }] }))],
+    ["supportDetail", (b) => withBlockIn(b, "cn-1", (block) => ({ ...block, links: [{ ...block.links[0], detail: long(L.supportDetail) }] }))],
+    ["partTitle", (b) => withBlockIn(b, "pt-1", (block) => ({ ...block, title: long(L.partTitle) }))],
+    ["partTime", (b) => withBlockIn(b, "pt-1", (block) => ({ ...block, time: long(L.partTime) }))],
+    ["sourceTitle", (b) => withBlockIn(b, "src-1", (block) => ({ ...block, title: long(L.sourceTitle) }))],
+    ["sourceBy", (b) => withBlockIn(b, "src-1", (block) => ({ ...block, by: long(L.sourceBy) }))],
+    ["sourceDate", (b) => withBlockIn(b, "src-1", (block) => ({ ...block, date: long(L.sourceDate) }))],
+    ["sourceTime", (b) => withBlockIn(b, "src-1", (block) => ({ ...block, time: long(L.sourceTime) }))],
+    ["sourceLead", (b) => withBlockIn(b, "src-7", (block) => ({ ...block, lead: long(L.sourceLead) }))],
+    ["sourceCompute", (b) => withBlockIn(b, "src-8", (block) => ({ ...block, compute: long(L.sourceCompute) }))],
     ["maxReflectionPrompts", (b) => withBlockIn(b, "rs-1", (block) => ({ ...block, prompts: [...block.prompts, { id: "rp-9", text: "A third?" }] }))],
-    ["reflectionPrompt", (b) => withBlockIn(b, "rs-2", (block) => ({ ...block, prompts: [{ id: "rp-3", text: "r".repeat(L.reflectionPrompt + 1) }] }))],
-    ["maxPacks", (b) => withBlockIn(b, "co-1", (block) => ({ ...block, packs: Array.from({ length: L.maxPacks + 1 }, (_, i) => ({ ...block.packs[1], id: `pk-z${i}`, sources: [{ ...block.packs[1].sources[0], id: `src-z${i}` }] })) }))],
-    ["maxPackSources", (b) => withBlockIn(b, "co-1", (block) => ({ ...block, packs: [{ ...block.packs[0], sources: Array.from({ length: L.maxPackSources + 1 }, (_, i) => ({ ...block.packs[0].sources[0], id: `src-q${i}` })) }, block.packs[1]] }))],
-    ["maxTableRows", (b) => withBlockIn(b, "tb-1", (block) => ({ ...block, rows: Array.from({ length: L.maxTableRows + 1 }, () => block.rows[0]) }))],
-    ["maxTableColumns", (b) => withBlockIn(b, "tb-1", (block) => ({ ...block, header: Array.from({ length: L.maxTableColumns + 1 }, () => block.header[0]), rows: [] }))],
+    ["reflectionPrompt", (b) => withBlockIn(b, "rs-2", (block) => ({ ...block, prompts: [{ id: "rp-3", text: long(L.reflectionPrompt) }] }))],
+    ["chooseOneTitle", (b) => withBlockIn(b, "co-2", (block) => ({ ...block, title: long(L.chooseOneTitle) }))],
+    ["maxPacks", (b) => withBlockIn(b, "co-1", (block) => ({ ...block, packs: many(L.maxPacks + 1, (i) => ({ ...block.packs[1], id: `pk-z${i}`, name: `Pack ${i}` })) }))],
+    ["packName", (b) => withBlockIn(b, "co-1", (block) => ({ ...block, packs: [{ ...block.packs[0], name: long(L.packName) }, block.packs[1]] }))],
+    ["packRead", (b) => withBlockIn(b, "co-1", (block) => ({ ...block, packs: [{ ...block.packs[0], read: [...block.packs[0].read, run(long(L.packRead))] }, block.packs[1]] }))],
+    ["chooseOneHeading", (b) => withBlockIn(b, "co-1", (block) => ({ ...block, noteHeading: long(L.chooseOneHeading) }))],
+    ["maxTableColumns", (b) => withBlockIn(b, "tb-1", (block) => ({ ...block, header: many(L.maxTableColumns + 1, () => block.header[0]), rows: [] }))],
+    ["maxTableRows", (b) => withBlockIn(b, "tb-1", (block) => ({ ...block, rows: many(L.maxTableRows + 1, () => block.rows[0]) }))],
     ["maxAnswerWords", (b) => withBlockIn(b, "wa-1", (block) => ({ ...block, words: { min: 10, max: L.maxAnswerWords + 1 } }))],
-    ["maxCases", (b) => withBlockIn(b, "cs-1", (block) => ({ ...block, groups: [{ ...block.groups[0], cases: Array.from({ length: L.maxCases + 1 }, (_, i) => ({ ...block.groups[0].cases[1], id: `ca-z${i}` })) }] }))],
-    ["maxCaseLinks", (b) => withBlockIn(b, "cs-1", (block) => ({ ...block, groups: [{ ...block.groups[0], cases: [{ ...block.groups[0].cases[1], links: Array.from({ length: L.maxCaseLinks + 1 }, () => block.groups[0].cases[1].links[0]) }] }] }))],
+    ["maxAnswerBoxes", (b) => withBlockIn(b, "wa-1", (block) => ({ ...block, words: null, boxes: many(L.maxAnswerBoxes + 1, (i) => ({ id: `wb-z${i}`, label: `Box ${i}`, hint: "" })) }))],
+    ["answerBoxLabel", (b) => withBlockIn(b, "wa-1", (block) => ({ ...block, words: null, boxes: [{ id: "wb-1", label: long(L.answerBoxLabel), hint: "" }] }))],
+    ["answerBoxHint", (b) => withBlockIn(b, "wa-1", (block) => ({ ...block, words: null, boxes: [{ id: "wb-1", label: "One", hint: long(L.answerBoxHint) }] }))],
+    ["casesHeading", (b) => withBlockIn(b, "cs-1", (block) => ({ ...block, heading: long(L.casesHeading) }))],
     ["maxTalkMinutes", (b) => withBlockIn(b, "cs-2", (block) => ({ ...block, talk: { minutes: L.maxTalkMinutes + 1, name: "pitch" } }))],
-    ["maxFillInBoxes", (b) => withBlockIn(b, "fi-1", (block) => ({ ...block, groups: [{ heading: "Many", boxes: Array.from({ length: L.maxFillInBoxes + 1 }, (_, i) => ({ id: `fb-z${i}`, label: `Box ${i}` })) }] }))],
-    ["maxChecklistBlockItems", (b) => withBlockIn(b, "ck-1", (block) => ({ ...block, items: Array.from({ length: L.maxChecklistBlockItems + 1 }, (_, i) => ({ id: `ci-z${i}`, title: `Step ${i}`, mirrorToMyWork: false })) }))],
-    ["maxGoFurther", (b) => withBlockIn(b, "gf-1", (block) => ({ ...block, items: Array.from({ length: L.maxGoFurther + 1 }, () => block.items[0]) }))],
-    ["proseChars", (b) => withBlockIn(b, "tx-why", (block) => ({ ...block, body: [p(run("x".repeat(L.proseChars + 1)))] }))],
-    ["inlineChars", (b) => withBlockIn(b, "src-2", (block) => ({ ...block, note: [run("n".repeat(L.inlineChars + 1))] }))],
+    ["talkName", (b) => withBlockIn(b, "cs-2", (block) => ({ ...block, talk: { minutes: 2, name: long(L.talkName) } }))],
+    ["maxCaseGroups", (b) => withBlockIn(b, "cs-1", (block) => ({ ...block, groups: many(L.maxCaseGroups + 1, (i) => ({ name: `Group ${i}`, packId: null, cases: [{ ...block.groups[1].cases[0], id: `ca-g${i}` }] })) }))],
+    ["maxCases", (b) => withBlockIn(b, "cs-1", (block) => ({ ...block, groups: [{ ...block.groups[0], cases: many(L.maxCases + 1, (i) => ({ ...block.groups[0].cases[0], id: `ca-z${i}` })) }] }))],
+    ["caseGroupName", (b) => withBlockIn(b, "cs-1", (block) => ({ ...block, groups: [{ ...block.groups[0], name: long(L.caseGroupName) }] }))],
+    ["caseTitle", (b) => withBlockIn(b, "cs-1", (block) => ({ ...block, groups: [{ ...block.groups[0], cases: [{ ...block.groups[0].cases[0], title: long(L.caseTitle) }] }] }))],
+    ["caseStart", (b) => withBlockIn(b, "cs-1", (block) => ({ ...block, groups: [{ ...block.groups[0], cases: [{ ...block.groups[0].cases[0], start: [run(long(L.caseStart))] }] }] }))],
+    ["caseContentNote", (b) => withBlockIn(b, "cs-1", (block) => ({ ...block, groups: [{ ...block.groups[0], cases: [{ ...block.groups[0].cases[1], contentNote: long(L.caseContentNote) }] }] }))],
+    ["casesColumn", (b) => withBlockIn(b, "cs-1", (block) => ({ ...block, startLabel: long(L.casesColumn) }))],
+    ["fillInTitle", (b) => withBlockIn(b, "fi-1", (block) => ({ ...block, title: long(L.fillInTitle) }))],
+    ["maxFillInGroups", (b) => withBlockIn(b, "fi-1", (block) => ({ ...block, groups: many(L.maxFillInGroups + 1, (i) => ({ heading: `Heading ${i}`, boxes: [{ id: `fb-g${i}`, label: "" }] })) }))],
+    ["maxFillInBoxes", (b) => withBlockIn(b, "fi-1", (block) => ({ ...block, groups: [{ heading: "Many", boxes: many(L.maxFillInBoxes + 1, (i) => ({ id: `fb-z${i}`, label: `Box ${i}` })) }] }))],
+    ["fillInHeading", (b) => withBlockIn(b, "fi-1", (block) => ({ ...block, groups: [{ ...block.groups[0], heading: long(L.fillInHeading) }] }))],
+    ["fillInLabel", (b) => withBlockIn(b, "fi-1", (block) => ({ ...block, groups: [{ ...block.groups[1], boxes: [{ id: "fb-2", label: long(L.fillInLabel) }] }] }))],
+    ["maxChecklistBlockItems", (b) => withBlockIn(b, "ck-1", (block) => ({ ...block, items: many(L.maxChecklistBlockItems + 1, (i) => ({ id: `ci-z${i}`, title: `Step ${i}`, mirrorToMyWork: false })) }))],
+    ["checklistItemTitle", (b) => withBlockIn(b, "ck-1", (block) => ({ ...block, items: [{ ...block.items[0], title: long(L.checklistItemTitle) }] }))],
+    ["checklistItemDetail", (b) => withBlockIn(b, "ck-1", (block) => ({ ...block, items: [{ ...block.items[1], detail: long(L.checklistItemDetail) }] }))],
+    ["goFurtherHeading", (b) => withBlockIn(b, "gf-1", (block) => ({ ...block, heading: long(L.goFurtherHeading) }))],
+    ["maxGoFurther", (b) => withBlockIn(b, "gf-1", (block) => ({ ...block, items: many(L.maxGoFurther + 1, () => block.items[0]) }))],
+    ["handsOnHeading", (b) => withBlockIn(b, "ho-1", (block) => ({ ...block, heading: long(L.handsOnHeading) }))],
   ];
+
+  /** Caps that are floors, not ceilings: each is broken the other way, by having too few. */
+  const UNDER = [
+    ["minReflectionPrompts", (b) => withBlockIn(b, "rs-2", (block) => ({ ...block, prompts: [] }))],
+    ["minPacks", (b) => withBlockIn(b, "co-1", (block) => ({ ...block, packs: [block.packs[0]] }))],
+  ];
+
+  test("every cap is broken once, here", () => {
+    const named = new Set([...OVER, ...UNDER].map(([cap]) => cap));
+    assert.deepEqual(Object.keys(L).filter((cap) => !named.has(cap)), [], "a cap with no test that breaks it");
+    assert.deepEqual([...named].filter((cap) => !(cap in L)), [], "a test for a cap that is gone");
+  });
+
+  for (const [cap, under] of UNDER) {
+    test(`under ${cap}: the check says so, and the read drops what cannot stand`, () => {
+      const blocks = under(syntheticWeekBlocks());
+      assert.ok(model.weekBlocksProblems(blocks).length > 0, `${cap}: nothing said`);
+      const read = model.sanitizeWeekBlocks(blocks);
+      assert.deepEqual(model.weekBlocksProblems(read).filter((line) => !line.includes("points at")), [], `${cap}: still under after a read`);
+    });
+  }
 
   function withBlockIn(blocks, id, change) {
     const visit = (list) =>
@@ -199,9 +325,9 @@ describe("2. the caps", () => {
 
   test("the whole list has a size cap, so a week's document stays far under Firestore's 1 MiB", () => {
     assert.ok(L.maxWeekBlocksChars <= 400_000);
-    const many = syntheticWeekBlocks();
-    const huge = Array.from({ length: 39 }, (_, i) => ({ id: `tx-h${i}`, type: "text", role: "plain", heading: "", time: "", body: Array.from({ length: 40 }, () => p(run("h".repeat(190)))) }));
-    const problems = model.weekBlocksProblems([...many.slice(0, 1), ...huge]);
+    const week = syntheticWeekBlocks();
+    const huge = Array.from({ length: 39 }, (_, i) => ({ id: `tx-h${i}`, type: "text", role: "section", heading: `Long ${i}`, time: "", body: Array.from({ length: 40 }, () => p(run("h".repeat(190)))) }));
+    const problems = model.weekBlocksProblems([...week.slice(0, 1), ...huge]);
     assert.ok(problems.some((line) => line.includes("characters stored")), problems.join("\n"));
   });
 });
@@ -294,7 +420,7 @@ describe("4. stable ids", () => {
     assert.equal(kinds.get("src-1"), "block:source");
     assert.equal(kinds.get("rp-1"), "prompt");
     assert.equal(kinds.get("pk-2"), "pack");
-    assert.equal(kinds.get("src-4"), "packSource");
+    assert.equal(kinds.get("pk-5"), "pack", "an option in a list is a pack too");
     assert.equal(kinds.get("ca-3"), "case");
     assert.equal(kinds.get("fb-3"), "box");
     assert.equal(kinds.get("ci-2"), "checkItem");
@@ -491,6 +617,28 @@ describe("6. due moments, from the group's own calendar", () => {
     assert.equal(dueMoment(sessions(), 9, "dayBefore"), null, "a week the group does not teach");
     assert.equal(dueMoment(sessions({ cancelled: [5, 6] }), 5, "dayBefore"), null, "nothing held after it");
     assert.equal(dueMoment([], 1, "before"), null);
+  });
+
+  test("the course says the day before's time: noon is London's noon, in winter and in summer", () => {
+    const due = dueMoment(sessions(), 3, "dayBefore", "12:00");
+    assert.equal(due.at.toISOString(), "2026-11-16T12:00:00.000Z");
+    assert.equal(due.dateKey, "2026-11-16");
+    const summer = sessions().map((s, i) => ({ ...s, dateKey: `2026-06-0${i + 2}` }));
+    assert.equal(dueMoment(summer, 1, "dayBefore", "12:00").at.toISOString(), "2026-06-01T11:00:00.000Z");
+    assert.equal(dueMoment(sessions({ cancelled: [4] }), 4, "dayBefore", "12:00").at.toISOString(), "2026-11-30T12:00:00.000Z", "a cancelled session moves it by the same setting");
+    for (const odd of [null, "", "25:00", "noon", 12]) {
+      assert.equal(dueMoment(sessions(), 3, "dayBefore", odd).at.toISOString(), "2026-11-17T00:00:00.000Z", `${String(odd)} reads as the end of the day`);
+    }
+    assert.equal(dueMoment(sessions(), 3, "atSession", "12:00").at.toISOString(), "2026-11-17T18:00:00.000Z", "only the day before reads the setting");
+  });
+
+  test("the course's setting is a time or nothing, wherever a course is read", () => {
+    const course = (data) => courses.normalizeCourse("c1", { title: "A course", ...data }).dayBeforeDueTime;
+    assert.equal(course({ dayBeforeDueTime: "12:00" }), "12:00");
+    assert.equal(course({}), null, "every course written before it: the end of the day");
+    for (const odd of ["24:00", "9:00", "noon", 900, true]) assert.equal(course({ dayBeforeDueTime: odd }), null, String(odd));
+    assert.equal(model.isClockTime("23:59"), true);
+    assert.equal(model.isClockTime("00:00"), true);
   });
 
   test("late means first sent after the moment, and nothing is late without one", () => {

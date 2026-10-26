@@ -56,12 +56,29 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("1. the one reader, both shapes", () => {
-  test("a block week's sources: its parts' sources and every pack's, in page order, never Go further", () => {
+  test("a block week's sources: its parts' sources and every pack, each pack one source, in page order, never Go further", () => {
     const sources = reader.weekSources(blockWeek());
-    assert.deepEqual(sources.map((s) => s.id), ["src-1", "src-2", "src-3", "src-4", "src-5", "src-6"]);
-    assert.deepEqual(sources.map((s) => s.packId), [null, null, "pk-1", "pk-1", "pk-2", "pk-3"]);
-    assert.deepEqual(sources.map((s) => s.partId), ["pt-1", "pt-2", "pt-3", "pt-3", "pt-3", "pt-3"]);
-    assert.deepEqual(sources[1], {
+    assert.deepEqual(sources.map((s) => s.id), ["src-1", "src-7", "src-2", "src-8", "pk-1", "pk-2", "pk-3", "pk-4", "pk-5"]);
+    assert.deepEqual(sources.map((s) => s.packId), [null, null, null, null, "pk-1", "pk-2", "pk-3", "pk-4", "pk-5"]);
+    assert.deepEqual(sources.map((s) => s.partId), ["pt-1", "pt-1", "pt-2", "pt-2", "pt-3", "pt-3", "pt-3", "pt-5", "pt-5"]);
+    assert.deepEqual(sources[4], {
+      id: "pk-1",
+      title: "Elections",
+      url: "https://example.com/polls",
+      kindLabel: "Read",
+      kind: "read",
+      legacyType: null,
+      by: "",
+      date: "",
+      time: "25 minutes",
+      minutes: null,
+      optional: false,
+      packId: "pk-1",
+      partId: "pt-3",
+      note: "Example Press, “Polls and their errors” (2023), and Example Radio, “A podcast on swing” (2022), from 10 minutes in",
+    });
+    assert.equal(sources[7].time, "10 to 15 minutes", "a list's one time is each option's");
+    assert.deepEqual(sources[2], {
       id: "src-2",
       title: "Overconfidence, explained",
       url: "https://example.org/talk",
@@ -94,7 +111,8 @@ describe("1. the one reader, both shapes", () => {
     assert.deepEqual(reader.weekWrittenAnswers(blockWeek()), [
       {
         id: "wa-1",
-        prompt: "Make one forecast about your pack’s question, with a number and three reasons.",
+        prompt: "Will your pack’s question come true by next year?\n\nGive a number.\nGive three reasons, from your pack.",
+        boxes: [],
         words: { min: 200, max: 300 },
         maxLength: null,
         required: true,
@@ -142,7 +160,7 @@ describe("1. the one reader, both shapes", () => {
 describe("2. the server-side readers, on a block week", () => {
   test("a facilitator's note on a source in a block week's pack is filed against its week; an unknown id is refused", async () => {
     world.db.seed(W3, syntheticWeekDoc());
-    const ok = await call("zach", notesRoute.POST, { runId: RUN.agi }, { body: { itemId: "src-4", weekNumber: 1, note: "Landed well." }, course: true });
+    const ok = await call("zach", notesRoute.POST, { runId: RUN.agi }, { body: { itemId: "pk-2", weekNumber: 1, note: "Landed well." }, course: true });
     assert.equal(ok.status, 200, JSON.stringify(ok.body));
     assert.equal(ok.body.weekNumber, 3, "the week is the one the source is in, not the one claimed");
     const missing = await call("zach", notesRoute.POST, { runId: RUN.agi }, { body: { itemId: "gf-1", weekNumber: 3, note: "Hm." }, course: true });
@@ -153,15 +171,15 @@ describe("2. the server-side readers, on a block week", () => {
     const rows = aggregateRetrospective({
       weeks: [blockWeek()],
       progress: [
-        { itemId: "src-3", rating: 4, completed: true },
+        { itemId: "pk-1", rating: 4, completed: true },
         { itemId: "ci-1", completed: true },
       ],
       notes: [],
       enrolledCount: 3,
     });
-    assert.deepEqual(rows.map((row) => row.itemId), ["src-1", "src-2", "src-3", "src-4", "src-5", "src-6"]);
-    assert.equal(rows[2].completedCount, 1);
-    assert.equal(rows[2].ratingCount, 1);
+    assert.deepEqual(rows.map((row) => row.itemId), ["src-1", "src-7", "src-2", "src-8", "pk-1", "pk-2", "pk-3", "pk-4", "pk-5"]);
+    assert.equal(rows[4].completedCount, 1);
+    assert.equal(rows[4].ratingCount, 1);
   });
 
   test("the reading list lists a block week's sources; a week written before blocks is drawn as it was", async () => {
@@ -171,7 +189,7 @@ describe("2. the server-side readers, on a block week", () => {
     const enrolment = enrolments.normalizeCourseEnrolment(enrolmentPath.split("/")[1], world.db.read(enrolmentPath));
     const list = await leftView.loadReadingList(world.courseDb ?? world.db, { run, enrolment });
     const week3 = list.weeks.find((week) => week.weekNumber === 3);
-    assert.deepEqual(week3.items.map((item) => item.id), ["src-1", "src-2", "src-3", "src-4", "src-5", "src-6"]);
+    assert.deepEqual(week3.items.map((item) => item.id), ["src-1", "src-7", "src-2", "src-8", "pk-1", "pk-2", "pk-3", "pk-4", "pk-5"]);
     assert.deepEqual(week3.items[0], { id: "src-1", title: "A field guide to base rates", href: "https://example.com/base-rates", meta: "Read · 15 minutes", body: null });
     const week2 = list.weeks.find((week) => week.weekNumber === 2);
     assert.deepEqual(week2.items.map((item) => item.meta), ["Reading · 25 min", "Video · 20 min", "Reading · 30 min"]);
@@ -197,7 +215,7 @@ describe("2. the server-side readers, on a block week", () => {
     const records = () => finish.lib.attendance.readRunRecords(finish.world.courseDb, FINISH_RUN.agi);
     const before = await finish.lib.who.readExerciseTallies(finish.world.courseDb, await records());
     const path = `courseRuns/${FINISH_RUN.agi}/weeks/w05`;
-    const asAnswer = (id) => [{ id: "pt-a", type: "part", title: "Your answer", time: "", framing: [], blocks: [{ id, type: "writtenAnswer", prompt: [{ text: "Why?" }], guidance: [], words: null, due: "dayBefore" }] }];
+    const asAnswer = (id) => [{ id: "pt-a", type: "part", title: "Your answer", time: "", framing: [], blocks: [{ id, type: "writtenAnswer", prompt: [{ type: "p", runs: [{ text: "Why?" }] }], boxes: [], guidance: [], words: null, due: "dayBefore" }] }];
     finish.world.db.poke(path, { blocks: asAnswer("x5") });
     const same = await finish.lib.who.readExerciseTallies(finish.world.courseDb, await records());
     assert.deepEqual(same.get("amara"), before.get("amara"), "the same id, the same answers");

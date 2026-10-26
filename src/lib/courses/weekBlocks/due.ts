@@ -1,6 +1,6 @@
 import { sessionInstants, type ResolvedSession } from "../sessions";
 import { addDaysToKey, londonWallClockToInstant } from "../weekPlan";
-import type { When } from "./model";
+import { isClockTime, type When } from "./model";
 
 /**
  * WHEN A WEEK'S WORK IS DUE, FOR ONE GROUP (Q33, the written answer's due
@@ -18,9 +18,13 @@ import type { When } from "./model";
  * before" is due by the end of the day before that next session, and a talk
  * "at the session" moves to it. `moved` says so, for a page that wants to.
  *
- * "By the end of the day before" is the London midnight that starts the
- * session's day. An answer first sent after `at` is late; staff (the group's
- * facilitators, the lead and admins) see "Late" on it, nobody else does.
+ * "The day before" is read by the COURSE's setting
+ * (`CourseDoc.dayBeforeDueTime`): a London time on the day before ("12:00",
+ * "by noon the day before"), or none, for by the end of that day (the London
+ * midnight that starts the session's day). The block names the rule; the
+ * course says the time, so two courses can differ without a line of code. An
+ * answer first sent after `at` is late; staff (the group's facilitators, the
+ * lead and admins) see "Late" on it, nobody else does.
  *
  * Null when there is nothing to date: the group's plan does not teach the
  * week, its sessions have no date yet (week 1 before groups go out: "Due
@@ -53,6 +57,8 @@ export function dueMoment(
   sessions: readonly ResolvedSession[],
   weekNumber: number,
   rule: When,
+  /** The course's setting for work due the day before: "HH:MM" London, or null for the end of the day. */
+  dayBeforeTime: string | null = null,
 ): DueMoment | null {
   const own = sessions
     .filter((session) => session.weekNumber === weekNumber)
@@ -74,9 +80,12 @@ export function dueMoment(
   if (!startsAt) return null;
 
   if (rule === "dayBefore") {
+    const dayBefore = addDaysToKey(reference.dateKey, -1);
     return {
-      at: londonWallClockToInstant(reference.dateKey, "00:00"),
-      dateKey: addDaysToKey(reference.dateKey, -1),
+      at: isClockTime(dayBeforeTime)
+        ? londonWallClockToInstant(dayBefore, dayBeforeTime)
+        : londonWallClockToInstant(reference.dateKey, "00:00"),
+      dateKey: dayBefore,
       session: reference,
       moved,
     };

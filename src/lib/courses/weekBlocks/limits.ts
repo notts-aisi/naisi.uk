@@ -41,6 +41,13 @@ export const WEEK_BLOCK_LIMITS = {
   inlineChars: 1000,
   /** A link's address. */
   linkUrl: 500,
+  /** One block of code, in characters (the hands-on routes' commands and scripts). */
+  codeChars: 4000,
+  /** A code block's language word ("python", "bash"). */
+  codeLang: 20,
+  /** Columns and rows of a table inside prose, as a Table block's. */
+  maxProseTableColumns: 8,
+  maxProseTableRows: 60,
 
   // ---- This week ----
   maxThisWeekRows: 8,
@@ -71,6 +78,10 @@ export const WEEK_BLOCK_LIMITS = {
   sourceBy: 200,
   sourceDate: 40,
   sourceTime: 80,
+  /** The words before a source's linked title: a section or page note ("section 3.5 (pages 157 to 159) of the"). */
+  sourceLead: 300,
+  /** What a notebook needs to run ("free Colab", "a paid API key, about US$5"). */
+  sourceCompute: 160,
 
   // ---- Reflection stop ----
   minReflectionPrompts: 1,
@@ -82,7 +93,10 @@ export const WEEK_BLOCK_LIMITS = {
   minPacks: 2,
   maxPacks: 24,
   packName: 160,
-  maxPackSources: 8,
+  /** A pack's reading, as written: one line, with as many links as it has. */
+  packRead: 2000,
+  /** A Choose one's header words ("Pathway", "In one line"). */
+  chooseOneHeading: 80,
 
   // ---- Table ----
   maxTableColumns: 8,
@@ -91,6 +105,10 @@ export const WEEK_BLOCK_LIMITS = {
   // ---- Written answer ----
   /** The most words a word range may ask for. */
   maxAnswerWords: 5000,
+  /** Labelled boxes in one written answer (week 6's plan has seven). */
+  maxAnswerBoxes: 12,
+  answerBoxLabel: 200,
+  answerBoxHint: 300,
 
   // ---- Cases ----
   casesHeading: 160,
@@ -102,8 +120,12 @@ export const WEEK_BLOCK_LIMITS = {
   maxCases: 60,
   caseGroupName: 160,
   caseTitle: 200,
-  maxCaseLinks: 6,
-  caseLinkLabel: 120,
+  /** A case's "Start here" (or "Where to start") line, as written. */
+  caseStart: 1500,
+  /** A content note on one case. */
+  caseContentNote: 400,
+  /** The words heading a cases table's columns ("Pathway", "Where to start"). */
+  casesColumn: 60,
 
   // ---- Fill-in boxes ----
   fillInTitle: 160,
@@ -121,4 +143,7 @@ export const WEEK_BLOCK_LIMITS = {
   // ---- Go further ----
   goFurtherHeading: 160,
   maxGoFurther: 20,
+
+  // ---- Hands-on route ----
+  handsOnHeading: 160,
 } as const;

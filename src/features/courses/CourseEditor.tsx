@@ -9,6 +9,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import CountedTextarea from "@/components/ui/CountedTextarea";
 import { Field, Input } from "@/components/ui/Input";
+import TimeField from "@/components/ui/TimeField";
 import Modal from "@/components/ui/Modal";
 import ResponsiveSelect, {
   type ResponsiveSelectOption,
@@ -51,6 +52,8 @@ type MetaDraft = {
   track: CourseTrack;
   level: string;
   weeklyHours: string;
+  /** "" for by the end of the day before; "HH:MM" for a time on it. */
+  dayBeforeDueTime: string;
   summaryBlocks: Block[];
 };
 
@@ -62,6 +65,7 @@ function metaFromCourse(course: CourseDoc | null): MetaDraft {
     level: course?.level ?? "",
     weeklyHours:
       course?.estimatedWeeklyHours != null ? String(course.estimatedWeeklyHours) : "",
+    dayBeforeDueTime: course?.dayBeforeDueTime ?? "",
     summaryBlocks: course?.summaryBlocks ?? [],
   };
 }
@@ -73,9 +77,16 @@ function sameMeta(a: MetaDraft, b: MetaDraft): boolean {
     a.track === b.track &&
     a.level === b.level &&
     a.weeklyHours === b.weeklyHours &&
+    a.dayBeforeDueTime === b.dayBeforeDueTime &&
     JSON.stringify(a.summaryBlocks) === JSON.stringify(b.summaryBlocks)
   );
 }
+
+/** The course's two ways of reading "the day before" (`CourseDoc.dayBeforeDueTime`). */
+const DAY_BEFORE_OPTIONS: ResponsiveSelectOption<"end" | "time">[] = [
+  { value: "end", label: "By the end of the day before" },
+  { value: "time", label: "By a time on the day before" },
+];
 
 export default function CourseEditor({ courseId }: { courseId: string }) {
   const router = useRouter();
@@ -180,6 +191,11 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
       hours = Math.round(parsed);
     }
     const tagline = meta.tagline.trim();
+    const dayBeforeDueTime = meta.dayBeforeDueTime === "" ? null : meta.dayBeforeDueTime;
+    if (dayBeforeDueTime !== null && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(dayBeforeDueTime)) {
+      setMetaError("Give the time written work is due as hours and minutes, like 12:00.");
+      return;
+    }
     setMetaError(null);
     await runAction(
       async () => {
@@ -189,6 +205,7 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
           track: meta.track,
           level: meta.level,
           estimatedWeeklyHours: hours,
+          dayBeforeDueTime,
           summaryBlocks: meta.summaryBlocks,
         });
         setSaved({
@@ -197,6 +214,7 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
           track: meta.track,
           level: meta.level,
           weeklyHours: hours == null ? "" : String(hours),
+          dayBeforeDueTime: dayBeforeDueTime ?? "",
           summaryBlocks: meta.summaryBlocks,
         });
         setDraft({});
@@ -410,6 +428,31 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
                     disabled={saving}
                   />
                 </Field>
+
+                <Field
+                  id="course-day-before"
+                  label="Written work due the day before a session"
+                  hint="For a week whose written work is due the day before its session. Each group’s own dates come from its calendar."
+                >
+                  <ResponsiveSelect<"end" | "time">
+                    value={meta.dayBeforeDueTime === "" ? "end" : "time"}
+                    onChange={(choice) =>
+                      patch({ dayBeforeDueTime: choice === "end" ? "" : meta.dayBeforeDueTime || "12:00" })
+                    }
+                    options={DAY_BEFORE_OPTIONS}
+                    ariaLabel="Written work due the day before a session"
+                    disabled={saving}
+                  />
+                </Field>
+                {meta.dayBeforeDueTime !== "" && (
+                  <Field id="course-day-before-time" label="Due by, on the day before">
+                    <TimeField
+                      value={meta.dayBeforeDueTime}
+                      onChange={(dayBeforeDueTime) => patch({ dayBeforeDueTime })}
+                      disabled={saving}
+                    />
+                  </Field>
+                )}
               </div>
 
               <div>
