@@ -581,7 +581,7 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
         </Card>
 
         {/* === The rubric for written answers === */}
-        <CourseRubricCard key={course.id} courseId={course.id} stored={course.rubric} />
+        <CourseRubricCard key={course.id} courseId={course.id} stored={course.rubric} isAdmin={isAdmin} />
 
         {/* === Publish === */}
         <Card padding="lg">

@@ -3,7 +3,6 @@
 import { useId, useState } from "react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
-import { useAuth } from "@/auth/AuthProvider";
 import type { RubricReadAnswer } from "@/app/api/courses/[courseId]/rubric/route";
 import type { CourseRubric } from "@/lib/courses/rubric";
 import { rubricToMarkdown } from "@/lib/courses/rubricMarkdown";
@@ -20,10 +19,18 @@ import own from "./courseRubric.module.css";
  * No board draws this card: its words are listed for the boards' designers.
  * Everybody else who can open the course sees the rubric as it stands and
  * that an admin sets it. Writes go through `PUT /api/courses/[courseId]/rubric`.
+ * Whether the caller is an admin is the course editor's answer (`isAdmin`),
+ * read once for every card in it.
  */
-export default function CourseRubricCard({ courseId, stored }: { courseId: string; stored: CourseRubric | null }) {
-  const { role } = useAuth();
-  const isAdmin = role === "admin";
+export default function CourseRubricCard({
+  courseId,
+  stored,
+  isAdmin,
+}: {
+  courseId: string;
+  stored: CourseRubric | null;
+  isAdmin: boolean;
+}) {
   const fieldId = useId();
   const [saved, setSaved] = useState<CourseRubric | null>(stored);
   const [text, setText] = useState(stored ? rubricToMarkdown(stored) : "");
