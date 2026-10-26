@@ -99,6 +99,20 @@ const READERS = {
     asks: 1,
     why: "\"Send a test to me\" reads the run's accepted people to write the first person's real email, for an admin, the run's track leads or the lead of the programme that names it",
   },
+  "app/api/courses/runs/[runId]/allocation/publish/preview/route.ts": {
+    kind: "staff",
+    asks: 1,
+    why:
+      "Publish's own page reads the run's accepted people to show who a press emails and the first email of each " +
+      "kind, for the same callers as Publish: an admin, the run's track leads or the lead of the programme that names it",
+  },
+  "lib/courses/getReady/read.ts": {
+    kind: "staff",
+    asks: 1,
+    why:
+      "the Overview's Get ready for week 1 and Publish's readiness check read the run's accepted people as the board " +
+      "serves them, to count who is in a group and name who Publish waits for, for the programme's lead and admins",
+  },
   "app/api/courses/runs/[runId]/applications/route.ts": {
     kind: "staff",
     asks: 1,

@@ -3303,6 +3303,7 @@ describe("the course hub passage", () => {
       new Map([
         ["src/lib/courses/facilitatorAsks/load.ts", "where the Facilitators view's model is built"],
         ["src/app/api/courses/runs/[runId]/facilitators/asking/route.ts", "the view's one read, answered only with what the gate let through"],
+        ["src/lib/courses/getReady/read.ts", "the Overview's Get ready for week 1 and Publish's readiness check, behind the same gate, take each group's facilitators, the asks still waiting and the training from it, and nothing of the list"],
       ]),
       "building the Facilitators view",
       "The policy says the programme's lead and admins read the list. A new caller of the view's model is a new reader.",

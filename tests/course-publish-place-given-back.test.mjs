@@ -838,6 +838,7 @@ const ASKS_THE_PUT_BACK = {
 const READS_A_PLAN = [
   "src/app/api/courses/runs/[runId]/allocation/publish/route.ts",
   "src/app/api/courses/runs/[runId]/allocation/publish/test/route.ts",
+  "src/app/api/courses/runs/[runId]/allocation/publish/preview/route.ts",
   "src/app/api/courses/runs/[runId]/allocation/route.ts",
 ];
 
