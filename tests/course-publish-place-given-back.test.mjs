@@ -817,7 +817,8 @@ const READS_THE_PLACE = {
 /** Every file that reads or writes when somebody was put back on a run, and why. */
 const READS_THE_PUT_BACK = {
   "src/lib/firestore/courseEnrolments.ts": "the enrolment's normaliser, and enrolmentIsPutBack, the one reading of it",
-  "src/app/api/courses/runs/[runId]/allocate/route.ts": "writes it, in the patch that puts somebody who left back on the run",
+  "src/app/api/courses/runs/[runId]/allocate/route.ts":
+    "writes it, in the patch that puts somebody who left back on the run when the form has no place to give them again, and clears it when it gives one",
 };
 
 /** Every caller of the one answer, and of the one reading of a put-back. */

@@ -84,7 +84,10 @@ const READERS = {
   "app/api/courses/runs/[runId]/allocate/route.ts": {
     kind: "staff",
     asks: 1,
-    why: "a placement reads each person's row to see that they were accepted, and answers by uid",
+    why:
+      "a placement reads each person's row to see that they were accepted, and answers by uid; for a seat " +
+      "that has left and is put back, it reads where the row came from (fromForm) to give that place on the " +
+      "form back to them, only once the row is served to the caller",
   },
   "app/api/courses/runs/[runId]/allocation/publish/route.ts": {
     kind: "staff",

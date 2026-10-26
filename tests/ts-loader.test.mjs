@@ -400,6 +400,13 @@ const USERS = new Map([
       "because what needs attention and who is emailed are decided by the page, the route and the job as they run",
   ],
   [
+    "course-hub-progress-page.test.mjs",
+    "loads the progress page's own module (ProgressBody.tsx, a client component) and runs its count of each " +
+      "week against the overview route's own answer, because whether a week written as blocks counts This " +
+      "week's tasks, and a week written before them counts as it did, is decided by the page's code as it " +
+      "runs. Next's link, the browser's data hooks and database, the motion wrapper and the stylesheets are stubbed",
+  ],
+  [
     "course-hub-lead-pages.test.mjs",
     "renders a programme's Groups tab (People in groups, Facilitators) and Attendance tab (.tsx server components), the " +
       "registers view and the allocation board itself to HTML, as every kind of caller, against a stored term, because " +
@@ -1029,6 +1036,13 @@ const USERS = new Map([
       "on a synthetic week in the fellow guide's own shape and on its copy, because a week copied out and " +
       "pasted back is the same week with the same ids only if running the two says so. Only `server-only` " +
       "is stubbed",
+  ],
+  [
+    "course-week-blocks-compute.test.mjs",
+    "executes the week Markdown writer, the paste and the model's reading of a source " +
+      "(src/lib/courses/weekBlocks/) on every kind of source given what a notebook needs to run, because a " +
+      "week copied out and pasted back is the same week only if running the three says so. Only " +
+      "`server-only` is stubbed",
   ],
   [
     "course-week-blocks-model.test.mjs",
