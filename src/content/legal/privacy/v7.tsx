@@ -122,6 +122,15 @@
  *     `surveys-names-off` job), and at once with the account. The sentence
  *     about anonymous surveys moves here from Feedback on the material,
  *     unchanged (`src/lib/surveys/`).
+ * 20. **Written answers and their feedback.** Who reads a written answer (its
+ *     writer, their group's facilitators, the programme's lead and admins; a
+ *     facilitator's own, the lead and admins), the first-sent and edited
+ *     times, the lock when it is opened and Reopen for edits, "Late" for
+ *     those readers alone, feedback as a level for each row of the course's
+ *     rubric and a comment with no mark, and the one email that says it is
+ *     waiting (`src/lib/courses/writtenAnswers/`, `src/lib/courses/rubric.ts`,
+ *     `src/lib/email/writtenFeedbackEmail.ts`, and the two written-answers
+ *     routes).
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -810,9 +819,25 @@ export default function PrivacyContentV7({
                   these notes too.
                 </li>
                 <li>
-                  <strong>Your written work.</strong> Answers to exercises,
-                  your progress through each week&apos;s materials, and any
-                  feedback a facilitator writes on your work. You can also keep
+                  <strong>Your written work.</strong> Your written answers, the
+                  feedback on them, and your progress through each week&apos;s
+                  materials. A written answer is read by you, your group&apos;s
+                  facilitators, the programme&apos;s lead and admins, and by
+                  nobody else taking part; the week&apos;s page says so beside
+                  it. If you facilitate a group, your own answer is read by the
+                  programme&apos;s lead and admins, and not by the group&apos;s
+                  other facilitators. We record when you first send it, and
+                  when you change it after that. You can change it until one of
+                  your group&apos;s facilitators opens it (for a
+                  facilitator&apos;s own answer, the programme&apos;s lead or an
+                  admin), or feedback is sent on it; we record when it was
+                  opened, and any of its readers can open it again for you to
+                  change. Its readers can see when you sent it and whether that
+                  was after it was due; you are not shown that. Feedback is a level for each row of the
+                  course&apos;s rubric and a short comment, with the name of
+                  whoever gave it, and never a mark. One short email tells you
+                  that feedback is waiting; the feedback itself stays on the
+                  site. You can also keep
                   a private note against a piece of material: it is not shown
                   to the rest of your run, but your facilitator and site admins
                   can read it. We do not publish
@@ -899,8 +924,8 @@ export default function PrivacyContentV7({
                   or leaving early counts as coming. The lead can then change
                   anybody&apos;s, and we record who changed it and when. Only
                   the lead and admins see that number, and the list with how
-                  many sessions each person came to and how many exercises they
-                  answered. Your programme page then tells you that you
+                  many sessions each person came to and how many written answers
+                  they sent. Your programme page then tells you that you
                   finished, or that the programme has ended. Somebody who did
                   not finish is not told so. Who finished decides who is sent a
                   certificate.
@@ -1081,7 +1106,8 @@ export default function PrivacyContentV7({
                   Send you transactional emails you have asked for, such as
                   RSVP confirmations, application receipts and reminders, the
                   decision on an application, the week&apos;s course materials,
-                  and account-related messages.
+                  that feedback on your written answer is waiting, and
+                  account-related messages.
                 </li>
                 <li>
                   Send you the newsletter and event announcements where you
@@ -1383,11 +1409,11 @@ export default function PrivacyContentV7({
                 your collaborator application if you made one, any outstanding
                 email-verification links, your course enrolments, applications
                 and drafts, the asks to facilitate a group sent to you and your
-                replies to them, your progress and your answers to exercises, your
-                calendar link, the notes you shared with a group, notes you
-                wrote for the other facilitators of a group, your name on your
-                survey answers, the record of each survey sent to you with your
-                link to answer it, a pitch you sent alone, your name on a pitch you sent with a
+                replies to them, your progress, your written answers with the
+                feedback on them, your calendar link, the notes you shared with a
+                group, notes you wrote for the other facilitators of a group, your
+                name on your survey answers, the record of each survey sent to you
+                with your link to answer it, a pitch you sent alone, your name on a pitch you sent with a
                 partner, your picks in pitching week, your place in a team, any
                 decision a lead recorded about whether you finished, a
                 certificate whose link is off, your admission applications
