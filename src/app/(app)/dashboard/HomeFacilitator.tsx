@@ -9,6 +9,7 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
 import { PeopleIcon } from "@/features/courses/facilitator/icons";
 import facilitator from "@/features/courses/facilitator/facilitator.module.css";
 import { useFacilitatorSummary } from "@/features/courses/facilitator/useFacilitatorSummary";
+import { useFacilitatorGuide } from "@/features/courses/facilitatorGuide/useFacilitatorGuide";
 import { ticketFacts } from "@/features/courses/sessionChange/cardFacts";
 import { useRunOverview } from "@/features/courses/useRunOverview";
 import weekly from "@/features/courses/weekly/weekly.module.css";
@@ -34,6 +35,8 @@ import {
   toReviewWords,
   whosComingSentence,
 } from "@/lib/courses/facilitatorPageWords";
+import { facilitatorGuidePath } from "@/lib/courses/facilitatorGuide/model";
+import { FACILITATOR_GUIDE } from "@/lib/courses/facilitatorGuide/words";
 import { sessionEyebrow, weekTitleWords } from "@/lib/courses/memberPageWords";
 import { writeToGroupLine, writeToGroupWords } from "@/lib/courses/updates/words";
 import { addDaysToKey, londonDateKey } from "@/lib/courses/weekPlan";
@@ -54,8 +57,13 @@ import styles from "./home.module.css";
  * who left). The register is on its own page beside the group's, and "Take
  * the register" goes there.
  *
- * NOT DRAWN, though the board draws them: who can't make it tonight (that
- * feature does not exist yet) and the facilitator guide (no record holds one).
+ * NOT DRAWN, though the board draws it: who can't make it tonight (that
+ * feature does not exist yet).
+ *
+ * "Facilitator guide" under this week's title leads to that week of the
+ * course's facilitator guide, drawn only when the guide's own route says the
+ * week has something loaded (`useFacilitatorGuide`), which it says only to
+ * the guide's readers.
  *
  * BEFORE THE GROUP'S FIRST SESSION (board st-fac-before-phone), on every day
  * before the day of the first session: the first session as a ticket with
@@ -138,6 +146,12 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
   const firstDay = group?.calendar.firstSessionDate ?? "";
   const beforeFirst = Boolean(group && facts && firstDay && todayKey < firstDay);
   const whosComing = known?.whosComing ?? null;
+  // This week's part of the course's facilitator guide, when it has one.
+  const guide = useFacilitatorGuide(data?.run.courseId ?? "");
+  const guideHref =
+    guide && facts && guide.weeks.includes(facts.weekNumber)
+      ? facilitatorGuidePath(guide.courseId, { kind: "week", weekNumber: facts.weekNumber })
+      : null;
 
   return (
     <>
@@ -323,6 +337,14 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
             <section className={facilitator.weekCard} aria-label={THIS_WEEK}>
               <p className={facilitator.weekEyebrow}>{THIS_WEEK}</p>
               <p className={facilitator.weekTitle}>{weekTitleWords(facts.weekNumber, weekDoc?.title ?? "")}</p>
+              {guideHref && (
+                <div className={facilitator.weekGuide}>
+                  <Link href={guideHref} className={styles.textLink}>
+                    {FACILITATOR_GUIDE}
+                    <ArrowRight />
+                  </Link>
+                </div>
+              )}
               {known && (
                 <div className={facilitator.weekRow}>
                   <p className={facilitator.weekRowText}>{toReviewWords(known.toReview)}</p>

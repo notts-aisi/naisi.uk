@@ -266,6 +266,29 @@
   margin-top: 8px;
 }
 
+/* "Facilitator guide for week 3", beside Take the register (wk-fac-group). */
+.ticketGuide {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--color-accent-text);
+  text-decoration: none;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ticketGuide:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.ticketGuide:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
 /* === A card's head with a count === */
 
 .countChip {
@@ -844,6 +867,11 @@
   font-weight: 600;
   color: var(--color-text);
   overflow-wrap: anywhere;
+}
+
+/* "Facilitator guide" under this week's title (wk-fac-home-phone). */
+.weekGuide {
+  margin: -6px 0 4px;
 }
 
 .weekRow {
