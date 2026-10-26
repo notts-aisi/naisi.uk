@@ -797,6 +797,15 @@ describe("4. what somebody who left reads", () => {
     assert.deepEqual((await cardsOf("amara")).cards, [], "an account that no longer stands is drawn a card");
     world.db.poke("users/amara", { role: "member" });
     assert.deepEqual((await cardsOf("amara")).cards, [[HOME, "You left AGI Strategy"]]);
+    // In a view-as session the list makes no claim and reads nothing, as it
+    // makes none about a place (tests/applications-view-as-own-application):
+    // an admin viewing the site as Amara is drawn no card.
+    world.viewAs = true;
+    try {
+      assert.deepEqual((await cardsOf("amara")).cards, []);
+    } finally {
+      world.viewAs = false;
+    }
     // An open run's seat left by its holder is a card too, named by its course.
     assert.equal((await leave("kai", { confirmName: "Pre-course" }, OPEN_RUN)).status, 200);
     assert.deepEqual((await cardsOf("kai")).cards, [[`/learn/${OPEN_RUN}`, "You left Pre-course"]]);

@@ -3,6 +3,7 @@ import { holdsPlace } from "@/features/applications/home/holdsPlace";
 import { getLeftRuns } from "@/features/courses/runAccess";
 import { loadLeftView } from "@/lib/courses/leftView";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import LearnHub, { type LeftRun } from "./LearnHub";
 
@@ -23,27 +24,31 @@ import LearnHub, { type LeftRun } from "./LearnHub";
  * And the list of runs leaves out a run somebody left, so the page hands the
  * hub the runs the member left by themselves (`getLeftRuns`, the gate every
  * page under a run asks), each named as the run's own page names it. The hub
- * draws a card for each that says only that they left.
+ * draws a card for each that says only that they left. In a view-as session
+ * it hands none, and reads nothing to find them, as `holdsPlace` reads nothing.
  *
  * THIS PAGE STATES NO OUTCOME. It does one thing for a place and for a place
  * it could not read, so nothing drawn here says which, and what became of an
  * application is said on the person's own page, which that card leads to.
  *
  * What a maintainer has to keep: both reads are by the session's own uid and
- * by nothing a request carries; the read of a place is not made in a view-as
- * session (the check is `holdsPlace`'s own, before it reads), while the runs
- * left are exactly what each run's own page shows the member, in a view-as
- * session too; and nothing in this file looks at an application or a decision.
+ * by nothing a request carries; neither is made in a view-as session (each
+ * asks the view-as cookie itself, with the uid it is about to read by, before
+ * it reads); and nothing in this file looks at an application or a decision.
  */
 export default async function LearnPage() {
   const user = await getCurrentUser();
-  const left = user ? await runsLeft() : [];
   const held = user ? await holdsPlace(user.uid) : "unknown";
+  const left = user ? await runsLeft(user.uid) : [];
   return <LearnHub instead={held === "no" ? null : <YourApplications rows={null} />} left={left} />;
 }
 
-/** The runs the member left by themselves, newest first, each as its own page names it. */
-async function runsLeft(): Promise<LeftRun[]> {
+/**
+ * The runs the member left by themselves, newest first, each as its own page
+ * names it. None in a view-as session, asked before anything is read.
+ */
+async function runsLeft(uid: string): Promise<LeftRun[]> {
+  if (markerIsLive(await getImpersonator(), uid)) return [];
   const db = getAdminDb();
   if (!db) return [];
   const accesses = await getLeftRuns();
