@@ -35,8 +35,9 @@ records), `src/app/api/surveys/` (the routes), `src/app/survey/[token]/` and
 - **One answer per person**, and it cannot change once sent.
 - **No reminder goes on its own.** An admin presses Remind. No schedule sends
   anything.
-- **No floors.** Results show from the first answer (Zach, 25 Oct 2026). Public
-  numbers will have a threshold of their own, decided when they are built.
+- **No floors.** Results show from the first answer (Zach, 25 Oct 2026), and
+  public numbers have no threshold either (Zach, 26 Oct 2026): an admin
+  chooses what is published, and every number says what it rests on.
 - **No answer or result is ever in an email.**
 - **Names come off** two years after the programme's last session (Zach, 26
   Oct 2026), the same day for every stage, and at once when an account is
@@ -343,6 +344,32 @@ test is never a notice: it goes to the presser alone, marked `[TEST]`, as
 
 **Close it now** ends a survey early. Nobody is emailed.
 
+## The quote tick
+
+Every survey's confidential box says "Totals, and comments you tick to be
+quoted, may go in reports to the committee and our funder, Kairos, or on our
+site." The tick it speaks of is the box under each long answer, "You can quote
+this, without my name", with the line "We might put it in a report for the
+committee or our funder, Kairos, or on our site." (sv-privacy, sv-after-phone,
+sv-social-phone).
+
+- **One decision, `asksQuotes`** (`src/lib/firestore/surveys.ts`): a
+  programme's before survey, its survey at the end, its follow-ups and a
+  survey after an event draw the box under every long answer (`isQuotable` in
+  `src/lib/surveys/items.ts`); a short answer never has one. The survey about
+  leaving draws none: its box says only that totals may go in reports, so none
+  of its comments can ever be quoted. The anonymous form is not a survey and
+  needs none: it holds no name. `tests/surveys-quote-tick.test.mjs` holds the
+  box at the top and the tick to the same answer for every kind.
+- **Unticked until the person ticks it.** The tick is sent with the words it
+  is under and kept on that text answer as `quote: true`; an answer left
+  unticked carries no `quote` at all, and a tick under an answer left blank
+  keeps nothing. Like the rest of the answers it cannot change once sent.
+- **Refused where no box was drawn**: a tick on a short answer, on the survey
+  about leaving, or in any shape but a yes or no, is a 400 and nothing is
+  kept. Nothing but the person's own tick marks a comment as one that may be
+  quoted.
+
 ## Answering (sv-before-phone)
 
 One page, two doors: `/survey/<secret>` with no sign-in, and
@@ -516,6 +543,57 @@ words, never an address. It is a download the site records before it hands it
 over (`dataExports`, kind `survey-answers`, scope `surveyId` and `roundId`), and
 it is refused when that record cannot be written.
 
+## Public numbers (sv-public)
+
+Run NAISI › Surveys › Public numbers (`/admin/surveys/public-numbers`): an
+admin picks numbers and quotes from a programme's own surveys and publishes
+them as a "Last term" block on the public page of the course the programme is
+tied to (pub-agi), and can take them down at any time.
+
+- **Only the programme's own surveys** (`src/lib/surveys/publicNumbersLoad.ts`):
+  its before survey, its survey at the end and its follow-ups, one per stage.
+  Never the survey about leaving, a survey after an event, the anonymous form,
+  the ratings or the Kairos file, even where they hold the same question ids.
+- **The numbers** (`src/lib/surveys/publicNumbers.ts`, `MEASURES`): a fixed
+  list, each a sentence true of the counting beside it, read by the
+  questionnaire's fixed ids: would recommend it (Q1, 9 or 10 out of 10), getting
+  what they wanted from it (Q3's average), considering, planning or already
+  doing work on AI safety (C1 at stage 2 and up, at the start and at the end),
+  explaining the case and the main objections (C4's averages), knowing the field
+  (C5's averages), knowing their next concrete step (C7's first line, agree and
+  strongly agree), moved towards AI safety (A1) and took a concrete step (C9).
+  Before and after count only the people who answered that question both
+  times, while their names are on the answers. **Beliefs about AI are never
+  offered**: they are reported, never targets (`MEASURE_QUESTIONS` never names
+  C8, which holds "Not sure the risk is real", or C2).
+- **No threshold** (Zach, 26 Oct 2026): every number is offered from its first
+  answer, with its base beside it for the admin ("From 27 answers", "From the
+  25 who answered both"), and the block's closing line says how many answered
+  at the end and how many of them at the start too.
+- **Quotes**: only comments whose writers ticked "You can quote this, without
+  my name" (see The quote tick), folded to one paragraph, listed by their words
+  and never by when they came. Nothing else of any answer is offered.
+- **The record**, `publicNumbers/{roundId}__{programmeId}` (one per programme
+  of a term's form; `src/lib/publicNumbers/model.ts`), server-only in both
+  directions, holds exactly what is published: each number's figure, words and
+  base, each quote's words, the heading, the line under each quote ("Autumn 2026
+  fellow"), the closing line, the course, the term, the day of the run's last
+  session (which orders a course's terms) and when and by whom. Never a
+  respondent, an answer or a survey, so a published quote is linked to nobody
+  and a later answer never moves a published number.
+- **Publish** (`POST /api/surveys/public-numbers`): admins only, refused during
+  view-as. It works the offer out again from the surveys and refuses (409) a
+  pick it no longer holds, so what is published is what was previewed; it
+  replaces the programme's record whole. **Take it down**
+  (`POST /api/surveys/public-numbers/take-down`) deletes it.
+- **The public page** reads it on the server through `fetchLastTerm`
+  (`src/lib/publicNumbers/fetch.ts`), one equality on `courseId`, the latest
+  term's, projected to the block's own fields (`blockOf`): no publisher, id,
+  base or date reaches the HTML. Nothing published, no section; a failed read,
+  no section. The block (`src/features/publicNumbers/LastTermBlock.tsx`) lays
+  itself out by its own width, so the admins' preview shows it as a phone (390)
+  and a computer (78% of 1440) will.
+
 ## Deletion
 
 - **An account deleted**: its survey rows are deleted and its name comes off
@@ -531,6 +609,12 @@ it is refused when that record cannot be written.
 - **Names come off** two years after the programme: the `surveys-names-off` job
   sets every answer's person to null and deletes the survey's people rows on the
   survey's day, then stamps it. It emails nobody, so it registers on.
+- **What is published** (public numbers) names nobody and holds nothing that
+  points back at an answer, so an account's deletion has nothing of it to find
+  and leaves it; a quote whose writer's account is gone stays until an admin
+  takes it down, which the policy says they will on request. A form's destroy,
+  a run's destroy and names coming off leave it too: it is the programme's
+  public page's, and only Take it down deletes it.
 - **The anonymous form's answers** (below) name nobody, so an account's deletion
   has nothing of them to find and removes none. They go with the programme's
   course run, in the run's destroy (stage `anonymousFeedback`: the form first,
@@ -681,9 +765,9 @@ with `isEventSurvey` and hand it over.
 ## Not built yet
 
 Results for a programme's lead but the leaving survey's, and the lead's
-Surveys tab that links them; one person's answers page; public numbers; this
-term in numbers; the quote box under a long answer ("You can quote this,
-without my name") and an option's own words ("Something else: ..."). The
+Surveys tab that links them; one person's answers page; this term in numbers;
+"Can be quoted" beside a ticked comment on Results (sv-results); and an
+option's own words ("Something else: ..."). The
 model is built so none of them needs a rewrite: another `audience.kind`,
 another `respondent.kind`, the same records.
 
@@ -709,7 +793,11 @@ survey has who came to send to. What it can rely on:
 both emails, totals), `tests/surveys-routes.test.mjs` (every route and page as
 every kind of caller), `tests/surveys-deletion.test.mjs` (both cascades),
 `tests/surveys-no-tracking.test.mjs` (no activity, no address, no page that
-writes).
+writes), `tests/surveys-quote-tick.test.mjs` (the box and the tick, one
+decision; the tick kept with its answer), `tests/surveys-public-numbers.test.mjs`
+(the counting, what is read and never read, both routes and the admins' page as
+every kind of caller) and `tests/public-numbers-last-term.test.mjs` (the block
+on the public page, from the record alone).
 
 The privacy policy says what a survey keeps, who sees it, when names come off
 and what a deletion does, under "When you answer a survey", and

@@ -283,6 +283,18 @@
  *     (`readGroupPairs`). A facilitator can be in a pair like anybody, seen by
  *     their co-facilitators. Somebody who leaves is shown in no pair, and it
  *     goes with the account (`deleteCoursePairs`).
+ * 34. **Quotes and public numbers.** Under each long answer, a programme's
+ *     surveys and the survey after an event draw "You can quote this, without
+ *     my name", unticked, and the tick is kept with that answer (`asksQuotes`
+ *     in `src/lib/firestore/surveys.ts`, `isQuotable` in
+ *     `src/lib/surveys/items.ts`, the answer form); the survey about leaving
+ *     draws none. Admins may publish, on a programme's public page, numbers
+ *     from its own surveys with how many answered and the comments their
+ *     writers ticked, with the term and no name, and take them down
+ *     (`src/lib/surveys/publicNumbers.ts`, `publicNumbersLoad.ts`, the
+ *     publish and take-down routes, `src/lib/publicNumbers/`). How we use it,
+ *     the legal basis for a quote, how long it stays, and that a deletion
+ *     leaves it, with no name and nothing linking it to anybody.
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -648,6 +660,24 @@ export default function PrivacyContentV7({
                   address you gave when you signed up or at the door. With your
                   answers we keep when you sent them and whether you used your
                   link or were signed in.
+                </li>
+                <li>
+                  Under each long answer, a programme&apos;s surveys and the
+                  survey after an event have a box that says &quot;You can
+                  quote this, without my name&quot;. It starts unticked. If you
+                  tick it, the tick is kept with that answer, and like the rest
+                  of your answers it cannot change once you send them. The
+                  survey about leaving has no such box.
+                </li>
+                <li>
+                  NAISI&apos;s admins may publish, on a programme&apos;s page on
+                  our site, numbers worked out from that programme&apos;s own
+                  surveys, with how many people answered them, and comments
+                  whose writers ticked that box, each shown with the term and
+                  no name. Nothing else of anybody&apos;s answers is published
+                  there, and nothing from the survey about leaving, a survey
+                  after an event or the anonymous form. An admin can take it
+                  down at any time.
                 </li>
                 <li>
                   One form is anonymous: the keep, change and drop form linked
@@ -1543,6 +1573,11 @@ export default function PrivacyContentV7({
                   with Kairos (see Sharing and processors).
                 </li>
                 <li>
+                  Show on a programme&apos;s page how its last term went:
+                  numbers from its own surveys, and comments their writers
+                  ticked to be quoted, with no name.
+                </li>
+                <li>
                   Send you transactional emails you have asked for, such as
                   RSVP confirmations, application receipts and reminders, the
                   decision on an application, the week&apos;s course materials,
@@ -1582,7 +1617,10 @@ export default function PrivacyContentV7({
                   any other marketing-style communication, and for push
                   notifications. You can withdraw consent at any time using the
                   unsubscribe link in any such email, the notification settings
-                  on your profile, or by emailing us. Important notices about
+                  on your profile, or by emailing us. Quoting a comment of yours
+                  on our site rests on your consent too, given by ticking the box
+                  under it, and if you email us we will take the quote down.
+                  Important notices about
                   something you have signed up for, such as an event you are
                   attending or a course group you are in, are sent under
                   performance of a contract rather than consent, so your
@@ -1859,6 +1897,12 @@ export default function PrivacyContentV7({
                 is two years after the event.
               </p>
               <p>
+                <strong>What we publish from a programme&apos;s surveys.</strong>{" "}
+                The numbers and quotes on a programme&apos;s page stay there
+                until an admin takes them down, or publishes that
+                programme&apos;s again, which replaces them.
+              </p>
+              <p>
                 <strong>Ratings at the end of a programme.</strong> We delete
                 them two years after the programme&apos;s last session, the day
                 names come off its surveys.
@@ -1964,6 +2008,11 @@ export default function PrivacyContentV7({
                 <li>
                   Your answers to surveys, no longer linked to you: they stay
                   in the totals.
+                </li>
+                <li>
+                  A comment of yours quoted on a programme&apos;s page: it
+                  carries no name, and with your account gone nothing links it
+                  to you. Email us and we will take it down.
                 </li>
                 <li>
                   Your answers to the anonymous form: nothing in them says they

@@ -213,6 +213,9 @@ export const ANSWER_WORDS = {
   sending: "Sending…",
   thanks: "Thank you. Your answers are in.",
   tryAgain: "Your answers didn’t send. Check your connection and press Send my answers again.",
+  /** The box under a long answer (sv-privacy, sv-after-phone, sv-social-phone), unticked until ticked. */
+  quote: "You can quote this, without my name",
+  quoteLine: "We might put it in a report for the committee or our funder, Kairos, or on our site.",
 } as const;
 
 /** "Page 1 of 3". */
@@ -473,6 +476,8 @@ export const LIST_WORDS = {
   lede: "Only admins make and send surveys.",
   newSurvey: "New survey",
   kairos: "Kairos",
+  /** sv-public, reached from the list: what goes on a programme's public page. */
+  publicNumbers: "Public numbers",
   open: "Open",
   drafts: "Drafts",
   closed: "Closed",

@@ -1,0 +1,272 @@
+/*
+  Run NAISI › Surveys › Public numbers (sv-public).
+
+  Desktop first: the picks in the main column, the phone preview in a 390px
+  column beside it, and the computer preview under both, at 78% of a 1440px
+  screen. On a phone the columns stack, the phone frame takes the width there
+  is, and the computer frame scrolls sideways inside itself, never the page.
+*/
+
+.line {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text-body);
+}
+
+.layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.main {
+  display: flex;
+  flex: 1 1 32.5rem;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.preview {
+  flex: 0 0 24.375rem;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* === The programme picker === */
+
+.picker {
+  max-width: 26.25rem;
+  min-width: 0;
+}
+
+.label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.pickerRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* === The numbers and the quotes === */
+
+.picks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.card {
+  min-width: 0;
+  padding: 1.375rem var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  margin-bottom: 0.875rem;
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.count,
+.mono {
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.empty {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.beliefs {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0.875rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.lock {
+  flex: none;
+  margin-top: 0.1875rem;
+}
+
+/* === Publish and Take it down === */
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem var(--space-4);
+  padding: var(--space-1) 0;
+}
+
+.actionLine {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.done {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-body);
+}
+
+.error {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-danger-line);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+  font-size: var(--text-sm);
+}
+
+/* === The preview === */
+
+.previewTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.previewLine {
+  margin: var(--space-1) 0 var(--space-4);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.frameLabel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.375rem 0.875rem;
+  margin: 0 0 0.625rem;
+}
+
+.size {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+/* A phone: 390px, as the public page is drawn there. */
+.phone {
+  box-sizing: border-box;
+  width: 24.375rem;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 20px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* The public page's section on a phone: its padding and its gutter. */
+.phoneSection {
+  padding: var(--space-16) 1.25rem;
+  background: var(--color-floor);
+}
+
+.computerPart {
+  min-width: 0;
+  margin-top: var(--space-10);
+}
+
+/* A computer: a 1440px screen at 78%, scrolling inside itself when the page
+   is narrower than that, so the page itself never scrolls sideways. */
+.computer {
+  box-sizing: border-box;
+  width: 70.5rem;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+}
+
+.canvas {
+  width: 90rem;
+  zoom: 0.7833;
+}
+
+/* The public page's section on a computer: its padding, its width, its gutter. */
+.canvasSection {
+  padding: 6.5rem 0;
+  background: var(--color-floor);
+}
+
+.canvasInner {
+  box-sizing: border-box;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 3rem;
+}
+
+@media (max-width: 48rem) {
+  .layout {
+    gap: var(--space-6);
+  }
+
+  .card {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .picker {
+    max-width: none;
+  }
+}

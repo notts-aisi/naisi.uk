@@ -4704,6 +4704,13 @@ describe("the course hub passage", () => {
         ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/answered/page.tsx", `${ADMIN_PAGE}; the one page that names who has answered`],
         ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/results/page.tsx", `${ADMIN_PAGE}; totals, made on the server, with no name`],
         ["src/app/(app)/admin/(admin-only)/surveys/kairos/[roundId]/[programmeId]/page.tsx", `${ADMIN_PAGE}; the Kairos report, totals made on the server, with no name`],
+        // Public numbers (sv-public): an admin publishes totals and ticked
+        // comments, never a name, on a programme's public page, which the
+        // policy says; the public page reads only the published record,
+        // outside survey code (the public numbers block below).
+        ["src/app/(app)/admin/(admin-only)/surveys/public-numbers/page.tsx", `${ADMIN_PAGE}; totals and ticked comments made on the server, with no name`],
+        ["src/app/api/surveys/public-numbers/route.ts", `${ADMIN_ROUTE}; publishes totals and ticked comments, never a name or an answer's id`],
+        ["src/app/api/surveys/public-numbers/take-down/route.ts", `${ADMIN_ROUTE}; deletes what was published, and reads no answer`],
         ["src/app/api/surveys/route.ts", ADMIN_ROUTE],
         ["src/app/api/surveys/[surveyId]/questions/route.ts", ADMIN_ROUTE],
         ["src/app/api/surveys/[surveyId]/test/route.ts", ADMIN_ROUTE],
@@ -6178,5 +6185,189 @@ describe("a team's page", () => {
     assert.match(clear, /\.where\("byUid", "==", uid\)/);
     assert.match(clear, /batch\.update\(doc\.ref, \{ byUid: null \}\)/);
     assert.ok(!/\.delete\(/.test(clear), "the deletion now removes what somebody wrote on a team's page");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2g, continued: comments ticked to be quoted
+// ---------------------------------------------------------------------------
+
+/**
+ * Every survey's confidential box says "Totals, and comments you tick to be
+ * quoted, may go in reports to the committee and our funder, Kairos, or on our
+ * site." Until 26 October 2026 no form drew a box to tick, so the sentence
+ * promised a tick nobody could give. It is held here to the code that makes
+ * it true: the box at the top says it on every survey whose form draws "You
+ * can quote this, without my name" under each long answer, and on no other,
+ * and the tick is kept with the answer it is under and nowhere else.
+ * `tests/surveys-quote-tick.test.mjs` drives the forms and the answer routes.
+ */
+describe("comments ticked to be quoted", () => {
+  const BOX = "Totals, and comments you tick to be quoted, may go in reports to the committee and our funder, Kairos, or on our site.";
+
+  test("the box at the top says it on exactly the surveys whose form draws the tick under each long answer, unticked", () => {
+    for (const kind of [...surveyTemplates.SURVEY_TEMPLATES, "event"]) {
+      const box =
+        kind === "event"
+          ? eventSurveyWords.eventBoxPoints({ namesOffOn: "2028-11-01", signedInAs: null, came: true }).points
+          : surveyWords.confidentialPoints({ stage: kind, leadName: null, facilitatorNames: null, namesOffOn: "2028-12-09", programmeKind: "fellowship" }).points;
+      assert.equal(box.includes(BOX), surveyRecords.asksQuotes({ kind }), `${kind}: the box and the tick disagree`);
+    }
+    // The answer page asks the one decision for each long answer.
+    const view = withoutComments(read("src/lib/surveys/answerView.ts"));
+    assert.match(view, /const quotes = asksQuotes\(survey\);/);
+    assert.match(view, /quote: quotes && isQuotable\(item\),/);
+    assert.equal(surveyItems.isQuotable({ kind: "question", id: "q", type: "longText", title: "x", body: [], required: false }), true);
+    assert.equal(surveyItems.isQuotable({ kind: "question", id: "q", type: "shortText", title: "x", body: [], required: false }), false);
+    // The form draws the box under it, in the board's words, unticked.
+    const form = withoutComments(read("src/features/surveys/answer/SurveyForm.tsx"));
+    const drawn = form.slice(form.indexOf("{question.quote && ("), form.indexOf("{question.quote && (") + 400);
+    assert.match(drawn, /<OptionRow plain type="checkbox" name=\{quoteField\(question\.id\)\} value="yes" description=\{ANSWER_WORDS\.quoteLine\}>/);
+    assert.ok(!/defaultChecked|checked=/.test(drawn), "the box starts ticked");
+    assert.equal(surveyWords.ANSWER_WORDS.quote, "You can quote this, without my name");
+  });
+
+  test("the tick is kept with the answer it is under, only where the box was drawn", () => {
+    const items = surveyTemplates.templateItems("after", "fellowship", null);
+    const ticked = { q_a5: { type: "text", text: "It changed my plans.", quote: true } };
+    assert.deepEqual(surveyItems.readSurveyAnswers(items, ticked, { quotes: true }).answers.q_a5, { type: "text", text: "It changed my plans.", quote: true });
+    assert.equal(surveyItems.readSurveyAnswers(items, ticked, { quotes: false }).problems.length, 1, "a tick is kept where no box was drawn");
+    // Both writers of an answer read the tick by the survey's own decision.
+    for (const file of ["src/lib/surveys/answer.ts", "src/lib/surveys/events/store.ts"]) {
+      assert.match(withoutComments(read(file)), /readSurveyAnswers\(survey\.items, input\.raw, \{ quotes: asksQuotes\(survey\) \}\)/, file);
+    }
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-quote-tick.test.mjs")));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2g, continued: public numbers
+// ---------------------------------------------------------------------------
+
+/**
+ * What v7 says about the box under a long answer and about publishing a
+ * programme's numbers and quotes on its page (sv-public), held to the code
+ * that makes each sentence true: which surveys draw the box and where the
+ * tick is kept, what is read to make the numbers and what is never read, that
+ * only a ticked comment can be published and then with the term and no name,
+ * that the record holds nobody, that only Take it down deletes it and nothing
+ * else does, an account's deletion included. Added while v7 was on dev,
+ * before any member had been asked to accept it, so it kept its number.
+ * `tests/surveys-quote-tick.test.mjs`, `tests/surveys-public-numbers.test.mjs`
+ * and `tests/public-numbers-last-term.test.mjs` drive the forms, the routes
+ * and both pages as every kind of caller.
+ */
+const publicOffer = await loadTs("lib/surveys/publicNumbers.ts");
+const publicRecord = await loadTs("lib/publicNumbers/model.ts");
+
+describe("public numbers", () => {
+  const BOX = /<li> Under each long answer, a programme&apos;s surveys and the survey after an event have a box that says &quot;You can quote this, without my name&quot;\. It starts unticked\. If you tick it, the tick is kept with that answer, and like the rest of your answers it cannot change once you send them\. The survey about leaving has no such box\. <\/li>/;
+  const PUBLISH = /<li> NAISI&apos;s admins may publish, on a programme&apos;s page on our site, numbers worked out from that programme&apos;s own surveys, with how many people answered them, and comments whose writers ticked that box, each shown with the term and no name\. Nothing else of anybody&apos;s answers is published there, and nothing from the survey about leaving, a survey after an event or the anonymous form\. An admin can take it down at any time\. <\/li>/;
+  const USE = /<li> Show on a programme&apos;s page how its last term went: numbers from its own surveys, and comments their writers ticked to be quoted, with no name\. <\/li>/;
+  const BASIS = /Quoting a comment of yours on our site rests on your consent too, given by ticking the box under it, and if you email us we will take the quote down\./;
+  const KEPT = /<strong>What we publish from a programme&apos;s surveys\.<\/strong>\{" "\} The numbers and quotes on a programme&apos;s page stay there until an admin takes them down, or publishes that programme&apos;s again, which replaces them\./;
+  const LEFT = /<li> A comment of yours quoted on a programme&apos;s page: it carries no name, and with your account gone nothing links it to you\. Email us and we will take it down\. <\/li>/;
+
+  /** AGI Strategy's two surveys with one ticked comment and one not, as the offer reads them. */
+  const offerOf = () =>
+    publicOffer.buildOffer({
+      kind: "fellowship",
+      term: "Autumn 2026",
+      surveys: [
+        {
+          stage: "after",
+          items: surveyTemplates.templateItems("after", "fellowship", null),
+          sent: 3,
+          answers: [
+            { id: "a1", uid: "amara", answers: { q_q1: { type: "scale", value: 10 }, q_a5: { type: "text", text: "Ticked words.", quote: true } } },
+            { id: "a2", uid: "bea", answers: { q_q1: { type: "scale", value: 7 }, q_a5: { type: "text", text: "Unticked words." } } },
+          ],
+        },
+      ],
+    });
+
+  test("the frozen v6 carries none of these sentences", () => {
+    for (const pattern of [/You can quote this, without my name/, /how its last term went/, /What we publish from a programme/, /A comment of yours quoted on a programme/, /Quoting a comment of yours on our site/]) {
+      assert.ok(!pattern.test(V6_FLAT), `v6 already says ${pattern}`);
+    }
+  });
+
+  test("the box: on a programme's surveys and the survey after an event, unticked, kept with its answer; none on the survey about leaving", () => {
+    assert.match(PAGE_FLAT, BOX);
+    for (const kind of [...surveyTemplates.SURVEY_TEMPLATES, "event"]) {
+      assert.equal(surveyRecords.asksQuotes({ kind }), kind !== "leaving", kind);
+    }
+    // Under a long answer and no other.
+    assert.match(withoutComments(read("src/lib/surveys/items.ts")), /export function isQuotable\(question: SurveyQuestion\): boolean \{\s*return question\.type === "longText";\s*\}/);
+    // "It cannot change once you send them": an answer is kept once, and the
+    // tick inside it, by the one writer of a programme survey's answers.
+    const answer = withoutComments(read("src/lib/surveys/answer.ts"));
+    assert.match(answer, /if \(person\.answered\) return \{ ok: false, status: 409, error: REFUSAL\.answered \};/);
+    assert.match(answer, /tx\.set\(answerRef, \{/);
+    assert.ok(!/tx\.update\(answerRef/.test(answer), "a kept answer, and the tick in it, can now change");
+  });
+
+  test("what may be published: numbers from the programme's own surveys with how many answered, ticked comments with the term and no name, nothing else", () => {
+    assert.match(PAGE_FLAT, PUBLISH);
+    assert.match(PAGE_FLAT, USE);
+    // Its own surveys alone: a stage survey of that programme, never the leaving survey or an event's.
+    const load = withoutComments(read("src/lib/surveys/publicNumbersLoad.ts"));
+    assert.match(load, /for \(const stage of SURVEY_STAGES\) \{/);
+    assert.match(load, /\.filter\(\(each\) => each\.kind === stage && isProgrammeAudience\(each\.audience, programme\.roundId, programme\.programmeId\)\)/);
+    assert.ok(!/anonymousFeedback|programmeRatings|kairos|events\//i.test(load), "public numbers now read something besides the programme's own surveys");
+    assert.ok(!surveyTemplates.SURVEY_STAGES.includes("leaving"));
+    // With how many people answered them: the closing line, and every number's base for the admin.
+    const offer = offerOf();
+    assert.equal(offer.footer, "From the fellowship’s own surveys, autumn 2026: 2 of 3 fellows answered at the end.");
+    assert.ok(offer.numbers.every((number) => /^From (the )?\d+ /.test(number.base)), "a number is offered without its base");
+    // A ticked comment alone, its words and the term, no name.
+    assert.deepEqual(offer.quotes.map((quote) => quote.text), ["Ticked words."]);
+    assert.deepEqual(publicOffer.publishedFrom(offer, { numbers: [], quotes: ["a2.q_a5"] }), { ok: false, why: "changed" }, "an unticked comment can be published");
+    assert.equal(offer.attribution, "Autumn 2026 fellow");
+    // The record keeps exactly what is published, and nobody.
+    const route = withoutComments(read("src/app/api/surveys/public-numbers/route.ts"));
+    const kept = /\.set\(\{([\s\S]*?)\}\);/.exec(route);
+    assert.ok(kept, "could not find what Publish keeps");
+    assert.deepEqual(
+      [...kept[1].matchAll(/^\s*(\w+)(?=[:,])/gm)].map((field) => field[1]),
+      ["roundId", "programmeId", "courseId", "term", "lastSessionOn", "heading", "numbers", "quotes", "attribution", "footer", "publishedAt", "publishedByUid"],
+      "what is published now keeps something the policy does not say",
+    );
+    assert.deepEqual(
+      publicOffer.publishedFrom(offer, { numbers: ["recommend"], quotes: ["a1.q_a5"] }).block.quotes,
+      [{ text: "Ticked words." }],
+      "a published quote keeps more than its words",
+    );
+    // The page draws the block's fields and nothing else of the record.
+    assert.deepEqual(Object.keys(publicRecord.blockOf(publicRecord.normalizePublicNumbers("r", { heading: "h", quotes: [{ text: "q" }] }))).sort(), ["attribution", "footer", "heading", "numbers", "quotes"]);
+    assert.match(read("src/lib/publicNumbers/fetch.ts"), /return latest \? blockOf\(latest\) : null;/);
+  });
+
+  test("the legal basis for a quote is the tick, and only a ticked comment is ever offered", () => {
+    assert.match(PAGE_FLAT, BASIS);
+    assert.match(withoutComments(read("src/lib/surveys/publicNumbers.ts")), /if \(!given \|\| given\.type !== "text" \|\| given\.quote !== true\) continue;/);
+  });
+
+  test("how long it stays: until an admin takes it down or publishes again; nothing else deletes it, an account's deletion included", () => {
+    assert.match(CURRENT.replace(/\s+/g, " "), KEPT);
+    assert.match(PAGE_FLAT, LEFT);
+    // Every file that names the record, and why.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bPUBLIC_NUMBERS_COLLECTION\b|["'`]publicNumbers["'`]/),
+      new Map([
+        ["src/lib/publicNumbers/model.ts", "the record's own name and shape"],
+        ["src/lib/publicNumbers/fetch.ts", "the public page's read, one equality on courseId, projected to the block's fields"],
+        ["src/lib/surveys/publicNumbersLoad.ts", "the admins' page reads what is published for a programme"],
+        ["src/app/api/surveys/public-numbers/route.ts", "Publish: an admin's, replacing the programme's record whole"],
+        ["src/app/api/surveys/public-numbers/take-down/route.ts", "Take it down: an admin's, the one delete"],
+      ]),
+      "naming the public numbers record",
+      "The policy says the numbers and quotes stay until an admin takes them down or publishes again, and that a deletion leaves them: a new reader, writer or deleter changes that sentence first.",
+    );
+    const publish = withoutComments(read("src/app/api/surveys/public-numbers/route.ts"));
+    assert.ok(!/\.delete\(|merge: true/.test(publish), "Publish now deletes, or merges into what was published");
+    assert.match(withoutComments(read("src/app/api/surveys/public-numbers/take-down/route.ts")), /await ref\.delete\(\);/);
+    // An account's deletion has nothing of it to find: the record holds no respondent.
+    assert.ok(!/publicNumbers|PUBLIC_NUMBERS/.test(read("src/lib/firestore/accountDeletion.ts")), "an account's deletion now reaches what was published");
   });
 });

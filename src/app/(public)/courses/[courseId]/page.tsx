@@ -64,6 +64,8 @@ import SectionHead from "@/features/programmes/SectionHead";
 import { SESSION_TIMES, weeklyHoursWords } from "@/features/programmes/words";
 import shared from "@/features/programmes/programme.module.css";
 import { fetchPublicTerm } from "@/features/term/fetchPublicTerm";
+import LastTermBlock from "@/features/publicNumbers/LastTermBlock";
+import { fetchLastTerm } from "@/lib/publicNumbers/fetch";
 import styles from "./course.module.css";
 
 /**
@@ -125,6 +127,12 @@ import styles from "./course.module.css";
  * (`src/lib/crests/resolve.ts`): the programme's own when one of the term's
  * programmes is tied to this course, else this course's, else the NAISI
  * emblem. 128px, decorative: the course's name is the heading beside it.
+ *
+ * LAST TERM. While an admin has published numbers and quotes for a programme
+ * tied to this course (sv-public), the latest term's are a section of their
+ * own after the sample week, drawn from the published record alone
+ * (`fetchLastTerm`, which hands the block the fields it draws and nothing
+ * else). Nothing published, no section: the page reads as it did.
  */
 
 // Run status, the round's window and the published-week set all change without
@@ -191,11 +199,12 @@ export default async function PublicCoursePage({
   const { courseId } = await params;
   // Independent reads go together. An unpublished course throws the other two
   // away, which is cheaper than serialising them on every hit.
-  const [found, runSet, page, term] = await Promise.all([
+  const [found, runSet, page, term, lastTerm] = await Promise.all([
     getPublishedCourse(courseId),
     getCourseRunSet(courseId),
     fetchCoursePage(courseId),
     fetchPublicTerm(),
+    fetchLastTerm(courseId),
   ]);
   // A draft or unknown course is a 404 either way, so a draft URL leaks
   // nothing about whether the course exists.
@@ -392,6 +401,16 @@ export default async function PublicCoursePage({
           </p>
         </>
       ),
+    });
+  }
+
+  // Last term: what an admin published from the programme's own surveys.
+  // The quotes' cards take the ground the section does not, so they stand off it.
+  if (lastTerm) {
+    sections.push({
+      key: "last-term",
+      labelledBy: "last-term-heading",
+      body: <LastTermBlock {...lastTerm} headingId="last-term-heading" ground={sections.length % 2 === 0 ? "floor" : "raised"} />,
     });
   }
 

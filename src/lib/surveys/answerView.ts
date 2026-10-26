@@ -3,7 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { own } from "@/lib/applications/keys";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { answerLimitOf, ratingScaleOf } from "@/lib/firestore/worksheets";
-import { asksKairos, type SurveyDoc, type SurveyPersonDoc } from "@/lib/firestore/surveys";
+import { asksKairos, asksQuotes, type SurveyDoc, type SurveyPersonDoc } from "@/lib/firestore/surveys";
 import { kairosChoicesOf } from "@/lib/kairos/choice";
 import { sharesWithKairos } from "@/lib/kairos/model";
 import { consentSurveyIdFor, consentsAskedOf, followUpsHolderFor } from "./consent";
@@ -11,6 +11,7 @@ import {
   isLinesQuestion,
   isNumberQuestion,
   isPercentQuestion,
+  isQuotable,
   isScaleQuestion,
   questionNumbers,
   scoreOf,
@@ -83,7 +84,13 @@ export type AnswerQuestion =
   | (Base & { kind: "scale"; min: number; max: number; anchors: { at: number; label: string }[] })
   | (Base & { kind: "percent"; minLabel: string; maxLabel: string })
   | (Base & { kind: "number"; max: number })
-  | (Base & { kind: "text"; long: boolean; maxLength: number });
+  | (Base & {
+      kind: "text";
+      long: boolean;
+      maxLength: number;
+      /** Whether "You can quote this, without my name" is drawn under it, unticked: a long answer on a survey that asks for the tick. */
+      quote: boolean;
+    });
 
 /** A consent block as the page draws it: its statement, then its boxes, unticked. */
 export type AnswerConsent = { id: string; statement: string; boxes: { purpose: SurveyConsentPurpose; label: string }[] };
@@ -171,8 +178,14 @@ function choiceQuestion(base: Base, item: SurveyChoiceQuestion, offered: string)
   };
 }
 
-/** The survey's questions and consent blocks, page by page, as the form draws them. */
-export function answerPagesOf(survey: Pick<SurveyDoc, "items">, personal: PersonalFacts = NO_PERSONAL_FACTS): AnswerPage[] {
+/**
+ * The survey's questions and consent blocks, page by page, as the form draws
+ * them. Each long answer says whether the box "You can quote this, without
+ * my name" goes under it: on every survey that asks for the tick
+ * (`asksQuotes`), and on no other.
+ */
+export function answerPagesOf(survey: Pick<SurveyDoc, "items" | "kind">, personal: PersonalFacts = NO_PERSONAL_FACTS): AnswerPage[] {
+  const quotes = asksQuotes(survey);
   const numbers = questionNumbers(survey.items);
   return surveyPagesOf(survey.items).map((items: SurveyItem[]) => {
     const section = items.find((item) => item.kind === "section");
@@ -227,6 +240,7 @@ export function answerPagesOf(survey: Pick<SurveyDoc, "items">, personal: Person
           kind: "text",
           long: item.type === "longText",
           maxLength: limit.unit === "characters" ? limit.max : limit.max * 12,
+          quote: quotes && isQuotable(item),
         });
       }
     }

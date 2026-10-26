@@ -28,7 +28,8 @@ import { AnonymousFormCard } from "@/features/anonymousFeedback/AfterTheSurvey";
  *
  * Nothing is sent or kept before "Send my answers": no draft, no record of a
  * page being opened. Every question can be skipped; a consent box starts
- * unticked.
+ * unticked, and so does "You can quote this, without my name" under a long
+ * answer, whose tick is sent with the words it is under.
  *
  * THE KAIROS CHOICE ends the last page of every programme survey: what goes
  * to Kairos, why sharing helps, and "Don't share my details with Kairos",
@@ -53,6 +54,8 @@ const lineField = (questionId: string, lineId: string) => `${questionId}.${lineI
 const mostField = (questionId: string) => `${questionId}.most`;
 /** The field name of a consent box. */
 const consentField = (purpose: string) => `consent.${purpose}`;
+/** The field name of the box under a long answer: "You can quote this, without my name". */
+const quoteField = (questionId: string) => `${questionId}.quote`;
 /** The Kairos box, ticked to say no, and where it started. */
 const KAIROS_NO = "kairos.no";
 const KAIROS_WAS = "kairos.was";
@@ -133,7 +136,9 @@ export function answersIn(
         }
         case "text": {
           const text = one(question.id)?.trim() ?? "";
-          if (text) out[question.id] = { type: "text", text };
+          // The tick goes with the words it is under, and only where the box was drawn.
+          const quote = question.quote && data.get(quoteField(question.id)) === "yes";
+          if (text) out[question.id] = quote ? { type: "text", text, quote: true } : { type: "text", text };
           break;
         }
       }
@@ -415,7 +420,16 @@ function Question({ question, hydrated }: { question: AnswerQuestion; hydrated: 
       )}
       {question.kind === "text" &&
         (question.long ? (
-          <Textarea name={question.id} rows={5} maxLength={question.maxLength} aria-labelledby={titleId} />
+          <>
+            <Textarea name={question.id} rows={5} maxLength={question.maxLength} aria-labelledby={titleId} />
+            {question.quote && (
+              <div className={styles.quote}>
+                <OptionRow plain type="checkbox" name={quoteField(question.id)} value="yes" description={ANSWER_WORDS.quoteLine}>
+                  {ANSWER_WORDS.quote}
+                </OptionRow>
+              </div>
+            )}
+          </>
         ) : (
           <Input name={question.id} maxLength={question.maxLength} aria-labelledby={titleId} />
         ))}

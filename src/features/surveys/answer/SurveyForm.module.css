@@ -467,6 +467,14 @@
   overflow-wrap: anywhere;
 }
 
+/* "You can quote this, without my name", under a long answer: 4px under the
+   box as the boards draw it, where the question's own gap would leave 12px.
+   The row is OptionRow's plain one, its 44px target intact. */
+.quote {
+  margin-top: calc(var(--space-1) - var(--space-3));
+  min-width: 0;
+}
+
 /* Under the Kairos box: what saying no does and does not change. */
 .kairosAfter {
   margin: 0;

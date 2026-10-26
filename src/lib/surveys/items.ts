@@ -38,7 +38,11 @@ import {
  *  - a consent block (`kind: "consent"`): a statement shown as text and boxes
  *    a person ticks, unticked until they tick them. It is not a question: what
  *    is ticked is kept on the person's row, where they can change it later,
- *    never among the answers.
+ *    never among the answers;
+ *  - the box under a long answer, "You can quote this, without my name"
+ *    (`isQuotable`): unticked until the person ticks it, and kept with the
+ *    answer it is under (`quote: true` on its text answer), because it is
+ *    about those words and nothing else.
  *
  * Rules a maintainer keeps:
  *
@@ -199,8 +203,18 @@ export type SurveyChoicesAnswer = { type: "choices"; optionIds: string[]; most?:
 /** A percentage, a whole number or a point on a scale. */
 export type SurveyValueAnswer = { type: "percent" | "number" | "scale"; value: number };
 
+/**
+ * A short or long answer in words. Under a long answer the person may tick
+ * "You can quote this, without my name" (`isQuotable`), and the tick is kept
+ * with the answer it is under, as `quote: true`, and nowhere else. An answer
+ * left unticked carries no `quote` at all. Nothing but this tick ever makes a
+ * comment one that may be quoted.
+ */
+export type SurveyTextAnswer = { type: "text"; text: string; quote?: true };
+
 export type SurveyAnswer =
-  | Exclude<WorksheetAnswer, { type: "choices" }>
+  | Exclude<WorksheetAnswer, { type: "choices" | "text" }>
+  | SurveyTextAnswer
   | SurveyChoicesAnswer
   | SurveyLinesAnswer
   | SurveyValueAnswer;
@@ -453,6 +467,15 @@ export function isChoiceOrTextQuestion(item: SurveyItem): item is SurveyChoiceQu
 
 export function isConsentItem(item: SurveyItem): item is SurveyConsentItem {
   return item.kind === "consent";
+}
+
+/**
+ * Whether a question's answer carries the box "You can quote this, without
+ * my name": a long answer does, on a survey that asks for the tick
+ * (`asksQuotes` in `@/lib/firestore/surveys`). A short answer never does.
+ */
+export function isQuotable(question: SurveyQuestion): boolean {
+  return question.type === "longText";
 }
 
 /** The questions, in order. Their place in this list, from 1, is the number a person sees. */
@@ -773,8 +796,28 @@ function readChoicesAnswer(question: SurveyChoiceQuestion, raw: Raw): Read {
   return { answer: out, problem: null };
 }
 
+const NO_QUOTE_BOX = "That answer has no box to tick for quoting.";
+
+/**
+ * A short or long answer, with the tick under it when there was one to tick.
+ * `quotes` says whether the survey draws the box at all (`asksQuotes`); a
+ * tick sent where no box was drawn is refused, so nothing but the person's
+ * own tick under a long answer marks a comment as one that may be quoted. A
+ * tick under an answer left blank keeps nothing: there is nothing to quote.
+ */
+function readTextAnswer(question: SurveyChoiceQuestion, raw: Raw, quotes: boolean): Read {
+  const answer = raw as unknown as WorksheetAnswer;
+  const message = validateAnswer(question, answer);
+  if (message) return { answer: null, problem: message };
+  const tick = raw.quote;
+  if (tick !== undefined && tick !== null && typeof tick !== "boolean") return { answer: null, problem: SHAPE };
+  if (tick === true && !(quotes && isQuotable(question))) return { answer: null, problem: NO_QUOTE_BOX };
+  if (answerIsEmpty(answer) || answer.type !== "text") return { answer: null, problem: null };
+  return { answer: tick === true ? { type: "text", text: answer.text, quote: true } : { type: "text", text: answer.text }, problem: null };
+}
+
 /** One answer, read against its question, or nothing for one left blank. */
-function readOne(question: SurveyQuestion, raw: Raw): Read {
+function readOne(question: SurveyQuestion, raw: Raw, quotes: boolean): Read {
   if (isLinesQuestion(question)) return readLinesAnswer(question, raw);
   if (isPercentQuestion(question)) return readValueAnswer("percent", raw, 0, 100, "Give a number from 0 to 100.");
   if (isNumberQuestion(question)) {
@@ -784,6 +827,7 @@ function readOne(question: SurveyQuestion, raw: Raw): Read {
     return readValueAnswer("scale", raw, question.min, question.max, `Pick a number from ${question.min} to ${question.max}.`);
   }
   if (question.type === "multipleChoice") return readChoicesAnswer(question, raw);
+  if (question.type === "shortText" || question.type === "longText") return readTextAnswer(question, raw, quotes);
   const answer = raw as unknown as WorksheetAnswer;
   const message = validateAnswer(question, answer);
   if (message) return { answer: null, problem: message };
@@ -812,11 +856,13 @@ export function withoutLines(answers: Record<string, SurveyAnswer>, hidden: read
  * A person's answers, read from a request: only the survey's own questions,
  * each checked against its question, and nothing for one left blank. Every
  * question can be skipped, so an empty answer is no problem: it is simply not
- * kept.
+ * kept. `quotes` is whether the survey draws "You can quote this, without my
+ * name" under its long answers (`asksQuotes`); without it, a tick is refused.
  */
 export function readSurveyAnswers(
   items: readonly SurveyItem[],
   raw: unknown,
+  options: { quotes?: boolean } = {},
 ): { answers: Record<string, SurveyAnswer>; problems: SurveyAnswerProblem[] } {
   const answers: Record<string, SurveyAnswer> = {};
   const problems: SurveyAnswerProblem[] = [];
@@ -836,7 +882,7 @@ export function readSurveyAnswers(
       problems.push({ questionId: question.id, message: SHAPE });
       continue;
     }
-    const read = readOne(question, value);
+    const read = readOne(question, value, options.quotes === true);
     if (read.problem) problems.push({ questionId: question.id, message: read.problem });
     else if (read.answer) answers[question.id] = read.answer;
   }
@@ -859,9 +905,13 @@ function cleanWorksheetAnswer(answer: WorksheetAnswer): SurveyAnswer {
   }
 }
 
-/** Stored answers, read back for a survey's own questions only. */
+/**
+ * Stored answers, read back for a survey's own questions only. A tick kept
+ * under a long answer is read back with it: only the answer routes write
+ * one, and only where the box was drawn.
+ */
 export function storedSurveyAnswers(items: readonly SurveyItem[], raw: unknown): Record<string, SurveyAnswer> {
-  return readSurveyAnswers(items, isRaw(raw) ? filterKnown(items, raw) : {}).answers;
+  return readSurveyAnswers(items, isRaw(raw) ? filterKnown(items, raw) : {}, { quotes: true }).answers;
 }
 
 function filterKnown(items: readonly SurveyItem[], raw: Raw): Raw {
