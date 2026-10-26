@@ -312,5 +312,14 @@ The privacy policy says what a survey keeps, who sees it, when names come off
 and what a deletion does, under "When you answer a survey", and
 `tests/privacy-policy.test.mjs` holds each of those sentences to the code here:
 who reaches survey code, the fields an answer keeps, the notice lane, the
-names-off job and the deletion step. A change that alters any of them changes
-the policy first.
+names-off job and the deletion step; what the surveys ask, by kind, against
+every question of every template, both ways; the two profile values a survey
+offers; the survey at the end showing a person their own earlier answer; and
+the follow-ups' box, who it sends them to and how it is changed. A change that
+alters any of them changes the policy first: a template that asks a new kind
+of question fails until the policy names it.
+
+`tests/surveys-no-tracking.test.mjs` passes over exactly one sentence that holds
+one of its activity names as prose, F1's "What’s your main activity now?",
+written as a string; the name anywhere else is still caught, and the entry
+fails when the sentence is gone.
