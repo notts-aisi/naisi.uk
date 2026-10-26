@@ -1012,13 +1012,40 @@ describe("the survey at the end and the follow-ups pair with the one before, per
     const test = (await w.page(w.pages.link, { params: Promise.resolve({ token: w.survey(after).testToken }) })).text;
     assert.ok(test.includes("At the start you said: what each person wrote at the start shows here."));
     assert.ok(!test.includes("To explain the risk clearly."));
+    // A follow-up's test link shows no consent panel: a test is nobody's.
+    const six = (await w.make("zach", { stage: "followUp6", closesOn: "2026-12-20" })).body.survey.id;
+    await call("zach", routes.test.POST, { surveyId: six }, { body: { email: "survey" } });
+    const sixTest = (await w.page(w.pages.link, { params: Promise.resolve({ token: w.survey(six).testToken }) })).text;
+    assert.ok(sixTest.includes("Six months on"), sixTest.slice(0, 200));
+    assert.ok(!sixTest.includes("Stop the follow-ups") && !sixTest.includes("You said we may contact you"), "a test link shows somebody's consent");
+    // Even handed a person's row, a test is drawn as nobody's.
+    assert.equal((await w.sendFirst(six, "zach", { emails: 1 })).status, 200);
+    const { answerScreenFor } = await w.loadTs("lib/surveys/answerView.ts");
+    const { readSurvey, readPerson } = await w.loadTs("lib/surveys/repo.ts");
+    const stored = await readSurvey(w.world.db, six);
+    const amaraRow = await readPerson(w.world.db, six, { kind: "account", uid: "amara" });
+    assert.ok(amaraRow, "Amara was sent the follow-up");
+    const screen = await answerScreenFor(w.world.db, stored, { uid: null, answered: false, answeredAt: null, submit: { kind: "test" }, now: new Date(), person: amaraRow });
+    assert.equal(screen.consent, null);
+    const hers = await answerScreenFor(w.world.db, stored, { uid: "amara", answered: false, answeredAt: null, submit: { kind: "link", token: amaraRow.token }, now: new Date(), person: amaraRow });
+    assert.equal(hers.consent?.button, "Stop the follow-ups", "her own page shows it");
   });
 
   test("a follow-up waits for a sent before survey, and goes only to people who said yes", async (t) => {
     clock(t);
     w.reset(seed());
-    assert.deepEqual(short(await w.make("zach", { stage: "followUp6", closesOn: "2026-12-20" })), [409, "Its before survey asks who may be contacted for follow-ups, and it hasn’t been sent."]);
-    const before = await beforeAnswered();
+    const waits = [409, "Its before survey asks who may be contacted for follow-ups, and it hasn’t been sent."];
+    assert.deepEqual(short(await w.make("zach", { stage: "followUp6", closesOn: "2026-12-20" })), waits, "no before survey");
+    const draft = (await w.make()).body.survey.id;
+    assert.deepEqual(short(await w.make("zach", { stage: "followUp6", closesOn: "2026-12-20" })), waits, "a before survey made but not sent");
+    assert.deepEqual(short(await w.make("zach", { stage: "followUp12", closesOn: "2026-12-20" })), waits);
+    // The same before survey, now sent and answered.
+    const sent = await w.sendFirst(draft);
+    assert.equal(sent.status, 200, JSON.stringify(sent.body));
+    const amara = await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(draft, "amara"), answers: CHOICES, consents: { followUps: true } } });
+    assert.equal(amara.status, 200);
+    assert.equal((await w.answerByLink(w.tokenOf(draft, "bea"), { q_c1: { type: "choice", optionId: "o_stage0" } })).status, 200);
+    const before = draft;
     const after = await makeAndSend("after", 4);
     const made = await w.make("zach", { stage: "followUp6", closesOn: "2026-12-20" });
     assert.equal(made.status, 200, JSON.stringify(made.body));
@@ -1124,6 +1151,19 @@ describe("changing the follow-ups consent later, by the person alone", () => {
     assert.equal((await call(null, routes.consentByLink.POST, {}, { body: { token: w.tokenOf(id, "dev"), purpose: "followUps", given: true } })).status, 200);
   });
 
+  test("the change is the person's own row: a row on the before survey that names somebody else is changed by nobody", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const before = await beforeAnsweredByAmara(true);
+    const six = (await w.make("zach", { stage: "followUp6", closesOn: "2026-12-20" })).body.survey.id;
+    assert.equal((await w.sendFirst(six, "zach", { emails: 1 })).status, 200);
+    // Amara's row on the before survey, made to name Bea, as no writer here makes one.
+    w.world.db.poke(`surveyPeople/${before}__amara`, { "respondent.uid": "bea" });
+    const refused = await call(null, routes.consentByLink.POST, {}, { body: { token: w.tokenOf(six, "amara"), purpose: "followUps", given: false } });
+    assert.deepEqual(short(refused), [404, REFUSAL.consentNoRow]);
+    assert.equal(w.world.db.read(`surveyPeople/${before}__amara`).consents.followUps, true, "a row that names somebody else is left alone");
+  });
+
   test("refused to everybody else: a wrong or test link, another person, view-as, signed out, and a survey that doesn't ask it", async (t) => {
     clock(t);
     w.reset(seed());
@@ -1202,6 +1242,17 @@ describe("results for admins: n and the response rate beside every number, the c
       assert.ok(page.text.includes(words), `missing "${words}"`);
     }
     assert.doesNotMatch(page.text, /Amara|Okafor|Bea |Dev Patel|To explain the risk clearly/, "results name nobody and quote no one's earlier answer");
+  });
+
+  test("a reminder sends nobody new, so the response rate stays of the people it was sent to", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await sentSurvey();
+    await w.answerByLink(w.tokenOf(id, "amara"), {});
+    await call("zach", routes.test.POST, { surveyId: id }, { body: { email: "reminder" } });
+    assert.equal((await call("zach", routes.remind.POST, { surveyId: id }, { body: { emails: 3 } })).status, 200);
+    const page = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
+    assert.ok(page.text.includes("1 answer from the 4 people it was sent to (25%)."), page.text.slice(0, 300));
   });
 
   test("the before survey's results say how many said yes to follow-ups, of the people it was sent to", async (t) => {
