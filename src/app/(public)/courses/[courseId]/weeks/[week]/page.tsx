@@ -3,11 +3,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import Card from "@/components/ui/Card";
+import PublicBlockWeek from "@/features/courses/PublicBlockWeek";
 import WeekCurriculum from "@/features/courses/WeekCurriculum";
 import {
   getPublicWeek,
   getPublishedCourse,
 } from "@/features/courses/fetchCourses";
+import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
+import { publicBlockWeek } from "@/lib/courses/weekBlocks/publicWeek";
+import { weekSummaryText } from "@/lib/courses/weekBlocks/reader";
 import { linkPreviewImages } from "@/lib/linkPreviewCard";
 import styles from "./week.module.css";
 
@@ -59,7 +63,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const base = `${data.course.title} — Week ${data.week.weekNumber}`;
   const title = data.week.title ? `${base}: ${data.week.title}` : base;
-  const description = data.week.summary || data.course.tagline || undefined;
+  // A block week's own words for itself are its Why this week, which is public (Q40).
+  const summary = isBlockWeek(data.week) ? weekSummaryText(data.week) : data.week.summary;
+  const description = summary || data.course.tagline || undefined;
 
   return {
     title,
@@ -121,7 +127,13 @@ export default async function PublicCourseWeekPage({ params }: Props) {
             ) : null}
           </header>
 
-          <WeekCurriculum week={weekDoc} />
+          {/* A week written as blocks shows what Q40 lets it (`publicBlockWeek`);
+              any other week is drawn exactly as before. */}
+          {isBlockWeek(weekDoc) ? (
+            <PublicBlockWeek week={publicBlockWeek(weekDoc.blocks)} />
+          ) : (
+            <WeekCurriculum week={weekDoc} />
+          )}
 
           {(prev || next) && (
             <nav className={styles.weekNav} aria-label="Week navigation">
