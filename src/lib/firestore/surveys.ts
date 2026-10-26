@@ -1,5 +1,5 @@
 import { CONSENT_PURPOSES, sanitizeSurveyItems, type SurveyAnswer, type SurveyConsents, type SurveyItem } from "@/lib/surveys/items";
-import { INCUBATOR_STRANDS, SURVEY_STAGES, type IncubatorStrand, type SurveyStage } from "@/lib/surveys/templates";
+import { INCUBATOR_STRANDS, SURVEY_TEMPLATES, type IncubatorStrand, type SurveyTemplate } from "@/lib/surveys/templates";
 
 /**
  * SURVEYS: three server-only collections, the shapes their readers share.
@@ -38,9 +38,11 @@ export const SURVEY_ANSWERS_COLLECTION = "surveyAnswers";
 
 /**
  * Which of a programme's surveys this is: before it, at its end, or a
- * follow-up 6 or 12 months on. Each pairs with the one before it.
+ * follow-up 6 or 12 months on, each pairing with the one before it; or the
+ * survey for people leaving it (`leaving`), which pairs with none, is never
+ * sent, and has no closing day.
  */
-export type SurveyKind = SurveyStage;
+export type SurveyKind = SurveyTemplate;
 
 /** Confidential is the only setting: no survey on the site is anonymous. */
 export type SurveyPrivacy = "confidential";
@@ -50,12 +52,15 @@ export type SurveyPrivacy = "confidential";
  * programme of an application form when it is sent, which before a programme
  * is everybody starting and at its end everybody still on it. `followUps`:
  * everybody whose row on the programme's before survey (`consentFrom`) says
- * yes to being contacted at 6 and 12 months, now. Later kinds sit beside them
- * (people leaving, an event's sign-ups or who came).
+ * yes to being contacted at 6 and 12 months, now. `leaving`: each person who
+ * leaves the programme by their own hand while the survey is open, whose row
+ * is made as they leave (`src/lib/surveys/leaving.ts`): nobody presses send.
+ * Later kinds sit beside them (an event's sign-ups or who came).
  */
 export type SurveyAudience =
   | { kind: "programme"; roundId: string; programmeId: string }
-  | { kind: "followUps"; roundId: string; programmeId: string; consentFrom: string };
+  | { kind: "followUps"; roundId: string; programmeId: string; consentFrom: string }
+  | { kind: "leaving"; roundId: string; programmeId: string };
 
 /** A person a survey is for, or who answered it. An account today. */
 export type SurveyRespondent = { kind: "account"; uid: string };
@@ -111,7 +116,7 @@ export type SurveyDoc = {
   pairOf: string | null;
   /** An incubator's research strand, for the first line of its skills question; null for a fellowship. */
   strand: IncubatorStrand | null;
-  /** It refuses answers from this moment: 23:59 in London on the day an admin picked. */
+  /** It refuses answers from this moment: 23:59 in London on the day an admin picked. Null for a leaving survey, which has no closing day. */
   closesAt: Date | null;
   /** Closed early, by hand. */
   closedAt: Date | null;
@@ -119,9 +124,19 @@ export type SurveyDoc = {
   namesOffOn: string | null;
   /** When names came off. */
   namesOffAt: Date | null;
-  /** The first send. From then on the questions, the words and the closing date are fixed. */
+  /**
+   * The first send. From then on the questions, the words and the closing
+   * date are fixed. A leaving survey is never sent: this is when an admin
+   * opened it, from when it reaches whoever leaves, and fixes it the same way.
+   */
   firstSentAt: Date | null;
   presses: SurveyPress[];
+  /**
+   * How many people a leaving survey has reached: one for each person whose
+   * row was made as they left. It outlives the rows, which go when names come
+   * off, as `presses` does for a survey that is sent. Nought for any other.
+   */
+  reached: number;
   tests: Record<SurveyEmailKind, SurveyTest | null>;
   /** The secret in a test email's link: it opens the survey, and nothing sent through it is kept. */
   testToken: string | null;
@@ -236,6 +251,7 @@ function readAudience(raw: unknown): SurveyAudience {
   if (r.kind === "followUps" && typeof r.consentFrom === "string" && r.consentFrom) {
     return { kind: "followUps", roundId: str(r.roundId), programmeId: str(r.programmeId), consentFrom: r.consentFrom };
   }
+  if (r.kind === "leaving") return { kind: "leaving", roundId: str(r.roundId), programmeId: str(r.programmeId) };
   return { kind: "programme", roundId: str(r.roundId), programmeId: str(r.programmeId) };
 }
 
@@ -273,7 +289,7 @@ export function normalizeSurvey(id: string, data: Raw): SurveyDoc {
   const minutes = count(data.minutes);
   return {
     id,
-    kind: SURVEY_STAGES.includes(data.kind as SurveyKind) ? (data.kind as SurveyKind) : "before",
+    kind: SURVEY_TEMPLATES.includes(data.kind as SurveyKind) ? (data.kind as SurveyKind) : "before",
     privacy: "confidential",
     name: str(data.name),
     title: str(data.title),
@@ -292,6 +308,7 @@ export function normalizeSurvey(id: string, data: Raw): SurveyDoc {
     namesOffAt: tsToDate(data.namesOffAt),
     firstSentAt: tsToDate(data.firstSentAt),
     presses: readPresses(data.presses),
+    reached: count(data.reached),
     tests: { survey: readTest(tests.survey), reminder: readTest(tests.reminder) },
     testToken: isSurveyToken(data.testToken) ? data.testToken : null,
     createdByUid: str(data.createdByUid),

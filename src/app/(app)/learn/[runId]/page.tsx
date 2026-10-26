@@ -6,6 +6,7 @@ import { pitchingCard } from "@/lib/courses/pitching/load";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import LeftProgramme from "@/features/courses/leaving/LeftProgramme";
+import { leftPageSurvey } from "@/features/courses/leaving/leftSurvey";
 import RunHome from "@/features/courses/RunHome";
 import { getRunAccess } from "@/features/courses/runAccess";
 import { guideLinksOf } from "@/lib/courses/guide/load";
@@ -21,9 +22,11 @@ import { guideLinksOf } from "@/lib/courses/guide/load";
  *
  *   canLearn                    → the cohort view
  *   left the run themselves     → the page that says so (wk-left-phone):
- *                                 that they left and the day, and nothing
- *                                 else: not their marks or notes, not the
- *                                 reading list, nothing of the group's
+ *                                 that they left and the day, and the
+ *                                 leaving survey's card while it is theirs
+ *                                 to answer (Q46), and nothing else: not
+ *                                 their marks or notes, not the reading
+ *                                 list, nothing of the group's
  *   reviewer / track lead only  → /admissions, their entire surface on this
  *                                 run. Admissions is a separate lane from the
  *                                 cohort (locked decision, stated from the
@@ -65,7 +68,7 @@ export default async function RunHomePage({
       const leftDb = getAdminDb();
       if (leftDb) {
         const view = await loadLeftView(leftDb, { run: access.run, enrolment: access.enrolment });
-        return <LeftProgramme view={view} />;
+        return <LeftProgramme view={view} survey={await leftPageSurvey(leftDb, access)} />;
       }
     }
     if (access.isReviewer || access.isTrackLead) {

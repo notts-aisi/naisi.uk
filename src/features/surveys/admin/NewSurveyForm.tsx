@@ -26,10 +26,11 @@ export type StrandOption = { value: string; words: string };
 
 /**
  * New survey (sv-new), one card per template: a programme's survey before
- * it, at its end, and the follow-ups 6 and 12 months on. An admin picks the
- * programme and the day it closes, and for an incubator which research it
- * does; the rest is the template's, and every word can be changed on the next
- * page until it is sent.
+ * it, at its end, the follow-ups 6 and 12 months on, and leaving it. An
+ * admin picks the programme and the day it closes (the leaving survey has
+ * none), and for an incubator which research it does; the rest is the
+ * template's, and every word can be changed on the next page until it is
+ * sent, or for the leaving survey, opened.
  *
  * Uncontrolled boxes read when the form is sent, and the button is disabled
  * until the page's script has arrived, so nothing typed early is lost.
@@ -42,6 +43,7 @@ export default function NewSurveyForm({
   programmes,
   strands,
   today,
+  closes = true,
 }: {
   stage: string;
   heading: string;
@@ -53,6 +55,8 @@ export default function NewSurveyForm({
   strands: StrandOption[];
   /** "YYYY-MM-DD" in London: the earliest closing day. */
   today: string;
+  /** Whether the template's survey has a closing day: the leaving survey has none. */
+  closes?: boolean;
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -78,7 +82,7 @@ export default function NewSurveyForm({
           roundId,
           programmeId,
           stage,
-          closesOn: String(data.get("closesOn") ?? ""),
+          ...(closes ? { closesOn: String(data.get("closesOn") ?? "") } : {}),
           strand: String(data.get("strand") ?? "") || null,
         }),
       });
@@ -137,13 +141,20 @@ export default function NewSurveyForm({
               </div>
             </fieldset>
           )}
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor={`${id}-closes`}>
-              It closes on
-            </label>
-            <Input id={`${id}-closes`} name="closesOn" type="date" min={today} required />
-            <p className={styles.muted}>At 23:59 that day. You can change it until you send it.</p>
-          </div>
+          {closes ? (
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor={`${id}-closes`}>
+                It closes on
+              </label>
+              <Input id={`${id}-closes`} name="closesOn" type="date" min={today} required />
+              <p className={styles.muted}>At 23:59 that day. You can change it until you send it.</p>
+            </div>
+          ) : (
+            <p className={styles.muted}>
+              No closing day, and nobody presses send: once you open it, everybody who leaves the programme gets their own
+              link to it, on the page that says they left and in the email that says so.
+            </p>
+          )}
           {error && (
             <p className={styles.error} role="alert">
               {error}

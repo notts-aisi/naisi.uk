@@ -2,6 +2,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
 import { beforeGroupsCardsFor, type BeforeGroupsCard } from "@/lib/courses/weekOne/cards";
+import { surveysWaitingFor, type SurveyCard } from "@/lib/surveys/waiting";
 import { loadStatusRows } from "@/lib/admissions/statusHubData";
 import { formatSiteDate } from "@/lib/datetime/siteTime";
 import YourApplications, {
@@ -47,7 +48,8 @@ import styles from "./home.module.css";
  * lists: before groups go out, "Your group’s on its way" with their
  * programme's name, when the group email comes and the way to week 1 once it
  * is open (Q13 B, Q35 B). It is worked out by week 1's door, never from what
- * this page reads of their applications.
+ * this page reads of their applications. And "A survey for you" for each
+ * survey waiting for them (Q50 B), which `surveysWaitingFor` alone decides.
  */
 
 /**
@@ -105,6 +107,25 @@ async function onItsWayCards(user: SessionUser, now: Date): Promise<BeforeGroups
   }
 }
 
+const NO_SURVEYS: SurveyCard[] = [];
+
+/**
+ * "A SURVEY FOR YOU" (Q50 B) for each survey waiting for the member: open,
+ * sent to them and still theirs, and not answered, as `surveysWaitingFor`
+ * says, with the one closing soonest first. Never how many others have
+ * answered. A read that fails draws no card and says nothing either way.
+ */
+async function surveyCards(user: SessionUser, now: Date): Promise<SurveyCard[]> {
+  const db = getAdminDb();
+  if (!db) return NO_SURVEYS;
+  try {
+    return await surveysWaitingFor(db, user, now);
+  } catch (err) {
+    console.warn("[dashboard] could not read the surveys waiting for this member", err);
+    return NO_SURVEYS;
+  }
+}
+
 /** "Morning", "Afternoon" or "Evening", by the site's own clock. */
 function partOfDay(now: Date): string {
   const hour = Number(formatSiteDate(now, { hour: "2-digit" }));
@@ -119,7 +140,7 @@ export default async function DashboardPage() {
   const viewingAs = markerIsLive(await getImpersonator(), user?.uid ?? null);
   const applications = user ? await applicationsOf(user.uid, viewingAs) : [];
   const now = new Date();
-  const [term, events, steps, held, cards] = await Promise.all([
+  const [term, events, steps, held, cards, surveys] = await Promise.all([
     fetchPublicTerm(now),
     homeEvents(now),
     user ? profileSteps(user.uid) : null,
@@ -128,6 +149,8 @@ export default async function DashboardPage() {
     user && applications ? holdsPlace(user.uid, applications.map((row) => row.roundId)) : COULD_NOT_TELL,
     // "Your group’s on its way" (Q13 B), with "Week 1 is open" (Q35 B).
     user && !viewingAs ? onItsWayCards(user, now) : NO_CARDS,
+    // "A survey for you" (Q50 B). Nothing of the member's is read in a view-as session.
+    user && !viewingAs ? surveyCards(user, now) : NO_SURVEYS,
   ]);
   const given = firstName(user?.displayName);
 
@@ -173,6 +196,7 @@ export default async function DashboardPage() {
           nothingYet={nothingYet}
           holdsNoPlace={held === "no"}
           beforeGroups={cards}
+          surveys={surveys}
           finishProfile={<FinishProfile steps={steps} />}
         />
       )}

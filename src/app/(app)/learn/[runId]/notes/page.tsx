@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import LeftProgramme from "@/features/courses/leaving/LeftProgramme";
+import { leftPageSurvey } from "@/features/courses/leaving/leftSurvey";
 import OwnNotesView from "@/features/courses/leaving/OwnNotesView";
 import { getRunAccess } from "@/features/courses/runAccess";
 import { loadLeftView, loadOwnNotes } from "@/lib/courses/leftView";
@@ -30,7 +31,7 @@ export default async function NotesPage({ params }: { params: Promise<{ runId: s
   const db = getAdminDb();
   if (!db) redirect(home);
 
-  if (access.hasLeft) return <LeftProgramme view={await loadLeftView(db, { run: access.run, enrolment })} />;
+  if (access.hasLeft) return <LeftProgramme view={await loadLeftView(db, { run: access.run, enrolment })} survey={await leftPageSurvey(db, access)} />;
   const notes = await loadOwnNotes(db, { run: access.run, enrolment });
   return <OwnNotesView notes={notes} />;
 }

@@ -29,6 +29,7 @@ import {
 import { readAudience } from "./audience";
 import { emailWordsFor, siteAddress, surveyLink, testStateOf, wordingFingerprint, type TestState } from "./emails";
 import { peopleOf } from "./repo";
+import { mintSurveyToken } from "./token";
 import {
   REFUSAL,
   SURVEY_FROM_NAME,
@@ -81,10 +82,8 @@ import {
 /** How long a press's claim holds before another may start, should a request die mid-press. */
 const PRESS_LEASE_MS = 5 * 60 * 1000;
 
-/** A new secret for a personal link: 32 bytes from the platform's secure source. */
-export function mintSurveyToken(): string {
-  return randomBytes(32).toString("base64url");
-}
+/** A new secret for a personal link: `./token.ts`, the one place one is made. */
+export { mintSurveyToken };
 
 /** Who a survey reaches now, read fresh every time a button is drawn or pressed. */
 export type SendPlan = {

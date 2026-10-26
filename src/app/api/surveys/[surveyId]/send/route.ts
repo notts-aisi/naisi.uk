@@ -57,6 +57,8 @@ export async function POST(req: Request, ctx: Ctx) {
 
   const survey = await readSurvey(db, surveyId);
   if (!survey) return NextResponse.json({ error: REFUSAL.noSurvey }, { status: 404 });
+  // A leaving survey is never sent: it reaches each person as they leave (Q46).
+  if (survey.kind === "leaving") return NextResponse.json({ error: REFUSAL.leavingNotSent }, { status: 409 });
   const now = new Date();
 
   let namesOffOn = survey.namesOffOn;

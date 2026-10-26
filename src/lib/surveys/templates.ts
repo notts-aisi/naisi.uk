@@ -42,6 +42,17 @@ export type SurveyStage = "before" | "after" | "followUp6" | "followUp12";
 export const SURVEY_STAGES: readonly SurveyStage[] = ["before", "after", "followUp6", "followUp12"];
 
 /**
+ * Every template a survey is made from: a programme's four stages, which pair
+ * along the stages, and the survey for people leaving a programme (sv-new's
+ * "Leaving a programme", Q46), which pairs with none and is never sent: it
+ * reaches each person as they leave.
+ */
+export type SurveyTemplate = SurveyStage | "leaving";
+
+/** Every template, in the order New survey offers them. */
+export const SURVEY_TEMPLATES: readonly SurveyTemplate[] = [...SURVEY_STAGES, "leaving"];
+
+/**
  * Which research an incubator does, for the first line of its skills question
  * (the questionnaire's I2(a)): chosen when its survey is made, and copied to
  * the survey at its end.
@@ -498,6 +509,30 @@ const I7 = many("q_i7", "What next, for the project and for you?", [
   option("o_stop", "Stop here"),
 ]);
 
+// Leaving a programme (sv-new: "Leaving a programme · 3 questions · about a
+// minute"). Written in the boards' voice for Zach to change before it is
+// used, as the before survey's were: every word is the admin's to change in
+// the editor until the survey is opened. The ids are fixed, so each
+// programme's leaving survey compares with every other's.
+
+const LEAVE_WHY = many("q_leave_why", "What made you leave?", [
+  option("o_time", "I didn’t have enough time"),
+  option("o_times", "The session times stopped working for me"),
+  option("o_expected", "It wasn’t what I expected"),
+  option("o_pace", "The reading or the pace was too much"),
+  option("o_group", "My group didn’t work for me"),
+  option("o_outside", "Something outside the programme"),
+  option("o_other", "Something else"),
+]);
+
+const LEAVE_STAY = text("q_leave_stay", "What would have helped you stay?", true, { hint: "Anything we could change, however small." });
+
+const LEAVE_AGAIN = single("q_leave_again", "Would you take part in a NAISI programme again?", [
+  option("o_yes", "Yes"),
+  option("o_maybe", "Maybe"),
+  option("o_no", "No"),
+]);
+
 // The follow-ups.
 
 const F1 = single("q_f1", "What’s your main activity now?", [
@@ -546,14 +581,22 @@ export const TEMPLATE_MEASURES: Record<string, string> = {
   s_working: "What they do now, and AI safety FTE",
   s_since: "Applications, offers, stage and intention",
   s_credit: "Counterfactual and double counting",
+  s_leaving: "Why people leave, and whether they would come back",
 };
 
-/** The template's items for one stage of a programme of one kind. An incubator says its strand. */
-export function templateItems(stage: SurveyStage, programmeKind: "fellowship" | "incubator", strand: IncubatorStrand | null): SurveyItem[] {
+/**
+ * The template's items for one stage of a programme of one kind, or for
+ * leaving it. An incubator says its strand; the leaving survey is the same
+ * for every programme.
+ */
+export function templateItems(stage: SurveyTemplate, programmeKind: "fellowship" | "incubator", strand: IncubatorStrand | null): SurveyItem[] {
   // An incubator's additions need its strand; a fellowship has none.
   const research: IncubatorStrand | null = programmeKind === "incubator" ? strand : null;
   const incubator = research !== null;
   const copy = <T,>(value: T): T => structuredClone(value);
+  if (stage === "leaving") {
+    return paged([{ id: "s_leaving", heading: "About leaving", items: copy<SurveyItem[]>([LEAVE_WHY, LEAVE_STAY, LEAVE_AGAIN]) }]);
+  }
   if (stage === "before") {
     return paged([
       { id: "s_about", heading: "About you", items: copy([P3_LEVEL, P3_SUBJECT, P4, P5, ...(incubator ? [I1] : [])]) },
@@ -586,9 +629,17 @@ export function templateItems(stage: SurveyStage, programmeKind: "fellowship" | 
 }
 
 /** Whether a stage's template asks an incubator's skills question, whose first line depends on its strand. */
-export function stageAsksStrand(stage: SurveyStage): boolean {
+export function stageAsksStrand(stage: SurveyTemplate): boolean {
   return stage === "before" || stage === "after";
 }
 
 /** About how many minutes each stage takes, as the questionnaire says. The editor changes it. */
 export const TEMPLATE_MINUTES: Record<SurveyStage, number> = { before: 5, after: 10, followUp6: 3, followUp12: 3 };
+
+/** About how long the leaving survey takes (sv-new: "about a minute"). The editor changes it. */
+export const LEAVING_MINUTES = 1;
+
+/** About how many minutes a template takes, as made. */
+export function templateMinutes(template: SurveyTemplate): number {
+  return template === "leaving" ? LEAVING_MINUTES : TEMPLATE_MINUTES[template];
+}

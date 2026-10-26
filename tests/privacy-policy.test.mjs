@@ -734,8 +734,29 @@ const MUST_NAME = [
   ["leaving gives a place on the form back, without the reason", /leaving gives that place back, so the people who read your application see that you gave it back, but not your reason/i],
   ["a leaver's marks stay on the register", /Your marks up to then stay on your group&apos;s register with the day you left/i],
   // Somebody who leaves keeps nothing, and the group keeps their notes: the
-  // page names both, and §2g holds each to the code.
-  ["a leaver is shown only that they left", /After you leave, your programme page shows only that you left: your marks, notes and reflections stay in our records for the programme&apos;s lead and admins, and are no longer shown to you\./i],
+  // page names both, and §2g holds each to the code. CHANGED ON PURPOSE (Q46):
+  // the page that says they left also draws the survey about leaving while
+  // it is theirs to answer, and the sentence says so, word for word.
+  [
+    "a leaver is shown only that they left, and the survey about leaving",
+    /After you leave, your programme page shows only that you left, and the survey about leaving while it is yours to answer \(see When you answer a survey\): your marks, notes and reflections stay in our records for the programme&apos;s lead and admins, and are no longer shown to you\./i,
+  ],
+  // The survey about leaving (Q46): who it reaches and how, what it asks,
+  // who reads it and what may still show. §2g holds each to the code.
+  [
+    "the survey about leaving reaches only somebody who leaves, through their own link",
+    /If you leave a programme yourself while it has a survey about leaving open, a link of your own to that survey is made when you leave\. It is on the page that says you left, in the email that tells you so, and on Home and My programmes until you answer it\. Nobody presses send, and it reaches nobody who did not leave\./i,
+  ],
+  ["what the survey about leaving asks", /It asks why you left, what would have helped you stay and whether you would take part again\./i],
+  [
+    "who reads the survey about leaving",
+    /Like every survey here, the survey about leaving is confidential: only NAISI&apos;s admins can see who said what, and facilitators never see anything of it\. The programme&apos;s lead sees its totals and comments as answers come in, never your name, with the comments in an order that does not follow when they came in\./i,
+  ],
+  ["the lead may tell whose a leaving answer is", /When only a few people have left, the lead may still be able to tell which answer is yours\./i],
+  [
+    "the survey about leaving changes nothing, and its names come off as every survey's",
+    /Nothing you say in it changes your account or a future application, and your name comes off it two years after the programme&apos;s last session, as for every survey\./i,
+  ],
   ["the notes a leaver shared stay with the group", /The notes you shared with your group stay with it/i],
   ["who finished", /we mark as finished everybody who came to at least the number of sessions its lead has set/i],
   ["the lead's changes to who finished are recorded", /The lead can then change anybody&apos;s, and we record who changed it and when\./i],
@@ -2726,6 +2747,11 @@ describe("the course hub passage", () => {
       /saying yes also puts you in that group/i,
       /If you facilitate your own group\./i,
       /A facilitator who held a place and finished is sent both/i,
+      // The survey about leaving (Q46), new in v7.
+      /a survey about leaving open/i,
+      /the survey about leaving is confidential/i,
+      /the lead may still be able to tell which answer is yours/i,
+      /and the survey about leaving while it is yours to answer/i,
     ]) {
       assert.ok(
         !pattern.test(V6_FLAT),
@@ -2895,10 +2921,15 @@ describe("the course hub passage", () => {
   });
 
   test("somebody who left is shown only that they left, their records stay, and the notes they shared stay with their group", () => {
+    // CHANGED ON PURPOSE (Q46): the page that says somebody left also draws
+    // the survey about leaving while it is theirs to answer; the sentence is
+    // pinned whole in its new words.
     assert.match(
       PAGE_FLAT,
-      /After you leave, your programme page shows only that you left: your marks, notes and reflections stay in our records for the programme&apos;s lead and admins, and are no longer shown to you\. The notes you shared with your group stay with it/i,
+      /After you leave, your programme page shows only that you left, and the survey about leaving while it is yours to answer \(see When you answer a survey\): your marks, notes and reflections stay in our records for the programme&apos;s lead and admins, and are no longer shown to you\. The notes you shared with your group stay with it/i,
     );
+    // The old words, that it shows only that they left, are gone.
+    assert.ok(!/shows only that you left: your marks/i.test(PAGE_FLAT), "the policy still says the page shows only that they left");
     // The promise this replaced, that somebody who left keeps their notes,
     // the reading list or their marks to read, is made nowhere on the page.
     assert.doesNotMatch(
@@ -2918,10 +2949,13 @@ describe("the course hub passage", () => {
     );
     // The two pages that show somebody taking part their notes and the
     // reading list draw that same page for somebody who left, before either
-    // is read.
+    // is read. CHANGED ON PURPOSE (Q46): with the leaving survey's card while
+    // it is theirs to answer, from the one reader the run's page asks too.
     for (const page of ["src/app/(app)/learn/[runId]/notes/page.tsx", "src/app/(app)/learn/[runId]/reading/page.tsx"]) {
       const code = withoutComments(read(page));
-      const left = code.indexOf("if (access.hasLeft) return <LeftProgramme view={await loadLeftView(db, { run: access.run, enrolment })} />;");
+      const left = code.indexOf(
+        "if (access.hasLeft) return <LeftProgramme view={await loadLeftView(db, { run: access.run, enrolment })} survey={await leftPageSurvey(db, access)} />;",
+      );
       const theirs = code.search(/await load(?:OwnNotes|ReadingList)\(/);
       assert.ok(left !== -1 && theirs !== -1 && left < theirs, `${page} shows somebody who left their notes or the reading list`);
     }
@@ -4347,7 +4381,9 @@ describe("the course hub passage", () => {
     // each may: the admins' (behind the (admin-only) layout, or canRunSurveys
     // in the route), the person's own (by the secret in their link, or signed
     // in by their own row), and the two that take names off. No facilitator's
-    // page, no lead's, and no code of the applications or the courses.
+    // page, and no lead's but one: a leaving survey's totals and comments for
+    // the lead's own programme, never a name (CHANGED ON PURPOSE, Q46 and
+    // Q49 A).
     const ADMIN_PAGE = "an admins' page: the (admin-only) layout sends everybody else to the dashboard first";
     const ADMIN_ROUTE = "an admin's action: canRunSurveys refuses everybody else before anything is read";
     assertExactlyTheseFiles(
@@ -4367,6 +4403,7 @@ describe("the course hub passage", () => {
         ["src/app/api/surveys/[surveyId]/send/route.ts", ADMIN_ROUTE],
         ["src/app/api/surveys/[surveyId]/remind/route.ts", ADMIN_ROUTE],
         ["src/app/api/surveys/[surveyId]/close/route.ts", ADMIN_ROUTE],
+        ["src/app/api/surveys/[surveyId]/open/route.ts", `${ADMIN_ROUTE}; opens a leaving survey, which emails nobody`],
         ["src/app/api/surveys/[surveyId]/export/route.ts", `${ADMIN_ROUTE}; the spreadsheet with names`],
         ["src/app/survey/[token]/page.tsx", "the person's own survey, by the secret in their link, which opens their own row and nobody else's"],
         ["src/app/api/surveys/answer/route.ts", "the person's own answers, sent through the secret in their link"],
@@ -4376,6 +4413,26 @@ describe("the course hub passage", () => {
         ["src/app/api/surveys/[surveyId]/consent/route.ts", "the person's own follow-ups consent, changed signed in, on their own row: there is no uid in the request"],
         ["src/lib/firestore/accountDeletion.ts", "deleting an account takes its name off its survey answers and deletes its survey rows"],
         ["src/lib/scheduler/jobs/surveyNamesOff.ts", "the job that takes names off two years after the programme"],
+        // CHANGED ON PURPOSE (Q50 B): the cards of the surveys waiting for the
+        // person, drawn on their own pages. Each card is a survey's title,
+        // size and closing day and the person's own link: no answer, no name,
+        // never how many others have answered.
+        [`src/app/(app)/dashboard/page.tsx`, "Home asks surveysWaitingFor for the session's own person, and hands on the cards of surveys sent to them"],
+        [`src/app/(app)/dashboard/HomeMember.tsx`, "Home draws the survey cards it is handed: the card's type and its component"],
+        [`src/app/(app)/learn/page.tsx`, "My programmes asks surveysWaitingFor for the session's own person, as Home does"],
+        [`src/app/(app)/learn/LearnHub.tsx`, "My programmes draws the survey cards it is handed: the card's type and its component"],
+        ["src/app/(app)/learn/[runId]/weeks/[n]/page.tsx", "week 1's first card: the run's before survey while it waits for the reader, by beforeSurveyCardFor"],
+        ["src/features/courses/WeekView.tsx", "week 1's page draws the before survey's card it is handed: the card's type and its component"],
+        // CHANGED ON PURPOSE (Q46): the leaving survey reaches somebody as
+        // they leave, through their own row made then, and the page that
+        // says they left draws its card while it is theirs to answer.
+        ["src/lib/courses/leaveRun.ts", "leaving makes the leaver's own row on the programme's open leaving survey, with their own link for their email: no answer is read"],
+        ["src/features/courses/leaving/leftSurvey.ts", "the page that says somebody left asks surveysWaitingFor whether the run's leaving survey waits for them"],
+        ["src/features/courses/leaving/LeftProgramme.tsx", "the page that says somebody left draws the leaving survey's card it is handed: the card's type and its component"],
+        [
+          "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]/page.tsx",
+          "the programme's lead and admins (loadProgrammeRun first): its leaving survey's totals and comments, made on the server, never a name",
+        ],
       ]),
       "reaching survey code from outside it",
       "The policy says only admins see who said what or who has answered, and " +
@@ -4393,6 +4450,11 @@ describe("the course hub passage", () => {
         ["src/lib/surveys/answer.ts", "the one writer of an answer: a person's own, once"],
         ["src/lib/surveys/sending.ts", "the send, which writes each person's row with their link before their email"],
         ["src/lib/surveys/namesOff.ts", "names off: two years after the programme, and at once with an account"],
+        // CHANGED ON PURPOSE (Q50 B): which surveys wait for a person is read
+        // from their own rows, for them alone.
+        ["src/lib/surveys/waiting.ts", "the cards: a person's own rows, read for that person alone, to say which surveys sent to them wait for an answer"],
+        // CHANGED ON PURPOSE (Q46): the leaving survey's row for a person is made as they leave.
+        ["src/lib/surveys/leaving.ts", "the leaving survey's row for a person, made as they leave the programme, with their own link: never an answer"],
       ]),
       "addressing who a survey was sent to, or what somebody answered",
       "The policy says only admins see who said what or who has answered. If " +
@@ -4410,6 +4472,7 @@ describe("the course hub passage", () => {
       "src/app/api/surveys/[surveyId]/send/route.ts",
       "src/app/api/surveys/[surveyId]/remind/route.ts",
       "src/app/api/surveys/[surveyId]/close/route.ts",
+      "src/app/api/surveys/[surveyId]/open/route.ts",
       "src/app/api/surveys/[surveyId]/export/route.ts",
     ]) {
       const code = withoutComments(read(route));
@@ -4497,7 +4560,8 @@ describe("the course hub passage", () => {
     assert.match(PAGE_FLAT, /<li> Every question can be skipped\. Nothing you say in a survey affects your place on a programme or an application\. <\/li>/);
     // The rule, run: the before survey requires nothing, and a question stored
     // as required is refused.
-    for (const [stage, kind, strand] of [["before", "fellowship", null], ["after", "fellowship", null], ["followUp6", "fellowship", null], ["before", "incubator", "alignment"], ["after", "incubator", "governance"]]) {
+    // CHANGED ON PURPOSE (Q46): the leaving survey's template is held to it too.
+    for (const [stage, kind, strand] of [["before", "fellowship", null], ["after", "fellowship", null], ["followUp6", "fellowship", null], ["before", "incubator", "alignment"], ["after", "incubator", "governance"], ["leaving", "fellowship", null]]) {
       const each = surveyTemplates.templateItems(stage, kind, strand);
       assert.deepEqual(surveyItems.validateSurveyItems(each), [], `the ${stage} template of a ${kind} is not valid`);
       assert.ok(surveyItems.surveyQuestionsOf(each).every((question) => question.required !== true), `the ${stage} template of a ${kind} requires an answer`);
@@ -4515,7 +4579,40 @@ describe("the course hub passage", () => {
     const decides = sourceFilesNaming(SURVEY_CODE)
       .filter((file) => !insideSurveyCode(file))
       .filter((file) => /^src\/(?:lib|features|app\/api)\/(?:applications|admissions|courses)\//.test(file) || /^src\/app\/\(app\)\/(?:admin\/admissions|admin\/courses|learn\/\[runId\]\/(?!survey\/))/.test(file));
-    assert.deepEqual(decides, [], "code that decides a place or an application now reads a survey");
+    // CHANGED ON PURPOSE (Q50 B, Q46, Q49 A): was "none at all". Week 1's
+    // page and the page that says somebody left draw the card of a survey
+    // waiting for their reader, which reads whether it waits and never an
+    // answer; leaving makes the leaver's own row on the leaving survey,
+    // reading no answer; and a programme's lead reads its leaving survey's
+    // totals and comments, never a name. Each file listed reaches survey code
+    // through exactly the modules beside it, and decides nothing by it.
+    const REACHES_NO_ANSWER = new Map([
+      ["src/app/(app)/learn/[runId]/weeks/[n]/page.tsx", ["week 1's first card: asks beforeSurveyCardFor whether the run's before survey waits for the reader", ["@/lib/surveys/waiting"]]],
+      ["src/features/courses/WeekView.tsx", ["draws the card it is handed, by the card's own component", ["@/lib/surveys/waiting", "@/features/surveys/cards/SurveyCards"]]],
+      ["src/features/courses/leaving/leftSurvey.ts", ["asks leavingSurveyCardFor whether the leaving survey of the run they left waits for them", ["@/lib/surveys/waiting"]]],
+      ["src/features/courses/leaving/LeftProgramme.tsx", ["draws the leaving survey's card it is handed, by the card's own component", ["@/lib/surveys/waiting", "@/features/surveys/cards/LeavingSurveyCard"]]],
+      ["src/lib/courses/leaveRun.ts", ["leaving makes the leaver's own row on the programme's open leaving survey (reachLeaver), after the leave has committed", ["@/lib/surveys/leaving"]]],
+      [
+        "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]/page.tsx",
+        [
+          "the one reading of answers here: a leaving survey's totals and comments for its programme's lead and admins, never a name, deciding nothing",
+          ["@/features/surveys/admin/ResultsTab", "@/features/surveys/admin/surveyAdmin.module.css", "@/lib/surveys/adminView", "@/lib/surveys/leadResults", "@/lib/surveys/words"],
+        ],
+      ],
+    ]);
+    assertExactlyTheseFiles(
+      decides,
+      new Map([...REACHES_NO_ANSWER].map(([file, [why]]) => [file, why])),
+      "code of the applications, admissions or courses that reaches survey code",
+      "Nothing said in a survey may affect a place or an application: reach survey code only to draw a card, through src/lib/surveys/waiting.ts, or change the policy first.",
+    );
+    for (const [file, [, modules]] of REACHES_NO_ANSWER) {
+      const reached = [...withoutComments(read(file)).matchAll(/from\s*"(@\/(?:lib\/surveys|features\/surveys|lib\/firestore\/surveys)[^"]*)"/g)].map((match) => match[1]);
+      assert.deepEqual([...new Set(reached)].sort(), [...modules].sort(), `${file} reaches survey code through ${reached.join(", ")}`);
+    }
+    // Leaving reaches the survey only after the leave has committed, and only for somebody who left.
+    const leave = withoutComments(read("src/lib/courses/leaveRun.ts"));
+    assert.ok(leave.indexOf("if (!dropped) return") < leave.indexOf("reachLeaverSafely(db,"), "leaving reaches the survey before it knows the leave took");
     assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-items.test.mjs")));
   });
 
@@ -4535,8 +4632,20 @@ describe("the course hub passage", () => {
     // The reminder: people it was sent to who have not answered, and still hold a place.
     assert.match(sending, /\.filter\(\(person\) => person\.sentAt !== null && !person\.answered && holding\.has\(person\.respondent\.uid\)\)/);
     assert.match(sending, /const owed = plan\.unanswered;/);
-    // A link of their own: 32 random bytes, one row each.
-    assert.match(sending, /return randomBytes\(32\)\.toString\("base64url"\);/);
+    // A link of their own: 32 random bytes, one row each. CHANGED ON PURPOSE
+    // (Q46): the one minting function moved to its own module, which the
+    // leave's row asks too, and the send asks it from there.
+    assert.match(withoutComments(read("src/lib/surveys/token.ts")), /return randomBytes\(32\)\.toString\("base64url"\);/);
+    assert.match(sending, /import \{ mintSurveyToken \} from "\.\/token";/);
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\brandomBytes\(/).filter((file) => insideSurveyCode(file)),
+      new Map([
+        ["src/lib/surveys/token.ts", "the one place a survey link's secret is made"],
+        ["src/lib/surveys/sending.ts", "a press's own id, which is no secret of anybody's"],
+      ]),
+      "making random bytes in survey code",
+      "A survey link's secret is made by mintSurveyToken in src/lib/surveys/token.ts alone.",
+    );
     // Who it is for: everybody holding a place, by the hand-over's own test.
     assert.match(read("src/lib/surveys/audience.ts"), /holders: placeHoldersOn\(form, audience\.programmeId, applications, decisions\)/);
     // tests/notification-classification.test.mjs holds both sends to the
@@ -5068,6 +5177,82 @@ describe("the check-in passage", () => {
     const rules = withoutComments(read("src/lib/events/checkIns.ts"));
     assert.equal((rules.match(/\.where\("uid"/g) ?? []).length, 1);
     assert.equal((rules.match(/\.where\("rsvpId"/g) ?? []).length, 0);
+  });
+
+  // The survey about leaving (Q46, 26 October 2026): two sentences, each held
+  // to the code that keeps it.
+  test("the survey about leaving reaches only somebody who leaves, through their own link, on their page, in their email and on Home until answered, and nobody presses send", () => {
+    // Made as they leave, and only then: after the leave has committed, by the one leave.
+    const leave = withoutComments(read("src/lib/courses/leaveRun.ts"));
+    assert.ok(leave.indexOf("if (!dropped) return") < leave.indexOf("reachLeaverSafely(db,"), "the survey reaches somebody before their leave has taken");
+    assert.match(leave, /const reached = path\.kind === "form" \? await reachLeaverSafely\(db, \{ roundId: path\.roundId, programmeId: path\.programmeId, uid: user\.uid, now \}\) : null;/);
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\breachLeaver\(/),
+      new Map([
+        ["src/lib/surveys/leaving.ts", "the one writer of a leaver's row on the leaving survey"],
+        ["src/lib/courses/leaveRun.ts", "the one leave, both doors, after it has committed"],
+      ]),
+      "making a person's row on a leaving survey",
+      "The policy says the survey about leaving reaches nobody who did not leave. Only the leave may make that row.",
+    );
+    // A link of their own, made once: a second leave keeps the first row.
+    const leaving = withoutComments(read("src/lib/surveys/leaving.ts"));
+    assert.match(leaving, /if \(existing && existing\.respondent\.uid === uid\) return \{ token: existing\.token, answered: existing\.answered \};\s*const minted = mintSurveyToken\(\);/);
+    assert.match(leaving, /if \(survey\.kind !== "leaving" \|\| survey\.audience\.kind !== "leaving"\) continue;/);
+    // On the page that says they left, in the email that tells them so, and on Home and My programmes until answered.
+    assert.match(withoutComments(read("src/features/courses/leaving/LeftProgramme.tsx")), /\{survey && <LeavingSurveyCard card=\{survey\} \/>\}/);
+    assert.match(leave, /survey: reached\?\.link && !reached\.answered \? \{ href: reached\.link, \.\.\.reached\.email \} : null,/);
+    assert.match(withoutComments(read("src/emails/CourseDroppedOutEmail.tsx")), /<Link href=\{survey\.href\} style=\{emailLinkStyle\}>/);
+    const waiting = withoutComments(read("src/lib/surveys/waiting.ts"));
+    assert.match(waiting, /if \(row && row\.respondent\.uid === uid && row\.sentAt !== null && !row\.answered\) rows\.push\(row\);/);
+    assert.match(waiting, /if \(survey\.audience\.kind === "leaving"\) return leftTheRun\(db, survey\.runId, uid\);/);
+    // Nobody presses send: a leaving survey's audience names nobody, and send, remind and test refuse it.
+    assert.match(read("src/lib/surveys/audience.ts"), /if \(audience\.kind === "leaving"\) return \{ status: "ok", form, programme, holders: \[\] \};/);
+    for (const route of ["send", "remind", "test"]) {
+      assert.match(
+        withoutComments(read(`src/app/api/surveys/[surveyId]/${route}/route.ts`)),
+        /if \(survey\.kind === "leaving"\) return NextResponse\.json\(\{ error: REFUSAL\.leavingNotSent \}, \{ status: 409 \}\);/,
+        `the ${route} route sends a leaving survey`,
+      );
+    }
+    // What it asks, by kind, both ways.
+    const ASKS = new Map([
+      ["why you left", ["q_leave_why"]],
+      ["what would have helped you stay", ["q_leave_stay"]],
+      ["whether you would take part again", ["q_leave_again"]],
+    ]);
+    const asked = surveyItems.surveyQuestionsOf(surveyTemplates.templateItems("leaving", "fellowship", null)).map((question) => question.id);
+    const sentence = /It asks (why you left, what would have helped you stay and whether you would take part again)\./.exec(PAGE_FLAT);
+    assert.ok(sentence, "the policy no longer says what the survey about leaving asks");
+    for (const [words, ids] of ASKS) {
+      assert.ok(sentence[1].includes(words), `the sentence no longer names "${words}"`);
+      for (const id of ids) assert.ok(asked.includes(id), `"${words}" covers ${id}, which the leaving template no longer asks`);
+    }
+    assert.deepEqual(asked.filter((id) => ![...ASKS.values()].flat().includes(id)), [], "the leaving template asks a question the policy does not name");
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-leaving.test.mjs")), "tests/surveys-leaving.test.mjs runs both doors, the page and the email, and nobody else");
+  });
+
+  test("the survey about leaving is confidential: admins see who said what, the lead its totals and comments as they come and never a name, in no order that follows when they came, facilitators nothing, and names come off as every survey's", () => {
+    // The lead reads the leaving survey alone, under the programme, after the lead's own gate.
+    assert.match(read("src/lib/surveys/leadResults.ts"), /export const LEAD_READS: readonly SurveyKind\[\] = \["leaving"\];/);
+    const page = withoutComments(read("src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]/page.tsx"));
+    assert.ok(page.indexOf("loadProgrammeRun(db, user, roundId, programmeId)") < page.indexOf("leadSurveyOf(db,"), "the lead's page reads a survey before it asks who the caller is");
+    assert.match(page, /if \(outcome\.status === "not-yours"\) \{/);
+    // As answers come in, with no floor, in an order that does not follow when they came.
+    assert.match(page, /const view = await resultsView\(db, survey, false, \{ commentsInOrder: "words" \}\);/);
+    assert.match(
+      withoutComments(read("src/lib/surveys/adminView.ts")),
+      /options\.commentsInOrder === "words" && result\.kind === "comments"\s*\? \{ \.\.\.result, comments: \[\.\.\.result\.comments\]\.sort\(\(a, b\) => a\.localeCompare\(b, "en-GB"\)\) \}/,
+    );
+    // The box says so: confidential, the lead without names, the facilitators never.
+    const box = surveyWords.confidentialPoints({ stage: "leaving", leadName: "Claudia", facilitatorNames: null, namesOffOn: "2028-12-09", programmeKind: "fellowship" });
+    assert.deepEqual(box.points.slice(0, 2), ["Only NAISI’s admins can see who said what.", "Claudia sees totals and comments, never names. Your facilitators never see your answers."]);
+    assert.ok(box.points.includes("Nothing you say changes your account or a future application."));
+    assert.ok(box.points.includes("Your name comes off on Sat 9 Dec 2028, two years after the fellowship ends. The totals stay."));
+    // Names come off as every survey's: the day is worked out the same way when it is made and fixed when it is opened.
+    assert.match(withoutComments(read("src/lib/surveys/leaving.ts")), /const namesOffOn = await namesOffDayFor\(db, survey\.runId, now\);/);
+    assert.match(withoutComments(read("src/lib/surveys/create.ts")), /const namesOffOn = await namesOffDayFor\(db, runId, now\);/);
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-leaving.test.mjs")), "tests/surveys-leaving.test.mjs renders the lead's page for every kind of caller");
   });
 });
 

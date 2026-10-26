@@ -28,6 +28,9 @@ import { listSurveys, peopleOf } from "./repo";
  *    said yes on the survey at the end. A person changes it on their survey's
  *    page, and the next press reads the change. Nobody else is ever sent a
  *    follow-up.
+ *  - THE LEAVING SURVEY'S (`leaving`): nobody, ever, by a press. Each person
+ *    who leaves the programme by their own hand gets their row as they leave
+ *    (`./leaving.ts`).
  */
 
 export type AudienceRead =
@@ -69,6 +72,8 @@ export async function readAudience(db: Firestore, audience: SurveyAudience): Pro
   if (!form) return { status: "gone" };
   const programme = own(form.programmes, audience.programmeId);
   if (!programme) return { status: "gone" };
+  // Nobody is sent a leaving survey: each person's row is made as they leave (`./leaving.ts`).
+  if (audience.kind === "leaving") return { status: "ok", form, programme, holders: [] };
   if (form.decisionsSentAt === null) return { status: "ok", form, programme, holders: [] };
   const [applications, decisions] = await Promise.all([
     listSentApplications(db, form),

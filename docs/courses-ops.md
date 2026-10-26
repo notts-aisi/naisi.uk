@@ -1319,11 +1319,16 @@ keeps their record, and no place on the form goes back after the end.
   tasks, one line is logged ("Left the course.": the log of course actions
   outlives the account, so it says what was done and never what they said;
   their reason stays with their seat), and one email goes to them and
-  nobody else (the "Left a course" template in Email designs).
+  nobody else (the "Left a course" template in Email designs). When the
+  programme has an open leaving survey, their own row on it is made as they
+  leave, and the email links their own link to it in place of the outside
+  form in Settings, which it offers otherwise (`docs/surveys.md`, "The
+  leaving survey").
 - Publish waits for nobody who has left.
 - They keep nothing of the programme. Its page now says only that they left
-  and when, with the society's address in case it was a mistake, and the
-  notes and reading list pages say the same; My programmes has a card that
+  and when, with the leaving survey's card while it is theirs to answer and
+  the society's address in case it was a mistake, and the notes and reading
+  list pages say the same; My programmes has a card that
   says they left and links to it. Their marks, notes and reflections stay
   where they are, for the programme's lead and admins, and the notes they
   shared stay with their group, but none of it is shown to them. Nothing else
