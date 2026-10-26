@@ -237,12 +237,13 @@ export async function PUT(
         reviewStatus: "unreviewed",
         updatedAt: FieldValue.serverTimestamp(),
       };
+      // One shape at a time: the other field goes, where the row holds it.
       if (boxes) {
         write.boxes = boxes;
-        write.text = FieldValue.delete();
+        if (prior && "text" in prior) write.text = FieldValue.delete();
       } else {
         write.text = text;
-        write.boxes = FieldValue.delete();
+        if (prior && "boxes" in prior) write.boxes = FieldValue.delete();
       }
       if (sending) {
         // Stored once and never moved: the time it was first sent.
