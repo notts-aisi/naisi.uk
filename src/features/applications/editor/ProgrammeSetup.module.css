@@ -369,6 +369,21 @@
   color: var(--color-text);
 }
 
+/* The facilitators' training: a day, a time and a room, side by side. */
+.trainingFields {
+  display: grid;
+  grid-template-columns: minmax(0, 11rem) minmax(0, 8rem) minmax(0, 1fr);
+  gap: 12px 16px;
+  margin-top: 14px;
+}
+
+.trainingField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
 @media (max-width: 48rem) { /* --bp-md */
   .stack {
     gap: var(--space-4);
@@ -401,5 +416,8 @@
   }
   .ruleBody {
     margin-top: 14px;
+  }
+  .trainingFields {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
