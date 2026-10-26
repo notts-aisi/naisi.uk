@@ -237,6 +237,7 @@ export const NO_RUBRIC_LINE =
   "This course has no rubric yet, so feedback here is a comment alone. An admin can add one in the course’s details.";
 export const NO_WRITTEN_ANSWER_THIS_WEEK = "This week has no written answer.";
 export const NOBODY_HERE = "Nobody’s written answer is yours to give feedback on in this group.";
+export const NOBODY_SENT_YET = "Nobody has sent this week’s written answer yet.";
 export const FEEDBACK_NOT_SENT = "That feedback didn’t send. Check your connection and try again.";
 export const REOPEN_FAILED = "That didn’t reopen. Check your connection and try again.";
 

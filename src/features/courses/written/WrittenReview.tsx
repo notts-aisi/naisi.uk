@@ -17,6 +17,7 @@ import {
   FEEDBACK_SENT,
   LATE,
   NOBODY_HERE,
+  NOBODY_SENT_YET,
   NOT_SENT_YET,
   NOT_STARTED,
   NO_RUBRIC_LINE,
@@ -221,7 +222,7 @@ export default function WrittenReview({ model, basePath, groupParam, back }: Pro
           ) : !selected || !person ? (
             <>
               <Question model={model} />
-              <p className={styles.quiet}>{ordered.length === 0 && model.notSent.length === 0 ? NOBODY_HERE : "Nobody has sent this week’s written answer yet."}</p>
+              <p className={styles.quiet}>{ordered.length === 0 && model.notSent.length === 0 ? NOBODY_HERE : NOBODY_SENT_YET}</p>
             </>
           ) : (
             <Review key={`${person.uid} ${model.weekNumber}`} model={model} onDone={() => router.refresh()} />
