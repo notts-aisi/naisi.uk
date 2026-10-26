@@ -94,7 +94,16 @@ env:
   - variable: SMTP_FROM_NAME
     value: NAISI
     availability: [RUNTIME]
+  # The address every email comes from except an issue of the newsletter:
+  # confirmations, reminders, and every event, course, task and admissions
+  # message (src/lib/email/send.ts).
   - variable: SMTP_FROM_EMAIL
+    value: notifications@naisi.uk
+    availability: [RUNTIME]
+  # The address an issue of the newsletter and its test send come from, so a
+  # reader can tell the newsletter from everything else. Unset, the newsletter
+  # comes from SMTP_FROM_EMAIL.
+  - variable: NEWSLETTER_FROM_EMAIL
     value: newsletter@naisi.uk
     availability: [RUNTIME]
   # Absolute base URL baked into outbound email links (unsubscribe, RSVP

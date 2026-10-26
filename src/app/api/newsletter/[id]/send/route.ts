@@ -372,6 +372,9 @@ export async function POST(_req: Request, ctx: Ctx) {
               recipientName: sub.preferredName,
               unsubscribeUrl,
             }),
+            // An issue comes from the newsletter's own address, apart from
+            // everything else the site sends (`fromAddressFor` in send.ts).
+            sender: "newsletter",
             kind: "newsletter",
             actorUid: actor.uid,
             referenceId: id,

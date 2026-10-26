@@ -224,8 +224,8 @@ export async function POST(
   };
   const instagramHandle =
     process.env.NAISI_INSTAGRAM_HANDLE || "notts.ai.safety";
-  // Fall back to the monitored Reply-To inbox, never the send-only
-  // SMTP_FROM_EMAIL.
+  // Fall back to the monitored Reply-To inbox, never the address mail is
+  // sent from (SMTP_FROM_EMAIL): replies are read at the Reply-To.
   const contactEmail =
     process.env.NAISI_CONTACT_EMAIL ||
     process.env.EMAIL_DEFAULT_REPLY_TO ||
