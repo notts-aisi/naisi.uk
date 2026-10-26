@@ -436,6 +436,7 @@ const NOT_UNDER_THE_BAR = {
   "features/tasks/components/SubtaskDetailModal.module.css .overlay": WHOLE_SCREEN,
   "features/events/CoverBrandingModal.module.css .overlay": WHOLE_SCREEN,
   "features/events/EventEditor.module.css .modalOverlay": WHOLE_SCREEN,
+  "features/qr/QrFullScreen.module.css .overlay": WHOLE_SCREEN,
   "features/admin/adminLock.module.css .overlay": WHOLE_SCREEN,
   "features/maintenance/StatusPage.module.css .modalBackdrop": OUTSIDE,
   "features/applications/apply/form.module.css .bottomBar": OUTSIDE,

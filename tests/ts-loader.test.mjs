@@ -799,6 +799,18 @@ const USERS = new Map([
       "the two-level JSX graph a hand-copied loader dies on",
   ],
   [
+    "event-check-ins.test.mjs",
+    "the account deletion cascade executed over check-in records with the cascade store, beside " +
+      "the check-in world's loader: the cascade's graph needs `CASCADE_FIRESTORE_STUB` rather " +
+      "than the world's store, and the shared loader is the rule for a new suite either way",
+  ],
+  [
+    "event-self-check-in.test.mjs",
+    "the RSVP email sender executed to read the check-in link it puts in a confirmation, with " +
+      "the real token module and the mail door recorded; its graph is not the check-in " +
+      "world's, so it gets a loader of its own, and the shared loader is the rule either way",
+  ],
+  [
     "event-editor-unsaved-edits.test.mjs",
     "it executes the two functions in `src/features/events/editorSync.ts` that decide, one field " +
       "at a time, whether the event editor keeps what somebody has typed when the event changes " +

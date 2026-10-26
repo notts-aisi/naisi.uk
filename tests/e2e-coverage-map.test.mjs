@@ -2151,6 +2151,60 @@ const NOT_COVERED = {
     coverWhen:
       "When an outside collaborator is next invited to an event and has to follow the signed link in.",
   },
+  "/api/links/[slug]/qr": {
+    reason:
+      "Short links: the code's picture is drawn from the slug and read back by tests/qr-codes.test.mjs with the qr package's own decoder (it encodes /q/<slug>, never the destination, black on white), as every kind of caller.",
+    coverWhen:
+      "With the short-link console's spec: open a link's card, download its PNG and decode it.",
+  },
+  "/signs/[slug]": {
+    reason:
+      "Short links: the A4 sign is a server render of a name, a code and an address; tests/qr-codes.test.mjs and tests/event-door-code.test.mjs render it as every kind of caller and read its code square for square.",
+    coverWhen:
+      "When a sign is first printed for an event, so a broken print is found before the door.",
+  },
+  "/api/events/[id]/door-code": {
+    reason:
+      "Check-in: making an event's door code; tests/event-door-code.test.mjs drives the route as every kind of caller, the record field for field, the slug from the name and a slug that is taken, and follows the scan to the check-in page.",
+    coverWhen:
+      "When the end-to-end fixtures seed a published event with sign-ups, so a spec can make the code, scan it and check in.",
+  },
+  "/api/events/[id]/check-ins": {
+    reason:
+      "Check-in: the door list's tick and a walk-in; tests/event-door-list.test.mjs and tests/event-walk-ins.test.mjs drive it at each point of the evening as every kind of caller.",
+    coverWhen:
+      "When the end-to-end fixtures seed a published event with sign-ups, so a spec can check people in at the door on a phone.",
+  },
+  "/api/events/[id]/check-ins/[checkInId]": {
+    reason:
+      "Check-in: undo; tests/event-door-list.test.mjs undoes once, refuses twice and refuses a week after.",
+    coverWhen:
+      "When the end-to-end fixtures seed a published event with sign-ups, so a spec can check people in at the door on a phone.",
+  },
+  "/api/events/[id]/check-in": {
+    reason:
+      "Check-in: checking yourself in with the door code; tests/event-self-check-in.test.mjs drives it as a member with each kind of sign-up, a guest with their email's link, a wrong link, signed out and view-as.",
+    coverWhen:
+      "When the end-to-end fixtures seed a published event with sign-ups, so a spec can scan the door code and press I'm here.",
+  },
+  "/events/[id]/check-in": {
+    reason:
+      "Check-in: the page the door code lands on is a server render with one button; tests/event-self-check-in.test.mjs renders every state, signed out naming nobody and a gone event answering with a page.",
+    coverWhen:
+      "When the end-to-end fixtures seed a published event with sign-ups, so a spec can scan the door code and press I'm here.",
+  },
+  "/(app)/events/manage/[id]/door": {
+    reason:
+      "Check-in: the door list; tests/event-door-list.test.mjs renders it as every kind of caller before, during and after the door is open.",
+    coverWhen:
+      "When the end-to-end fixtures seed a published event with sign-ups, so a spec can check people in at the door on a phone.",
+  },
+  "/(app)/events/manage/[id]/check-in": {
+    reason:
+      "Check-in: an event's Check-in tab; tests/event-check-in-tab.test.mjs renders it as an organiser the SU does not recognise (numbers, no name anywhere in the page) and as the people who run check-in, through the evening.",
+    coverWhen:
+      "When the end-to-end fixtures seed a published event with sign-ups, so a spec can check people in and read who came.",
+  },
 };
 
 /* -------------------------------------------------------------------------

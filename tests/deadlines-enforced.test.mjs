@@ -140,6 +140,7 @@ const DEADLINE_NAMES = new Map([
         "src/lib/applications/editor/write.ts",
         "src/lib/courses/enrolWindow.ts",
         "src/lib/courses/window.ts",
+        "src/lib/events/checkIns.ts",
         "src/lib/firestore/admissionRounds.ts",
         "src/lib/firestore/surveys.ts",
         "src/lib/scheduler/jobs/admissionsReminders.ts",
@@ -154,6 +155,20 @@ const DEADLINE_NAMES = new Map([
         "src/lib/surveys/sending.ts",
       ],
       promises: [
+        {
+          of: "an event's door list",
+          binds: "the people who run check-in, and anybody checking themselves in with the door code",
+          why:
+            "An hour after the event ends: until then the door list and the door code take " +
+            "check-ins; after it, people who came are added from the event's page, until a " +
+            "week after the event.",
+          told: [
+            "src/lib/events/checkInView.ts",
+            "src/app/(app)/events/manage/[id]/check-in/page.tsx",
+          ],
+          enforced: ["src/app/api/events/[id]/check-ins/route.ts", "src/lib/events/selfCheckIn.ts"],
+          predicate: "checkInPhase(",
+        },
         {
           of: "an admission round",
           binds: "an applicant",
