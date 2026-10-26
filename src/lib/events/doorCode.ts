@@ -1,5 +1,5 @@
 import "server-only";
-import { randomBytes } from "node:crypto";
+import { randomInt } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { FieldValue } from "firebase-admin/firestore";
 import { isPrintedSlug } from "@/lib/campaign/printedLinks";
@@ -70,12 +70,16 @@ export function doorCodeCandidates(title: string): string[] {
   return tries;
 }
 
-/** A slug nobody would pick, for an event whose every candidate is taken. */
+/**
+ * A slug nobody would pick, for an event whose every candidate is taken. Each
+ * character is drawn evenly from the alphabet by `randomInt`, never by a
+ * remainder of a random byte, so no character is likelier than another
+ * whatever the alphabet's length.
+ */
 function fallbackSlug(): string {
   const alphabet = "abcdefghijkmnpqrstuvwxyz23456789";
-  const bytes = randomBytes(6);
   let out = "in-";
-  for (const byte of bytes) out += alphabet[byte % alphabet.length];
+  for (let i = 0; i < 6; i += 1) out += alphabet[randomInt(alphabet.length)];
   return out;
 }
 
