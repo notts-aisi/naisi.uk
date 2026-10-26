@@ -164,6 +164,8 @@
 /* === A week's page: its two documents === */
 
 .onThisPage {
+  max-width: 48rem;
+  box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
