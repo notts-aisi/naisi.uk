@@ -54,6 +54,51 @@ const COMPARATOR_HOME = "src/lib/firestore/courseGroups.ts";
  */
 const READS_WITHOUT_A_LIST = new Map([
   [
+    "src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts",
+    {
+      why:
+        "Reads the run's groups only to find the ones the caller facilitates, for whether a written answer is theirs to " +
+        "write and who gives feedback on it: it answers one answer, never a list of groups. A programme's page reaches " +
+        "it through Preview as a fellow, which draws the member's week page with nothing that can be pressed.",
+    },
+  ],
+  [
+    "src/lib/courses/weekOne/door.ts",
+    {
+      why:
+        "Week 1's door reads the run's groups only to ask whether the caller facilitates a live one: it answers whether " +
+        "week 1 is open to one person, never a list of groups. A programme's page reaches it through Preview as a " +
+        "fellow, by way of the routes the member's week page sends.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/fill-in-boxes/[boxId]/route.ts",
+    {
+      why:
+        "Reads the run's groups only to find the ones the caller facilitates and the caller's own, for whether a fill-in " +
+        "box is theirs to write and who reads it: it answers one box, never a list of groups. A programme's page reaches " +
+        "it through Preview as a fellow, which draws the member's week page with nothing that can be pressed.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts",
+    {
+      why:
+        "Reads the run's groups only to find the ones the caller facilitates and the caller's own, whose session says " +
+        "whether a pick is still open: it answers one person's pick or ready mark, never a list of groups. A programme's " +
+        "page reaches it through Preview as a fellow, which draws the member's week page with nothing that can be pressed.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/reflections/[promptId]/route.ts",
+    {
+      why:
+        "Reads the run's groups only to find the ones the caller facilitates, for whether a reflection box is theirs " +
+        "and who reads it: it answers one reflection, never a list of groups. A programme's page reaches it through " +
+        "Preview as a fellow, which draws the member's week page with nothing that can be pressed.",
+    },
+  ],
+  [
     "src/lib/courses/updates/readers.ts",
     {
       why:
@@ -123,6 +168,16 @@ const READS_WITHOUT_A_LIST = new Map([
 
 /** Modules the walk reaches that fetch an address it cannot read, each with what they fetch and why it lists no run's groups. */
 const FETCHES_IT_CANNOT_READ = new Map([
+  [
+    "src/features/courses/WeekBlocksLoader.tsx",
+    "The week loader's card, at the address it is handed (the run's week, or one group's own copy of it, on the " +
+      "Weeks tab): it reads and saves one week's blocks, never a run's groups.",
+  ],
+  [
+    "src/features/courses/facilitatorGuide/FacilitatorGuideLoader.tsx",
+    "The facilitator guide's paste card, at the guide's own route for one place in a course's guide (the Weeks " +
+      "tab's guide box): it reads and saves one document, never a run's groups.",
+  ],
   [
     "src/features/applications/teams/ProgrammeTeams.tsx",
     "The Teams tab's own actions (making a team, a move, removing one, the email and its test), at the address the " +

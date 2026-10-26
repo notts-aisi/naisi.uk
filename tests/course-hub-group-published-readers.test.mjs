@@ -362,6 +362,13 @@ const READERS = {
     proof: ['if (actor.role !== "admin") {', ".count()"],
     why: "saving a run as a template counts its active rows into the snapshot and names nobody",
   },
+  "app/api/courses/groups/[groupId]/weeks/[weekId]/blocks/route.ts": {
+    kind: "writer",
+    proof: ["if (enrolment.groupId === group.id) uids.add(enrolment.uid);", "if (!isAdmin && !facilitates && !leads) return"],
+    why:
+      "a week for one group reads the group's seats only to count the answers on what a paste would take out, for " +
+      "that group's people and its facilitators, and answers with numbers, naming nobody",
+  },
   "app/api/courses/groups/[groupId]/pace/route.ts": {
     kind: "writer",
     proof: ["if (!isAdmin && !facilitatesLiveGroup) {", "lastTaskSyncedWeek"],

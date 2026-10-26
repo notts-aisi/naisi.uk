@@ -401,6 +401,7 @@ describe("6. the one copy, and every curriculum copy carrying it", () => {
     const NOT_A_RUN_COPY = new Map([
       ["app/api/courses/runs/[runId]/normalise-weeks/route.ts", "renumbers one run's own weeks in place: the run keeps its guide"],
       ["app/api/courses/groups/[groupId]/weeks/[weekId]/fork/route.ts", "copies one week into a group's own copy: the guide is the run's, not a group's"],
+      ["app/api/courses/groups/[groupId]/weeks/[weekId]/blocks/route.ts", "makes a group's own copy of one week from a paste, through the one copy function: the guide is the run's, not a group's"],
       ["lib/firestore/courseTemplates.ts", "the shape a template week is copied through; the routes that use it carry the guide"],
     ]);
     const copies = [];

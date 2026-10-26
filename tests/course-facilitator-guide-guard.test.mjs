@@ -149,7 +149,11 @@ const READERS = {
   },
   "app/api/courses/[courseId]/facilitator-guide/[slot]/route.ts": {
     gate: "facilitatorGuideWriter(",
-    why: "the admin's loader: copy, read and save one document, admins only, never in a view-as session",
+    why: "the loader: copy, read and save one document, for admins and the lead of a programme naming a live run of the course, never in a view-as session",
+  },
+  "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/page.tsx": {
+    gate: "facilitatorGuideReader(",
+    why: "a week's page on a programme's Weeks tab, for its lead and admins: the titles loaded in the week's session plan and notes, for the guide box, read only behind facilitatorGuideWriter too",
   },
   "app/(app)/learn/[runId]/group/[groupId]/page.tsx": {
     gate: "facilitatorGuideReader(",
@@ -269,7 +273,11 @@ describe("2. every page and route that reaches the guide asks the gate first", (
     assert.match(code, /isNamedWithStanding\(user, "courseGroups\.facilitatorUids", group\.facilitatorUids\)/);
     assert.match(code, /if \(group\.archived \|\|/);
     assert.match(code, /if \(await programmeLedBy\(db, user, doc\.id\)\) return true;/);
-    assert.match(code, /if \(user\.role !== "admin" \|\| !isAddressableId\(courseId\)\) return null;/);
+    // The loader's gate admits an admin on an id that is one, and the lead the
+    // reader admits (the Weeks tab's guide box, board pr-weeks), on a course
+    // that is there and not being destroyed; nobody else.
+    assert.match(code, /if \(!isAddressableId\(courseId\)\) return null;\s*if \(user\.role === "admin"\) return \{ courseId \} as GuideWriter;/);
+    assert.match(code, /if \(!\(await liveCourse\(db, courseId\)\)\) return null;\s*if \(await leadsOnCourse\(db, user, courseId\)\) return \{ courseId \} as GuideWriter;\s*return null;/);
   });
 });
 

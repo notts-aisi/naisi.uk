@@ -941,6 +941,52 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/features/applications/weeks/WeeksList.tsx",
+    {
+      built: ["copyWeeksPath(roundId, programmeId)", "weeksPath(roundId, programmeId, week.weekId)"],
+      from: "the Weeks tab's own paths (src/lib/courses/weeksTab/paths.ts), made from the form's and the programme's ids and a week's document id, each encoded",
+    },
+  ],
+  [
+    "src/features/applications/weeks/WeeksNotYours.tsx",
+    {
+      built: ["`${programmePath(roundId, programmeId)}/applications`"],
+      from: "the programme's own Applications tab, for a reviewer told Weeks is not theirs: made from the form's and the programme's ids in the address, encoded",
+    },
+  ],
+  [
+    "src/features/applications/weeks/WeekPageView.tsx",
+    {
+      built: [
+        "page.guide.href",
+        "weekEditorPath(page.courseId, runId, week.weekId)",
+        "weekPreviewPath(roundId, programmeId, week.weekId)",
+      ],
+      from: "the week's preview on the Weeks tab, the week's page of the course's facilitator guide (facilitatorGuidePath) and, for an admin, the run's week editor, each made from ids the page read and encoded",
+    },
+  ],
+  [
+    "src/features/applications/weeks/WeekControls.tsx",
+    {
+      built: ["`${previewHref}?group=${encodeURIComponent(group.id)}`"],
+      from: "the week's preview on the Weeks tab, with one of the run's groups' ids, encoded",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/copy/page.tsx",
+    {
+      built: ["weeksPath(view.roundId, view.programmeId)"],
+      from: "the way back to the Weeks tab, made from the form's and the programme's ids, each encoded",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview/page.tsx",
+    {
+      built: ["weeksPath(view.roundId, view.programmeId, weekId)"],
+      from: "the way back to the week's page on the Weeks tab, made from the form's and the programme's ids and the week's document id, each encoded",
+    },
+  ],
+  [
     "src/features/applications/groups/GroupsViews.tsx",
     {
       built: ["groupsViewPath(roundId, programmeId, view)"],
