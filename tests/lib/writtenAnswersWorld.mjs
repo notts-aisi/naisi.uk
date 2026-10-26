@@ -21,7 +21,7 @@
  *  - The course carries a rubric of four rows at Not yet, Solid, Strong,
  *    every word made up, and its day-before time is noon.
  *  - Rahul and Sofia hold the facilitator enrolments the facilitators route
- *    writes, and Rahul writes his own answer as a fellow does.
+ *    writes, and Rahul writes an answer too as a fellow does.
  *
  * THE CLOCK is Tue 17 Nov 2026 at noon in London, as the attendance world's:
  * Group B meets tonight, in week 3, so week 3's answer was due by noon

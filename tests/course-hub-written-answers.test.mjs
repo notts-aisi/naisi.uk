@@ -7,8 +7,8 @@
  *
  * Driven through the real routes and the real pages, as every kind of
  * caller: Chloe, a fellow of Group B; Farah, another fellow of Group B;
- * Amara, a fellow of Group A; Rahul, Group B's facilitator, who writes his
- * own answer too; Sofia, his co-facilitator (and Group A's facilitator);
+ * Amara, a fellow of Group A; Rahul, Group B's facilitator, who writes an
+ * answer of their own too; Sofia, the other facilitator (and Group A's);
  * Claudia, the programme's lead; Tess, who leads another programme; Zach, an
  * admin; Una, placed and not told; Sam, who left; Omar, taken off; a view-as
  * session; and somebody signed out.
@@ -164,7 +164,7 @@ describe("1. writing and sending one's own answer", () => {
 // 2. Who opens, reopens and reads: the one gate
 // ---------------------------------------------------------------------------
 
-/** Chloe sends on time, Farah late, Rahul his own, Amara hers in Group A. */
+/** Chloe sends on time, Farah late, Rahul as a facilitator, Amara in Group A. */
 async function sendFour() {
   w.at(BEFORE_DUE_2);
   assert.equal((await w.write("chloe", 2, { text: words(25) }, { send: true })).status, 200);
@@ -222,7 +222,7 @@ describe("2. the gate: who opens an answer, who reopens it, and the lock", () =>
   });
 
   test("nobody reviews their own answer: not the lead who also facilitates a group, not an admin", async () => {
-    // Claudia leads the programme and facilitates Group C too, so she writes her own answer.
+    // Claudia leads the programme and facilitates Group C too, so Claudia writes an answer too.
     const groupC = w.world.db.read(`courseGroups/${C}`);
     w.world.db.poke(`courseGroups/${C}`, { facilitatorUids: [...groupC.facilitatorUids, "claudia"] });
     w.at(BEFORE_DUE_2);
@@ -265,7 +265,7 @@ describe("2. the gate: who opens an answer, who reopens it, and the lock", () =>
     assert.equal((await w.review(null, "chloe", 2, { action: "open" })).status, 401);
     assert.deepEqual(await w.review("rahul", "chloe", 2, { action: "open" }, { viewAs: true }), { status: 403, body: { error: "view-as" } });
     assert.equal(w.everything(), before, "a view-as session stamps nothing");
-    // Sofia facilitates Group A too, so Amara's is hers to open.
+    // Sofia facilitates Group A too, so Amara's is Sofia's to open.
     assert.equal((await w.review("sofia", "amara", 2, { action: "open" })).status, 200);
     assert.equal(stored("amara", 2).openedByUid, "sofia");
   });
@@ -294,7 +294,7 @@ describe("2. the gate: who opens an answer, who reopens it, and the lock", () =>
     assert.equal((await w.write("chloe", 2, { text: words(28) })).status, 200);
     assert.equal(new Date(stored("chloe", 2).editedAt).toISOString(), "2026-11-17T10:20:00.000Z");
     assert.equal(new Date(stored("chloe", 2).firstSentAt).toISOString(), new Date(BEFORE_DUE_2).toISOString());
-    // Her own read says who reopened it, and never whether it was late.
+    // Chloe's own read says who reopened it, and never whether it was late.
     const own = await w.ownRowsOf("chloe", 2);
     const row = own.body.responses.find((entry) => entry.exerciseId === ONE_BOX.id);
     assert.equal(row.written.reopened.byName, "Sofia");
@@ -569,9 +569,9 @@ describe("4. the pages, as the boards draw them", () => {
       "Rahul has left feedback on your lamp plan.",
       "Read your feedback",
     ]);
-    assert.doesNotMatch(page.text, /Rahul Mehta|Amara/, "his own answer and another group's are not on his page");
+    assert.doesNotMatch(page.text, /Rahul Mehta|Amara/, "a facilitator's own answer and another group's are not on the page");
     assert.match(page.html, /aria-pressed="false"/);
-    // Sofia, his co-facilitator, does not get his either.
+    // Sofia, the co-facilitator, does not get Rahul's either.
     const sofia = (await w.writtenPage("sofia", { week: "2" })).element.props.model;
     assert.ok(![...sofia.toGive, ...sofia.feedbackSent, ...sofia.notSent].some((person) => person.uid === "rahul"));
   });
@@ -790,12 +790,12 @@ describe("6. finishing's column, the rubric's setting, the email", () => {
       .map((value) => (typeof value === "string" ? value : ""))
       .join(" ");
     assert.doesNotMatch(all, /exercise/i);
-    assert.doesNotMatch(all, /[–—]/);
+    assert.doesNotMatch(all, /[\u2013\u2014]/);
     for (const sample of [
       words.dueLineWords("dayBefore", { dateKey: "2026-11-16" }, { todayKey: "2026-11-16", dayBeforeTime: null, first: false }),
       words.dueLineWords("dayBefore", { dateKey: "2026-11-02" }, { todayKey: "2026-11-01", dayBeforeTime: "12:00", first: false }),
       words.dueLineWords("dayBefore", null, { todayKey: "2026-11-01", dayBeforeTime: "12:00", first: false }),
-    ]) assert.doesNotMatch(sample, /exercise|[–—]/i);
+    ]) assert.doesNotMatch(sample, /exercise|[\u2013\u2014]/i);
     assert.equal(words.dueLineWords("dayBefore", { dateKey: "2026-11-16" }, { todayKey: "2026-11-16", dayBeforeTime: null, first: false }), "Due by the end of today, Mon 16 Nov.");
     assert.equal(words.dueLineWords("dayBefore", { dateKey: "2026-11-02" }, { todayKey: "2026-11-01", dayBeforeTime: "12:00", first: false }), "Due by noon, Mon 2 Nov.");
   });

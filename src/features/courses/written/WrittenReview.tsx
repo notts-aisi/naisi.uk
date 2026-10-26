@@ -72,9 +72,9 @@ import styles from "./written.module.css";
  * answer that the reader's opening locks stamps it by POST from here, once,
  * because a GET never writes.
  *
- * NOT DRAWN, though the board draws it: "Her reflections this week (2)".
- * The reflections half of the review is the facilitator's week's, a later
- * piece; this page leaves room under the answer for it.
+ * NOT DRAWN, though the board draws it: the person's reflections this week,
+ * folded under the answer. The reflections half of the review is the
+ * facilitator's week's, a later piece; this page leaves room for it there.
  */
 
 type Props = {

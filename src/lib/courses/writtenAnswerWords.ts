@@ -282,8 +282,8 @@ export function answerHeadWords(firstName: string): string {
 
 /**
  * The opened line (wk-review): "You opened this at 9:58am, so Amara can’t
- * change it now. Reopen for edits if Amara needs to." The board's "if she
- * needs to" names the person instead: the site uses no gendered pronoun.
+ * change it now. Reopen for edits if Amara needs to." Where the board has a
+ * gendered pronoun the line names the person: the site uses none.
  */
 export function openedByYouWords(at: Date, sameDay: boolean, firstName: string): string {
   return `You opened this ${whenOpenedWords(at, sameDay)}, so ${firstName} can’t change it now. Reopen for edits if ${firstName} needs to.`;

@@ -210,9 +210,9 @@ export async function GET(
     }),
   );
 
-  // One `getAll` for the reviewer names — usually zero or one distinct
-  // facilitator across a week's rows — and whoever opened, reopened or sent
-  // feedback on a written answer. Names only.
+  // One `getAll` for the names: the reviewer of a summer answer (usually
+  // nobody, or one facilitator across a week's rows), and whoever opened,
+  // reopened or sent feedback on a written answer. Names only.
   const reviewerUids = [
     ...new Set([
       ...rows.map((r) => r.reviewerUid).filter((u): u is string => Boolean(u)),
