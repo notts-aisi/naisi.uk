@@ -393,6 +393,13 @@ const ROUND_SURFACES = {
       "only through loadProgrammeRun and the form's own loader, each of which answers 'none' or null for a round " +
       "that is not a form, and the page then says there is no programme here",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/certificates": {
+    kind: "form",
+    why:
+      "the preview of one certificate and its email, for a programme's lead and admins. It reaches the round " +
+      "only through loadCertificatesPreview, which starts from the form's own loader and answers 'none' for a " +
+      "round that is not a form, and the page then says there is no programme here",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/pitches": {
     kind: "form",
     why:
@@ -641,6 +648,18 @@ const ROUND_SURFACES = {
       "records whether one person finished the run a programme names, through decideFinished. It " +
       "reaches the round only through loadProgrammeRun, which starts from the form's own loader and " +
       "answers 'none' for a round that is not a form, so nothing is written for one",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates": {
+    kind: "form",
+    why:
+      "makes and emails a programme's certificates, through sendCertificates, which loads the round with the " +
+      "form's own loader and finds nothing for a round that is not a form, so nothing is made or sent for one",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates/test": {
+    kind: "form",
+    why:
+      "sends the caller a test of the certificate email, through sendCertificateTest, which loads the round " +
+      "with the form's own loader and finds nothing for a round that is not a form",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask": {
     kind: "form",

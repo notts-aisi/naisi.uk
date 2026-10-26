@@ -272,6 +272,11 @@ const RUN_COUNT_KEYS = [
   // (src/lib/ratings/). Keyed by `runId`, and on the manifest because the
   // cascade has a stage for it.
   "ratings",
+  // `courseCertificates` (src/lib/courses/certificates/): a run's certificates
+  // whose link is off die with it; those whose link is on are kept and lose
+  // the run. Two counters because the two have different fates.
+  "certificates",
+  "certificatesKept",
   "mirroredTasks",
   // The SECOND sweep on `tasks`, for the source the unmarked-register
   // scheduler job mints (V3 W2 PR25). Counted separately from the mirrors
@@ -342,6 +347,8 @@ const SURVIVING_COUNT_KEYS = [
   "dataExportRows",
   "templates",
   "admissionSeatOffers",
+  // A certificate whose link is on stays, without its run (privacy policy v7, Retention).
+  "certificatesKept",
 ];
 
 test("MODEL — the manifest count vocabulary is the same on both sides of the wire", () => {
@@ -384,18 +391,19 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   const counts = Object.fromEntries(
     [...RUN_COUNT_KEYS, ...COURSE_COUNT_KEYS].map((k) => [k, 10]),
   );
-  // Thirty counters at ten rows each: twenty-six that die,
+  // Thirty-two counters at ten rows each: twenty-seven that die,
   // `materialNotes`, `auditRows`, `schedulerMarkers`, the V3 `coursePages`,
   // the V3 W2 `registerTasks`, the course hub's `pitches`, `updates`,
   // `groupNotes`, `groupSharedNotes`, `packsAndCases`, `teams`, `finishing`,
-  // `facilitating`, `ratings` and `anonymousFeedback`, and the course's
-  // `facilitatorGuide` among them, plus the four survivors
-  // (`admissionSeatOffers` is released, `dataExportRows` is retained).
-  assert.equal(sumCounts(counts), 300);
+  // `facilitating`, `ratings`, `certificates` and `anonymousFeedback`, and
+  // the course's `facilitatorGuide` among them, plus the five survivors
+  // (`admissionSeatOffers` is released, `dataExportRows` is retained,
+  // `certificatesKept` stays without its run).
+  assert.equal(sumCounts(counts), 320);
   // The progress denominator counts only what actually dies, so a large
   // retained counter cannot inflate it into a bar that never fills. Adding a
   // survivor must not move this number; adding a DESTROYED counter must.
-  assert.equal(destroyedTotal(counts), 260);
+  assert.equal(destroyedTotal(counts), 270);
 });
 
 test("MODEL — every key the cascade can report has copy, including the ones the manifest never shows", () => {
@@ -569,6 +577,10 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     // The ratings given at the run's end: a run-keyed leaf drained before the
     // enrolments the ratings are about.
     "ratings",
+    // A run's certificates: a run-keyed leaf. One whose link is off is
+    // deleted and one whose link is on is kept without the run, before the
+    // enrolments, with the other leaves.
+    "certificates",
     "enrolments",
     "applications",
     // Immediately after the seat rows it points at: until those are deleted,

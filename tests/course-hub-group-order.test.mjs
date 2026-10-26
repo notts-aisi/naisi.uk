@@ -184,6 +184,11 @@ const FETCHES_IT_CANNOT_READ = new Map([
       "page hands it: teams, never a run's groups.",
   ],
   [
+    "src/features/applications/overview/CertificatesSection.tsx",
+    "The Certificates section's two presses (its test and its send), at the address built from the round and " +
+      "programme ids it is handed (`base`): certificates and their emails, never a run's groups.",
+  ],
+  [
     "src/features/applications/review/ReviewScreen.tsx",
     "The review screen's own routes, under the round's admissions address it is handed (`apiBase`): they read " +
       "applications, reviews and review settings, never a run's groups.",

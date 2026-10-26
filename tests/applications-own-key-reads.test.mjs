@@ -232,6 +232,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/courses/certificates/send.ts",
+    {
+      why: "sending a programme's certificates: it reads a form's programmes by the programme id the request's address names, to take the run it names, its whole and short names for the certificates and the email, and who may press",
+    },
+  ],
+  [
     "src/lib/courses/placeOnRun.ts",
     {
       why: "where a place on the form stands on the run its programme names: it reads the form's programmes by the programme id of the place the person's own application holds, to take the run that programme names",

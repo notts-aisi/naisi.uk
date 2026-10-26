@@ -59,6 +59,13 @@ const LANDING_PAGES = [
     whenMissing: "renders EventNotListed: what happened, and links to upcoming events and /links",
   },
   {
+    // The code is printed on a certificate's PDF, under "Check it at".
+    file: "src/app/(public)/c/[code]/page.tsx",
+    matches: /^\/c\/[^/]+$/,
+    whenMissing:
+      "renders one calm page for a link that is off and a code that is unknown or malformed, the same for all of them",
+  },
+  {
     file: "src/app/(public)/sources/[slug]/page.tsx",
     matches: /^\/sources\/[^/]+$/,
     whenMissing: "renders a calm 'not published yet' page, because the reader is holding the poster",

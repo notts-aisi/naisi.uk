@@ -210,6 +210,20 @@ const MUST_GUARD = [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell/test/route.ts",
     "sends a test of the team email to the address on the session, which during view-as is the member's, and records that it reached them",
   ],
+  // Certificates: their owner's switch, and the send that makes and emails
+  // them, with its test.
+  [
+    "src/app/api/courses/certificates/[code]/route.ts",
+    "turns a certificate's link on or off, which decides whether a member's name is public, as whoever the session says owns it",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates/route.ts",
+    "makes a programme's certificates and emails each person theirs in the caller's name, which cannot be unsent",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates/test/route.ts",
+    "sends a test of the certificate email to the address on the session, which during view-as is the member's, and records that it reached them",
+  ],
   // Who finished: the run's rule, and the lead's decision about one person,
   // each recorded as whoever the session says is acting.
   [

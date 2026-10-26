@@ -676,11 +676,42 @@ const NOT_COVERED = {
     coverWhen:
       "With the spec for the press above, because the test is the press's first step.",
   },
+  "/api/courses/certificates/[code]": {
+    reason:
+      "Course hub: a certificate's owner turning its link on and off on its page (board en-cert). tests/course-hub-certificates-page.test.mjs executes it as the owner, a stranger, somebody signed out and a view-as session, and with unknown and malformed codes.",
+    coverWhen: "When the end-to-end fixtures can seed a certificate for a signed-in member.",
+  },
+  "/api/courses/certificates/[code]/pdf": {
+    reason:
+      "Course hub: Download PDF on a certificate's page (board en-cert). tests/course-hub-certificates-pdf.test.mjs executes it as the owner and everybody else, and reads the PDF's words, fonts and headers.",
+    coverWhen: "With the switch above.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/certificates": {
+    reason:
+      "Course hub: the preview of one certificate and its email, opened from the Certificates section (board en-finish). tests/course-hub-certificates-send.test.mjs draws it as the lead, a reviewer and before the end.",
+    coverWhen: "With the certificates' send.",
+  },
+  "/(public)/c/[code]": {
+    reason:
+      "Course hub: a certificate's page (boards en-cert and en-cert-phone). tests/course-hub-certificates-page.test.mjs draws it as its owner, a stranger signed in, somebody signed out, an admin, the programme's lead and a view-as session, with its link on and off, and for unknown and malformed codes.",
+    coverWhen: "With the switch above.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing": {
     reason:
       "Course hub: one person's Finished switch on the Overview once a run's last session is over (board en-finish). tests/course-hub-finishing-routes.test.mjs executes it as every kind of caller, before and after the end, and tests/course-hub-finishing-pages.test.mjs draws the section it answers with.",
     coverWhen:
       "When the end-to-end fixtures can seed a run whose last session is over, with finished registers, and its programme's lead signed in.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates": {
+    reason:
+      "Course hub: Send N certificates on a programme's Overview once its run's last session is over (board en-finish). tests/course-hub-certificates-send.test.mjs executes it as every kind of caller, with every email read word for word and counted against the button, two presses racing, a send that fails, and a facilitator who finished sent both in one email.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a run whose last session is over, with finished registers, and its programme's lead signed in with a test of the email already sent.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates/test": {
+    reason:
+      "Course hub: Send a test to me beside the certificates' send (board en-finish). tests/course-hub-certificates-send.test.mjs executes it as every kind of caller and reads the test word for word.",
+    coverWhen: "With the send above.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask": {
     reason:
