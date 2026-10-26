@@ -1383,6 +1383,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
   },
+  "/api/surveys/[surveyId]/open-at-event": {
+    reason:
+      "Surveys after events: opening one for its QR code; tests/surveys-events.test.mjs opens it once as an admin, refuses everybody else, view-as and a second press, and finds it emailed nobody.",
+    coverWhen:
+      "When the end-to-end fixtures seed a published event with sign-ups and check-ins, so a spec can make its survey, open it and answer it with the QR code.",
+  },
   "/api/surveys/[surveyId]/questions": {
     reason:
       "Surveys: changing a survey until it is sent; tests/surveys-routes.test.mjs saves words, options, lines and order, and is refused a removed question and any change after the send.",
@@ -2326,6 +2332,18 @@ const NOT_COVERED = {
       "Check-in: the door list; tests/event-door-list.test.mjs renders it as every kind of caller before, during and after the door is open.",
     coverWhen:
       "When the end-to-end fixtures seed a published event with sign-ups, so a spec can check people in at the door on a phone.",
+  },
+  "/events/[id]/survey": {
+    reason:
+      "Surveys after events: the page a survey's QR code lands on is a server render; tests/surveys-events.test.mjs renders every state (no survey, not open, signed out naming nobody, signed in as somebody who came, signed up, neither, answered) and finds it writes nothing.",
+    coverWhen:
+      "When the end-to-end fixtures seed a published event with sign-ups and check-ins, so a spec can make its survey, open it and answer it with the QR code.",
+  },
+  "/(app)/events/manage/[id]/survey": {
+    reason:
+      "Surveys after events: an event's Survey after tab; tests/surveys-events.test.mjs renders it as the organiser the SU does not recognise, a collaborator, SU-recognised committee (that it went and when, no result) and an admin (the results), before and after the email.",
+    coverWhen:
+      "When the end-to-end fixtures seed a published event with sign-ups and check-ins, so a spec can send its survey and read the tab as its organiser.",
   },
   "/(app)/events/manage/[id]/check-in": {
     reason:

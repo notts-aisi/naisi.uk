@@ -2557,6 +2557,15 @@ export const ROUTES = {
         "the admin is told the made-up survey is not there. A file, not JSON, so no fields.",
     },
   },
+  "/api/surveys/[surveyId]/open-at-event": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Opening a survey after an event for its QR code, which emails nobody and fixes its words, is an " +
+        "admin's alone: view-as first, then the session and the admin bar; the admin is told the made-up " +
+        "survey is not there.",
+    },
+  },
   "/api/surveys/[surveyId]/questions": {
     POST: {
       expect: adminOnly(404),
@@ -3423,6 +3432,15 @@ export const PAGES = {
       "SU-recognised committee and admins; any other visitor the events layout admits goes " +
       "back to the event, and a plain member or another permission holder to the dashboard " +
       "(both redirects are in the stream for the latter, so either is accepted).",
+  },
+  "/(app)/events/manage/[id]/survey": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", committee: 200, suCommittee: 200, admin: 200, draftEvent: 200, approveEvent: 200 }),
+    why:
+      "An event's Survey after tab: open to the events area (the whole committee and draftEvent " +
+      "and approveEvent holders), who read that the survey went and when and nothing of its " +
+      "results; admins read the results too. A plain member or another permission holder is " +
+      "sent to the dashboard by the events layout. A missing event renders the area's own " +
+      "not-found state.",
   },
   "/(app)/events/manage/[id]/preview": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", committee: 200, suCommittee: 200, admin: 200, draftEvent: 200, approveEvent: 200 }),

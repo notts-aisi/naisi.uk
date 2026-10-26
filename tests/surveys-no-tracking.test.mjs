@@ -44,6 +44,8 @@ const ROOTS = [
   "src/lib/firestore/surveys.ts",
   "src/lib/scheduler/jobs/surveyNamesOff.ts",
   "src/emails/SurveyEmail.tsx",
+  "src/app/events/[id]/survey",
+  "src/app/(app)/events/manage/[id]/survey",
 ];
 
 function* walk(path) {

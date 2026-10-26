@@ -611,6 +611,10 @@ const SITES = {
     role: "renderer",
     reason: "An event's Check-in tab: the public location text in the page's head line, as the editor's head shows it, for the committee.",
   },
+  "src/app/(app)/events/manage/[id]/survey/page.tsx": {
+    role: "renderer",
+    reason: "An event's Survey after tab: the public location text in the page's head line, as the Check-in tab's head shows it, for the events area.",
+  },
   "src/lib/events/selfCheckIn.ts": {
     role: "renderer",
     reason: "The page a door code lands on: the public line beside the event's name and time, for everybody, signed in or not, whatever their sign-up.",
