@@ -676,6 +676,12 @@ const REGISTRY = {
   "src/app/api/courses/runs/[runId]/email/route.ts#sendNoticePush": N(
     "The notification beside that notice. The ordinary announcement lane has no push leg at all, deliberately: a scheduled cohort mail that also buzzed every phone is how people turn notifications off for good.",
   ),
+  "src/lib/surveys/sending.ts#sendNotice": N(
+    "A programme survey and its reminder (docs/surveys.md): an admin writing to everybody holding a place on the programme the survey is about, each with their own link, whatever their courses row says, with the marker and the lane's caps. Email only: no push leg.",
+  ),
+  "src/app/api/surveys/[surveyId]/test/route.ts#sendEmail": T(
+    "\"Send a test to me\" under a survey's email or its reminder: the email, marked [TEST], to the address on the presser's own session and nobody else. Nobody's preference is passed over, so it is no notice.",
+  ),
 };
 
 // ---------------------------------------------------------------------------

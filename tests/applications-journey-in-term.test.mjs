@@ -500,6 +500,15 @@ const HANDS_ON = new Map([
         "the application is still in the term, so nobody who has left is reminded",
     },
   ],
+  [
+    "src/lib/surveys/audience.ts",
+    {
+      to: "src/lib/applications/handover/holders.ts",
+      why:
+        "hands every sent application to placeHoldersOn for who a programme survey is for, which passes over " +
+        "anybody who has left the term before it asks who holds a place, so nobody who gave theirs back is sent it",
+    },
+  ],
 ]);
 
 /** Where the two functions are written. They are not callers of themselves. */

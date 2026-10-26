@@ -262,6 +262,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/surveys/",
+    {
+      why: "a survey's answers, read by a question, option or line id taken from the survey's own items (the answers a route accepts, the totals, the spreadsheet), and a form's programmes by the programme id a survey or its New survey request names",
+    },
+  ],
+  [
     "src/features/admissions/",
     {
       why: "the older apply flow keeps its answers by stage and then by question, and reads both by ids taken from the round",

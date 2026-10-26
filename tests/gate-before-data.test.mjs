@@ -222,6 +222,18 @@ const PUBLIC = new Map([
     },
   ],
   [
+    "src/app/api/surveys/answer/route.ts#POST",
+    {
+      touches: "finds whose survey row the secret in the link is, reads that person's survey, group and run, then keeps their answers once",
+      gate: "openLink(",
+      why:
+        "A survey answered from the personal link in an email, which has no session to send: the random secret " +
+        "is the gate. One equality on the token, and an unknown or malformed one reads nothing more; an in-memory " +
+        "per-IP throttle runs before it. The one write is the person's own answers, once, in a transaction on " +
+        "their own row.",
+    },
+  ],
+  [
     "src/app/api/events/[id]/calendar.ics/route.ts#GET",
     {
       touches: "reads one event",

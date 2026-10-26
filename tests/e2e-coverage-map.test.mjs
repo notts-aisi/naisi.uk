@@ -1180,6 +1180,60 @@ const NOT_COVERED = {
     coverWhen:
       "When the first issue goes to the real list and an unsubscribe link is somebody's only way out.",
   },
+  "/api/surveys": {
+    reason:
+      "Surveys: making a programme's before survey; tests/surveys-routes.test.mjs executes the handler as every kind of caller, the template word for word, and its refusals.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
+  "/api/surveys/[surveyId]/questions": {
+    reason:
+      "Surveys: changing a survey until it is sent; tests/surveys-routes.test.mjs saves words, options, lines and order, and is refused a removed question and any change after the send.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
+  "/api/surveys/[surveyId]/test": {
+    reason:
+      "Surveys: the test the send waits for; tests/surveys-routes.test.mjs sends it to the presser alone and holds the send to it, word for word.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
+  "/api/surveys/[surveyId]/send": {
+    reason:
+      "Surveys: the first send and the send to people who joined since; tests/surveys-routes.test.mjs reads every email, its link, its count and its single claim.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
+  "/api/surveys/[surveyId]/remind": {
+    reason:
+      "Surveys: Remind, by hand; tests/surveys-routes.test.mjs holds it to its own test and to people who have not answered and still hold a place.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
+  "/api/surveys/[surveyId]/close": {
+    reason:
+      "Surveys: closing early; tests/surveys-routes.test.mjs closes one and is then refused every send and answer.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
+  "/api/surveys/[surveyId]/export": {
+    reason:
+      "Surveys: the spreadsheet with names; tests/surveys-routes.test.mjs reads the file and the dataExports row written before it, and the refusal when the row cannot be written.",
+    coverWhen:
+      "When an end-to-end spec downloads a file anywhere on the site, so the download path is driven in a browser once for all of them.",
+  },
+  "/api/surveys/[surveyId]/answer": {
+    reason:
+      "Surveys: answering signed in; tests/surveys-routes.test.mjs answers as the person sent it and is refused for everybody else and during view-as.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
+  "/api/surveys/answer": {
+    reason:
+      "Surveys: answering by a personal link; tests/surveys-routes.test.mjs answers by link, once, and refuses a wrong, malformed or test link and a closed survey.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
   "/api/tasks/[id]/delete": {
     reason:
       "Task manager: /api/tasks/[id]/delete is committee-only, pressed by hand every day, and its failure shows on the board that called it.",
@@ -1335,6 +1389,48 @@ const NOT_COVERED = {
       "Admin CRUD: /(app)/admin/(admin-only)/subscriptions is used by one admin, fails loudly on the screen of the person who pressed the button, and nothing member-facing waits on it.",
     coverWhen:
       "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
+  },
+  "/(app)/admin/(admin-only)/surveys": {
+    reason:
+      "Surveys: the admins' list; tests/surveys-routes.test.mjs renders it with a survey open and after its form has gone.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
+  "/(app)/admin/(admin-only)/surveys/new": {
+    reason:
+      "Surveys: New survey; its route is executed by tests/surveys-routes.test.mjs, and the page is a form over it.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
+  "/(app)/admin/(admin-only)/surveys/[surveyId]": {
+    reason:
+      "Surveys: a survey's address, which opens its Questions or its Results tab.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
+  "/(app)/admin/(admin-only)/surveys/[surveyId]/questions": {
+    reason:
+      "Surveys: the editor; its route is executed by tests/surveys-routes.test.mjs.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
+  "/(app)/admin/(admin-only)/surveys/[surveyId]/send": {
+    reason:
+      "Surveys: the Send tab; tests/surveys-routes.test.mjs renders it before and after the first send and reads every count.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
+  "/(app)/admin/(admin-only)/surveys/[surveyId]/answered": {
+    reason:
+      "Surveys: Who answered; tests/surveys-routes.test.mjs renders it.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
+  "/(app)/admin/(admin-only)/surveys/[surveyId]/results": {
+    reason:
+      "Surveys: the results; tests/surveys-routes.test.mjs renders them from the first answer, with no name, and after names have come off.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
   },
   "/(app)/admin/(admin-only)/task-templates": {
     reason:
@@ -1540,6 +1636,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
   },
+  "/(app)/learn/[runId]/survey/[surveyId]": {
+    reason:
+      "Surveys: the answer page signed in; tests/surveys-routes.test.mjs renders it for the person sent it and for everybody else.",
+    coverWhen:
+      "When the card on week 1 and Home that links to it lands, with a spec that follows the card.",
+  },
   "/(app)/learn/[runId]/weeks/[n]": {
     reason:
       "Learn hub: /(app)/learn/[runId]/weeks/[n] is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
@@ -1725,6 +1827,12 @@ const NOT_COVERED = {
       "The links page is checked-in rows, one read of published events and the home page's subscribe form, whose route tests/subscriptions-consent.test.mjs executes; what is new on it is the source attribution, which tests/campaign-attribution.test.mjs pins as a pure function.",
     coverWhen:
       "When scan counting or an admin-editable list of rows lands on it, because then the page writes and its content stops being a checked-in file.",
+  },
+  "/survey/[token]": {
+    reason:
+      "Surveys: the answer page by a personal link; tests/surveys-routes.test.mjs renders it for each kind of person (the box's names, an untold group, answered, closed, a test) and finds it writes nothing.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can open a link from the email in Mailpit and answer.",
   },
   "/collaborator": {
     reason:

@@ -71,6 +71,10 @@ const GUARDED_TREES = [
   // accident here is one only an admin can undo.
   "src/app/api/worksheets",
 
+  // Surveys. Every write in this tree is recorded as the session's person: a
+  // survey made or sent in an admin's name, an answer kept as somebody's own.
+  "src/app/api/surveys",
+
   // The account / registration lane. These routes act on the SESSION account's
   // own persistent state: its Firebase Auth password, its registration-tracker
   // rows, its consent stamp, its very existence. During view-as the session is
@@ -349,6 +353,18 @@ const MUST_GUARD = [
   // reason: it counts what a destroy would remove and changes nothing, and it
   // refuses anybody who is not an admin, which an admin viewing as a member is
   // not.
+
+  // Surveys. Every handler in the tree writes, so every one is here; the
+  // pages that read a survey are server pages, not routes.
+  ["src/app/api/surveys/route.ts", "makes a programme's survey in the admin's name"],
+  ["src/app/api/surveys/[surveyId]/questions/route.ts", "changes a survey's words and questions before it is sent"],
+  ["src/app/api/surveys/[surveyId]/test/route.ts", "sends the presser a test and records the test the send waits for"],
+  ["src/app/api/surveys/[surveyId]/send/route.ts", "emails a survey to everybody holding a place, in the presser's name"],
+  ["src/app/api/surveys/[surveyId]/remind/route.ts", "emails a reminder to everybody who has not answered, in the presser's name"],
+  ["src/app/api/surveys/[surveyId]/close/route.ts", "closes a survey to every further answer"],
+  ["src/app/api/surveys/[surveyId]/export/route.ts", "hands over everybody's answers with names, recorded as the presser's download"],
+  ["src/app/api/surveys/[surveyId]/answer/route.ts", "keeps the session's person's answers, once, as their own"],
+  ["src/app/api/surveys/answer/route.ts", "keeps a person's answers, once, through their link"],
 
   // ── The admission ROUND lane of the deletion work ────────────────────────
   // Destroying a round is the single most consequential write in the

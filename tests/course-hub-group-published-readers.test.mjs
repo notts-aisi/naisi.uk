@@ -224,6 +224,14 @@ const READERS = {
       "a person's calendar link holds their own seats' sessions: a seat Publish has not told them about adds " +
       "nothing of its run to it, whoever they are, an admin included, and it names nobody",
   },
+  "lib/surveys/personFacts.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "a survey's confidential box names the facilitators of the person's own group, and whether that group has " +
+      "met dates their answers: a seat Publish has not told them about is no group of theirs, so the box names " +
+      "nobody's facilitators and the answers count as before their first session",
+  },
   "app/api/courses/runs/[runId]/allocation/route.ts": {
     kind: "board",
     proof: ["if (!doesTrackLeadWork(staffing)) {"],

@@ -1093,6 +1093,17 @@ const USERS = new Map([
       "`server-only`, `next/server`, the Admin SDK handle, the session, the view-as guard, the " +
       "standing check, the subscription, push and suppression doors and the mail door are stubbed",
   ],
+  [
+    "surveys-items.test.mjs",
+    "it executes the survey item model, which reuses Worksheets' sanitiser and validators, with the template, " +
+      "the box's words, both emails, the totals (Worksheets' own counting) and the spreadsheet's layout, so the " +
+      "words tested are the ones that ship",
+  ],
+  [
+    "surveys-deletion.test.mjs",
+    "it runs the account cascade and the form's destroy end to end over survey records, so its graph is both " +
+      "cascades, the member-record sweep and the survey modules; what is under test is what each leaves behind",
+  ],
 ]);
 
 /**

@@ -10,7 +10,7 @@
  *    with no `page.tsx` behind it is a link to the not-found screen.
  *
  * 2. EVERY ADMIN PAGE HAS ONE PLACE. The admin area used to be one strip of
- *    seventeen tabs; it is now four sections, and the strip shows only the
+ *    seventeen tabs; it is now five sections, and the strip shows only the
  *    section somebody is in. A page file under `src/app/(app)/admin/` that no
  *    section claims can only be reached by typing its address, and one that
  *    two claim lights two tabs. The tree is walked, so a page added next
@@ -334,6 +334,7 @@ const ENTRY_RULES = {
   "/admin/links": ["adminOnly", "The (admin-only) group admits admins."],
   "/committee/tasks": ["suCommitteeAndUp", "The committee layout admits admins and SU-recognised committee."],
   "/worksheets": ["committeeAndUp", "Every committee member drafts worksheets."],
+  "/admin/surveys": ["adminOnly", "The (admin-only) group admits admins, and only admins make, send and read surveys."],
   "/admin/site-status": ["adminOnly", "The (admin-only) group admits admins."],
 };
 

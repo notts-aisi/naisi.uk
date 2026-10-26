@@ -41,7 +41,7 @@ export type NavRule =
   | "courseAdmin"
   | "membershipAdmin";
 
-export type AdminSectionId = "people" | "programmes" | "publicity" | "site";
+export type AdminSectionId = "people" | "programmes" | "publicity" | "surveys" | "site";
 
 export type NavEntry = {
   label: string;
@@ -97,6 +97,8 @@ export const APP_NAV: NavGroup[] = [
       // Every committee member drafts worksheets: SU recognition gates the
       // task board, not this.
       { label: "Worksheets", href: "/worksheets", rule: "committeeAndUp" },
+      // Only admins make, send and read surveys (docs/surveys.md).
+      { label: "Surveys", href: "/admin/surveys", rule: "adminOnly", section: "surveys" },
     ],
   },
   {
@@ -195,10 +197,11 @@ const underBut = (href: string, not: string) => (p: string) => under(href)(p) &&
 /**
  * The admin area's pages, grouped as the sidebar reaches them.
  *
- * No address here is new and none has moved: this is the old flat strip
- * sorted into four sections, with two pages that used to be reached from
- * inside another page given a place of their own (the application forms, and
- * what the public /links page says).
+ * When the menu was regrouped (7 Oct 2026) no address was new and none moved:
+ * the old flat strip was sorted into four sections, with two pages that used
+ * to be reached from inside another page given a place of their own (the
+ * application forms, and what the public /links page says). Surveys came
+ * later, as a section of one page.
  *
  * Every admin address belongs to exactly ONE page here. Where one page's
  * address sits beneath another's (the application forms beneath the older
@@ -241,6 +244,13 @@ export const ADMIN_SECTIONS: AdminSection[] = [
       { label: "Short links", href: "/admin/links", match: underBut("/admin/links", "/admin/links/page-content"), visible: ADMIN_ONLY, ownHead: true },
       { label: "The /links page", href: "/admin/links/page-content", match: under("/admin/links/page-content"), visible: ADMIN_ONLY, ownHead: true },
       { label: "Source sheets", href: "/admin/sources", match: under("/admin/sources"), visible: ADMIN_ONLY, ownHead: true },
+    ],
+  },
+  {
+    id: "surveys",
+    label: "Surveys",
+    pages: [
+      { label: "Surveys", href: "/admin/surveys", match: under("/admin/surveys"), visible: ADMIN_ONLY, ownHead: true },
     ],
   },
   {

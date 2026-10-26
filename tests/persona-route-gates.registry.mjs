@@ -396,7 +396,7 @@ export const ROUTES = {
   "/api/admin/registrations/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -485,7 +485,7 @@ export const ROUTES = {
   "/api/admin/users/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -2004,6 +2004,69 @@ export const ROUTES = {
         "outsider has nothing to sync and is forbidden.",
     },
   },
+  "/api/surveys": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Making a programme's before survey is an admin's alone: view-as is refused first, then the session and " +
+        "the admin bar, then the body, so the admin meets the 400 that asks which programme, and nothing is read.",
+    },
+  },
+  "/api/surveys/[surveyId]/answer": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Answering a survey signed in, as the caller and nobody else: view-as first, then the session, then the " +
+        "body, so every signed-in persona meets the same 400 on an empty one. There is no uid in the request; a " +
+        "survey the caller was not sent is refused in one sentence once a body arrives.",
+    },
+  },
+  "/api/surveys/[surveyId]/close": {
+    POST: {
+      expect: adminOnly(404),
+      why: "Closing a survey early is an admin's alone; the admin is told the made-up survey is not there.",
+    },
+  },
+  "/api/surveys/[surveyId]/export": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "The spreadsheet of a survey's answers with names is an admin's alone, recorded before it is handed over; " +
+        "the admin is told the made-up survey is not there. A file, not JSON, so no fields.",
+    },
+  },
+  "/api/surveys/[surveyId]/questions": {
+    POST: {
+      expect: adminOnly(404),
+      why: "Changing a survey's words and questions before it is sent is an admin's alone; the admin is told the made-up survey is not there.",
+    },
+  },
+  "/api/surveys/[surveyId]/remind": {
+    POST: {
+      expect: adminOnly(400),
+      why: "Reminding by hand is an admin's alone; the admin meets the 400 for a press with no number on it.",
+    },
+  },
+  "/api/surveys/[surveyId]/send": {
+    POST: {
+      expect: adminOnly(400),
+      why: "Sending a survey is an admin's alone; the admin meets the 400 for a press with no audience and no number.",
+    },
+  },
+  "/api/surveys/[surveyId]/test": {
+    POST: {
+      expect: adminOnly(400),
+      why: "\"Send a test to me\" is an admin's alone, to their own address; the admin meets the 400 for no email named.",
+    },
+  },
+  "/api/surveys/answer": {
+    POST: {
+      expect: everyone(400),
+      why:
+        "Answering by a personal link, with no session: the secret in the body is the credential, after an " +
+        "in-memory rate limit, so every caller meets the same 400 for a body with no secret in it, signed in or not.",
+    },
+  },
   "/api/tasks/[id]/delete": {
     POST: {
       expect: signedIn(404),
@@ -2365,6 +2428,55 @@ export const PAGES = {
       "and the editor's own reads answer to the admin-only sourceSheets rule.",
   },
   "/(app)/admin/(admin-only)/subscriptions": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, the " +
+      "course and membership permission holders included, because the admin front door " +
+      "admits them and this inner gate is what keeps them out of the rest.",
+  },
+  "/(app)/admin/(admin-only)/surveys": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, the " +
+      "course and membership permission holders included, because the admin front door " +
+      "admits them and this inner gate is what keeps them out of the rest.",
+  },
+  "/(app)/admin/(admin-only)/surveys/[surveyId]": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard. The survey id changes " +
+      "nothing about the gate: an id that opens no survey is answered on the page in a sentence, never " +
+      "notFound, and a survey that is there sends the admin on to its Questions or Results tab.",
+  },
+  "/(app)/admin/(admin-only)/surveys/[surveyId]/answered": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard. The survey id changes " +
+      "nothing about the gate: an id that opens no survey is answered on the page in a sentence, never " +
+      "notFound.",
+  },
+  "/(app)/admin/(admin-only)/surveys/[surveyId]/questions": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard. The survey id changes " +
+      "nothing about the gate: an id that opens no survey is answered on the page in a sentence, never " +
+      "notFound.",
+  },
+  "/(app)/admin/(admin-only)/surveys/[surveyId]/results": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard. The survey id changes " +
+      "nothing about the gate: an id that opens no survey is answered on the page in a sentence, never " +
+      "notFound.",
+  },
+  "/(app)/admin/(admin-only)/surveys/[surveyId]/send": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard. The survey id changes " +
+      "nothing about the gate: an id that opens no survey is answered on the page in a sentence, never " +
+      "notFound.",
+  },
+  "/(app)/admin/(admin-only)/surveys/new": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
     why:
       "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, the " +
@@ -2775,6 +2887,12 @@ export const PAGES = {
       "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
       "missing, and the page sends anybody with no learner seat of their own on it, taking part or left " +
       "by themselves, to the run's home.",
+  },
+  "/(app)/learn/[runId]/survey/[surveyId]": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is missing, " +
+      "and the page shows a survey only to somebody it was sent to, on this run, answering everybody else in a sentence.",
   },
   "/(app)/learn/[runId]/weeks/[n]": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
