@@ -27,6 +27,11 @@
  *     form's own editor for somebody holding a place, sends anybody else
  *     (told, no place, signed out) away, and in a view-as session says so and
  *     reads nothing.
+ *  5. A LATE JOINER (st-late-phone): somebody offered a freed place after
+ *     decision day has nothing to change until they accept; once they have,
+ *     they change their week as anybody holding a place does, week 1 opens
+ *     and Home draws the card. Once the planned day has passed, the line
+ *     names no day: no record says when a late joiner hears.
  *
  * Real: the route, the loader and the writer, the board's facts and the
  * painted week's reading, the pages and the card, the store. Faked: the
@@ -43,6 +48,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { FIELD_VALUE_STUB } from "./lib/applicationsStore.mjs";
 import { walkSource } from "./lib/functionScan.mjs";
 import { GROUP, RUN, groupSeed, makeGroupWorld } from "./lib/groupPublishedWorld.mjs";
+import { freedSeed, loadRoutes, makeFreedWorld } from "./lib/freedPlacesWorld.mjs";
 import { AGI, ROUND, applicationPath, week } from "./lib/handoverWorld.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
 
@@ -297,5 +303,81 @@ describe("4. the page", () => {
     // Told: sent back too.
     await steps.publishes();
     assert.deepEqual(await open("amara"), { redirectedTo: `/applications/${ROUND}` });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. A late joiner: a freed place, accepted after decision day
+// ---------------------------------------------------------------------------
+
+describe("5. a late joiner (st-late-phone): a freed place accepted after decision day", () => {
+  /** Tue 27 Oct 2026, 12pm: inside the freed places window, the day before groups go out. */
+  const TUESDAY = new Date("2026-10-27T12:00:00Z");
+  const REPLY_BY = "2026-10-29";
+  const late = makeFreedWorld("__whenFreeLate");
+  let api = null;
+  let lateRoute = null;
+  let lateLib = null;
+  const lateSession = (uid) => late.sessionOf(uid);
+
+  beforeEach(async () => {
+    api ??= await loadRoutes(late);
+    lateRoute ??= await late.formRoute("application", "availability");
+    lateLib ??= {
+      free: await late.lib("applications", "status", "whenFree.ts"),
+      door: await late.lib("courses", "weekOne", "door.ts"),
+      cards: await late.lib("courses", "weekOne", "cards.ts"),
+    };
+    mock.timers.setTime(TUESDAY.getTime());
+    late.reset(freedSeed());
+    late.world.db.poke(`courseRuns/${RUN.agi}`, { groupsGoOutOn: "2026-10-28" });
+    // Week 1 as the run holds it, marked ready.
+    late.world.db.seed(`courseRuns/${RUN.agi}/weeks/w01`, {
+      ...groupSeed()[`courseRuns/${RUN.agi}/weeks/w01`],
+      ready: true,
+      readyAt: TUESDAY,
+      readyByUid: "claudia",
+    });
+  });
+
+  const offer = async () => {
+    await api.test("zach", { uid: "omar", groupId: GROUP.monday, replyBy: REPLY_BY });
+    const offered = await api.offer("zach", { picks: [{ uid: "omar", groupId: GROUP.monday }], replyBy: REPLY_BY, invitations: 1 });
+    assert.equal(offered.status, 200, JSON.stringify(offered.body));
+  };
+
+  test("offered and not answered: nothing to change, no week 1 and no card", async () => {
+    await offer();
+    assert.equal(await lateLib.free.loadWhenFree(late.world.db, ROUND, "omar", new Date()), null);
+    const answer = await late.call("omar", lateRoute.PUT, { roundId: ROUND }, { body: { days: MONDAY.days } });
+    assert.deepEqual([answer.status, answer.body.error], [409, lateLib.free.WHEN_FREE_SHUT_PLACE]);
+    assert.equal((await lateLib.door.weekOneDoorFor(late.world.courseDb, lateSession("omar"), RUN.agi)).open, false);
+    assert.deepEqual(await lateLib.cards.beforeGroupsCardsFor(late.world.courseDb, lateSession("omar"), new Date()), []);
+  });
+
+  test("accepted: the card says the day groups go out, the change is written, and week 1 is open with Home's card", async () => {
+    await offer();
+    const answered = await api.reply("omar", { reply: "accept-invitation" });
+    assert.equal(answered.status, 200, JSON.stringify(answered.body));
+
+    const view = await lateLib.free.loadWhenFree(late.world.db, ROUND, "omar", new Date());
+    assert.equal(view.line, "We use this to put you in a group. You can change it until we email your group on Wed 28 Oct.");
+    const changed = await late.call("omar", lateRoute.PUT, { roundId: ROUND }, { body: { days: MONDAY.days } });
+    assert.equal(changed.status, 200, JSON.stringify(changed.body));
+    assert.deepEqual(late.world.db.read(applicationPath("omar")).sent.availability.days, MONDAY.days);
+
+    const door = await lateLib.door.weekOneDoorFor(late.world.courseDb, lateSession("omar"), RUN.agi);
+    assert.equal(door.open, true);
+    const [card] = await lateLib.cards.beforeGroupsCardsFor(late.world.courseDb, lateSession("omar"), new Date());
+    assert.equal(card.title, lateLib.cards.ON_ITS_WAY);
+    assert.match(card.body, /by Wed 28 Oct\./);
+    assert.equal(card.weekOne?.href, `/learn/${RUN.agi}/weeks/1`);
+  });
+
+  test("once the planned day has passed, the line names no day: nothing says when a late joiner hears", async () => {
+    await offer();
+    await api.reply("omar", { reply: "accept-invitation" });
+    mock.timers.setTime(new Date("2026-10-29T12:00:00Z").getTime());
+    assert.equal((await lateLib.free.loadWhenFree(late.world.db, ROUND, "omar", new Date())).line, "You can change it until we email your group.");
   });
 });
