@@ -19,7 +19,6 @@ import {
   dayIn,
   fromWords,
   lateWords,
-  namesWhenWords,
   pageEyebrow,
   pageHeading,
   saidNoText,
@@ -74,8 +73,12 @@ export type AnswerPageModel =
       state: AnswerState;
       /** What is said in place of the buttons once they cannot be pressed, or after an answer. */
       closedText: string | null;
-      /** "If you say yes, you’ll see your group’s names when groups go out." Null once they have. */
-      namesWhen: string | null;
+      /**
+       * The day groups go out, for the board's "If you say yes, …" sentence
+       * (`ifYesWords`). Null while no record holds it, which is today for
+       * every run: the sentence is then said without a day.
+       */
+      goOutDay: string | null;
       /** "Please answer by Wed 28 Oct, 12pm." */
       answerBy: string;
       groupName: string;
@@ -155,9 +158,8 @@ export async function loadAnswerPage(
     training: trainingSaid ? { line: trainingLine(trainingSaid), text: trainingText(ask.leadName) } : null,
     state,
     closedText: closedText[state],
-    // The run holds no day for groups going out yet, so the sentence says it
-    // without one; once groups have gone out it is no longer said.
-    namesWhen: namesWhenWords(null, groupsOut),
+    // No record holds the day groups go out yet (C19).
+    goOutDay: null,
     answerBy: answerByWords(replyDay, replyTime),
     groupName,
     groupHref: `/learn/${encodeURIComponent(ask.runId)}/group/${encodeURIComponent(ask.groupId)}`,

@@ -477,17 +477,17 @@ export const YES = "Yes, I’ll facilitate";
 export const NO = "I can’t this term";
 
 /**
- * "If you say yes, you’ll see your group’s names when groups go out on Wed 28
- * Oct." The day comes from the run's own record of when groups go out; until
- * a run holds one, the sentence says it without a day, as the facilitator's
- * group page does (`NAMES_WHEN_GROUPS_GO_OUT`). Null once groups have gone
- * out, when it would no longer be true.
+ * The board's "If you say yes, …" sentence, built from the one sentence the
+ * facilitator's pages share for when names are shown (`NAMES_WHEN_GROUPS_GO_OUT`
+ * in `src/features/courses/groupNamesWords.ts`, handed in by the page, so the
+ * words are written once). The day comes from the run's own record of when
+ * groups go out; until a run holds one, it is said without a day, as the
+ * facilitator's group page says it.
  */
-export function namesWhenWords(goOutDay: string | null, gone: boolean): string | null {
-  if (gone) return null;
-  return goOutDay
-    ? `If you say yes, you’ll see your group’s names when groups go out on ${goOutDay}.`
-    : "If you say yes, you’ll see your group’s names when groups go out.";
+export function ifYesWords(shared: string, goOutDay: string | null): string {
+  const body = shared.trim().replace(/\.$/, "");
+  const lowered = body.charAt(0).toLowerCase() + body.slice(1);
+  return `If you say yes, ${lowered}${goOutDay ? ` on ${goOutDay}` : ""}.`;
 }
 
 /** "Please answer by Wed 28 Oct, 12pm." */

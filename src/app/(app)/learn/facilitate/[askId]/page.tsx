@@ -9,6 +9,7 @@ import {
   PAGE_FIELDS,
   SAID_NO_HEADING,
   TRAINING,
+  ifYesWords,
   saidYesHeading,
 } from "@/lib/courses/facilitatorAsks/words";
 import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
@@ -95,7 +96,12 @@ export default async function FacilitatePage({ params }: { params: Promise<{ ask
       {open ? (
         <>
           <AskAnswer askId={model.askId} />
-          <p className={styles.foot}>{[model.namesWhen, model.answerBy].filter(Boolean).join(" ")}</p>
+          <p className={styles.foot}>
+            {/* Once groups have gone out, there is no "when" left to say. */}
+            {[model.groupsOut ? null : ifYesWords(NAMES_WHEN_GROUPS_GO_OUT, model.goOutDay), model.answerBy]
+              .filter(Boolean)
+              .join(" ")}
+          </p>
         </>
       ) : model.state === "yes" ? (
         model.groupsOut ? (
