@@ -25,7 +25,7 @@ import styles from "./ProgrammeOverview.module.css";
  *
  * ON A PHONE (en-finish draws no phone board) the same table is drawn a card
  * a row: the person and their Finished switch side by side, and their group,
- * "came to" and exercises under the name, each with its column's word, so no
+ * "came to" and written answers under the name, each with its column's word, so no
  * switch is ever behind a sideways scroll. The stylesheet does that from the
  * cells' own classes; the words and the controls are the laptop table's.
  */
@@ -175,7 +175,7 @@ export default function WhoFinished({
                 Came to
               </th>
               <th scope="col" className={`${styles.wfTh} ${styles.wfColCount}`}>
-                Exercises
+                Written answers
               </th>
               <th scope="col" className={`${styles.wfTh} ${styles.wfColFinished}`}>
                 Finished
