@@ -1515,6 +1515,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
   },
+  "/api/surveys/term/totals": {
+    reason:
+      "Surveys: This term in numbers as a file of totals; tests/surveys-term-numbers-file.test.mjs asks for it as every kind of caller, reads it line by line against the page's own view, and holds it to naming nobody and writing nothing.",
+    coverWhen:
+      "When an end-to-end spec downloads a file anywhere on the site, so the download path is driven in a browser once for all of them.",
+  },
   "/api/surveys/[surveyId]/answer": {
     reason:
       "Surveys: answering signed in; tests/surveys-routes.test.mjs answers as the person sent it and is refused for everybody else and during view-as.",
@@ -1724,6 +1730,12 @@ const NOT_COVERED = {
       "Surveys: New survey; its route is executed by tests/surveys-routes.test.mjs, and the page is a form over it.",
     coverWhen:
       "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
+  "/(app)/admin/(admin-only)/surveys/term": {
+    reason:
+      "Surveys: This term in numbers; tests/surveys-term-numbers-page.test.mjs renders the real page as every kind of caller over a term with events, check-ins, an event's survey and two programmes, and tests/surveys-term-numbers.test.mjs holds each number to its own page's reader.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term whose events have check-ins and whose programmes have sent their surveys, so a spec can open the page as an admin.",
   },
   "/(app)/admin/(admin-only)/surveys/[surveyId]": {
     reason:
