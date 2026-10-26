@@ -39,14 +39,16 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ACCESS, AGI, ANSWER, MONDAY, ROUND, RUN, SAM_SAID, makePeopleWorld, peopleSeed } from "./lib/peopleWorld.mjs";
+import { ACCESS, AGI, ANSWER, COURSE, MONDAY, ROUND, RUN, SAM_SAID, TOLD, makePeopleWorld, peopleSeed } from "./lib/peopleWorld.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
 mock.timers.enable({ apis: ["Date"], now: MONDAY });
 
 const w = await makePeopleWorld("__peopleTabSuite");
-const { world, at, reset, peoplePage, viewOf, layout, loadTs } = w;
+const { world, at, reset, peoplePage, viewOf, layout, loadTs, call } = w;
+/** The join's real routes: hand-over, placements, Publish, Remove. */
+const { routes: joinRoutes } = w.join;
 
 const filters = await loadTs(join("lib", "applications", "people", "filters.ts"));
 const words = await loadTs(join("lib", "applications", "people", "words.ts"));
@@ -118,14 +120,15 @@ describe("1. who opens the People tab", () => {
   });
 
   test("the tab is a link, with how many hold a place, for the lead and an admin; drawn and not a link for a reviewer", async () => {
+    // Six: Sam left the run and Callum was taken off it, and each gave the form's place back.
     for (const who of ["claudia", "zach"]) {
       const { html, text } = await layout(who);
       assert.match(
         html,
-        new RegExp(`<a href="${PROGRAMME_PATH}/people" class="tab "[^>]*>People<span class="tabCount">7</span></a>`),
+        new RegExp(`<a href="${PROGRAMME_PATH}/people" class="tab "[^>]*>People<span class="tabCount">6</span></a>`),
         `${who}'s People tab`,
       );
-      assert.match(text, /Applications \d+ People 7 Groups/, `${who}'s tabs, in the board's order`);
+      assert.match(text, /Applications \d+ People 6 Groups/, `${who}'s tabs, in the board's order`);
     }
     const reviewer = await layout("lloyd");
     assert.match(reviewer.html, /<span class="tab tabPending" aria-disabled="true" title="Not built yet">People<\/span>/);
@@ -236,7 +239,7 @@ describe("2. nothing a lead may not read", () => {
       const { view } = await open(who);
       assert.equal(rowOf(view, "rahul"), null);
       assert.equal(rowOf(view, "sofia"), null);
-      assert.equal(view.rows.filter((row) => row.category === "holding").length, 7);
+      assert.equal(view.rows.filter((row) => row.category === "holding").length, 6);
     }
   });
 
@@ -264,20 +267,22 @@ describe("3. one count", () => {
       // Everyone is who holds a place or gave it back; somebody invited is neither.
       assert.equal(view.counts.everyone, holding + view.counts["gave-back"]);
     }
+    // Callum said coming and was then taken off the run, which gave the
+    // form's place back: one fewer coming, one more who gave a place back.
     assert.deepEqual((await open("claudia")).view.counts, {
       everyone: 9,
-      coming: 4,
+      coming: 3,
       "havent-said": 3,
       "not-said-free": 1,
-      "gave-back": 2,
+      "gave-back": 3,
       invited: 1,
     });
     assert.deepEqual((await open("zach")).view.counts, {
       everyone: 10,
-      coming: 4,
+      coming: 3,
       "havent-said": 3,
       "not-said-free": 1,
-      "gave-back": 3,
+      "gave-back": 4,
       invited: 2,
     });
   });
@@ -288,7 +293,7 @@ describe("3. one count", () => {
     const fromHolders = placeHoldersOn(form, AGI, applications.filter(isInTerm), decided).length;
     const fromTally = (await loadTermTally(world.db, form)).programmes[AGI].placed;
     const fromTab = await countPlaceHolders(world.db, form, AGI);
-    assert.equal(fromHolders, 7);
+    assert.equal(fromHolders, 6);
     assert.equal(fromTally, fromHolders);
     assert.equal(fromTab, fromHolders);
     for (const who of ["claudia", "zach"]) {
@@ -296,8 +301,43 @@ describe("3. one count", () => {
       assert.equal(view.rows.filter((row) => row.category === "holding").length, fromHolders);
       assert.ok(view.sentence.startsWith(`${fromHolders} hold a place`), view.sentence);
     }
-    assert.equal((await open("claudia")).view.sentence, "7 hold a place; 2 gave theirs back.");
-    assert.equal((await open("zach")).view.sentence, "7 hold a place; 3 gave theirs back.");
+    assert.equal((await open("claudia")).view.sentence, "6 hold a place; 3 gave theirs back.");
+    assert.equal((await open("zach")).view.sentence, "6 hold a place; 4 gave theirs back.");
+  });
+
+  test("staff taking somebody off the run moves them to Gave their place back at once, and every count with them", async () => {
+    // Amara's row on the run's list, as the hand-over writes it, so Remove
+    // finds the place on the form the seat came from and gives it back.
+    world.db.seed(`courseApplications/${RUN.agi}__amara`, {
+      runId: RUN.agi,
+      courseId: COURSE.agi,
+      uid: "amara",
+      displayName: "Amara Okafor",
+      status: "accepted",
+      fromForm: { roundId: ROUND, programmeId: AGI },
+      createdAt: TOLD,
+      updatedAt: TOLD,
+    });
+    const before = (await open("claudia")).view;
+    assert.equal(rowOf(before, "amara").category, "holding");
+    // The programme's lead presses Remove, through the real route.
+    const removed = await call("claudia", joinRoutes.remove.POST, { runId: RUN.agi, uid: "amara" }, { course: true });
+    assert.equal(removed.status, 200, JSON.stringify(removed.body));
+    const after = (await open("claudia")).view;
+    const amara = rowOf(after, "amara");
+    assert.deepEqual(
+      [amara.category, amara.group, words.comingWords(amara.coming), words.statusWords(amara.status), amara.status.on],
+      ["gave-back", null, "No", "Left the programme", "Mon 26 Oct"],
+    );
+    assert.deepEqual(after.counts, {
+      ...before.counts,
+      coming: before.counts.coming - 1,
+      "gave-back": before.counts["gave-back"] + 1,
+    });
+    assert.equal(after.sentence, "5 hold a place; 4 gave theirs back.");
+    // The tab's number is the hand-over's test, which agrees at once.
+    assert.equal(await countPlaceHolders(world.db, await loadForm(world.db, ROUND), AGI), 5);
+    assert.match((await layout("claudia")).html, /People<span class="tabCount">5<\/span>/);
   });
 
   test("the table draws a filter's rows by the same function, twelve at a time", () => {
@@ -354,11 +394,12 @@ describe("4. every value from records", () => {
       // Placed in Group A; sent the form with no week painted.
       bea: ["Group A", "Yes, Sun 25 Oct", "Not said", "Holding a place", null, null],
       zach: ["Group A", "Not yet", "Fits B", "Holding a place", null, null],
-      // Taken off the run by staff: the form's place stands, and the run says Callum left.
-      callum: [words.NOT_IN_A_GROUP, "Yes, Sat 24 Oct", "Fits B", "Left the programme", null, "Tue 3 Nov"],
       dev: [words.NOT_IN_A_GROUP, "Not yet", "Fits C", "Holding a place", null, null],
       // An hour on Tuesday is less than any group's two-hour session.
       tariq: [words.NOT_IN_A_GROUP, "Not yet", "Fits none of the 3 times", "Holding a place", null, null],
+      // Taken off the run by staff, which gave the form's place back: under
+      // Gave their place back, and the run says Callum left, and when.
+      callum: [words.NOT_IN_A_GROUP, "No", "Fits B", "Left the programme", null, "Tue 3 Nov"],
       nina: [words.NOT_IN_A_GROUP, "No", "Fits B", "Gave their place back", "The times don’t work for me", "Fri 23 Oct"],
       // Left the run after Publish: the day, and not what Sam said on leaving,
       // which the programme's Overview reads out.
@@ -369,7 +410,7 @@ describe("4. every value from records", () => {
     // order, then not), then who gave a place back, then who is invited.
     assert.deepEqual(
       view.rows.map((row) => row.uid),
-      ["amara", "kofi", "bea", "zach", "callum", "dev", "tariq", "nina", "sam", "ruth"],
+      ["amara", "kofi", "bea", "zach", "dev", "tariq", "callum", "nina", "sam", "ruth"],
     );
     assert.equal(rowOf(view, "amara").detail, "BA Philosophy · Graduating 2028");
   });
@@ -398,7 +439,7 @@ describe("4. every value from records", () => {
     }
     assert.match(html, /role="group" aria-label="Show"/);
     for (const words_ of [
-      "7 hold a place; 2 gave theirs back.",
+      "6 hold a place; 3 gave theirs back.",
       "Leads see names, degrees and replies. Email addresses and access requirements stay with admins.",
       "Everyone who holds a place or gave it back",
       "Showing 9 of 9",

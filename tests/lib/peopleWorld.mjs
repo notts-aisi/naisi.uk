@@ -23,7 +23,8 @@
  *    Kofi did not rank; accepted on Tue 27 Oct, so holds a place and has
  *    said so. Free Tuesday evenings.
  *  - callum: holds a place, said coming; in the People seed taken off the
- *    run by staff on Tue 3 Nov (the place on the form stands).
+ *    run by staff on Tue 3 Nov, which gave the form's place back as leaving
+ *    does, with no reason on the application.
  *  - sam: holds a place, no reply; in the People seed Sam left the run on Mon
  *    2 Nov, saying "Too much on this term." (leaving gives the form's place
  *    back with no reason on the application).
@@ -285,7 +286,8 @@ export function termSeed(over = {}) {
  * The People tab's world: the term, with seats on the run. Amara is in Group
  * B and told; Kofi is in Group B and not told yet; Dev and Tariq are in no
  * group; Sam left the run on Mon 2 Nov, and with it the form's place; Callum
- * was taken off the run by staff on Tue 3 Nov.
+ * was taken off the run by staff on Tue 3 Nov, and with it the form's place
+ * too.
  */
 export function peopleSeed(over = {}) {
   const seed = termSeed();
@@ -306,11 +308,18 @@ export function peopleSeed(over = {}) {
   samApplication.withdrawnAt = samLeft;
   samApplication.attendance = { answer: "cant-make-it", answeredAt: samLeft };
   // Callum was taken off by staff: removed, the group cleared, the day kept.
+  // Remove gives the place on the form back in the same act, writing what
+  // "I can’t make it" writes, with no reason on the application.
+  const callumRemoved = new Date("2026-11-03T09:00:00Z");
   seed[`courseEnrolments/${RUN.agi}__callum`] = seat("callum", null, {
     status: "removed",
-    droppedOutAt: new Date("2026-11-03T09:00:00Z"),
+    droppedOutAt: callumRemoved,
     allocatedEmailAt: null,
   });
+  const callumApplication = seed[applicationPath("callum")];
+  callumApplication.status = "withdrawn";
+  callumApplication.withdrawnAt = callumRemoved;
+  callumApplication.attendance = { answer: "cant-make-it", answeredAt: callumRemoved };
   return { ...seed, ...over };
 }
 
