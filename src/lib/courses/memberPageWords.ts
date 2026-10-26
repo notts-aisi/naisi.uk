@@ -483,8 +483,8 @@ export function facilitatorTicksSeenByWords(leadFirstName: string | null): strin
 /** A facilitator's own private note on a reading: nobody in the group reads it. */
 export const PRIVATE_NOTE_HINT_FACILITATOR = "Only admins see this. It’s never read out.";
 
-/** "Rahul, Sofia, Claudia and admins", or "Your facilitators, Claudia and admins". */
-function readersWords(facilitatorFirstNames: readonly string[], leadFirstName: string | null): string {
+/** "Rahul, Sofia, Claudia and admins", or "Your facilitators, Claudia and admins". Start here's line says it too. */
+export function readersWords(facilitatorFirstNames: readonly string[], leadFirstName: string | null): string {
   const people =
     facilitatorFirstNames.length > 0 ? [...facilitatorFirstNames] : ["Your facilitators"];
   if (leadFirstName && leadFirstName.trim() && !people.includes(leadFirstName.trim())) people.push(leadFirstName.trim());

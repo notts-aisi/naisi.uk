@@ -1291,7 +1291,8 @@ function tooMany(where: string, what: string, count: number, max: number, out: s
   if (count > max) out.push(`${where} has ${count} ${what}; the most is ${max}.`);
 }
 
-function proseProblems(where: string, prose: Prose, out: string[], max: number = L.proseChars): void {
+/** What stops some prose being stored, against the caps every prose field keeps (a guide page's text is held to them too). */
+export function proseProblems(where: string, prose: Prose, out: string[], max: number = L.proseChars): void {
   tooMany(where, "paragraphs, lists, tables and code blocks", prose.length, L.maxProseParagraphs, out);
   for (const p of prose) {
     if (p.type === "ul" || p.type === "ol") tooMany(where, "items in a list", p.items.length, L.maxProseListItems, out);
@@ -1310,7 +1311,8 @@ function proseProblems(where: string, prose: Prose, out: string[], max: number =
   if (chars > max) out.push(`${where}: the text is ${chars} characters; the most is ${max}.`);
 }
 
-function runsProblems(where: string, what: string, runs: readonly Run[], max: number, out: string[]): void {
+/** What stops a line of runs being stored: its length against `max`, and its changes of style. */
+export function runsProblems(where: string, what: string, runs: readonly Run[], max: number, out: string[]): void {
   const text = runsText(runs);
   if (text.length > max) out.push(`${where}: ${what} is ${text.length} characters; the most is ${max}.`);
   if (runs.length > L.maxRuns) out.push(`${where}: ${what} has too many changes of style.`);

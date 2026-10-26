@@ -15,6 +15,7 @@ import {
   templateWeekFields,
 } from "@/lib/firestore/courseTemplates";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { runGuideFields } from "@/lib/courses/guide/model";
 
 /**
  * Apply a frozen snapshot's curriculum INTO a run — the "spawn next year's
@@ -343,9 +344,15 @@ export async function POST(
       // firestore.rules pins these with a `''` default and a stored null would
       // compare unequal to it, wedging every legitimate non-admin run edit
       // thereafter (see CourseRunDoc).
+      //
+      // The programme's Start here and Glossary travel with the weeks
+      // (`runGuideFields`, the one copy of them): each the saved version
+      // holds replaces the run's; one it does not hold (a version saved
+      // before they existed) leaves the run's own as it is.
       tx.update(runRef, {
         templateId: template.id,
         templateLabel: template.label,
+        ...runGuideFields(templateSnap.data()),
         updatedAt: FieldValue.serverTimestamp(),
       });
 

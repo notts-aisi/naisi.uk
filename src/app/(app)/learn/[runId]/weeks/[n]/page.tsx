@@ -10,6 +10,7 @@ import { isOpenAt, weekOpening } from "@/lib/courses/weekOpening";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { runSharesGroupNotes } from "@/lib/firestore/courseGroupSharedNotes";
 import { weekDocId } from "@/lib/firestore/courses";
+import { guideLinksOf } from "@/lib/courses/guide/load";
 
 /**
  * Server shell for the member week page. It decides whether this viewer
@@ -71,7 +72,10 @@ export default async function WeekPage({
   // session and no group notes. What it draws is the overview's week 1 alone.
   if (!access.canLearn && access.beforeGroups) {
     if (n !== "1") redirect(`/learn/${encodeURIComponent(runId)}/weeks/1`);
-    return <WeekView runId={runId} weekNumber={1} uid={access.user.uid} viewerRole="learner" sharedNotes={null} />;
+    // st-week1-phone draws "Start here · Glossary" for exactly this reader.
+    const holderDb = getAdminDb();
+    const holderGuide = holderDb ? await guideLinksOf(holderDb, access.run.id).catch(() => null) : null;
+    return <WeekView runId={runId} weekNumber={1} uid={access.user.uid} viewerRole="learner" sharedNotes={null} {...(holderGuide ? { guide: holderGuide } : {})} />;
   }
 
   // A positive int inside the plan's bounds; anything else (including "03",
@@ -120,13 +124,22 @@ export default async function WeekPage({
     }
   }
 
+  // The programme's Start here and Glossary, linked under a block week's
+  // title when the run has either; nothing is handed for a run with neither.
+  const guideDb = getAdminDb();
+  const [sharedNotes, guide] = await Promise.all([
+    sharedNotesFor(access),
+    guideDb ? guideLinksOf(guideDb, access.run.id).catch(() => null) : Promise.resolve(null),
+  ]);
+
   return (
     <WeekView
       runId={runId}
       weekNumber={weekNumber}
       uid={access.user.uid}
       viewerRole={viewerRole}
-      sharedNotes={await sharedNotesFor(access)}
+      sharedNotes={sharedNotes}
+      {...(guide ? { guide } : {})}
     />
   );
 }

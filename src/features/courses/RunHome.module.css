@@ -260,6 +260,56 @@
   transform: translateX(3px);
 }
 
+/* ---- About this course (wk-programme): Start here and the Glossary ---- */
+
+.aboutList {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aboutList > li + li {
+  border-top: 1px solid var(--color-border);
+}
+
+.aboutLink {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  min-height: 44px;
+  padding: 12px 0;
+  text-decoration: none;
+}
+
+.aboutLink:focus-visible {
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--focus-ring);
+}
+
+.aboutName {
+  display: block;
+  font-weight: 600;
+  color: var(--color-accent-text);
+}
+
+.aboutLine {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-sm);
+  color: var(--color-text-soft);
+}
+
+.aboutArrow {
+  color: var(--color-accent-text);
+  transition: transform var(--dur-quick) var(--ease-naisi);
+}
+
+.aboutLink:hover .aboutArrow {
+  transform: translateX(3px);
+}
+
 /* ---- Loading ---- */
 
 /* Mirrors WeekRail.module.css's `.full .canvas` padding (2.25rem / 1.75rem)

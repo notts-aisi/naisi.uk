@@ -2045,6 +2045,16 @@ service cloud.firestore {
             == resource.data.get('weekPlan', []);
       }
 
+      // A programme's Start here and Glossary are the server's, for every writer,
+      // admins included: the guide route holds each to its check
+      // (src/lib/courses/guide/model.ts), nested lists a rule cannot walk, and
+      // every copy of a run's curriculum goes through Admin SDK routes.
+      function runGuideUntouched() {
+        return resource == null
+          ? !request.resource.data.keys().hasAny(['startHere', 'glossary'])
+          : !request.resource.data.diff(resource.data).affectedKeys().hasAny(['startHere', 'glossary']);
+      }
+
       // Content caps shared by create and update. `startDate` must be a
       // civil "YYYY-MM-DD" — the week maths (weekPlan.ts) runs on civil
       // dates so DST can't shift week boundaries, and a malformed date here
@@ -2201,7 +2211,8 @@ service cloud.firestore {
         && request.resource.data.get('streams', []).size() == 0
         && request.resource.data.get('enrolledCount', 0) == 0
         && request.resource.data.get('submissionExerciseRef', {}) == {}
-        && runContentOk();
+        && runContentOk()
+        && runGuideUntouched();
 
       // Status moves (applications-open, running, cancelled, ...) change what
       // the world sees and what the apply route accepts — approve-gated, same
@@ -2209,7 +2220,7 @@ service cloud.firestore {
       // label, the dates, the application form, and the week plan while the
       // run is still a draft) but is NOT an approver, and once the run is out
       // of draft the plan itself is pinned by weekPlanLockRespected().
-      allow update: if isAdmin()
+      allow update: if runGuideUntouched() && (isAdmin()
         || (
           (canApproveCourse() || isRunTrackLead()
             || (canDraftCourse() && isOwnRun()))
@@ -2228,7 +2239,7 @@ service cloud.firestore {
           // V3 W1 PR5: and even an approver may only make a move the table
           // allows. See runStatusMoveAllowed().
           && runStatusMoveAllowed()
-        );
+        ));
 
       allow delete: if false;
 

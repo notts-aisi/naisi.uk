@@ -19,6 +19,8 @@ import SessionTicket from "./weekly/SessionTicket";
 import ThisWeekCard from "./weekly/ThisWeekCard";
 import WeekList from "./weekly/WeekList";
 import YourGroup from "./weekly/YourGroup";
+import AboutThisCourse from "./AboutThisCourse";
+import type { GuideLinks } from "@/lib/courses/guide/model";
 import { useMaterialTicks } from "./weekly/useMaterialTicks";
 import { weekRowsOf } from "./weekly/weekRows";
 import { LEAVE_LINK } from "@/lib/courses/leavingWords";
@@ -102,6 +104,12 @@ type Props = {
   canLeave?: boolean;
   /** The session's own uid, from the server gate: the ticks' row, and "(you)" in the group. */
   uid?: string | null;
+  /**
+   * The programme's Start here and Glossary, from the server page: "About
+   * this course" (wk-programme) links each the run has, and is not drawn
+   * when it has neither.
+   */
+  guide?: GuideLinks | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -303,6 +311,7 @@ export default function RunHome({
   canEmailCohort,
   pitching = null,
   canLeave = false,
+  guide = null,
   uid = null,
 }: Props) {
   const { data, error, reload } = useRunOverview(runId);
@@ -590,6 +599,9 @@ export default function RunHome({
 
           {!beforeStart && yourGroup}
           {beforeStart && weekList}
+
+          {/* Start here and the Glossary (wk-programme), after the group. */}
+          <AboutThisCourse runId={runId} links={guide} className={weekly.order7} />
 
           {/* One card per group they facilitate. The cohort-wide links ride on
               the FIRST card only, because they address the run and not a room. */}

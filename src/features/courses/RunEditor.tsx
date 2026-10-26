@@ -56,6 +56,7 @@ import {
 import GroupEditor, { NewGroupForm } from "./GroupEditor";
 import PitchSettingsEditor from "./pitching/PitchSettingsEditor";
 import RolePickers from "./RolePickers";
+import GuideLoader from "./GuideLoader";
 import RunDangerZone from "./RunDangerZone";
 import SaveTemplateDialog from "./SaveTemplateDialog";
 import TemplatePicker, { type TemplatePickerGroup } from "./TemplatePicker";
@@ -1363,6 +1364,17 @@ export default function RunEditor({ courseId, runId }: Props) {
           </div>
         </div>
       </Card>
+
+      {/* ---- Start here and the Glossary ----
+          The programme's two pages of the guide that are not weeks, beside
+          its weeks: each loaded by pasting the guide's Markdown, admins only
+          as a week is (the route refuses everybody else). */}
+      {isAdmin && (
+        <>
+          <GuideLoader runId={runId} doc="start-here" />
+          <GuideLoader runId={runId} doc="glossary" />
+        </>
+      )}
 
       {/* ---- Pitching week ----
           The run's half of an incubator's pitching week: how many pitches a

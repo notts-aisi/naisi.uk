@@ -384,3 +384,89 @@ written into a week's blocks or its Markdown: it is the course's facilitator
 guide (`docs/course-facilitator-guide.md`), and the loader refuses a paste
 whose title or headings say it is facilitator material. Start here and the
 Glossary are pages of their own, not blocks.
+
+## Start here and the Glossary
+
+A programme's Start here and its Glossary are the two pages of the fellow
+guide that are not weeks. Each is a document of its own, read from the
+guide's Markdown with the same reading of text as a week (runs, links,
+lists, tables, code), with caps of its own, and loaded by an admin from the
+run's editor as a week is (paste, Read it, what we found, things to check,
+Save, Copy as Markdown).
+
+| Where | What it does |
+| --- | --- |
+| `src/lib/courses/guide/model.ts` | The two documents, the read side, the check, and `runGuideFields`, the one copy of them |
+| `src/lib/courses/guide/limits.ts` | Their caps, each sized from the real guides with room |
+| `src/lib/courses/guide/markdown.ts` | Markdown to each document and back, what was found and what to check |
+
+Both are stored on the run's own document (`startHere`, `glossary`), beside
+its weeks, and only the server writes them. Every copy of a run's
+curriculum carries them through `runGuideFields`: a copy forward (each kept
+where the target has its own, unless it overwrites), a template saved from
+the run, and a template applied to a run (each the template holds replaces
+the run's; one it does not hold leaves the run's). They go with the run's
+document. Neither is public: the pages are `/learn/<run>/start-here` and
+`/learn/<run>/glossary`, open to exactly the people the run's week 1 opens
+to.
+
+### Start here
+
+```
+# Lighthouse Fellowship: fellow guide
+
+Mar 3, 2026
+
+Four weeks, one evening a week by the sea.
+
+## A week, step by step
+
+| Part | What you do | Time |
+| --- | --- | --- |
+| Before the evening | Readings and a short film | About an hour |
+
+**Reflections.** Jot a few lines for each stop as you go.
+
+### Support
+
+If the sea is weighing on you, tell your facilitator.
+
+Adapted from [Example Harbour's course](https://example.org/course), redesigned for a group on the rocks.
+```
+
+- The title line is kept for the copy and never drawn: the page is "Start
+  here". A line holding only a date straight under it is the guide's
+  byline, left out and said.
+- The paragraphs before the first `##` are the opening. Each `##` or `###`
+  heading starts a section, its text kept as written: lists, numbered
+  lists, tables (a rubric whose first heading is empty included) and code.
+  A deeper heading becomes a bold line, and says so. A section headed
+  "Support" is drawn in a box of its own.
+- The page puts its line about who reads a person's reflections (their
+  group's facilitators and the programme's lead, named from records) under
+  the first paragraph that opens with a bold "Reflections". The loader says
+  when no paragraph does.
+- The document's last paragraph, when its first words are "Adapted from", is the
+  credit line, drawn at the foot.
+
+### The Glossary
+
+```
+# Glossary
+
+The words you'll meet most, in plain words.
+
+| Term | In plain words |
+| --- | --- |
+| Beam | The light a lamp throws, turning over the water. |
+| Fresnel lens | Rings of glass that bend the light into one [narrow beam](https://example.com/fresnel). |
+```
+
+- One table of two columns: each row a term and what it means, kept in the
+  table's order. A definition is a line of rich text with its links. The
+  column headings are kept for the copy and not drawn.
+- The text before the table is the opening; any text after it is drawn
+  after the terms.
+- No table, more than one, a third column, a row with no term or a term
+  with no definition stops a save. A term in the table twice is a thing to
+  check.

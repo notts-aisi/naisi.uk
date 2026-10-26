@@ -13,6 +13,7 @@ import {
 } from "@/lib/firestore/courses";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { weekBlocksField } from "@/lib/courses/weekBlocks/model";
+import { RUN_GUIDE_FIELDS, runGuideFields } from "@/lib/courses/guide/model";
 
 /**
  * Copy-forward: clone one run's `weeks` subcollection into another run of the
@@ -59,6 +60,11 @@ import { weekBlocksField } from "@/lib/courses/weekBlocks/model";
  *  - **Idempotent.** A week id that already exists in the target is skipped
  *    unless the caller asks to overwrite, so re-running the copy after
  *    authoring three weeks by hand doesn't wipe them.
+ *
+ * The programme's guide travels with its weeks: the source run's Start here
+ * and Glossary (`runGuideFields`, the one copy of them) go onto the target
+ * run on the same terms, each kept when the target already has its own
+ * unless the caller asks to overwrite.
  */
 
 /**
@@ -222,5 +228,15 @@ export async function POST(
     await batch.commit();
   }
 
-  return NextResponse.json({ ok: true, created: pending.length, skipped });
+  // The programme's Start here and Glossary, on the weeks' terms: each the
+  // source has goes onto the target, unless the target has its own and the
+  // caller did not ask to overwrite.
+  const sourceGuide = runGuideFields(source);
+  const targetGuide = runGuideFields(target);
+  const guide = RUN_GUIDE_FIELDS.filter((field) => sourceGuide[field] !== undefined && (overwrite || targetGuide[field] === undefined));
+  if (guide.length > 0) {
+    await runsCol.doc(runId).update(Object.fromEntries(guide.map((field) => [field, sourceGuide[field]])));
+  }
+
+  return NextResponse.json({ ok: true, created: pending.length, skipped, guide });
 }

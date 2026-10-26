@@ -1669,6 +1669,27 @@ export const ROUTES = {
         "they do not staff (admin, track lead, or the lead of the programme that names it) is a 403.",
     },
   },
+  "/api/courses/runs/[runId]/guide/[doc]": {
+    GET: {
+      expect: adminOnly(400),
+      why:
+        "Copying a programme's Start here or Glossary out as Markdown is an admin's for now (Q39), decided " +
+        "before anything is read: every other session is forbidden, and the admin meets the page check, " +
+        "which a name that is not start-here or glossary fails.",
+    },
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: reading a pasted Start here or Glossary " +
+        "is an admin's, decided before the body or any document is read, and the admin meets the page check.",
+    },
+    PUT: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: saving a pasted Start here or Glossary " +
+        "is an admin's, decided before the body or any document is read, and the admin meets the page check.",
+    },
+  },
   "/api/courses/runs/[runId]/material-notes": {
     POST: {
       expect: signedIn(400),
@@ -3007,6 +3028,13 @@ export const PAGES = {
       "A run under /learn: the run layout sends every approved account back to /learn when " +
       "the run is missing, and the run's own roster decides the rest once it exists.",
   },
+  "/(app)/learn/[runId]/glossary": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page opens to exactly the people the run's week 1 opens to and sends anybody else " +
+      "where the week page sends them.",
+  },
   "/(app)/learn/[runId]/group/[groupId]": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
     why:
@@ -3110,6 +3138,13 @@ export const PAGES = {
     why:
       "A run under /learn: the run layout sends every approved account back to /learn when the run is missing, " +
       "and the page shows a survey only to somebody it was sent to, on this run, answering everybody else in a sentence.",
+  },
+  "/(app)/learn/[runId]/start-here": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page opens to exactly the people the run's week 1 opens to and sends anybody else " +
+      "where the week page sends them.",
   },
   "/(app)/learn/[runId]/weeks/[n]": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
