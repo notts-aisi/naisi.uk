@@ -19,6 +19,7 @@ import {
 import {
   SURVEY_PEOPLE_COLLECTION,
   SURVEYS_COLLECTION,
+  programmeOf,
   surveyPersonId,
   type SurveyDelivery,
   type SurveyDoc,
@@ -368,8 +369,7 @@ export async function pressSend(db: Firestore, kind: "first" | "joined", input: 
         db,
         {
           surveyId: survey.id,
-          roundId: survey.audience.roundId,
-          programmeId: survey.audience.programmeId,
+          ...programmeOf(survey.audience),
           runId: survey.runId,
           programmeName: survey.programmeName,
           programmeKind: survey.programmeKind,
@@ -399,7 +399,7 @@ export async function pressSend(db: Firestore, kind: "first" | "joined", input: 
         const token = mintSurveyToken();
         batch.set(ref, {
           surveyId: survey.id,
-          roundId: survey.audience.roundId,
+          roundId: programmeOf(survey.audience).roundId,
           respondent,
           token,
           pressId: claim.pressId,

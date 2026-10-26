@@ -27,6 +27,8 @@ type Props = {
   /** For the walk-in dialog. */
   eventLine: string;
   emailGoesOn: string;
+  /** People can be added, and a walk-in's email is kept, until the event's survey closes, which is sooner than a week. */
+  untilSurvey?: boolean;
 };
 
 /**
@@ -46,6 +48,7 @@ export default function WhoCame({
   startsAt,
   eventLine,
   emailGoesOn,
+  untilSurvey = false,
 }: Props) {
   const hydrated = useHydrated();
   const [rows, setRows] = useState<DoorRow[]>(initialRows);
@@ -98,7 +101,11 @@ export default function WhoCame({
           </h2>
           {canAdd && (
             <div className={styles.sectionTools}>
-              {addUntil && <span className={styles.until}>Until {addUntil}, a week after the event</span>}
+              {addUntil && (
+                <span className={styles.until}>
+                  {untilSurvey ? `Until the survey closes on ${addUntil}` : `Until ${addUntil}, a week after the event`}
+                </span>
+              )}
               <Button
                 variant="secondary"
                 leading={<PlusMark />}
@@ -192,6 +199,7 @@ export default function WhoCame({
         eventId={eventId}
         eventLine={eventLine}
         emailGoesOn={emailGoesOn}
+        untilSurvey={untilSurvey}
         from="page"
         onAdded={(row) => {
           setRows((current) => [...current, row]);

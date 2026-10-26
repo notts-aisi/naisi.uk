@@ -52,6 +52,8 @@ export async function POST(req: Request) {
   const target = await openLink(db, body.token);
   if (target.kind === "none") return NextResponse.json({ error: REFUSAL.noLink }, { status: 404 });
   if (target.kind === "test") return NextResponse.json({ error: REFUSAL.testLink }, { status: 409 });
+  // A survey after an event asks no consent.
+  if (target.kind === "event") return NextResponse.json({ error: REFUSAL.consentNotAsked }, { status: 409 });
 
   const outcome = await changeConsent(db, { survey: target.survey, person: target.person, purpose: body.purpose, given: body.given });
   if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });

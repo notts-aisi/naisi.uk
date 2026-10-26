@@ -7,6 +7,7 @@ import {
   asksKairos,
   normalizeSurvey,
   normalizeSurveyPerson,
+  programmeOf,
   type SurveyAnswerVia,
   type SurveyDoc,
   type SurveyPersonDoc,
@@ -102,7 +103,7 @@ export async function recordAnswer(
     }
     tx.set(answerRef, {
       surveyId: survey.id,
-      roundId: survey.audience.roundId,
+      roundId: programmeOf(survey.audience).roundId,
       respondent: { kind: fresh.respondent.kind, uid: fresh.respondent.uid },
       answers,
       sentAt: FieldValue.serverTimestamp(),

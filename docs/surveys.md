@@ -571,12 +571,93 @@ answers in alphabetical order, from a day that is over only (waiting answers
 included, so it reads the same before and after the move). Nothing it is handed
 holds a day, a time or an id.
 
+## Surveys after events
+
+The survey an admin sends after one of NAISI's events (boards sv-new "After a
+social", sv-send, sv-social-phone, sv-results, ev-manage's Survey after tab).
+Confidential like every survey (Q43): the answers keep the person, an account
+or a guest, and only admins see who said what. Event-only code lives in
+`src/lib/surveys/events/`; the shared survey files tell an event's survey apart
+with `isEventSurvey` and hand it over.
+
+- **The record.** A `surveys` document with `kind: "event"`, `audience: { kind:
+  "event-came" | "event-signups", eventId }`, a top-level `eventId` (one
+  equality finds an event's survey; one survey per event) and `event: { title,
+  startAt, endAt }` as it was when made, so it stands without the event. The
+  programme fields are empty. Its rows and answers are `surveyPeople` and
+  `surveyAnswers` like every survey's, read and written by
+  `src/lib/surveys/events/store.ts` alone.
+- **Who it reaches** (`events/audience.ts`, through `readAudience`): the people
+  who came, from check-in (a sign-up's account, or the guest by their sign-up;
+  an account that walked in; a walk-in with no account, by the check-in the door
+  made, emailable only when they left an address), or everybody whose sign-up
+  is confirmed (never a test sign-up). Never anybody who did neither. A person
+  with no account is `respondent: { kind: "guest", signupId }`, the sign-up's or
+  the door's record's id; their row is `{surveyId}__g_{signupId}`. The
+  programme code reads accounts only (`normalizeSurveyPerson`); the event code
+  reads both (`normalizeEventPerson`).
+- **Made** from "After a social" (`events/template.ts`, five questions, about a
+  minute, fixed ids `q_ev_*`) for a published event that is coming up or no more
+  than a week over, with who it emails and a closing day no earlier than the
+  event's (`POST /api/surveys` with `template: "event"`). Names come off two
+  years after the event (`eventNamesOffOn`), by the `surveys-names-off` job as
+  for every survey.
+- **Opened, then emailed.** "Open it" on the Send tab (`POST
+  /api/surveys/[surveyId]/open-at-event`, admins, emails nobody) opens it for
+  its QR code at the event; the first email opens it too if nobody did. Either
+  stamps `firstSentAt`, which fixes its questions as every first send does. The
+  first email ("Email 14 people", a test first, claimed once by a `first`
+  press) may name its audience (`audience: "came" | "signups"` in the send's
+  body), which it fixes; "Send to the 2 who came since" and Remind work as for
+  a programme's. Every press records who pressed it (`byUid`). The emails are
+  notices, surface `event-survey`, with the board's words
+  (`events/words.ts`), to an account's own address or to the address a guest
+  or walk-in gave the event, each with their own link. The email skips anybody
+  who has answered.
+- **The QR code** (`events/code.ts`): a short link per event's survey,
+  `<word>-survey`, campaign "Surveys", to `/events/<id>/survey`, made with the
+  survey (and again by Open), permanent like every printed code, drawn and
+  downloaded by admins through check-in's QR routes. Its page
+  (`events/codePage.ts`) is outside the route groups and never `notFound()`:
+  signed in, somebody who signed up or came answers it (their row is made as
+  they answer, `via: "signed-in"`); somebody who did neither is told so, with
+  the way to check in while the door is open; signed out, it asks them to sign
+  in and tells a guest to use their emailed link.
+- **What an answer keeps**: `surveyId`, `eventId`, `respondent`, `answers`,
+  `sentAt`, `via`. No group, nothing before Send, no record of opening it.
+- **The admins' pages** draw it with its own Send tab (`EventSendTab`: who
+  answers, the QR code with Open it, the email with the choice of who it goes
+  to), Who answered (guests by the name they gave the event), and Results with
+  its own numbers above (answers by QR code and by email, who came, the email's
+  rate) and every rate of the answers (`ofAnswers`). Its download is the
+  programme table less the group's column, logged as `survey-answers` with
+  scope `{ surveyId }`.
+- **The event's Survey after tab** (`/events/manage/[id]/survey`): everybody in
+  the events area reads that it went, who sent it and when, and who to ask for
+  the summary (`events/tab.ts`, which reads no answer and no row); admins read
+  the results there too. An event's organiser does not see its results (Q42).
+- **A walk-in's email** goes at the earlier of the survey's close and a week
+  after the event (Q44): `walkInEmailGoesAt(event, surveyClosesAt)`, kept on
+  the check-in record and moved by `setWalkInEmailDeadlines` whenever the
+  survey is made, saved or closed by hand (at once when closed), so the
+  `event-check-ins-tidy` job stays the one deleter. Adding somebody who came
+  stops when the survey closes too.
+- **Deletion.** An account deleted takes its name off its answers at once
+  (`takeNamesOffForAccount`); a guest's comes off with everybody's, two years
+  after the event. An event deleted leaves its survey, as a form's destroy
+  leaves a programme's: the survey keeps the event's name and day.
+- Guards: `tests/surveys-events.test.mjs` (every route and page as every kind of
+  caller), and the policy's "survey after an event" block in
+  `tests/privacy-policy.test.mjs`.
+
 ## Not built yet
 
-Event surveys; results for a programme's lead but the leaving survey's, and
-the lead's Surveys tab that links them; one person's answers page; public
-numbers; this term in numbers. The model is built so none of them needs a
-rewrite: another `audience.kind`, another `respondent.kind`, the same records.
+Results for a programme's lead but the leaving survey's, and the lead's
+Surveys tab that links them; one person's answers page; public numbers; this
+term in numbers; the quote box under a long answer ("You can quote this,
+without my name") and an option's own words ("Something else: ..."). The
+model is built so none of them needs a rewrite: another `audience.kind`,
+another `respondent.kind`, the same records.
 
 ## Check-in, for the surveys after events
 
@@ -588,11 +669,9 @@ survey has who came to send to. What it can rely on:
   with no account (`name`, and `email` only if they want that event's
   survey). A guest's sign-up is the `{ kind: "guest", signupId }` respondent
   above.
-- A walk-in's email goes on `emailGoesAt`, today a week after the event. The
-  survey after an event closes no later than that, or the email is gone before
-  it closes; when event surveys are built, `walkInEmailGoesAt` takes the
-  survey's closing day when it is sooner, and the walk-in form's words move
-  with it.
+- A walk-in's email goes on `emailGoesAt`: when the event's survey closes, or
+  a week after the event if that comes first (see "Surveys after events"). The
+  walk-in form and the Check-in tab say whichever day it is.
 - Names come off a year after the event (`event-check-ins-tidy`), and at once
   when an account is deleted.
 

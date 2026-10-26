@@ -5,6 +5,8 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { logExport } from "@/lib/firestore/dataExports";
+import { isEventSurvey, programmeOf } from "@/lib/firestore/surveys";
+import { eventExportTable } from "@/lib/surveys/events/exportTable";
 import { exportFilename, surveyExportTable } from "@/lib/surveys/exportTable";
 import { namesOf } from "@/lib/surveys/names";
 import { answersOf, canRunSurveys, isSurveyId, readSurvey } from "@/lib/surveys/repo";
@@ -39,18 +41,25 @@ export async function POST(_req: Request, ctx: Ctx) {
   const survey = await readSurvey(db, surveyId);
   if (!survey) return NextResponse.json({ error: REFUSAL.noSurvey }, { status: 404 });
 
-  const answers = await answersOf(db, survey);
-  const names = await namesOf(db, answers.flatMap((answer) => (answer.respondent ? [answer.respondent.uid] : [])));
-  const table = surveyExportTable(
-    survey.items,
-    answers.map((answer) => ({
-      name: answer.respondent ? (names.get(answer.respondent.uid) ?? null) : null,
-      sentAt: answer.sentAt,
-      via: answer.via,
-      afterFirstSession: answer.afterFirstSession,
-      answers: answer.answers,
-    })),
-  );
+  let table: { header: string[]; rows: string[][] };
+  if (isEventSurvey(survey)) {
+    // A survey after an event names its guests too, and has no group to have
+    // met (src/lib/surveys/events/exportTable.ts).
+    table = await eventExportTable(db, survey);
+  } else {
+    const answers = await answersOf(db, survey);
+    const names = await namesOf(db, answers.flatMap((answer) => (answer.respondent ? [answer.respondent.uid] : [])));
+    table = surveyExportTable(
+      survey.items,
+      answers.map((answer) => ({
+        name: answer.respondent ? (names.get(answer.respondent.uid) ?? null) : null,
+        sentAt: answer.sentAt,
+        via: answer.via,
+        afterFirstSession: answer.afterFirstSession,
+        answers: answer.answers,
+      })),
+    );
+  }
   const filename = exportFilename(survey.name, londonDateKey(new Date()));
   const csv = toCSV(table.header, table.rows);
 
@@ -59,7 +68,7 @@ export async function POST(_req: Request, ctx: Ctx) {
       kind: "survey-answers",
       actorUid: actor.uid,
       actorName: actor.displayName ?? "",
-      scope: { surveyId: survey.id, roundId: survey.audience.roundId },
+      scope: isEventSurvey(survey) ? { surveyId: survey.id } : { surveyId: survey.id, roundId: programmeOf(survey.audience).roundId },
       rowCount: table.rows.length,
       filename,
     });

@@ -16,15 +16,19 @@ import type { EventDoc, RsvpDoc } from "@/lib/firestore/events";
  * THE WINDOWS. The door list, and checking yourself in with the door code,
  * are open from an hour before the event starts to an hour after it ends.
  * After that, somebody who came is added from the event's page, until a week
- * after the event. Once event surveys exist that last window becomes "until
- * the survey closes", which is no later than the week.
+ * after the event, or until the event's survey closes when that is sooner
+ * (`surveyClosesAt`, from `src/lib/surveys/events/records.ts`).
  *
- * WHAT IS KEPT. A walk-in's email goes a week after the event. Names come off
- * a year after the event, and at once when an account is deleted; what is
- * left counts the person and names nobody. The `event-check-ins-tidy` job does
- * the first two on their days; `takeCheckInNamesOffForAccount` is the account
- * deletion's step. Not coming is recorded nowhere: there is no "didn't come"
- * record, only sign-ups with no check-in.
+ * WHAT IS KEPT. A walk-in's email goes when the event's survey closes or a
+ * week after the event, whichever comes first, and is used for that survey
+ * alone; the day is kept on the record (`emailGoesAt`) and moved when the
+ * survey's closing day is set or changed, or the survey is closed by hand
+ * (`setWalkInEmailDeadlines`). Names come off a year after the event, and at
+ * once when an account is deleted; what is left counts the person and names
+ * nobody. The `event-check-ins-tidy` job does the first two on their days;
+ * `takeCheckInNamesOffForAccount` is the account deletion's step. Not coming
+ * is recorded nowhere: there is no "didn't come" record, only sign-ups with
+ * no check-in.
  */
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -54,15 +58,20 @@ export function doorWindow(event: Timed): { opensAt: Date; closesAt: Date } | nu
   };
 }
 
-/** Until when somebody who came can be added from the event's page. */
-export function addLaterUntil(event: Timed): Date | null {
+/**
+ * Until when somebody who came can be added from the event's page: a week
+ * after the event, or when its survey closes if that is sooner.
+ */
+export function addLaterUntil(event: Timed, surveyClosesAt: Date | null = null): Date | null {
   const ends = eventEnds(event);
-  return ends ? new Date(ends.getTime() + ADD_LATER_FOR_MS) : null;
+  if (!ends) return null;
+  const week = new Date(ends.getTime() + ADD_LATER_FOR_MS);
+  return surveyClosesAt && surveyClosesAt.getTime() < week.getTime() ? surveyClosesAt : week;
 }
 
-/** When a walk-in's email goes: a week after the event. */
-export function walkInEmailGoesAt(event: Timed): Date | null {
-  return addLaterUntil(event);
+/** When a walk-in's email goes: when the event's survey closes or a week after the event, whichever comes first. */
+export function walkInEmailGoesAt(event: Timed, surveyClosesAt: Date | null = null): Date | null {
+  return addLaterUntil(event, surveyClosesAt);
 }
 
 /** When the names come off this event's check-ins: a year after it. */
@@ -84,12 +93,12 @@ export function checkInNamesOffAt(event: Timed): Date | null {
  */
 export type CheckInPhase = "undated" | "before" | "door" | "later" | "closed";
 
-export function checkInPhase(event: Timed, now: Date): CheckInPhase {
+export function checkInPhase(event: Timed, now: Date, surveyClosesAt: Date | null = null): CheckInPhase {
   const door = doorWindow(event);
   if (!door) return "undated";
   if (now.getTime() < door.opensAt.getTime()) return "before";
   if (now.getTime() <= door.closesAt.getTime()) return "door";
-  const until = addLaterUntil(event);
+  const until = addLaterUntil(event, surveyClosesAt);
   if (until && now.getTime() <= until.getTime()) return "later";
   return "closed";
 }
@@ -136,6 +145,8 @@ export type RecordCheckIn = {
   /** Who is checking them in. Null when it is themselves. */
   byUid: string | null;
   now: Date;
+  /** When the event's survey closes, or null when it has none: a walk-in's email goes no later. */
+  surveyClosesAt?: Date | null;
 };
 
 /** Whether `existing` is already this person's check-in. A walk-in with no account is never matched. */
@@ -159,7 +170,7 @@ export async function recordCheckIn(
   db: Firestore,
   input: RecordCheckIn,
 ): Promise<{ created: boolean; checkIn: EventCheckInDoc }> {
-  const { event, person, how, byUid, now } = input;
+  const { event, person, how, byUid, now, surveyClosesAt = null } = input;
   if (person.kind === "signup" && person.rsvp.eventId !== event.id) {
     throw new Error("That sign-up is for another event.");
   }
@@ -179,7 +190,7 @@ export async function recordCheckIn(
       uid: person.kind === "signup" ? person.rsvp.uid : person.kind === "account" ? person.uid : null,
       name: person.kind === "signup" ? null : person.name.trim().slice(0, CHECK_IN_LIMITS.name),
       email,
-      emailGoesAt: email ? walkInEmailGoesAt(event) : null,
+      emailGoesAt: email ? walkInEmailGoesAt(event, surveyClosesAt) : null,
       how,
       byUid,
       at: now,
@@ -265,6 +276,30 @@ export async function tidyCheckIns(
     NAMES_OFF_FIELDS,
   );
   return { emailsGone, namesOff };
+}
+
+/**
+ * The event's survey's closing day was set, changed or reached by hand: each
+ * walk-in's email that is still kept now goes when the survey closes or a week
+ * after the event, whichever comes first, and at once when that has passed.
+ * Answers how many emails it moved and how many it deleted.
+ */
+export async function setWalkInEmailDeadlines(
+  db: Firestore,
+  event: Pick<EventDoc, "id" | "startAt" | "endAt">,
+  surveyClosesAt: Date | null,
+  now: Date,
+): Promise<{ moved: number; gone: number }> {
+  const goesAt = walkInEmailGoesAt(event, surveyClosesAt);
+  const snap = await db.collection(EVENT_CHECK_INS_COLLECTION).where("eventId", "==", event.id).get();
+  const keeping = snap.docs.filter((doc) => {
+    const row = normalizeCheckIn(doc.id, doc.data() ?? {});
+    return row.eventId === event.id && row.email !== null && !row.namesOff;
+  });
+  if (!goesAt || goesAt.getTime() <= now.getTime()) {
+    return { moved: 0, gone: await updateAll(db, keeping.map((doc) => doc.ref), EMAIL_GONE_FIELDS) };
+  }
+  return { moved: await updateAll(db, keeping.map((doc) => doc.ref), { emailGoesAt: goesAt }), gone: 0 };
 }
 
 /** An account deleted: its name comes off every event it came to, at once. The counts stay. */

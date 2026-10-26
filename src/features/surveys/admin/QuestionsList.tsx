@@ -38,16 +38,19 @@ export default function QuestionsList({
   measures,
   intro,
   title,
+  lockNote = "This survey has been sent, so its words and questions are fixed.",
 }: {
   items: SurveyItem[];
   measures: Record<string, string>;
   intro: string;
   title: string;
+  /** Why they are fixed, in words: a survey after an event is fixed once it opens. */
+  lockNote?: string;
 }) {
   const numbers = questionNumbers(items);
   return (
     <div className={styles.main}>
-      <p className={styles.lockNote}>This survey has been sent, so its words and questions are fixed.</p>
+      <p className={styles.lockNote}>{lockNote}</p>
       <section className={`${styles.card} ${styles.section}`} aria-label="What people see">
         <h2 className={styles.sectionTitle}>{title}</h2>
         <p className={styles.muted}>{intro}</p>

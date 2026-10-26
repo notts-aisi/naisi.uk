@@ -31,6 +31,8 @@ type Props = {
   eventLine: string;
   /** The day a walk-in's email is deleted: "Sun 8 Nov". */
   emailGoesOn: string;
+  /** It goes then because the event's survey closes, before a week has passed. */
+  untilSurvey?: boolean;
 };
 
 /** How many of the latest check-ins show under the people still to come. */
@@ -54,6 +56,7 @@ export default function DoorList({
   doorAddress,
   eventLine,
   emailGoesOn,
+  untilSurvey = false,
 }: Props) {
   const hydrated = useHydrated();
   const [rows, setRows] = useState<DoorRow[]>(initialRows);
@@ -300,6 +303,7 @@ export default function DoorList({
         eventId={eventId}
         eventLine={eventLine}
         emailGoesOn={emailGoesOn}
+        untilSurvey={untilSurvey}
         from="door"
         onAdded={(row) => {
           setRows((current) => [...current, row]);

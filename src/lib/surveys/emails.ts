@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import type { SurveyDoc, SurveyEmailKind, SurveyTest } from "@/lib/firestore/surveys";
+import { isEventSurvey, type SurveyDoc, type SurveyEmailKind, type SurveyTest } from "@/lib/firestore/surveys";
+import { eventReminderEmailWords, eventSurveyEmailWords } from "./events/words";
 import { surveyQuestionsOf } from "./items";
 import {
   REFUSAL,
@@ -42,13 +43,25 @@ export function surveyLink(token: string): string | null {
   return base ? `${base}${surveyLinkPath(token)}` : null;
 }
 
-/** One of the two emails in words, signed by `signer`, or null while the survey has no closing time. */
-export function emailWordsFor(
-  survey: Pick<SurveyDoc, "title" | "intro" | "items" | "minutes" | "programmeName" | "closesAt">,
-  email: SurveyEmailKind,
-  signer: string,
-): SurveyEmailWords | null {
+/**
+ * One of the two emails in words, signed by `signer`, or null while the
+ * survey has no closing time. A survey after an event has the words sv-send
+ * draws for it (`./events/words.ts`).
+ */
+export function emailWordsFor(survey: SurveyDoc, email: SurveyEmailKind, signer: string): SurveyEmailWords | null {
   if (!survey.closesAt) return null;
+  if (isEventSurvey(survey)) {
+    const facts = {
+      title: survey.title,
+      intro: survey.intro,
+      questions: surveyQuestionsOf(survey.items).length,
+      minutes: survey.minutes,
+      eventTitle: survey.event.title,
+      closesAt: survey.closesAt,
+      signer,
+    };
+    return email === "survey" ? eventSurveyEmailWords(facts) : eventReminderEmailWords(facts);
+  }
   const facts = {
     title: survey.title,
     intro: survey.intro,

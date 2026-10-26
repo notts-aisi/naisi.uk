@@ -3,8 +3,10 @@ import type { ResultRow, ResultsView } from "@/lib/surveys/adminView";
 import type { ChangeResult } from "@/lib/surveys/change";
 import {
   RESULT_WORDS,
+  answeredOfAnswersWords,
   answeredRateWords,
   answersRateWords,
+  answersWords,
   averagesWords,
   consentCountWords,
   countsOfWords,
@@ -106,7 +108,10 @@ function Change({ heading, change }: { heading: string; change: ChangeResult }) 
   );
 }
 
-function Result({ result, sent, reach }: { result: ResultRow; sent: number; reach: ReachWord }) {
+function Result({ result, sent, reach, ofAnswers = false }: { result: ResultRow; sent: number; reach: ReachWord; ofAnswers?: boolean }) {
+  // Of the answers themselves, on a survey that takes answers from people it was never sent to.
+  const rateWords = (n: number, of: number, verb = "answered") =>
+    ofAnswers ? answeredOfAnswersWords(n, of, verb) : answeredRateWords(n, of, verb, reach);
   return (
     <section className={`${styles.card} ${styles.result}`} aria-labelledby={`result-${result.id}`}>
       <h3 id={`result-${result.id}`} className={styles.resultTitle}>
@@ -115,7 +120,7 @@ function Result({ result, sent, reach }: { result: ResultRow; sent: number; reac
       {result.kind === "options" && (
         <>
           <p className={styles.muted}>
-            {answeredRateWords(result.respondents, sent, "answered", reach)}
+            {rateWords(result.respondents, sent)}
             {result.multiple ? ", ticking as many as applied" : ""}
           </p>
           <Tally options={result.options} of={result.respondents} />
@@ -129,7 +134,7 @@ function Result({ result, sent, reach }: { result: ResultRow; sent: number; reac
           {result.most && (
             <>
               <p className={styles.tallyLabel}>{result.most.title}</p>
-              <p className={styles.muted}>{answeredRateWords(result.most.respondents, sent, "picked one", reach)}</p>
+              <p className={styles.muted}>{rateWords(result.most.respondents, sent, "picked one")}</p>
               <Tally options={result.most.options} of={result.most.respondents} />
             </>
           )}
@@ -138,7 +143,7 @@ function Result({ result, sent, reach }: { result: ResultRow; sent: number; reac
       {result.kind === "value" && (
         <>
           <p className={styles.muted}>
-            {answeredRateWords(result.respondents, sent, "answered", reach)}
+            {rateWords(result.respondents, sent)}
             {result.respondents > 0
               ? `. Average ${numberWords(result.mean, result.unit)}, middle value ${numberWords(result.median, result.unit)}, from ${numberWords(result.lowest, result.unit)} to ${numberWords(result.highest, result.unit)}.`
               : ""}
@@ -155,7 +160,7 @@ function Result({ result, sent, reach }: { result: ResultRow; sent: number; reac
             <div key={index} className={styles.section}>
               {row.label && <p className={styles.tallyLabel}>{row.label}</p>}
               <div className={styles.scaleRow} style={{ ["--scale-points" as string]: row.counts.length }}>
-                <span className={styles.muted}>{answeredRateWords(row.respondents, sent, "answered", reach)}</span>
+                <span className={styles.muted}>{rateWords(row.respondents, sent)}</span>
                 {row.counts.map((count, point) => (
                   <span key={point} className={styles.scaleCell} title={`${point + result.min}: ${count}`}>
                     <span className={styles.scaleHead}>{point + result.min}</span> {count}
@@ -178,7 +183,7 @@ function Result({ result, sent, reach }: { result: ResultRow; sent: number; reac
       )}
       {result.kind === "comments" && (
         <>
-          <p className={styles.muted}>{answeredRateWords(result.respondents, sent, "wrote something", reach)}</p>
+          <p className={styles.muted}>{rateWords(result.respondents, sent, "wrote something")}</p>
           {result.comments.length > 0 && (
             <ul className={styles.comments}>
               {result.comments.map((comment, index) => (
@@ -198,10 +203,17 @@ export default function ResultsTab({
   view,
   surveyId,
   beforeFirstSession,
+  ofAnswers = false,
 }: {
   view: ResultsView;
   surveyId: string;
   beforeFirstSession: boolean;
+  /**
+   * Every rate is of the answers, not of the people it was sent to: a survey
+   * after an event takes answers with its QR code from people it never
+   * emailed, and its own numbers sit above these.
+   */
+  ofAnswers?: boolean;
 }) {
   const base = `/admin/surveys/${encodeURIComponent(surveyId)}/results`;
   const paired = pairedWithWords(view.pairedWith);
@@ -209,7 +221,7 @@ export default function ResultsTab({
     <div className={styles.main}>
       <div className={styles.card}>
         <p className={styles.lead}>
-          {answersRateWords(view.answers, view.sent, view.reach)}
+          {ofAnswers ? answersWords(view.answers) : answersRateWords(view.answers, view.sent, view.reach)}
           {beforeFirstSession && view.leftOut > 0
             ? ` ${view.leftOut} sent after the person’s first session ${view.leftOut === 1 ? "is" : "are"} left out.`
             : ""}
@@ -234,7 +246,10 @@ export default function ResultsTab({
           ))}
         </section>
       )}
-      {view.answers > 0 && view.questions.map((result) => <Result key={result.id} result={result} sent={view.sent} reach={view.reach} />)}
+      {view.answers > 0 &&
+        view.questions.map((result) => (
+          <Result key={result.id} result={result} sent={ofAnswers ? view.answers : view.sent} reach={view.reach} ofAnswers={ofAnswers} />
+        ))}
     </div>
   );
 }

@@ -223,6 +223,7 @@ export default function QuestionsEditor({
   measures,
   today,
   closes = true,
+  lockNote = "The questions lock once this is sent, so every stage of the programme asks the same.",
 }: {
   surveyId: string;
   initial: EditorValues;
@@ -235,6 +236,8 @@ export default function QuestionsEditor({
    * reaches people through the leaving email, whose words are not these.
    */
   closes?: boolean;
+  /** When the questions lock, in words: a survey after an event locks when it opens. */
+  lockNote?: string;
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -418,7 +421,7 @@ export default function QuestionsEditor({
             </div>
           );
         })}
-        <p className={styles.lockNote}>The questions lock once this is sent, so every stage of the programme asks the same.</p>
+        <p className={styles.lockNote}>{lockNote}</p>
       </section>
 
       {error && (

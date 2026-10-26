@@ -244,6 +244,20 @@
  *     account is deleted (`src/lib/courses/teamPage/`, `clearCourseTeamEntries` in
  *     `src/lib/firestore/accountDeletion.ts`). "What a deletion leaves behind"
  *     lists it.
+ * 31. **Surveys after events.** An admin may send the survey after an event to
+ *     the people who came or to everybody whose place was confirmed, and to
+ *     nobody else (`src/lib/surveys/events/audience.ts`). It is confidential:
+ *     the answers keep the person's name, which admins alone see, and the
+ *     event's organisers are told that it went and when, never its results
+ *     (the event's Survey after tab, `src/lib/surveys/events/tab.ts`). What
+ *     it asks; its QR code, which opens it signed in for somebody who came or
+ *     signed up and asks anybody else to sign in; its email, a notice, to the
+ *     account's address or to the address a guest or a walk-in gave the
+ *     event; what is kept with the answers (`src/lib/surveys/events/store.ts`);
+ *     names off two years after the event (the `surveys-names-off` job); its
+ *     file. A walk-in's email now goes when that survey closes, or a week
+ *     after the event if that comes first (`setWalkInEmailDeadlines` in
+ *     `src/lib/events/checkIns.ts`).
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -469,7 +483,8 @@ export default function PrivacyContentV7({
                   If you come without signing up, we take your name at the
                   door, and an email address only if you want that
                   event&apos;s survey. We use the address for nothing else, and
-                  delete it a week after the event.
+                  delete it when that survey closes, or a week after the event
+                  if that comes first.
                 </li>
                 <li>
                   When your place at an event is confirmed, the email that
@@ -583,6 +598,31 @@ export default function PrivacyContentV7({
                   yours. Nothing you say in it changes your account or a future
                   application, and your name comes off it two years after the
                   programme&apos;s last session, as for every survey.
+                </li>
+                <li>
+                  After an event, NAISI&apos;s admins may send a survey to the
+                  people who came to it, or to everybody whose place on it was
+                  confirmed, and to nobody else. It is confidential like every
+                  survey: your answers keep your name, and only NAISI&apos;s
+                  admins can see who said what and whether they came. The
+                  event&apos;s organisers are told that it went and when, and
+                  nothing of its results.
+                </li>
+                <li>
+                  The survey after an event asks how it was, whether you would
+                  come to another, what we should run next, how you heard about
+                  it and what we should change.
+                </li>
+                <li>
+                  At the end of an event its QR code opens the survey. Signed
+                  in, you answer it there if you came or signed up, and its
+                  email afterwards skips you; signed out, it asks you to sign
+                  in. Its email is an important notice, like every
+                  survey&apos;s, with a link of your own, sent to your
+                  account&apos;s address, or if you have no account to the
+                  address you gave when you signed up or at the door. With your
+                  answers we keep when you sent them and whether you used your
+                  link or were signed in.
                 </li>
                 <li>
                   One form is anonymous: the keep, change and drop form linked
@@ -1308,7 +1348,9 @@ export default function PrivacyContentV7({
                 and never an email address or a note. The survey file holds,
                 for each person who answered, their name, when and how they
                 sent their answers, whether their group had met by then, and
-                the answers themselves, and never an email address. The Kairos
+                the answers themselves, and never an email address. The file
+                of a survey after an event has no column about a group, and
+                names a guest by the name they gave the event. The Kairos
                 file holds, for each person on a programme at its end who has
                 not said no to sharing with Kairos, their name, the programme,
                 how many sessions they came to, whether they finished and the
@@ -1746,7 +1788,8 @@ export default function PrivacyContentV7({
                 the programme&apos;s last session, and delete the record that
                 it was sent to you, with your link to answer it and what you
                 said about follow-ups. Your answers stay in its totals, no
-                longer linked to you.
+                longer linked to you. For the survey after an event, that day
+                is two years after the event.
               </p>
               <p>
                 <strong>Ratings at the end of a programme.</strong> We delete
@@ -1767,7 +1810,8 @@ export default function PrivacyContentV7({
                 <strong>Who came to an event.</strong> We keep the record of who
                 came with names for a year after the event, then take the names
                 off and keep the count. A walk-in&apos;s email address is
-                deleted a week after the event.
+                deleted when the event&apos;s survey closes, or a week after the
+                event if that comes first.
               </p>
               <p>
                 <strong>When a term&apos;s applications are destroyed.</strong>{" "}

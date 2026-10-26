@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { isEventSurvey } from "@/lib/firestore/surveys";
 import { testRefusal } from "@/lib/surveys/emails";
+import { audienceKindFrom } from "@/lib/surveys/events/create";
+import { pressAnswer, pressEventSend } from "@/lib/surveys/events/sending";
+import { EVENT_REFUSAL } from "@/lib/surveys/events/words";
 import { namesOffDayFor } from "@/lib/surveys/namesOff";
 import { canRunSurveys, isOpen, isSurveyId, readSurvey } from "@/lib/surveys/repo";
 import { pressSend, signerOf, testStateFor } from "@/lib/surveys/sending";
@@ -23,6 +27,11 @@ type Ctx = { params: Promise<{ surveyId: string }> };
  * this wording, and it is claimed once, so two presses send it once. Each
  * email is a notice (`docs/notifications.md`), one address per message, with
  * the person's own link. Admins only. Answers with counts, never addresses.
+ *
+ * A survey after an event is sent by its own rules
+ * (`src/lib/surveys/events/sending.ts`): its first email may name who it
+ * goes to (`audience`: "came" or "signups"), which that email fixes, and it
+ * may have opened at the event before any email went.
  */
 export async function POST(req: Request, ctx: Ctx) {
   const blocked = await assertNotImpersonating();
@@ -39,15 +48,18 @@ export async function POST(req: Request, ctx: Ctx) {
   } catch {
     raw = null;
   }
-  const body = raw && typeof raw === "object" ? (raw as { to?: unknown; emails?: unknown }) : {};
+  const body = raw && typeof raw === "object" ? (raw as { to?: unknown; emails?: unknown; audience?: unknown }) : {};
   const to = body.to;
   const emails = body.emails;
+  // Who a survey after an event's first email goes to, when the press names it.
+  const audience = body.audience === undefined ? null : audienceKindFrom(body.audience);
   if (
     !isSurveyId(surveyId) ||
     (to !== "everyone" && to !== "joined") ||
     typeof emails !== "number" ||
     !Number.isInteger(emails) ||
-    emails < 0
+    emails < 0 ||
+    (body.audience !== undefined && !audience)
   ) {
     return NextResponse.json({ error: REFUSAL.body }, { status: 400 });
   }
@@ -60,6 +72,26 @@ export async function POST(req: Request, ctx: Ctx) {
   // A leaving survey is never sent: it reaches each person as they leave (Q46).
   if (survey.kind === "leaving") return NextResponse.json({ error: REFUSAL.leavingNotSent }, { status: 409 });
   const now = new Date();
+
+  if (isEventSurvey(survey)) {
+    const emailed = survey.presses.some((press) => press.kind === "first");
+    if (to === "everyone") {
+      if (emailed) return NextResponse.json({ error: EVENT_REFUSAL.emailedOnce }, { status: 409 });
+      if (survey.closedAt || !survey.closesAt || survey.closesAt.getTime() <= now.getTime()) {
+        return NextResponse.json({ error: REFUSAL.closesPast }, { status: 409 });
+      }
+      const refusal = testRefusal(testStateFor(survey, "survey", await signerOf(db, actor.uid)));
+      if (refusal) return NextResponse.json({ error: refusal }, { status: 409 });
+    } else {
+      if (audience) return NextResponse.json({ error: EVENT_REFUSAL.audienceFixed }, { status: 409 });
+      if (!emailed) return NextResponse.json({ error: EVENT_REFUSAL.notEmailed }, { status: 409 });
+      if (!isOpen(survey, now)) return NextResponse.json({ error: REFUSAL.closedSend }, { status: 409 });
+    }
+    const answer = pressAnswer(
+      await pressEventSend(db, to === "everyone" ? "first" : "joined", { survey, presserUid: actor.uid, emails, audience, now }),
+    );
+    return NextResponse.json(answer.body, { status: answer.status, headers: answer.headers });
+  }
 
   let namesOffOn = survey.namesOffOn;
   if (to === "everyone") {

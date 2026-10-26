@@ -25,6 +25,7 @@ import {
 import { findDoorCode } from "@/lib/events/doorCode";
 import { publicLocationText } from "@/lib/events/location";
 import { shortLinkAddress, shortLinkUrl } from "@/lib/qr/shortLinkCode";
+import { surveyClosesFor } from "@/lib/surveys/events/records";
 import styles from "@/features/events/checkIn/CheckInTab.module.css";
 import eventStyles from "../../events.module.css";
 
@@ -55,14 +56,18 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
 
   const staff = runsCheckIn(viewer);
   const now = new Date();
+  // People who came are added, and a walk-in's email kept, until the event's
+  // survey closes when that is sooner than a week (src/lib/events/checkIns.ts).
+  const surveyClosesAt = await surveyClosesFor(db, event.id);
   const title = event.title.trim() || "Untitled event";
   const takes = eventTakesCheckIns(event);
-  const phase = takes ? checkInPhase(event, now) : null;
+  const phase = takes ? checkInPhase(event, now, surveyClosesAt) : null;
   const rows = doorRows(doorListSignups(signups), checkIns);
   const counts = doorCounts(rows);
   const window = doorWindow(event);
-  const until = addLaterUntil(event);
-  const emailGoesAt = walkInEmailGoesAt(event);
+  const until = addLaterUntil(event, surveyClosesAt);
+  const emailGoesAt = walkInEmailGoesAt(event, surveyClosesAt);
+  const untilSurvey = until !== null && until.getTime() !== addLaterUntil(event)?.getTime();
   const doorClosed = phase === "later" || phase === "closed";
   const doorCode = staff && takes ? await findDoorCode(db, event.id) : null;
   const where = publicLocationText(event);
@@ -166,6 +171,7 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
                 startsAt={event.startAt ? event.startAt.toISOString() : null}
                 eventLine={event.startAt ? `${title} · ${dayWords(event.startAt)}` : title}
                 emailGoesOn={emailGoesAt ? dayWords(emailGoesAt) : ""}
+                untilSurvey={untilSurvey}
               />
             )}
           </div>

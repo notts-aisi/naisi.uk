@@ -5,7 +5,9 @@ import { AnonymousFormLink } from "@/features/anonymousFeedback/AfterTheSurvey";
 import AnswerScreen from "@/features/surveys/answer/AnswerScreen";
 import { anonymousFormLinkFor } from "@/lib/anonymousFeedback/forms";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { isEventSurvey } from "@/lib/firestore/surveys";
 import { answerScreenFor, type AnswerScreen as Screen } from "@/lib/surveys/answerView";
+import { eventAnswerScreen } from "@/lib/surveys/events/answerView";
 import { openLink } from "@/lib/surveys/repo";
 import { ANSWER_WORDS, STATE_WORDS } from "@/lib/surveys/words";
 import styles from "./survey.module.css";
@@ -47,7 +49,18 @@ export default async function SurveyLinkPage({ params }: { params: Promise<{ tok
   let anonymousForm: string | null = null;
   if (db) {
     const target = await openLink(db, token);
-    if (target.kind === "test") {
+    if (target.kind === "event") {
+      // A survey after an event, by the person's own link: a guest's as an account's.
+      screen = await eventAnswerScreen(db, target.survey, {
+        respondent: target.person.respondent,
+        signedInAs: null,
+        answered: target.person.answered,
+        submit: { kind: "link", token },
+        now,
+      });
+    } else if (target.kind === "test" && isEventSurvey(target.survey)) {
+      screen = await eventAnswerScreen(db, target.survey, { respondent: null, signedInAs: null, answered: false, submit: { kind: "test" }, now });
+    } else if (target.kind === "test") {
       screen = await answerScreenFor(db, target.survey, {
         uid: null,
         answered: false,

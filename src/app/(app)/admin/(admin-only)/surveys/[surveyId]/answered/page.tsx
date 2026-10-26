@@ -3,7 +3,9 @@ import AnsweredTab from "@/features/surveys/admin/AnsweredTab";
 import SurveyHead from "@/features/surveys/admin/SurveyHead";
 import SurveyMissing from "@/features/surveys/admin/SurveyMissing";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { isEventSurvey } from "@/lib/firestore/surveys";
 import { answeredView, surveyPage } from "@/lib/surveys/adminView";
+import { eventAnsweredView } from "@/lib/surveys/events/adminView";
 
 export const dynamic = "force-dynamic";
 
@@ -22,11 +24,14 @@ export default async function SurveyAnsweredPage({ params }: { params: Promise<{
       </AdminPage>
     );
   }
-  const view = await answeredView(db, page.survey);
+  // A survey after an event names its guests too, and how each answered.
+  const view: { rows: Awaited<ReturnType<typeof answeredView>>["rows"]; answered: number; sent: number; heading?: string } = isEventSurvey(page.survey)
+    ? await eventAnsweredView(db, page.survey)
+    : await answeredView(db, page.survey);
   return (
     <AdminPage wide>
       <SurveyHead head={page.head} current="answered" />
-      <AnsweredTab surveyId={page.survey.id} rows={view.rows} answered={view.answered} sent={view.sent} />
+      <AnsweredTab surveyId={page.survey.id} rows={view.rows} answered={view.answered} sent={view.sent} heading={view.heading} />
     </AdminPage>
   );
 }
