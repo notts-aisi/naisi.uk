@@ -7,7 +7,7 @@
     "test": "firebase emulators:exec --only firestore,storage --project naisi-rules-test 'node --test tests/'"
   },
   "devDependencies": {
-    "@firebase/rules-unit-testing": "^5.0.2",
-    "firebase-tools": "^15.32.1"
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "firebase-tools": "^15.34.1"
   }
 }
