@@ -10,6 +10,7 @@ import { opensProgrammeGroups } from "@/lib/applications/access";
 import { loadProgrammeForStaff } from "@/lib/applications/editor/load";
 import { applicationFormPath } from "@/lib/applications/editor/olderRounds";
 import { readTeamsTab } from "@/lib/applications/handover/teamsLoad";
+import { countPlaceHolders } from "@/lib/applications/people/load";
 import { stageSummaryFor } from "@/lib/applications/lifecycle/view";
 import { readRunEndById } from "@/lib/courses/finishing/record";
 import { readRunHeader } from "@/lib/courses/programmeAttendance";
@@ -23,8 +24,8 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  *
  * WHICH PAGES THAT IS. This file is in a route group, `(tabs)`, which adds
  * nothing to an address. The pages inside the group (Settings, the list of
- * applications, Groups with its three views, and Attendance) are drawn under
- * this head. The single application at
+ * applications, People, Groups with its three views, and Attendance) are
+ * drawn under this head. The single application at
  * `applications/[uid]` is OUTSIDE the group on purpose: it is a screen of its
  * own, drawn with no programme head and no tabs, so it must not inherit this
  * layout. A page that should carry the tabs goes inside `(tabs)`; one that
@@ -54,6 +55,10 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  *
  * An incubator's head also says "Teams by", the day its run's teams are made
  * (the run's own setting, `readTeamsTab`), as its last fact.
+ *
+ * The People tab's count is how many hold a place on the programme now
+ * (`countPlaceHolders`), worked out for an admin and the lead alone, who are
+ * the two the tab opens for, and only once decisions have gone out.
  */
 export default async function ProgrammeLayout({
   children,
@@ -77,6 +82,8 @@ export default async function ProgrammeLayout({
   const finishedOn = runEnd?.over ? runEnd.lastDay : null;
   // An incubator's Teams tab and the day its teams are made; null for a fellowship.
   const teamsTab = db ? await readTeamsTab(db, programme) : null;
+  // How many hold a place, beside People: for the two who open it.
+  const people = db && opensProgrammeGroups(role) ? await countPlaceHolders(db, form, programme.id) : null;
   const state = finishedOn
     ? { label: `Finished · ${finishedOn}`, live: false, tone: "neutral" as const }
     : runHeader
@@ -194,6 +201,7 @@ export default async function ProgrammeLayout({
       <ProgrammeTabs
         base={`${home}/programmes/${programme.id}`}
         applications={applications}
+        people={people}
         groups={programme.groupCount}
         canEdit={role === "admin" || role === "lead"}
         groupsOpen={opensProgrammeGroups(role)}

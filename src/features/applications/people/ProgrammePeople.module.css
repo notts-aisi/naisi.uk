@@ -1,0 +1,651 @@
+/* A programme's People tab (board st-people): the filters, the sentence, the
+   search and the line beside it, then one card holding the table. At laptop
+   width the table scrolls inside its card, never the page; on a phone it is
+   drawn a card a row. Every colour is a theme token. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── The filters ─────────────────────────────────────────────────────── */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.filter {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px 0 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.filter:hover:not(:disabled) {
+  color: var(--color-text);
+}
+
+.filter:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+.filter:disabled {
+  cursor: default;
+}
+
+.filterOn {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.filterCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-hover);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.filterOn .filterCount {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.sentence {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* ── The search, and what a lead is shown ────────────────────────────── */
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  margin-top: 16px;
+}
+
+.search {
+  position: relative;
+  display: block;
+  flex: 0 1 340px;
+  min-width: 240px;
+}
+
+.searchIcon {
+  position: absolute;
+  top: 13px;
+  left: 12px;
+  display: block;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.searchInput {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px 0 40px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 15px;
+}
+
+.searchInput::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+.searchInput:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+.who {
+  display: flex;
+  flex: 1 1 420px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.whoIcon {
+  display: block;
+  flex: none;
+}
+
+/* ── The table ───────────────────────────────────────────────────────── */
+
+.card {
+  min-width: 0;
+  margin-top: 18px;
+  padding: 4px 0 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.scroll {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  min-width: 1000px;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.th {
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.colName {
+  padding-left: 16px;
+}
+
+.colGroup {
+  width: 100px;
+}
+
+.colComing {
+  width: 134px;
+}
+
+.colFree {
+  width: 170px;
+}
+
+.colStatus {
+  width: 180px;
+}
+
+.colMore {
+  width: 44px;
+}
+
+.td {
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.row:last-child > .td {
+  border-bottom: 0;
+}
+
+.cellPerson {
+  padding-left: 16px;
+}
+
+.cellMore {
+  padding: 8px 10px;
+  text-align: right;
+}
+
+/* The column's word, said beside each value on a phone only. */
+.cellWord {
+  display: none;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.avatar {
+  display: inline-flex;
+  flex: none;
+}
+
+.personText {
+  min-width: 0;
+}
+
+.name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.detail {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.group {
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.muted {
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.free {
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.yes {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--color-ok);
+}
+
+.tick {
+  display: block;
+  flex: none;
+}
+
+.statusStack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.chipPlain {
+  background: var(--color-surface-hover);
+  color: var(--color-text-body);
+}
+
+.chipWarn {
+  border-color: var(--color-warning-line);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.chipAccent {
+  border-color: var(--color-accent-line);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+
+.statusLine {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-soft);
+  overflow-wrap: anywhere;
+}
+
+.statusDay {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.empty {
+  color: var(--color-text-muted);
+}
+
+/* ── More ────────────────────────────────────────────────────────────
+   The ⋯ button, and its menu in a row of its own under the person's, as the
+   board draws it: inside the card, so neither the card nor the table's
+   scroll can clip it. */
+
+.moreButton {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md, 8px);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.moreButton:hover:not(:disabled),
+.moreButtonOpen {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.moreButton:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+.moreButton:disabled {
+  cursor: default;
+}
+
+.rowOpen > .td {
+  border-bottom: 0;
+}
+
+.menuRow {
+  background: var(--color-surface-hover);
+}
+
+.menuCell {
+  padding: 0 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: max-content;
+  min-width: 260px;
+  max-width: 100%;
+  margin: 0 0 0 auto;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  background: var(--color-bg-elevated);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  box-sizing: border-box;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 7px;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.menuItem:hover,
+.menuItem:focus-visible {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.menuItem:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: -2px;
+}
+
+/* ── The foot ────────────────────────────────────────────────────────── */
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.showing {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.showMore {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md, 8px);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.showMore:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.showMore:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .filter {
+    padding: 0 10px 0 12px;
+  }
+
+  .search {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .who {
+    flex: 1 1 100%;
+    align-items: flex-start;
+  }
+
+  .whoIcon {
+    margin-top: 2px;
+  }
+
+  /* The table, a card a row (the board is a laptop board): the person and
+     More side by side, then group, reply, when they are free and status,
+     each with its column's word, so nothing is behind a sideways scroll.
+     The headings stay for assistive technology. */
+  .table,
+  .table > tbody,
+  .table td {
+    display: block;
+  }
+
+  .table {
+    min-width: 0;
+    table-layout: auto;
+  }
+
+  .thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .table > tbody > tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 8px;
+    align-items: start;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .table > tbody > tr:last-child {
+    border-bottom: 0;
+  }
+
+  .td {
+    padding: 0 16px;
+    border-bottom: 0;
+  }
+
+  .table > tbody > tr > td[colspan] {
+    grid-column: 1 / -1;
+    padding: 4px 16px;
+  }
+
+  .cellPerson {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .cellMore {
+    grid-column: 2;
+    grid-row: 1 / span 5;
+    align-self: start;
+    padding: 0 8px 0 0;
+  }
+
+  .cellGroup,
+  .cellComing,
+  .cellFree,
+  .cellStatus {
+    grid-column: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 8px;
+    margin-top: 6px;
+    padding-left: calc(16px + 2rem + 12px);
+    font-size: 14px;
+  }
+
+  .cellGroup {
+    grid-row: 2;
+  }
+
+  .cellComing {
+    grid-row: 3;
+  }
+
+  .cellFree {
+    grid-row: 4;
+  }
+
+  .cellStatus {
+    grid-row: 5;
+  }
+
+  .cellWord {
+    display: inline;
+    flex: none;
+    min-width: 9.5rem;
+    font-family: var(--font-meta);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  .statusStack {
+    flex: 1 1 10rem;
+  }
+
+  .yes {
+    white-space: normal;
+  }
+
+  .table > tbody > tr.rowOpen {
+    border-bottom: 0;
+  }
+
+  .table > tbody > tr.menuRow {
+    display: block;
+    padding: 0 0 12px;
+  }
+
+  .menuCell {
+    padding: 0 16px;
+    border-bottom: 0;
+  }
+
+  .menu {
+    width: 100%;
+    min-width: 0;
+  }
+}

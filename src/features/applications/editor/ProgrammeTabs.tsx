@@ -20,7 +20,13 @@ import styles from "./ProgrammeFrame.module.css";
  * (`opensProgrammeGroups`), and are drawn like the tabs not built yet for a
  * reviewer: they show the people holding a place by name, in their groups,
  * when they are free and in the registers. Their pages refuse anybody else
- * on their own. Overview, the run's week, sessions and registers, is a link
+ * on their own.
+ *
+ * People, after Applications (board st-people), is a link on the same terms:
+ * everyone who holds a place or gave it back, by name, with their replies.
+ * Its count is how many hold a place now (`countPlaceHolders`, the test its
+ * own rows ask), given only to the two who open it, and only once decisions
+ * have gone out. Overview, the run's week, sessions and registers, is a link
  * for the same two, and says so when the programme names no run yet.
  *
  * Messages, where updates are written to the people taking part, is a link
@@ -32,7 +38,7 @@ import styles from "./ProgrammeFrame.module.css";
 
 type Tab = {
   /** The route segment under the programme, for the tabs that have a page. */
-  segment: "overview" | "applications" | "groups" | "teams" | "attendance" | "messages" | "setup" | null;
+  segment: "overview" | "applications" | "people" | "groups" | "teams" | "attendance" | "messages" | "setup" | null;
   label: string;
   count?: number | null;
 };
@@ -40,6 +46,7 @@ type Tab = {
 export default function ProgrammeTabs({
   base,
   applications,
+  people = null,
   groups,
   canEdit,
   groupsOpen,
@@ -49,6 +56,8 @@ export default function ProgrammeTabs({
   base: string;
   /** People who have applied to this programme. */
   applications: number;
+  /** How many hold a place on it now, for an admin and its lead once decisions have gone out; null otherwise. */
+  people?: number | null;
   groups: number | null;
   /** True for the programme's lead and for an admin. */
   canEdit: boolean;
@@ -62,6 +71,7 @@ export default function ProgrammeTabs({
     { segment: groupsOpen ? "overview" : null, label: "Overview" },
     { segment: null, label: "Interest" },
     { segment: "applications", label: "Applications", count: applications },
+    { segment: groupsOpen ? "people" : null, label: "People", count: groupsOpen ? people : null },
     { segment: groupsOpen ? "groups" : null, label: "Groups", count: groups },
     ...(teams ? [{ segment: groupsOpen ? ("teams" as const) : null, label: "Teams", count: teams.count }] : []),
     { segment: groupsOpen ? "attendance" : null, label: "Attendance" },
