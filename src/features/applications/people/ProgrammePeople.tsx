@@ -107,7 +107,7 @@ function StatusCell({ row }: { row: PersonRow }) {
         ? styles.chipAccent
         : styles.chipPlain;
   const line =
-    status.kind === "gave-back" || status.kind === "left"
+    status.kind === "gave-back"
       ? status.reason
       : status.kind === "invited" && status.until
         ? invitedUntilWords(status.until)

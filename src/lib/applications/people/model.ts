@@ -49,9 +49,9 @@ import { placesSentence } from "./words";
  *
  * The run the programme names says two things, from each person's seat on it
  * (`seats`): their group, and whether they have left it. Somebody who left
- * the run reads "Left the programme" with the day, and with what they said
- * when they left by themselves. Which filters they are under is still the
- * form's: the run changes no count.
+ * the run reads "Left the programme" with the day. What they said when they
+ * left is read out on the programme's Overview, and not here. Which filters
+ * they are under is still the form's: the run changes no count.
  *
  * Pure: the loader reads, this decides. No email address, access requirement,
  * painted week or answer to a question is in what it returns.
@@ -60,10 +60,10 @@ import { placesSentence } from "./words";
 /** One of the run's live groups, as a row needs it: its name, its letter, and its weekly session if it has one. */
 export type PeopleGroup = { id: string; name: string; tag: string; session: SessionSlot | null };
 
-/** Somebody's seat on the run: the group it is in, and whether it has left the run (when, and what they said). */
+/** Somebody's seat on the run: the group it is in, and whether it has left the run, and when. */
 export type PeopleSeat = {
   groupId: string | null;
-  left: { at: Date | null; reason: string | null } | null;
+  left: { at: Date | null } | null;
 };
 
 export type PeopleInput = {
@@ -102,8 +102,11 @@ function freeOf(form: ApplicationForm, application: ApplicationDoc, groups: read
   if (week.kind !== "given") return { kind: "not-said" };
   const timed = groups.filter((group): group is PeopleGroup & { session: SessionSlot } => group.session !== null);
   if (timed.length === 0) return { kind: "no-times" };
-  const tags = timed.filter((group) => week.covers(group.session)).map((group) => group.tag);
-  return tags.length > 0 ? { kind: "fits", tags: [...new Set(tags)] } : { kind: "fits-none", times: timed.length };
+  // "Fits A, B, D": the groups' letters in the order they read, as the board writes them.
+  const tags = [...new Set(timed.filter((group) => week.covers(group.session)).map((group) => group.tag))].sort((a, b) =>
+    a.localeCompare(b, "en-GB", { numeric: true }),
+  );
+  return tags.length > 0 ? { kind: "fits", tags } : { kind: "fits-none", times: timed.length };
 }
 
 /** The day somebody gave a place back: their reply's own day, or when the application was withdrawn. */
@@ -146,7 +149,7 @@ export function programmePeople(input: PeopleInput): PeopleModel {
 
     let status: PersonStatus;
     if (category !== "invited" && seat?.left) {
-      status = { kind: "left", reason: seat.left.reason, on: dayOf(seat.left.at) };
+      status = { kind: "left", on: dayOf(seat.left.at) };
     } else if (category === "holding") {
       status = { kind: "holding" };
     } else if (category === "gave-back") {
