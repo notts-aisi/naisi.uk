@@ -213,6 +213,8 @@ site's own sender (the boards draw another address; see the build notes).
 **They are notices** (`docs/notifications.md`): they reach everybody holding a
 place whatever their notification settings say, with the lane's visible line,
 its receipt (`kind: "notice"`, surface `course-survey`) and no unsubscribe. A
+follow-up's say instead that the person said yes to follow-ups (surface
+`course-follow-up`), since months on they may hold no place. A
 test is never a notice: it goes to the presser alone, marked `[TEST]`, as
 `course-test`, and its button opens the survey's test link, which keeps nothing.
 

@@ -3929,7 +3929,11 @@ describe("the course hub passage", () => {
     // no unsubscribe link (§2c holds the lane to that), and through no other door.
     const sending = withoutComments(read("src/lib/surveys/sending.ts"));
     assert.match(sending, /const result = await sendNotice\(\{/);
-    assert.match(sending, /surface: "course-survey",/);
+    // A follow-up is a notice too, whose line says it reached the person because they said yes to it.
+    assert.match(sending, /surface: survey\.audience\.kind === "followUps" \? "course-follow-up" : "course-survey",/);
+    const marker = withoutComments(read("src/emails/NoticeMarker.tsx"));
+    assert.match(marker, /"course-survey": "you hold a place on this programme",/);
+    assert.match(marker, /"course-follow-up": "you said we could send you follow-ups about this programme",/);
     assert.ok(!/\bsendEmail\(|wantsEmailFor|addressesForSend/.test(sending), "a survey or its reminder now goes through a door that reads the notification settings");
     // The reminder: people it was sent to who have not answered, and still hold a place.
     assert.match(sending, /\.filter\(\(person\) => person\.sentAt !== null && !person\.answered && holding\.has\(person\.respondent\.uid\)\)/);

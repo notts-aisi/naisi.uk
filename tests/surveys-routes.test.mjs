@@ -1062,6 +1062,12 @@ describe("the survey at the end and the follow-ups pair with the one before, per
     w.world.mail.length = 0;
     assert.equal((await w.sendFirst(six, "zach", { emails: 1 })).status, 200);
     assert.deepEqual(w.world.mail.filter((message) => message.kind === "notice").map((message) => message.to), ["amara@example.com"]);
+    // Its line says why it reached her: her yes, not a place she may no longer hold.
+    const [followUp] = w.mailText().filter((message) => message.kind === "notice");
+    assert.equal(followUp.surface, "course-follow-up");
+    assert.equal(followUp.subject, "Six months on: 11 questions for AGI Strategy");
+    assert.ok(followUp.text.includes("You are getting this because you said we could send you follow-ups about this programme"), followUp.text.slice(0, 300));
+    assert.ok(followUp.text.includes("You said we could ask how things have gone since the programme. It’s 11 questions and takes about 3 minutes."));
     const send = await w.page(w.pages.send, { params: Promise.resolve({ surveyId: six }) }, "zach");
     assert.ok(send.text.includes("Emailed the 1 person who said yes to follow-ups"));
     assert.ok(send.text.includes("Everyone on AGI Strategy who said yes to follow-ups (1)"));
