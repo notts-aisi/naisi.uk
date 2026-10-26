@@ -146,8 +146,9 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
   const firstDay = group?.calendar.firstSessionDate ?? "";
   const beforeFirst = Boolean(group && facts && firstDay && todayKey < firstDay);
   const whosComing = known?.whosComing ?? null;
-  // This week's part of the course's facilitator guide, when it has one.
-  const guide = useFacilitatorGuide(data?.run.courseId ?? "");
+  // This week's part of the course's facilitator guide, when it has one. An
+  // overview that names no course asks for nothing.
+  const guide = useFacilitatorGuide(data?.run?.courseId ?? "");
   const guideHref =
     guide && facts && guide.weeks.includes(facts.weekNumber)
       ? facilitatorGuidePath(guide.courseId, { kind: "week", weekNumber: facts.weekNumber })
