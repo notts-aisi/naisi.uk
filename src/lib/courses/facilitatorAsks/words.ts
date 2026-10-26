@@ -200,9 +200,12 @@ export const TABLE_COLUMNS = { person: "Person", status: "Status", ask: "Ask" } 
 /** The table's statuses, the board's words. */
 export const TAKING_PART_ELSEWHERE = "Taking part in another programme";
 export const NO_OFFER = "No offer this time";
-export const CANT_FACILITATE_OWN = "Can’t facilitate a programme they’re taking part in";
 
-/** "Taking part in AGI Strategy". */
+/**
+ * "Taking part in AGI Strategy": somebody holding a place on the programme.
+ * They may be asked: a facilitator who holds a place is one of the group's
+ * fellows too, and a yes places them in the group they facilitate.
+ */
 export function takingPartWords(shortName: string): string {
   return `Taking part in ${shortName}`;
 }
@@ -212,6 +215,11 @@ export function invitedToWords(shortName: string): string {
   return `Invited to ${shortName}`;
 }
 export const INVITED_ELSEWHERE = "Invited to another programme";
+/**
+ * Somebody invited to the programme who has not answered is asked once they
+ * have: until then nobody knows whether they will hold a place, and so
+ * whether a yes would place them in the group.
+ */
 export const CANT_UNTIL_ANSWERED = "Can’t be asked until they answer their invitation";
 export const GAVE_PLACE_BACK = "Gave their place back";
 export const ACCOUNT_WAITING = "Account waiting for approval";
@@ -291,9 +299,59 @@ export const NO_TRAINING_SET =
 export const CHANGE_EMAILS_NOBODY =
   "Changing who facilitates a group emails nobody. Somebody added after groups have gone out is told by the next press of Publish, on People in groups.";
 
-/** After a by-hand change of a group's facilitators. */
-export function changeSavedWords(groupName: string): string {
-  return `${groupName}’s facilitators are saved. Nobody was emailed.`;
+/**
+ * After a by-hand change of a group's facilitators. NOT DRAWN when it names
+ * somebody: a facilitator who holds a place and sat in no group is placed in
+ * the group they facilitate, and the sentence says who.
+ */
+export function changeSavedWords(groupName: string, placedNames: readonly string[] = []): string {
+  if (placedNames.length === 0) return `${groupName}’s facilitators are saved. Nobody was emailed.`;
+  const verb = placedNames.length === 1 ? "is" : "are";
+  return `${groupName}’s facilitators are saved, and ${listInWords(placedNames)} ${verb} now in ${groupName}. Nobody was emailed.`;
+}
+
+// ---- Where a facilitator who holds a place sits (NOT DRAWN) ----
+//
+// A facilitator who holds a place on the run sits in the group they
+// facilitate, and an appointment places somebody in no group yet. When it
+// cannot, nothing is saved and one of these says why. Words for the people
+// who staff a run name the groups; the words for the person asked name only
+// the group they were asked about, because where somebody else has placed
+// them is not theirs to read before Publish tells them.
+
+/** By hand: they sit in another group. */
+export function byHandElsewhereWords(name: string, inGroup: string, toGroup: string): string {
+  return `${name} is in ${inGroup}, and somebody who holds a place facilitates the group they’re in. Move them to ${toGroup} on People in groups first, or make them one of ${inGroup}’s facilitators. Nothing was saved.`;
+}
+
+/** By hand: the group has no room for them. */
+export function byHandFullWords(name: string, groupName: string): string {
+  return `${groupName} is full, so ${name} can’t be placed in it. Make room in ${groupName} on People in groups, or give it more places, then try again. Nothing was saved.`;
+}
+
+/** By hand, from somebody who may not place them (a track lead, for a place from the application form). */
+export function byHandNotYoursWords(name: string): string {
+  return `Only an admin or the lead of the programme that names this run can make ${name} one of its facilitators, so nothing was saved.`;
+}
+
+/** Asking: they sit in another group. */
+export function askElsewhereWords(inGroup: string, toGroup: string): string {
+  return `That person is in ${inGroup}, and somebody who holds a place facilitates the group they’re in. Ask them for ${inGroup}, or move them to ${toGroup} on People in groups first.`;
+}
+
+/** Asking: the group has no room for them. */
+export function askFullWords(groupName: string): string {
+  return `${groupName} is full, so that person couldn’t be placed in it if they said yes. Make room in ${groupName} on People in groups first, or give it more places.`;
+}
+
+/** Answering yes, when their place cannot go into the group: another group, no room, or not on the run yet. */
+export function cantPlaceYouWords(groupName: string): string {
+  return `We can’t make you ${groupName}’s facilitator just yet. A facilitator who holds a place sits in the group they facilitate, and your place needs sorting out first. Please write to ai-safety@uonsu.com.`;
+}
+
+/** Answering yes, with an invitation to the programme not yet answered. */
+export function answerInvitationFirstWords(shortName: string): string {
+  return `You’ve been invited to ${shortName}. Please answer that invitation first, then come back here to say yes.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -515,10 +573,6 @@ export function lateWords(day: string, time: string): string {
 /** Once somebody else has said yes to the same place. */
 export function seatGoneWords(groupName: string): string {
   return `Somebody else is facilitating ${groupName} now, so this has closed. Thank you for saying you’d like to.`;
-}
-/** Once the person holds a place on the programme they were asked to facilitate. */
-export function takingPartNowWords(shortName: string): string {
-  return `You’re taking part in ${shortName}, so you can’t facilitate it this term.`;
 }
 /** To anybody but the person asked. Says nothing of the ask. */
 export const NOT_YOURS =

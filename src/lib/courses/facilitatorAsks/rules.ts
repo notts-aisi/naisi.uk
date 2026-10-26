@@ -11,7 +11,6 @@ import { londonWallClockToInstant } from "../weekPlan";
 import type { FacilitatorAsk, WallClock } from "./model";
 import {
   ACCOUNT_WAITING,
-  CANT_FACILITATE_OWN,
   CANT_UNTIL_APPROVED,
   CANT_UNTIL_ANSWERED,
   GAVE_PLACE_BACK,
@@ -40,9 +39,15 @@ import {
  *    questions, one column each (`facilitatorColumns`), and nothing else the
  *    form holds.
  *  - WHERE AN ASK STANDS (`askStateOf`), and so WHERE A PERSON STANDS
- *    (`personStatus`), which decides whether they may be asked at all. Q21:
- *    never somebody taking part in this programme, or who may yet (an
- *    invitation to it they have not answered).
+ *    (`personStatus`), which decides whether they may be asked at all.
+ *
+ * SOMEBODY HOLDING A PLACE ON THIS PROGRAMME MAY BE ASKED. A facilitator can
+ * be one of the programme's fellows too (the rule that nobody facilitates a
+ * programme they take part in, Q21, was lifted on 26 October 2026): they do
+ * the course in the group they facilitate, and a yes places them in it
+ * (`src/lib/courses/groupFacilitators.ts`). Somebody INVITED to it who has
+ * not answered is asked once they have (`invitedTo`): until then nobody knows
+ * whether they will hold a place, and so where a yes would put them.
  *
  * No reads, no clock of its own: every caller hands over `now`.
  */
@@ -266,10 +271,10 @@ export function isApprovedRole(role: string | null): boolean {
 /**
  * Where one person on the list stands, in the board's words, and whether they
  * may be asked. The order is the order of what matters most: an ask they have
- * answered or not yet, then a group they already facilitate, then the rule
- * that nobody facilitates a programme they take part in (Q21), then whether
- * asking has opened at all, then their account, and last where decision day
- * left them.
+ * answered or not yet, then a group they already facilitate, then an
+ * invitation to the programme they have not answered, then whether asking
+ * has opened at all, then their account, and last where decision day left
+ * them. Holding a place on the programme stops nobody being asked.
  */
 export function personStatus(uid: string, facts: PersonFacts): PersonStatus {
   const asks = facts.runAsks
@@ -301,10 +306,7 @@ export function personStatus(uid: string, facts: PersonFacts): PersonStatus {
   }
 
   const { standing, programme } = facts;
-  if (standing.kind === "place" && standing.programmeId === programme.id) {
-    return { chip: { words: takingPartWords(programme.shortName), tone: "quiet" }, note: CANT_FACILITATE_OWN, ask: "none", askId: null };
-  }
-  if (standing.kind === "invitation" && standing.programmeId === programme.id) {
+  if (invitedTo(standing, programme.id)) {
     return { chip: { words: invitedToWords(programme.shortName), tone: "quiet" }, note: CANT_UNTIL_ANSWERED, ask: "none", askId: null };
   }
   if (!facts.decisionsSent) return { chip: null, note: null, ask: "none", askId: null };
@@ -327,17 +329,17 @@ export function personStatus(uid: string, facts: PersonFacts): PersonStatus {
     return { chip: { words: seatTakenWords(group), tone: "quiet" }, note: null, ask: "button", askId: closed.ask.id };
   }
 
-  const chip = standingChip(standing, programme.id);
+  const chip = standingChip(standing, programme);
   return { chip: chip ? { words: chip, tone: "quiet" } : null, note: null, ask: "button", askId: null };
 }
 
 /** Where decision day left somebody, for a person who may be asked. */
-function standingChip(standing: Standing, programmeId: string): string | null {
+function standingChip(standing: Standing, programme: Pick<ProgrammeSettings, "id" | "shortName">): string | null {
   switch (standing.kind) {
     case "place":
-      return standing.programmeId === programmeId ? null : TAKING_PART_ELSEWHERE;
+      return standing.programmeId === programme.id ? takingPartWords(programme.shortName) : TAKING_PART_ELSEWHERE;
     case "invitation":
-      return standing.programmeId === programmeId ? null : INVITED_ELSEWHERE;
+      return standing.programmeId === programme.id ? null : INVITED_ELSEWHERE;
     case "released":
       return GAVE_PLACE_BACK;
     case "no-place":
@@ -352,10 +354,18 @@ export function mayBeAsked(uid: string, facts: PersonFacts): boolean {
   return personStatus(uid, facts).ask === "button";
 }
 
-/** True for somebody taking part in the programme, or who may yet: Q21's "never in the same programme". */
-export function takesPartIn(standing: Standing, programmeId: string): boolean {
-  return (
-    (standing.kind === "place" && standing.programmeId === programmeId) ||
-    (standing.kind === "invitation" && standing.programmeId === programmeId)
-  );
+/**
+ * True for somebody holding a place on the programme: one of its fellows,
+ * so a yes from them places them in the group they facilitate.
+ */
+export function hasPlaceOn(standing: Standing, programmeId: string): boolean {
+  return standing.kind === "place" && standing.programmeId === programmeId;
+}
+
+/**
+ * True for somebody invited to the programme who has not answered: they are
+ * asked, and their yes is taken, once they have answered.
+ */
+export function invitedTo(standing: Standing, programmeId: string): boolean {
+  return standing.kind === "invitation" && standing.programmeId === programmeId;
 }

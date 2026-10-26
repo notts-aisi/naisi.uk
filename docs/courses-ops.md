@@ -1480,9 +1480,41 @@ yes to facilitating and chose this programme or "Either" (read from the
 form's own facilitator questions, whatever they are called), with their
 answers to those questions and nothing else of the application. The viewer's
 own application is never listed. Asking opens once decision day has been
-sent. Nobody taking part in the programme, or invited to it and not yet
-answered, can be asked (Q21), and only an approved account can facilitate.
-Somebody taking part in another programme can be asked.
+sent. Somebody holding a place on the programme can be asked: a facilitator
+can be one of its fellows too, in the group they facilitate (the rule that
+nobody facilitates a programme they take part in was lifted on 26 October
+2026). Somebody invited to it and not yet answered is asked once they have
+answered, and only an approved account can facilitate. Somebody taking part
+in another programme can be asked.
+
+### A facilitator who holds a place
+
+A facilitator who holds a place on the run is one of its fellows: a
+learner's row in a group, like everybody else's, beside their name on the
+group's facilitators. They SIT IN THE GROUP THEY FACILITATE. So every
+appointment, by an answer or by hand, asks where the person sits first
+(`seatFor` in
+`src/lib/courses/groupFacilitators.ts`):
+
+- in that group already: nothing moves;
+- in no group yet (handed over and never placed, or taken out of their
+  group on People in groups): the appointment places them in that group, in
+  the same transaction, as the board's own placement would, and the group's
+  count of people moves with them. By hand, the saved sentence names them;
+- in another group: nothing is saved. The board decides where people sit,
+  so they are moved on People in groups first, or made a facilitator of
+  their own group. Asking them for another group is refused before any
+  email, with both groups named;
+- a group with no room left for somebody it would place saves nothing;
+- holding no place on the run: a facilitator's row, as before.
+
+The person asked is never told where staff have placed them: a yes that
+cannot be placed is answered with one sentence that names only the group
+they were asked about. A yes from somebody holding a place who has not been
+handed over yet waits until they have. A row on the run's list that the
+application form wrote is placed only by an admin or the programme's lead,
+so a track lead adding that person saves nothing. Taking a facilitator off a
+group leaves their place where it is.
 
 ### Asking
 
@@ -1508,8 +1540,11 @@ says yes first takes it, and the other ask closes.
 signed in, and nobody else (anybody else is told the page is somebody
 else's). Yes puts them on the group as a facilitator through the same code
 the run editor's group card uses (`src/lib/courses/groupFacilitators.ts`),
-in one transaction with the answer, and records who asked them and when they
-agreed in the group's `facilitatorAppointments`. No is recorded. After the
+in one transaction with the answer, places them in the group when they hold
+a place and sit in no group yet (above), and records who asked them and when
+they agreed in the group's `facilitatorAppointments`. Somebody invited to the
+programme answers that invitation before their yes is taken. No is
+recorded. After the
 day and time to answer by, or once somebody else has the place, the page
 says so and nothing can be answered. Nobody is emailed by an answer: groups
 going out (Publish) tells the new facilitator their group, as it tells

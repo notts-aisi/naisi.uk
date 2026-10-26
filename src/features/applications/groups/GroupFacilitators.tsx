@@ -217,10 +217,10 @@ export default function GroupFacilitators({ runId }: Props) {
     setSaving(true);
     setProblem(null);
     try {
-      await setGroupFacilitators(editing.groupId, editing.uids);
+      const { placed } = await setGroupFacilitators(editing.groupId, editing.uids);
       const name = model?.groups.find((group) => group.id === editing.groupId)?.name || "The group";
       setEditing(null);
-      setSaved(changeSavedWords(name));
+      setSaved(changeSavedWords(name, placed));
       reload();
     } catch (err) {
       setProblem(err instanceof Error ? err.message : "That did not save. Try again.");

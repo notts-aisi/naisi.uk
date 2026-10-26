@@ -1,15 +1,13 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { own } from "@/lib/applications/keys";
-import { normaliseApplication } from "@/lib/applications/normalise";
-import { applicationRef, loadForm } from "@/lib/applications/repo";
-import { standingOf } from "@/lib/applications/status/standing";
+import { loadForm } from "@/lib/applications/repo";
 import type { SessionUser } from "@/lib/firebase/session";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { groupAskFacts } from "./groups";
 import { listRunAsks, readAsk, readTraining } from "./read";
-import { askStateOf, takesPartIn } from "./rules";
+import { askStateOf } from "./rules";
 import {
   NO_LONGER_OPEN,
   NO_ROOM_YET,
@@ -24,7 +22,6 @@ import {
   saidNoText,
   seatGoneWords,
   sizeWords,
-  takingPartNowWords,
   trainingLine,
   trainingText,
   trainingWords,
@@ -42,9 +39,10 @@ import {
  * the day and time to answer by. All from records as they stand now, so a
  * room changed since the email is the room shown. The lead is named as the
  * email named them. NOTHING FROM ANY APPLICATION: their own answers are not
- * shown back, and nobody else's are reached.
+ * shown back, and nobody else's are reached. Holding a place on the
+ * programme closes nothing: a facilitator can be one of its fellows too.
  *
- * It reads no review, no decision and no other person's application.
+ * It reads no application, no review and no decision.
  */
 
 export type AnswerState =
@@ -56,8 +54,6 @@ export type AnswerState =
   | "late"
   /** Somebody else said yes to the same place first. */
   | "taken"
-  /** They now take part in the programme (Q21). */
-  | "taking-part"
   /** The group or its run has gone. */
   | "closed";
 
@@ -97,13 +93,12 @@ export async function loadAnswerPage(
   const ask = await readAsk(db, askId);
   if (!ask || ask.uid !== actor.uid) return { kind: "not-yours" };
 
-  const [form, runSnap, groupSnap, runAsks, training, applicationSnap] = await Promise.all([
+  const [form, runSnap, groupSnap, runAsks, training] = await Promise.all([
     loadForm(db, ask.roundId),
     db.collection("courseRuns").doc(ask.runId).get(),
     db.collection("courseGroups").doc(ask.groupId).get(),
     listRunAsks(db, ask.runId),
     readTraining(db, ask.runId),
-    applicationRef(db, ask.roundId, actor.uid).get(),
   ]);
   const programme = form ? own(form.programmes, ask.programmeId) : undefined;
   const shortName = programme?.shortName ?? "";
@@ -119,8 +114,6 @@ export async function loadAnswerPage(
   const replyDay = dayIn(ask.replyBy.dateKey) ?? "";
   const replyTime = clockIn(ask.replyBy.time) ?? "";
   const asked = askStateOf(ask, runAsks, now);
-  const application = applicationSnap.exists ? normaliseApplication(applicationSnap.id, applicationSnap.data()) : null;
-  const takingPart = application !== null && takesPartIn(standingOf(application), ask.programmeId);
 
   let state: AnswerState;
   if (asked.kind === "yes") state = "yes";
@@ -128,7 +121,6 @@ export async function loadAnswerPage(
   else if (!run || !group || group.archived) state = "closed";
   else if (asked.kind === "taken") state = "taken";
   else if (asked.kind === "late") state = "late";
-  else if (takingPart) state = "taking-part";
   else state = "open";
 
   const closedText: Record<AnswerState, string | null> = {
@@ -137,7 +129,6 @@ export async function loadAnswerPage(
     no: saidNoText(shortName || "this programme"),
     late: lateWords(replyDay, replyTime),
     taken: seatGoneWords(groupName),
-    "taking-part": takingPartNowWords(shortName || "this programme"),
     closed: NO_LONGER_OPEN,
   };
 

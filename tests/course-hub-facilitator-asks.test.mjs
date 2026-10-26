@@ -1,8 +1,14 @@
 /**
  * Asking people to facilitate (boards st-facilitators and st-fac-ask-phone,
- * Q6 option B, Q21): the Facilitators view's read, asking with a test first
- * and a count, reminding, asking somebody else, the answer, the training, and
- * the rule that nobody facilitates a programme they take part in.
+ * Q6 option B): the Facilitators view's read, asking with a test first and a
+ * count, reminding, asking somebody else, the answer, the training, and where
+ * a facilitator who holds a place sits.
+ *
+ * Q21 ("nobody facilitates a programme they take part in", approved 24 Oct
+ * 2026) was LIFTED on Mon 26 Oct 2026: a facilitator can be one of
+ * the programme's fellows, holding a place, in the same group they
+ * facilitate. The tests that pinned the refusal now pin that rule as
+ * strictly: who may be asked, what a yes places, and what saves nothing.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -18,7 +24,7 @@
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { makeWorld } from "./lib/handoverWorld.mjs";
+import { loadJoin, makeWorld } from "./lib/handoverWorld.mjs";
 import { applicationDoc } from "./lib/applicationsSmallTerm.mjs";
 import {
   A,
@@ -40,6 +46,9 @@ import {
 const made = makeWorld("__facilitatorAsks");
 const { world, reset, call, everything } = made;
 const routes = await loadAskRoutes(made);
+// The hand-over and the board, for the people who hold a place.
+const join = await loadJoin(made);
+const words = await made.lib("courses", "facilitatorAsks", "words.ts");
 
 /** Start from the world at `at`, the store's clock and the suite's agreeing. */
 function begin(t, { at = NOW, over = {} } = {}) {
@@ -75,6 +84,33 @@ const asksStored = () =>
     .filter((path) => path.startsWith("courseFacilitating/"))
     .map((path) => ({ path, ...world.db.read(path) }))
     .filter((doc) => doc.kind === "ask");
+
+/** An admin's press of the hand-over: everybody holding an AGI Strategy place goes onto the run's list. */
+async function handOver() {
+  const pressed = await join.press("zach");
+  assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
+}
+
+/** A placement on the board by an admin, as one drag makes it. */
+async function placeOnBoard(uid, groupId) {
+  const placed = await join.place("zach", [{ uid, groupId }]);
+  assert.equal(placed.status, 200, JSON.stringify(placed.body));
+  assert.deepEqual(placed.body.rejected, [], JSON.stringify(placed.body));
+}
+
+/** Somebody's row on the AGI run, and a group, as stored. */
+const rowOf = (uid) => world.db.read(`courseEnrolments/${RUN.agi}__${uid}`);
+const groupOf = (id) => world.db.read(`courseGroups/${id}`);
+
+/** Where the board shows somebody: the group their card is in, or null for the pool. */
+async function onTheBoard(who, uid) {
+  const board = await join.board(who);
+  assert.equal(board.status, 200, JSON.stringify(board.body));
+  return board.body.people.find((row) => row.uid === uid)?.groupId ?? null;
+}
+
+/** The emails people were sent, without the tests that went to whoever asked. */
+const realMail = () => world.mail.filter((message) => !message.subject.startsWith("[TEST]"));
 
 /** The words of the one email a message carries, as the template was handed them. */
 function wordsOf(message) {
@@ -201,7 +237,13 @@ describe("2. the Facilitators view's read", () => {
       omar: ["No offer this time", null, "button"],
       wen: ["Taking part in another programme", null, "button"],
       nina: ["Gave their place back", null, "button"],
-      amara: ["Taking part in AGI Strategy", "Can’t facilitate a programme they’re taking part in", "none"],
+      // Q21 was lifted on Mon 26 Oct 2026: somebody holding a place on
+      // AGI Strategy may be asked, with where they stand and the button, as
+      // anybody else may. It was "Can’t facilitate a programme they’re
+      // taking part in" and no button.
+      amara: ["Taking part in AGI Strategy", null, "button"],
+      // Still waits, for a reason of its own now: until they answer, nobody
+      // knows whether they will hold a place, and so where a yes would put them.
       ines: ["Invited to AGI Strategy", "Can’t be asked until they answer their invitation", "none"],
     });
     assert.ok(!("tariq" in said), "somebody who chose only Technical AI Safety is listed");
@@ -574,22 +616,40 @@ describe("4. answers, and who can be asked at all", () => {
     assert.deepEqual(world.db.read(`courseGroups/${B}`).facilitatorUids, ["rahul", "sofia", "wen"]);
   });
 
-  test("Q21: somebody taking part in AGI Strategy, or invited to it, cannot be asked", async (t) => {
+  // Q21 ("nobody facilitates a programme they take part in") was lifted on
+  // Mon 26 Oct 2026: a facilitator can be one of the programme's
+  // fellows. This test pinned that Amara, who holds an AGI Strategy place,
+  // was refused with "That person is taking part in AGI Strategy, so they
+  // can’t facilitate it."; it now pins that Amara is asked like anybody
+  // else, with one email to Amara alone, while Ines (invited, not yet
+  // answered) and Tariq (not on the list) are still refused, word for word,
+  // with nothing stored.
+  test("somebody holding an AGI Strategy place may be asked; somebody invited to it waits until they answer", async (t) => {
     begin(t);
-    await test_("claudia", OMAR_B);
-    const amara = await ask("claudia", { uid: "amara", groupId: B, replyBy: REPLY_BY, emails: 1 });
-    assert.equal(amara.status, 409);
-    assert.equal(amara.body.error, "That person is taking part in AGI Strategy, so they can’t facilitate it.");
+    const amara = await testThenAsk("claudia", { uid: "amara", groupId: B, replyBy: REPLY_BY });
+    assert.equal(amara.status, 200, JSON.stringify(amara.body));
+    assert.deepEqual(
+      realMail().map((message) => message.to),
+      [world.db.read("users/amara").email],
+      "the ask emailed somebody other than Amara",
+    );
     const ines = await ask("claudia", { uid: "ines", groupId: B, replyBy: REPLY_BY, emails: 1 });
     assert.equal(ines.status, 409);
     assert.equal(ines.body.error, "That person is invited to AGI Strategy, and can’t be asked until they answer.");
     const tariq = await ask("claudia", { uid: "tariq", groupId: B, replyBy: REPLY_BY, emails: 1 });
     assert.equal(tariq.status, 409);
     assert.equal(tariq.body.error, "That person isn’t on the list of people who’d like to facilitate this programme.");
-    assert.equal(asksStored().length, 0);
+    assert.deepEqual(asksStored().map((each) => each.uid), ["amara"]);
   });
 
-  test("Q21 at the answer: somebody who has come to take part since they were asked cannot say yes", async (t) => {
+  // Q21 is lifted (above). This test pinned that Omar, asked with no offer,
+  // could not say yes after accepting a freed AGI Strategy place ("You’re
+  // taking part in AGI Strategy, so you can’t facilitate it this term.").
+  // Omar is one of the fellows now, so it pins what replaces that: the yes
+  // waits, writing nothing, while Omar's place is not on the run yet (a yes
+  // then would make a facilitator who is no fellow), and once an admin has
+  // handed Omar over it goes and places Omar in the group.
+  test("somebody who has come to hold a place since they were asked: the yes waits until they are on the run, then places them in the group", async (t) => {
     begin(t);
     const asked = await testThenAsk("claudia");
     // Omar is offered a freed place on AGI Strategy and accepts it.
@@ -597,27 +657,50 @@ describe("4. answers, and who can be asked at all", () => {
       invitation: { programmeId: "agi-strategy", replyBy: "2026-10-29", response: "accepted", respondedAt: NOW },
       status: "accepted",
     });
-    const refused = await answer("omar", asked.body.askId, "yes");
-    assert.equal(refused.status, 409);
-    assert.equal(refused.body.error, "You’re taking part in AGI Strategy, so you can’t facilitate it this term.");
-    assert.deepEqual(world.db.read(`courseGroups/${B}`).facilitatorUids, ["rahul", "sofia"]);
+    const before = everything();
+    const waits = await answer("omar", asked.body.askId, "yes");
+    assert.equal(waits.status, 409);
+    assert.equal(
+      waits.body.error,
+      "We can’t make you Group B’s facilitator just yet. A facilitator who holds a place sits in the group they facilitate, and your place needs sorting out first. Please write to ai-safety@uonsu.com.",
+    );
+    assert.equal(everything(), before, "a yes that waits wrote something");
+
+    await handOver();
+    const said = await answer("omar", asked.body.askId, "yes");
+    assert.equal(said.status, 200, JSON.stringify(said.body));
+    assert.deepEqual(groupOf(B).facilitatorUids, ["rahul", "sofia", "omar"]);
+    const row = rowOf("omar");
+    assert.deepEqual([row.role, row.status, row.groupId], ["learner", "active", B]);
+    assert.equal(groupOf(B).memberCount, 1);
   });
 
-  test("by hand, too: an account taking part in the run cannot be made its facilitator", async (t) => {
+  // Q21 is lifted (above). This test pinned that the group facilitators route
+  // refused Amara, a learner in Group B, as Group A's facilitator ("Amara
+  // Okafor can’t facilitate a programme they’re taking part in, so nothing
+  // was saved."). Amara may facilitate now, but sits in the group they
+  // facilitate, and the board decides where people sit: Group A is refused,
+  // naming both groups, with nothing saved, and Group B is saved with
+  // nothing moved.
+  test("by hand: somebody in Group B may facilitate Group B, and Group A only once the board has moved them", async (t) => {
     begin(t);
-    world.db.seed(`courseEnrolments/${RUN.agi}__amara`, {
-      runId: RUN.agi,
-      courseId: "agi-strategy-fellowship__c0urse01",
-      uid: "amara",
-      groupId: B,
-      status: "active",
-      role: "learner",
-    });
+    await handOver();
+    await placeOnBoard("amara", B);
     const before = everything();
     const refused = await call("claudia", routes.byHand.POST, { groupId: A }, { body: { uids: ["sofia", "amara"] }, course: true });
     assert.equal(refused.status, 409);
-    assert.equal(refused.body.error, "Amara Okafor can’t facilitate a programme they’re taking part in, so nothing was saved.");
+    assert.equal(
+      refused.body.error,
+      "Amara Okafor is in Group B, and somebody who holds a place facilitates the group they’re in. Move them to Group A on People in groups first, or make them one of Group B’s facilitators. Nothing was saved.",
+    );
     assert.equal(everything(), before);
+
+    const saved = await call("claudia", routes.byHand.POST, { groupId: B }, { body: { uids: ["rahul", "sofia", "amara"] }, course: true });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.deepEqual(saved.body, { ok: true, facilitatorUids: ["rahul", "sofia", "amara"] });
+    const row = rowOf("amara");
+    assert.deepEqual([row.role, row.status, row.groupId], ["learner", "active", B]);
+    assert.equal(groupOf(B).memberCount, 1, "the group counted Amara twice");
   });
 
   test("taking somebody off by hand takes their appointment record with them", async (t) => {
@@ -630,6 +713,252 @@ describe("4. answers, and who can be asked at all", () => {
     assert.deepEqual(group.facilitatorUids, ["rahul", "sofia"]);
     assert.ok(!("omar" in (group.facilitatorAppointments ?? {})), "the record outlived the place");
     assert.equal(world.db.read(`courseEnrolments/${RUN.agi}__omar`).status, "removed");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4b. A facilitator who holds a place sits in the group they facilitate
+// ---------------------------------------------------------------------------
+
+describe("4b. a facilitator who holds a place is one of the group's fellows, in the group they facilitate", () => {
+  /** The words the person asked is answered with when their place cannot go into the group. */
+  const CANT_PLACE_B =
+    "We can’t make you Group B’s facilitator just yet. A facilitator who holds a place sits in the group they facilitate, and your place needs sorting out first. Please write to ai-safety@uonsu.com.";
+
+  test("a yes from somebody holding a place, in no group yet, places them in the group as the board's first placement would", async (t) => {
+    begin(t);
+    await handOver();
+    const asked = await testThenAsk("claudia", { uid: "amara", groupId: B, replyBy: REPLY_BY });
+    assert.equal(asked.status, 200, JSON.stringify(asked.body));
+    const mailed = world.mail.length;
+    const said = await answer("amara", asked.body.askId, "yes");
+    assert.deepEqual(said, { status: 200, body: { ok: true, answer: "yes" } });
+    assert.equal(world.mail.length, mailed, "saying yes emailed somebody");
+
+    const group = groupOf(B);
+    assert.deepEqual(group.facilitatorUids, ["rahul", "sofia", "amara"]);
+    assert.equal(group.facilitatorAppointments.amara.byUid, "claudia");
+    assert.equal(group.memberCount, 1);
+    // Amara's row is a learner's in Group B, the same row the board's own
+    // first placement writes (Bea, placed by an admin's drag, beside it).
+    await placeOnBoard("bea", B);
+    const amara = rowOf("amara");
+    const bea = rowOf("bea");
+    assert.deepEqual(Object.keys(amara).sort(), Object.keys(bea).sort(), "an appointment's placement writes another row than the board's");
+    for (const field of ["runId", "courseId", "groupId", "status", "role", "joinedWeekNumber"]) {
+      assert.deepEqual(amara[field], bea[field], field);
+    }
+    assert.equal(amara.applicationId, `${RUN.agi}__amara`);
+    assert.equal(groupOf(B).memberCount, 2);
+    // The board shows Amara in Group B, to the lead and to an admin.
+    assert.equal(await onTheBoard("claudia", "amara"), B);
+    assert.equal(await onTheBoard("zach", "amara"), B);
+  });
+
+  test("by hand, somebody holding a place in no group is placed in the group, and the answer names them", async (t) => {
+    begin(t);
+    await handOver();
+    const saved = await call("claudia", routes.byHand.POST, { groupId: A }, { body: { uids: ["sofia", "amara"] }, course: true });
+    assert.deepEqual(saved, { status: 200, body: { ok: true, facilitatorUids: ["sofia", "amara"], placed: ["Amara Okafor"] } });
+    const row = rowOf("amara");
+    assert.deepEqual([row.role, row.status, row.groupId], ["learner", "active", A]);
+    assert.equal(groupOf(A).memberCount, 1);
+    assert.equal(world.mail.length, 0, "a change by hand emailed somebody");
+    // What the Facilitators view says after the save.
+    assert.equal(
+      words.changeSavedWords("Group A", saved.body.placed),
+      "Group A’s facilitators are saved, and Amara Okafor is now in Group A. Nobody was emailed.",
+    );
+    assert.equal(words.changeSavedWords("Group A"), "Group A’s facilitators are saved. Nobody was emailed.");
+    assert.equal(
+      words.changeSavedWords("Group A", ["Amara Okafor", "Bea Lindqvist"]),
+      "Group A’s facilitators are saved, and Amara Okafor and Bea Lindqvist are now in Group A. Nobody was emailed.",
+    );
+  });
+
+  test("an admin's change by hand places them too, and somebody who holds no place gets a facilitator's row as before", async (t) => {
+    begin(t);
+    await handOver();
+    const saved = await call("zach", routes.byHand.POST, { groupId: A }, { body: { uids: ["sofia", "amara", "omar"] }, course: true });
+    assert.deepEqual(saved, { status: 200, body: { ok: true, facilitatorUids: ["sofia", "amara", "omar"], placed: ["Amara Okafor"] } });
+    assert.deepEqual([rowOf("amara").role, rowOf("amara").groupId], ["learner", A]);
+    const omar = rowOf("omar");
+    assert.deepEqual([omar.role, omar.status, omar.groupId], ["facilitator", "active", null]);
+    assert.equal(groupOf(A).memberCount, 1, "somebody who holds no place was counted in the group");
+  });
+
+  test("a fellow the board took out of their group is placed in the group they are made facilitator of, and Publish will tell them", async (t) => {
+    begin(t);
+    await handOver();
+    await placeOnBoard("amara", B);
+    await placeOnBoard("amara", null);
+    assert.equal(rowOf("amara").groupId, null);
+    // As if a stamp had been left on the row: it certifies a group, and a new one clears it.
+    world.db.poke(`courseEnrolments/${RUN.agi}__amara`, { allocatedEmailAt: NOW });
+    const saved = await call("claudia", routes.byHand.POST, { groupId: A }, { body: { uids: ["sofia", "amara"] }, course: true });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.deepEqual(saved.body.placed, ["Amara Okafor"]);
+    const row = rowOf("amara");
+    assert.deepEqual([row.role, row.status, row.groupId], ["learner", "active", A]);
+    assert.ok(!("allocatedEmailAt" in row), "the row still says Publish told them about a group");
+    assert.deepEqual([groupOf(A).memberCount, groupOf(B).memberCount], [1, 0]);
+  });
+
+  test("somebody who has left the run holds no place on it: made a facilitator, their row stays as they left it", async (t) => {
+    begin(t);
+    await handOver();
+    await placeOnBoard("amara", B);
+    // Amara leaves the programme, as the leave route leaves a row.
+    world.db.poke(`courseEnrolments/${RUN.agi}__amara`, { status: "withdrawn", droppedOutAt: NOW });
+    world.db.poke(`courseGroups/${B}`, { memberCount: 0 });
+    const left = rowOf("amara");
+    const saved = await call("claudia", routes.byHand.POST, { groupId: A }, { body: { uids: ["sofia", "amara"] }, course: true });
+    assert.deepEqual(saved, { status: 200, body: { ok: true, facilitatorUids: ["sofia", "amara"] } });
+    assert.deepEqual(rowOf("amara"), left, "an appointment put somebody who left back on the run");
+    assert.deepEqual([groupOf(A).memberCount, groupOf(B).memberCount], [0, 0]);
+  });
+
+  test("a full group saves nothing, by hand, on asking and at the answer", async (t) => {
+    begin(t);
+    await handOver();
+    world.db.poke(`courseGroups/${B}`, { capacity: 1 });
+    await placeOnBoard("bea", B);
+    const before = everything();
+    const byHand = await call("claudia", routes.byHand.POST, { groupId: B }, { body: { uids: ["rahul", "sofia", "amara"] }, course: true });
+    assert.equal(byHand.status, 409);
+    assert.equal(
+      byHand.body.error,
+      "Group B is full, so Amara Okafor can’t be placed in it. Make room in Group B on People in groups, or give it more places, then try again. Nothing was saved.",
+    );
+    const tested = await test_("claudia", { uid: "amara", groupId: B, replyBy: REPLY_BY });
+    assert.equal(tested.status, 409);
+    assert.equal(
+      tested.body.error,
+      "Group B is full, so that person couldn’t be placed in it if they said yes. Make room in Group B on People in groups first, or give it more places.",
+    );
+    assert.equal(everything(), before);
+    assert.equal(world.mail.length, 0);
+
+    // Room when asked, and none by the time of the answer.
+    begin(t);
+    await handOver();
+    world.db.poke(`courseGroups/${B}`, { capacity: 1 });
+    const asked = await testThenAsk("claudia", { uid: "amara", groupId: B, replyBy: REPLY_BY });
+    assert.equal(asked.status, 200, JSON.stringify(asked.body));
+    await placeOnBoard("bea", B);
+    const later = everything();
+    const full = await answer("amara", asked.body.askId, "yes");
+    assert.deepEqual([full.status, full.body.error], [409, CANT_PLACE_B]);
+    assert.equal(everything(), later);
+  });
+
+  test("asking somebody in another group names their group, and asking them for their own goes", async (t) => {
+    begin(t);
+    await handOver();
+    await placeOnBoard("amara", A);
+    const before = everything();
+    const tested = await test_("claudia", { uid: "amara", groupId: B, replyBy: REPLY_BY });
+    assert.equal(tested.status, 409);
+    assert.equal(
+      tested.body.error,
+      "That person is in Group A, and somebody who holds a place facilitates the group they’re in. Ask them for Group A, or move them to Group B on People in groups first.",
+    );
+    assert.equal(everything(), before);
+    assert.equal(world.mail.length, 0);
+    // With a test for that day and time already through, the ask itself
+    // meets the same sentence, and nobody is emailed.
+    assert.equal((await test_("claudia", OMAR_B)).status, 200);
+    const tests = world.mail.length;
+    const asked = await ask("claudia", { uid: "amara", groupId: B, replyBy: REPLY_BY, emails: 1 });
+    assert.deepEqual([asked.status, asked.body.error], [409, tested.body.error]);
+    assert.equal(asksStored().length, 0);
+    assert.equal(world.mail.length, tests, "a refused ask emailed somebody");
+
+    const own = await testThenAsk("zach", { uid: "amara", groupId: A, replyBy: REPLY_BY });
+    assert.equal(own.status, 200, JSON.stringify(own.body));
+    assert.equal((await answer("amara", own.body.askId, "yes")).status, 200);
+    assert.deepEqual(groupOf(A).facilitatorUids, ["sofia", "amara"]);
+    assert.deepEqual([rowOf("amara").groupId, groupOf(A).memberCount], [A, 1], "a yes from somebody in the group moved or counted them");
+  });
+
+  test("a yes from somebody the board has since put in another group saves nothing, and names only the group asked about", async (t) => {
+    begin(t);
+    await handOver();
+    const asked = await testThenAsk("claudia", { uid: "amara", groupId: B, replyBy: REPLY_BY });
+    assert.equal(asked.status, 200, JSON.stringify(asked.body));
+    await placeOnBoard("amara", A);
+    const before = everything();
+    const refused = await answer("amara", asked.body.askId, "yes");
+    assert.deepEqual([refused.status, refused.body.error], [409, CANT_PLACE_B]);
+    assert.ok(!refused.body.error.includes("Group A"), "the person was shown a placement nobody has told them about");
+    assert.equal(everything(), before);
+    // "I can’t this term" still goes.
+    assert.deepEqual(await answer("amara", asked.body.askId, "no"), { status: 200, body: { ok: true, answer: "no" } });
+  });
+
+  test("somebody invited since they were asked answers that invitation first, and I can’t this term still goes", async (t) => {
+    begin(t);
+    const asked = await testThenAsk("claudia");
+    // Omar, told no offer, is offered a freed place on AGI Strategy and has not answered.
+    world.db.poke(`admissionApplications/${ROUND}__omar`, {
+      invitation: { programmeId: "agi-strategy", replyBy: "2026-10-29", response: null, respondedAt: null },
+    });
+    const before = everything();
+    const refused = await answer("omar", asked.body.askId, "yes");
+    assert.deepEqual(
+      [refused.status, refused.body.error],
+      [409, "You’ve been invited to AGI Strategy. Please answer that invitation first, then come back here to say yes."],
+    );
+    assert.equal(everything(), before);
+    assert.deepEqual(await answer("omar", asked.body.askId, "no"), { status: 200, body: { ok: true, answer: "no" } });
+  });
+
+  test("a track lead adding somebody whose place came from the application form saves nothing; a facilitator who holds no place is still theirs to add", async (t) => {
+    begin(t);
+    await handOver();
+    const before = everything();
+    const refused = await call("yusuf", routes.byHand.POST, { groupId: A }, { body: { uids: ["sofia", "amara"] }, course: true });
+    assert.equal(refused.status, 409);
+    assert.equal(
+      refused.body.error,
+      "Only an admin or the lead of the programme that names this run can make Amara Okafor one of its facilitators, so nothing was saved.",
+    );
+    assert.equal(everything(), before);
+    const added = await call("yusuf", routes.byHand.POST, { groupId: A }, { body: { uids: ["sofia", "omar"] }, course: true });
+    assert.deepEqual(added, { status: 200, body: { ok: true, facilitatorUids: ["sofia", "omar"] } });
+    assert.equal(rowOf("omar").role, "facilitator");
+  });
+
+  test("a member, a facilitator of another group, a reviewer and somebody signed out place nobody", async (t) => {
+    begin(t);
+    await handOver();
+    const before = everything();
+    for (const [who, status] of [
+      ["amara", 403],
+      ["nobody", 403],
+      ["tom", 403],
+      ["lloyd", 403],
+      ["tess", 403],
+      [null, 401],
+    ]) {
+      const answered = await call(who, routes.byHand.POST, { groupId: A }, { body: { uids: ["sofia", "amara"] }, course: true });
+      assert.equal(answered.status, status, `${who}: ${JSON.stringify(answered.body)}`);
+    }
+    assert.equal(everything(), before);
+  });
+
+  test("taking a facilitator who holds a place off the group's facilitators leaves their place where it is", async (t) => {
+    begin(t);
+    await handOver();
+    const asked = await testThenAsk("claudia", { uid: "amara", groupId: B, replyBy: REPLY_BY });
+    assert.equal((await answer("amara", asked.body.askId, "yes")).status, 200);
+    const saved = await call("claudia", routes.byHand.POST, { groupId: B }, { body: { uids: ["rahul", "sofia"] }, course: true });
+    assert.deepEqual(saved, { status: 200, body: { ok: true, facilitatorUids: ["rahul", "sofia"] } });
+    const group = groupOf(B);
+    assert.ok(!("amara" in (group.facilitatorAppointments ?? {})), "the record outlived the facilitating");
+    const row = rowOf("amara");
+    assert.deepEqual([row.role, row.status, row.groupId], ["learner", "active", B], "taking the facilitating off took the place too");
+    assert.equal(group.memberCount, 1);
   });
 });
 

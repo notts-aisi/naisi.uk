@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { makeWorld } from "./lib/handoverWorld.mjs";
+import { loadJoin, makeWorld } from "./lib/handoverWorld.mjs";
 import { AGI_PARAMS, B, NOW, REPLY_BY, REPLY_BY_INSTANT, ROUND, SECRET, askSeed, loadAskRoutes } from "./lib/facilitatorAskWorld.mjs";
 
 const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(name) });";
@@ -43,6 +43,7 @@ const made = makeWorld("__facilitatorAskPages", [
 ]);
 const { world, reset, call, loadTs } = made;
 const routes = await loadAskRoutes(made);
+const handover = await loadJoin(made);
 const Page = (await loadTs(join("app", "(app)", "learn", "facilitate", "[askId]", "page.tsx"))).default;
 const TrainingCard = (await loadTs(join("features", "applications", "editor", "FacilitatorTraining.tsx"))).default;
 
@@ -181,6 +182,29 @@ test("once somebody else has the place, the page says so", async () => {
   await call("wen", routes.answer.POST, { askId: other.body.askId }, { body: { answer: "yes" }, course: true });
   const { text } = await draw("omar", askId);
   assert.match(text, /Somebody else is facilitating Group B now, so this has closed\. Thank you for saying you’d like to\.$/);
+});
+
+// Q21 was lifted on Mon 26 Oct 2026: a facilitator can hold a place on
+// the programme they facilitate. The page used to close for somebody taking
+// part ("You’re taking part in AGI Strategy, so you can’t facilitate it this
+// term."); for Amara, who holds a place, it offers both buttons, and after
+// Amara's yes, once an admin has handed Amara over to the run, says Amara
+// facilitates the group.
+test("for somebody holding a place on the programme, the page offers both buttons, and a yes makes them its facilitator", async () => {
+  begin();
+  assert.equal((await handover.press("zach")).status, 200);
+  await call("claudia", routes.test.POST, AGI_PARAMS, { body: { uid: "amara", groupId: B, replyBy: REPLY_BY } });
+  const asked = await call("claudia", routes.ask.POST, AGI_PARAMS, {
+    body: { uid: "amara", groupId: B, replyBy: REPLY_BY, emails: 1 },
+  });
+  assert.equal(asked.status, 200, JSON.stringify(asked.body));
+  const before = await draw("amara", asked.body.askId);
+  assert.match(before.text, /Would you facilitate Group B\? .* Yes, I’ll facilitate I can’t this term /);
+  assert.ok(!before.text.includes("taking part"), before.text);
+  assert.ok(!before.text.includes("Group A"), "the page named another group");
+  const said = await call("amara", routes.answer.POST, { askId: asked.body.askId }, { body: { answer: "yes" }, course: true });
+  assert.equal(said.status, 200, JSON.stringify(said.body));
+  assert.match((await draw("amara", asked.body.askId)).text, /^Fellowship: AGI Strategy You’re facilitating Group B\./);
 });
 
 test("the training card: a day, a time and a room, each labelled, with nothing set by default", () => {

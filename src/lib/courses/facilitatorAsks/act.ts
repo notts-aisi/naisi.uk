@@ -1,6 +1,7 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import FacilitatorAskEmail from "@/emails/FacilitatorAskEmail";
+import { enrolmentRefsFor, seatFor } from "@/lib/courses/groupFacilitators";
 import { readRunLead } from "@/lib/courses/programmeLead";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { sendEmail } from "@/lib/email/send";
@@ -21,7 +22,15 @@ import {
 import { loadFacilitatorPeople, type FacilitatorPerson } from "./people";
 import { readAsk, readAskTest, readTraining } from "./read";
 import type { AskRequest, RemindRequest, TestRequest } from "./requests";
-import { askStateOf, isApprovedRole, mayBeAsked, personStatus, replyByInstant, type PersonFacts } from "./rules";
+import {
+  askStateOf,
+  hasPlaceOn,
+  isApprovedRole,
+  mayBeAsked,
+  personStatus,
+  replyByInstant,
+  type PersonFacts,
+} from "./rules";
 import { askFingerprint, askIsTested, askTestStanding } from "./tested";
 import {
   ASK_REPLY_TO,
@@ -38,9 +47,10 @@ import {
   STILL_ASKED,
   TOO_MANY_ASKS,
   WRONG_COUNT,
-  CANT_FACILITATE_OWN,
   CANT_UNTIL_ANSWERED,
   CANT_UNTIL_APPROVED,
+  askElsewhereWords,
+  askFullWords,
   clockIn,
   composeAskEmail,
   composeAskReminder,
@@ -67,10 +77,15 @@ import {
  *  - decision day has been sent, so everybody knows where they stand;
  *  - the person is on the list (said yes to facilitating and chose this
  *    programme or Either) and may be asked (`mayBeAsked`): never somebody
- *    taking part in this programme or invited to it (Q21), never somebody
- *    already asked, and only an approved account, since only an approved
- *    account can facilitate;
+ *    invited to this programme who has not answered, never somebody already
+ *    asked, and only an approved account, since only an approved account can
+ *    facilitate. Somebody holding a place on it may be asked;
  *  - the group is one of the run's, and its email can be written whole;
+ *  - a yes could place them in that group (`seatFor`): somebody holding a
+ *    place who sits in another group is asked for their own group or moved
+ *    on the board first, and a group with no room left for somebody it
+ *    would place is refused. The answer asks again, from what is stored
+ *    then;
  *  - the day and time to answer by is still to come;
  *  - a test for that day and time has reached the person asking
  *    (`askIsTested`), and the button's number is the one this press sends.
@@ -165,7 +180,6 @@ function testProblem(context: AskContext, test: Awaited<ReturnType<typeof readAs
 function whyNot(facts: PersonFacts, uid: string): string {
   const status = personStatus(uid, facts);
   if (status.ask === "asked") return STILL_ASKED;
-  if (status.note === CANT_FACILITATE_OWN) return `That person is taking part in ${facts.programme.shortName}, so they can’t facilitate it.`;
   if (status.note === CANT_UNTIL_ANSWERED) return `That person is invited to ${facts.programme.shortName}, and can’t be asked until they answer.`;
   if (status.note === CANT_UNTIL_APPROVED) return "That person’s account is waiting for approval, so they can’t be asked yet.";
   if (!facts.decisionsSent) return NOT_SENT_YET;
@@ -205,6 +219,25 @@ async function personAndGroup(
   const people = await loadFacilitatorPeople(db, context.form, context.sets, context.programme, actor.uid);
   const person = people.find((each) => each.uid === request.uid);
   if (!person) return refuse(409, NOT_ON_THE_LIST);
+
+  // Could a yes place them in this group? Asked of their row on the run as it
+  // stands, so the lead is told before anybody is emailed; the answer asks
+  // again of what is stored then. Somebody holding a place on the programme
+  // with no row on the run yet is placed in this group by their yes, so here
+  // their place stands in for their row on the run's list, and they need
+  // room in the group too.
+  const [row] = await db.getAll(...enrolmentRefsFor(db, context.run.id, [person.uid]));
+  const seat = seatFor(group.id, {
+    row: row?.exists ? (row.data() ?? {}) : null,
+    accepted: hasPlaceOn(person.standing, context.programme.id),
+  });
+  if (seat.kind === "elsewhere") {
+    const other = context.groups.find((each) => each.id === seat.groupId);
+    return refuse(409, askElsewhereWords(other?.name.trim() || "another group", facts.name));
+  }
+  if (seat.kind === "place" && group.capacity !== null && group.memberCount >= group.capacity) {
+    return refuse(409, askFullWords(facts.name));
+  }
   return { ok: true, person, facts };
 }
 
