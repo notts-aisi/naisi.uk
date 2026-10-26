@@ -10,7 +10,9 @@
  * (committee the SU does not recognise), SU-recognised committee, a member
  * who came, one who signed up and did not come, a guest by their link, a
  * walk-in by their link, somebody signed out with the QR code, a member who
- * did neither, and a view-as session.
+ * did neither, and a view-as session. The code shown at the event (section
+ * 5's last tests) is tried as those and as an organiser who is a member
+ * holding draftEvent.
  *
  * The world is `tests/lib/eventSurveyWorld.mjs` (VR games night, Sun 1 Nov
  * 2026). The mail door records each message and sends none. Run with
@@ -18,7 +20,7 @@
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { EVENT_ID, LATE, MORNING, NEXT_DAY, RSVP, checkIn, eventSurveySeed, makeEventSurveyWorld } from "./lib/eventSurveyWorld.mjs";
+import { EVENT_ID, LATE, MORNING, NEXT_DAY, RSVP, checkIn, eventSurveySeed, makeEventSurveyWorld, textOf } from "./lib/eventSurveyWorld.mjs";
 
 const w = await makeEventSurveyWorld("__eventSurveys");
 
@@ -648,9 +650,16 @@ describe("the event's Survey after tab: admins see the results; the organiser se
     for (const who of ["iris", "cal", "sue"]) {
       const page = await w.page(TAB, props(), who);
       assert.match(page.text, /After VR games night: Zach emailed it to 4 people on Mon 2 Nov at 10am\. Results go to admins\. Ask Lloyd or Zach for the summary\./, who);
-      for (const secret of ["Snacks ran out", "Answers", "Answered the email", "Kofi", "1 with the QR code", "Download"]) {
+      for (const secret of ["Snacks ran out", "Answers", "Answered the email", "Kofi", "1 with the QR code", "Download the answers"]) {
         assert.ok(!page.text.includes(secret), `${who} was shown "${secret}"`);
       }
+      // Nothing to download but, for SU-recognised committee, the survey's
+      // QR code as a PNG, which they show at the event while it takes
+      // answers (Zach, Mon 26 Oct 2026; until then nothing here downloaded
+      // anything for them).
+      const downloads = page.text.split("Download").length - 1;
+      assert.equal(downloads, who === "sue" ? 1 : 0, `${who} was offered something to download`);
+      if (who === "sue") assert.ok(page.text.includes("Download PNG"), "sue was not offered the code's PNG");
       assert.ok(!/admin\/surveys\//.test(page.html), `${who} was linked to the survey's pages`);
     }
     // An admin reads the results, with n beside every number, and the logged download.
@@ -665,6 +674,126 @@ describe("the event's Survey after tab: admins see the results; the organiser se
     // Closed, it says so.
     await press("close", "zach", id);
     assert.match((await w.page(TAB, props(), "iris")).text, /It closed on Mon 2 Nov\./);
+  });
+
+  /** The tab's code card, as words; "" when it is not drawn. */
+  const codeCardOf = (html) => {
+    const at = html.indexOf('aria-labelledby="survey-code-heading"');
+    if (at === -1) return "";
+    return html.slice(html.lastIndexOf("<section", at), html.indexOf("</section>", at) + "</section>".length);
+  };
+  const LAYOUT = "app/(app)/events/manage/layout.tsx";
+
+  test("the code at the event: the people who may draw its door code show it from this tab while the survey takes answers, and nothing of its answers comes with it", async (t) => {
+    clock(t, LATE);
+    // Pat organises it here: a member holding draftEvent, neither committee nor an admin.
+    w.reset(eventSurveySeed({ "users/pat": { ...eventSurveySeed()["users/pat"], permissions: { draftEvent: true } } }));
+    w.world.db.poke(`events/${EVENT_ID}`, { authorUid: "pat" });
+    const id = await made();
+
+    // A draft: those who show it are told it comes once an admin opens it; nobody is shown a code.
+    const NOT_YET = "Its QR code shows here once an admin opens the survey.";
+    for (const who of ["zach", "sue"]) {
+      const page = await w.page(TAB, props(), who);
+      assert.match(page.text, new RegExp(`No survey has gone out after this event\\. ${NOT_YET}`), who);
+      assert.equal(codeCardOf(page.html), "", `${who} was shown a draft's code`);
+    }
+    for (const who of ["iris", "cal", "pat"]) {
+      const page = await w.page(TAB, props(), who);
+      assert.ok(!page.text.includes(NOT_YET), `${who}, who does not run check-in, was told the code comes`);
+      assert.equal(codeCardOf(page.html), "");
+    }
+
+    // Open, with an answer in it: the code, its address, its PNG and full screen, in the Send tab's words.
+    await press("open-at-event", "zach", id);
+    await answerSignedIn("kofi", id, { ...ANSWERS, q_ev_change: { type: "text", text: "Snacks ran out by half three." } });
+    for (const who of ["sue", "zach"]) {
+      const page = await w.page(TAB, props(), who);
+      const card = codeCardOf(page.html);
+      assert.ok(card, `${who} was not shown the code`);
+      assert.match(textOf(card), /^At the event: the QR code naisi\.invalid\/q\/vr-survey Download PNG Show full screen$/, who);
+      assert.match(card, /<svg[^>]*role="img"[^>]*aria-label="QR code for naisi\.invalid\/q\/vr-survey"/);
+      assert.match(card, /href="\/api\/links\/vr-survey\/qr\?format=png&amp;download=1"/);
+      assert.ok(!page.text.includes(NOT_YET), who);
+    }
+    // SU-recognised committee: the code and nothing else of the survey's.
+    const sue = await w.page(TAB, props(), "sue");
+    for (const secret of ["Open it", "Up since", "1 answer", "Answers", "Answered", "Snacks ran out", "Kofi", "Asante", "Download the", "Make a survey", "Open the survey"]) {
+      assert.ok(!sue.text.includes(secret), `SU-recognised committee were shown "${secret}"`);
+    }
+    assert.ok(!/admin\/surveys\/|open-at-event/.test(sue.html), "SU-recognised committee were led to the survey's own pages");
+    // The organiser and the committee the SU does not recognise: nothing of the code.
+    for (const who of ["iris", "cal", "pat"]) {
+      const page = await w.page(TAB, props(), who);
+      assert.equal(codeCardOf(page.html), "", `${who} was shown the code`);
+      assert.ok(!/vr-survey|<svg[^>]*QR code/.test(page.html), `${who} was handed the code`);
+      for (const secret of ["Snacks ran out", "Kofi", "Up since"]) assert.ok(!page.text.includes(secret), `${who} was shown "${secret}"`);
+    }
+    // An admin keeps everything they had: the results and the way to the survey.
+    const admin = await w.page(TAB, props(), "zach");
+    assert.match(admin.text, /Snacks ran out by half three\./);
+    assert.match(admin.html, /href="\/admin\/surveys\/[A-Za-z0-9_-]+\/send"/);
+    // A view-as session shows what the person viewed sees, no more.
+    assert.equal(codeCardOf((await w.page(TAB, props(), "sue", { viewAs: true })).html), codeCardOf(sue.html));
+    assert.equal(codeCardOf((await w.page(TAB, props(), "iris", { viewAs: true })).html), "");
+    // A member who is not in the events area, and somebody signed out, are sent away first.
+    assert.equal((await w.page(LAYOUT, { children: null }, "kofi")).to, "/dashboard");
+    assert.equal((await w.page(TAB, props(), null)).to, "/login");
+    // Opening the tab writes nothing.
+    const before = w.everything();
+    await w.page(TAB, props(), "sue");
+    assert.equal(w.everything(), before, "opening the tab wrote something");
+
+    // Closed: no code, and no line that it is coming.
+    await press("close", "zach", id);
+    for (const who of ["sue", "zach"]) {
+      const page = await w.page(TAB, props(), who);
+      assert.equal(codeCardOf(page.html), "", `${who} was shown a closed survey's code`);
+      assert.ok(!page.text.includes(NOT_YET), who);
+    }
+  });
+
+  test("the code's picture, its PNG and its full screen are drawn for exactly those people, while the survey takes answers", async (t) => {
+    clock(t, LATE);
+    w.reset();
+    const id = await made();
+    const qr = (await w.route("links/[slug]/qr")).GET;
+    const draw = (who, options = {}) => w.call(who, qr, { slug: "vr-survey" }, options);
+    // A draft: admins alone, as before.
+    for (const [who, status] of [["zach", 200], ["sue", 403], ["iris", 403], ["cal", 403], ["kofi", 403], [null, 401]]) {
+      assert.equal((await draw(who)).status, status, `a draft's code, ${who}`);
+    }
+    await press("open-at-event", "zach", id);
+    for (const [who, status] of [["zach", 200], ["lloyd", 200], ["sue", 200], ["iris", 403], ["cal", 403], ["kofi", 403], ["ines", 403], [null, 401]]) {
+      assert.equal((await draw(who)).status, status, `an open survey's code, ${who}`);
+    }
+    // View-as answers as the person viewed: the picture is all it hands over, and it writes nothing.
+    assert.equal((await draw("sue", { viewAs: true })).status, 200);
+    assert.equal((await draw("iris", { viewAs: true })).status, 403);
+    // The same rule decides it for the picture and for the tab.
+    const code = await w.load("lib/surveys/events/code.ts");
+    const stored = await (await w.load("lib/surveys/events/records.ts")).eventSurveyOf(w.world.db, EVENT_ID);
+    assert.equal(stored?.id, id);
+    const asked = (who) => code.surveyCodeAtEvent(w.sessionOf(who), stored, new Date());
+    assert.deepEqual(["zach", "sue", "iris", "cal", "kofi"].map(asked), ["show", "show", null, null, null]);
+    assert.equal(code.surveyCodeAtEvent(null, stored, new Date()), null);
+    assert.equal(code.surveyCodeAtEvent(w.sessionOf("sue"), null, new Date()), null, "no survey");
+    // Closed: admins alone again.
+    await press("close", "zach", id);
+    for (const [who, status] of [["zach", 200], ["sue", 403]]) {
+      assert.equal((await draw(who)).status, status, `a closed survey's code, ${who}`);
+    }
+    // Another link going to an event's survey page, but for an event with no survey, is an admin's alone.
+    w.world.db.seed("trackedLinks/elsewhere-survey", { ...w.world.db.read("trackedLinks/vr-survey"), slug: "elsewhere-survey", destination: "/events/no-such-event/survey" });
+    assert.equal((await w.call("sue", qr, { slug: "elsewhere-survey" })).status, 403);
+  });
+
+  test("the code at the event is the survey's own short link, read by its destination", async () => {
+    const code = await w.load("lib/surveys/events/code.ts");
+    assert.equal(code.eventOfSurveyCodePath(code.surveyCodePath("vr-games-night-ev01")), "vr-games-night-ev01");
+    for (const other of ["/events/vr-games-night-ev01/check-in", "/events/vr-games-night-ev01/survey/x", "/links", "/events//survey", "https://example.com/events/a/survey"]) {
+      assert.equal(code.eventOfSurveyCodePath(other), null, other);
+    }
   });
 
   test("the logged download of the answers is an admin's alone, recorded before it is handed over, and names guests", async (t) => {

@@ -3,8 +3,11 @@ import { randomInt } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { isPrintedSlug } from "@/lib/campaign/printedLinks";
 import { TRACKED_LINKS_COLLECTION } from "@/lib/campaign/trackedLinkStore";
+import { runsCheckIn, type CheckInViewer } from "@/lib/events/checkInAccess";
 import { doorCodeWord } from "@/lib/events/doorCode";
+import type { EventSurveyDoc } from "@/lib/firestore/surveys";
 import { TRACKED_LINK_LIMITS, normalizeTrackedLink, validateNewSlug, type TrackedLinkDoc } from "@/lib/firestore/trackedLinks";
+import { surveyState } from "../repo";
 
 /**
  * A SURVEY'S QR CODE AT ITS EVENT: one short link per event's survey,
@@ -25,6 +28,14 @@ import { TRACKED_LINK_LIMITS, normalizeTrackedLink, validateNewSlug, type Tracke
  * otherwise takes the first free slug from the event's name: "VR games
  * night" is `vr-survey`, then `vr-survey-2`. Never a code that is on paper,
  * never a slug already taken.
+ *
+ * WHO SHOWS IT AT THE EVENT (`surveyCodeAtEvent`): exactly the people who
+ * may draw the event's door code (`runsCheckIn`: admins and the committee
+ * members the Students' Union recognises), while the survey is taking
+ * answers. They show it from the event's Survey after tab, with its PNG and
+ * full screen, and the QR image route asks the same function before it draws
+ * the code for anybody who is not an admin. Opening the survey stays an
+ * admin's act, on the survey's own Send tab.
  */
 
 /** The campaign every survey's code is filed under in the console. */
@@ -33,6 +44,30 @@ export const SURVEY_CODE_CAMPAIGN = "Surveys";
 /** The event's survey page: where its survey's code goes. */
 export function surveyCodePath(eventId: string): string {
   return `/events/${eventId}/survey`;
+}
+
+/** The event a survey's code goes to, from a link's destination, or null for any other link. */
+export function eventOfSurveyCodePath(destination: string): string | null {
+  const match = /^\/events\/([A-Za-z0-9_-]{1,128})\/survey$/.exec(destination);
+  return match ? match[1] : null;
+}
+
+/**
+ * What the people who may show an event's survey code at the event are shown
+ * of it: the code (`"show"`) while the survey takes answers, a line that it
+ * shows once an admin opens the survey (`"not-yet"`) while it is a draft,
+ * and nothing (`null`) once it has closed, before there is a survey, or to
+ * anybody who does not run check-in.
+ */
+export function surveyCodeAtEvent(
+  viewer: CheckInViewer | null | undefined,
+  survey: Pick<EventSurveyDoc, "kind" | "firstSentAt" | "closedAt" | "closesAt"> | null,
+  now: Date,
+): "show" | "not-yet" | null {
+  if (!survey || !runsCheckIn(viewer)) return null;
+  const state = surveyState(survey, now);
+  if (state === "open") return "show";
+  return state === "draft" ? "not-yet" : null;
 }
 
 /** The slugs a survey's code tries, in order. */

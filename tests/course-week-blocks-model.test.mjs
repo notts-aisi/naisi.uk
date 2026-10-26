@@ -15,7 +15,7 @@
  * The week is `tests/lib/weekBlocksFixture.mjs`: made-up words in the
  * guide's shape, every kind of block in it.
  */
-import { describe, test } from "node:test";
+import { describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
@@ -412,6 +412,137 @@ describe("4. stable ids", () => {
       assert.match(id, /^src-[a-z0-9]{10}$/);
       assert.equal(model.isWeekItemId(id), true);
     }
+  });
+
+  /** The generator stubbed: fill `n` of each call hands out `fills[n]` (the last again after that), byte by byte. */
+  function withGenerator(fills, mint) {
+    let calls = 0;
+    const stub = mock.method(globalThis.crypto, "getRandomValues", (array) => {
+      const fill = fills[Math.min(calls, fills.length - 1)];
+      calls += 1;
+      for (let at = 0; at < array.length; at += 1) array[at] = fill(at);
+      return array;
+    });
+    try {
+      return { id: mint(), calls };
+    } finally {
+      stub.mock.restore();
+    }
+  }
+
+  /** A browser with no `crypto`: Math.random hands out `nth(n)` on its nth call. */
+  function withoutCrypto(nth, mint) {
+    const crypto = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+    Object.defineProperty(globalThis, "crypto", { value: undefined, configurable: true, writable: true });
+    let calls = 0;
+    const stub = mock.method(Math, "random", () => nth(calls++));
+    try {
+      return mint();
+    } finally {
+      stub.mock.restore();
+      Object.defineProperty(globalThis, "crypto", crypto);
+    }
+  }
+
+  /**
+   * Each of the 256 bytes, put first in a fill whose every other byte is one
+   * whose character differs from that byte's (so the id's first character
+   * says what became of it), through `draw`. Returns which bytes were thrown
+   * away and which bytes each character came from.
+   */
+  function everyByte(draw) {
+    const alphabet = model.WEEK_ITEM_ID_ALPHABET;
+    const thrownAway = [];
+    const from = new Map();
+    for (let byte = 0; byte < 256; byte += 1) {
+      const filler = ((byte % 36) + 1) % 36;
+      const tail = draw(byte, filler).slice("src-".length);
+      if (tail === alphabet[filler].repeat(10)) {
+        thrownAway.push(byte);
+        continue;
+      }
+      assert.equal(tail, alphabet[byte % 36] + alphabet[filler].repeat(9), `byte ${byte}`);
+      from.set(tail[0], [...(from.get(tail[0]) ?? []), byte]);
+    }
+    return { thrownAway, from };
+  }
+
+  test("each character is drawn evenly: a byte of 252 or more is thrown away, and every character comes from seven of the other 252", () => {
+    assert.equal(model.WEEK_ITEM_ID_ALPHABET, "abcdefghijklmnopqrstuvwxyz0123456789");
+    assert.equal(model.WEEK_ITEM_ID_UNBIASED_BELOW, 252, "the largest multiple of 36 that fits in a byte");
+    const { thrownAway, from } = everyByte(
+      (byte, filler) => withGenerator([(at) => (at === 0 ? byte : filler)], () => model.newWeekItemId("src")).id,
+    );
+    assert.deepEqual(thrownAway, [252, 253, 254, 255]);
+    assert.equal(from.size, 36);
+    for (const [character, bytes] of from) assert.equal(bytes.length, 7, `"${character}" comes from ${bytes.length} bytes`);
+    // Before, 252 to 255 were folded onto "a" to "d", which came from eight bytes each and every other character from seven.
+  });
+
+  test("a browser with no crypto draws Math.random's bytes and throws them away the same way", () => {
+    const { thrownAway, from } = everyByte((byte, filler) =>
+      withoutCrypto((call) => (call === 0 ? byte : filler) / 256, () => model.newWeekItemId("src")),
+    );
+    assert.deepEqual(thrownAway, [252, 253, 254, 255]);
+    assert.equal(from.size, 36);
+    for (const [character, bytes] of from) assert.equal(bytes.length, 7, `"${character}" comes from ${bytes.length} bytes`);
+    // And with nothing stubbed but the missing generator, an id is still the same shape.
+    const crypto = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+    Object.defineProperty(globalThis, "crypto", { value: undefined, configurable: true, writable: true });
+    try {
+      assert.match(model.newWeekItemId("rp"), /^rp-[a-z0-9]{10}$/);
+    } finally {
+      Object.defineProperty(globalThis, "crypto", crypto);
+    }
+  });
+
+  test("a fill with too few bytes to keep is drawn again, never folded and never cut short", () => {
+    // Every byte of the first fill is thrown away; the second's first ten are kept.
+    const drawn = withGenerator([() => 255, (at) => at], () => model.newWeekItemId("pk"));
+    assert.deepEqual(drawn, { id: "pk-abcdefghij", calls: 2 });
+    // Fourteen of twenty thrown away: the six kept, then four from the next fill.
+    const short = withGenerator([(at) => (at < 14 ? 252 + (at % 4) : at), (at) => 30 + at], () => model.newWeekItemId("pk"));
+    assert.deepEqual(short, { id: "pk-opqrst4567", calls: 2 });
+  });
+
+  test("ids minted before ids were drawn evenly stay valid: the same shape, and every block keeps its id when the week is read", () => {
+    // The way ids were drawn until 26 October 2026: each of ten bytes folded
+    // onto the alphabet by its remainder, the bytes of 252 to 255 included.
+    const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
+    // Every byte once, in a scrambled order (167 is odd, so this is all 256), then round again.
+    let next = 0;
+    const byte = () => (next++ * 167) % 256;
+    const used = new Set();
+    const before = (prefix) => {
+      for (let tries = 0; tries < 100; tries += 1) {
+        let tail = "";
+        for (let at = 0; at < 10; at += 1) tail += alphabet[byte() % alphabet.length];
+        // Two ids in one week are never the same, as two random ones never were.
+        if (!used.has(tail)) {
+          used.add(tail);
+          return `${prefix}-${tail}`;
+        }
+      }
+      throw new Error("no fresh id in a hundred tries");
+    };
+    // Every id in the week, given one drawn the old way with the same prefix, wherever it is named.
+    const blocks = syntheticWeekBlocks();
+    const renamed = new Map(model.weekItems(blocks).map((item) => [item.id, before(item.id.split("-")[0])]));
+    const rename = (value) => {
+      if (Array.isArray(value)) return value.map(rename);
+      if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, rename(inner)]));
+      return typeof value === "string" && renamed.has(value) ? renamed.get(value) : value;
+    };
+    const stored = rename(blocks);
+    assert.ok(next >= 256, "the old ids hold a character from every byte, the four the old way favoured included");
+    for (const id of renamed.values()) {
+      assert.equal(model.isWeekItemId(id), true, id);
+      assert.match(id, /^[a-z]{2,3}-[a-z0-9]{10}$/, "the shape a fresh id has");
+    }
+    assert.deepEqual(model.weekBlocksProblems(stored), []);
+    assert.deepEqual(model.sanitizeWeekBlocks(stored), stored, "a stored week reads back with every id it was stored with");
+    assert.deepEqual(model.weekItems(stored).map((item) => item.id), [...renamed.values()]);
+    for (const prefix of Object.values(model.ID_PREFIX)) assert.match(model.newWeekItemId(prefix), new RegExp(`^${prefix}-[a-z0-9]{10}$`));
   });
 
   test("every block and every thing a person answers or ticks has an id, listed with what it names", () => {

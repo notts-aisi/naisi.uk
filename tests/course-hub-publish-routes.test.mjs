@@ -264,9 +264,12 @@ describe("1. who may press", () => {
     const published = await at(routes.publish.POST, { emails: 2 });
     assert.equal(published.status, 200, JSON.stringify(published.body));
     assert.deepEqual(toOf(realMail()), ["nobody@example.com", "rahul@example.com"]);
-    // No programme names this run, so nobody signs the facilitators' email.
+    // No programme names this run, so no lead signs the facilitators' email:
+    // NAISI does, as it signs the group email (Mon 26 Oct 2026; until then
+    // nobody signed it).
     const facilitators = await opened(realMail().find(isFacilitating));
     assert.ok(!facilitators.text.includes("lead, NAISI"), facilitators.text);
+    assert.ok(facilitators.text.includes("Take the register on your phone during the session. NAISI"), facilitators.text);
     assert.ok(facilitators.text.includes("There is 1 person in the group."), facilitators.text);
   });
 });

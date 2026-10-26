@@ -8,6 +8,8 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import type { SessionUser } from "@/lib/firebase/session";
 import { normalizeEvent } from "@/lib/firestore/events";
 import { parseDestination } from "@/lib/firestore/trackedLinks";
+import { eventOfSurveyCodePath, surveyCodeAtEvent } from "@/lib/surveys/events/code";
+import { eventSurveyOf } from "@/lib/surveys/events/records";
 
 /**
  * Who may draw, download or print the code of a short link, decided in one
@@ -19,6 +21,10 @@ import { parseDestination } from "@/lib/firestore/trackedLinks";
  *  - THE PEOPLE WHO RUN CHECK-IN (`runsCheckIn`), for an event's door code:
  *    the link that goes to an event's check-in page. Its sign carries the
  *    event's name and the line about who checks themselves in.
+ *  - THE SAME PEOPLE, for an event survey's code (the link that goes to an
+ *    event's survey page) while that survey is taking answers, which they
+ *    show at the end of the event: `surveyCodeAtEvent`, the one rule the
+ *    event's Survey after tab asks too.
  *
  * Everybody else is refused before any link is read. A slug that names no
  * link is refused too, so neither door is a QR drawer for made-up addresses.
@@ -67,7 +73,16 @@ export async function codeForViewer(user: SessionUser, rawSlug: string): Promise
         },
       };
     }
-    if (!admin) return { ok: false, status: 403, reason: ADMINS_ONLY };
+    if (!admin) {
+      const surveyEventId = parsed.ok && parsed.kind === "internal" ? eventOfSurveyCodePath(parsed.value) : null;
+      if (surveyEventId && (await surveyCodeShowable(user, surveyEventId))) {
+        return {
+          ok: true,
+          link: { slug, name: record.label || slug, note: null, backHref: `/events/manage/${surveyEventId}/survey` },
+        };
+      }
+      return { ok: false, status: 403, reason: ADMINS_ONLY };
+    }
     return {
       ok: true,
       link: { slug, name: record.label || slug, note: null, backHref: "/admin/links" },
@@ -84,6 +99,13 @@ export async function codeForViewer(user: SessionUser, rawSlug: string): Promise
     return { ok: false, status: 503, reason: "Couldn't read the link just now. Try again in a minute." };
   }
   return { ok: false, status: 404, reason: "There is no short link at that address." };
+}
+
+/** Whether the event's survey is one this viewer may show the code of now. */
+async function surveyCodeShowable(user: SessionUser, eventId: string): Promise<boolean> {
+  const db = getAdminDb();
+  if (!db) return false;
+  return surveyCodeAtEvent(user, await eventSurveyOf(db, eventId), new Date()) === "show";
 }
 
 /** The event's name as its sign prints it, or null when the event is gone. */

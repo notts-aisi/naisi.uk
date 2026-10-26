@@ -3,6 +3,7 @@ import { couldBeFollowed } from "@/lib/courses/followable";
 // By its `@/` path, as every caller of a token filler imports one, so the
 // tree walk in tests/email-unfilled-tokens.test.mjs finds the call.
 import {
+  NAISI_SIGN_OFF,
   always,
   composeWholeEmail,
   oneLine,
@@ -25,7 +26,8 @@ import {
  * it, beside the email that tells each person their group. It says when the
  * group meets, from its first session to its last, where, who else
  * facilitates it, how many are in it, and links to the facilitator's group
- * page, signed by the lead of the programme that names the run. The wording
+ * page, signed by the lead of the programme that names the run, or by NAISI
+ * when no lead stands to sign it, as the group email is. The wording
  * is a template an admin can edit (`course-facilitating`, "You’re
  * facilitating" in Email designs), with `{tokens}` in it. Its seed copy is in
  * the board's words (st-emails): the room and who else facilitates sit
@@ -50,7 +52,10 @@ import {
  *    to say these.
  *  - `optional`: where it meets, who else facilitates it, and who signs it.
  *    A group may have no room yet, one facilitator, or a run no programme
- *    names, and the paragraph that would have said so is left out.
+ *    names, and the paragraph that would have said so is left out. Exactly
+ *    one of the two sign-offs is filled: the lead's (`{leadName}` with
+ *    `{programmeName}`), or, when no lead stands, `{naisiSignOff}`, the
+ *    group email's own `NAISI_SIGN_OFF`.
  *  - `inline`: the same where and who, worded to stand in the sentence or go
  *    from it ("in Hallward B12", "You’re facilitating with Sofia."), as the
  *    board says them. With nothing to say each is left out of its sentence
@@ -96,6 +101,7 @@ export const FACILITATING_TOKEN_RULES = {
   coFacilitators: "optional",
   leadName: "optional",
   programmeName: "optional",
+  naisiSignOff: "optional",
   namesOnPage: "always",
   place: "inline",
   placeNote: "inline",
@@ -247,6 +253,7 @@ function valuesOf(facts: FacilitatingFacts): Record<FacilitatingToken, EmailValu
   const name = oneLine(facts.name);
   const size = facts.groupSize;
   const counted = size !== null && Number.isInteger(size) && size > 0;
+  const lead = typed(facts.leadName);
   return {
     firstName: always(firstWord(name)),
     preferredName: always(name),
@@ -261,8 +268,10 @@ function valuesOf(facts: FacilitatingFacts): Record<FacilitatingToken, EmailValu
     groupUrl: typed(facts.groupUrl),
     where: whereValue(facts.where),
     coFacilitators: typed(facts.coFacilitators),
-    leadName: typed(facts.leadName),
+    leadName: lead,
     programmeName: typed(facts.programmeName),
+    // Exactly one of the two sign-offs is there: the lead's, or NAISI's, as on the group email.
+    naisiSignOff: lead ? null : typed(NAISI_SIGN_OFF),
     // The board's words for the same facts (see the header).
     namesOnPage: always(counted ? namesOnPageSentence(size, facts.weekOneGuide === true) : ""),
     place: typed(placeInSentence(facts.where)),
@@ -346,6 +355,7 @@ const LACKS: Record<string, { lacks: string; set: string | null }> = {
   where: { lacks: "has no room or meeting link", set: "Set its room" },
   coFacilitators: { lacks: "has one facilitator, so there is nobody to name beside them", set: null },
   leadName: { lacks: "is on a run whose programme has no lead to sign the email", set: null },
+  naisiSignOff: { lacks: "is on a run whose programme’s lead signs the email", set: null },
   programmeName: { lacks: "is on a run no programme names", set: null },
 };
 

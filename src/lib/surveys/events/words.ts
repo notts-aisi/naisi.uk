@@ -132,6 +132,17 @@ export const CODE_CARD_WORDS = {
   offline: "It couldn’t be opened. Check your connection and try again.",
 } as const;
 
+/**
+ * The event's Survey after tab, to the people who show the survey's code at
+ * the event (admins and SU-recognised committee): the card's words are the
+ * Send tab's (`CODE_CARD_WORDS`), and this line stands in its place while
+ * the survey is a draft. No board draws it: listed in the build notes for
+ * the boards' designers to confirm.
+ */
+export const CODE_AT_EVENT_WORDS = {
+  notYet: "Its QR code shows here once an admin opens the survey.",
+} as const;
+
 /** The refusals a person can act on, word for word. */
 export const EVENT_REFUSAL = {
   pickEvent: "Pick the event the survey is about.",

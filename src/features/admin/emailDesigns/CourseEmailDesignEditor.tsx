@@ -159,6 +159,7 @@ const FACILITATING_TOKENS: TokenHelp[] = [
   },
   { token: "leadName", description: "The first name of the lead of the programme that names the run." },
   { token: "programmeName", description: "That programme's short name. Nothing on a run no programme names." },
+  { token: "naisiSignOff", description: "NAISI, signing the email when no lead stands to. Nothing when the lead signs." },
   {
     token: "namesOnPage",
     description:
@@ -510,9 +511,9 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
             are worded to sit inside a sentence and to go from it when there is nothing to say: a group
             with no room yet reads &ldquo;Group B meets on Tuesdays at 6pm, from Tue 3 Nov to Tue 8
             Dec.&rdquo; Keep <code>{"{where}"}</code>, <code>{"{coFacilitators}"}</code> and the
-            sign-off (<code>{"{leadName}"}</code>, <code>{"{programmeName}"}</code>) each in a paragraph
-            of its own: that paragraph is left out when there is nothing to put in it, and the rest of
-            the email goes. None can go in the subject, or in a paragraph with{" "}
+            sign-offs (<code>{"{leadName}"}</code> with <code>{"{programmeName}"}</code>, or{" "}
+            <code>{"{naisiSignOff}"}</code>) each in a paragraph of its own: that paragraph is left out
+            when there is nothing to put in it, and the rest of the email goes. None can go in the subject, or in a paragraph with{" "}
             <code>{"{groupName}"}</code>, <code>{"{weeklySlot}"}</code> or the two dates. A group with
             no name or no day and time cannot be published at all, and neither can wording that uses a
             token not on this list: publishing says which.

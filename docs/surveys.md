@@ -787,7 +787,10 @@ with `isEventSurvey` and hand it over.
 - **The QR code** (`events/code.ts`): a short link per event's survey,
   `<word>-survey`, campaign "Surveys", to `/events/<id>/survey`, made with the
   survey (and again by Open), permanent like every printed code, drawn and
-  downloaded by admins through check-in's QR routes. Its page
+  downloaded through check-in's QR routes by admins and, while the survey
+  takes answers, by the people who may draw the event's door code (admins and
+  SU-recognised committee, `runsCheckIn`), who show it at the end of the event
+  from the event's Survey after tab (`surveyCodeAtEvent`, below). Its page
   (`events/codePage.ts`) is outside the route groups and never `notFound()`:
   signed in, somebody who signed up or came answers it (their row is made as
   they answer, `via: "signed-in"`); somebody who did neither is told so, with
@@ -806,6 +809,14 @@ with `isEventSurvey` and hand it over.
   the events area reads that it went, who sent it and when, and who to ask for
   the summary (`events/tab.ts`, which reads no answer and no row); admins read
   the results there too. An event's organiser does not see its results (Q42).
+  The people who may draw the event's door code (`runsCheckIn`: admins and
+  SU-recognised committee) are shown the survey's QR code there while it takes
+  answers, with "Download PNG" and "Show full screen" and nothing else of the
+  survey's: not "Open it" (opening fixes its questions, an admin's act on the
+  Send tab), not its answers, not who answered. While it is a draft they read
+  "Its QR code shows here once an admin opens the survey." One function
+  decides it for the tab and for the image route: `surveyCodeAtEvent` in
+  `src/lib/surveys/events/code.ts`.
 - **A walk-in's email** goes at the earlier of the survey's close and a week
   after the event (Q44): `walkInEmailGoesAt(event, surveyClosesAt)`, kept on
   the check-in record and moved by `setWalkInEmailDeadlines` whenever the

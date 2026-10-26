@@ -13,6 +13,7 @@ import { REFLECTION_NOT_SAVED, SAVED } from "@/lib/courses/memberPageWords";
 import type { FillInBlock, FillInBox } from "@/lib/courses/weekBlocks/model";
 import { FILL_IN_MAX_CHARS } from "@/lib/firestore/courseExercises";
 import styles from "./blockWeek.module.css";
+import { putFillIn } from "./boxWrites";
 import own from "./fillIn.module.css";
 
 /**
@@ -33,12 +34,14 @@ import own from "./fillIn.module.css";
  * person's own rows have loaded (`loaded`), the card says so instead, with a
  * way to try again.
  *
- * THE WRITE is `PUT /api/courses/runs/[runId]/fill-in-boxes/[boxId]`, one
- * writer per box through `useDebouncedWrite` (newest value wins, flushed on
- * blur, on leaving and on the page being hidden), as a reflection box's is.
- * An emptied box sends "" and the route removes the row. A box that did not
- * save says so under itself; the card's "Saved" shows only once every box
- * has what it shows stored.
+ * THE WRITE is `PUT /api/courses/runs/[runId]/fill-in-boxes/[boxId]`
+ * (`putFillIn`, `./boxWrites.ts`), one writer per box through
+ * `useDebouncedWrite` (newest value wins, flushed on blur, on leaving and on
+ * the page being hidden), as a reflection box's is. An emptied box sends ""
+ * and the route removes the row. A box that did not save says so under
+ * itself, in the route's own sentence when the route refused it and the
+ * connection's only when no answer came back; the card's "Saved" shows only
+ * once every box has what it shows stored.
  */
 
 type Props = {
@@ -159,34 +162,6 @@ export default function FillInCard({ block, runId, weekId, rows, loaded, loading
       {ownBoxes && <p className={own.readers}>{readers}</p>}
     </section>
   );
-}
-
-/** A refusal with the route's own sentence. */
-class FillInSaveError extends Error {}
-
-async function putFillIn(args: {
-  runId: string;
-  boxId: string;
-  weekId: string;
-  text: string;
-  keepalive: boolean;
-}): Promise<ExerciseResponseWire> {
-  const res = await fetch(
-    `/api/courses/runs/${encodeURIComponent(args.runId)}/fill-in-boxes/${encodeURIComponent(args.boxId)}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ weekId: args.weekId, text: args.text }),
-      // A box holds at most FILL_IN_MAX_CHARS, far under a keepalive
-      // request's budget, so the last change outlives the page.
-      keepalive: args.keepalive,
-    },
-  );
-  const body = (await res.json().catch(() => null)) as { response?: ExerciseResponseWire; error?: string } | null;
-  if (!res.ok || !body?.response) {
-    throw new FillInSaveError(body?.error ?? REFLECTION_NOT_SAVED);
-  }
-  return body.response;
 }
 
 function FillInBoxField({

@@ -16,6 +16,8 @@ import type { PreviewWeek as PreviewWeekDoc } from "@/lib/courses/weeksTab/previ
 
 const NO_TICKS: MaterialTicks = {
   isDone: () => false,
+  // Never pressed: nothing in a preview can be ticked (`canTick` is false).
+  tick: async () => ({ saved: false, words: "" }),
   toggle: async () => false,
   byItemId: new Map(),
   canTick: false,

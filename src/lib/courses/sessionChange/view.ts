@@ -1,5 +1,8 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import { readGroupWeek } from "@/lib/courses/packsAndCases/readers";
+import { pairsAskOf } from "@/lib/courses/pairs/model";
+import { pairsTitleWords } from "@/lib/courses/pairs/words";
 import { readRunLead, standingUserOf, firstNameOfUser } from "@/lib/courses/programmeLead";
 import { displayNameOf } from "@/lib/courses/registerAccess";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
@@ -107,6 +110,15 @@ export type SessionCardView = {
   note: string | null;
   /** The dialog's facts, when the session can be changed. */
   dialog: DialogFacts | null;
+  /**
+   * The way to the session's pairs, on the Groups tab's Sessions view: when
+   * the week the group meets in asks for pairs (its own copy of the week's In
+   * the session block says people are paired, `pairsAskOf`), its pairs page
+   * for that week, named as the page names itself ("Pairs and laptops").
+   * Null on every other card, and on a group's own page, whose facilitators
+   * have the group page's card.
+   */
+  pairs: { href: string; label: string } | null;
 };
 
 export type SessionsWeekView = {
@@ -313,7 +325,21 @@ function cardFor(
     state,
     note: started ? SESSION_STARTED : null,
     dialog: started ? null : dialogFor(group, session, context),
+    pairs: null,
   };
+}
+
+/**
+ * The way to a group's pairs for one session, when the week the group meets
+ * in asks for pairs: read from the group's own copy of the week, as its
+ * pairs page and its week page read it. Null for a week that asks for none,
+ * and for a week written before blocks.
+ */
+async function pairsFor(db: Firestore, runId: string, groupId: string, weekNumber: number): Promise<SessionCardView["pairs"]> {
+  const week = await readGroupWeek(db, runId, groupId, weekNumber);
+  const ask = week ? pairsAskOf(week.blocks) : null;
+  if (!ask) return null;
+  return { href: `/learn/pairs/${encodeURIComponent(groupId)}?week=${weekNumber}`, label: pairsTitleWords(ask.laptops) };
 }
 
 /**
@@ -330,7 +356,8 @@ export async function loadLiveGroups(db: Firestore, runId: string): Promise<Cour
 }
 
 /**
- * THE SESSIONS VIEW: one week of the run, and each group's session in it.
+ * THE SESSIONS VIEW: one week of the run, and each group's session in it,
+ * with the way to its pairs when the week it meets in asks for them.
  *
  * The week is the run's own (its calendar, its plan): the one shown is
  * `requestedWeek` when the run teaches it, else the week the run is in now
@@ -380,10 +407,13 @@ export async function loadSessionsWeek(
   if (groups.length === 0) return { heading, previous, next, cards: [], blank: NO_GROUPS_YET };
   const context = await contextFor(db, run, groups, now, viewerUid);
 
-  const cards = groups.map((group): SessionCardView => {
+  const cards = await Promise.all(groups.map(async (group): Promise<SessionCardView> => {
     const sessions = resolveSessions(run, group);
     const session = sessionBetween(sessions, fromKey, toKey);
-    if (session) return cardFor(group, session, context, "group");
+    if (session) {
+      // The lead reaches each group's pairs from here: the session's own week decides.
+      return { ...cardFor(group, session, context, "group"), pairs: await pairsFor(db, run.id, group.id, session.weekNumber) };
+    }
     const facilitators = standingFacilitators(group, context);
     const pushed = pushedBetween(sessions, group, fromKey, toKey);
     return {
@@ -398,8 +428,9 @@ export async function loadSessionsWeek(
       state: null,
       note: pushed ? pushedCardWords(pushed.dateKey) : NO_SESSION_THIS_WEEK,
       dialog: null,
+      pairs: null,
     };
-  });
+  }));
   return { heading, previous, next, cards, blank: null };
 }
 

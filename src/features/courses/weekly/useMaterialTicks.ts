@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { useRunProgress } from "@/features/courses/useRunProgress";
 import type { CourseProgressDoc, ProgressItemKind } from "@/lib/firestore/courseProgress";
 import { tickWeekOneBeforeGroups, toggleProgressItem } from "../progressMutations";
+import { TICK_NOT_SAVED, tickNotSavedWords } from "./tickWords";
 
 /**
  * TICKING A READING OFF, the one way every page does it (C33): the week page,
@@ -29,15 +30,26 @@ import { tickWeekOneBeforeGroups, toggleProgressItem } from "../progressMutation
  * through the same listener.
  *
  * Optimistic: the box flips at once, and the live row settles it.
+ *
+ * WHAT A REFUSED TICK SAYS (`tick`'s `words`): the route's own sentence when
+ * week 1's door refused it, that the page needs reloading when the rules
+ * refused the browser's own write, and the connection only when nothing came
+ * back (`./tickWords.ts`).
  */
+
+/** What became of a tick: saved, or put back with what the page says about it. */
+export type TickOutcome = { saved: true } | { saved: false; words: string };
 
 export type MaterialTicks = {
   /** Whether an item is done, the flip in flight included. */
   isDone: (itemId: string) => boolean;
   /**
-   * Ticks or unticks one item of `weekNumber`'s. Resolves true once the
-   * write has landed and false when it was refused (the box goes back).
+   * Ticks or unticks one item of `weekNumber`'s. Resolves once the write has
+   * landed, or once it was refused (the box goes back), with the words that
+   * say why.
    */
+  tick: (itemKind: ProgressItemKind, itemId: string, next: boolean) => Promise<TickOutcome>;
+  /** `tick`, for a page that only says that a tick did not save: true once it landed. */
   toggle: (itemKind: ProgressItemKind, itemId: string, next: boolean) => Promise<boolean>;
   /** The member's own rows for the run, by item id. */
   byItemId: Map<string, CourseProgressDoc>;
@@ -72,9 +84,9 @@ export function useMaterialTicks(
 
   const allowed = canTick && uid !== null && weekNumber >= 1;
 
-  const toggle = useCallback(
-    async (itemKind: ProgressItemKind, itemId: string, next: boolean): Promise<boolean> => {
-      if (!allowed || !uid) return false;
+  const tick = useCallback(
+    async (itemKind: ProgressItemKind, itemId: string, next: boolean): Promise<TickOutcome> => {
+      if (!allowed || !uid) return { saved: false, words: TICK_NOT_SAVED };
       setFlip(itemId, next);
       try {
         if (writer === "week-one-door") {
@@ -91,17 +103,24 @@ export function useMaterialTicks(
           });
         }
         setFlip(itemId, null);
-        return true;
-      } catch {
+        return { saved: true };
+      } catch (err) {
         setFlip(itemId, null);
-        return false;
+        return { saved: false, words: tickNotSavedWords(err) };
       }
     },
     [allowed, progress.byItemId, runId, setFlip, uid, weekNumber, writer],
   );
 
+  const toggle = useCallback(
+    async (itemKind: ProgressItemKind, itemId: string, next: boolean): Promise<boolean> =>
+      (await tick(itemKind, itemId, next)).saved,
+    [tick],
+  );
+
   return {
     isDone,
+    tick,
     toggle,
     byItemId: progress.byItemId,
     canTick: allowed,
