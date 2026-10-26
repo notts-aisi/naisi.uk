@@ -168,7 +168,9 @@ export default function LearnHub({ instead, left = NO_RUNS_LEFT }: Props) {
                   style={{ "--card-index": Math.min(live.length + i, 7) } as CSSProperties}
                 >
                   <Link href={`/learn/${encodeURIComponent(entry.runId)}`} className={styles.leftLink}>
-                    <Card as="article" padding="md" interactive className={styles.leftCard}>
+                    {/* A div, never an article: a link wrapped round an article has no
+                        accessible name in Chromium, so the card would be an unnamed link. */}
+                    <Card as="div" padding="md" interactive className={styles.leftCard}>
                       <h3 className={styles.leftTitle}>{leftHeading(entry.name)}</h3>
                     </Card>
                   </Link>

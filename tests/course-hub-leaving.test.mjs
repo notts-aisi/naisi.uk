@@ -765,8 +765,11 @@ describe("4. what somebody who left reads", () => {
       const drawn = await draw(pages.programmes, who, {});
       assert.equal(drawn.to, null);
       assert.equal(drawn.wrote, false);
+      // The card is a div inside its link, never an article: Chromium gives a
+      // link wrapped round an article no accessible name, and the browser spec
+      // reads the card by its name.
       return {
-        cards: [...drawn.html.matchAll(/<a href="([^"]+)" class="leftLink"><article class="[^"]*\bleftCard\b[^"]*"><h3 class="leftTitle">([^<]*)<\/h3><\/article><\/a>/g)].map(
+        cards: [...drawn.html.matchAll(/<a href="([^"]+)" class="leftLink"><div class="[^"]*\bleftCard\b[^"]*"><h3 class="leftTitle">([^<]*)<\/h3><\/div><\/a>/g)].map(
           (match) => [match[1], match[2]],
         ),
         text: drawn.text,
