@@ -230,11 +230,11 @@ ol.list {
   counter-reset: guide-item;
 }
 
+/* The item's words flow as one line of text; the number sits in a 22px
+   column beside them, 14px apart, as the board draws it. */
 ol.list > li {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  column-gap: 14px;
-  padding: 12px 0;
+  position: relative;
+  padding: 12px 0 12px 36px;
   counter-increment: guide-item;
 }
 
@@ -244,6 +244,10 @@ ol.list > li + li {
 
 ol.list > li::before {
   content: counter(guide-item, decimal-leading-zero);
+  position: absolute;
+  left: 0;
+  top: 12px;
+  width: 22px;
   font-family: var(--font-meta);
   font-size: 0.8125rem;
   line-height: 1.9;
@@ -313,11 +317,16 @@ ol.list > li::before {
   color: var(--color-text-muted);
 }
 
+/* The rows' own headings take a quarter of the width, as the boards draw both tables. */
+.table thead th:first-child {
+  width: 24%;
+}
+
 .table tbody th,
 .table tbody td {
   padding: 14px 16px;
   border-top: 1px solid var(--color-border);
-  font-size: clamp(0.875rem, 1.05cqi, 0.9375rem);
+  font-size: 0.9375rem;
   line-height: 1.55;
   text-align: left;
   vertical-align: top;
@@ -601,10 +610,10 @@ ol.list > li::before {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0 8px;
-  margin: 6px 0 0;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
+  gap: 0 10px;
+  margin: 2px 0 0;
+  font-size: 0.9375rem;
+  color: var(--color-text-faint);
 }
 
 .weekLink {
@@ -612,8 +621,9 @@ ol.list > li::before {
   align-items: center;
   min-height: 44px;
   color: var(--color-accent-text);
-  font-weight: 500;
+  font-weight: 600;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .weekLink:hover {

@@ -9,6 +9,7 @@ import { Field, Textarea } from "@/components/ui/Input";
 import type { ChipTone } from "@/components/ui/Chip";
 import type { GuideDocName } from "@/lib/courses/guide/model";
 import styles from "./WeekBlocksLoader.module.css";
+import own from "./GuideLoader.module.css";
 
 /**
  * LOADING A PROGRAMME'S START HERE OR GLOSSARY, in the run's editor: paste
@@ -174,13 +175,15 @@ export default function GuideLoader({ runId, doc }: Props) {
       <h3 className={styles.title}>{words.title}</h3>
       <p className={styles.hint}>{words.hint}</p>
       {stored !== undefined && (
-        <p className={styles.muted}>
+        <p className={own.status}>
           {has ? words.has : words.none}
           {has && stored.terms !== null ? ` ${stored.terms === 1 ? "1 term" : `${stored.terms} terms`}.` : ""}
           {has && (
             <>
               {" "}
-              <Link href={pageHref}>{words.page}</Link>
+              <Link href={pageHref} className={own.pageLink}>
+                {words.page}
+              </Link>
             </>
           )}
         </p>
