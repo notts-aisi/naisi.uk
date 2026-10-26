@@ -97,8 +97,6 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
   const router = useRouter();
   const { toast, run: runAction, dismiss } = useActionToast();
   const saving = toast?.phase === "saving";
-  // Loading the facilitator guide is an admin's job for now (Q39); its page and route refuse everyone else.
-  const { role } = useAuth();
 
   // The course list is a single one-shot read of a tens-of-docs collection, so
   // picking this course out of it costs nothing extra and keeps the hook
@@ -632,7 +630,9 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
         </Card>
 
         {/* === Facilitator guide === */}
-        {role === "admin" && (
+        {/* Loading the facilitator guide is an admin's job for now (Q39); its page
+            and route refuse everyone else. */}
+        {isAdmin && (
           <Card padding="lg">
             <section className={styles.section}>
               <div className={styles.sectionHead}>
