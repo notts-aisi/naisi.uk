@@ -526,6 +526,17 @@ describe("5. the ways to the two pages, each only when its document exists", () 
     }
   });
 
+  test("each link row and card refuses to draw what the run has not, whatever it is handed", async () => {
+    const { AboutThisCourse, WeekGuideLinks } = await w.loadTs(join("features", "courses", "guide", "GuideLinks.tsx"));
+    const draw = (component, links) => textOf(renderToStaticMarkup(createElement(component, { runId: RUN.agi, links })));
+    for (const component of [AboutThisCourse, WeekGuideLinks]) {
+      assert.equal(draw(component, null), "");
+      assert.equal(draw(component, { startHere: false, glossaryTerms: null }), "");
+    }
+    assert.equal(draw(WeekGuideLinks, { startHere: true, glossaryTerms: null }), "Start here");
+    assert.equal(draw(AboutThisCourse, { startHere: false, glossaryTerms: 1 }), "About this course Glossary 1 term →");
+  });
+
   test("the programme page draws no About this course for a run with neither", async () => {
     w.world.user = w.sessionOf("chloe");
     w.world.course = true;
