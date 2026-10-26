@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import InitialsChip from "@/components/ui/InitialsChip";
+import { useHydrated } from "@/hooks/useHydrated";
 import type { WrittenReviewResult } from "@/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route";
 import { SOCIETY_ADDRESS } from "@/lib/courses/leavingWords";
 import { countWords } from "@/lib/courses/writtenAnswers/model";
@@ -357,6 +358,9 @@ function Review({ model, onDone }: { model: ReviewPageModel; onDone: () => void 
   const [result, setResult] = useState<string | null>(null);
   const opening = useRef(false);
   const commentId = useId();
+  // The page is drawn on the server: nothing here takes a press or a word
+  // until React has it, so nothing typed before then is lost.
+  const hydrated = useHydrated();
 
   // Opening it stamps it, once, when this reader's opening locks it: a POST,
   // because the page itself (a GET) never writes.
@@ -419,7 +423,7 @@ function Review({ model, onDone }: { model: ReviewPageModel; onDone: () => void 
     : stillOpenWords(person.firstName, selected.lockers);
   const allChosen = !rubric || rubric.rows.every((row) => Boolean(levels[row.name]));
   const commentWords = countWords(comment);
-  const canSend = !local.feedback && selected.role.mayReview && allChosen && (rubric ? true : commentWords > 0) && !busy;
+  const canSend = hydrated && !local.feedback && selected.role.mayReview && allChosen && (rubric ? true : commentWords > 0) && !busy;
 
   return (
     <div className={styles.reviewGrid}>
@@ -450,7 +454,7 @@ function Review({ model, onDone }: { model: ReviewPageModel; onDone: () => void 
         <div className={styles.openedRow}>
           <p className={styles.openedLine}>{openedLine}</p>
           {local.openedAt && !local.feedback && selected.role.mayReview && (
-            <button type="button" className={styles.textButton} onClick={() => void reopen()} disabled={busy}>
+            <button type="button" className={styles.textButton} onClick={() => void reopen()} disabled={busy || !hydrated}>
               {REOPEN_FOR_EDITS}
             </button>
           )}
@@ -478,7 +482,7 @@ function Review({ model, onDone }: { model: ReviewPageModel; onDone: () => void 
                       type="button"
                       className={chosen === level ? styles.levelOn : styles.level}
                       aria-pressed={chosen === level}
-                      disabled={Boolean(local.feedback) || !selected.role.mayReview}
+                      disabled={!hydrated || Boolean(local.feedback) || !selected.role.mayReview}
                       onClick={() => setLevels((prev) => ({ ...prev, [row.name]: level }))}
                     >
                       {level}
@@ -518,7 +522,7 @@ function Review({ model, onDone }: { model: ReviewPageModel; onDone: () => void 
                   rows={5}
                   value={comment}
                   onChange={(event) => setComment(event.currentTarget.value)}
-                  disabled={!selected.role.mayReview}
+                  disabled={!hydrated || !selected.role.mayReview}
                 />
                 <div className={styles.commentFoot}>
                   <span>{COMMENT_HINT}</span>
