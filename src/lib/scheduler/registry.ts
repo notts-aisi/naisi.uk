@@ -39,6 +39,7 @@ import { admissionsStageReleaseJob } from "./jobs/admissionsStageRelease";
 import { anonymousFeedbackMoveJob } from "./jobs/anonymousFeedbackMove";
 import { applicationInvitationRemindersJob } from "./jobs/applicationInvitationReminders";
 import { eventAnnouncementsJob } from "./jobs/eventAnnouncements";
+import { eventCheckInsTidyJob } from "./jobs/eventCheckInsTidy";
 import { heartbeatJob } from "./jobs/heartbeat";
 import { nextWeekEmailJob } from "./jobs/nextWeekEmail";
 import { registerRemindersJob } from "./jobs/registerReminders";
@@ -86,6 +87,11 @@ export const SCHEDULER_JOB_IDS = [
   // the id is load-bearing in two places rather than one: rename it after it
   // has shipped and the publish route starts reading a switch nobody set.
   "event-announcements",
+  // Walk-ins' emails deleted a week after their event, and names off an
+  // event's check-ins a year after it (`src/lib/events/checkIns.ts`). It
+  // emails nobody, so it registers on: the privacy policy's promise rests on
+  // it running.
+  "event-check-ins-tidy",
   "newsletter-drain",
   // Names come off confidential survey answers two years after the programme
   // (docs/surveys.md). It emails nobody, so it registers on: the privacy
@@ -248,6 +254,7 @@ export const JOBS: readonly JobRegistration[] = [
   registerRemindersJob,
   unmarkedRegistersJob,
   eventAnnouncementsJob,
+  eventCheckInsTidyJob,
   heartbeatJob,
   surveyNamesOffJob,
   worksheetDueRemindersJob,

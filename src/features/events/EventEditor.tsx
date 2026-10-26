@@ -60,6 +60,7 @@ import {
 import CollaboratorPicker from "./CollaboratorPicker";
 import CoverBrandingModal from "./CoverBrandingModal";
 import StepRail, { type EditorStep } from "./EditorSteps";
+import EventTabs from "./checkIn/EventTabs";
 import EventPreview from "./EventPreview";
 import { takeIncoming } from "./editorSync";
 import FormBuilder from "./FormBuilder";
@@ -1122,6 +1123,14 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
             )}
           </>
         }
+      />
+
+      <EventTabs
+        eventId={event.id}
+        current="details"
+        showSignups={canSeeAttendees}
+        signups={event.rsvpCountConfirmed ?? undefined}
+        showCheckIn={status === "published"}
       />
 
       {(status === "pending" || status === "approved") && (

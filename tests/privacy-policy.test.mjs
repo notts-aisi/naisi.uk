@@ -4928,6 +4928,150 @@ describe("the course hub passage", () => {
 });
 
 // ---------------------------------------------------------------------------
+// §2g, continued: When you come to an event
+// ---------------------------------------------------------------------------
+
+/**
+ * What v7 says about check-in, held to the code that makes it true
+ * (`src/lib/events/checkIns.ts`), the way the course hub passage is held
+ * above: each sentence of "When you come to an event", its line under "How we
+ * use it", its paragraph under Retention and its line under what a deletion
+ * leaves behind, paired with a rule that is run or a line of source that is
+ * matched. Added while v7 was on dev, before any member had been asked to
+ * accept it, so it kept its number. The suites that run check-in as every
+ * kind of caller are `tests/event-*.test.mjs`.
+ */
+const checkInAccess = await loadTs("lib/events/checkInAccess.ts");
+const checkInRules = await loadTs("lib/events/checkIns.ts");
+/** Every file that reads or builds a list of who came, by name. */
+const NAMED_CHECK_IN_READERS = /\bloadEventAtTheDoor\(|\bdoorRows\(/;
+
+describe("the check-in passage", () => {
+  const VR = { startAt: new Date("2026-11-01T14:00:00Z"), endAt: new Date("2026-11-01T17:00:00Z") };
+
+  test("the frozen v6 carries none of these sentences", () => {
+    for (const pattern of [
+      /When you come to an event/,
+      /Who came to an event\./,
+      /checks you in at the door/,
+      /Not coming is recorded nowhere/,
+      /The record that you came to an event/,
+    ]) {
+      assert.ok(!pattern.test(V6_FLAT), `v6 already says ${pattern}`);
+    }
+  });
+
+  test("who sees who came: admins and SU-recognised committee, as for sign-ups; the other organisers see numbers", () => {
+    assert.match(PAGE_FLAT, /<h3>When you come to an event<\/h3>/);
+    assert.match(
+      PAGE_FLAT,
+      /If you come to an event, we may record that you came, how and when: you check yourself in with the code at the door, or a committee member ticks your name on the door list\. Only NAISI&apos;s admins and the committee members the Students&apos; Union recognises can see who came, as they can see who signed up\. The event&apos;s other organisers see how many came, never who\./,
+    );
+    // The bar, run.
+    const { runsCheckIn } = checkInAccess;
+    assert.equal(runsCheckIn({ role: "admin", suRecognised: false }), true);
+    assert.equal(runsCheckIn({ role: "committee", suRecognised: true }), true);
+    assert.equal(runsCheckIn({ role: "committee", suRecognised: false }), false);
+    assert.equal(runsCheckIn({ role: "member", suRecognised: true }), false);
+    assert.equal(runsCheckIn({ role: "pending", suRecognised: true }), false);
+    assert.equal(runsCheckIn(null), false);
+    // The same bar as who signed up.
+    const attendees = withoutComments(read("src/app/(app)/events/manage/[id]/attendees/page.tsx"));
+    assert.match(attendees, /viewer\.role === "admin" \|\|\s*\(viewer\.role === "committee" && viewer\.suRecognised\)/);
+    // Every file that lists who came by name asks the bar, and the one page
+    // that also shows numbers to everybody draws names only behind it.
+    const readers = sourceFilesNaming(NAMED_CHECK_IN_READERS).filter(
+      (file) => file !== "src/lib/events/checkInLoad.ts" && file !== "src/lib/events/checkInView.ts",
+    );
+    assert.deepEqual(readers, [
+      "src/app/(app)/events/manage/[id]/check-in/page.tsx",
+      "src/app/(app)/events/manage/[id]/door/page.tsx",
+      "src/app/api/events/[id]/check-ins/route.ts",
+    ]);
+    for (const file of readers) assert.match(read(file), /runsCheckIn\((?:viewer|user)\)/, file);
+    const tab = withoutComments(read("src/app/(app)/events/manage/[id]/check-in/page.tsx"));
+    assert.match(tab, /const staff = runsCheckIn\(viewer\);/);
+    assert.match(tab, /\{staff && takes && \(\s*<div className=\{styles\.columns\}>/);
+  });
+
+  test("not coming is recorded nowhere: a record says somebody came, and nothing else", () => {
+    assert.match(
+      PAGE_FLAT,
+      /Not coming is recorded nowhere\. It is never held against you, and it never stops you signing up again\./,
+    );
+    const rules = withoutComments(read("src/lib/events/checkIns.ts"));
+    const data = /const data = \{([\s\S]*?)\n {4}\};/.exec(rules);
+    assert.ok(data, "could not find the record a check-in writes");
+    // Written out and written short (`email,`), both read.
+    const fields = [...data[1].matchAll(/^\s{6}(\w+)(?::|,)/gm)].map((m) => m[1]).sort();
+    assert.deepEqual(fields, ["at", "byUid", "email", "emailGoesAt", "eventId", "how", "kind", "name", "namesOff", "namesOffAt", "rsvpId", "uid"]);
+    assert.match(rules, /kind: walkIn \? "walk-in" : "signup",/);
+  });
+
+  test("a walk-in's email is only for that event's survey, and is deleted a week after the event", () => {
+    assert.match(
+      PAGE_FLAT,
+      /If you come without signing up, we take your name at the door, and an email address only if you want that event&apos;s survey\. We use the address for nothing else, and delete it a week after the event\./,
+    );
+    assert.match(PAGE_FLAT, /A walk-in&apos;s email address is deleted a week after the event\./);
+    assert.equal(checkInRules.walkInEmailGoesAt(VR).toISOString(), "2026-11-08T17:00:00.000Z");
+    assert.deepEqual({ ...checkInRules.EMAIL_GONE_FIELDS }, { email: null, emailGoesAt: null });
+    const rules = withoutComments(read("src/lib/events/checkIns.ts"));
+    assert.match(rules, /const emailsDue = await col\.where\("emailGoesAt", "<=", now\)\.get\(\);/);
+    assert.match(rules, /emailsDue\.docs\.map\(\(doc\) => doc\.ref\),\s*EMAIL_GONE_FIELDS,/);
+    // The job that keeps it: registered, and on unless an admin turns it off.
+    const job = withoutComments(read("src/lib/scheduler/jobs/eventCheckInsTidy.ts"));
+    assert.match(job, /id: "event-check-ins-tidy",/);
+    assert.ok(!/enabledByDefault/.test(job), "the job that deletes walk-ins' emails now waits for a switch, while the policy says it happens");
+    assert.match(job, /const done = await tidyCheckIns\(db, ctx\.now\);/);
+    const registry = withoutComments(read("src/lib/scheduler/registry.ts"));
+    assert.match(registry, /^\s*"event-check-ins-tidy",$/m);
+    assert.match(registry, /^\s*eventCheckInsTidyJob,$/m);
+  });
+
+  test("names come off a year after the event, and at once with the account; the count stays", () => {
+    assert.match(
+      PAGE_FLAT,
+      /<strong>Who came to an event\.<\/strong> We keep the record of who came with names for a year after the event, then take the names off and keep the count\./,
+    );
+    assert.match(PAGE_FLAT, /<li> The record that you came to an event, no longer linked to you: it stays in the count\. <\/li>/);
+    assert.equal(checkInRules.checkInNamesOffAt(VR).toISOString(), "2027-11-01T17:00:00.000Z");
+    assert.deepEqual(
+      { ...checkInRules.NAMES_OFF_FIELDS },
+      { rsvpId: null, uid: null, name: null, email: null, emailGoesAt: null, byUid: null, namesOffAt: null, namesOff: true },
+    );
+    const rules = withoutComments(read("src/lib/events/checkIns.ts"));
+    assert.match(rules, /const namesDue = await col\.where\("namesOffAt", "<=", now\)\.get\(\);/);
+    const account = /export async function takeCheckInNamesOffForAccount\([\s\S]*?\n\}/.exec(rules);
+    assert.ok(account, "could not find how a deleted account's name comes off its check-ins");
+    assert.match(account[0], /\.where\("uid", "==", uid\)\.get\(\)/);
+    assert.match(account[0], /NAMES_OFF_FIELDS,/);
+    assert.ok(!/\.delete\(/.test(account[0]), "a deletion now removes check-ins, which the policy says stay in the count");
+    const cascade = withoutComments(read("src/lib/firestore/accountDeletion.ts"));
+    assert.match(cascade, /summary\.eventCheckInsNamesTakenOff = await takeCheckInNamesOffForAccount\(db, uid\);/);
+  });
+
+  test("the email that confirms a place carries the check-in link, and no other email does", () => {
+    assert.match(
+      PAGE_FLAT,
+      /When your place at an event is confirmed, the email that tells you has a link that checks you in at the door, so you can check in without an account\. Anyone holding it could check in in your name, so keep it to yourself\./,
+    );
+    const send = withoutComments(read("src/lib/events/sendRsvpEmail.ts"));
+    assert.match(send, /if \(holder\) \{\s*checkInUrl = `\$\{baseUrl\(\)\}\/events\/\$\{event\.id\}\/check-in\?r=/);
+    assert.match(send, /return holdsPlace\(variant === "approved" \|\| variant === "promoted" \? "confirmed" : "pending"\);/);
+  });
+
+  test("the record is used to count who comes, and no page lists one person's events", () => {
+    assert.match(PAGE_FLAT, /We use the record to count who comes\. Nobody is shown one person&apos;s list of the events they came to\./);
+    assert.match(PAGE_FLAT, /<li>Check people in at an event, and count who comes\.<\/li>/);
+    // The only read of check-ins by person is the account deletion's.
+    const rules = withoutComments(read("src/lib/events/checkIns.ts"));
+    assert.equal((rules.match(/\.where\("uid"/g) ?? []).length, 1);
+    assert.equal((rules.match(/\.where\("rsvpId"/g) ?? []).length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // §3 The re-consent gate
 // ---------------------------------------------------------------------------
 

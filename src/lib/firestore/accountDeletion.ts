@@ -10,6 +10,7 @@ import {
 import { deleteCalendarLink } from "@/lib/courses/calendarLink";
 import { deleteKairosChoice } from "@/lib/kairos/choice";
 import { deleteRatingsForAccount } from "@/lib/ratings/store";
+import { takeCheckInNamesOffForAccount } from "@/lib/events/checkIns";
 import { takeNamesOffForAccount } from "@/lib/surveys/namesOff";
 import { FACILITATING_COLLECTION } from "@/lib/courses/facilitatorAsks/model";
 import { FINISHING_COLLECTION } from "@/lib/courses/finishing/model";
@@ -79,6 +80,11 @@ export type AccountDeletionSummary = {
    * person, by one named person.
    */
   programmeRatingsDeleted: number;
+  /**
+   * The events the account came to (`eventCheckIns`), taken off them: what
+   * is left counts that one person came and names nobody, as a year on does.
+   */
+  eventCheckInsNamesTakenOff: number;
   registrationDeleted: boolean;
   collaboratorDeleted: boolean;
   userDocDeleted: boolean;
@@ -1168,6 +1174,7 @@ export async function deleteAccountCascade(
     surveyAnswersNamesTakenOff: 0,
     kairosChoiceDeleted: false,
     programmeRatingsDeleted: 0,
+    eventCheckInsNamesTakenOff: 0,
     registrationDeleted: false,
     collaboratorDeleted: false,
     userDocDeleted: false,
@@ -1322,6 +1329,21 @@ export async function deleteAccountCascade(
     summary.programmeRatingsDeleted = await deleteRatingsForAccount(db, uid);
   } catch (err) {
     console.error("[deleteAccount] ratings delete failed:", uid, (err as { code?: unknown } | null)?.code ?? "unknown");
+    partialFailure = true;
+  }
+
+  // 1h. CHECK-INS. The account's name comes off every event it came to at
+  //     once (`takeCheckInNamesOffForAccount`, `src/lib/events/checkIns.ts`):
+  //     the records stay as counts, as they do a year after an event. One
+  //     equality on `uid`.
+  //
+  //     BEST-EFFORT, with the 207 keeping the registration row so the sweep
+  //     is retried: a failure here leaves a name only the people who run
+  //     check-in see, which the retry takes off.
+  try {
+    summary.eventCheckInsNamesTakenOff = await takeCheckInNamesOffForAccount(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] check-in names-off failed:", uid, (err as { code?: unknown } | null)?.code ?? "unknown");
     partialFailure = true;
   }
 
