@@ -90,6 +90,15 @@ const READS_WITHOUT_A_LIST = new Map([
     },
   ],
   [
+    "src/lib/courses/predictions/taker.ts",
+    {
+      why:
+        "Reads the run's groups only to find the caller's own group and the ones they facilitate, for whether they have " +
+        "a predictions card and when its two weeks open to them: it answers one person's own card, never a list of " +
+        "groups. A programme's page reaches it through Preview as a fellow, by way of the member's week page's shell.",
+    },
+  ],
+  [
     "src/app/api/courses/runs/[runId]/reflections/[promptId]/route.ts",
     {
       why:

@@ -878,6 +878,12 @@ const NOT_COVERED = {
     coverWhen:
       "When a lead or a facilitator can change a course's routes, or a browser spec loads week 6 of a run whose course has them, because a mistake then reaches a run's people before an admin sees it.",
   },
+  "/api/courses/[courseId]/predictions": {
+    reason:
+      "Course authoring: /api/courses/[courseId]/predictions sets a course's sealed predictions card, an admin's job, answered on the course page's card that called it; reading, saving, taking off and every refusal are driven as each kind of caller in tests/course-hub-sealed-predictions.test.mjs.",
+    coverWhen:
+      "When a browser spec pastes a card into a course's details and a member then fills it in on week 1, because a mistake then reaches a run's people before an admin sees it.",
+  },
   "/api/courses/[courseId]/templates": {
     reason:
       "Courses: /api/courses/[courseId]/templates is staff-facing, taken deliberately, and answered on the screen that called it.",
@@ -1123,6 +1129,24 @@ const NOT_COVERED = {
       "Course hub: a person's own pick in a Choose one and their Ready for my talk (wk-week, wk-week6-phone); who writes, who is refused, the pick's lock at the session and the ready box's wait for a case are executed by tests/course-hub-packs-and-cases.test.mjs; pressed in a browser on the preview kit.",
     coverWhen:
       "When a browser spec signs in a member of a group Publish has told, picks a pack on a week page, marks a talk ready, reloads and reads both back.",
+  },
+  "/api/courses/runs/[runId]/predictions": {
+    reason:
+      "Course hub: a person's own sealed predictions card, saved as they type, sealed in week 1 and opened in week 6; who writes, who is refused, the seal, the shut weeks and the opening are executed by tests/course-hub-sealed-predictions.test.mjs through the routes and the week page's shell; pressed in a browser on the preview kit.",
+    coverWhen:
+      "When a browser spec signs in a member of a group Publish has told, fills in and seals the card on week 1, moves the clock past the group's week 5 session and opens it on week 6.",
+  },
+  "/api/courses/runs/[runId]/predictions/people": {
+    reason:
+      "Course hub: an admin's list of whose predictions cards exist on a run, never an answer; every caller is executed by tests/course-hub-sealed-predictions.test.mjs.",
+    coverWhen:
+      "When a browser spec opens a run's page in the admin area with cards on it.",
+  },
+  "/api/courses/runs/[runId]/predictions/people/[uid]": {
+    reason:
+      "Course hub: an admin opens one person's predictions card, the opening recorded first; every caller, the order and a record that cannot be written are executed by tests/course-hub-sealed-predictions.test.mjs.",
+    coverWhen:
+      "When a browser spec opens a card from a run's page in the admin area and reads the record of the opening.",
   },
   "/api/courses/runs/[runId]/reflections": {
     reason:
