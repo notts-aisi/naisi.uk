@@ -173,6 +173,11 @@ const READERS = {
     asks: 1,
     why: "a member answers an exercise on the run: an untold seat does not open the run",
   },
+  "app/api/courses/runs/[runId]/reflections/[promptId]/route.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "a member writes in their own reflection box on the run: an untold seat does not open the run (a group's facilitator writes as its facilitator, which is no seat)",
+  },
   "app/api/courses/runs/[runId]/sync-tasks/route.ts": {
     kind: "shown",
     asks: 1,

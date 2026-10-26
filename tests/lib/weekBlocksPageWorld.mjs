@@ -12,9 +12,14 @@
  * the hand-over world's real handlers. On top of it:
  *
  *  - WEEK 1 and WEEK 3 are written as blocks in week 1's shape: one task
- *    covering three parts, a row with nothing to do this week, two sources in
+ *    over three parts, a row with nothing to do this week, two sources in
  *    part 2 and three reflection stops of two prompts each, In the session,
  *    Go further. Each week's ids are its own (ticks key on them run-wide).
+ *    Each is LOADED AS A LEAD LOADS ONE: written out as the guide's Markdown
+ *    (`weekToMarkdown`) and pasted back through the loader's own reading
+ *    (`readPastedWeek`), which keeps every id and works out what This week's
+ *    task covers from its words ("the three parts below"). Nothing here
+ *    types a `covers` list, so the counts the suite reads are the paste's.
  *  - WEEK 2 is the foundation's synthetic week holding every kind of block
  *    (`tests/lib/weekBlocksFixture.mjs`): packs, a table, the written answer,
  *    cases and fill-in boxes, which this page does not draw yet.
@@ -55,7 +60,7 @@ const p = (...runs) => ({ type: "p", runs });
  * A week in week 1's shape, its ids prefixed with `k` so two such weeks of
  * one run never share one. Every word is made up.
  */
-export function weekOneBlocks(k) {
+export function weekOneBlocks(k, whenText = "") {
   return [
     {
       id: `${k}-tw`,
@@ -66,7 +71,9 @@ export function weekOneBlocks(k) {
           what: "Work through the three parts below, writing in the boxes as you go",
           time: "About 60 minutes",
           when: "before",
-          covers: [`${k}-p1`, `${k}-p2`, `${k}-p3`],
+          whenText,
+          // Worked out by the paste from the words above, never typed here.
+          covers: [],
         },
         { type: "none", what: "Talk and short answer", time: "None this week", note: "You will pick a topic at the end of the session" },
       ],
@@ -118,22 +125,26 @@ export function weekOneBlocks(k) {
           id: `${k}-s1`,
           type: "source",
           kind: "read",
+          lead: "",
           title: "A keeper's diary",
           url: "https://example.com/diary",
           by: "Ada Example",
           date: "2024",
           time: "20 minutes",
+          compute: "",
           note: [run("The first chapter is enough.")],
         },
         {
           id: `${k}-s2`,
           type: "source",
           kind: "watch",
+          lead: "",
           title: "Lamps at night",
           url: "https://example.org/lamps",
           by: "Example Films",
           date: "March 2025",
           time: "About 25 minutes",
+          compute: "",
           note: [],
         },
         {
@@ -163,15 +174,15 @@ export function weekOneBlocks(k) {
         },
       ],
     },
-    { id: `${k}-is`, type: "inTheSession", body: [p(run("You will compare notes in pairs."))] },
+    { id: `${k}-is`, type: "inTheSession", body: [p(run("You will compare notes in pairs."))], beforeYouCome: [] },
     {
       id: `${k}-gf`,
       type: "goFurther",
       heading: "Go further (optional)",
       intro: [p(run("More for anyone who wants it."))],
       items: [
-        { kind: "listen", title: "Keepers talk", url: "https://example.com/talk", by: "Example Radio", date: "2023", time: "40 minutes", why: [run("A long conversation.")] },
-        { kind: "read", title: "The lamp book", url: "https://example.org/book", by: "Example Press", date: "", time: "", why: [run("The whole history.")] },
+        { kind: "listen", lead: "", title: "Keepers talk", url: "https://example.com/talk", by: "Example Radio", date: "2023", time: "40 minutes", compute: "", why: [run("A long conversation.")] },
+        { kind: "read", lead: "", title: "The lamp book", url: "https://example.org/book", by: "Example Press", date: "", time: "", compute: "", why: [run("The whole history.")] },
       ],
     },
   ];
@@ -210,12 +221,27 @@ function legacyWeekDoc(n) {
   };
 }
 
+/**
+ * A week as the loader stores one after a paste: `blocks` written out as the
+ * guide's Markdown and read back through `readPastedWeek` against themselves,
+ * so every id is kept and This week's covers are the ones the paste works out.
+ * A paste that finds a problem, or that has to mint an id, stops the suite.
+ */
+function pastedWeekDoc(lib, n, title, blocks) {
+  const markdown = lib.markdownWrite.weekToMarkdown({ weekNumber: n, title, blocks });
+  const read = lib.paste.readPastedWeek({ markdown, weekNumber: n, stored: blocks, dayBeforeTime: null });
+  if (read.problems.length > 0 || read.minted > 0 || read.title !== title) {
+    throw new Error(`week ${n} does not paste back as itself: ${read.minted} ids minted; "${read.title}"; ${read.problems.join(" ")}`);
+  }
+  return blockWeekDoc(n, read.title, read.blocks);
+}
+
 /** The world every suite starts from. `over` adds or replaces whole documents. */
-export function blocksSeed(over = {}) {
+function blocksSeed(lib, over = {}) {
   const seed = attendanceSeed();
-  seed[`courseRuns/${RUN.agi}/weeks/w01`] = blockWeekDoc(1, "Who keeps the lamps", weekOneBlocks("k1"));
+  seed[`courseRuns/${RUN.agi}/weeks/w01`] = pastedWeekDoc(lib, 1, "Who keeps the lamps", weekOneBlocks("k1", "Before session 1, if you can"));
   seed[`courseRuns/${RUN.agi}/weeks/w02`] = syntheticWeekDoc({ weekNumber: 2 });
-  seed[`courseRuns/${RUN.agi}/weeks/w03`] = blockWeekDoc(3, "The lamp makers", weekOneBlocks("k3"));
+  seed[`courseRuns/${RUN.agi}/weeks/w03`] = pastedWeekDoc(lib, 3, "The lamp makers", weekOneBlocks("k3"));
   seed[`courseRuns/${RUN.agi}/weeks/w04`] = legacyWeekDoc(4);
   // The facilitator enrolments the facilitators route writes for Group B's two.
   for (const uid of ["rahul", "sofia"]) {
@@ -356,9 +382,11 @@ export async function makeWeekBlocksPageWorld(key = "__weekBlocksPage") {
     courses: await loadTs(join("lib", "firestore", "courses.ts")),
     progress: await loadTs(join("lib", "courses", "weekBlocks", "progress.ts")),
     words: await loadTs(join("lib", "courses", "memberPageWords.ts")),
+    paste: await loadTs(join("lib", "courses", "weekBlocks", "paste.ts")),
+    markdownWrite: await loadTs(join("lib", "courses", "weekBlocks", "markdownWrite.ts")),
   };
 
-  function reset(seed = blocksSeed()) {
+  function reset(seed = blocksSeed(lib)) {
     made.reset(seed, { now: () => new Date() });
     ui.overview = null;
     ui.roster = null;
@@ -493,6 +521,8 @@ export async function makeWeekBlocksPageWorld(key = "__weekBlocksPage") {
     components,
     lib,
     reset,
+    /** A week document as the loader stores one after a paste (see `pastedWeekDoc`). */
+    pastedWeekDoc: (n, title, blocks) => pastedWeekDoc(lib, n, title, blocks),
     overview,
     writeBox,
     readReflections,

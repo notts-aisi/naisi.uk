@@ -196,6 +196,52 @@
   gap: 6px;
 }
 
+/* A table in a week's text: inside the column, scrolling sideways on its own
+   when it is wider than the page, never the page itself. */
+.table {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.table table {
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.table th,
+.table td {
+  min-width: 8rem;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.table th {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* Code as the guide writes it, every space and line kept. */
+.code {
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  white-space: pre;
+  overflow-x: auto;
+  box-sizing: border-box;
+}
+
 .inlineLink {
   color: var(--color-accent-text);
   text-decoration: underline;
@@ -611,6 +657,15 @@
   overflow-wrap: anywhere;
 }
 
+/* The words the guide writes before a title ("section 2 of"), in the title's line. */
+.sourceLead {
+  color: var(--color-text-soft);
+  font-weight: 400;
+  font-size: clamp(0.9375rem, 1.5cqi, 1rem);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .arrow {
   display: inline-block;
   margin-left: 6px;
@@ -985,6 +1040,16 @@
   line-height: 1.55;
   color: var(--color-text-soft);
   overflow-wrap: anywhere;
+}
+
+/* What to do before you come, under In the session. */
+.beforeYouCome {
+  margin-top: 12px;
+}
+
+/* The hands-on route's own text, under its "Not counted" line. */
+.handsOnBody {
+  margin: 12px 0 14px;
 }
 
 /* === Notes shared with the group, as today === */

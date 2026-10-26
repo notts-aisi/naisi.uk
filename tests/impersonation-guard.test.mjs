@@ -131,6 +131,7 @@ const MUST_GUARD = [
   ["src/app/api/courses/runs/[runId]/enrolments/[uid]/reinstate/route.ts", "puts a member who left back on a run, taking a seat back off the group"],
   ["src/app/api/courses/runs/[runId]/enrol-mode/route.ts", "flips a run between admissions and open enrolment, which changes what the enrol route accepts"],
   ["src/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route.ts", "submits a learner's answer in their own name"],
+  ["src/app/api/courses/runs/[runId]/reflections/[promptId]/route.ts", "saves a reflection in its writer's own name: a member's own box, or a group facilitator's own"],
   ["src/app/api/courses/runs/[runId]/material-notes/route.ts", "records feedback attributed to the reader"],
   ["src/app/api/courses/runs/[runId]/normalise-weeks/route.ts", "rewrites every week id on a run"],
   ["src/app/api/courses/runs/[runId]/nudge/route.ts", "sends the weekly nudge email"],

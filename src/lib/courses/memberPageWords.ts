@@ -330,8 +330,34 @@ export function inAllWords(total: string): string {
 /** A task that is done. */
 export const TASK_DONE = "Done";
 
-/** What the task mark says to a screen reader. */
-export const TASK_MARK_WORDS = { done: "Done", notDone: "Not done yet", none: "Nothing to do this week" } as const;
+/**
+ * What the task mark says to a screen reader. `optional` is a row that is
+ * offered, not set (the hands-on route); the boards draw none, so it is
+ * listed for the boards' designers to confirm.
+ */
+export const TASK_MARK_WORDS = {
+  done: "Done",
+  notDone: "Not done yet",
+  none: "Nothing to do this week",
+  optional: "Optional, not counted",
+} as const;
+
+/**
+ * The guide's own words after its rule, kept as written: "Before session 1,
+ * if you can" says "if you can". The words after the first comma, or "" when
+ * there are none. The rule itself is the page's to say, in the reader's own
+ * dates.
+ */
+export function whenQualifierOf(whenText: string): string {
+  const at = whenText.indexOf(",");
+  return at < 0 ? "" : whenText.slice(at + 1).trim();
+}
+
+/** "noon", "5pm", "9:30am": the course's day-before time as the page says it. "" for anything else. */
+function dueClockWords(hhmm: string | null | undefined): string {
+  if (!hhmm) return "";
+  return hhmm === "12:00" ? "noon" : clockWords(hhmm);
+}
 
 /**
  * When a This week task is due, for the reader's group (`due.ts` gives the
@@ -339,20 +365,36 @@ export const TASK_MARK_WORDS = { done: "Done", notDone: "Not done yet", none: "N
  * "At your session, Tue 17 Nov". Before a group has a day to give, the rule
  * alone: "Before your first session" (the board's "Due dates wait for the
  * group"). `first` is the reader's first session.
+ *
+ * "The day before" is read by the course's setting (`dayBeforeTime`,
+ * `CourseDoc.dayBeforeDueTime`): by the end of that day when it has none, or
+ * by its time ("By noon today, Mon 16 Nov", "By noon on Mon 9 Nov", "By noon
+ * the day before your session"). The guide's own words after its rule
+ * (`whenText`'s "if you can") follow the page's: "Before your first session,
+ * if you can". The words for a time and for the guide's own words are not
+ * drawn on the boards; they are listed for the boards' designers to confirm.
  */
 export function taskWhenWords(
   when: "before" | "dayBefore" | "atSession",
   due: { dateKey: string } | null,
-  options: { first: boolean; todayKey: string },
+  options: { first: boolean; todayKey: string; dayBeforeTime?: string | null; whenText?: string },
 ): string {
   const session = options.first ? "your first session" : "your session";
   const day = due ? dayWords(due.dateKey) : "";
+  const qualifier = whenQualifierOf(options.whenText ?? "");
+  const withQualifier = (words: string) => (qualifier ? `${words}, ${qualifier}` : words);
   if (when === "dayBefore") {
-    if (!day) return `By the end of the day before ${session}`;
-    return due && due.dateKey === options.todayKey ? `By the end of today, ${day}` : `By the end of ${day}`;
+    const clock = dueClockWords(options.dayBeforeTime);
+    const today = Boolean(due && due.dateKey === options.todayKey);
+    if (clock) {
+      if (!day) return withQualifier(`By ${clock} the day before ${session}`);
+      return withQualifier(today ? `By ${clock} today, ${day}` : `By ${clock} on ${day}`);
+    }
+    if (!day) return withQualifier(`By the end of the day before ${session}`);
+    return withQualifier(today ? `By the end of today, ${day}` : `By the end of ${day}`);
   }
   const lead = when === "atSession" ? `At ${session}` : `Before ${session}`;
-  return day ? `${lead}, ${day}` : lead;
+  return withQualifier(day ? `${lead}, ${day}` : lead);
 }
 
 /** "Part 1": a part's place among the week's parts, before its time. */
@@ -479,6 +521,13 @@ export const ON_THIS_PAGE = "On this page";
 
 /** "Go further", as the list of where things are names it. */
 export const GO_FURTHER_SHORT = "Go further";
+
+/**
+ * The hands-on route (optional, for people who code), as the list of where
+ * things are names it. Its own heading is the guide's. The boards draw
+ * neither; listed for the boards' designers to confirm.
+ */
+export const HANDS_ON_SHORT = "Hands-on route";
 
 /** The notes the group shares, as the list of where things are names them. */
 export const SHARED_NOTES_SHORT = "Notes shared with your group";

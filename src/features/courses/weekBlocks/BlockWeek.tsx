@@ -10,6 +10,7 @@ import { firstName } from "@/app/(app)/dashboard/homeWords";
 import {
   BOXES_SAVE_LINE,
   GO_FURTHER_SHORT,
+  HANDS_ON_SHORT,
   PRIVATE_NOTE_HINT,
   PRIVATE_NOTE_HINT_FACILITATOR,
   NOT_COUNTED,
@@ -42,6 +43,8 @@ import {
   type ChecklistBlock,
   type ContentNoteBlock,
   type GoFurtherBlock,
+  type HandsOnBlock,
+  type InTheSessionBlock,
   type OutcomesBlock,
   type PartBlock,
   type PartChild,
@@ -71,7 +74,7 @@ import type { MaterialTicks } from "../weekly/useMaterialTicks";
 import weekly from "../weekly/weekly.module.css";
 import Prose, { Runs } from "./Prose";
 import ReflectStop from "./ReflectStop";
-import SourceCard from "./SourceCard";
+import SourceCard, { SourceTitle } from "./SourceCard";
 import styles from "./blockWeek.module.css";
 
 /**
@@ -81,13 +84,16 @@ import styles from "./blockWeek.module.css";
  * exactly as it always has.
  *
  * In page order: This week (its tasks, each with its time and when it is due
- * for the reader's group, "In all" and its note, and "N of M done" for
- * somebody taking part), then the week's blocks as the week holds them: Why
- * this week, After this week you can, a content note, Before the session,
- * each part with its time, its framing, its Done chip, its sources to tick,
- * its reflection stops and its checklist, a section of the guide's own, In
- * the session and Go further (never counted); then the notes the group
- * shares, and the way to the weeks either side.
+ * for the reader's group, a row with nothing to do, a row that is only
+ * offered, "In all" and its note, and "N of M done" for somebody taking
+ * part), then the week's blocks as the week holds them: Why this week, After
+ * this week you can, a content note, Before the session, each part with its
+ * time, its framing, its Done chip, its sources to tick, its reflection stops
+ * and its checklist, a section of the guide's own, In the session with what
+ * to do before you come, Go further and the hands-on route (both optional,
+ * never counted); then the notes the group shares, and the way to the weeks
+ * either side. Tables and code in a week's text are drawn inside the
+ * column, each scrolling sideways on its own when it is wider than the page.
  *
  * DRAWN BY A LATER PAGE, AND NOTHING HERE YET: a Choose one's packs, a
  * table, the written answer, the cases and fill-in boxes. A task that covers
@@ -250,6 +256,7 @@ export default function BlockWeek({
             key={block.id}
             block={block}
             rows={overviewWeek?.thisWeek?.rows ?? []}
+            dayBeforeTime={overviewWeek?.thisWeek?.dayBeforeTime ?? null}
             blocks={blocks}
             learner={participant}
             state={state}
@@ -335,20 +342,15 @@ export default function BlockWeek({
       }
       case "inTheSession":
         rail.push({ id: anchor(block.id), label: "In the session", count: null, mark: null, indent: false });
-        body.push(
-          <section key={block.id} id={anchor(block.id)} className={styles.section} aria-labelledby={`${anchor(block.id)}-title`}>
-            <div className={styles.sectionHead}>
-              <h2 id={`${anchor(block.id)}-title`} className={styles.h2}>
-                In the session
-              </h2>
-            </div>
-            <Prose prose={block.body} className={styles.body} listClassName={styles.list} linkClassName={styles.inlineLink} />
-          </section>,
-        );
+        body.push(<InTheSession key={block.id} block={block} />);
         break;
       case "goFurther":
         rail.push({ id: anchor(block.id), label: GO_FURTHER_SHORT, count: null, mark: null, indent: false });
         body.push(<GoFurther key={block.id} block={block} />);
+        break;
+      case "handsOn":
+        rail.push({ id: anchor(block.id), label: HANDS_ON_SHORT, count: null, mark: null, indent: false });
+        body.push(<HandsOn key={block.id} block={block} />);
         break;
       // The case study is a later page's: nothing yet, not even its heading.
       case "cases":
@@ -498,6 +500,7 @@ function NoneMark() {
 function ThisWeekBox({
   block,
   rows,
+  dayBeforeTime,
   blocks,
   learner,
   state,
@@ -508,6 +511,8 @@ function ThisWeekBox({
   block: ThisWeekBlock;
   /** The overview's rows for this week, for when each task is due. */
   rows: OverviewThisWeekRow[];
+  /** The course's time for work due the day before a session, or null for by the end of that day. */
+  dayBeforeTime: string | null;
   blocks: WeekBlock[];
   learner: boolean;
   state: DoneState;
@@ -526,13 +531,16 @@ function ThisWeekBox({
       </div>
       <ul className={styles.tasks} role="list">
         {block.rows.map((row, index) => {
-          if (row.type === "none") {
+          // A row with nothing to do this week, and a row that is only offered
+          // (the hands-on route): neither is counted, and both carry the drawn
+          // line rather than a mark that says done or not done.
+          if (row.type === "none" || row.type === "optional") {
             return (
               <li key={index} className={styles.task}>
                 <NoneMark />
                 <div className={styles.taskBody}>
                   <p className={styles.taskWhat}>
-                    <span className={styles.srOnly}>{TASK_MARK_WORDS.none}: </span>
+                    <span className={styles.srOnly}>{row.type === "none" ? TASK_MARK_WORDS.none : TASK_MARK_WORDS.optional}: </span>
                     {row.what}
                   </p>
                   <p className={styles.taskMeta}>
@@ -560,7 +568,9 @@ function ThisWeekBox({
                 </p>
                 <p className={styles.taskMeta}>
                   {row.time && <span className={styles.mono}>{row.time}</span>}
-                  <span className={styles.taskWhen}>{taskWhenWords(row.when, due, { first, todayKey })}</span>
+                  <span className={styles.taskWhen}>
+                    {taskWhenWords(row.when, due, { first, todayKey, dayBeforeTime, whenText: row.whenText })}
+                  </span>
                 </p>
                 {done && <p className={styles.taskDone}>{TASK_DONE}</p>}
               </div>
@@ -571,7 +581,7 @@ function ThisWeekBox({
       {block.total && (
         <p className={styles.inAll}>{inAllWords(block.total)}</p>
       )}
-      <Prose prose={block.note} className={styles.twNote} linkClassName={styles.inlineLink} />
+      <Prose prose={block.note} className={styles.twNote} linkClassName={styles.inlineLink} tableClassName={styles.table} codeClassName={styles.code} />
     </section>
   );
 }
@@ -585,7 +595,7 @@ function TextSection({ block, extra }: { block: TextBlock; extra: ReactNode }) {
   if (block.role === "plain") {
     return (
       <div id={id} className={styles.section}>
-        <Prose prose={block.body} className={styles.body} listClassName={styles.list} linkClassName={styles.inlineLink} />
+        <Prose prose={block.body} className={styles.body} listClassName={styles.list} linkClassName={styles.inlineLink} tableClassName={styles.table} codeClassName={styles.code} />
       </div>
     );
   }
@@ -602,6 +612,8 @@ function TextSection({ block, extra }: { block: TextBlock; extra: ReactNode }) {
         className={block.role === "why" ? styles.lede : styles.body}
         listClassName={styles.list}
         linkClassName={styles.inlineLink}
+        tableClassName={styles.table}
+        codeClassName={styles.code}
       />
       {extra}
     </section>
@@ -634,7 +646,7 @@ function ContentNote({ block }: { block: ContentNoteBlock }) {
           Content note
         </h3>
       </div>
-      <Prose prose={block.body} className={styles.body} linkClassName={styles.inlineLink} />
+      <Prose prose={block.body} className={styles.body} linkClassName={styles.inlineLink} tableClassName={styles.table} codeClassName={styles.code} />
       {block.links.length > 0 && (
         <ul className={styles.supportLinks} role="list">
           {block.links.map((link, index) => (
@@ -699,7 +711,7 @@ function PartView({
       <h3 id={`${id}-title`} className={styles.partTitle}>
         {part.title}
       </h3>
-      <Prose prose={part.framing} className={styles.body} listClassName={styles.list} linkClassName={styles.inlineLink} />
+      <Prose prose={part.framing} className={styles.body} listClassName={styles.list} linkClassName={styles.inlineLink} tableClassName={styles.table} codeClassName={styles.code} />
       {children}
     </section>
   );
@@ -778,7 +790,7 @@ function renderPartChild(child: PartChild, rest: PartChild[], ctx: ChildContext)
         node: (
           <div className={styles.partText}>
             {child.heading && <h4 className={styles.h4}>{child.heading}</h4>}
-            <Prose prose={child.body} className={styles.body} listClassName={styles.list} linkClassName={styles.inlineLink} />
+            <Prose prose={child.body} className={styles.body} listClassName={styles.list} linkClassName={styles.inlineLink} tableClassName={styles.table} codeClassName={styles.code} />
           </div>
         ),
       };
@@ -835,7 +847,7 @@ function GoFurther({ block }: { block: GoFurtherBlock }) {
           </svg>
         </summary>
         <div className={styles.goBody}>
-          <Prose prose={block.intro} className={styles.body} linkClassName={styles.inlineLink} />
+          <Prose prose={block.intro} className={styles.body} linkClassName={styles.inlineLink} tableClassName={styles.table} codeClassName={styles.code} />
           <p className={styles.quietLine}>{NOT_COUNTED}</p>
           <ul className={styles.goList} role="list">
             {block.items.map((item, index) => {
@@ -843,17 +855,8 @@ function GoFurther({ block }: { block: GoFurtherBlock }) {
               const byLine = [item.by, item.date].map((part) => part.trim()).filter(Boolean).join(" · ");
               return (
                 <li key={index} className={styles.goItem}>
-                  {item.title &&
-                    (href ? (
-                      <a className={styles.sourceTitle} href={href} target="_blank" rel="noopener noreferrer">
-                        {item.title}
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={styles.arrow}>
-                          <path d="M7 17L17 7M9 7h8v8" />
-                        </svg>
-                      </a>
-                    ) : (
-                      <p className={styles.sourceTitlePlain}>{item.title}</p>
-                    ))}
+                  {/* An item with no single link of its own has no title: its line carries the links. */}
+                  {item.title && <SourceTitle lead={item.lead} title={item.title} href={href} />}
                   <p className={styles.sourceMeta}>
                     <span className={styles.kindPill}>{SOURCE_KIND_LABEL[item.kind]}</span>
                     {item.time && <span className={styles.mono}>{item.time}</span>}
@@ -864,10 +867,80 @@ function GoFurther({ block }: { block: GoFurtherBlock }) {
                       <Runs runs={item.why} linkClassName={styles.inlineLink} />
                     </p>
                   )}
+                  {item.compute.trim() && <p className={styles.goWhy}>{item.compute.trim()}</p>}
                 </li>
               );
             })}
           </ul>
+        </div>
+      </details>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// In the session, and the hands-on route
+// ---------------------------------------------------------------------------
+
+/**
+ * What happens in the session, then what to do before you come, as the guide
+ * writes it ("Before you come (about 5 minutes). ..."). A This week task that
+ * says "Get ready" covers this block; nothing on it is ticked or written, so
+ * `progress.ts` counts such a task for nothing.
+ */
+function InTheSession({ block }: { block: InTheSessionBlock }) {
+  const id = anchor(block.id);
+  return (
+    <section id={id} className={styles.section} aria-labelledby={`${id}-title`}>
+      <div className={styles.sectionHead}>
+        <h2 id={`${id}-title`} className={styles.h2}>
+          In the session
+        </h2>
+      </div>
+      <Prose prose={block.body} className={styles.body} listClassName={styles.list} linkClassName={styles.inlineLink} tableClassName={styles.table} codeClassName={styles.code} />
+      {block.beforeYouCome.length > 0 && (
+        <Prose
+          prose={block.beforeYouCome}
+          className={`${styles.body} ${styles.beforeYouCome}`}
+          listClassName={styles.list}
+          linkClassName={styles.inlineLink}
+          tableClassName={styles.table}
+          codeClassName={styles.code}
+        />
+      )}
+    </section>
+  );
+}
+
+/**
+ * The hands-on route (optional, for people who code): outside This week's
+ * total and never counted, closed until opened, as Go further is. Its
+ * notebooks, exercises and code are the guide's own words, code shown exactly
+ * as written.
+ */
+function HandsOn({ block }: { block: HandsOnBlock }) {
+  const id = anchor(block.id);
+  return (
+    <section id={id} className={styles.goFurther} aria-labelledby={`${id}-title`}>
+      <details className={styles.goDetails}>
+        <summary className={styles.goSummary}>
+          <h2 id={`${id}-title`} className={styles.goTitle}>
+            {block.heading || HANDS_ON_SHORT}
+          </h2>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={styles.goChevron}>
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </summary>
+        <div className={styles.goBody}>
+          <p className={styles.quietLine}>{NOT_COUNTED}</p>
+          <Prose
+            prose={block.body}
+            className={`${styles.body} ${styles.handsOnBody}`}
+            listClassName={styles.list}
+            linkClassName={styles.inlineLink}
+            tableClassName={styles.table}
+            codeClassName={styles.code}
+          />
         </div>
       </details>
     </section>

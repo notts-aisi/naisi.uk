@@ -21,7 +21,9 @@ import {
  * this module.
  *
  * WHAT A TASK NEEDS is everything it covers (`ThisWeekTask.covers`, the ids
- * of parts, written answers and Cases blocks):
+ * of parts, written answers, Cases blocks and In the session, the model's
+ * `COVERABLE_TYPES`, worked out from the task's words when a week is pasted
+ * in, `readPastedWeek`). A part stands for its own blocks:
  *  - a SOURCE on a part's path, ticked (the member's own `courseProgress`
  *    row for the source's id);
  *  - a CHECKLIST item in a part, ticked the same way;
@@ -32,7 +34,10 @@ import {
  *    it done yet. Each later page brings its own way of seeing it and is
  *    added here, to `taskNeeds` and `taskDone`, so the count stays in one
  *    place and never claims a task is done that is not.
- * Text and tables need nothing. Go further is never covered and never counts.
+ * Text, tables and In the session (its "Before you come" is words to read,
+ * with nothing to tick or write) need nothing. Go further and the hands-on
+ * route are never covered and never count, and nor does This week's row
+ * that is only offered (`ThisWeekOptional`).
  *
  * A TASK THAT NEEDS NOTHING (it covers nothing, or only text) has nothing
  * anybody could see done: it is left out of the count rather than shown done

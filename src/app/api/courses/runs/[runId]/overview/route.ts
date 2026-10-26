@@ -44,6 +44,7 @@ import {
   type GroupSessionMode,
 } from "@/lib/firestore/courseGroups";
 import {
+  normalizeCourse,
   normalizeCourseRun,
   weekDocId,
   type CourseRunStatus,
@@ -352,6 +353,12 @@ export type OverviewThisWeek = {
   rows: OverviewThisWeekRow[];
   /** "About 2¼ hours" ("In all"), or "". */
   total: string;
+  /**
+   * The course's time for work due the day before a session
+   * (`CourseDoc.dayBeforeDueTime`, "12:00"), or null for by the end of that
+   * day: what a page says for a task due the day before.
+   */
+  dayBeforeTime: string | null;
 };
 
 export type OverviewThisWeekRow =
@@ -361,6 +368,8 @@ export type OverviewThisWeekRow =
       /** "About 80 minutes": words, so it can be a range. */
       time: string;
       when: When;
+      /** The when as the guide writes it ("Before session 1, if you can"), or "". */
+      whenText: string;
       /** The programme page's short line: "Parts 1 to 3", "Your written answer", "Your case talk". */
       label: string;
       needs: TaskNeeds;
@@ -373,7 +382,9 @@ export type OverviewThisWeekRow =
        */
       due: { dateKey: string; moved: boolean } | null;
     }
-  | { type: "none"; what: string; time: string; note: string };
+  | { type: "none"; what: string; time: string; note: string }
+  /** Offered, not set (the hands-on route): outside "In all", never counted. */
+  | { type: "optional"; what: string; time: string; note: string };
 
 export type OverviewPayload = {
   run: {
@@ -846,7 +857,7 @@ export async function GET(
   // somebody taking part, and only their own: `uid` is the session's.
   // Equalities on (uid, runId), the existing composite.
   const readsOwnAnswers = liveEnrolment?.role === "learner";
-  const [userDocs, weekEntries, ownRegisterDocs, programme, ownAnswerSnap] = await Promise.all([
+  const [userDocs, weekEntries, ownRegisterDocs, programme, ownAnswerSnap, courseSnap] = await Promise.all([
     facilitatorUids.length
       ? db.getAll(...facilitatorUids.map((uid) => db.collection("users").doc(uid)))
       : Promise.resolve([]),
@@ -878,7 +889,12 @@ export async function GET(
           .limit(MAX_OWN_ANSWER_ROWS)
           .get()
       : Promise.resolve(null),
+    // The run's course, for one setting only: when work set for the day
+    // before a session is due (`dayBeforeDueTime`). Nothing else of it travels.
+    run.courseId ? db.collection("courses").doc(run.courseId).get() : Promise.resolve(null),
   ]);
+  const dayBeforeTime =
+    courseSnap?.exists ? normalizeCourse(courseSnap.id, courseSnap.data() ?? {}).dayBeforeDueTime : null;
   // "weekId::promptId" of every reflection box the caller has written in.
   const writtenBoxes = new Set<string>();
   for (const doc of ownAnswerSnap?.docs ?? []) {
@@ -1042,8 +1058,10 @@ export async function GET(
    * THIS WEEK OF EACH WEEK WRITTEN AS BLOCKS (`OverviewThisWeek`): what each
    * task needs, the boxes the caller has written in, and the day it is due on
    * the caller's own calendar, a session moved or cancelled through "Change
-   * a session" included (`dueMoment`). Nothing is dated for somebody with no
-   * group: their week has no session to be due by.
+   * a session" included (`dueMoment`), "the day before" read by the course's
+   * own setting. Nothing is dated for somebody with no group: their week has
+   * no session to be due by. A row with nothing to do and a row that is only
+   * offered (the hands-on route) travel as they are, and count for nothing.
    */
   for (const entry of weeks) {
     const blocks = blocksByWeekId.get(entry.id);
@@ -1051,15 +1069,18 @@ export async function GET(
     if (!blocks || !block) continue;
     entry.thisWeek = {
       total: block.total,
+      dayBeforeTime,
       rows: block.rows.map((row): OverviewThisWeekRow => {
         if (row.type === "none") return { type: "none", what: row.what, time: row.time, note: row.note };
+        if (row.type === "optional") return { type: "optional", what: row.what, time: row.time, note: row.note };
         const needs = taskNeeds(blocks, row);
-        const due = ownGroup ? dueMoment(ownSessionsAll, entry.weekNumber, row.when) : null;
+        const due = ownGroup ? dueMoment(ownSessionsAll, entry.weekNumber, row.when, dayBeforeTime) : null;
         return {
           type: "task",
           what: row.what,
           time: row.time,
           when: row.when,
+          whenText: row.whenText,
           label: taskLabelWords(taskSubject(blocks, row), row.what),
           needs,
           written: needs.promptIds.filter((id) => writtenBoxes.has(`${entry.id}::${id}`)),

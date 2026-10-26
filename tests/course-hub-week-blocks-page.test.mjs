@@ -29,7 +29,8 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { NOW, RUN, B, makeWeekBlocksPageWorld, textOf } from "./lib/weekBlocksPageWorld.mjs";
+import { NOW, RUN, B, makeWeekBlocksPageWorld, textOf, weekOneBlocks } from "./lib/weekBlocksPageWorld.mjs";
+import { COURSE } from "./lib/hubAttendanceWorld.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
@@ -80,7 +81,7 @@ describe("1. a week written as blocks, drawn", () => {
       "0 of 1 done",
       "Work through the three parts below, writing in the boxes as you go",
       "About 60 minutes",
-      "Before your first session, Tue 3 Nov",
+      "Before your first session, Tue 3 Nov, if you can",
       "Talk and short answer",
       "None this week",
       "You will pick a topic at the end of the session",
@@ -173,6 +174,9 @@ describe("1. a week written as blocks, drawn", () => {
       "Part 5 and the pitch",
       "None this week",
       "They come back in a later week",
+      "Optional, not counted: Hands-on route (optional, for coders)",
+      "An hour or more",
+      "Any time; not counted in the total",
       "In all: About 2 hours",
       "Why this week",
       "Forecasts are only useful if someone checks them. This week practises base rates and calibration, using a short guide.",
@@ -187,9 +191,19 @@ describe("1. a week written as blocks, drawn", () => {
       "Part 1",
       "Start with a base rate",
       "A field guide to base rates",
+      "section 2, “Counting”, of The forecaster’s handbook",
+      "Read",
+      "5 minutes",
+      "Example Press · 2023",
+      "Only the first table.",
       "Pick a question you care about. What is its base rate?",
       "Part 2",
       "Overconfidence, explained",
+      "Score your own forecasts",
+      "Notebook",
+      "About 10 minutes",
+      "Example Lab",
+      "Runs on a free notebook service",
       "Where were you most overconfident this year?",
       "Write a number.",
       "Write a reason.",
@@ -204,13 +218,35 @@ describe("1. a week written as blocks, drawn", () => {
       "Note how it turned out.",
       "In the session",
       "You’ll compare forecasts in pairs, then as a group.",
+      "Before you come (about 5 minutes). Bring your number on a slip of paper.",
       "Go further (optional)",
       "Superforecasting, a summary",
       "Watch or read",
       "the same story told twice, in a video or an essay, about 20 minutes either way.",
       "Where to go next",
       "With the society. Ask about next term’s groups.",
+      "Route What it is A reading group Weekly, in person A summer project Ten weeks, paid",
+      "Hands-on route (optional, for coders)",
+      "Not counted in your time or progress.",
+      "Score a forecast in code. It runs on a free notebook service.",
+      "Score it yourself: a short exercise, about an hour.",
+      "def brier(p, outcome): return (p - outcome) ** 2 print(brier(0.7, 1))",
     ]);
+    const { html } = await w.weekPage("chloe", 2);
+    // Code is drawn exactly as written, every space and line kept, in a block
+    // of its own; a table in a week's text sits in its own sideways scroll.
+    assert.ok(
+      html.includes('<pre class="code"><code>def brier(p, outcome):\n    return (p - outcome) ** 2\n\nprint(brier(0.7, 1))</code></pre>'),
+      "the hands-on route's code is not drawn to the character",
+    );
+    assert.match(html, /<div class="table"><table><thead><tr><th scope="col">Route<\/th><th scope="col">What it is<\/th><\/tr><\/thead>/);
+    // The words before a title are not part of its link; a notebook's link is its own.
+    assert.match(html, /<span class="sourceLead">section 2, “Counting”, of <\/span><a class="sourceTitle" href="https:\/\/example\.org\/handbook" target="_blank" rel="noopener noreferrer">The forecaster’s handbook/);
+    // The hands-on route and Go further are closed until opened, and both are listed beside the page.
+    assert.equal((html.match(/<details class="goDetails">/g) ?? []).length, 2);
+    inOrder(textOf(html), ["On this page", "In the session", "Go further", "Where to go next", "Hands-on route"]);
+    // The row that is only offered carries the drawn line, never a mark that says done or not done.
+    assert.doesNotMatch(textOf(html), /Not done yet: Hands-on route/);
     // A later page's: the packs, the table, the written answer, the fill-in
     // boxes and the cases draw nothing yet.
     for (const later of [
@@ -230,6 +266,12 @@ describe("1. a week written as blocks, drawn", () => {
       "Your case study You get a case",
       "The surprise result, 2016",
       "The crash nobody priced, 2008",
+      "The close call, 2019",
+      "If a case weighs on you, swap it.",
+      "Will your pack’s question come true by next year?",
+      "Base rate:",
+      "Forecasting at work",
+      "A podcast on swing",
     ]) {
       assert.ok(!text.includes(later), `drawn, though a later page draws it: "${later}"`);
     }
@@ -447,7 +489,7 @@ describe("4. counts by This week's tasks", () => {
     page = await w.weekPage("chloe", 1, sources("k1"));
     assert.match(page.text, /1 of 1 done/);
     // The task's Done, and each of the three parts' Done chips.
-    assert.match(page.text, /Before your first session, Tue 3 Nov Done/);
+    assert.match(page.text, /Before your first session, Tue 3 Nov, if you can Done/);
     for (const head of ["Part 1 · About 5 minutes Done", "Part 2 · About 45 minutes Done", "Part 3 · About 10 minutes Done"]) {
       assert.ok(page.text.includes(head), head);
     }
@@ -464,10 +506,58 @@ describe("4. counts by This week's tasks", () => {
   });
 
   test("a task holding what a later page finishes is never done, whatever else is", async () => {
-    const ticked = ["src-1", "src-2", "ci-1", "ci-2"];
+    // Every source and checklist item ticked and every box written: only what a later page finishes is left.
+    const ticked = ["src-1", "src-7", "src-2", "src-8", "ci-1", "ci-2"];
     for (const id of ["rp-1", "rp-2", "rp-3"]) assert.equal((await w.writeBox("chloe", id, "w02", "Done.")).status, 200);
     const page = await w.weekPage("chloe", 2, ticked);
     assert.match(page.text, /0 of 3 done/);
+  });
+
+  test("This week's covers are the paste's: week 1's task covers its three parts, worked out from its words", async () => {
+    // The world types no covers: weeks 1 and 3 are written out as Markdown and pasted back.
+    assert.deepEqual(weekOneBlocks("k1")[0].rows[0].covers, []);
+    const stored = w.lib.courses.normalizeCourseWeek("w01", w.world.db.read(`courseRuns/${RUN.agi}/weeks/w01`));
+    const task = stored.blocks[0].rows[0];
+    assert.deepEqual(task.covers, ["k1-p1", "k1-p2", "k1-p3"]);
+    assert.equal(task.whenText, "Before session 1, if you can");
+    const page = await w.weekPage("chloe", 1);
+    assert.match(page.text, /This week 0 of 1 done Not done yet: Work through the three parts below/);
+    // A task whose words name nothing pastes with nothing covered, and is not counted.
+    const blocks = weekOneBlocks("k3");
+    blocks[0].rows[0].what = "Read and reflect before the session";
+    const pasted = w.pastedWeekDoc(3, "The lamp makers", blocks);
+    assert.deepEqual(pasted.blocks[0].rows[0].covers, []);
+    w.world.db.seed(`courseRuns/${RUN.agi}/weeks/w03`, pasted);
+    const week3 = await w.weekPage("chloe", 3, sources("k3"));
+    assert.doesNotMatch(week3.text, /\d of \d done/);
+    assert.match(week3.text, /This week Read and reflect before the session/);
+  });
+
+  test("work due the day before is due by the course's own time, on the reader's own day", async () => {
+    // By the end of the day before, as the course says when it sets no time.
+    let page = await w.weekPage("chloe", 2);
+    assert.match(page.text, /About 30 minutes By the end of Mon 9 Nov /);
+    assert.equal((await w.overview("chloe")).body.weeks.find((week) => week.weekNumber === 2).thisWeek.dayBeforeTime, null);
+    // The course sets noon: the same task, the same day, by its time.
+    w.world.db.poke(`courses/${COURSE.agi}`, { dayBeforeDueTime: "12:00" });
+    page = await w.weekPage("chloe", 2);
+    assert.match(page.text, /About 30 minutes By noon on Mon 9 Nov /);
+    const week2 = (await w.overview("chloe")).body.weeks.find((week) => week.weekNumber === 2).thisWeek;
+    assert.equal(week2.dayBeforeTime, "12:00");
+    assert.deepEqual(week2.rows[1].due, { dateKey: "2026-11-09", moved: false });
+    // On the day itself.
+    at("2026-11-09T08:00:00Z");
+    page = await w.weekPage("chloe", 2);
+    assert.match(page.text, /About 30 minutes By noon today, Mon 9 Nov /);
+    // Any other time is said as the house says a time.
+    w.world.db.poke(`courses/${COURSE.agi}`, { dayBeforeDueTime: "17:30" });
+    page = await w.weekPage("chloe", 2);
+    assert.match(page.text, /About 30 minutes By 5:30pm today, Mon 9 Nov /);
+    // The offered row and the row with nothing to do travel as they are, and count for nothing.
+    const rows = (await w.overview("chloe")).body.weeks.find((week) => week.weekNumber === 2).thisWeek.rows;
+    assert.deepEqual(rows.map((row) => row.type), ["task", "task", "task", "none", "optional"]);
+    assert.deepEqual(rows[4], { type: "optional", what: "Hands-on route (optional, for coders)", time: "An hour or more", note: "Any time; not counted in the total" });
+    assert.equal(rows[0].whenText, "Before session 3");
   });
 
   test("a task nothing on the site can see finished is not counted, and carries no mark", async () => {
@@ -511,6 +601,39 @@ describe("4. counts by This week's tasks", () => {
     await writeAll("chloe", "k3", "w03");
     card = await w.homeCard("chloe", sources("k3"));
     assert.match(card.text, /Before tonight 1 of 1 done/);
+  });
+
+  test("Home's rows to tick: the words before a title go with it, and a source whose note holds its links opens the first", async () => {
+    // Week 3 loaded again with a source read from part of a longer work, and one with no link of its own,
+    // written as the format holds one: a title, and a note carrying its links, who made it and how long.
+    const blocks = weekOneBlocks("k3");
+    const part2 = blocks.find((block) => block.id === "k3-p2");
+    part2.blocks[0].lead = "the first chapter of";
+    Object.assign(part2.blocks[1], {
+      url: "",
+      by: "",
+      date: "",
+      time: "",
+      note: [
+        { text: "Start with " },
+        { text: "the trailer", href: "https://example.org/trailer" },
+        { text: ", then the film, Example Films, March 2025, about 25 minutes." },
+      ],
+    });
+    // And Go further's first item: a notebook, read from part of a longer one, with what it needs to run.
+    Object.assign(blocks.find((block) => block.id === "k3-gf").items[0], { kind: "notebook", lead: "the last hour of", compute: "Needs a free account" });
+    w.world.db.seed(`courseRuns/${RUN.agi}/weeks/w03`, w.pastedWeekDoc(3, "The lamp makers", blocks));
+    const card = await w.homeCard("chloe");
+    assert.match(card.text, /Week 3 · The lamp makers the first chapter of A keeper's diary Read 20 minutes Lamps at night Watch Open week 3/);
+    assert.match(card.html, /href="https:\/\/example\.com\/diary"/);
+    assert.match(card.html, /href="https:\/\/example\.org\/trailer"/);
+    // The week page draws the same two: the words before the title outside its link, and a title with no link whose note holds it.
+    const page = await w.weekPage("chloe", 3);
+    assert.match(page.html, /<span class="sourceLead">the first chapter of <\/span><a class="sourceTitle" href="https:\/\/example\.com\/diary"/);
+    assert.match(page.html, /<p class="sourceTitlePlain">Lamps at night<\/p>/);
+    assert.match(page.text, /Lamps at night Watch Start with the trailer, then the film, Example Films, March 2025, about 25 minutes\./);
+    assert.match(page.html, /<span class="sourceLead">the last hour of <\/span><a class="sourceTitle" href="https:\/\/example\.com\/talk"/);
+    assert.match(page.text, /the last hour of Keepers talk Notebook 40 minutes Example Radio · 2023 A long conversation\. Needs a free account/);
   });
 
   test("the overview hands each block week its tasks, the boxes written and the day each is due", async () => {

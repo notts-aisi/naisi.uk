@@ -21,8 +21,10 @@ import styles from "./blockWeek.module.css";
 
 /**
  * SOURCES ON A PART'S PATH (boards st-week1-phone, wk-week-phone): each one a
- * link (Q36: videos too, never a player), its kind, its time, who made it and
- * when, its note, and for somebody taking part a tick in a 44px target.
+ * link (Q36: videos too, never a player), with the words the guide writes
+ * before its title, its kind, its time, who made it and when, its note, what
+ * a notebook needs to run, and for somebody taking part a tick in a 44px
+ * target. A source whose note carries its links has no link of its own.
  *
  * A TICK is the person's own `courseProgress` row for the source's id,
  * written by the caller through `useMaterialTicks`, the one way every page
@@ -74,6 +76,33 @@ function ArrowUpRight() {
   );
 }
 
+/**
+ * A source's title, with the words the guide writes before it ("section 2,
+ * “Counting”, of"), as a link when it has one address of its own. A source
+ * whose note carries its links has none: its title is drawn as text, and the
+ * note under it holds the links. Go further's items are drawn the same way.
+ */
+export function SourceTitle({ lead, title, href }: { lead: string; title: string; href: string | null }) {
+  const before = lead.trim() ? <span className={styles.sourceLead}>{`${lead.trim()} `}</span> : null;
+  if (href) {
+    return (
+      <>
+        {before}
+        <a className={styles.sourceTitle} href={href} target="_blank" rel="noopener noreferrer">
+          {title}
+          <ArrowUpRight />
+        </a>
+      </>
+    );
+  }
+  return (
+    <p className={styles.sourceTitlePlain}>
+      {before}
+      {title}
+    </p>
+  );
+}
+
 export default function SourceCard({
   sources,
   runId,
@@ -112,14 +141,7 @@ export default function SourceCard({
                 </label>
               )}
               <div className={styles.sourceBody}>
-                {href ? (
-                  <a className={styles.sourceTitle} href={href} target="_blank" rel="noopener noreferrer">
-                    {source.title}
-                    <ArrowUpRight />
-                  </a>
-                ) : (
-                  <p className={styles.sourceTitlePlain}>{source.title}</p>
-                )}
+                <SourceTitle lead={source.lead} title={source.title} href={href} />
                 <p className={styles.sourceMeta}>
                   <span className={styles.kindPill}>{SOURCE_KIND_LABEL[source.kind]}</span>
                   {source.time && <span className={styles.mono}>{source.time}</span>}
@@ -130,6 +152,8 @@ export default function SourceCard({
                     <Runs runs={source.note} linkClassName={styles.inlineLink} />
                   </p>
                 )}
+                {/* What a notebook needs to run, as the guide writes it ("Runs on a free notebook service"). */}
+                {source.compute.trim() && <p className={styles.sourceNote}>{source.compute.trim()}</p>}
                 {showTicks && canWrite && done && (
                   <ReadingBox
                     runId={runId}

@@ -103,6 +103,12 @@ const READERS = {
     treats: "tells",
     why: "the reflection's writer: it refuses to write over an answer's row",
   },
+  "app/api/courses/runs/[runId]/weeks/[weekId]/blocks/route.ts": {
+    treats: "every-row",
+    why:
+      "the week loader counts every row of the week on the items a paste would take out, reflections included, because " +
+      "a reflection is an answer somebody gave; an admin is shown the count, never a row",
+  },
   "lib/courses/facilitatorGroup.ts": {
     treats: "tells",
     why: "a facilitator's To review card counts answers sent; reflections are left out",
