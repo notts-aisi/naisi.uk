@@ -828,6 +828,14 @@ const USERS = new Map([
       "environments; the transport, the renderer and the Admin SDK door are its only stubs",
   ],
   [
+    "email-senders.test.mjs",
+    "it executes `send.ts` in-process to prove the From line and the `emailSends` row carry the " +
+      "address the two-sender rule picks, for both senders and the fallback, and executes the two " +
+      "newsletter routes to prove each hands the newsletter's sender to every message; the " +
+      "transport, the renderer, the Admin SDK door, the session and the push leg are its stubs, " +
+      "and the routes import `NewsletterEmail`, a `.tsx`, which only the shared loader can read",
+  ],
+  [
     "email-suppression-chokepoint.test.mjs",
     "it executes `send.ts` in-process to prove a suppressed recipient never reaches the " +
       "transport and is logged as held; the transport, the renderer and the Admin SDK door are " +
