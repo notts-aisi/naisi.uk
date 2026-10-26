@@ -2,8 +2,8 @@
  * Version 7 of the Privacy Policy, written for a programme while it runs and
  * when it ends: the programme's lead, pitching week and teams on an incubator,
  * leaving, a place that comes back, who finished, certificates, the notes a
- * group and its facilitators share, and the calendar link
- * (`docs/courses-ops.md`).
+ * group and its facilitators share, the calendar link (`docs/courses-ops.md`),
+ * and the survey at a programme's start (`docs/surveys.md`).
  *
  * What changed from v6, in the words a member would use:
  *
@@ -54,9 +54,9 @@
  *     material is shown to the run only on a programme anyone can join; on a
  *     programme that places people in groups, the people in a group see the
  *     notes it shares instead (17).
- * 11. **Three downloads are logged, not two.** A programme's attendance joins
- *     the membership list and a worksheet's answers, with what that file holds
- *     and never holds.
+ * 11. **Four downloads are logged, not two.** A programme's attendance and a
+ *     survey's answers with names join the membership list and a worksheet's
+ *     answers, with what each new file holds and never holds.
  * 12. **How we use it.** Making teams, recording who finished and sending
  *     certificates are named among running our courses.
  * 13. **No automated decisions.** Who finished starts from the lead's number
@@ -68,7 +68,10 @@
  *     stays the partner's, without the name. The calendar link (18), the notes
  *     shared with a group (17) and the notes written for a group's other
  *     facilitators (16) go too (`deleteCalendarLink`,
- *     `deleteCourseGroupSharedNotes` and `deleteCourseGroupNotes`).
+ *     `deleteCourseGroupSharedNotes` and `deleteCourseGroupNotes`), and so do
+ *     the name on a person's survey answers and the record of each survey sent
+ *     to them, with its link (19, `takeNamesOffForAccount`); the answers stay
+ *     in the totals.
  * 15. **Destroying a term's applications takes nobody off a programme.** A
  *     place on a run stays with the rest of the person's course record.
  * 16. **Notes facilitators share.** A group's facilitators keep notes for
@@ -93,6 +96,16 @@
  *     shows. A replaced link opens an empty calendar, and a session after the
  *     day somebody left is not in it (`src/lib/courses/calendarFeed.ts`,
  *     `src/lib/courses/calendarLink.ts`, and the feed route).
+ * 19. **When you answer a survey.** At a programme's start admins may send
+ *     everybody holding a place a survey, emailed as an important notice with
+ *     a personal link each. It is confidential: the answers keep the person's
+ *     name, only admins see who said what or who has answered, and
+ *     facilitators see nothing of it. Every question can be skipped, none of
+ *     the answers is kept until they are sent, and no record is kept of
+ *     opening it or of an IP address. The name comes off a year after the programme's
+ *     last session (the `surveys-names-off` job), and at once with the
+ *     account. The sentence about anonymous surveys moves here from Feedback
+ *     on the material, unchanged (`src/lib/surveys/`).
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -301,6 +314,49 @@ export default function PrivacyContentV7({
                 </li>
               </ul>
 
+              <h3>When you answer a survey</h3>
+              <ul>
+                <li>
+                  At the start of a programme, NAISI&apos;s admins may send a
+                  survey to everybody holding a place on it. Every survey is
+                  confidential: we keep your answers with your name, and each
+                  survey says so at the top. Only NAISI&apos;s admins can see
+                  who said what. Facilitators never see anything of a survey.
+                </li>
+                <li>
+                  We keep your name with your answers so that we can compare
+                  them with your answers to the same questions at the end of
+                  the programme, and so that a reminder goes only to people
+                  who have not answered. Only admins see who has answered.
+                </li>
+                <li>
+                  Every question can be skipped. Nothing you say in a survey
+                  affects your place on a programme or an application.
+                </li>
+                <li>
+                  A survey records nothing about how you fill it in: not when
+                  you opened it, how long you spent on it or which page you
+                  were on, and none of your answers is kept until you send
+                  them. We record when you sent them, whether you used your own
+                  link or were signed in, and whether your group had met for
+                  the first time by then. We never keep your IP address with
+                  them, and the request logs our hosting provider keeps (see
+                  Operational logs) are never matched to them.
+                </li>
+                <li>
+                  A survey and its reminder are emailed as important notices,
+                  so your notification settings do not switch them off. Each
+                  email carries a link of your own, so you can answer without
+                  signing in. Anyone holding it could answer in your name, so
+                  keep it to yourself.
+                </li>
+                <li>
+                  We do not currently run anonymous surveys on this site. If
+                  we add one, the form will say that it is anonymous and how
+                  that is done, and we will update this policy first.
+                </li>
+              </ul>
+
               <h3>When you subscribe to our newsletter</h3>
               <ul>
                 <li>
@@ -358,10 +414,11 @@ export default function PrivacyContentV7({
                 </li>
                 <li>
                   A record of the spreadsheet downloads the site generates.
-                  Three kinds are logged today, a membership list, the
-                  responses to a circulated worksheet and a programme&apos;s
-                  attendance, and each row holds who asked for it, what it
-                  covered, how many people were in it, and when. See{" "}
+                  Four kinds are logged today, a membership list, the
+                  responses to a circulated worksheet, a programme&apos;s
+                  attendance and a survey&apos;s answers, and each row holds
+                  who asked for it, what it covered, how many people were in
+                  it, and when. See{" "}
                   <a href="#courses">Courses and programmes</a> for what that
                   does and does not cover.
                 </li>
@@ -730,10 +787,7 @@ export default function PrivacyContentV7({
                   to the rest of your run; on a programme that places you in a
                   group, you share notes with your group instead (see Notes
                   shared with your group). Ratings and comments are stored
-                  against your account and your name. We do not
-                  currently run anonymous surveys on this site. If we add one,
-                  the form will say that it is anonymous and how that is done,
-                  and we will update this policy first.
+                  against your account and your name.
                 </li>
                 <li>
                   <strong>Leaving a programme.</strong> If you leave a
@@ -823,18 +877,23 @@ export default function PrivacyContentV7({
               <p>
                 Staff sometimes need a spreadsheet: a register to take to a
                 session, a roster, the applications for a round, a membership
-                list. Three of those downloads are recorded, with who asked for
+                list. Four of those downloads are recorded, with who asked for
                 it, what it covered, how many people were in it and when: the
-                membership list, the answers to a circulated worksheet, and a
-                programme&apos;s attendance. The attendance file is for the
-                programme&apos;s lead and admins. It holds each person&apos;s
-                group, name and marks, how many sessions they came to and the
-                day they left, if they did, and never an email address or a
-                note. All three refuse to hand over the file if that record
-                cannot be written. The event attendee list and the subscriber
-                list are built in your browser and are not recorded. We are
-                being careful with that sentence: it means we log three of the
-                files the site produces. It does not mean we can track a file
+                membership list, the answers to a circulated worksheet, a
+                programme&apos;s attendance, and a survey&apos;s answers with
+                names, which only admins can download. The attendance file is
+                for the programme&apos;s lead and admins. It holds each
+                person&apos;s group, name and marks, how many sessions they
+                came to and the day they left, if they did, and never an email
+                address or a note. The survey file holds, for each person who
+                answered, their name, when and how they sent their answers,
+                whether their group had met by then, and the answers
+                themselves, and never an email address. All four refuse to
+                hand over the file if that record cannot be written. The event
+                attendee list and the subscriber list are built in your
+                browser and are not recorded. We are being careful with that
+                sentence: it means we log four of the files the site
+                produces. It does not mean we can track a file
                 once it has been downloaded, and it does not cover somebody
                 copying what is on their screen.
               </p>
@@ -1191,8 +1250,16 @@ export default function PrivacyContentV7({
                 strip them after a fixed period. The scores, comments and
                 decisions about an application are kept for as long as it is.
                 The same goes for the rest of your course record: attendance,
-                written work, feedback you gave us, and notes written about
-                you. If you want any of it removed sooner, email us.
+                written work, feedback you gave us (survey answers, below, are
+                the exception), and notes written about you. If you want any
+                of it removed sooner, email us.
+              </p>
+              <p>
+                <strong>Survey answers.</strong> We take your name off your
+                answers to a survey on the day it tells you, a year after the
+                programme&apos;s last session, and delete the record that it
+                was sent to you, with your link to answer it. Your answers stay
+                in its totals, no longer linked to you.
               </p>
               <p>
                 <strong>When a term&apos;s applications are destroyed.</strong>{" "}
@@ -1224,8 +1291,9 @@ export default function PrivacyContentV7({
                 email-verification links, your course enrolments, applications
                 and drafts, your progress and your answers to exercises, your
                 calendar link, the notes you shared with a group, notes you
-                wrote for the other facilitators of a group, a
-                pitch you sent alone, your name on a pitch you sent with a
+                wrote for the other facilitators of a group, your name on your
+                survey answers, the record of each survey sent to you with your
+                link to answer it, a pitch you sent alone, your name on a pitch you sent with a
                 partner, your picks in pitching week, your place in a team, any
                 decision a lead recorded about whether you finished, a
                 certificate whose link is off, your admission applications
@@ -1268,6 +1336,10 @@ export default function PrivacyContentV7({
                 <li>
                   Worksheets that were sent to you: your answers, and the
                   reviews written on them.
+                </li>
+                <li>
+                  Your answers to surveys, no longer linked to you: they stay
+                  in the totals.
                 </li>
                 <li>
                   A pitch you sent with a partner: it stays theirs, without
@@ -1315,7 +1387,7 @@ export default function PrivacyContentV7({
                 log, the subscription event log, the impersonation log used for
                 committee oversight, the log of course actions including who
                 read an access-requirements answer and each decision made about
-                an application, and the record of the three downloads the site
+                an application, and the record of the four downloads the site
                 logs. They name the person who took the action and what it
                 concerned. A log line about a decision on an application, or
                 about an admin opening an access-requirements answer,

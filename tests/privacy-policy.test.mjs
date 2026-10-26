@@ -11,11 +11,14 @@
  * mints their own and nothing is issued unless they choose to; what a
  * programme's lead sees is named; pitching week, teams, leaving, a place that
  * comes back and who finished are described; facilitators see names only; a
- * programme's attendance is a third logged download; and the notes a group's
+ * programme's attendance is a third logged download; the notes a group's
  * facilitators share, the notes a group shares on its week pages and the
  * calendar link are described, with who reads each and what a deletion does
- * to it. §2g holds those passages against the code. Three of them are worded
- * as what will happen,
+ * to it; and so is the survey at a programme's start: confidential, nothing
+ * kept about how it is filled in, the name off a year after the programme or
+ * at once with the account, and its answers with names a fourth logged
+ * download. §2g holds those passages against the code. Three of them are
+ * worded as what will happen,
  * because they are not built yet (certificates, facilitators seeing who has
  * said they are coming, a team's page), and §2g holds that nothing has been
  * built that they would then have to describe.
@@ -637,10 +640,13 @@ const MUST_NAME = [
   ["the people who read an application see whose it is", /They see your name\. Nothing hides who you are from the people who read, score and decide your application/i],
   ["who reads an application", /Admins, and the lead and the reviewers of each programme you ranked/i],
   ["a programme joined by invitation reads the application only once it is accepted", /can read your application from then on, and not before/i],
-  // A programme's attendance became the third logged download (its Download
-  // CSV writes the log first and refuses without it); §2g walks the tree for
-  // every caller of the log.
-  ["only the three logged downloads are recorded", /Three of those downloads are recorded/],
+  // A programme's attendance became the third logged download, and a
+  // survey's answers with names the fourth (each Download writes the log
+  // first and refuses without it); §2g walks the tree for every caller of the
+  // log. The entry this replaces said three, which was true until the survey's
+  // export joined the log.
+  ["only the four logged downloads are recorded", /Four of those downloads are recorded/],
+  ["what the survey file holds, and never holds", /The survey file holds, for each person who answered, their name, when and how they sent their answers, whether their group had met by then, and the answers themselves, and never an email address\./i],
   ["what the attendance file holds, and never holds", /It holds each person&apos;s group, name and marks, how many sessions they came to and the day they left, if they did, and never an email address or a note\./i],
   ["who can see what", /Who can see what/],
   // What the application form holds (docs/applications.md, "Where the data
@@ -707,6 +713,16 @@ const MUST_NAME = [
   ["facilitators email their group without seeing an address", /They never see your email address: they can email their group through the site without seeing anybody&apos;s\./i],
   ["what the people in a group and a team see on an incubator", /On an incubator, the people in your group also see any pitch you send, with your name, and the people in your team see that you are in it and anything you write on your team&apos;s page\./i],
   ["destroying a term's applications takes nobody off a programme", /Nobody is taken off a programme by it: a place on a course run, which notes the application form and programme it came from, stays with the rest of that person&apos;s course record\./i],
+  // The survey at a programme's start (docs/surveys.md), added to v7 before
+  // any member was asked to accept it. §2g holds each to its code.
+  ["a survey is confidential, and says so at the top", /Every survey is confidential: we keep your answers with your name, and each survey says so at the top\./i],
+  ["only admins see who said what in a survey, and facilitators see nothing of one", /Only NAISI&apos;s admins can see who said what\. Facilitators never see anything of a survey\./i],
+  ["why a survey keeps the name, and who sees who has answered", /We keep your name with your answers so that we can compare them with your answers to the same questions at the end of the programme, and so that a reminder goes only to people who have not answered\. Only admins see who has answered\./i],
+  ["every question in a survey can be skipped, and nothing said in one affects a place", /Every question can be skipped\. Nothing you say in a survey affects your place on a programme or an application\./i],
+  ["a survey records nothing about how it is filled in", /A survey records nothing about how you fill it in: not when you opened it, how long you spent on it or which page you were on, and none of your answers is kept until you send them\./i],
+  ["what a survey records with the answers, and never an IP address", /We record when you sent them, whether you used your own link or were signed in, and whether your group had met for the first time by then\. We never keep your IP address with them, and the request logs our hosting provider keeps \(see Operational logs\) are never matched to them\./i],
+  ["a survey is emailed as an important notice, with a link of your own", /A survey and its reminder are emailed as important notices, so your notification settings do not switch them off\. Each email carries a link of your own, so you can answer without signing in\. Anyone holding it could answer in your name, so keep it to yourself\./i],
+  ["names come off survey answers a year after the programme", /We take your name off your answers to a survey on the day it tells you, a year after the programme&apos;s last session, and delete the record that it was sent to you, with your link to answer it\. Your answers stay in its totals, no longer linked to you\./i],
 ];
 
 describe("the courses section", () => {
@@ -914,9 +930,11 @@ describe("the courses section", () => {
       ["RSVP dietary and accessibility answers are given by explicit consent", /dietary and accessibility\s+answers you give on an event signup form/i],
       ["the Google profile photo is fetched from Google by the visitor", /visitor&apos;s browser fetches it from Google&apos;s servers/i],
       ["a video thumbnail in an email is fetched from YouTube", /fetches\s+that thumbnail from YouTube/i],
-      // Three since a programme's attendance joined the log: §2g walks the tree
-      // for every caller of `logExport` and holds the list to exactly three.
-      ["the export log names the kinds that exist", /Three\s+kinds are logged today, a membership list, the\s+responses to a circulated worksheet and a programme&apos;s\s+attendance/i],
+      // Four since a survey's answers joined the log after a programme's
+      // attendance: §2g walks the tree for every caller of `logExport` and
+      // holds the list to exactly four. The pattern this replaces named three,
+      // ending at the attendance.
+      ["the export log names the kinds that exist", /Four\s+kinds are logged today, a membership list, the\s+responses to a circulated worksheet, a programme&apos;s\s+attendance and a survey&apos;s answers,/i],
       ["Google's sign-in script and where it is loaded from", /sign-in script is loaded from/i],
     ]) {
       assert.match(CURRENT_FLAT, pattern, `v7 no longer says: ${name}`);
@@ -2473,10 +2491,12 @@ describe("the account record passage", () => {
  * team's page. They are built to these words. Certificates carry a check of
  * their own in §2, which fails the day the site starts keeping them.
  *
- * Three more were added to v7 while it was on dev, before any member had been
+ * Four more were added to v7 while it was on dev, before any member had been
  * asked to accept it, so it kept its number: the notes a group's facilitators
- * share, the notes a group shares on its week pages, and the calendar link.
- * Each describes code that is built, and is held to it below.
+ * share, the notes a group shares on its week pages, the calendar link, and
+ * the survey at a programme's start (with the fourth logged download, the
+ * name coming off a year after the programme, and a deletion taking it off at
+ * once). Each describes code that is built, and is held to it below.
  */
 
 /** A file's code with its comments taken out, so a note about a field is not taken for a use of it. */
@@ -2492,6 +2512,22 @@ const sharedNotesRecord = await loadTs("lib/firestore/courseGroupSharedNotes.ts"
 const sharedNotesWords = await loadTs("lib/courses/sharedNotes/words.ts");
 /** What each session in a calendar link says. Pure. */
 const calendarWords = await loadTs("lib/courses/calendarWords.ts");
+/**
+ * A survey's words (the confidential box, the answer page), its questions
+ * (Worksheets' item model), its spreadsheet's layout and its record's own
+ * normaliser. All pure: the survey's readers and writers are read as source.
+ */
+const surveyWords = await loadTs("lib/surveys/words.ts");
+const surveyItems = await loadTs("lib/surveys/items.ts");
+const surveyExport = await loadTs("lib/surveys/exportTable.ts");
+const surveyRecords = await loadTs("lib/firestore/surveys.ts");
+/** Survey code imported from anywhere: the library, its components and its record. */
+const SURVEY_CODE = /(?:\bfrom\s*|\bimport\s*\(\s*)"(?:@\/(?:lib\/surveys|features\/surveys|lib\/firestore\/surveys)|(?:\.{1,2}\/)+(?:[\w-]+\/)*surveys)["\/]/;
+/** Whether a file is survey code itself, rather than code that reaches it. */
+const insideSurveyCode = (file) =>
+  file.startsWith("src/lib/surveys/") || file.startsWith("src/features/surveys/") || file === "src/lib/firestore/surveys.ts";
+/** The two survey collections that name a person: who it was sent to, and what they answered. */
+const SURVEY_STORE = /\bSURVEY_(?:ANSWERS|PEOPLE)_COLLECTION\b|["'`](?:surveyAnswers|surveyPeople)["'`]/;
 
 describe("the course hub passage", () => {
   test("the frozen v6 carries none of these sentences, so the move was a version and not an edit", () => {
@@ -2506,7 +2542,8 @@ describe("the course hub passage", () => {
       /we mark as finished everybody who came to at least/i,
       /reads every register of its groups/i,
       /by name only/i,
-      /Three\s+kinds are logged today/i,
+      /Four\s+kinds are logged today/i,
+      /Four of those downloads are recorded/i,
       /Nobody is taken off a programme by it/i,
       /Notes facilitators share\./i,
       /the notes the group&apos;s facilitators share with each other/i,
@@ -2517,6 +2554,14 @@ describe("the course hub passage", () => {
       /Your calendar link\./i,
       /the old link then shows nothing/i,
       /your calendar link, the notes you shared with a group, notes you wrote for the other facilitators of a group/i,
+      /When you answer a survey/i,
+      /Every survey is confidential/i,
+      /Facilitators never see anything of a survey/i,
+      /A survey records nothing about how you fill it in/i,
+      /A survey and its reminder are emailed as important notices/i,
+      /We take your name off your answers to a survey/i,
+      /your name on your survey answers/i,
+      /Your answers to surveys, no longer linked to you/i,
     ]) {
       assert.ok(
         !pattern.test(V6_FLAT),
@@ -2836,25 +2881,29 @@ describe("the course hub passage", () => {
     assert.match(groupEmail, /let pushed = 0;/);
   });
 
-  test("three downloads are logged, each before its file is handed over, and the attendance file holds what the page says", () => {
+  // Four since the survey's export joined the log: the walk, the refusal loop
+  // and the title each said three, and each names the fourth now, as exactly.
+  test("four downloads are logged, each before its file is handed over, and the attendance and survey files hold what the page says", () => {
     assertExactlyTheseFiles(
       sourceFilesNaming(/\blogExport\(/).filter((file) => file !== "src/lib/firestore/dataExports.ts"),
       new Map([
-        ["src/app/api/admin/membership/export/route.ts", "the membership list for a period, the first of the three the policy names"],
-        ["src/app/api/worksheets/circulations/[circulationId]/export/route.ts", "the answers to a circulated worksheet, the second of the three"],
-        ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/attendance/export/route.ts", "a programme's attendance, for its lead and admins, the third of the three"],
+        ["src/app/api/admin/membership/export/route.ts", "the membership list for a period, the first of the four the policy names"],
+        ["src/app/api/worksheets/circulations/[circulationId]/export/route.ts", "the answers to a circulated worksheet, the second of the four"],
+        ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/attendance/export/route.ts", "a programme's attendance, for its lead and admins, the third of the four"],
+        ["src/app/api/surveys/[surveyId]/export/route.ts", "a survey's answers with the names of the people who sent them, for admins alone, the fourth of the four"],
       ]),
       "writing the record of a download",
-      "The policy says three downloads are recorded and names them. A " +
+      "The policy says four downloads are recorded and names them. A " +
         "download recorded and not named, or named and no longer recorded, " +
         "makes the sentence wrong: say so in a new version.",
     );
-    // "All three refuse to hand over the file if that record cannot be
+    // "All four refuse to hand over the file if that record cannot be
     // written": the record first, and a failure to write it is a refusal.
     for (const route of [
       "src/app/api/admin/membership/export/route.ts",
       "src/app/api/worksheets/circulations/[circulationId]/export/route.ts",
       "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/attendance/export/route.ts",
+      "src/app/api/surveys/[surveyId]/export/route.ts",
     ]) {
       const code = withoutComments(read(route));
       const logged = code.indexOf("await logExport(db, {");
@@ -2877,6 +2926,41 @@ describe("the course hub passage", () => {
     const refusedFirst = attendance.indexOf('if (outcome.status === "not-yours")');
     const readFirst = attendance.indexOf("await readRunRecords(db");
     assert.ok(refusedFirst !== -1 && readFirst !== -1 && refusedFirst < readFirst, "the attendance file is built before the caller is asked whether they lead the programme");
+
+    // "A survey's answers with names, which only admins can download": the
+    // export answers anybody but an admin before it reads anything.
+    const survey = withoutComments(read("src/app/api/surveys/[surveyId]/export/route.ts"));
+    const adminsOnly = survey.indexOf("if (!canRunSurveys(actor)) return NextResponse.json({ error: REFUSAL.adminOnly }, { status: 403 });");
+    const surveyRead = survey.indexOf("await readSurvey(db, surveyId)");
+    assert.ok(adminsOnly !== -1 && surveyRead !== -1 && adminsOnly < surveyRead, "the survey's spreadsheet is built before the caller is asked whether they are an admin");
+    assert.match(read("src/lib/surveys/repo.ts"), /export function canRunSurveys\(user: Pick<SessionUser, "role"> \| null\): boolean \{\s*return user\?\.role === "admin";\s*\}/);
+    // "The survey file holds, for each person who answered, their name, when
+    // and how they sent their answers, whether their group had met by then,
+    // and the answers themselves, and never an email address": the layout,
+    // run on the before survey's own questions and one person's answers.
+    const lines = ["How fast AI is improving, and why", "How advanced AI could go wrong", "What is being done", "The race", "What you could do"];
+    const table = surveyExport.surveyExportTable(surveyItems.beforeSurveyItems(lines), [
+      {
+        name: "Amara Okafor",
+        sentAt: new Date(Date.UTC(2026, 10, 2, 18, 5)),
+        via: "link",
+        afterFirstSession: false,
+        answers: { q_catastrophe: { type: "choice", optionId: "o_1to10" } },
+      },
+    ]);
+    assert.deepEqual(table.header.slice(0, 4), ["Name", "Sent", "How", "After their first session"], "the survey file's first columns changed, so the policy's list of what it holds may no longer be what it holds");
+    const questionColumns = table.header.slice(4);
+    assert.ok(questionColumns.length > 0 && questionColumns.every((column) => /^\d+\. /.test(column)), "a column of the survey file after the first four is not a question");
+    assert.deepEqual(table.rows[0].slice(0, 4), ["Amara Okafor", "2026-11-02 18:05", "Personal link", "No"]);
+    assert.equal(table.rows[0][4], "1 to 10%", "the survey file no longer writes a choice as its words");
+    assert.ok(!table.header.some((column) => /e-?mail|address/i.test(column)), "the survey file has a column for an email address");
+    // Its names come from the account's name and never its address.
+    const names = withoutComments(read("src/lib/surveys/names.ts"));
+    assert.match(names, /out\.set\(doc\.id, fullNameOfUser\(/);
+    assert.ok(!/email/i.test(names), "the survey file's names are now read with an email address");
+    // tests/surveys-routes.test.mjs downloads it as every caller, reads the
+    // record written first, and is refused when the record cannot be written.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-routes.test.mjs")));
   });
 
   test("a pitch is shown to the group with its people's names, the form says so, and nobody's picks are shown to the group", () => {
@@ -3128,10 +3212,13 @@ describe("the course hub passage", () => {
     }
   });
 
+  // The span this pins grew by the two survey items, written where the page
+  // lists them; the span it replaces ran from the facilitators' notes
+  // straight to the pitch.
   test("a deletion removes the calendar link, the notes shared with a group and the notes written for a group's other facilitators", () => {
     assert.match(
       PAGE_FLAT,
-      /your progress and your answers to exercises, your calendar link, the notes you shared with a group, notes you wrote for the other facilitators of a group, a pitch you sent alone,/,
+      /your progress and your answers to exercises, your calendar link, the notes you shared with a group, notes you wrote for the other facilitators of a group, your name on your survey answers, the record of each survey sent to you with your link to answer it, a pitch you sent alone,/,
     );
     const cascade = withoutComments(read("src/lib/firestore/accountDeletion.ts"));
     for (const step of [
@@ -3141,6 +3228,270 @@ describe("the course hub passage", () => {
     ]) {
       assert.ok(cascade.includes(step), `the account deletion no longer runs \`${step}\`, which the policy lists among what a deletion removes`);
     }
+  });
+
+  test("a survey is confidential: its answers keep the person's name, only admins see who said what or who has answered, facilitators see nothing of it, and the survey says so at the top", () => {
+    assert.match(
+      PAGE_FLAT,
+      /<h3>When you answer a survey<\/h3> <ul> <li> At the start of a programme, NAISI&apos;s admins may send a survey to everybody holding a place on it\. Every survey is confidential: we keep your answers with your name, and each survey says so at the top\. Only NAISI&apos;s admins can see who said what\. Facilitators never see anything of a survey\. <\/li>/,
+    );
+    // Confidential is the one setting a survey has, whatever is stored.
+    assert.match(read("src/lib/firestore/surveys.ts"), /export type SurveyPrivacy = "confidential";/, "a survey can now be something other than confidential");
+    assert.equal(surveyRecords.normalizeSurvey("s1", { privacy: "anonymous" }).privacy, "confidential");
+    // The sentence about anonymous surveys moved here from Feedback on the
+    // material, word for word, and closes the passage. It is on the page once.
+    const passage = PAGE_FLAT.slice(PAGE_FLAT.indexOf("<h3>When you answer a survey</h3>"), PAGE_FLAT.indexOf("<h3>When you subscribe to our newsletter</h3>"));
+    assert.match(passage, /<li> We do not currently run anonymous surveys on this site\. If we add one, the form will say that it is anonymous and how that is done, and we will update this policy first\. <\/li> <\/ul> $/);
+    assert.equal((PAGE_FLAT.match(/We do not currently run anonymous surveys on this site/g) ?? []).length, 1);
+
+    // Every page and route that reaches survey code from outside it, and why
+    // each may: the admins' (behind the (admin-only) layout, or canRunSurveys
+    // in the route), the person's own (by the secret in their link, or signed
+    // in by their own row), and the two that take names off. No facilitator's
+    // page, no lead's, and no code of the applications or the courses.
+    const ADMIN_PAGE = "an admins' page: the (admin-only) layout sends everybody else to the dashboard first";
+    const ADMIN_ROUTE = "an admin's action: canRunSurveys refuses everybody else before anything is read";
+    assertExactlyTheseFiles(
+      sourceFilesNaming(SURVEY_CODE).filter((file) => !insideSurveyCode(file)),
+      new Map([
+        ["src/app/(app)/admin/(admin-only)/surveys/page.tsx", ADMIN_PAGE],
+        ["src/app/(app)/admin/(admin-only)/surveys/new/page.tsx", ADMIN_PAGE],
+        ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/page.tsx", ADMIN_PAGE],
+        ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/questions/page.tsx", ADMIN_PAGE],
+        ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/send/page.tsx", ADMIN_PAGE],
+        ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/answered/page.tsx", `${ADMIN_PAGE}; the one page that names who has answered`],
+        ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/results/page.tsx", `${ADMIN_PAGE}; totals, made on the server, with no name`],
+        ["src/app/api/surveys/route.ts", ADMIN_ROUTE],
+        ["src/app/api/surveys/[surveyId]/questions/route.ts", ADMIN_ROUTE],
+        ["src/app/api/surveys/[surveyId]/test/route.ts", ADMIN_ROUTE],
+        ["src/app/api/surveys/[surveyId]/send/route.ts", ADMIN_ROUTE],
+        ["src/app/api/surveys/[surveyId]/remind/route.ts", ADMIN_ROUTE],
+        ["src/app/api/surveys/[surveyId]/close/route.ts", ADMIN_ROUTE],
+        ["src/app/api/surveys/[surveyId]/export/route.ts", `${ADMIN_ROUTE}; the spreadsheet with names`],
+        ["src/app/survey/[token]/page.tsx", "the person's own survey, by the secret in their link, which opens their own row and nobody else's"],
+        ["src/app/api/surveys/answer/route.ts", "the person's own answers, sent through the secret in their link"],
+        ["src/app/(app)/learn/[runId]/survey/[surveyId]/page.tsx", "the person's own survey, signed in: shown only to somebody it was sent to, by their own row"],
+        ["src/app/api/surveys/[surveyId]/answer/route.ts", "the person's own answers, signed in, to their own row: there is no uid in the request"],
+        ["src/lib/firestore/accountDeletion.ts", "deleting an account takes its name off its survey answers and deletes its survey rows"],
+        ["src/lib/scheduler/jobs/surveyNamesOff.ts", "the job that takes names off a year after the programme"],
+      ]),
+      "reaching survey code from outside it",
+      "The policy says only admins see who said what or who has answered, and " +
+        "that facilitators see nothing of a survey. If this file shows a " +
+        "survey, its answers or who answered to anybody else, the sentence is " +
+        "wrong and a new version has to say so.",
+    );
+    // The two collections that name a person are addressed by survey code alone.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/./).filter((file) => SURVEY_STORE.test(withoutComments(read(file)))),
+      new Map([
+        ["src/lib/firestore/surveys.ts", "the records' own names and shapes"],
+        ["src/lib/surveys/repo.ts", "the readers: a person's own row, the row a link opens, and the answers for the admins' pages and the spreadsheet"],
+        ["src/lib/surveys/answer.ts", "the one writer of an answer: a person's own, once"],
+        ["src/lib/surveys/sending.ts", "the send, which writes each person's row with their link before their email"],
+        ["src/lib/surveys/namesOff.ts", "names off: a year after the programme, and at once with an account"],
+      ]),
+      "addressing who a survey was sent to, or what somebody answered",
+      "The policy says only admins see who said what or who has answered. If " +
+        "this file reads either for anybody else, the sentence is wrong and a " +
+        "new version has to say so.",
+    );
+    // The admins' pages: the layout every one of them sits under.
+    assert.match(read("src/app/(app)/admin/(admin-only)/layout.tsx"), /await requireAdminPage\(\);/);
+    // The admins' routes: each refuses everybody but an admin before it reads.
+    assert.match(read("src/lib/surveys/repo.ts"), /export function canRunSurveys\(user: Pick<SessionUser, "role"> \| null\): boolean \{\s*return user\?\.role === "admin";\s*\}/);
+    for (const route of [
+      "src/app/api/surveys/route.ts",
+      "src/app/api/surveys/[surveyId]/questions/route.ts",
+      "src/app/api/surveys/[surveyId]/test/route.ts",
+      "src/app/api/surveys/[surveyId]/send/route.ts",
+      "src/app/api/surveys/[surveyId]/remind/route.ts",
+      "src/app/api/surveys/[surveyId]/close/route.ts",
+      "src/app/api/surveys/[surveyId]/export/route.ts",
+    ]) {
+      const code = withoutComments(read(route));
+      const refused = code.indexOf("if (!canRunSurveys(actor)) return NextResponse.json({ error: REFUSAL.adminOnly }, { status: 403 });");
+      const db = code.indexOf("getAdminDb()");
+      assert.ok(refused !== -1 && db !== -1 && refused < db, `${route} reaches the database before it refuses everybody but an admin`);
+    }
+    // The person's own: a link opens the one row holding its secret, and the
+    // signed-in page and route read the caller's own row.
+    const repo = withoutComments(read("src/lib/surveys/repo.ts"));
+    assert.match(repo, /const people = await db\.collection\(SURVEY_PEOPLE_COLLECTION\)\.where\("token", "==", token\)\.get\(\);/);
+    assert.match(repo, /if \(people\.docs\.length > 1\) return \{ kind: "none" \};/);
+    assert.match(read("src/app/survey/[token]/page.tsx"), /const target = await openLink\(db, token\);/);
+    assert.match(read("src/app/api/surveys/answer/route.ts"), /const target = await openLink\(db, body\.token\);/);
+    assert.match(read("src/app/api/surveys/[surveyId]/answer/route.ts"), /await readPerson\(db, survey\.id, \{ kind: "account", uid: actor\.uid \}\)/);
+    const signedIn = read("src/app/(app)/learn/[runId]/survey/[surveyId]/page.tsx");
+    assert.match(signedIn, /await readPerson\(db, survey\.id, \{ kind: "account", uid: user\.uid \}\)/);
+    assert.match(signedIn, /if \(survey && person && person\.sentAt !== null\) \{/);
+    // "Each survey says so at the top": the box, run, and drawn above the questions.
+    assert.equal(surveyWords.CONFIDENTIAL_HEADING, "Confidential");
+    const box = surveyWords.confidentialPoints({ leadName: null, facilitatorNames: ["Rahul", "Sofia"], namesOffOn: "2027-12-09", programmeKind: "fellowship" });
+    assert.equal(box.points[0], "Only NAISI’s admins can see who said what.");
+    assert.ok(box.points.includes("Rahul and Sofia never see your answers."), "the box no longer tells somebody their facilitators never see their answers");
+    assert.equal(box.note, "We ask who you are so we can compare your answers at the start and the end.");
+    const untold = surveyWords.confidentialPoints({ leadName: null, facilitatorNames: null, namesOffOn: "2027-12-09", programmeKind: "fellowship" });
+    assert.ok(untold.points.includes("Your facilitators never see your answers."));
+    const screen = read("src/features/surveys/answer/AnswerScreen.tsx");
+    const drawnBox = screen.indexOf("<section className={styles.box} aria-label={survey.box.heading}>");
+    const drawnQuestions = screen.indexOf("<SurveyForm ");
+    assert.ok(drawnBox !== -1 && drawnQuestions !== -1 && drawnBox < drawnQuestions, "the confidential box is no longer drawn above a survey's questions");
+    // tests/surveys-routes.test.mjs drives every route and page as every kind
+    // of caller; tests/surveys-items.test.mjs holds the box word for word.
+    for (const suite of ["surveys-routes.test.mjs", "surveys-items.test.mjs"]) {
+      assert.ok(existsSync(join(REPO_ROOT, "tests", suite)), `tests/${suite} is gone`);
+    }
+  });
+
+  test("a survey keeps nothing about how it is filled in; with the answers, only when they were sent, how, and whether the group had met; and never an IP address", () => {
+    assert.match(
+      PAGE_FLAT,
+      /<li> A survey records nothing about how you fill it in: not when you opened it, how long you spent on it or which page you were on, and none of your answers is kept until you send them\. We record when you sent them, whether you used your own link or were signed in, and whether your group had met for the first time by then\. We never keep your IP address with them, and the request logs our hosting provider keeps \(see Operational logs\) are never matched to them\. <\/li>/,
+    );
+    // The one write of an answer, field by field.
+    const answer = withoutComments(read("src/lib/surveys/answer.ts"));
+    const kept = /tx\.set\(answerRef, \{([\s\S]*?)\}\);/.exec(answer);
+    assert.ok(kept, "could not find where an answer is kept");
+    assert.deepEqual(
+      [...kept[1].matchAll(/^\s*(\w+)(?=[:,])/gm)].map((field) => field[1]),
+      ["surveyId", "roundId", "respondent", "answers", "sentAt", "via", "afterFirstSession"],
+      "an answer now keeps something the policy does not list",
+    );
+    assert.match(kept[1], /sentAt: FieldValue\.serverTimestamp\(\),/);
+    assert.match(answer, /const afterFirstSession = groupHasMet\(await toldGroupOf\(db, survey\.runId, person\.respondent\.uid\), now\);/);
+    // "Whether you used your own link or were signed in": each route says which.
+    assert.match(read("src/app/api/surveys/answer/route.ts"), /via: "link",/);
+    assert.match(read("src/app/api/surveys/[surveyId]/answer/route.ts"), /via: "signed-in",/);
+    // Nothing before Send: the pages a survey is answered on, and what they
+    // read, write nothing, and the form keeps nothing in the browser.
+    for (const file of [
+      "src/app/survey/[token]/page.tsx",
+      "src/app/(app)/learn/[runId]/survey/[surveyId]/page.tsx",
+      "src/lib/surveys/answerView.ts",
+      "src/lib/surveys/personFacts.ts",
+    ]) {
+      assert.ok(
+        !/\.(?:set|update|add|create|delete)\(|runTransaction\(|\.batch\(\)/.test(withoutComments(read(file))),
+        `${file} now writes something when a survey is opened`,
+      );
+    }
+    assert.deepEqual(
+      sourceFilesNaming(/\b(?:localStorage|sessionStorage|indexedDB)\b/).filter((file) => insideSurveyCode(file) || file.startsWith("src/app/survey/")),
+      [],
+      "a survey's page now keeps something in the browser before it is sent",
+    );
+    // The address is read once, inside the rate limit's key, and kept nowhere.
+    const link = withoutComments(read("src/app/api/surveys/answer/route.ts"));
+    assert.equal((link.match(/clientIp\(/g) ?? []).length, 1, "the link's answer route reads the caller's address for more than its rate limit");
+    assert.match(link, /rateLimit\(`surveys:answer:ip:\$\{clientIp\(req\)\}`, 30, 60_000\)/);
+    // tests/surveys-no-tracking.test.mjs walks every survey file for an
+    // activity record, an address or a user agent, and a page that writes.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-no-tracking.test.mjs")));
+  });
+
+  test("every question in a survey can be skipped, and no code of the applications, admissions or courses reads a survey", () => {
+    assert.match(PAGE_FLAT, /<li> Every question can be skipped\. Nothing you say in a survey affects your place on a programme or an application\. <\/li>/);
+    // The rule, run: the before survey requires nothing, and a question stored
+    // as required is refused.
+    const template = surveyItems.beforeSurveyItems(["One", "Two", "Three", "Four", "Five"]);
+    assert.deepEqual(surveyItems.validateSurveyItems(template), []);
+    assert.ok(surveyItems.surveyQuestionsOf(template).every((question) => question.required !== true), "the before survey requires an answer");
+    const required = template.map((item) => (item.id === "q_catastrophe" ? { ...item, required: true } : item));
+    assert.deepEqual(
+      surveyItems.validateSurveyItems(required).map((problem) => problem.message),
+      ["Every question in a survey can be skipped, so none is required."],
+    );
+    assert.equal(surveyWords.ANSWER_WORDS.skippable, "Every question can be skipped.");
+    // Nothing said in one reaches a place or an application: the code that
+    // decides them reaches no survey code (the walk above names every file
+    // that does).
+    const decides = sourceFilesNaming(SURVEY_CODE)
+      .filter((file) => !insideSurveyCode(file))
+      .filter((file) => /^src\/(?:lib|features|app\/api)\/(?:applications|admissions|courses)\//.test(file) || /^src\/app\/\(app\)\/(?:admin\/admissions|admin\/courses|learn\/\[runId\]\/(?!survey\/))/.test(file));
+    assert.deepEqual(decides, [], "code that decides a place or an application now reads a survey");
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-items.test.mjs")));
+  });
+
+  test("a survey and its reminder go as important notices, each with a link of its person's own, and the reminder only to people who have not answered", () => {
+    assert.match(PAGE_FLAT, /<li> We keep your name with your answers so that we can compare them with your answers to the same questions at the end of the programme, and so that a reminder goes only to people who have not answered\. Only admins see who has answered\. <\/li>/);
+    assert.match(PAGE_FLAT, /<li> A survey and its reminder are emailed as important notices, so your notification settings do not switch them off\. Each email carries a link of your own, so you can answer without signing in\. Anyone holding it could answer in your name, so keep it to yourself\. <\/li>/);
+    // Both go through the notice lane, which reads nobody's settings and has
+    // no unsubscribe link (§2c holds the lane to that), and through no other door.
+    const sending = withoutComments(read("src/lib/surveys/sending.ts"));
+    assert.match(sending, /const result = await sendNotice\(\{/);
+    assert.match(sending, /surface: "course-survey",/);
+    assert.ok(!/\bsendEmail\(|wantsEmailFor|addressesForSend/.test(sending), "a survey or its reminder now goes through a door that reads the notification settings");
+    // The reminder: people it was sent to who have not answered, and still hold a place.
+    assert.match(sending, /\.filter\(\(person\) => person\.sentAt !== null && !person\.answered && holding\.has\(person\.respondent\.uid\)\)/);
+    assert.match(sending, /const owed = plan\.unanswered;/);
+    // A link of their own: 32 random bytes, one row each.
+    assert.match(sending, /return randomBytes\(32\)\.toString\("base64url"\);/);
+    // Who it is for: everybody holding a place, by the hand-over's own test.
+    assert.match(read("src/lib/surveys/audience.ts"), /holders: placeHoldersOn\(form, audience\.programmeId, applications, decisions\)/);
+    // tests/notification-classification.test.mjs holds both sends to the
+    // notice class; tests/surveys-routes.test.mjs reads every email.
+    for (const suite of ["notification-classification.test.mjs", "surveys-routes.test.mjs"]) {
+      assert.ok(existsSync(join(REPO_ROOT, "tests", suite)), `tests/${suite} is gone`);
+    }
+  });
+
+  test("names come off survey answers a year after the programme's last session, by a job that is on unless an admin turns it off, and the answers stay in the totals", () => {
+    // The pairing §2's check on deletion periods cannot make: that check knows
+    // "30 days afterwards" and "delete or anonymise", and not "a year after".
+    assert.match(
+      PAGE_FLAT,
+      /<strong>Survey answers\.<\/strong> We take your name off your answers to a survey on the day it tells you, a year after the programme&apos;s last session, and delete the record that it was sent to you, with your link to answer it\. Your answers stay in its totals, no longer linked to you\./,
+    );
+    assert.match(PAGE_FLAT, /written work, feedback you gave us \(survey answers, below, are the exception\), and notes written about you\./);
+    const namesOff = withoutComments(read("src/lib/surveys/namesOff.ts"));
+    // The day: a year after the run's last session, from each live group's own calendar.
+    assert.match(namesOff, /const last = runEndOf\(run, groups, now\)\.lastDateKey;\s*return last \? aYearAfter\(last\) : null;/);
+    // On it, every answer's person goes and every row of who it was sent to
+    // is deleted; the answers stay.
+    const survey = /export async function takeNamesOffSurvey\([\s\S]*?\n\}/.exec(namesOff);
+    assert.ok(survey, "could not find how names come off a survey");
+    assert.match(survey[0], /await inPages\(named, \(batch, doc\) => batch\.update\(doc\.ref, \{ respondent: null \}\), db\);/);
+    assert.match(survey[0], /await inPages\(people\.docs, \(batch, doc\) => batch\.delete\(doc\.ref\), db\);/);
+    assert.equal((survey[0].match(/\.delete\(/g) ?? []).length, 1, "names coming off a survey now deletes more than who it was sent to");
+    // The job that keeps the promise, `surveys-names-off`: registered, and on
+    // unless an admin turns it off, because it emails nobody.
+    const job = withoutComments(read("src/lib/scheduler/jobs/surveyNamesOff.ts"));
+    assert.match(job, /id: "surveys-names-off",/);
+    assert.ok(!/enabledByDefault/.test(job), "the job that takes names off now waits for somebody to switch it on, while the policy says it happens");
+    assert.match(job, /const due = \(await listSurveys\(db\)\)\.filter\(\(survey\) => namesDueOff\(survey, today\)\);/);
+    assert.match(job, /const done = await takeNamesOffSurvey\(db, survey\);/);
+    const registry = withoutComments(read("src/lib/scheduler/registry.ts"));
+    assert.match(registry, /^\s*"surveys-names-off",$/m);
+    assert.match(registry, /^\s*surveyNamesOffJob,$/m);
+    assert.match(registry, /return job\.enabledByDefault !== false;/);
+    // The box tells each person the same day, and that the totals stay.
+    const box = surveyWords.confidentialPoints({ leadName: null, facilitatorNames: null, namesOffOn: "2027-12-09", programmeKind: "fellowship" });
+    assert.ok(box.points.includes("Your name comes off on Thu 9 Dec 2027, a year after the fellowship ends. The totals stay."), "the box no longer tells somebody the day their name comes off");
+    // tests/surveys-routes.test.mjs runs the job the day before and on the
+    // day; tests/surveys-items.test.mjs counts the year, 29 February included.
+    for (const suite of ["surveys-routes.test.mjs", "surveys-items.test.mjs"]) {
+      assert.ok(existsSync(join(REPO_ROOT, "tests", suite)), `tests/${suite} is gone`);
+    }
+  });
+
+  test("a deletion takes the name off a person's survey answers at once and deletes the record of each survey sent to them, and the answers stay", () => {
+    assert.match(PAGE_FLAT, /<li> Your answers to surveys, no longer linked to you: they stay in the totals\. <\/li>/);
+    const cascade = withoutComments(read("src/lib/firestore/accountDeletion.ts"));
+    assert.match(
+      cascade,
+      /const off = await takeNamesOffForAccount\(db, uid\);\s*summary\.surveyPeopleDeleted = off\.people;\s*summary\.surveyAnswersNamesTakenOff = off\.answers;/,
+      "the account deletion no longer takes the name off survey answers, which the policy lists among what a deletion removes",
+    );
+    const account = /export async function takeNamesOffForAccount\([\s\S]*?\n\}/.exec(withoutComments(read("src/lib/surveys/namesOff.ts")));
+    assert.ok(account, "could not find how a deleted account's name comes off its survey answers");
+    assert.match(account[0], /db\.collection\(SURVEY_ANSWERS_COLLECTION\)\.where\("respondent\.uid", "==", uid\)\.get\(\)/);
+    assert.match(account[0], /db\.collection\(SURVEY_PEOPLE_COLLECTION\)\.where\("respondent\.uid", "==", uid\)\.get\(\)/);
+    assert.match(account[0], /await inPages\(answers\.docs, \(batch, doc\) => batch\.update\(doc\.ref, \{ respondent: null \}\), db\);/);
+    assert.match(account[0], /await inPages\(people\.docs, \(batch, doc\) => batch\.delete\(doc\.ref\), db\);/);
+    assert.equal((account[0].match(/\.delete\(/g) ?? []).length, 1, "a deletion now removes survey answers, which the policy says stay in the totals");
+    // tests/surveys-deletion.test.mjs runs the cascade over survey records.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-deletion.test.mjs")));
   });
 });
 
@@ -3257,31 +3608,41 @@ describe("the re-consent gate", () => {
         /; that certificates are sent to the people who finished and to facilitators, private until you turn the link on;/,
         /It starts private: until you turn its link on, only you can open it\./,
       ],
+      // No longer the list's last clause either, so it too sits between two
+      // semicolons; the pattern it replaces began "and that" and ended the list.
       [
         "the calendar link",
-        /; and that you can add your sessions to your calendar with a private link, which your calendar&apos;s provider fetches and you can replace\./,
+        /; that you can add your sessions to your calendar with a private link, which your calendar&apos;s provider fetches and you can replace;/,
         /gives you a private link to your sessions.*your calendar&apos;s provider \(Apple, Google or Microsoft, for example\) fetches it from us.*You can replace it at any time from the same place, and the old link then shows nothing\./,
+      ],
+      [
+        "that a survey is confidential, and when the name comes off",
+        /; and that our surveys are confidential: only admins see who said what, and your name comes off a year after the programme\./,
+        /Every survey is confidential: we keep your answers with your name, and each survey says so at the top\. Only NAISI&apos;s admins can see who said what\..*We take your name off your answers to a survey on the day it tells you, a year after the programme&apos;s last session/,
       ],
       [
         "facilitators see names only",
         /It also says that facilitators see names only, never email addresses,/,
         /They never see your email address:/,
       ],
+      // The policy says four now, with the attendance among them; the pattern
+      // this replaces said three.
       [
         "a programme's attendance is a logged download",
         /and that downloads of a programme&apos;s attendance are recorded\./,
-        /Three of those downloads are recorded/,
+        /Four of those downloads are recorded, with who asked for it, what it covered, how many people were in it and when: the membership list, the answers to a circulated worksheet, a programme&apos;s attendance,/,
       ],
     ]) {
       assert.match(paragraph, said, `the accept page no longer says v7 changed ${what}`);
       assert.match(CURRENT_FLAT, policy, `the accept page says v7 changed ${what}, and v7 does not say it`);
     }
     // The owner's wording, 25 October 2026: the list has one "and that",
-    // before its last clause, rather than two in a row.
+    // before its last clause, rather than two in a row. The last clause is now
+    // the survey's; it was the calendar link's.
     const list = paragraph.slice(paragraph.indexOf("It says what"), paragraph.indexOf("It also says"));
     assert.ok(list.length > 200, "could not find the accept page's list of what v7 says");
     assert.equal((list.match(/\band that\b/g) ?? []).length, 1, "the accept page's list of what v7 says has more than one \"and that\", or none");
-    assert.match(list, /; and that you can add your sessions to your calendar with a private link, which your calendar&apos;s provider fetches and you can replace\. $/);
+    assert.match(list, /; and that our surveys are confidential: only admins see who said what, and your name comes off a year after the programme\. $/);
     // A register's notes are not among what a lead reads (§2g), so the
     // paragraph does not say they are. The notes it does name for the lead
     // are the ones its groups' facilitators share.

@@ -204,3 +204,10 @@ both emails, totals), `tests/surveys-routes.test.mjs` (every route and page as
 every kind of caller), `tests/surveys-deletion.test.mjs` (both cascades),
 `tests/surveys-no-tracking.test.mjs` (no activity, no address, no page that
 writes).
+
+The privacy policy says what a survey keeps, who sees it, when names come off
+and what a deletion does, under "When you answer a survey", and
+`tests/privacy-policy.test.mjs` holds each of those sentences to the code here:
+who reaches survey code, the fields an answer keeps, the notice lane, the
+names-off job and the deletion step. A change that alters any of them changes
+the policy first.
