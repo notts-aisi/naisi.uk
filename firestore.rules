@@ -3122,6 +3122,20 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === coursePairs ===
+    // Each person's place in a group's pairs for a session in pairs
+    // (src/lib/firestore/coursePairs.ts): which pair they are in and whether
+    // they are bringing a laptop. Written only by the pairs route on the Admin
+    // SDK (the group's live facilitators, the programme's lead or an admin),
+    // and read only on the server through src/lib/courses/pairs/readers.ts,
+    // after each page's own gate. So every browser is refused, the person a
+    // record is about, their partners, the group's facilitators, the
+    // programme's lead and admins included: a client read would hand a fellow
+    // another pair, and anybody the group's laptops.
+    match /coursePairs/{recordId} {
+      allow read, write: if false;
+    }
+
     // === coursePredictions ===
     // Each person's sealed predictions on a run (src/lib/firestore/coursePredictions.ts):
     // both cards' answers, when the first was sealed and when it was opened.
