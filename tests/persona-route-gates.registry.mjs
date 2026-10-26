@@ -1236,6 +1236,22 @@ export const ROUTES = {
         "check, since an empty body sends no table.",
     },
   },
+  "/api/courses/[courseId]/routes": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: reading a pasted list of routes is an " +
+        "admin's, decided before the body or any document is read, and the admin meets the body check " +
+        "on an empty one.",
+    },
+    PUT: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: saving a course's routes and " +
+        "deadlines is an admin's, decided before the body or any document is read, and the admin meets " +
+        "the body check on an empty one.",
+    },
+  },
   "/api/courses/[courseId]/templates": {
     POST: {
       expect: adminOnly(400),
@@ -1714,6 +1730,25 @@ export const ROUTES = {
       why:
         "View-as is refused first, then the session, then the gate: saving a pasted Start here or Glossary " +
         "is an admin's, decided before the body or any document is read, and the admin meets the page check.",
+    },
+  },
+  "/api/courses/runs/[runId]/fill-in-boxes": {
+    GET: {
+      expect: signedIn(400),
+      why:
+        "Session required, then the query is checked before anything is read (whose boxes, and which " +
+        "week), so every signed-in persona meets the same 400 on an empty one. Once a valid query arrives " +
+        "the one gate decides (the writer's group's facilitators, the programme's lead and admins; a " +
+        "facilitator's own, the lead and admins) before a row is read.",
+    },
+  },
+  "/api/courses/runs/[runId]/fill-in-boxes/[boxId]": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the body is checked before anything is " +
+        "read, so every signed-in persona meets the same 400 on an empty one. The caller's own seat, " +
+        "or a group they facilitate, is asked once a valid body arrives.",
     },
   },
   "/api/courses/runs/[runId]/material-notes": {
