@@ -39,7 +39,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { textOf } from "./lib/facilitatorPagesWorld.mjs";
 import { ACCESS, AGI, ANSWER, MONDAY, ROUND, RUN, SAM_SAID, makePeopleWorld, peopleSeed } from "./lib/peopleWorld.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");

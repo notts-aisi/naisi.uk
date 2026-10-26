@@ -42,7 +42,7 @@ const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 mock.timers.enable({ apis: ["Date"], now: MONDAY });
 
 const w = await makePeopleWorld("__facilitatorBeforeSuite");
-const { world, at, reset, summary, home, peoplePage, viewOf, loadTs, everything } = w;
+const { at, reset, summary, home, peoplePage, viewOf, loadTs, everything } = w;
 const { press, place, publish, reply } = w.join;
 const words = await loadTs(join("lib", "courses", "facilitatorPageWords.ts"));
 
