@@ -405,7 +405,7 @@ export const ROUTES = {
   "/api/admin/registrations/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamEntriesCleared", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -494,7 +494,7 @@ export const ROUTES = {
   "/api/admin/users/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamEntriesCleared", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -873,6 +873,16 @@ export const ROUTES = {
         "It takes no body: after the session it reads the form the ids name, and the battery's ids " +
         "name none, so every signed-in persona is told the programme is not there. With real ids the " +
         "role comes from the form, and a test goes only to the address on the session.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/hand-in": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "An incubator's hand-in dates, from the Teams tab: view-as is refused first, then the session, then " +
+        "the body (a whole date or null, and a week from 1 to 60 or null) is checked before anything is read, " +
+        "so every signed-in persona meets the same 400 on an empty one. Who may set them (the programme's " +
+        "lead or an admin) is decided from the form once a valid body arrives.",
     },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email": {
@@ -1887,6 +1897,41 @@ export const ROUTES = {
         "View-as is refused first, then the session, then the body is checked before anything is " +
         "read, so every signed-in persona meets the same 400 on an empty one. The caller's own seat " +
         "is asked once a valid body arrives.",
+    },
+  },
+  "/api/courses/runs/[runId]/team/check-in": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "This week's check-in on a team's page: view-as is refused first, then the session, then the body " +
+        "is checked before anything is read, so every signed-in persona meets the same 400 on an empty one. " +
+        "Whether the caller is in a team they have been told about is asked once a valid body arrives.",
+    },
+  },
+  "/api/courses/runs/[runId]/team/hand-in": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "A team's one hand-in: as the check-in, the body (a link, a summary, who did what, the tick) is " +
+        "checked before anything is read, then whether the caller is in a team they have been told about, " +
+        "then the due day's 23:59.",
+    },
+  },
+  "/api/courses/runs/[runId]/team/links": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Adding a link to a team's page: as the check-in, the body (a label and an https address) is " +
+        "checked before anything is read, then whether the caller is in a team they have been told about.",
+    },
+  },
+  "/api/courses/runs/[runId]/team/links/[linkId]": {
+    DELETE: {
+      expect: signedIn(403),
+      why:
+        "Removing a link takes no body: after the session the caller's own seat on the run is read first, " +
+        "and the battery's run addresses nothing, so every signed-in persona is refused the same way " +
+        "whether or not the run exists, before any link is read.",
     },
   },
   "/api/courses/runs/[runId]/packs-and-cases/[blockId]": {
@@ -3182,6 +3227,14 @@ export const PAGES = {
       "is no programme here' in place of the page with a 200; a reviewer of the programme is told " +
       "the tab is the lead's and admins', and a fellowship's address that teams are an incubator's.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams/[teamId]": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: for those admitted, a " +
+      "form that is missing and a programme the caller has no role on render 'there is no programme here' " +
+      "with a 200; a reviewer of the programme is told the tab is the lead's and admins', and a team that is " +
+      "not on the run the programme names is said in one sentence.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/ratings": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
     why:
@@ -3516,6 +3569,18 @@ export const PAGES = {
       "A run under /learn: the run layout sends every approved account back to /learn when the " +
       "run is missing, and the page sends anybody not taking part in its pitching week to the " +
       "run's home.",
+  },
+  "/(app)/learn/[runId]/team": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page sends anybody who is not in a team they have been told about to the run's home.",
+  },
+  "/(app)/learn/[runId]/team/hand-in": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page sends anybody who is not in a team they have been told about to the run's home.",
   },
   "/(app)/learn/[runId]/progress": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),

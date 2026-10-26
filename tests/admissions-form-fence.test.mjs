@@ -426,6 +426,13 @@ const ROUND_SURFACES = {
       "loadProgrammeTeams, which starts from the form's own loader and answers 'none' for a round " +
       "that is not a form, and the page then says there is no programme here",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams/[teamId]": {
+    kind: "form",
+    why:
+      "one team's page, read only, for an incubator's lead and admins. It reaches the round only through " +
+      "teamsGate, which starts from the form's own loader and answers 'none' for a round that is not a form, " +
+      "and the page then says there is no programme here",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/ratings": {
     kind: "form",
     why:
@@ -718,6 +725,13 @@ const ROUND_SURFACES = {
     why:
       "sends the caller a test of the team email, through sendTeamEmailTest, which loads the round " +
       "with the form's own loader and finds nothing for a round that is not a form",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/hand-in": {
+    kind: "form",
+    why:
+      "sets an incubator's hand-in dates on the run its programme names. It loads the round through " +
+      "teamsGate, the form's own loader, before it reads or writes the run, and answers a round that is " +
+      "not a form as a programme that is not here",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email": {
     kind: "form",
