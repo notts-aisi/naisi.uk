@@ -1703,6 +1703,17 @@ service cloud.firestore {
           ? !request.resource.data.keys().hasAny(['rubric'])
           : !request.resource.data.diff(resource.data).affectedKeys().hasAny(['rubric']);
       }
+      // A course's routes and deadlines (CourseDoc.routes in
+      // src/lib/firestore/courses.ts) are the server's: their route
+      // (/api/courses/[courseId]/routes) reads a pasted list against
+      // courseRoutesProblems, groups of rows a rule cannot walk, and only an
+      // admin may save one. No browser writes the field, admins included; the
+      // course editor's own writes never carry it.
+      function courseRoutesUntouched() {
+        return resource == null
+          ? !request.resource.data.keys().hasAny(['routes'])
+          : !request.resource.data.diff(resource.data).affectedKeys().hasAny(['routes']);
+      }
 
       // ---- V3 W3 PR20: draft reads ---------------------------------------
       // A DRAFT course is staff-only. Every other status (published,
@@ -1769,9 +1780,10 @@ service cloud.firestore {
         && request.resource.data.get('archived', false) == false
         && request.resource.data.get('crest', null) == null
         && courseDayBeforeOk()
-        && courseRubricUntouched();
+        && courseRubricUntouched()
+        && courseRoutesUntouched();
 
-      allow update: if courseCrestOk() && courseDayBeforeOk() && courseRubricUntouched() && (isAdmin()
+      allow update: if courseCrestOk() && courseDayBeforeOk() && courseRubricUntouched() && courseRoutesUntouched() && (isAdmin()
         || (
           (canApproveCourse() || isCourseCollaborator()
             || (canDraftCourse() && isOwnCourse()))
