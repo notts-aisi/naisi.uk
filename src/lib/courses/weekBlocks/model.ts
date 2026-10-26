@@ -377,8 +377,8 @@ export type AnswerBox = {
  * as it does on an exercise's id today). The due MOMENT is each group's
  * (`due.ts`): on the day before the group's session by the course's time
  * (`CourseDoc.dayBeforeDueTime`), moved to the group's next session when
- * that one is cancelled. Feedback on the rubric and the review are later
- * pages'.
+ * that one is cancelled. The answer each person writes, its review and its
+ * feedback on the course's rubric: `src/lib/courses/writtenAnswers/`.
  */
 export type WrittenAnswerBlock = {
   id: string;
